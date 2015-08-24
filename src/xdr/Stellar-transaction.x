@@ -53,7 +53,7 @@ struct CreateAccountOp
 struct PaymentOp
 {
     AccountID destination; // recipient of the payment
-    Asset asset;     // what they end up with
+    Asset asset;           // what they end up with
     int64 amount;          // amount they end up with
 };
 
@@ -71,12 +71,12 @@ Result: PathPaymentResult
 struct PathPaymentOp
 {
     Asset sendAsset; // asset we pay with
-    int64 sendMax;         // the maximum amount of sendAsset to
-                           // send (excluding fees).
-                           // The operation will fail if can't be met
+    int64 sendMax;   // the maximum amount of sendAsset to
+                     // send (excluding fees).
+                     // The operation will fail if can't be met
 
     AccountID destination; // recipient of the payment
-    Asset destAsset; // what they end up with
+    Asset destAsset;       // what they end up with
     int64 destAmount;      // amount they end up with
 
     Asset path<5>; // additional hops it must go through to get there
@@ -109,10 +109,10 @@ Result: CreatePassiveOfferResult
 */
 struct CreatePassiveOfferOp
 {
-    Asset selling;  // A
-    Asset buying;   // B
-    int64 amount;   // amount taker gets. if set to 0, delete the offer
-    Price price;    // cost of A in terms of B
+    Asset selling; // A
+    Asset buying;  // B
+    int64 amount;  // amount taker gets. if set to 0, delete the offer
+    Price price;   // cost of A in terms of B
 };
 
 /* Set Account Options
@@ -178,7 +178,7 @@ struct AllowTrustOp
     case ASSET_TYPE_CREDIT_ALPHANUM4:
         opaque assetCode4[4];
 
-	case ASSET_TYPE_CREDIT_ALPHANUM12:
+    case ASSET_TYPE_CREDIT_ALPHANUM12:
         opaque assetCode12[12];
 
         // add other asset types here in the future
@@ -364,7 +364,7 @@ enum PaymentResultCode
     PAYMENT_SRC_NO_TRUST = -3,       // no trust line on source account
     PAYMENT_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
     PAYMENT_NO_DESTINATION = -5,     // destination account does not exist
-    PAYMENT_NO_TRUST = -6, // destination missing a trust line for asset
+    PAYMENT_NO_TRUST = -6,       // destination missing a trust line for asset
     PAYMENT_NOT_AUTHORIZED = -7, // destination not authorized to hold asset
     PAYMENT_LINE_FULL = -8       // destination would go above their limit
 };
@@ -390,11 +390,11 @@ enum PathPaymentResultCode
     PATH_PAYMENT_SRC_NO_TRUST = -3,       // no trust line on source account
     PATH_PAYMENT_SRC_NOT_AUTHORIZED = -4, // source not authorized to transfer
     PATH_PAYMENT_NO_DESTINATION = -5,     // destination account does not exist
-    PATH_PAYMENT_NO_TRUST = -6,       // dest missing a trust line for asset
-    PATH_PAYMENT_NOT_AUTHORIZED = -7, // dest not authorized to hold asset
-    PATH_PAYMENT_LINE_FULL = -8,      // dest would go above their limit
-    PATH_PAYMENT_TOO_FEW_OFFERS = -9, // not enough offers to satisfy path
-    PATH_PAYMENT_OVER_SENDMAX = -10   // could not satisfy sendmax
+    PATH_PAYMENT_NO_TRUST = -6,           // dest missing a trust line for asset
+    PATH_PAYMENT_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
+    PATH_PAYMENT_LINE_FULL = -8,          // dest would go above their limit
+    PATH_PAYMENT_TOO_FEW_OFFERS = -9,     // not enough offers to satisfy path
+    PATH_PAYMENT_OVER_SENDMAX = -10       // could not satisfy sendmax
 };
 
 struct SimplePaymentResult

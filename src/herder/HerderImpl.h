@@ -108,8 +108,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     struct TxMap
     {
-        SequenceNumber mMaxSeq {0};
-        int64_t mTotalFees {0};
+        SequenceNumber mMaxSeq{0};
+        int64_t mTotalFees{0};
         std::unordered_map<Hash, TransactionFramePtr> mTransactions;
         void addTx(TransactionFramePtr);
         void recalculate();

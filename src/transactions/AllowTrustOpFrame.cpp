@@ -26,8 +26,8 @@ AllowTrustOpFrame::getNeededThreshold() const
 }
 
 bool
-AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
-                           LedgerDelta& delta, LedgerManager& ledgerManager)
+AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                           LedgerManager& ledgerManager)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
@@ -48,16 +48,16 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     Asset ci;
     ci.type(mAllowTrust.asset.type());
-    if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         ci.alphaNum4().assetCode = mAllowTrust.asset.assetCode4();
         ci.alphaNum4().issuer = getSourceID();
-    } else if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    }
+    else if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         ci.alphaNum12().assetCode = mAllowTrust.asset.assetCode12();
         ci.alphaNum12().issuer = getSourceID();
     }
-    
 
     Database& db = ledgerManager.getDatabase();
     TrustFrame::pointer trustLine;
@@ -71,8 +71,8 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
         return false;
     }
 
-    metrics.NewMeter({"op-allow-trust", "success", "apply"},
-                     "operation").Mark();
+    metrics.NewMeter({"op-allow-trust", "success", "apply"}, "operation")
+        .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
     trustLine->setAuthorized(mAllowTrust.authorize);
@@ -87,19 +87,20 @@ AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
-        metrics.NewMeter({"op-allow-trust", "invalid",
-                          "malformed-non-alphanum"},
-                         "operation").Mark();
+        metrics.NewMeter(
+                    {"op-allow-trust", "invalid", "malformed-non-alphanum"},
+                    "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
     Asset ci;
     ci.type(mAllowTrust.asset.type());
-    if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         ci.alphaNum4().assetCode = mAllowTrust.asset.assetCode4();
         ci.alphaNum4().issuer = getSourceID();
-    } else if(mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    }
+    else if (mAllowTrust.asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         ci.alphaNum12().assetCode = mAllowTrust.asset.assetCode12();
         ci.alphaNum12().issuer = getSourceID();
@@ -107,9 +108,9 @@ AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (!isAssetValid(ci))
     {
-        metrics.NewMeter({"op-allow-trust", "invalid",
-                          "malformed-invalid-asset"},
-                         "operation").Mark();
+        metrics.NewMeter(
+                    {"op-allow-trust", "invalid", "malformed-invalid-asset"},
+                    "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }

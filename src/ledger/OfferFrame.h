@@ -43,7 +43,8 @@ class OfferFrame : public EntryFrame
     OfferFrame(LedgerEntry const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
-    static OfferFrame::pointer from(AccountID const & account, ManageOfferOp const& op);
+    static OfferFrame::pointer from(AccountID const& account,
+                                    ManageOfferOp const& op);
 
     EntryFrame::pointer
     copy() const override
@@ -86,7 +87,7 @@ class OfferFrame : public EntryFrame
                              Database& db);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
-        Asset const& pays, Asset const& gets,
+                               Asset const& pays, Asset const& gets,
                                std::vector<OfferFrame::pointer>& retOffers,
                                Database& db);
 

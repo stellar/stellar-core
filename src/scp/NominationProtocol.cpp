@@ -115,7 +115,8 @@ NominationProtocol::isSane(SCPStatement const& st)
     return res;
 }
 
-// only called after a call to isNewerStatement so safe to replace the mLatestNomination
+// only called after a call to isNewerStatement so safe to replace the
+// mLatestNomination
 void
 NominationProtocol::recordStatement(SCPStatement const& st)
 {
@@ -315,7 +316,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                 for (auto const& v : nom.votes)
                 {
                     if (mAccepted.find(v) != mAccepted.end())
-                    {  // v is already accepted
+                    { // v is already accepted
                         continue;
                     }
                     if (mSlot.federatedAccept(
@@ -498,36 +499,34 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     nomState["started"] = mNominationStarted;
 
     int counter = 0;
-    for(auto const& v : mVotes)
+    for (auto const& v : mVotes)
     {
         nomState["X"][counter] = mSlot.getValueString(v);
         counter++;
     }
 
     counter = 0;
-    for(auto const& v : mAccepted)
+    for (auto const& v : mAccepted)
     {
         nomState["Y"][counter] = mSlot.getValueString(v);
         counter++;
     }
 
     counter = 0;
-    for(auto const& v : mCandidates)
+    for (auto const& v : mCandidates)
     {
         nomState["Z"][counter] = mSlot.getValueString(v);
         counter++;
     }
 
     counter = 0;
-    for(auto const& v : mLatestNominations)
+    for (auto const& v : mLatestNominations)
     {
         nomState["N"][counter]["id"] = PubKeyUtils::toShortString(v.first);
         nomState["N"][counter]["statement"] = mSlot.envToStr(v.second);
 
         counter++;
     }
-
-
 
     ret["nomination"].append(nomState);
 }

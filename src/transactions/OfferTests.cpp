@@ -152,8 +152,7 @@ TEST_CASE("create offer", "[tx][offers]")
         offer = loadOffer(b1, 4, app);
         REQUIRE(offer->getAmount() == 100);
 
-        txFrame =
-            manageOfferOp(4, b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
+        txFrame = manageOfferOp(4, b1, usdCur, idrCur, lowPrice, 100, b1_seq++);
         REQUIRE(applyCheck(txFrame, delta, app));
 
         REQUIRE(!loadOffer(a1, 3, app, false));
@@ -897,23 +896,19 @@ TEST_CASE("create offer", "[tx][offers]")
                         REQUIRE(!loadOffer(e1, offerE1, app, false));
 
                         line = loadTrustLine(e1, secUsdCur, app);
-                        checkAmounts(line->getBalance(),
-                                     150 * assetMultiplier);
+                        checkAmounts(line->getBalance(), 150 * assetMultiplier);
 
                         line = loadTrustLine(e1, secIdrCur, app);
                         checkAmounts(line->getBalance(),
-                                     trustLineBalance -
-                                         100 * assetMultiplier);
+                                     trustLineBalance - 100 * assetMultiplier);
 
                         // F1
                         line = loadTrustLine(f1, secUsdCur, app);
                         checkAmounts(line->getBalance(),
-                                     trustLineBalance -
-                                         150 * assetMultiplier);
+                                     trustLineBalance - 150 * assetMultiplier);
 
                         line = loadTrustLine(f1, secIdrCur, app);
-                        checkAmounts(line->getBalance(),
-                                     100 * assetMultiplier);
+                        checkAmounts(line->getBalance(), 100 * assetMultiplier);
                     }
                     SECTION("Creates an offer, top seller reaches limit")
                     {
@@ -958,23 +953,19 @@ TEST_CASE("create offer", "[tx][offers]")
                         REQUIRE(!loadOffer(b1, offerB1, app, false));
 
                         line = loadTrustLine(b1, usdCur, app);
-                        checkAmounts(line->getBalance(),
-                                     150 * assetMultiplier);
+                        checkAmounts(line->getBalance(), 150 * assetMultiplier);
 
                         line = loadTrustLine(b1, idrCur, app);
                         checkAmounts(line->getBalance(),
-                                     trustLineBalance -
-                                         100 * assetMultiplier);
+                                     trustLineBalance - 100 * assetMultiplier);
 
                         // C1
                         line = loadTrustLine(c1, usdCur, app);
                         checkAmounts(line->getBalance(),
-                                     trustLineBalance -
-                                         225 * assetMultiplier);
+                                     trustLineBalance - 225 * assetMultiplier);
 
                         line = loadTrustLine(c1, idrCur, app);
-                        checkAmounts(line->getBalance(),
-                                     150 * assetMultiplier);
+                        checkAmounts(line->getBalance(), 150 * assetMultiplier);
                     }
                 }
             }
@@ -991,8 +982,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     // fund a1 with some USD
                     applyCreditPaymentTx(app, gateway, a1, usdCur,
-                                         gateway_seq++,
-                                         1000 * assetMultiplier);
+                                         gateway_seq++, 1000 * assetMultiplier);
 
                     // sell USD for IDR
                     auto resA = applyCreateOfferWithResult(

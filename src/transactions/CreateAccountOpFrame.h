@@ -22,8 +22,8 @@ class CreateAccountOpFrame : public OperationFrame
     CreateAccountOpFrame(Operation const& op, OperationResult& res,
                          TransactionFrame& parentTx);
 
-    bool doApply(medida::MetricsRegistry& metrics,
-                 LedgerDelta& delta, LedgerManager& ledgerManager) override;
+    bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+                 LedgerManager& ledgerManager) override;
     bool doCheckValid(medida::MetricsRegistry& metrics) override;
 
     static CreateAccountResultCode

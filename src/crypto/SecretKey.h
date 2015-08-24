@@ -81,8 +81,7 @@ bool verifySig(PublicKey const& key, Signature const& signature,
                ByteSlice const& bin);
 
 void clearVerifySigCache();
-void flushVerifySigCacheCounts(uint64_t& hits,
-                               uint64_t& misses,
+void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
                                uint64_t& ignores);
 
 std::string toShortString(PublicKey const& pk);
@@ -114,10 +113,10 @@ Hash random();
 }
 }
 
-namespace std {
-template<>
-struct hash<stellar::PublicKey>
+namespace std
 {
-  size_t operator()(stellar::PublicKey const & x) const noexcept;
+template <> struct hash<stellar::PublicKey>
+{
+    size_t operator()(stellar::PublicKey const& x) const noexcept;
 };
 }

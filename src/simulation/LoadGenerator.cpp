@@ -90,7 +90,7 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
         mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
-                                   asio::error_code const& error)
+            asio::error_code const& error)
                                {
                                    if (!error)
                                    {
@@ -104,16 +104,16 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
         CLOG(WARNING, "LoadGen")
             << "Application is not in sync, load generation inhibited.";
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
-                                   asio::error_code const& error)
-                               {
-                                   if (!error)
-                                   {
-                                       this->scheduleLoadGeneration(app, nAccounts,
-                                                                    nTxs, txRate,
-                                                                    autoRate);
-                                   }
-                               });
+        mLoadTimer->async_wait(
+            [this, &app, nAccounts, nTxs, txRate, autoRate](
+                asio::error_code const& error)
+            {
+                if (!error)
+                {
+                    this->scheduleLoadGeneration(app, nAccounts, nTxs, txRate,
+                                                 autoRate);
+                }
+            });
     }
 }
 
@@ -189,8 +189,7 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
         }
         CLOG(INFO, "LoadGen")
             << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
-            << " auto-tx target rate from " << rate << " to "
-            << rate + incr;
+            << " auto-tx target rate from " << rate << " to " << rate + incr;
         rate += incr;
         return true;
     }
@@ -339,7 +338,8 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
             // tx apply rate.
             auto& m = app.getMetrics();
             auto& ledgerCloseTimer = m.NewTimer({"ledger", "ledger", "close"});
-            auto& ledgerAgeClosedTimer = m.NewTimer({"ledger", "age", "closed"});
+            auto& ledgerAgeClosedTimer =
+                m.NewTimer({"ledger", "age", "closed"});
 
             if (ledgerNum > 10 && ledgerCloseTimer.count() > 5)
             {
@@ -362,7 +362,8 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 // enough, independent of database close-speed.
 
                 double targetAge =
-                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 1000.0;
+                    (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() *
+                    1000.0;
                 double actualAge = ledgerAgeClosedTimer.mean();
 
                 if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
@@ -852,7 +853,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 txm.mTrustlineCreated.Mark();
                 Operation trustOp, paymentOp;
                 Asset ci = txtest::makeAsset(tl.mIssuer->mKey,
-                                                   tl.mIssuer->mIssuedAsset);
+                                             tl.mIssuer->mIssuedAsset);
                 trustOp.body.type(CHANGE_TRUST);
                 trustOp.sourceAccount.activate() = mTo->mKey.getPublicKey();
                 trustOp.body.changeTrustOp().limit = LOADGEN_TRUSTLINE_LIMIT;
@@ -877,8 +878,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             {
                 txm.mOfferCreated.Mark();
                 Operation offerOp;
-                Asset buyCi = txtest::makeAsset(
-                    mTo->mBuyCredit->mKey, mTo->mBuyCredit->mIssuedAsset);
+                Asset buyCi = txtest::makeAsset(mTo->mBuyCredit->mKey,
+                                                mTo->mBuyCredit->mIssuedAsset);
 
                 Asset sellCi = txtest::makeAsset(
                     mTo->mSellCredit->mKey, mTo->mSellCredit->mIssuedAsset);
@@ -956,8 +957,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             assetPath.pop_back();
             auto sendMax = mAmount * 10;
             txs.emplace_back(txtest::createPathPaymentTx(
-                mFrom->mKey, mTo->mKey, sendAsset, sendMax, recvAsset,
-                mAmount, mFrom->mSeq + 1, &assetPath));
+                mFrom->mKey, mTo->mKey, sendAsset, sendMax, recvAsset, mAmount,
+                mFrom->mSeq + 1, &assetPath));
         }
     }
     break;

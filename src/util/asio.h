@@ -7,7 +7,7 @@
 #if defined(ASIO_WINDOWS_RUNTIME)
 // Empty.
 #elif defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_)
-#  error `asio.h` is somewhat particular about when it gets included -- it wants to be the first to include <windows.h>. Include it before everything else.
+#error `asio.h` is somewhat particular about when it gets included -- it wants to be the first to include <windows.h>. Include it before everything else.
 #endif
 
 #ifndef ASIO_SEPARATE_COMPILATION
@@ -57,7 +57,6 @@
 #ifndef ASIO_HAS_STD_THREAD
 #define ASIO_HAS_STD_THREAD
 #endif
-
 
 #ifndef ASIO_HAS_STD_SYSTEM_ERROR
 #define ASIO_HAS_STD_SYSTEM_ERROR

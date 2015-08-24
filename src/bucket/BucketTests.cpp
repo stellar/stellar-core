@@ -304,13 +304,15 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
         BucketList bl1, bl2;
         autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
-        CLOG(DEBUG, "Bucket") << "Adding batches with duplicates to bucket list";
+        CLOG(DEBUG, "Bucket")
+            << "Adding batches with duplicates to bucket list";
         for (uint32_t i = 1;
              !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
             auto liveBatch = liveGen(8);
             auto doubleLiveBatch = liveBatch;
-            doubleLiveBatch.insert(doubleLiveBatch.end(), liveBatch.begin(), liveBatch.end());
+            doubleLiveBatch.insert(doubleLiveBatch.end(), liveBatch.begin(),
+                                   liveBatch.end());
             auto deadBatch = deadGen(8);
             app->getClock().crank(false);
             bl1.addBatch(*app, i, liveBatch, deadBatch);
@@ -341,53 +343,58 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
 
-        Application::pointer app = Application::create(clock, cfg);
-        BucketList bl;
-        BucketManager& bm = app->getBucketManager();
-        autocheck::generator<std::vector<LedgerEntry>> liveGen;
-        autocheck::generator<std::vector<LedgerKey>> deadGen;
-        auto& mergeTimer = bm.getMergeTimer();
-        CLOG(INFO, "Bucket") << "Establishing random bucketlist";
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
-        {
-            auto& level = bl.getLevel(i);
-            level.setCurr(Bucket::fresh(bm, liveGen(8), deadGen(8)));
-            level.setSnap(Bucket::fresh(bm, liveGen(8), deadGen(8)));
-        }
+    Application::pointer app = Application::create(clock, cfg);
+    BucketList bl;
+    BucketManager& bm = app->getBucketManager();
+    autocheck::generator<std::vector<LedgerEntry>> liveGen;
+    autocheck::generator<std::vector<LedgerKey>> deadGen;
+    auto& mergeTimer = bm.getMergeTimer();
+    CLOG(INFO, "Bucket") << "Establishing random bucketlist";
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        auto& level = bl.getLevel(i);
+        level.setCurr(Bucket::fresh(bm, liveGen(8), deadGen(8)));
+        level.setSnap(Bucket::fresh(bm, liveGen(8), deadGen(8)));
+    }
 
-        for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        std::vector<uint32_t> ledgers = {BucketList::levelHalf(i),
+                                         BucketList::levelSize(i)};
+        for (auto j : ledgers)
         {
-            std::vector<uint32_t> ledgers = { BucketList::levelHalf(i),
-                                              BucketList::levelSize(i) };
-            for (auto j : ledgers)
+            auto n = mergeTimer.count();
+            bl.addBatch(*app, j, liveGen(8), deadGen(8));
+            app->getClock().crank(false);
+            for (auto k = 0; k < BucketList::kNumLevels; ++k)
             {
-                auto n = mergeTimer.count();
-                bl.addBatch(*app, j, liveGen(8), deadGen(8));
-                app->getClock().crank(false);
-                for (auto k = 0; k < BucketList::kNumLevels; ++k)
+                auto& next = bl.getLevel(k).getNext();
+                if (next.isLive())
                 {
-                    auto& next = bl.getLevel(k).getNext();
-                    if (next.isLive())
-                    {
-                        next.resolve();
-                    }
+                    next.resolve();
                 }
-                n = mergeTimer.count() - n;
-                CLOG(INFO, "Bucket") << "Added batch at ledger " << j
-                                     << ", merges provoked: " << n;
-                REQUIRE(n > 0);
-                REQUIRE(n < 2 * BucketList::kNumLevels);
             }
+            n = mergeTimer.count() - n;
+            CLOG(INFO, "Bucket") << "Added batch at ledger " << j
+                                 << ", merges provoked: " << n;
+            REQUIRE(n > 0);
+            REQUIRE(n < 2 * BucketList::kNumLevels);
         }
+    }
 
-        auto pair0 = bl.getLevel(BucketList::kNumLevels-3).getCurr()->countLiveAndDeadEntries();
-        auto pair1 = bl.getLevel(BucketList::kNumLevels-2).getCurr()->countLiveAndDeadEntries();
-        auto pair2 = bl.getLevel(BucketList::kNumLevels-1).getCurr()->countLiveAndDeadEntries();
-        REQUIRE(pair0.second != 0);
-        REQUIRE(pair1.second != 0);
-        REQUIRE(pair2.second == 0);
+    auto pair0 = bl.getLevel(BucketList::kNumLevels - 3)
+                     .getCurr()
+                     ->countLiveAndDeadEntries();
+    auto pair1 = bl.getLevel(BucketList::kNumLevels - 2)
+                     .getCurr()
+                     ->countLiveAndDeadEntries();
+    auto pair2 = bl.getLevel(BucketList::kNumLevels - 1)
+                     .getCurr()
+                     ->countLiveAndDeadEntries();
+    REQUIRE(pair0.second != 0);
+    REQUIRE(pair1.second != 0);
+    REQUIRE(pair2.second == 0);
 }
-
 
 TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
 {
@@ -531,7 +538,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
 }
 
 static void
-clearFutures(Application::pointer app, BucketList&  bl)
+clearFutures(Application::pointer app, BucketList& bl)
 {
 
     // First go through the BL and mop up all the FutureBuckets.
@@ -549,7 +556,9 @@ clearFutures(Application::pointer app, BucketList&  bl)
     size_t waiting = 0, finished = 0;
     for (size_t i = 0; i < n; ++i)
     {
-        app->getWorkerIOService().post([&]{
+        app->getWorkerIOService().post(
+            [&]
+            {
                 std::unique_lock<std::mutex> lock(mutex);
                 if (++waiting == n)
                 {
@@ -557,7 +566,10 @@ clearFutures(Application::pointer app, BucketList&  bl)
                 }
                 else
                 {
-                    cv.wait(lock, [&]{ return waiting == n; });
+                    cv.wait(lock, [&]
+                            {
+                                return waiting == n;
+                            });
                 }
                 ++finished;
                 cv2.notify_one();
@@ -565,7 +577,10 @@ clearFutures(Application::pointer app, BucketList&  bl)
     }
     {
         std::unique_lock<std::mutex> lock(mutex);
-        cv2.wait(lock, [&]{ return finished == n; });
+        cv2.wait(lock, [&]
+                 {
+                     return finished == n;
+                 });
     }
 }
 
@@ -858,7 +873,8 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
         {
             clock.crank(false);
         }
-        REQUIRE(m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison").count() >= 10);
+        REQUIRE(m.NewMeter({"bucket", "checkdb", "object-compare"},
+                           "comparison").count() >= 10);
     }
 
     SECTION("failing checkdb")
@@ -899,12 +915,14 @@ TEST_CASE("bucket apply", "[bucket]")
     auto& db = app->getDatabase();
     auto& sess = db.getSession();
 
-    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size() << " live entries";
+    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
+                         << " live entries";
     birth->apply(db);
     auto count = AccountFrame::countObjects(sess);
     REQUIRE(count == live.size() + 1 /* root account */);
 
-    CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size() << " dead entries";
+    CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size()
+                         << " dead entries";
     death->apply(db);
     count = AccountFrame::countObjects(sess);
     REQUIRE(count == 1);
@@ -941,7 +959,8 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     auto& db = app->getDatabase();
     auto& sess = db.getSession();
 
-    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size() << " live entries";
+    CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
+                         << " live entries";
     {
         TIMED_SCOPE(timerObj, "apply");
         soci::transaction sqltx(sess);

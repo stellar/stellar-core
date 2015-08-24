@@ -10,5 +10,4 @@ namespace stellar
 {
 
 void dumpxdr(std::string const& filename);
-
 }

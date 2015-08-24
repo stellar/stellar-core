@@ -30,6 +30,9 @@ struct ThresholdSetter
 
 bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 
+void checkEntry(LedgerEntry const& le, Application& app);
+void checkAccount(AccountID const& id, Application& app);
+
 time_t getTestDate(int day, int month, int year);
 
 void closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month,
@@ -96,22 +99,22 @@ TransactionFramePtr createCreditPaymentTx(SecretKey& from, SecretKey& to,
                                           int64_t amount);
 
 PaymentResult applyCreditPaymentTx(Application& app, SecretKey& from,
-                                   SecretKey& to, Asset& ci,
-                                   SequenceNumber seq, int64_t amount,
+                                   SecretKey& to, Asset& ci, SequenceNumber seq,
+                                   int64_t amount,
                                    PaymentResultCode result = PAYMENT_SUCCESS);
 
 TransactionFramePtr createPathPaymentTx(SecretKey& from, SecretKey& to,
-                                        Asset const& sendCur,
-                                        int64_t sendMax,
+                                        Asset const& sendCur, int64_t sendMax,
                                         Asset const& destCur,
                                         int64_t destAmount, SequenceNumber seq,
                                         std::vector<Asset>* path = nullptr);
 
-PathPaymentResult applyPathPaymentTx(
-    Application& app, SecretKey& from, SecretKey& to, Asset const& sendCur,
-    int64_t sendMax, Asset const& destCur, int64_t destAmount,
-    SequenceNumber seq, PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
-    std::vector<Asset>* path = nullptr);
+PathPaymentResult
+applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+                   Asset const& sendCur, int64_t sendMax, Asset const& destCur,
+                   int64_t destAmount, SequenceNumber seq,
+                   PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
+                   std::vector<Asset>* path = nullptr);
 
 TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
                                   Asset& selling, Asset& buying,
@@ -119,24 +122,21 @@ TransactionFramePtr manageOfferOp(uint64 offerId, SecretKey& source,
                                   SequenceNumber seq);
 
 TransactionFramePtr createPassiveOfferOp(SecretKey& source, Asset& selling,
-                                         Asset& buying,
-                                         Price const& price, int64_t amount,
-                                         SequenceNumber seq);
+                                         Asset& buying, Price const& price,
+                                         int64_t amount, SequenceNumber seq);
 
 // expects success
 // expects a new offer to be created
 // returns the ID of the new offer
 uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                          SecretKey& source, Asset& selling,
-                          Asset& buying, Price const& price,
-                          int64_t amount, SequenceNumber seq);
+                          SecretKey& source, Asset& selling, Asset& buying,
+                          Price const& price, int64_t amount,
+                          SequenceNumber seq);
 
-ManageOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey& source, Asset& selling,
-                           Asset& buying, Price const& price,
-                           int64_t amount, SequenceNumber seq,
-                           ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
+ManageOfferResult applyCreateOfferWithResult(
+    Application& app, LedgerDelta& delta, uint64 offerId, SecretKey& source,
+    Asset& selling, Asset& buying, Price const& price, int64_t amount,
+    SequenceNumber seq, ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
 
 TransactionFramePtr createSetOptions(SecretKey& source, SequenceNumber seq,
                                      AccountID* inflationDest,

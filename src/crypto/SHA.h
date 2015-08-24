@@ -19,7 +19,7 @@ class SHA256
 {
   public:
     static std::unique_ptr<SHA256> create();
-    virtual ~SHA256() {};
+    virtual ~SHA256(){};
     virtual void reset() = 0;
     virtual void add(ByteSlice const& bin) = 0;
     virtual uint256 finish() = 0;

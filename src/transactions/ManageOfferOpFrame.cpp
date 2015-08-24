@@ -119,9 +119,9 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         {
             // make sure the currencies are the same
             if (!compareAsset(mManageOffer.selling,
-                                 mSellSheepOffer->getOffer().selling) ||
+                              mSellSheepOffer->getOffer().selling) ||
                 !compareAsset(mManageOffer.buying,
-                                 mSellSheepOffer->getOffer().buying))
+                              mSellSheepOffer->getOffer().buying))
             {
                 metrics.NewMeter({"op-manage-offer", "invalid", "mismatch"},
                                  "operation").Mark();
@@ -217,7 +217,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
-                    (o.getPrice() > maxWheatPrice))   
+                    (o.getPrice() > maxWheatPrice))
                 {
                     return OfferExchange::eStop;
                 }
@@ -334,6 +334,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             if (!creatingNewOffer)
             {
                 mSellSheepOffer->storeDelete(tempDelta, db);
+                mSourceAccount->addNumEntries(-1, ledgerManager);
+                mSourceAccount->storeChange(tempDelta, db);
             }
         }
 

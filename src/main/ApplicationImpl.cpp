@@ -340,8 +340,7 @@ ApplicationImpl::checkDB()
     getClock().getIOService().post(
         [this]
         {
-            checkDBAgainstBuckets(this->getMetrics(),
-                                  this->getBucketManager(),
+            checkDBAgainstBuckets(this->getMetrics(), this->getBucketManager(),
                                   this->getDatabase(),
                                   this->getBucketManager().getBucketList());
         });
@@ -439,14 +438,12 @@ ApplicationImpl::syncOwnMetrics()
     // them.
     uint64_t vhit = 0, vmiss = 0, vignore = 0;
     PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss, vignore);
-    mMetrics->NewMeter({"crypto", "verify", "hit"},
-                       "signature").Mark(vhit);
-    mMetrics->NewMeter({"crypto", "verify", "miss"},
-                       "signature").Mark(vmiss);
-    mMetrics->NewMeter({"crypto", "verify", "ignore"},
-                       "signature").Mark(vignore);
-    mMetrics->NewMeter({"crypto", "verify", "total"},
-                       "signature").Mark(vhit + vmiss + vignore);
+    mMetrics->NewMeter({"crypto", "verify", "hit"}, "signature").Mark(vhit);
+    mMetrics->NewMeter({"crypto", "verify", "miss"}, "signature").Mark(vmiss);
+    mMetrics->NewMeter({"crypto", "verify", "ignore"}, "signature")
+        .Mark(vignore);
+    mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
+        .Mark(vhit + vmiss + vignore);
 }
 
 void

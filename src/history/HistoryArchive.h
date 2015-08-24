@@ -34,18 +34,14 @@ struct HistoryStateBucket
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(next),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
 
     template <class Archive>
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(curr),
-           CEREAL_NVP(next),
-           CEREAL_NVP(snap));
+        ar(CEREAL_NVP(curr), CEREAL_NVP(next), CEREAL_NVP(snap));
     }
 };
 
@@ -67,8 +63,7 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq,
-                        BucketList& buckets);
+    HistoryArchiveState(uint32_t ledgerSeq, BucketList& buckets);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();
@@ -92,9 +87,7 @@ struct HistoryArchiveState
     void
     serialize(Archive& ar)
     {
-        ar(CEREAL_NVP(version),
-           CEREAL_NVP(server),
-           CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 
@@ -102,9 +95,7 @@ struct HistoryArchiveState
     void
     serialize(Archive& ar) const
     {
-        ar(CEREAL_NVP(version),
-           CEREAL_NVP(server),
-           CEREAL_NVP(currentLedger),
+        ar(CEREAL_NVP(version), CEREAL_NVP(server), CEREAL_NVP(currentLedger),
            CEREAL_NVP(currentBuckets));
     }
 

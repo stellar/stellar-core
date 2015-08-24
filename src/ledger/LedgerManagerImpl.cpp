@@ -99,9 +99,12 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
-    , mLedgerAge(app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
-    , mLedgerStateCurrent(app.getMetrics().NewCounter({"ledger", "state", "current"}))
-    , mLedgerStateChanges(app.getMetrics().NewTimer({"ledger", "state", "changes"}))
+    , mLedgerAge(
+          app.getMetrics().NewCounter({"ledger", "age", "current-seconds"}))
+    , mLedgerStateCurrent(
+          app.getMetrics().NewCounter({"ledger", "state", "current"}))
+    , mLedgerStateChanges(
+          app.getMetrics().NewTimer({"ledger", "state", "changes"}))
     , mLastClose(mApp.getClock().now())
     , mLastStateChange(mApp.getClock().now())
     , mSyncingLedgersSize(

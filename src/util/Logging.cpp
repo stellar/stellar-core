@@ -28,7 +28,8 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
     {
         datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
     }
-    std::string shortFmt = datetime + " " + peerID + " [%thread] [%logger] %level %msg";
+    std::string shortFmt =
+        datetime + " " + peerID + " [%thread] [%logger] %level %msg";
     std::string longFmt = shortFmt + " [%fbase:%line]";
 
     gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
@@ -74,20 +75,19 @@ el::Level
 Logging::getLogLevel(std::string const& partition)
 {
     el::Logger* logger = el::Loggers::getLogger(partition);
-    if(logger->typedConfigurations()->enabled(el::Level::Trace))
+    if (logger->typedConfigurations()->enabled(el::Level::Trace))
         return el::Level::Trace;
-    if(logger->typedConfigurations()->enabled(el::Level::Debug))
+    if (logger->typedConfigurations()->enabled(el::Level::Debug))
         return el::Level::Debug;
-    if(logger->typedConfigurations()->enabled(el::Level::Info))
+    if (logger->typedConfigurations()->enabled(el::Level::Info))
         return el::Level::Info;
-    if(logger->typedConfigurations()->enabled(el::Level::Warning))
+    if (logger->typedConfigurations()->enabled(el::Level::Warning))
         return el::Level::Warning;
-    if(logger->typedConfigurations()->enabled(el::Level::Error))
+    if (logger->typedConfigurations()->enabled(el::Level::Error))
         return el::Level::Error;
-    if(logger->typedConfigurations()->enabled(el::Level::Fatal))
+    if (logger->typedConfigurations()->enabled(el::Level::Fatal))
         return el::Level::Fatal;
     return el::Level::Unknown;
-
 }
 
 // Trace < Debug < Info < Warning < Error < Fatal < None
@@ -96,31 +96,35 @@ Logging::setLogLevel(el::Level level, const char* partition)
 {
     el::Configurations config = gDefaultConf;
 
-    if(level == el::Level::Debug)
+    if (level == el::Level::Debug)
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
-    else if(level == el::Level::Info)
+    else if (level == el::Level::Info)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
-    } else if(level == el::Level::Warning)
+    }
+    else if (level == el::Level::Warning)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
-    } else if(level == el::Level::Error)
+    }
+    else if (level == el::Level::Error)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
-    } else if(level == el::Level::Fatal)
+    }
+    else if (level == el::Level::Fatal)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Info, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Warning, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Error, el::ConfigurationType::Enabled, "false");
-    } else if(level == el::Level::Unknown)
+    }
+    else if (level == el::Level::Unknown)
     {
         config.set(el::Level::Trace, el::ConfigurationType::Enabled, "false");
         config.set(el::Level::Debug, el::ConfigurationType::Enabled, "false");
@@ -130,17 +134,16 @@ Logging::setLogLevel(el::Level level, const char* partition)
         config.set(el::Level::Fatal, el::ConfigurationType::Enabled, "false");
     }
 
-    if(partition)
+    if (partition)
         el::Loggers::reconfigureLogger(partition, config);
     else
         el::Loggers::reconfigureAllLoggers(config);
 }
 
-
 std::string
 Logging::getStringFromLL(el::Level level)
 {
-    switch(level)
+    switch (level)
     {
     case el::Level::Global:
         return "Global";

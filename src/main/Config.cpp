@@ -43,7 +43,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
-    HTTP_PORT = DEFAULT_PEER_PORT+1;
+    HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
     PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
     PARANOID_MODE = false;
@@ -122,9 +122,12 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         }
     }
 
-    qset.threshold = ceil( ((qset.validators.size() + qset.innerSets.size())*thresholdPercent) / 100.0);
-
-    LOG(INFO) << qset.threshold;
+    // round up: n*percent/100
+    qset.threshold = uint32(
+        1 +
+        (((qset.validators.size() + qset.innerSets.size()) * thresholdPercent -
+          1) /
+         100));
 
     if (qset.threshold == 0 ||
         (qset.validators.empty() && qset.innerSets.empty()))
@@ -206,27 +209,27 @@ Config::load(std::string const& filename)
                 int64_t f = item.second->as<int64_t>()->value();
                 if (f <= 0 || f >= UINT32_MAX)
                 {
-                    throw std::invalid_argument("invalid DESIRED_MAX_TX_PER_LEDGER");
+                    throw std::invalid_argument(
+                        "invalid DESIRED_MAX_TX_PER_LEDGER");
                 }
                 DESIRED_MAX_TX_PER_LEDGER = (uint32_t)f;
             }
-            else if(item.first == "FAILURE_SAFETY")
+            else if (item.first == "FAILURE_SAFETY")
             {
-                if(!item.second->as<int64_t>())
+                if (!item.second->as<int64_t>())
                 {
-                    throw std::invalid_argument(
-                        "invalid FAILURE_SAFETY");
+                    throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
                 int64_t f = item.second->as<int64_t>()->value();
-                if(f < 0 || f >= UINT32_MAX)
+                if (f < 0 || f >= UINT32_MAX)
                 {
                     throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
                 FAILURE_SAFETY = (uint32_t)f;
             }
-            else if(item.first == "UNSAFE_QUORUM")
+            else if (item.first == "UNSAFE_QUORUM")
             {
-                if(!item.second->as<bool>())
+                if (!item.second->as<bool>())
                 {
                     throw std::invalid_argument("invalid UNSAFE_QUORUM");
                 }
@@ -380,9 +383,11 @@ Config::load(std::string const& filename)
             {
                 if (!item.second->as<int64_t>())
                 {
-                    throw std::invalid_argument("invalid MAX_CONCURRENT_SUBPROCESSES");
+                    throw std::invalid_argument(
+                        "invalid MAX_CONCURRENT_SUBPROCESSES");
                 }
-                MAX_CONCURRENT_SUBPROCESSES = (size_t)item.second->as<int64_t>()->value();
+                MAX_CONCURRENT_SUBPROCESSES =
+                    (size_t)item.second->as<int64_t>()->value();
             }
             else if (item.first == "HISTORY")
             {
@@ -469,30 +474,34 @@ Config::load(std::string const& filename)
     }
 }
 
-void 
+void
 Config::validateConfig()
 {
-    if(FAILURE_SAFETY == 0 && UNSAFE_QUORUM == false)
+    if (FAILURE_SAFETY == 0 && UNSAFE_QUORUM == false)
     {
-        LOG(ERROR) << "Can't have FAILURE_SAFETY=0 unless you also set UNSAFE_QUORUM=true. Be sure you know what you are doing!";
-        throw std::invalid_argument("SCP unsafe");
-    }
-    
-    unsigned int topSize = (unsigned int)( QUORUM_SET.validators.size() + QUORUM_SET.innerSets.size());
-
-    if(topSize < 3 * FAILURE_SAFETY + 1)
-    {
-        LOG(ERROR) << "Not enough nodes in your Quorum set to ensure your desired level of FAILURE_SAFETY.";
+        LOG(ERROR) << "Can't have FAILURE_SAFETY=0 unless you also set "
+                      "UNSAFE_QUORUM=true. Be sure you know what you are "
+                      "doing!";
         throw std::invalid_argument("SCP unsafe");
     }
 
-    unsigned int minSize = ceil(topSize * 67.0 / 100.0);
-    if(QUORUM_SET.threshold < minSize && UNSAFE_QUORUM == false)
+    unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
+                                          QUORUM_SET.innerSets.size());
+
+    if (topSize < 3 * FAILURE_SAFETY + 1)
     {
-        LOG(ERROR) << "Your THESHOLD_PERCENTAGE is too low. If you really want this set UNSAFE_QUORUM=true. Be sure you know what you are doing!";
+        LOG(ERROR) << "Not enough nodes in your Quorum set to ensure your "
+                      "desired level of FAILURE_SAFETY.";
+        throw std::invalid_argument("SCP unsafe");
+    }
+
+    unsigned int minSize = 1 + (topSize * 67 - 1) / 100;
+    if (QUORUM_SET.threshold < minSize && UNSAFE_QUORUM == false)
+    {
+        LOG(ERROR) << "Your THESHOLD_PERCENTAGE is too low. If you really want "
+                      "this set UNSAFE_QUORUM=true. Be sure you know what you "
+                      "are doing!";
         throw std::invalid_argument("SCP unsafe");
     }
 }
-
-
 }

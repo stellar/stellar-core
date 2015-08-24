@@ -72,7 +72,6 @@ EntryFrame::flushCachedEntry(LedgerKey const& key, Database& db)
     db.getEntryCache().erase_if_exists(s);
 }
 
-
 bool
 EntryFrame::cachedEntryExists(LedgerKey const& key, Database& db)
 {

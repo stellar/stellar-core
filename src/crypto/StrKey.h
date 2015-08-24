@@ -29,6 +29,5 @@ size_t getStrKeySize(size_t dataSize);
 // returns true if the strKey could be decoded
 bool fromStrKey(std::string const& strKey, uint8_t& outVersion,
                 std::vector<uint8_t>& decoded);
-
 }
 }

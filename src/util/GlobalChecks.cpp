@@ -14,12 +14,14 @@ namespace stellar
 {
 static std::thread::id mainThread = std::this_thread::get_id();
 
-void assertThreadIsMain()
+void
+assertThreadIsMain()
 {
     dbgAssert(mainThread == std::this_thread::get_id());
 }
 
-void dbgAbort()
+void
+dbgAbort()
 {
 #ifdef WIN32
     DebugBreak();
@@ -27,5 +29,4 @@ void dbgAbort()
     abort();
 #endif
 }
-
 }

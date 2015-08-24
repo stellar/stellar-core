@@ -260,12 +260,11 @@ PeerRecord::storePeerRecord(Database& db)
     if (!insertIfNew(db))
     {
         auto tm = VirtualClock::pointToTm(mNextAttempt);
-        auto prep = db.getPreparedStatement(
-            "UPDATE peers SET "
-            "nextattempt = :v1, "
-            "numfailures = :v2, "
-            "rank = :v3 "
-            "WHERE ip = :v4 AND port = :v5");
+        auto prep = db.getPreparedStatement("UPDATE peers SET "
+                                            "nextattempt = :v1, "
+                                            "numfailures = :v2, "
+                                            "rank = :v3 "
+                                            "WHERE ip = :v4 AND port = :v5");
         auto& st = prep.statement();
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));

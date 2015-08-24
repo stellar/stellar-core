@@ -217,9 +217,8 @@ TEST_CASE("txset", "[herder]")
                 REQUIRE(!txSet->checkValid(*app));
 
                 std::vector<TransactionFramePtr> removed;
-                txSet->trimInvalid(*app,removed);
+                txSet->trimInvalid(*app, removed);
                 REQUIRE(txSet->checkValid(*app));
-
             }
             SECTION("gap begin")
             {
@@ -293,7 +292,6 @@ TEST_CASE("surge", "[herder]")
     applyCreateAccountTx(*app, root, accountC, rootSeq++, 500000000);
     SequenceNumber accountCSeq = getAccountSeqNum(accountC, *app) + 1;
 
-
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
@@ -302,7 +300,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(root, destAccount, rootSeq++, n+10));
+            txSet->add(createPaymentTx(root, destAccount, rootSeq++, n + 10));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
@@ -313,26 +311,26 @@ TEST_CASE("surge", "[herder]")
     SECTION("over surge random")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 10; n++)
+        for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(root, destAccount, rootSeq++, n+10));
+            txSet->add(createPaymentTx(root, destAccount, rootSeq++, n + 10));
         }
-        random_shuffle(txSet->mTransactions.begin(), txSet->mTransactions.end());
+        random_shuffle(txSet->mTransactions.begin(),
+                       txSet->mTransactions.end());
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
 
-    
-
     SECTION("one account paying more")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 10; n++)
+        for (int n = 0; n < 10; n++)
         {
             txSet->add(createPaymentTx(root, destAccount, rootSeq++, n + 10));
-            auto tx=createPaymentTx(accountB, destAccount, accountBSeq++, n + 10);
+            auto tx =
+                createPaymentTx(accountB, destAccount, accountBSeq++, n + 10);
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
         }
@@ -340,7 +338,7 @@ TEST_CASE("surge", "[herder]")
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
-        for(auto& tx : txSet->mTransactions)
+        for (auto& tx : txSet->mTransactions)
         {
             REQUIRE(tx->getSourceID() == accountB.getPublicKey());
         }
@@ -348,21 +346,22 @@ TEST_CASE("surge", "[herder]")
     SECTION("one account paying more except for one tx")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 10; n++)
+        for (int n = 0; n < 10; n++)
         {
             auto tx = createPaymentTx(root, destAccount, rootSeq++, n + 10);
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
 
             tx = createPaymentTx(accountB, destAccount, accountBSeq++, n + 10);
-            if(n!=1) tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
+            if (n != 1)
+                tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
             txSet->add(tx);
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
-        for(auto& tx : txSet->mTransactions)
+        for (auto& tx : txSet->mTransactions)
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
@@ -371,35 +370,37 @@ TEST_CASE("surge", "[herder]")
     SECTION("one account paying more except for one tx")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 10; n++)
+        for (int n = 0; n < 10; n++)
         {
             auto tx = createPaymentTx(root, destAccount, rootSeq++, n + 10);
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
 
             tx = createPaymentTx(accountB, destAccount, accountBSeq++, n + 10);
-            if(n != 1) tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
+            if (n != 1)
+                tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
             txSet->add(tx);
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
-        for(auto& tx : txSet->mTransactions)
+        for (auto& tx : txSet->mTransactions)
         {
             REQUIRE(tx->getSourceID() == root.getPublicKey());
         }
     }
 
-    
     SECTION("a lot of txs")
     {
         // extra transaction would push the account below the reserve
-        for(int n = 0; n < 30; n++)
+        for (int n = 0; n < 30; n++)
         {
             txSet->add(createPaymentTx(root, destAccount, rootSeq++, n + 10));
-            txSet->add(createPaymentTx(accountB, destAccount, accountBSeq++, n + 10));
-            txSet->add(createPaymentTx(accountC, destAccount, accountCSeq++, n + 10));
+            txSet->add(
+                createPaymentTx(accountB, destAccount, accountBSeq++, n + 10));
+            txSet->add(
+                createPaymentTx(accountC, destAccount, accountCSeq++, n + 10));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(*app);

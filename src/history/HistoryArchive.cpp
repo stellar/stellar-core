@@ -32,8 +32,7 @@
 namespace stellar
 {
 
-unsigned const
-HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION = 1;
+unsigned const HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION = 1;
 
 bool
 HistoryArchiveState::futuresAllReady() const

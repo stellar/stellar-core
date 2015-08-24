@@ -183,9 +183,9 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     {
         AccountFrame::pointer issuer;
-        if(curB.type()==ASSET_TYPE_CREDIT_ALPHANUM4)
+        if (curB.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
             issuer = AccountFrame::loadAccount(curB.alphaNum4().issuer, db);
-        else if(curB.type()==ASSET_TYPE_CREDIT_ALPHANUM12)
+        else if (curB.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
             issuer = AccountFrame::loadAccount(curB.alphaNum12().issuer, db);
 
         if (!issuer)

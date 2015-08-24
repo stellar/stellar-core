@@ -45,8 +45,8 @@ class EntryFrame : public NonMovableOrCopyable
     // Static helpers for working with the DB LedgerEntry cache.
     static void flushCachedEntry(LedgerKey const& key, Database& db);
     static bool cachedEntryExists(LedgerKey const& key, Database& db);
-    static std::shared_ptr<LedgerEntry const> getCachedEntry(
-        LedgerKey const& key, Database& db);
+    static std::shared_ptr<LedgerEntry const>
+    getCachedEntry(LedgerKey const& key, Database& db);
     static void putCachedEntry(LedgerKey const& key,
                                std::shared_ptr<LedgerEntry const> p,
                                Database& db);
@@ -55,8 +55,7 @@ class EntryFrame : public NonMovableOrCopyable
     void flushCachedEntry(Database& db) const;
     void putCachedEntry(Database& db) const;
 
-    static void checkAgainstDatabase(LedgerEntry const& entry,
-                                     Database& db);
+    static void checkAgainstDatabase(LedgerEntry const& entry, Database& db);
 
     virtual EntryFrame::pointer copy() const = 0;
 

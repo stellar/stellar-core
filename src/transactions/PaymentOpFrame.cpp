@@ -133,9 +133,8 @@ PaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     }
     if (!isAssetValid(mPayment.asset))
     {
-        metrics.NewMeter(
-                    {"op-payment", "invalid", "malformed-invalid-asset"},
-                    "operation").Mark();
+        metrics.NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
+                         "operation").Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }

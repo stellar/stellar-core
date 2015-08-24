@@ -341,7 +341,7 @@ TEST_CASE("StrKey tests", "[crypto]")
 
         std::string encoded = strKey::toStrKey(version, in);
 
-        REQUIRE(encoded.size() == ((size + 3 + 4)/5 * 8));
+        REQUIRE(encoded.size() == ((size + 3 + 4) / 5 * 8));
 
         // check the no padding case
         if ((size + 3) % 5 == 0)
@@ -437,7 +437,8 @@ TEST_CASE("StrKey tests", "[crypto]")
     // we set the threshold quite wide here, to 98%. The test is very
     // slighly nondeterministic but this should give it plenty of leeway.
 
-    double detectionRate = (((double)n_detected) / ((double)n_corrupted)) * 100.0;
+    double detectionRate =
+        (((double)n_detected) / ((double)n_corrupted)) * 100.0;
     LOG(INFO) << "CRC16 error-detection rate " << detectionRate;
     REQUIRE(detectionRate > 98.0);
 }

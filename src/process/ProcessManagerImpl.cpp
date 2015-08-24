@@ -69,8 +69,7 @@ class ProcessExitEvent::Impl
 
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc,
-         std::string const& cmdLine,
-         std::string const& outFile)
+         std::string const& cmdLine, std::string const& outFile)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
@@ -78,8 +77,8 @@ class ProcessExitEvent::Impl
 #ifdef _MSC_VER
         , mProcessHandle(outerTimer->get_io_service())
 #endif
-        {
-        }
+    {
+    }
     void run();
 };
 
@@ -174,8 +173,8 @@ ProcessExitEvent::Impl::run()
         [sf](asio::error_code ec)
         {
             {
-                std::lock_guard<std::recursive_mutex>
-                    guard(ProcessManagerImpl::gImplsMutex);
+                std::lock_guard<std::recursive_mutex> guard(
+                    ProcessManagerImpl::gImplsMutex);
                 --ProcessManagerImpl::gNumProcessesActive;
             }
             if (ec)
@@ -185,8 +184,8 @@ ProcessExitEvent::Impl::run()
             else
             {
                 DWORD exitCode;
-                BOOL res = GetExitCodeProcess(sf->mProcessHandle.native_handle(),
-                                              &exitCode);
+                BOOL res = GetExitCodeProcess(
+                    sf->mProcessHandle.native_handle(), &exitCode);
                 if (!res)
                 {
                     exitCode = 1;
@@ -325,7 +324,8 @@ ProcessExitEvent::Impl::run()
         CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
         throw std::runtime_error("ProcessExitEvent::Impl already running");
     }
-    std::lock_guard<std::recursive_mutex> guard(ProcessManagerImpl::gImplsMutex);
+    std::lock_guard<std::recursive_mutex> guard(
+        ProcessManagerImpl::gImplsMutex);
     std::vector<std::string> args = split(mCmdLine);
     std::vector<char*> argv;
     for (auto& a : args)
@@ -346,8 +346,8 @@ ProcessExitEvent::Impl::run()
                 << "posix_spawn_file_actions_init() failed: " << strerror(err);
             throw std::runtime_error("posix_spawn_file_actions_init() failed");
         }
-        err = posix_spawn_file_actions_addopen(&fileActions, 1, mOutFile.c_str(),
-                                               O_RDWR | O_CREAT, 0600);
+        err = posix_spawn_file_actions_addopen(
+            &fileActions, 1, mOutFile.c_str(), O_RDWR | O_CREAT, 0600);
         if (err)
         {
             CLOG(ERROR, "Process")
@@ -416,10 +416,8 @@ ProcessManagerImpl::maybeRunPendingProcesses()
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "Process")
-                << "Error staring process: " << e.what();
-            CLOG(ERROR, "Process")
-                << "When running: " << i->mCmdLine;
+            CLOG(ERROR, "Process") << "Error staring process: " << e.what();
+            CLOG(ERROR, "Process") << "When running: " << i->mCmdLine;
         }
     }
 }
