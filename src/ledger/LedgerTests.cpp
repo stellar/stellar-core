@@ -149,7 +149,6 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
 
     auto& db = app->getDatabase();
     auto& session = db.getSession();
-    auto& cache = db.getEntryCache();
 
     EntryFrame::pointer le;
     do {
@@ -169,7 +168,7 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
     // The write should have removed it from the cache.
     REQUIRE(!EntryFrame::cachedEntryExists(key, db));
 
-    uint64_t balance0, balance1;
+    int64_t balance0, balance1;
 
     {
         soci::transaction sqltx(session);

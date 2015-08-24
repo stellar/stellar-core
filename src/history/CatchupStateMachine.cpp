@@ -347,9 +347,9 @@ CatchupStateMachine::enterFetchingState(std::shared_ptr<FileTransferInfo<FileCat
 
     for (auto& pair : mFileInfos)
     {
-        auto fi = pair.second;
-        advanceFileState(fi);
-        minimumState = std::min(fi->getState(), minimumState);
+        auto fi2 = pair.second;
+        advanceFileState(fi2);
+        minimumState = std::min(fi2->getState(), minimumState);
     }
 
     if (minimumState == FILE_CATCHUP_FAILED)

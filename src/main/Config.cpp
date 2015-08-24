@@ -122,9 +122,9 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         }
     }
 
-    qset.threshold = ceil( ((qset.validators.size() + qset.innerSets.size())*thresholdPercent) / 100.0);
-
-    LOG(INFO) << qset.threshold;
+    // round up: n*percent/100
+    qset.threshold = uint32(1 +
+        (((qset.validators.size() + qset.innerSets.size())*thresholdPercent - 1) / 100));
 
     if (qset.threshold == 0 ||
         (qset.validators.empty() && qset.innerSets.empty()))
@@ -486,7 +486,7 @@ Config::validateConfig()
         throw std::invalid_argument("SCP unsafe");
     }
 
-    unsigned int minSize = ceil(topSize * 67.0 / 100.0);
+    unsigned int minSize = 1 + (topSize * 67 - 1) / 100;
     if(QUORUM_SET.threshold < minSize && UNSAFE_QUORUM == false)
     {
         LOG(ERROR) << "Your THESHOLD_PERCENTAGE is too low. If you really want this set UNSAFE_QUORUM=true. Be sure you know what you are doing!";

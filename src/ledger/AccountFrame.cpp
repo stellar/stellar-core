@@ -431,10 +431,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                                 PubKeyUtils::toStrKey(finalSigner.pubKey);
                             {
                                 auto timer = db.getUpdateTimer("signer");
-                                auto prep = db.getPreparedStatement(
+                                auto prep2 = db.getPreparedStatement(
                                     "UPDATE signers set weight=:v1 where "
                                     "accountid=:v2 and publickey=:v3");
-                                auto& st = prep.statement();
+                                auto& st = prep2.statement();
                                 st.exchange(use(finalSigner.weight));
                                 st.exchange(use(actIDStrKey));
                                 st.exchange(use(signerStrKey));
@@ -451,11 +451,11 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(startSigner.pubKey);
 
-                    auto prep = db.getPreparedStatement(
+                    auto prep2 = db.getPreparedStatement(
                         "DELETE from signers where "
                         "accountid=:v2 and "
                         "publickey=:v3");
-                    auto& st = prep.statement();
+                    auto& st = prep2.statement();
                     st.exchange(use(actIDStrKey));
                     st.exchange(use(signerStrKey));
                     st.define_and_bind();
@@ -485,10 +485,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                         {
                             std::string signerStrKey =
                                 PubKeyUtils::toStrKey(finalSigner.pubKey);
-                            auto prep = db.getPreparedStatement(
+                            auto prep2 = db.getPreparedStatement(
                                 "UPDATE signers set weight=:v1 where "
                                 "accountid=:v2 and publickey=:v3");
-                            auto& st = prep.statement();
+                            auto& st = prep2.statement();
                             st.exchange(use(finalSigner.weight));
                             st.exchange(use(actIDStrKey));
                             st.exchange(use(signerStrKey));
@@ -510,11 +510,11 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
                     std::string signerStrKey =
                         PubKeyUtils::toStrKey(finalSigner.pubKey);
 
-                    auto prep = db.getPreparedStatement(
+                    auto prep2 = db.getPreparedStatement(
                         "INSERT INTO signers "
                         "(accountid,publickey,weight) "
                         "VALUES (:v1,:v2,:v3)");
-                    auto& st = prep.statement();
+                    auto& st = prep2.statement();
                     st.exchange(use(actIDStrKey));
                     st.exchange(use(signerStrKey));
                     st.exchange(use(finalSigner.weight));
