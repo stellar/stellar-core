@@ -98,7 +98,7 @@ struct AccountEntry
     SequenceNumber seqNum;    // last sequence number used for this account
     uint32 numSubEntries;     // number of sub-entries this account has
                               // drives the reserve
-    AccountID* inflationDest; // Account to vote during inflation
+    AccountID* inflationDest; // Account to vote for during inflation
     uint32 flags;             // see AccountFlags
 
     string32 homeDomain; // can be used for reverse federation and memo lookup
