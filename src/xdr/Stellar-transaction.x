@@ -316,16 +316,16 @@ struct TransactionEnvelope
 struct ClaimOfferAtom
 {
     // emited to identify the offer
-    AccountID offerOwner; // Account that owns the offer
+    AccountID sellerID; // Account that owns the offer
     uint64 offerID;
 
     // amount and asset taken from the owner
-    Asset assetClaimed;
-    int64 amountClaimed;
+    Asset assetSold;
+    int64 amountSold;
 
-    // amount and assetsent to the owner
-    Asset assetSend;
-    int64 amountSend;
+    // amount and asset sent to the owner
+    Asset assetBought;
+    int64 amountBought;
 };
 
 /******* CreateAccount Result ********/

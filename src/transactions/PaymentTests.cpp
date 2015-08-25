@@ -379,8 +379,8 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(b1Res.offerID == offerB1);
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
-            REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            REQUIRE(b1Res.sellerID == b1.getPublicKey());
+            checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 125 where sent, 25 were consumed by B's offer
@@ -434,8 +434,8 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(b1Res.offerID == offerB1);
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
-            REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            REQUIRE(b1Res.sellerID == b1.getPublicKey());
+            checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 105 where sent, 25 were consumed by B's offer
