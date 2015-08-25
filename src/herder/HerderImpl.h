@@ -119,7 +119,6 @@ class HerderImpl : public Herder, public SCPDriver
   private:
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
-    void expireBallot(uint64 slotIndex, SCPBallot const& ballot);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType

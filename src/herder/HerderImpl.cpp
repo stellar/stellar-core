@@ -1280,16 +1280,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
-void
-HerderImpl::expireBallot(uint64 slotIndex, SCPBallot const& ballot)
-
-{
-    mSCPMetrics.mBallotExpire.Mark();
-    assert(slotIndex == nextConsensusLedgerIndex());
-
-    mSCP.abandonBallot(slotIndex);
-}
-
 // Extra SCP methods overridden solely to increment metrics.
 void
 HerderImpl::updatedCandidateValue(uint64 slotIndex, Value const& value)
