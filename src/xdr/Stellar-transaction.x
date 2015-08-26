@@ -556,7 +556,7 @@ enum AccountMergeResultCode
 union AccountMergeResult switch (AccountMergeResultCode code)
 {
 case ACCOUNT_MERGE_SUCCESS:
-    void;
+    int64 sourceAccountBalance; // how much got transfered from source account
 default:
     void;
 };
