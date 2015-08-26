@@ -396,6 +396,26 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 200 * assetMultiplier);
         }
+
+        SECTION("send with path (takes own offer)")
+        {
+            // raise A1's balance by what we're trying to send
+            applyPaymentTx(app, root, a1, rootSeq++, 100 * assetMultiplier);
+
+            // offer is sell 100 USD for 100 XLM
+            applyCreateOffer(app, delta, 0, a1, usdCur, xlmCur, Price(1, 1),
+                                 100 * assetMultiplier, a1Seq++);
+
+            // A1: try to send 100 USD to B1 using XLM
+
+            std::vector<Asset> path;
+            path.push_back(xlmCur);
+
+            applyPathPaymentTx(app, a1, b1, xlmCur, 100 * assetMultiplier,
+                               usdCur, 100 * assetMultiplier, a1Seq++,
+                               PATH_PAYMENT_OFFER_CROSS_SELF);
+        }
+
         SECTION("send with path (offer participant reaching limit)")
         {
             // make it such that C can only receive 120 USD (4/5th of offerC)

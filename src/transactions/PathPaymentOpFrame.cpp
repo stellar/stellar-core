@@ -119,13 +119,26 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         OfferExchange oe(delta, ledgerManager);
 
         // curA -> curB
-        OfferExchange::ConvertResult r =
-            oe.convertWithOffers(curA, INT64_MAX, curASent, curB, curBReceived,
-                                 actualCurBReceived, nullptr);
+        OfferExchange::ConvertResult r = oe.convertWithOffers(
+            curA, INT64_MAX, curASent, curB, curBReceived, actualCurBReceived,
+            [this, &metrics](OfferFrame const& o)
+            {
+                if (o.getSellerID() == getSourceID())
+                {
+                    // we are crossing our own offer, potentially invalidating
+                    // mSourceAccount (balance or numSubEntries)
+                    metrics.NewMeter({"op-path-payment", "failure",
+                                      "offer-cross-self"},
+                                     "operation").Mark();
+                    innerResult().code(PATH_PAYMENT_OFFER_CROSS_SELF);
+                    return OfferExchange::eStop;
+                }
+                return OfferExchange::eKeep;
+            });
         switch (r)
         {
         case OfferExchange::eFilterStop:
-            assert(false); // no filter -> should not happen
+            return false;
             break;
         case OfferExchange::eOK:
             if (curBReceived == actualCurBReceived)

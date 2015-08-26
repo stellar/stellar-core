@@ -394,7 +394,8 @@ enum PathPaymentResultCode
     PATH_PAYMENT_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
     PATH_PAYMENT_LINE_FULL = -8,          // dest would go above their limit
     PATH_PAYMENT_TOO_FEW_OFFERS = -9,     // not enough offers to satisfy path
-    PATH_PAYMENT_OVER_SENDMAX = -10       // could not satisfy sendmax
+    PATH_PAYMENT_OFFER_CROSS_SELF = -10,  // would cross one of its own offers
+    PATH_PAYMENT_OVER_SENDMAX = -11       // could not satisfy sendmax
 };
 
 struct SimplePaymentResult
