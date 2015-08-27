@@ -201,6 +201,14 @@ struct LedgerEntry
         OfferEntry offer;
     }
     data;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
 };
 
 // list of all envelope types used in the application
