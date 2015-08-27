@@ -340,8 +340,10 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 }
 
 void
-AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
+AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 {
+    touch(delta);
+
     flushCachedEntry(db);
 
     std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
@@ -543,13 +545,13 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 }
 
 void
-AccountFrame::storeChange(LedgerDelta& delta, Database& db) const
+AccountFrame::storeChange(LedgerDelta& delta, Database& db)
 {
     storeUpdate(delta, db, false);
 }
 
 void
-AccountFrame::storeAdd(LedgerDelta& delta, Database& db) const
+AccountFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
     storeUpdate(delta, db, true);
 }

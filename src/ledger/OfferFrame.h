@@ -73,8 +73,8 @@ class OfferFrame : public EntryFrame
 
     // Instance-based overrides of EntryFrame.
     void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) const override;
-    void storeAdd(LedgerDelta& delta, Database& db) const override;
+    void storeChange(LedgerDelta& delta, Database& db) override;
+    void storeAdd(LedgerDelta& delta, Database& db) override;
 
     // Static helpers that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,

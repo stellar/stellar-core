@@ -23,7 +23,7 @@ class LedgerManager;
 
 class AccountFrame : public EntryFrame
 {
-    void storeUpdate(LedgerDelta& delta, Database& db, bool insert) const;
+    void storeUpdate(LedgerDelta& delta, Database& db, bool insert);
     bool mUpdateSigners;
 
     AccountEntry& mAccountEntry;
@@ -103,8 +103,8 @@ class AccountFrame : public EntryFrame
 
     // Instance-based overrides of EntryFrame.
     void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) const override;
-    void storeAdd(LedgerDelta& delta, Database& db) const override;
+    void storeChange(LedgerDelta& delta, Database& db) override;
+    void storeAdd(LedgerDelta& delta, Database& db) override;
 
     // Static helper that don't assume an instance.
     static void storeDelete(LedgerDelta& delta, Database& db,

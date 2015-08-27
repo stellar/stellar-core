@@ -46,6 +46,12 @@ LedgerDelta::getHeader()
     return mCurrentHeader.mHeader;
 }
 
+LedgerHeader const&
+LedgerDelta::getHeader() const
+{
+    return mCurrentHeader.mHeader;
+}
+
 LedgerHeaderFrame&
 LedgerDelta::getHeaderFrame()
 {

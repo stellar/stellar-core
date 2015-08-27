@@ -413,8 +413,10 @@ OfferFrame::computePrice() const
 }
 
 void
-OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
+OfferFrame::storeChange(LedgerDelta& delta, Database& db)
 {
+    touch(delta);
+
     auto timer = db.getUpdateTimer("offer");
     auto prep =
         db.getPreparedStatement("UPDATE offers SET amount=:a, pricen=:n, "
@@ -441,8 +443,10 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
 }
 
 void
-OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
+OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
+    touch(delta);
+
     std::string actIDStrKey = PubKeyUtils::toStrKey(mOffer.sellerID);
     auto timer = db.getInsertTimer("offer");
 

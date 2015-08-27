@@ -221,7 +221,7 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 }
 
 void
-TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
+TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 {
     assert(isValid());
 
@@ -230,6 +230,8 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 
     if (mIsIssuer)
         return;
+
+    touch(delta);
 
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
@@ -260,7 +262,7 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 }
 
 void
-TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
+TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
     assert(isValid());
 
@@ -269,6 +271,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 
     if (mIsIssuer)
         return;
+
+    touch(delta);
 
     std::string actIDStrKey, issuerStrKey, assetCode;
     unsigned int assetType = getKey().trustLine().asset.type();
