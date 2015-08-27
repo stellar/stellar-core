@@ -18,20 +18,21 @@ namespace stellar
 const char* OfferFrame::kSQLCreateStatement1 =
     "CREATE TABLE offers"
     "("
-    "sellerid       VARCHAR(56)  NOT NULL,"
-    "offerid         BIGINT       NOT NULL CHECK (offerid >= 0),"
-    "sellingassettype    INT,"
-    "sellingassetcode    VARCHAR(12),"
-    "sellingissuer       VARCHAR(56),"
-    "buyingassettype    INT,"
-    "buyingassetcode    VARCHAR(12),"
-    "buyingissuer       VARCHAR(56),"
-    "amount          BIGINT       NOT NULL CHECK (amount >= 0),"
-    "pricen          INT          NOT NULL,"
-    "priced          INT          NOT NULL,"
-    "price           BIGINT       NOT NULL,"
-    "flags           INT          NOT NULL,"
-    "PRIMARY KEY (offerid)"
+    "sellerid         VARCHAR(56)  NOT NULL,"
+    "offerid          BIGINT       NOT NULL CHECK (offerid >= 0),"
+    "sellingassettype INT,"
+    "sellingassetcode VARCHAR(12),"
+    "sellingissuer    VARCHAR(56),"
+    "buyingassettype  INT,"
+    "buyingassetcode  VARCHAR(12),"
+    "buyingissuer     VARCHAR(56),"
+    "amount           BIGINT       NOT NULL CHECK (amount >= 0),"
+    "pricen           INT          NOT NULL,"
+    "priced           INT          NOT NULL,"
+    "price            BIGINT       NOT NULL,"
+    "flags            INT          NOT NULL,"
+    "lastmodified     INT          NOT NULL,"
+    "PRIMARY KEY      (offerid)"
     ");";
 
 const char* OfferFrame::kSQLCreateStatement2 =
@@ -45,7 +46,8 @@ const char* OfferFrame::kSQLCreateStatement4 =
 
 static const char* offerColumnSelector =
     "SELECT sellerid,offerid,sellingassettype,sellingassetcode,sellingissuer,"
-    "buyingassettype,buyingassetcode,buyingissuer,amount,pricen,priced,flags "
+    "buyingassettype,buyingassetcode,buyingissuer,amount,pricen,priced,"
+    "flags,lastmodified "
     "FROM offers";
 
 OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.data.offer())
@@ -180,6 +182,7 @@ OfferFrame::loadOffers(StatementContext& prep,
     st.exchange(into(oe.price.n));
     st.exchange(into(oe.price.d));
     st.exchange(into(oe.flags));
+    st.exchange(into(le.lastModifiedLedgerSeq));
     st.define_and_bind();
     st.execute(true);
     while (st.got_data())
@@ -415,13 +418,16 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db) const
     auto timer = db.getUpdateTimer("offer");
     auto prep =
         db.getPreparedStatement("UPDATE offers SET amount=:a, pricen=:n, "
-                                "priced=:D, price=:p WHERE offerid=:s");
+                                "priced=:D, price=:p, flags=:f, "
+                                "lastmodified=:m WHERE offerid=:s");
     auto& st = prep.statement();
     st.exchange(use(mOffer.amount));
     st.exchange(use(mOffer.price.n));
     st.exchange(use(mOffer.price.d));
     auto price = computePrice();
     st.exchange(use(price));
+    st.exchange(use(mOffer.flags));
+    st.exchange(use(getLastModified()));
     st.exchange(use(mOffer.offerID));
     st.define_and_bind();
     st.execute(true);
@@ -475,8 +481,8 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
         "INSERT INTO offers (sellerid,offerid,"
         "sellingassettype,sellingassetcode,sellingissuer,"
         "buyingassettype,buyingassetcode,buyingissuer,"
-        "amount,pricen,priced,price,flags) VALUES "
-        "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11,:v12,:v13)");
+        "amount,pricen,priced,price,flags,lastmodified) VALUES "
+        "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11,:v12,:v13,:v14)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(mOffer.offerID));
@@ -492,6 +498,7 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db) const
     auto price = computePrice();
     st.exchange(use(price));
     st.exchange(use(mOffer.flags));
+    st.exchange(use(getLastModified()));
     st.define_and_bind();
     st.execute(true);
 

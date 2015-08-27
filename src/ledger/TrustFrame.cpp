@@ -17,17 +17,19 @@ namespace stellar
 {
 using xdr::operator==;
 
+// note: the primary key omits assettype as assetcodes are non overlapping
 const char* TrustFrame::kSQLCreateStatement1 =
     "CREATE TABLE trustlines"
     "("
-    "accountid     VARCHAR(56)     NOT NULL,"
-    "assettype     INT             NOT NULL,"
-    "issuer        VARCHAR(56)     NOT NULL,"
-    "assetcode     VARCHAR(12)     NOT NULL,"
-    "tlimit        BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
-    "balance       BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
-    "flags         INT             NOT NULL,"
-    "PRIMARY KEY (accountid, issuer, assetcode)"
+    "accountid    VARCHAR(56)     NOT NULL,"
+    "assettype    INT             NOT NULL,"
+    "issuer       VARCHAR(56)     NOT NULL,"
+    "assetcode    VARCHAR(12)     NOT NULL,"
+    "tlimit       BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
+    "balance      BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
+    "flags        INT             NOT NULL,"
+    "lastmodified INT             NOT NULL,"
+    "PRIMARY KEY  (accountid, issuer, assetcode)"
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
@@ -234,12 +236,13 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db) const
 
     auto prep = db.getPreparedStatement(
         "UPDATE trustlines "
-        "SET balance=:b, tlimit=:tl, flags=:a "
+        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm "
         "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
     auto& st = prep.statement();
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
+    st.exchange(use(getLastModified()));
     st.exchange(use(actIDStrKey));
     st.exchange(use(issuerStrKey));
     st.exchange(use(assetCode));
@@ -273,9 +276,9 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 
     auto prep = db.getPreparedStatement(
         "INSERT INTO trustlines "
-        "(accountid, assettype, issuer, assetcode, balance, tlimit, flags) "
-        "VALUES "
-        "(:v1,      :v2,       :v3,    :v4,       :v5,     :v6,    :v7)");
+        "(accountid, assettype, issuer, assetcode, balance, tlimit, flags, "
+        "lastmodified) "
+        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(assetType));
@@ -284,6 +287,7 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
+    st.exchange(use(getLastModified()));
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("trust");
@@ -299,8 +303,9 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db) const
 }
 
 static const char* trustLineColumnSelector =
-    "SELECT accountid, assettype, issuer, assetcode, tlimit,balance,flags FROM "
-    "trustlines";
+    "SELECT "
+    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified "
+    "FROM trustlines";
 
 TrustFrame::pointer
 TrustFrame::createIssuerFrame(Asset const& issuer)
@@ -441,6 +446,7 @@ TrustFrame::loadLines(StatementContext& prep,
     st.exchange(into(tl.limit));
     st.exchange(into(tl.balance));
     st.exchange(into(tl.flags));
+    st.exchange(into(le.lastModifiedLedgerSeq));
     st.define_and_bind();
 
     st.execute(true);

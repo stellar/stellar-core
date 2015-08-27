@@ -51,6 +51,9 @@ class EntryFrame : public NonMovableOrCopyable
                                std::shared_ptr<LedgerEntry const> p,
                                Database& db);
 
+    // helpers to get/set the last modified field
+    uint32 getLastModified() const;
+    uint32& getLastModified();
     // Member helpers that call cache flush/put for self.
     void flushCachedEntry(Database& db) const;
     void putCachedEntry(Database& db) const;

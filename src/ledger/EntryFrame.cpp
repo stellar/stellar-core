@@ -7,6 +7,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "ledger/LedgerDelta.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
@@ -63,6 +64,18 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
     break;
     }
     return res;
+}
+
+uint32
+EntryFrame::getLastModified() const
+{
+    return mEntry.lastModifiedLedgerSeq;
+}
+
+uint32&
+EntryFrame::getLastModified()
+{
+    return mEntry.lastModifiedLedgerSeq;
 }
 
 void
