@@ -29,7 +29,8 @@ using xdr::operator<;
 struct LedgerEntryIdCmp
 {
     template <typename T, typename U>
-    bool operator()(T const& a, U const& b) const
+    auto operator()(T const& a, U const& b) const -> decltype(a.type(),
+                                                              b.type(), bool())
     {
         LedgerEntryType aty = a.type();
         LedgerEntryType bty = b.type();
@@ -71,6 +72,19 @@ struct LedgerEntryIdCmp
         }
         }
         return false;
+    }
+
+    template <typename T>
+    bool operator()(T const& a, LedgerEntry const& b) const
+    {
+        return (*this)(a, b.data);
+    }
+
+    template <typename T, typename = typename std::enable_if<
+                              !std::is_same<T, LedgerEntry>::value>::type>
+    bool operator()(LedgerEntry const& a, T const& b) const
+    {
+        return (*this)(a.data, b);
     }
 };
 

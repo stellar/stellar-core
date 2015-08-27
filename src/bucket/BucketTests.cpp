@@ -245,14 +245,14 @@ TEST_CASE("bucket list shadowing", "[bucket]")
         BucketEntry BucketEntryAlice, BucketEntryBob;
         alice.balance++;
         BucketEntryAlice.type(LIVEENTRY);
-        BucketEntryAlice.liveEntry().type(ACCOUNT);
-        BucketEntryAlice.liveEntry().account() = alice;
+        BucketEntryAlice.liveEntry().data.type(ACCOUNT);
+        BucketEntryAlice.liveEntry().data.account() = alice;
         liveBatch.push_back(BucketEntryAlice.liveEntry());
 
         bob.balance++;
         BucketEntryBob.type(LIVEENTRY);
-        BucketEntryBob.liveEntry().type(ACCOUNT);
-        BucketEntryBob.liveEntry().account() = bob;
+        BucketEntryBob.liveEntry().data.type(ACCOUNT);
+        BucketEntryBob.liveEntry().data.account() = bob;
         liveBatch.push_back(BucketEntryBob.liveEntry());
 
         bl.addBatch(*app, i, liveBatch, deadGen(5));
@@ -449,10 +449,10 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
     SECTION("dead account entry annihilates live account entry")
     {
-        liveEntry.type(ACCOUNT);
-        liveEntry.account() = acGen(10);
+        liveEntry.data.type(ACCOUNT);
+        liveEntry.data.account() = acGen(10);
         deadEntry.type(ACCOUNT);
-        deadEntry.account().accountID = liveEntry.account().accountID;
+        deadEntry.account().accountID = liveEntry.data.account().accountID;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
@@ -462,11 +462,11 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
     SECTION("dead trustline entry annihilates live trustline entry")
     {
-        liveEntry.type(TRUSTLINE);
-        liveEntry.trustLine() = tlGen(10);
+        liveEntry.data.type(TRUSTLINE);
+        liveEntry.data.trustLine() = tlGen(10);
         deadEntry.type(TRUSTLINE);
-        deadEntry.trustLine().accountID = liveEntry.trustLine().accountID;
-        deadEntry.trustLine().asset = liveEntry.trustLine().asset;
+        deadEntry.trustLine().accountID = liveEntry.data.trustLine().accountID;
+        deadEntry.trustLine().asset = liveEntry.data.trustLine().asset;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
@@ -476,11 +476,11 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
     SECTION("dead offer entry annihilates live offer entry")
     {
-        liveEntry.type(OFFER);
-        liveEntry.offer() = ofGen(10);
+        liveEntry.data.type(OFFER);
+        liveEntry.data.offer() = ofGen(10);
         deadEntry.type(OFFER);
-        deadEntry.offer().sellerID = liveEntry.offer().sellerID;
-        deadEntry.offer().offerID = liveEntry.offer().offerID;
+        deadEntry.offer().sellerID = liveEntry.data.offer().sellerID;
+        deadEntry.offer().offerID = liveEntry.data.offer().offerID;
         std::vector<LedgerEntry> live{liveEntry};
         std::vector<LedgerKey> dead{deadEntry};
         std::shared_ptr<Bucket> b1 =
@@ -900,9 +900,10 @@ TEST_CASE("bucket apply", "[bucket]")
 
     for (auto& e : live)
     {
-        e.type(ACCOUNT);
-        e.account() = accGen(5);
-        e.account().balance = 1000000000;
+        e.data.type(ACCOUNT);
+        auto& a = e.data.account();
+        a = accGen(5);
+        a.balance = 1000000000;
         dead.emplace_back(LedgerEntryKey(e));
     }
 
@@ -940,17 +941,18 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     std::vector<LedgerEntry> live(100000);
     std::vector<LedgerKey> noDead;
 
-    for (auto& e : live)
+    for (auto& l : live)
     {
-        e.type(ACCOUNT);
-        e.account() = accGen(5);
-        e.account().balance = 1000000000;
-        e.account().inflationDest.reset();
-        e.account().homeDomain.clear();
-        e.account().thresholds[0] = 0;
-        e.account().thresholds[1] = 0;
-        e.account().thresholds[2] = 0;
-        e.account().thresholds[3] = 0;
+        l.data.type(ACCOUNT);
+        auto& a = l.data.account();
+        a = accGen(5);
+        a.balance = 1000000000;
+        a.inflationDest.reset();
+        a.homeDomain.clear();
+        a.thresholds[0] = 0;
+        a.thresholds[1] = 0;
+        a.thresholds[2] = 0;
+        a.thresholds[3] = 0;
     }
 
     std::shared_ptr<Bucket> birth =

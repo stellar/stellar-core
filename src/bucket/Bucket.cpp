@@ -524,7 +524,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
             auto& e = *iter;
             if (e.type() == LIVEENTRY)
             {
-                switch (e.liveEntry().type())
+                switch (e.liveEntry().data.type())
                 {
                 case ACCOUNT:
                     ++nAccounts;

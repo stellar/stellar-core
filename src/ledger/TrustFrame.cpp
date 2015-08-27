@@ -34,12 +34,14 @@ const char* TrustFrame::kSQLCreateStatement2 =
     "CREATE INDEX accountlines ON trustlines (accountid);";
 
 TrustFrame::TrustFrame()
-    : EntryFrame(TRUSTLINE), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
+    : EntryFrame(TRUSTLINE)
+    , mTrustLine(mEntry.data.trustLine())
+    , mIsIssuer(false)
 {
 }
 
 TrustFrame::TrustFrame(LedgerEntry const& from)
-    : EntryFrame(from), mTrustLine(mEntry.trustLine()), mIsIssuer(false)
+    : EntryFrame(from), mTrustLine(mEntry.data.trustLine()), mIsIssuer(false)
 {
     assert(isValid());
 }
@@ -305,7 +307,7 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
 {
     pointer res = make_shared<TrustFrame>();
     res->mIsIssuer = true;
-    TrustLineEntry& tl = res->mEntry.trustLine();
+    TrustLineEntry& tl = res->mEntry.data.trustLine();
 
     if (issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
@@ -427,9 +429,9 @@ TrustFrame::loadLines(StatementContext& prep,
     unsigned int assetType;
 
     LedgerEntry le;
-    le.type(TRUSTLINE);
+    le.data.type(TRUSTLINE);
 
-    TrustLineEntry& tl = le.trustLine();
+    TrustLineEntry& tl = le.data.trustLine();
 
     auto& st = prep.statement();
     st.exchange(into(actIDStrKey));

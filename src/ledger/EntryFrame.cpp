@@ -21,7 +21,7 @@ EntryFrame::FromXDR(LedgerEntry const& from)
 {
     EntryFrame::pointer res;
 
-    switch (from.type())
+    switch (from.data.type())
     {
     case ACCOUNT:
         res = std::make_shared<AccountFrame>(from);
@@ -122,9 +122,9 @@ EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
     }
 }
 
-EntryFrame::EntryFrame(LedgerEntryType type)
-    : mKeyCalculated(false), mEntry(type)
+EntryFrame::EntryFrame(LedgerEntryType type) : mKeyCalculated(false)
 {
+    mEntry.data.type(type);
 }
 
 EntryFrame::EntryFrame(LedgerEntry const& from)
@@ -192,25 +192,26 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 LedgerKey
 LedgerEntryKey(LedgerEntry const& e)
 {
+    auto& d = e.data;
     LedgerKey k;
-    switch (e.type())
+    switch (d.type())
     {
 
     case ACCOUNT:
         k.type(ACCOUNT);
-        k.account().accountID = e.account().accountID;
+        k.account().accountID = d.account().accountID;
         break;
 
     case TRUSTLINE:
         k.type(TRUSTLINE);
-        k.trustLine().accountID = e.trustLine().accountID;
-        k.trustLine().asset = e.trustLine().asset;
+        k.trustLine().accountID = d.trustLine().accountID;
+        k.trustLine().asset = d.trustLine().asset;
         break;
 
     case OFFER:
         k.type(OFFER);
-        k.offer().sellerID = e.offer().sellerID;
-        k.offer().offerID = e.offer().offerID;
+        k.offer().sellerID = d.offer().sellerID;
+        k.offer().offerID = d.offer().offerID;
         break;
     }
     return k;

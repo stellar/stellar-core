@@ -48,12 +48,12 @@ static const char* offerColumnSelector =
     "buyingassettype,buyingassetcode,buyingissuer,amount,pricen,priced,flags "
     "FROM offers";
 
-OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.offer())
+OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.data.offer())
 {
 }
 
 OfferFrame::OfferFrame(LedgerEntry const& from)
-    : EntryFrame(from), mOffer(mEntry.offer())
+    : EntryFrame(from), mOffer(mEntry.data.offer())
 {
 }
 
@@ -76,7 +76,7 @@ OfferFrame::pointer
 OfferFrame::from(AccountID const& account, ManageOfferOp const& op)
 {
     OfferFrame::pointer res = make_shared<OfferFrame>();
-    OfferEntry& o = res->mEntry.offer();
+    OfferEntry& o = res->mEntry.data.offer();
     o.sellerID = account;
     o.amount = op.amount;
     o.price = op.price;
@@ -164,8 +164,8 @@ OfferFrame::loadOffers(StatementContext& prep,
         sellingIssuerIndicator, buyingIssuerIndicator;
 
     LedgerEntry le;
-    le.type(OFFER);
-    OfferEntry& oe = le.offer();
+    le.data.type(OFFER);
+    OfferEntry& oe = le.data.offer();
 
     statement& st = prep.statement();
     st.exchange(into(actIDStrKey));

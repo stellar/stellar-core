@@ -48,14 +48,14 @@ const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
                                                  "balance >= 1000000000";
 
 AccountFrame::AccountFrame()
-    : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
+    : EntryFrame(ACCOUNT), mAccountEntry(mEntry.data.account())
 {
     mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
 
 AccountFrame::AccountFrame(LedgerEntry const& from)
-    : EntryFrame(from), mAccountEntry(mEntry.account())
+    : EntryFrame(from), mAccountEntry(mEntry.data.account())
 {
     mUpdateSigners = !mAccountEntry.signers.empty();
 }

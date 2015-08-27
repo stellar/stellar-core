@@ -187,14 +187,20 @@ struct OfferEntry
     ext;
 };
 
-union LedgerEntry switch (LedgerEntryType type)
+struct LedgerEntry
 {
-case ACCOUNT:
-    AccountEntry account;
-case TRUSTLINE:
-    TrustLineEntry trustLine;
-case OFFER:
-    OfferEntry offer;
+    uint32 lastModifiedLedgerSeq; // ledger the LedgerEntry was last changed
+
+    union switch (LedgerEntryType type)
+    {
+    case ACCOUNT:
+        AccountEntry account;
+    case TRUSTLINE:
+        TrustLineEntry trustLine;
+    case OFFER:
+        OfferEntry offer;
+    }
+    data;
 };
 
 // list of all envelope types used in the application

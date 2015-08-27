@@ -143,7 +143,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         creatingNewOffer = true;
         mSellSheepOffer = OfferFrame::from(getSourceID(), mManageOffer);
         if (mPassive)
-            mSellSheepOffer->mEntry.offer().flags = PASSIVE_FLAG;
+            mSellSheepOffer->mEntry.data.offer().flags = PASSIVE_FLAG;
     }
 
     int64_t maxSheepSend = mManageOffer.amount;
@@ -314,7 +314,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                     innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                     return false;
                 }
-                mSellSheepOffer->mEntry.offer().offerID =
+                mSellSheepOffer->mEntry.data.offer().offerID =
                     tempDelta.getHeaderFrame().generateID();
                 innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
                 mSellSheepOffer->storeAdd(tempDelta, db);
