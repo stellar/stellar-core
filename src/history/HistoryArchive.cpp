@@ -17,6 +17,7 @@
 #include "util/Fs.h"
 #include "util/make_unique.h"
 #include "util/Logging.h"
+#include "StellarCoreVersion.h"
 #include <cereal/cereal.hpp>
 #include <cereal/archives/json.hpp>
 #include <cereal/types/vector.hpp>
@@ -235,7 +236,7 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     return ret;
 }
 
-HistoryArchiveState::HistoryArchiveState()
+HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
 {
     uint256 u;
     std::string s = binToHex(u);
@@ -250,7 +251,7 @@ HistoryArchiveState::HistoryArchiveState()
 
 HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
                                          BucketList& buckets)
-    : currentLedger(ledgerSeq)
+    : server(STELLAR_CORE_VERSION), currentLedger(ledgerSeq)
 {
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
