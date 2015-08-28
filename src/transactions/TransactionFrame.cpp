@@ -650,12 +650,12 @@ TransactionFrame::dropAll(Database& db)
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
     db.getSession() << "CREATE TABLE txhistory ("
-                       "txid          CHARACTER(64) NOT NULL,"
-                       "ledgerseq     INT NOT NULL CHECK (ledgerseq >= 0),"
-                       "txindex         INT NOT NULL,"
-                       "txbody        TEXT NOT NULL,"
-                       "txresult      TEXT NOT NULL,"
-                       "txmeta        TEXT NOT NULL,"
+                       "txid        CHARACTER(64) NOT NULL,"
+                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+                       "txindex     INT NOT NULL,"
+                       "txbody      TEXT NOT NULL,"
+                       "txresult    TEXT NOT NULL,"
+                       "txmeta      TEXT NOT NULL,"
                        "PRIMARY KEY (txid, ledgerseq),"
                        "UNIQUE      (ledgerseq, txindex)"
                        ")";

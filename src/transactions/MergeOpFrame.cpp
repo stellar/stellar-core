@@ -84,12 +84,14 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         l->storeDelete(delta, db);
     }
 
-    otherAccount->getAccount().balance += mSourceAccount->getAccount().balance;
+    int64 sourceBalance = mSourceAccount->getAccount().balance;
+    otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
     metrics.NewMeter({"op-merge", "success", "apply"}, "operation").Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
+    innerResult().sourceAccountBalance() = sourceBalance;
     return true;
 }
 

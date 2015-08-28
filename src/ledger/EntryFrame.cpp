@@ -7,6 +7,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "ledger/LedgerDelta.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
@@ -21,7 +22,7 @@ EntryFrame::FromXDR(LedgerEntry const& from)
 {
     EntryFrame::pointer res;
 
-    switch (from.type())
+    switch (from.data.type())
     {
     case ACCOUNT:
         res = std::make_shared<AccountFrame>(from);
@@ -63,6 +64,35 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
     break;
     }
     return res;
+}
+
+uint32
+EntryFrame::getLastModified() const
+{
+    return mEntry.lastModifiedLedgerSeq;
+}
+
+uint32&
+EntryFrame::getLastModified()
+{
+    return mEntry.lastModifiedLedgerSeq;
+}
+
+void
+EntryFrame::touch(uint32 ledgerSeq)
+{
+    getLastModified() = ledgerSeq;
+}
+
+void
+EntryFrame::touch(LedgerDelta const& delta)
+{
+    uint32 ledgerSeq = delta.getHeader().ledgerSeq;
+    // if we're tracking a valid header, mark the entry as modified by it
+    if (ledgerSeq != 0)
+    {
+        touch(ledgerSeq);
+    }
 }
 
 void
@@ -122,9 +152,9 @@ EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
     }
 }
 
-EntryFrame::EntryFrame(LedgerEntryType type)
-    : mKeyCalculated(false), mEntry(type)
+EntryFrame::EntryFrame(LedgerEntryType type) : mKeyCalculated(false)
 {
+    mEntry.data.type(type);
 }
 
 EntryFrame::EntryFrame(LedgerEntry const& from)
@@ -144,7 +174,7 @@ EntryFrame::getKey() const
 }
 
 void
-EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db) const
+EntryFrame::storeAddOrChange(LedgerDelta& delta, Database& db)
 {
     if (exists(db, getKey()))
     {
@@ -192,25 +222,26 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 LedgerKey
 LedgerEntryKey(LedgerEntry const& e)
 {
+    auto& d = e.data;
     LedgerKey k;
-    switch (e.type())
+    switch (d.type())
     {
 
     case ACCOUNT:
         k.type(ACCOUNT);
-        k.account().accountID = e.account().accountID;
+        k.account().accountID = d.account().accountID;
         break;
 
     case TRUSTLINE:
         k.type(TRUSTLINE);
-        k.trustLine().accountID = e.trustLine().accountID;
-        k.trustLine().asset = e.trustLine().asset;
+        k.trustLine().accountID = d.trustLine().accountID;
+        k.trustLine().asset = d.trustLine().asset;
         break;
 
     case OFFER:
         k.type(OFFER);
-        k.offer().sellerID = e.offer().sellerID;
-        k.offer().offerID = e.offer().offerID;
+        k.offer().sellerID = d.offer().sellerID;
+        k.offer().offerID = d.offer().offerID;
         break;
     }
     return k;

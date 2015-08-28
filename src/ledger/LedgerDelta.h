@@ -57,6 +57,7 @@ class LedgerDelta
     ~LedgerDelta();
 
     LedgerHeader& getHeader();
+    LedgerHeader const& getHeader() const;
     LedgerHeaderFrame& getHeaderFrame();
 
     // methods to register changes in the ledger entries

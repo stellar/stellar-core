@@ -316,16 +316,16 @@ struct TransactionEnvelope
 struct ClaimOfferAtom
 {
     // emited to identify the offer
-    AccountID offerOwner; // Account that owns the offer
+    AccountID sellerID; // Account that owns the offer
     uint64 offerID;
 
     // amount and asset taken from the owner
-    Asset assetClaimed;
-    int64 amountClaimed;
+    Asset assetSold;
+    int64 amountSold;
 
-    // amount and assetsent to the owner
-    Asset assetSend;
-    int64 amountSend;
+    // amount and asset sent to the owner
+    Asset assetBought;
+    int64 amountBought;
 };
 
 /******* CreateAccount Result ********/
@@ -394,7 +394,8 @@ enum PathPaymentResultCode
     PATH_PAYMENT_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
     PATH_PAYMENT_LINE_FULL = -8,          // dest would go above their limit
     PATH_PAYMENT_TOO_FEW_OFFERS = -9,     // not enough offers to satisfy path
-    PATH_PAYMENT_OVER_SENDMAX = -10       // could not satisfy sendmax
+    PATH_PAYMENT_OFFER_CROSS_SELF = -10,  // would cross one of its own offers
+    PATH_PAYMENT_OVER_SENDMAX = -11       // could not satisfy sendmax
 };
 
 struct SimplePaymentResult
@@ -555,7 +556,7 @@ enum AccountMergeResultCode
 union AccountMergeResult switch (AccountMergeResultCode code)
 {
 case ACCOUNT_MERGE_SUCCESS:
-    void;
+    int64 sourceAccountBalance; // how much got transfered from source account
 default:
     void;
 };

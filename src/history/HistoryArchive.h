@@ -10,7 +10,6 @@
 #include <memory>
 #include "bucket/FutureBucket.h"
 #include "xdr/Stellar-types.h"
-#include "StellarCoreVersion.h"
 
 namespace asio
 {
@@ -57,7 +56,7 @@ struct HistoryArchiveState
     static unsigned const HISTORY_ARCHIVE_STATE_VERSION;
 
     unsigned version{HISTORY_ARCHIVE_STATE_VERSION};
-    std::string server{STELLAR_CORE_VERSION};
+    std::string server;
     uint32_t currentLedger{0};
     std::vector<HistoryStateBucket> currentBuckets;
 
@@ -139,8 +138,6 @@ class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
     bool hasPutCmd() const;
     bool hasMkdirCmd() const;
     std::string const& getName() const;
-    std::string qualifiedFilename(Application& app,
-                                  std::string const& basename) const;
 
     void getMostRecentState(
         Application& app,

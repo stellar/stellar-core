@@ -379,8 +379,8 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(b1Res.offerID == offerB1);
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
-            REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            REQUIRE(b1Res.sellerID == b1.getPublicKey());
+            checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 125 where sent, 25 were consumed by B's offer
@@ -396,6 +396,26 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 200 * assetMultiplier);
         }
+
+        SECTION("send with path (takes own offer)")
+        {
+            // raise A1's balance by what we're trying to send
+            applyPaymentTx(app, root, a1, rootSeq++, 100 * assetMultiplier);
+
+            // offer is sell 100 USD for 100 XLM
+            applyCreateOffer(app, delta, 0, a1, usdCur, xlmCur, Price(1, 1),
+                                 100 * assetMultiplier, a1Seq++);
+
+            // A1: try to send 100 USD to B1 using XLM
+
+            std::vector<Asset> path;
+            path.push_back(xlmCur);
+
+            applyPathPaymentTx(app, a1, b1, xlmCur, 100 * assetMultiplier,
+                               usdCur, 100 * assetMultiplier, a1Seq++,
+                               PATH_PAYMENT_OFFER_CROSS_SELF);
+        }
+
         SECTION("send with path (offer participant reaching limit)")
         {
             // make it such that C can only receive 120 USD (4/5th of offerC)
@@ -434,8 +454,8 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(b1Res.offerID == offerB1);
             offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
-            REQUIRE(b1Res.offerOwner == b1.getPublicKey());
-            checkAmounts(b1Res.amountClaimed, 25 * assetMultiplier);
+            REQUIRE(b1Res.sellerID == b1.getPublicKey());
+            checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
             checkAmounts(oe.amount, 75 * assetMultiplier);
             line = loadTrustLine(b1, idrCur, app);
             // 105 where sent, 25 were consumed by B's offer

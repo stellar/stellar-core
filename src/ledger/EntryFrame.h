@@ -51,6 +51,15 @@ class EntryFrame : public NonMovableOrCopyable
                                std::shared_ptr<LedgerEntry const> p,
                                Database& db);
 
+    // helpers to get/set the last modified field
+    uint32 getLastModified() const;
+    uint32& getLastModified();
+    void touch(uint32 ledgerSeq);
+
+    // touch the entry if the delta is tracking a ledger header with
+    // a sequence that is not 0 (0 is used when importing buckets)
+    void touch(LedgerDelta const& delta);
+
     // Member helpers that call cache flush/put for self.
     void flushCachedEntry(Database& db) const;
     void putCachedEntry(Database& db) const;
@@ -61,10 +70,11 @@ class EntryFrame : public NonMovableOrCopyable
 
     LedgerKey const& getKey() const;
     virtual void storeDelete(LedgerDelta& delta, Database& db) const = 0;
-    virtual void storeChange(LedgerDelta& delta, Database& db) const = 0;
-    virtual void storeAdd(LedgerDelta& delta, Database& db) const = 0;
+    // change/add may update the entry (last modified)
+    virtual void storeChange(LedgerDelta& delta, Database& db) = 0;
+    virtual void storeAdd(LedgerDelta& delta, Database& db) = 0;
 
-    void storeAddOrChange(LedgerDelta& delta, Database& db) const;
+    void storeAddOrChange(LedgerDelta& delta, Database& db);
     static bool exists(Database& db, LedgerKey const& key);
     static void storeDelete(LedgerDelta& delta, Database& db,
                             LedgerKey const& key);

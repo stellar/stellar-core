@@ -69,16 +69,17 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 void
 checkEntry(LedgerEntry const& le, Application& app)
 {
-    switch (le.type())
+    auto& d = le.data;
+    switch (d.type())
     {
     case ACCOUNT:
-        checkAccount(le.account().accountID, app);
+        checkAccount(d.account().accountID, app);
         break;
     case TRUSTLINE:
-        checkAccount(le.trustLine().accountID, app);
+        checkAccount(d.trustLine().accountID, app);
         break;
     case OFFER:
-        checkAccount(le.offer().sellerID, app);
+        checkAccount(d.offer().sellerID, app);
     default:
         break;
     }

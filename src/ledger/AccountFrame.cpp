@@ -28,7 +28,8 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "inflationdest   VARCHAR(56),"
     "homedomain      VARCHAR(32),"
     "thresholds      TEXT,"
-    "flags           INT          NOT NULL"
+    "flags           INT          NOT NULL,"
+    "lastmodified    INT          NOT NULL"
     ");";
 
 const char* AccountFrame::kSQLCreateStatement2 =
@@ -48,14 +49,14 @@ const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
                                                  "balance >= 1000000000";
 
 AccountFrame::AccountFrame()
-    : EntryFrame(ACCOUNT), mAccountEntry(mEntry.account())
+    : EntryFrame(ACCOUNT), mAccountEntry(mEntry.data.account())
 {
     mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
     mUpdateSigners = false;
 }
 
 AccountFrame::AccountFrame(LedgerEntry const& from)
-    : EntryFrame(from), mAccountEntry(mEntry.account())
+    : EntryFrame(from), mAccountEntry(mEntry.data.account())
 {
     mUpdateSigners = !mAccountEntry.signers.empty();
 }
@@ -194,7 +195,8 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     auto prep =
         db.getPreparedStatement("SELECT balance, seqnum, numsubentries, "
-                                "inflationdest, homedomain, thresholds, flags "
+                                "inflationdest, homedomain, thresholds, "
+                                "flags, lastmodified "
                                 "FROM accounts WHERE accountid=:v1");
     auto& st = prep.statement();
     st.exchange(into(account.balance));
@@ -204,6 +206,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     st.exchange(into(homeDomain, homeDomainInd));
     st.exchange(into(thresholds, thresholdsInd));
     st.exchange(into(account.flags));
+    st.exchange(into(res->getLastModified()));
     st.exchange(use(actIDStrKey));
     st.define_and_bind();
     {
@@ -337,8 +340,10 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 }
 
 void
-AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
+AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 {
+    touch(delta);
+
     flushCachedEntry(db);
 
     std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
@@ -348,8 +353,9 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
     {
         sql = std::string(
             "INSERT INTO accounts ( accountid, balance, seqnum, "
-            "numsubentries, inflationdest, homedomain, thresholds, flags) "
-            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7 )");
+            "numsubentries, inflationdest, homedomain, thresholds, flags, "
+            "lastmodified ) "
+            "VALUES ( :id, :v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8 )");
     }
     else
     {
@@ -357,7 +363,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
             "UPDATE accounts SET balance = :v1, seqnum = :v2, "
             "numsubentries = :v3, "
             "inflationdest = :v4, homedomain = :v5, thresholds = :v6, "
-            "flags = :v7 WHERE accountid = :id");
+            "flags = :v7, lastmodified = :v8 WHERE accountid = :id");
     }
 
     auto prep = db.getPreparedStatement(sql);
@@ -384,6 +390,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
         st.exchange(use(string(mAccountEntry.homeDomain), "v5"));
         st.exchange(use(thresholds, "v6"));
         st.exchange(use(mAccountEntry.flags, "v7"));
+        st.exchange(use(getLastModified(), "v8"));
         st.define_and_bind();
         {
             auto timer = insert ? db.getInsertTimer("account")
@@ -538,13 +545,13 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert) const
 }
 
 void
-AccountFrame::storeChange(LedgerDelta& delta, Database& db) const
+AccountFrame::storeChange(LedgerDelta& delta, Database& db)
 {
     storeUpdate(delta, db, false);
 }
 
 void
-AccountFrame::storeAdd(LedgerDelta& delta, Database& db) const
+AccountFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
     storeUpdate(delta, db, true);
 }
