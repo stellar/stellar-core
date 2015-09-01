@@ -19,7 +19,7 @@ For more detail on the Stellar Consensus Protocol and how it establishes this
 guarantee see [`src/scp/readme.md`](../src/scp/readme.md).
 
 
-- [Building & Installing] (/README.md)
+- [Building & Installing] (/INSTALL.md)
 - [Stellar-core administration] (admin.md)
 - [Architecture] (architecture.md)
 - [Key Concepts] (concepts.md)

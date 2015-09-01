@@ -16,6 +16,10 @@ Documentation of the code's layout and abstractions, as well as for the
 functionality available, can be found in
 [`./docs`](https://github.com/stellar/stellar-core/tree/master/docs).
 
+# Installation
+
+See [Installation](./INSTALL.md)
+
 # Contributing
 
 See [Contributing](./CONTRIBUTING.md)
