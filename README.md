@@ -15,20 +15,7 @@ functionality available, can be found in
 
 # Contributing
 
-We're striving to keep master's history with minimal merge bubbles. To achieve
-this, we're asking PRs to be submitted rebased on top of master.
-
-To keep your local repository in a "rebased" state, simply run:
-
-`git config --global branch.autosetuprebase always` *changes the default for all future branches*
-
-`git config --global branch.master.rebase true` *changes the setting for branch master*
-
-note: you may still have to run manual "rebase" commands on your branches to rebase on top of master as you pull changes from upstream.
-
-Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
-
-Please sign the [Contributor License Agreement](http://goo.gl/forms/f2nhGi537n).
+See [Contributing](./CONTRIBUTING.md)
 
 # Running tests
 
