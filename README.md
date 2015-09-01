@@ -5,7 +5,10 @@ It is definitely not ready yet for production.
  
 # stellar-core
 
-Stellar-core is a C++ implementation of the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md) that maintains a local copy of the ledger and syncs with other instances of stellar-core on the network. Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+Stellar-core is a replicated state machine that maintains a local copy of a cryptographic ledger and processes transactions against it, in consensus with a set of peers.
+It implements the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md), a _federated_ consensus protocol.
+It is written in C++11 and runs on Linux, OSX and Windows.
+Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
 
 # Documentation
 
