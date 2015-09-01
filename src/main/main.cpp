@@ -347,7 +347,7 @@ main(int argc, char* const* argv)
     {
         // yes you really have to do this 3 times
         Logging::setLogLevel(logLevel, nullptr);
-        if (fs::exists(cfgFile))
+        if (cfgFile == "-" || fs::exists(cfgFile))
         {
             cfg.load(cfgFile);
         }
