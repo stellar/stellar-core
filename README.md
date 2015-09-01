@@ -5,7 +5,10 @@ It is definitely not ready yet for production.
  
 # stellar-core
 
-Stellar-core is a C++ implementation of the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md) that maintains a local copy of the ledger and syncs with other instances of stellar-core on the network. Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
+Stellar-core is a replicated state machine that maintains a local copy of a cryptographic ledger and processes transactions against it, in consensus with a set of peers.
+It implements the [Stellar Consensus Protocol](https://github.com/stellar/stellar-core/blob/master/src/scp/readme.md), a _federated_ consensus protocol.
+It is written in C++11 and runs on Linux, OSX and Windows.
+Learn more by reading the [overview document](https://github.com/stellar/stellar-core/blob/master/docs/readme.md).
 
 # Documentation
 
@@ -13,22 +16,13 @@ Documentation of the code's layout and abstractions, as well as for the
 functionality available, can be found in
 [`./docs`](https://github.com/stellar/stellar-core/tree/master/docs).
 
+# Installation
+
+See [Installation](./INSTALL.md)
+
 # Contributing
 
-We're striving to keep master's history with minimal merge bubbles. To achieve
-this, we're asking PRs to be submitted rebased on top of master.
-
-To keep your local repository in a "rebased" state, simply run:
-
-`git config --global branch.autosetuprebase always` *changes the default for all future branches*
-
-`git config --global branch.master.rebase true` *changes the setting for branch master*
-
-note: you may still have to run manual "rebase" commands on your branches to rebase on top of master as you pull changes from upstream.
-
-Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
-
-Please sign the [Contributor License Agreement](http://goo.gl/forms/f2nhGi537n).
+See [Contributing](./CONTRIBUTING.md)
 
 # Running tests
 

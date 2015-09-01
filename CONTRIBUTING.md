@@ -10,6 +10,15 @@ To keep your local repository in a "rebased" state, simply run:
 
 Note: you may still have to run manual "rebase" commands on your branches, to rebase on top of master as you pull changes from upstream.
 
+#Basic quality checks
+
+Please ensure that all tests pass before submitting changes. The local testsuite can be run as `make check` or `src/stellar-core --test`,
+see [README](./README.md) for details on running tests.
+
+Code formatting wise, we have a `.clang-format` config file that you should use on modified files.
+
+Try to separate logically distinct changes into separate commits and thematically distinct commits into separate pull requests.
+
 #Submitting Changes
 
 Please [sign the Contributor License Agreement](https://docs.google.com/forms/d/1g7EF6PERciwn7zfmfke5Sir2n10yddGGSXyZsq98tVY/viewform).
