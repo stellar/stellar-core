@@ -1,3 +1,4 @@
+
 ---
 id: readme
 title: Readme
@@ -104,6 +105,7 @@ source directory and its own dedicated `readme.md`.
 
 * **src/generated** contains the wire protocol's C++ classes, generated from
   the definitions in `src/xdr`.
+
 
 
 

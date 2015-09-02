@@ -21,7 +21,9 @@ stellar-core can be controlled via the following commands.
 
 
 ## HTTP Commands
-By default stellar-core listens for connections from localhost on port 11626. You can send commands to stellar-core via a web browser, curl, or using the --c command line option (see above). Most commands return their results in JSON format.
+By default stellar-core listens for connections from localhost on port 11626. 
+You can send commands to stellar-core via a web browser, curl, or using the --c 
+command line option (see above). Most commands return their results in JSON format.
 
 * **help**
   Prints a list of currently supported commands.
