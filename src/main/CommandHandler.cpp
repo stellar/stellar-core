@@ -314,6 +314,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     if (mApp.getConfig().UNSAFE_QUORUM)
         root["info"]["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
     root["info"]["build"] = STELLAR_CORE_VERSION;
+    root["info"]["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     root["info"]["state"] = mApp.getStateHuman();
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
     root["info"]["ledger"]["hash"] =
