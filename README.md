@@ -1,7 +1,7 @@
 [![Build Status](https://travis-ci.org/stellar/stellar-core.svg?branch=auto)](https://travis-ci.org/stellar/stellar-core)
 
-# Note this code is pre-beta. 
-It is definitely not ready yet for production.
+# Note this code is beta. 
+It is not ready yet for production.
  
 # stellar-core
 
