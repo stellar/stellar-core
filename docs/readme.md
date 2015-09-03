@@ -1,10 +1,3 @@
-
----
-id: readme
-title: Readme
-category: Getting Started
----
-
 # Stellar-core Overview
 
 Stellar is a decentralized, federated peer-to-peer network that allows people to
