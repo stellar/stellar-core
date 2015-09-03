@@ -34,7 +34,7 @@ TEST_CASE("merge", "[tx][merge]")
 
     // set up world
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app.getNetworkID());
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
     SecretKey gateway = getAccount("gate");

@@ -35,10 +35,12 @@ TEST_CASE("standalone", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
+    Hash const& networkID = app->getNetworkID();
+
     app->start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(networkID);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
@@ -112,10 +114,12 @@ TEST_CASE("txset", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
+    Hash const& networkID = app->getNetworkID();
+
     app->start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(networkID);
 
     const int nbAccounts = 2;
     const int nbTransactions = 5;
@@ -269,10 +273,12 @@ TEST_CASE("surge", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
+    Hash const& networkID = app->getNetworkID();
+
     app->start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(networkID);
 
     AccountFrame::pointer rootAccount;
 

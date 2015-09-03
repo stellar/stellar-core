@@ -38,7 +38,7 @@ time_t getTestDate(int day, int month, int year);
 void closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month,
                    int year, TransactionFramePtr tx = nullptr);
 
-SecretKey getRoot();
+SecretKey getRoot(Hash const& networkID);
 
 SecretKey getAccount(const char* n);
 

@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include "xdr/Stellar-types.h"
 
 namespace asio
 {
@@ -225,6 +226,10 @@ class Application
 
     // Report information about the instance to standard logging
     virtual void reportInfo() = 0;
+
+    // Returns the hash of the passphrase, used to separate various network
+    // instances
+    virtual Hash const& getNetworkID() const = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.

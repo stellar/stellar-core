@@ -141,9 +141,9 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
 }
 
 SecretKey
-getRoot()
+getRoot(Hash const& networkID)
 {
-    return SecretKey::fromSeed(ByteSlice("allmylifemyhearthasbeensearching"));
+    return SecretKey::fromSeed(networkID);
 }
 
 SecretKey

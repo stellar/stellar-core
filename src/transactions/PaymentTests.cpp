@@ -39,7 +39,7 @@ TEST_CASE("payment", "[tx][payment]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app.getNetworkID());
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
@@ -487,7 +487,7 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
         Application::create(clock, getTestConfig(0, mode));
     app->start();
 
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app->getNetworkID());
     SecretKey a1 = getAccount("A");
     int64_t txfee = app->getLedgerManager().getTxFee();
     const int64_t paymentAmount =

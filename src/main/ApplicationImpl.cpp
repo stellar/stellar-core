@@ -59,6 +59,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mStopSignals.add(SIGTERM);
 #endif
 
+    mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
+
     unsigned t = std::thread::hardware_concurrency();
     LOG(INFO) << "Application constructing "
               << "(worker threads: " << t << ")";
@@ -189,6 +191,12 @@ ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
     mCommandHandler->manualCmd("info");
+}
+
+Hash const&
+ApplicationImpl::getNetworkID() const
+{
+    return mNetworkID;
 }
 
 ApplicationImpl::~ApplicationImpl()

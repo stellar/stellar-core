@@ -36,7 +36,7 @@ createTestAccounts(Application& app, int nbAccounts,
                    std::function<int(int)> getVote)
 {
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app.getNetworkID());
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
@@ -219,7 +219,7 @@ doInflation(Application& app, int nbAccounts,
 
     std::vector<int64> expectedBalances;
 
-    auto root = getRoot();
+    auto root = getRoot(app.getNetworkID());
     TransactionFramePtr txFrame =
         createInflation(root, getAccountSeqNum(root, app) + 1);
 
@@ -304,7 +304,7 @@ TEST_CASE("inflation", "[tx][inflation]")
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
 
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app.getNetworkID());
 
     app.start();
 

@@ -34,10 +34,11 @@ TEST_CASE("create offer", "[tx][offers]")
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
+    Hash const& networkID = app.getNetworkID();
     app.start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(networkID);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
     SecretKey c1 = getAccount("C");

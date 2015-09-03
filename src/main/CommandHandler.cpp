@@ -123,7 +123,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         SecretKey key;
         if (accName->second == "root")
         {
-            key = getRoot();
+            key = getRoot(mApp.getNetworkID());
         }
         else
         {
@@ -156,25 +156,36 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
     if (to != retMap.end() && from != retMap.end() && amount != retMap.end())
     {
+        Hash const& networkID = mApp.getNetworkID();
+
         SecretKey toKey, fromKey;
         if (to->second == "root")
-            toKey = getRoot();
+        {
+            toKey = getRoot(networkID);
+        }
         else
+        {
             toKey = getAccount(to->second.c_str());
+        }
 
         if (from->second == "root")
-            fromKey = getRoot();
+        {
+            fromKey = getRoot(networkID);
+        }
         else
+        {
             fromKey = getAccount(from->second.c_str());
+        }
 
         uint64_t paymentAmount = 0;
         std::istringstream iss(amount->second);
         iss >> paymentAmount;
 
         root["from_name"] = from->second;
-        root["to_name"] = to->second ;
+        root["to_name"] = to->second;
         root["from_id"] = PubKeyUtils::toStrKey(fromKey.getPublicKey());
-        root["to_id"] = PubKeyUtils::toStrKey(toKey.getPublicKey());;
+        root["to_id"] = PubKeyUtils::toStrKey(toKey.getPublicKey());
+        ;
         root["amount"] = (Json::UInt64)paymentAmount;
 
         SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
@@ -200,7 +211,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             break;
         case Herder::TX_STATUS_ERROR:
             root["status"] = "error";
-            root["detail"] = xdr::xdr_to_string(txFrame->getResult().result.code());
+            root["detail"] =
+                xdr::xdr_to_string(txFrame->getResult().result.code());
             break;
         default:
             assert(false);
@@ -209,9 +221,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
     else
     {
         root["status"] = "error";
-        root["detail"] =
-            "Bad HTTP GET: try something like: "
-            "testtx?from=root&to=bob&amount=1000000000";
+        root["detail"] = "Bad HTTP GET: try something like: "
+                         "testtx?from=root&to=bob&amount=1000000000";
     }
     retStr = root.toStyledString();
 }

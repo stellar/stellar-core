@@ -112,7 +112,7 @@ class HistoryTests
         , appPtr(
               Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
-        , mRoot(txtest::getRoot())
+        , mRoot(txtest::getRoot(app.getNetworkID()))
         , mAlice(txtest::getAccount("alice"))
         , mBob(txtest::getAccount("bob"))
         , mCarol(txtest::getAccount("carol"))

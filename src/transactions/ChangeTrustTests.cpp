@@ -27,7 +27,7 @@ TEST_CASE("change trust", "[tx][changeTrust]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot();
+    SecretKey root = getRoot(app.getNetworkID());
     SecretKey a1 = getAccount("A");
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
