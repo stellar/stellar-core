@@ -1,8 +1,3 @@
----
-id: fuzzing
-title: Fuzzing
-category: Guides
----
 # Fuzzing
 
 This is a little howto on using the [AFL][0] (["American Fuzzy Lop"][1])

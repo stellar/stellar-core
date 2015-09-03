@@ -1,9 +1,3 @@
----
-id: admin
-title: Admin
-category: Guides
----
-
 # Administration
 
 Stellar Core is responsible for communicating directly with and/or maintaining 

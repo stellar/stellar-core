@@ -863,9 +863,6 @@
     <None Include="..\..\docs\stellar-core_testnet.cfg">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\concepts.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\ledger.md">
       <Filter>docs</Filter>
     </None>

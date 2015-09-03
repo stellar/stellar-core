@@ -421,7 +421,6 @@
     <None Include="..\..\docs\admin.md" />
     <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\commands.md" />
-    <None Include="..\..\docs\concepts.md" />
     <None Include="..\..\docs\fuzzing.md" />
     <None Include="..\..\docs\history.md" />
     <None Include="..\..\docs\ledger.md" />
