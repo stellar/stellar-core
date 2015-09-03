@@ -193,12 +193,13 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame =
-                createCreateAccountTx(fromKey, toKey, fromSeq, paymentAmount);
+            txFrame = createCreateAccountTx(networkID, fromKey, toKey, fromSeq,
+                                            paymentAmount);
         }
         else
         {
-            txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
+            txFrame = createPaymentTx(networkID, fromKey, toKey, fromSeq,
+                                      paymentAmount);
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))
@@ -614,7 +615,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 
             xdr::xdr_from_opaque(binBlob, envelope);
             TransactionFramePtr transaction =
-                TransactionFrame::makeTransactionFromWire(envelope);
+                TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
+                                                          envelope);
             if (transaction)
             {
                 // add it to our current set

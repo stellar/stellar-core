@@ -435,7 +435,8 @@ StateSnapshot::writeHistoryBlocks() const
     size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(
         mApp.getDatabase(), sess, begin, count, ledgerOut);
     size_t nTxs = TransactionFrame::copyTransactionsToStream(
-        mApp.getDatabase(), sess, begin, count, txOut, txResultOut);
+        mApp.getNetworkID(), mApp.getDatabase(), sess, begin, count, txOut,
+        txResultOut);
     CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
                            << mLedgerSnapFile->localPath_nogz();
     CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to "

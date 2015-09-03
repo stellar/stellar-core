@@ -173,7 +173,7 @@ TEST_CASE("payment", "[tx][payment]")
             addReserve;
 
         // verify that the account can't do anything
-        auto tx = createPaymentTx(b1, root, b1Seq++, 1);
+        auto tx = createPaymentTx(app.getNetworkID(), b1, root, b1Seq++, 1);
         REQUIRE(!applyCheck(tx, delta, app));
         REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -404,7 +404,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             // offer is sell 100 USD for 100 XLM
             applyCreateOffer(app, delta, 0, a1, usdCur, xlmCur, Price(1, 1),
-                                 100 * assetMultiplier, a1Seq++);
+                             100 * assetMultiplier, a1Seq++);
 
             // A1: try to send 100 USD to B1 using XLM
 

@@ -324,15 +324,15 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    TxSetFrame frame(msg.txSet());
+    TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
     mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
 }
 
 void
 Peer::recvTransaction(StellarMessage const& msg)
 {
-    TransactionFramePtr transaction =
-        TransactionFrame::makeTransactionFromWire(msg.transaction());
+    TransactionFramePtr transaction = TransactionFrame::makeTransactionFromWire(
+        mApp.getNetworkID(), msg.transaction());
     if (transaction)
     {
         // add it to our current set

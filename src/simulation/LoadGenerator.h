@@ -26,7 +26,7 @@ class VirtualTimer;
 class LoadGenerator
 {
   public:
-    LoadGenerator();
+    LoadGenerator(Hash const& networkID);
     ~LoadGenerator();
     void clear();
 
@@ -77,11 +77,6 @@ class LoadGenerator
     createTransferCreditTransaction(AccountInfoPtr from, AccountInfoPtr to,
                                     int64_t amount,
                                     std::vector<AccountInfoPtr> const& path);
-
-    TxInfo createEstablishTrustTransaction(AccountInfoPtr from,
-                                           AccountInfoPtr issuer);
-
-    TxInfo createEstablishOfferTransaction(AccountInfoPtr from);
 
     AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
                                      uint32_t ledgerNum);
@@ -169,7 +164,8 @@ class LoadGenerator
 
         bool execute(Application& app);
 
-        void toTransactionFrames(std::vector<TransactionFramePtr>& txs,
+        void toTransactionFrames(Hash const& networkID,
+                                 std::vector<TransactionFramePtr>& txs,
                                  TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };

@@ -145,14 +145,18 @@ class OverlayManagerTests
         SecretKey c = getAccount("c");
         SecretKey d = getAccount("d");
 
-        StellarMessage AtoC = createPaymentTx(a, b, 1, 10)->toStellarMessage();
+        Hash const& networkID = app.getNetworkID();
+
+        StellarMessage AtoC =
+            createPaymentTx(networkID, a, b, 1, 10)->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
         pm.broadcastMessage(AtoC);
         vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = createPaymentTx(c, d, 1, 10)->toStellarMessage();
+        StellarMessage CtoD =
+            createPaymentTx(networkID, c, d, 1, 10)->toStellarMessage();
         pm.broadcastMessage(CtoD);
         vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);

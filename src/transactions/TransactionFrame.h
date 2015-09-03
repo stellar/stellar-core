@@ -41,6 +41,7 @@ class TransactionFrame
     std::vector<bool> mUsedSignatures;
 
     void clearCached();
+    Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
@@ -57,12 +58,14 @@ class TransactionFrame
     void markResultFailed();
 
   public:
-    TransactionFrame(TransactionEnvelope const& envelope);
+    TransactionFrame(Hash const& networkID,
+                     TransactionEnvelope const& envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
     static TransactionFramePtr
-    makeTransactionFromWire(TransactionEnvelope const& msg);
+    makeTransactionFromWire(Hash const& networkID,
+                            TransactionEnvelope const& msg);
 
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
@@ -155,7 +158,8 @@ class TransactionFrame
     txOut: stream of TransactionHistoryEntry
     txResultOut: stream of TransactionHistoryResultEntry
     */
-    static size_t copyTransactionsToStream(Database& db, soci::session& sess,
+    static size_t copyTransactionsToStream(Hash const& networkID, Database& db,
+                                           soci::session& sess,
                                            uint32_t ledgerSeq,
                                            uint32_t ledgerCount,
                                            XDROutputFileStream& txOut,

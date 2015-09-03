@@ -26,7 +26,7 @@ class TxSetFrame
 
     TxSetFrame(Hash const& previousLedgerHash);
     // make it from the wire
-    TxSetFrame(TransactionSet const& xdrSet);
+    TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet);
 
     // returns the hash of this tx set
     Hash getContentsHash();

@@ -220,8 +220,8 @@ doInflation(Application& app, int nbAccounts,
     std::vector<int64> expectedBalances;
 
     auto root = getRoot(app.getNetworkID());
-    TransactionFramePtr txFrame =
-        createInflation(root, getAccountSeqNum(root, app) + 1);
+    TransactionFramePtr txFrame = createInflation(
+        app.getNetworkID(), root, getAccountSeqNum(root, app) + 1);
 
     expectedFees += txFrame->getFee();
 
@@ -320,7 +320,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
         closeLedgerOn(app, 3, 1, 7, 2014);
 
-        auto txFrame = createInflation(root, rootSeq++);
+        auto txFrame = createInflation(app.getNetworkID(), root, rootSeq++);
 
         closeLedgerOn(app, 4, 7, 7, 2014, txFrame);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
