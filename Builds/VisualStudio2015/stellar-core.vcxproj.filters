@@ -814,7 +814,6 @@
       <Filter>lib\xdrpp</Filter>
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
-    <None Include="..\..\INSTALL" />
     <None Include="..\..\README.md" />
     <None Include="..\..\docs\testnet.md">
       <Filter>docs</Filter>
@@ -884,6 +883,10 @@
     <None Include="..\..\docs\history.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\db-schema.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\INSTALL.md" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
@@ -902,5 +905,8 @@
       <Filter>xdr</Filter>
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\INSTALL-Windows.txt" />
   </ItemGroup>
 </Project>

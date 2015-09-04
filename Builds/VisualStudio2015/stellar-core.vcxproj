@@ -421,6 +421,7 @@
     <None Include="..\..\docs\admin.md" />
     <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\commands.md" />
+    <None Include="..\..\docs\db-schema.md" />
     <None Include="..\..\docs\fuzzing.md" />
     <None Include="..\..\docs\history.md" />
     <None Include="..\..\docs\ledger.md" />
@@ -431,7 +432,7 @@
     <None Include="..\..\docs\testnet.md" />
     <None Include="..\..\docs\transaction.md" />
     <None Include="..\..\docs\versioning.md" />
-    <None Include="..\..\INSTALL" />
+    <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
     <None Include="..\..\README.md" />
@@ -543,6 +544,9 @@
     <ProjectReference Include="libsqlite\libsqlite.vcxproj">
       <Project>{d16ee391-36cc-4a74-8f91-c6de95ab1cc5}</Project>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\..\INSTALL-Windows.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
