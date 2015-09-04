@@ -19,6 +19,7 @@
 #include "util/basen.h"
 #include "medida/reporting/json_reporter.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 
 #include <regex>
 #include "transactions/TxTests.h"
@@ -76,6 +77,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
+    mServer->addRoute("testacc",
+                      std::bind(&CommandHandler::testAcc, this, _1, _2));
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
@@ -104,6 +107,41 @@ getSeq(SecretKey const& k, Application& app)
 }
 
 void
+CommandHandler::testAcc(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    Json::Value root;
+    auto accName = retMap.find("name");
+    if (accName == retMap.end())
+    {
+        root["status"] = "error";
+        root["detail"] = "Bad HTTP GET: try something like: testacc?name=bob";
+    }
+    else
+    {
+        SecretKey key;
+        if (accName->second == "root")
+        {
+            key = getRoot();
+        }
+        else
+        {
+            key = getAccount(accName->second.c_str());
+        }
+        auto acc = loadAccount(key, mApp, false);
+        if (acc)
+        {
+            root["name"] = accName->second;
+            root["id"] = PubKeyUtils::toStrKey(acc->getID());
+            root["balance"] = (Json::Int64)acc->getBalance();
+            root["seqnum"] = (Json::UInt64)acc->getSeqNum();
+        }
+    }
+    retStr = root.toStyledString();
+}
+
+void
 CommandHandler::testTx(std::string const& params, std::string& retStr)
 {
     std::map<std::string, std::string> retMap;
@@ -113,6 +151,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
     auto from = retMap.find("from");
     auto amount = retMap.find("amount");
     auto create = retMap.find("create");
+
+    Json::Value root;
 
     if (to != retMap.end() && from != retMap.end() && amount != retMap.end())
     {
@@ -127,7 +167,15 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         else
             fromKey = getAccount(from->second.c_str());
 
-        uint64_t paymentAmount = uint64_t(stoi(amount->second)) * 1000000ULL;
+        uint64_t paymentAmount = 0;
+        std::istringstream iss(amount->second);
+        iss >> paymentAmount;
+
+        root["from_name"] = from->second;
+        root["to_name"] = to->second ;
+        root["from_id"] = PubKeyUtils::toStrKey(fromKey.getPublicKey());
+        root["to_id"] = PubKeyUtils::toStrKey(toKey.getPublicKey());;
+        root["amount"] = (Json::UInt64)paymentAmount;
 
         SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
 
@@ -141,14 +189,31 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         {
             txFrame = createPaymentTx(fromKey, toKey, fromSeq, paymentAmount);
         }
-        bool ret = (mApp.getHerder().recvTransaction(txFrame) ==
-                    Herder::TX_STATUS_PENDING);
-        retStr = ret ? "Transaction submitted" : "Something went wrong";
+
+        switch (mApp.getHerder().recvTransaction(txFrame))
+        {
+        case Herder::TX_STATUS_PENDING:
+            root["status"] = "pending";
+            break;
+        case Herder::TX_STATUS_DUPLICATE:
+            root["status"] = "duplicate";
+            break;
+        case Herder::TX_STATUS_ERROR:
+            root["status"] = "error";
+            root["detail"] = xdr::xdr_to_string(txFrame->getResult().result.code());
+            break;
+        default:
+            assert(false);
+        }
     }
     else
     {
-        retStr = "try something like: testtx?from=root&to=bob&amount=100";
+        root["status"] = "error";
+        root["detail"] =
+            "Bad HTTP GET: try something like: "
+            "testtx?from=root&to=bob&amount=1000000000";
     }
+    retStr = root.toStyledString();
 }
 
 void
