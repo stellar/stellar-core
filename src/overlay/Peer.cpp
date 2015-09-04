@@ -70,6 +70,7 @@ Peer::sendHello()
     msg.hello().ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     msg.hello().overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
     msg.hello().versionStr = mApp.getConfig().VERSION_STR;
+    msg.hello().networkID = mApp.getNetworkID();
     msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
     msg.hello().peerID = mApp.getConfig().PEER_PUBLIC_KEY;
 
@@ -395,6 +396,16 @@ Peer::recvHello(StellarMessage const& msg)
     if (msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
     {
         CLOG(DEBUG, "Overlay") << "connecting to self";
+        drop();
+        return false;
+    }
+
+    if (msg.hello().networkID != mApp.getNetworkID())
+    {
+        CLOG(INFO, "Overlay") << "connection from misconfigured peer";
+        CLOG(DEBUG, "Overlay")
+            << "NetworkID = " << hexAbbrev(msg.hello().networkID)
+            << " expected: " << hexAbbrev(mApp.getNetworkID());
         drop();
         return false;
     }
