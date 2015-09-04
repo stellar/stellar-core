@@ -26,12 +26,12 @@ const char* OfferFrame::kSQLCreateStatement1 =
     "buyingassettype  INT,"
     "buyingassetcode  VARCHAR(12),"
     "buyingissuer     VARCHAR(56),"
-    "amount           BIGINT       NOT NULL CHECK (amount >= 0),"
-    "pricen           INT          NOT NULL,"
-    "priced           INT          NOT NULL,"
-    "price            BIGINT       NOT NULL,"
-    "flags            INT          NOT NULL,"
-    "lastmodified     INT          NOT NULL,"
+    "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+    "pricen           INT              NOT NULL,"
+    "priced           INT              NOT NULL,"
+    "price            DOUBLE PRECISION NOT NULL,"
+    "flags            INT              NOT NULL,"
+    "lastmodified     INT              NOT NULL,"
     "PRIMARY KEY      (offerid)"
     ");";
 
@@ -314,6 +314,8 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
         sql += " AND buyingassetcode = :gcur AND buyingissuer = :gi";
     }
 
+    // price is an approximation of the actual n/d (truncated math, 15 digits)
+    // ordering by offerid gives precendence to older offers for fairness
     sql += " ORDER BY price, offerid LIMIT :n OFFSET :o";
 
     auto prep = db.getPreparedStatement(sql);
@@ -406,10 +408,10 @@ OfferFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     delta.deleteEntry(key);
 }
 
-int64_t
+double
 OfferFrame::computePrice() const
 {
-    return bigDivide(mOffer.price.n, OFFER_PRICE_DIVISOR, mOffer.price.d);
+    return double(mOffer.price.n) / double(mOffer.price.d);
 }
 
 void

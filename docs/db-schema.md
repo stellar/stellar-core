@@ -68,7 +68,7 @@ buyingissuer | VARCHAR(56) | buying.*.issuer
 amount | BIGINT NOT NULL CHECK (amount >= 0) |
 pricen | INT NOT NULL | Price.n
 priced | INT NOT NULL | Price.d
-price | BIGINT NOT NULL | computed price n/d, used for ordering offers
+price | DOUBLE PRECISION NOT NULL | computed price n/d, used for ordering offers
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
