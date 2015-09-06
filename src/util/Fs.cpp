@@ -188,7 +188,8 @@ hexDir(std::string const& hexStr)
 {
     std::regex rx("([[:xdigit:]]{2})([[:xdigit:]]{2})([[:xdigit:]]{2}).*");
     std::smatch sm;
-    assert(std::regex_match(hexStr, sm, rx));
+    bool matched = std::regex_match(hexStr, sm, rx);
+    assert(matched);
     return (std::string(sm[1]) + "/" + std::string(sm[2]) + "/" +
             std::string(sm[3]));
 }

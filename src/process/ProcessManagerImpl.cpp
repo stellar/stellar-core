@@ -97,12 +97,14 @@ void
 ProcessManagerImpl::startSignalWait()
 {
     // No-op on windows, uses waitable object handles
+    mApp.getClock().getIOService().post(std::bind(ProcessManagerImpl::handleSignalWait, this));
 }
 
 void
 ProcessManagerImpl::handleSignalWait()
 {
     // No-op on windows, uses waitable object handles
+    maybeRunPendingProcesses();
 }
 
 void
@@ -394,6 +396,14 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc,
                                                         cmdLine, outFile);
     mPendingImpls.push_back(pe.mImpl);
+
+#ifdef _WIN32
+    auto pm = this;
+    pe.async_wait([pm](asio::error_code ec) {
+        pm->startSignalWait();
+    });
+#endif
+
     maybeRunPendingProcesses();
     mImplsSize.set_count(gNumProcessesActive);
     return pe;
