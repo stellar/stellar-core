@@ -92,10 +92,8 @@ VirtualClock::to_time_t(time_point point)
 time_t
 timegm(struct tm* tm)
 {
-    time_t zero = 0;
-    time_t localEpoch = mktime(gmtime(&zero));
-    time_t local = mktime(tm);
-    return local - localEpoch;
+    //Timezone independant version
+    return _mkgmtime(tm);
 }
 #endif
 
