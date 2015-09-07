@@ -12,8 +12,6 @@ namespace soci
 class session;
 }
 
-#define OFFER_PRICE_DIVISOR 10000000
-
 namespace stellar
 {
 class ManageOfferOpFrame;
@@ -25,7 +23,7 @@ class OfferFrame : public EntryFrame
     loadOffers(StatementContext& prep,
                std::function<void(LedgerEntry const&)> offerProcessor);
 
-    int64_t computePrice() const;
+    double computePrice() const;
 
     OfferEntry& mOffer;
 
