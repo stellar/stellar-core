@@ -63,7 +63,7 @@ class ProcessExitEvent::Impl
     std::string mCmdLine;
     std::string mOutFile;
     bool mRunning{false};
-#ifdef _MSC_VER
+#ifdef _WIN32
     asio::windows::object_handle mProcessHandle;
 #endif
     ProcessManagerImpl& mProcManagerImpl;
@@ -76,7 +76,7 @@ class ProcessExitEvent::Impl
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
-#ifdef _MSC_VER
+#ifdef _WIN32
         , mProcessHandle(outerTimer->get_io_service())
 #endif
         , mProcManagerImpl(pm)
@@ -85,7 +85,7 @@ class ProcessExitEvent::Impl
     void run();
 };
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <windows.h>
 #include <tchar.h>
 
