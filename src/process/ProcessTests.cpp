@@ -105,7 +105,6 @@ TEST_CASE("subprocess redirect to file", "[process]")
     std::remove(filename.c_str());
 }
 
-#ifndef _MSC_VER
 TEST_CASE("subprocess storm", "[process]")
 {
     VirtualClock clock;
@@ -146,9 +145,9 @@ TEST_CASE("subprocess storm", "[process]")
     while (completed < n && !clock.getIOService().stopped())
     {
         clock.crank(false);
-        size_t n = app.getProcessManager().getNumRunningProcesses();
+        size_t n2 = app.getProcessManager().getNumRunningProcesses();
         CLOG(INFO, "Process") << "running subprocess count: " << n;
-        REQUIRE(n <= cfg.MAX_CONCURRENT_SUBPROCESSES);
+        REQUIRE(n2 <= cfg.MAX_CONCURRENT_SUBPROCESSES);
     }
 
     for (size_t i = 0; i < n; ++i)
@@ -159,4 +158,3 @@ TEST_CASE("subprocess storm", "[process]")
         REQUIRE(fs::exists(dst));
     }
 }
-#endif
