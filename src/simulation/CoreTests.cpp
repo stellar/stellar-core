@@ -57,7 +57,9 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
     }
 
     {
-        Simulation::pointer simulation = std::make_shared<Simulation>(mode);
+        Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+        Simulation::pointer simulation =
+            std::make_shared<Simulation>(mode, networkID);
 
         std::vector<SecretKey> keys;
         for (int i = 0; i < 3; i++)
@@ -111,11 +113,13 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
         mode = Simulation::OVER_TCP;
     }
 
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
     for (int size = 2; size <= 4; size++)
     {
         auto tBegin = std::chrono::system_clock::now();
 
-        Simulation::pointer sim = Topologies::core(size, 1.0, mode);
+        Simulation::pointer sim = Topologies::core(size, 1.0, mode, networkID);
         sim->startAllNodes();
 
         int nLedgers = 4;
@@ -133,11 +137,13 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 }
 
 void
-hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode)
+hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode,
+                 Hash const& networkID)
 {
     auto tBegin = std::chrono::system_clock::now();
 
-    Simulation::pointer sim = Topologies::hierarchicalQuorum(nBranches, mode);
+    Simulation::pointer sim =
+        Topologies::hierarchicalQuorum(nBranches, mode, networkID);
     sim->startAllNodes();
 
     sim->crankUntil(
@@ -178,7 +184,8 @@ TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {
-    Simulation::pointer simulation = Topologies::cycle4();
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer simulation = Topologies::cycle4(networkID);
     simulation->startAllNodes();
 
     simulation->crankUntil(
@@ -195,8 +202,9 @@ TEST_CASE("cycle4 topology", "[simulation]")
 TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
           "[stress100][simulation][stress][long][hide]")
 {
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
-        Topologies::pair(Simulation::OVER_LOOPBACK);
+        Topologies::pair(Simulation::OVER_LOOPBACK, networkID);
 
     simulation->startAllNodes();
     simulation->crankUntil(

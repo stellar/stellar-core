@@ -10,9 +10,9 @@ namespace stellar
 using namespace std;
 
 Simulation::pointer
-Topologies::pair(Simulation::Mode mode)
+Topologies::pair(Simulation::Mode mode, Hash const& networkID)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode);
+    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
@@ -30,10 +30,10 @@ Topologies::pair(Simulation::Mode mode)
 }
 
 Simulation::pointer
-Topologies::cycle4()
+Topologies::cycle4(Hash const& networkID)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(Simulation::OVER_LOOPBACK);
+        make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -81,9 +81,9 @@ Topologies::cycle4()
 
 Simulation::pointer
 Topologies::core(int nNodes, float quorumThresoldFraction,
-                 Simulation::Mode mode)
+                 Simulation::Mode mode, Hash const& networkID)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode);
+    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID);
 
     vector<SecretKey> keys;
     for (int i = 0; i < nNodes; i++)
@@ -118,10 +118,10 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::hierarchicalQuorum(int nBranches,
-                               Simulation::Mode mode) // Figure 3 from the paper
+Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
+                               Hash const& networkID) // Figure 3 from the paper
 {
-    auto sim = Topologies::core(4, 0.75, mode);
+    auto sim = Topologies::core(4, 0.75, mode, networkID);
     vector<NodeID> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {

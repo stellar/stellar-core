@@ -37,7 +37,8 @@ class LedgerPerformanceTests : public Simulation
 
     Application::pointer mApp;
 
-    LedgerPerformanceTests() : Simulation(Simulation::OVER_LOOPBACK)
+    LedgerPerformanceTests(Hash const& networkID)
+        : Simulation(Simulation::OVER_LOOPBACK, networkID)
     {
     }
 
@@ -128,7 +129,7 @@ class LedgerPerformanceTests : public Simulation
         for (auto& tx : txs)
         {
             std::vector<TransactionFramePtr> txfs;
-            tx.toTransactionFrames(txfs, txm);
+            tx.toTransactionFrames(mApp->getNetworkID(), txfs, txm);
             for (auto f : txfs)
                 txSet->add(f);
             tx.recordExecution(baseFee);
@@ -152,7 +153,10 @@ TEST_CASE("ledger performance test", "[performance][hide]")
         9 /* weeks */ * 7 * 24 * 60 * 60 / 5 /* seconds between ledgers */;
     int nTransactionsPerLedger = 3;
 
-    LedgerPerformanceTests sim;
+    auto cfg = getTestConfig(1);
+
+    Hash networkID = sha256(cfg.NETWORK_PASSPHRASE);
+    LedgerPerformanceTests sim(networkID);
 
     SIMULATION_CREATE_NODE(10);
 
@@ -160,7 +164,6 @@ TEST_CASE("ledger performance test", "[performance][hide]")
     qSet0.threshold = 1;
     qSet0.validators.push_back(v10NodeID);
 
-    auto cfg = getTestConfig(1);
     cfg.REBUILD_DB = false;
     cfg.DATABASE = "postgresql://host=localhost dbname=performance_test "
                    "user=test password=test";

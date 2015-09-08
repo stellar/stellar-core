@@ -50,13 +50,15 @@ static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
 // Units of load are is scheduled at 100ms intervals.
 const uint32_t LoadGenerator::STEP_MSECS = 100;
 
-LoadGenerator::LoadGenerator() : mMinBalance(0), mLastSecond(0)
+LoadGenerator::LoadGenerator(Hash const& networkID)
+    : mMinBalance(0), mLastSecond(0)
 {
     // Root account gets enough XLM to create 100 million (10^8) accounts, which
     // thereby uses up 7 + 2 + 8 = 17 decimal digits. Luckily we have 2^63 =
     // 9.2*10^18, so there's room even in 62bits to do this.
-    auto root = make_shared<AccountInfo>(
-        0, txtest::getRoot(), 100000000ULL * LOADGEN_ACCOUNT_BALANCE, 0, *this);
+    auto root = make_shared<AccountInfo>(0, txtest::getRoot(networkID),
+                                         100000000ULL * LOADGEN_ACCOUNT_BALANCE,
+                                         0, *this);
     mAccounts.push_back(root);
 }
 
@@ -792,7 +794,7 @@ LoadGenerator::TxInfo::execute(Application& app)
 {
     std::vector<TransactionFramePtr> txfs;
     TxMetrics txm(app.getMetrics());
-    toTransactionFrames(txfs, txm);
+    toTransactionFrames(app.getNetworkID(), txfs, txm);
     for (auto f : txfs)
     {
         txm.mTxnAttempted.Mark();
@@ -823,7 +825,8 @@ LoadGenerator::TxInfo::execute(Application& app)
 
 void
 LoadGenerator::TxInfo::toTransactionFrames(
-    std::vector<TransactionFramePtr>& txs, TxMetrics& txm)
+    Hash const& networkID, std::vector<TransactionFramePtr>& txs,
+    TxMetrics& txm)
 {
     switch (mType)
     {
@@ -902,7 +905,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
 
             e.tx.fee = 10 * static_cast<uint32>(e.tx.operations.size());
             TransactionFramePtr res =
-                TransactionFrame::makeTransactionFromWire(e);
+                TransactionFrame::makeTransactionFromWire(networkID, e);
             for (auto a : signingAccounts)
             {
                 res->addSignature(a->mKey);
@@ -914,7 +917,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
     case TxInfo::TX_TRANSFER_NATIVE:
         txm.mPayment.Mark();
         txm.mNativePayment.Mark();
-        txs.push_back(txtest::createPaymentTx(mFrom->mKey, mTo->mKey,
+        txs.push_back(txtest::createPaymentTx(networkID, mFrom->mKey, mTo->mKey,
                                               mFrom->mSeq + 1, mAmount));
         break;
 
@@ -933,8 +936,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                mFrom->mKey, mTo->mKey, assetPath.front(), mFrom->mSeq + 1,
-                mAmount));
+                networkID, mFrom->mKey, mTo->mKey, assetPath.front(),
+                mFrom->mSeq + 1, mAmount));
         }
         else
         {
@@ -957,8 +960,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             assetPath.pop_back();
             auto sendMax = mAmount * 10;
             txs.emplace_back(txtest::createPathPaymentTx(
-                mFrom->mKey, mTo->mKey, sendAsset, sendMax, recvAsset, mAmount,
-                mFrom->mSeq + 1, &assetPath));
+                networkID, mFrom->mKey, mTo->mKey, sendAsset, sendMax,
+                recvAsset, mAmount, mFrom->mSeq + 1, &assetPath));
         }
     }
     break;

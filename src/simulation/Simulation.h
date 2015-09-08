@@ -37,7 +37,7 @@ class Simulation : public LoadGenerator
 
     typedef std::shared_ptr<Simulation> pointer;
 
-    Simulation(Mode mode);
+    Simulation(Mode mode, Hash const& networkID);
     ~Simulation();
 
     VirtualClock& getClock();

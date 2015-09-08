@@ -1079,7 +1079,8 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
         {
             CLOG(DEBUG, "History") << "Preparing tx for ledger "
                                    << txHistoryEntry.ledgerSeq;
-            txset = std::make_shared<TxSetFrame>(txHistoryEntry.txSet);
+            txset = std::make_shared<TxSetFrame>(mApp.getNetworkID(),
+                                                 txHistoryEntry.txSet);
             readTxSet = txIn.readOne(txHistoryEntry);
         }
         CLOG(DEBUG, "History") << "Ledger " << header.ledgerSeq << " has "

@@ -20,6 +20,7 @@
 #include "main/CommandHandler.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
+#include "crypto/SHA.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -58,6 +59,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 #ifdef SIGTERM
     mStopSignals.add(SIGTERM);
 #endif
+
+    mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
     unsigned t = std::thread::hardware_concurrency();
     LOG(INFO) << "Application constructing "
@@ -189,6 +192,12 @@ ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
     mCommandHandler->manualCmd("info");
+}
+
+Hash const&
+ApplicationImpl::getNetworkID() const
+{
+    return mNetworkID;
 }
 
 ApplicationImpl::~ApplicationImpl()
@@ -328,7 +337,7 @@ ApplicationImpl::generateLoad(uint32_t nAccounts, uint32_t nTxs,
 {
     if (!mLoadGenerator)
     {
-        mLoadGenerator = make_unique<LoadGenerator>();
+        mLoadGenerator = make_unique<LoadGenerator>(getNetworkID());
     }
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
     mLoadGenerator->generateLoad(*this, nAccounts, nTxs, txRate, autoRate);

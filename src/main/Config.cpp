@@ -25,6 +25,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     FORCE_SCP = false;
 
     // configurable
+    NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
     FAILURE_SAFETY = 1;
     UNSAFE_QUORUM = false;
     DESIRED_BASE_FEE = 10;
@@ -453,6 +454,14 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid PARANOID_MODE");
                 }
                 PARANOID_MODE = item.second->as<bool>()->value();
+            }
+            else if (item.first == "NETWORK_PASSPHRASE")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid NETWORK_PASSPHRASE");
+                }
+                NETWORK_PASSPHRASE = item.second->as<std::string>()->value();
             }
             else
             {

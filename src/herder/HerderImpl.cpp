@@ -329,8 +329,8 @@ void
 HerderImpl::signEnvelope(SCPEnvelope& envelope)
 {
     mSCPMetrics.mEnvelopeSign.Mark();
-    envelope.signature = mSCP.getSecretKey().sign(
-        xdr::xdr_to_opaque(ENVELOPE_TYPE_SCP, envelope.statement));
+    envelope.signature = mSCP.getSecretKey().sign(xdr::xdr_to_opaque(
+        mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
 }
 
 bool
@@ -338,7 +338,8 @@ HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
 {
     bool b = PubKeyUtils::verifySig(
         envelope.statement.nodeID, envelope.signature,
-        xdr::xdr_to_opaque(ENVELOPE_TYPE_SCP, envelope.statement));
+        xdr::xdr_to_opaque(mApp.getNetworkID(), ENVELOPE_TYPE_SCP,
+                           envelope.statement));
     if (b)
     {
         mSCPMetrics.mEnvelopeValidSig.Mark();

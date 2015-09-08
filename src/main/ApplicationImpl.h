@@ -84,6 +84,8 @@ class ApplicationImpl : public Application
 
     virtual void reportInfo() override;
 
+    virtual Hash const& getNetworkID() const override;
+
   private:
     VirtualClock& mVirtualClock;
     Config mConfig;
@@ -126,6 +128,8 @@ class ApplicationImpl : public Application
     medida::Counter& mAppStateCurrent;
     medida::Timer& mAppStateChanges;
     VirtualClock::time_point mLastStateChange;
+
+    Hash mNetworkID;
 
     void shutdownMainIOService();
     void runWorkerThread(unsigned i);

@@ -24,8 +24,9 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(Mode mode)
-    : mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME
+Simulation::Simulation(Mode mode, Hash const& networkID)
+    : LoadGenerator(networkID)
+    , mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME
                               : VirtualClock::VIRTUAL_TIME)
     , mMode(mode)
     , mConfigCount(0)

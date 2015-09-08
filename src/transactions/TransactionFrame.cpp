@@ -27,14 +27,16 @@ using namespace std;
 using xdr::operator==;
 
 TransactionFramePtr
-TransactionFrame::makeTransactionFromWire(TransactionEnvelope const& msg)
+TransactionFrame::makeTransactionFromWire(Hash const& networkID,
+                                          TransactionEnvelope const& msg)
 {
-    TransactionFramePtr res = make_shared<TransactionFrame>(msg);
+    TransactionFramePtr res = make_shared<TransactionFrame>(networkID, msg);
     return res;
 }
 
-TransactionFrame::TransactionFrame(TransactionEnvelope const& envelope)
-    : mEnvelope(envelope)
+TransactionFrame::TransactionFrame(Hash const& networkID,
+                                   TransactionEnvelope const& envelope)
+    : mEnvelope(envelope), mNetworkID(networkID)
 {
 }
 
@@ -53,8 +55,8 @@ TransactionFrame::getContentsHash() const
 {
     if (isZero(mContentsHash))
     {
-        mContentsHash =
-            sha256(xdr::xdr_to_opaque(ENVELOPE_TYPE_TX, mEnvelope.tx));
+        mContentsHash = sha256(
+            xdr::xdr_to_opaque(mNetworkID, ENVELOPE_TYPE_TX, mEnvelope.tx));
     }
     return (mContentsHash);
 }
@@ -566,7 +568,8 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
 }
 
 size_t
-TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
+TransactionFrame::copyTransactionsToStream(Hash const& networkID, Database& db,
+                                           soci::session& sess,
                                            uint32_t ledgerSeq,
                                            uint32_t ledgerCount,
                                            XDROutputFileStream& txOut,
@@ -619,7 +622,8 @@ TransactionFrame::copyTransactionsToStream(Database& db, soci::session& sess,
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
 
-        TransactionFramePtr txFrame = make_shared<TransactionFrame>(tx);
+        TransactionFramePtr txFrame =
+            make_shared<TransactionFrame>(networkID, tx);
         txSet.add(txFrame);
 
         xdr::xdr_get g2(&result.front(), &result.back() + 1);

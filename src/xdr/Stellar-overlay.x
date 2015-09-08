@@ -17,6 +17,7 @@ struct Hello
 {
     uint32 ledgerVersion;
     uint32 overlayVersion;
+    Hash networkID;
     string versionStr<100>;
     int listeningPort;
     NodeID peerID;

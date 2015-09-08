@@ -106,8 +106,9 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t DESIRED_BASE_FEE;     // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops
     uint32_t DESIRED_MAX_TX_PER_LEDGER;
-    unsigned short HTTP_PORT; // what port to listen for commands
-    bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
+    unsigned short HTTP_PORT;       // what port to listen for commands
+    bool PUBLIC_HTTP_PORT;          // if you accept commands from not localhost
+    std::string NETWORK_PASSPHRASE; // identifier for the network
 
     // overlay config
     unsigned short PEER_PORT;

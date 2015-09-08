@@ -112,7 +112,7 @@ class HistoryTests
         , appPtr(
               Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
-        , mRoot(txtest::getRoot())
+        , mRoot(txtest::getRoot(app.getNetworkID()))
         , mAlice(txtest::getAccount("alice"))
         , mBob(txtest::getAccount("bob"))
         , mCarol(txtest::getAccount("carol"))
@@ -274,13 +274,15 @@ HistoryTests::generateRandomLedger()
 
     SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
 
+    Hash const& networkID = app.getNetworkID();
+
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(txtest::createCreateAccountTx(mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createCreateAccountTx(mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createCreateAccountTx(mRoot, mCarol, rseq++, big));
-    txSet->add(txtest::createPaymentTx(mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createPaymentTx(mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createPaymentTx(mRoot, mCarol, rseq++, big));
+    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
+    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
+    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
+    txSet->add(txtest::createPaymentTx(networkID, mRoot, mAlice, rseq++, big));
+    txSet->add(txtest::createPaymentTx(networkID, mRoot, mBob, rseq++, big));
+    txSet->add(txtest::createPaymentTx(networkID, mRoot, mCarol, rseq++, big));
 
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
@@ -290,19 +292,25 @@ HistoryTests::generateRandomLedger()
         SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(mAlice, mBob, aseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mAlice, mBob, aseq++, small));
         if (flip())
-            txSet->add(txtest::createPaymentTx(mAlice, mCarol, aseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mAlice, mCarol, aseq++, small));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(mBob, mAlice, bseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mBob, mAlice, bseq++, small));
         if (flip())
-            txSet->add(txtest::createPaymentTx(mBob, mCarol, bseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mBob, mCarol, bseq++, small));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(mCarol, mAlice, cseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mCarol, mAlice, cseq++, small));
         if (flip())
-            txSet->add(txtest::createPaymentTx(mCarol, mBob, cseq++, small));
+            txSet->add(
+                txtest::createPaymentTx(networkID, mCarol, mBob, cseq++, small));
     }
 
     // Provoke sortForHash and hash-caching:

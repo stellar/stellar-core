@@ -12,11 +12,14 @@ namespace stellar
 class Topologies
 {
   public:
-    static Simulation::pointer pair(Simulation::Mode mode);
-    static Simulation::pointer cycle4();
+    static Simulation::pointer pair(Simulation::Mode mode,
+                                    Hash const& networkID);
+    static Simulation::pointer cycle4(Hash const& networkID);
     static Simulation::pointer core(int nNodes, float quorumThresoldFraction,
-                                    Simulation::Mode mode);
+                                    Simulation::Mode mode,
+                                    Hash const& networkID);
     static Simulation::pointer hierarchicalQuorum(int nBranches,
-                                                  Simulation::Mode mode);
+                                                  Simulation::Mode mode,
+                                                  Hash const& networkID);
 };
 }

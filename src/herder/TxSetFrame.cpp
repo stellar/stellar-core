@@ -27,12 +27,13 @@ TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
 {
 }
 
-TxSetFrame::TxSetFrame(TransactionSet const& xdrSet) : mHashIsValid(false)
+TxSetFrame::TxSetFrame(Hash const& networkID, TransactionSet const& xdrSet)
+    : mHashIsValid(false)
 {
     for (auto const& txEnvelope : xdrSet.txs)
     {
         TransactionFramePtr tx =
-            TransactionFrame::makeTransactionFromWire(txEnvelope);
+            TransactionFrame::makeTransactionFromWire(networkID, txEnvelope);
         mTransactions.push_back(tx);
     }
     mPreviousLedgerHash = xdrSet.previousLedgerHash;

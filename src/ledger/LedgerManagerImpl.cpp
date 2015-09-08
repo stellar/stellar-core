@@ -149,8 +149,7 @@ void
 LedgerManagerImpl::startNewLedger()
 {
     auto ledgerTime = mLedgerClose.TimeScope();
-    ByteSlice bytes("allmylifemyhearthasbeensearching");
-    SecretKey skey = SecretKey::fromSeed(bytes);
+    SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     AccountFrame masterAccount(skey.getPublicKey());
     masterAccount.getAccount().balance = 100000000000000000;
