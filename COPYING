@@ -31,8 +31,9 @@ lib/autocheck:
 lib/asio:
 
   The ASIO library,
-  Copyright 2003-2014 Christopher M. Kohlhoff
+  Copyright 2003-2015 Christopher M. Kohlhoff
   (chris at kohlhoff dot com)
+  (http://think-async.com/Asio)
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
@@ -49,6 +50,7 @@ lib/http:
   Example HTTP server from the ASIO library,
   Copyright 2003-2014 Christopher M. Kohlhoff
   (chris at kohlhoff dot com)
+  (http://think-async.com/Asio)
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
@@ -57,6 +59,7 @@ lib/util/easylogging++.h:
   The EasyLogging++ library,
   Copyright 2014 Majid Khan
   (support@easylogging.org)
+  (http://easylogging.muflihun.com/)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
@@ -81,6 +84,7 @@ lib/util/format.cc and format.h:
   The cppformat library,
   Copyright 2012, Victor Zverovich
   (victor.zverovich@gmail.com)
+  (https://github.com/cppformat/cppformat)
   Licensed under the 2-clause BSD license
   (http://opensource.org/licenses/BSD-2-Clause)
 
@@ -89,6 +93,7 @@ lib/json/:
   The JsonCpp library,
   Copyright (c) 2007-2010 Baptiste Lepilleur
   (blep@users.sourceforge.net)
+  (https://github.com/open-source-parsers/jsoncpp)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
@@ -97,6 +102,7 @@ lib/cereal:
   The cereal library,
   Copyright 2014, Randolph Voorhies, Shane Grant
   (voorhies@usc.edu, wgrant@usc.edu)
+  (https://github.com/USCiLab/cereal)
   Licensed under the 3-clause BSD license
   (http://opensource.org/licenses/BSD-3-Clause)
 
@@ -112,6 +118,7 @@ lib/sqlite:
 
   The SQLite library,
   dedicated to the public domain
+  (http://sqlite.org/)
   (https://www.sqlite.org/copyright.html)
 
 lib/soci:
@@ -119,6 +126,7 @@ lib/soci:
   The SOCI library,
   Copyright 2008 Maciej Sobczak
   (maciej@msobczak.com)
+  (https://github.com/SOCI/soci)
   Licensed under the Boost Software License 1.0
   (http://www.boost.org/LICENSE_1_0.txt)
 
@@ -126,6 +134,7 @@ lib/libmedida:
 
   The Medida library,
   Copyright 2012 Daniel Lundin
+  (https://github.com/dln/medida)
   Licensed under the Apache License, Version 2.0
   (https://www.apache.org/licenses/LICENSE-2.0)
 
@@ -134,6 +143,7 @@ lib/util/uint128_t.{cpp,h}
   The uint128_t library,
   Copyright 2013 2014 Jason Lee
   (calccrypto@gmail.com)
+  (https://github.com/calccrypto/uint128_t)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
@@ -141,6 +151,7 @@ lib/util/lrucache.hpp
 
   The LRUCache libary
   Copyright 2014 Alexander Ponomarev
+  (https://github.com/lamerman/cpp-lru-cache)
   Licensed under the 3-clause BSD license
   (http://opensource.org/licenses/BSD-3-Clause)
 
@@ -149,6 +160,7 @@ lib/util/basen.h
   The Base-n library
   Copyright 2012 Andrzej Zawadzki
   (azawadzki@gmail.com)
+  (https://github.com/azawadzki/base-n)
   Licensed under the MIT license
   (http://opensource.org/licenses/MIT)
 
@@ -156,7 +168,7 @@ lib/util/crc16.cpp
 
   CRC16 function
   Copyright 2001-2010 Georges Menie
-  (www.menie.org)
+  (http://www.menie.org/georges/embedded/crc16.html)
   Copyright 2010-2012 Salvatore Sanfilippo
   Licensed under the 3-clause BSD license
   (http://opensource.org/licenses/BSD-3-Clause)
