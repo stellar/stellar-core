@@ -21,6 +21,8 @@
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 
+#include "ExternalQueue.h"
+
 #include <regex>
 #include "transactions/TxTests.h"
 using namespace stellar::txtest;
@@ -65,17 +67,23 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::checkpoint, this, _1, _2));
     mServer->addRoute("connect",
                       std::bind(&CommandHandler::connect, this, _1, _2));
+    mServer->addRoute("dropcursor",
+                      std::bind(&CommandHandler::dropcursor, this, _1, _2));
     mServer->addRoute("generateload",
                       std::bind(&CommandHandler::generateLoad, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
     mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
     mServer->addRoute("logrotate",
                       std::bind(&CommandHandler::logRotate, this, _1, _2));
+    mServer->addRoute("maintenance",
+                      std::bind(&CommandHandler::maintenance, this, _1, _2));
     mServer->addRoute("manualclose",
                       std::bind(&CommandHandler::manualClose, this, _1, _2));
     mServer->addRoute("metrics",
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
+    mServer->addRoute("setcursor",
+                      std::bind(&CommandHandler::setcursor, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
     mServer->addRoute("testacc",
                       std::bind(&CommandHandler::testAcc, this, _1, _2));
@@ -274,6 +282,23 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "returns a JSON object<br>"
         "wasReceived: boolean, true if transaction was queued properly<br>"
         "result: hex encoded, XDR serialized 'TransactionResult'<br>"
+        "</p><p><h1> /dropcursor?id=XYZ</h1> deletes the tracking cursor with "
+        "identified by `id`. See `setcursor` for more information"
+        "</p><p><h1> /setcursor?id=ID&cursor=N</h1> sets or creates a cursor "
+        "identified by `ID` with value `N`. ID is an uppercase AlphaNum, N is "
+        "an uint32 that represents the last ledger sequence number that the "
+        "instance ID processed."
+        "Cursors are used by dependent services to tell stellar - core which "
+        "data can be safely deleted by the instance."
+        "The data is historical data stored in the SQL tables such as "
+        "txhistory or ledgerheaders.When all consumers processed the data for "
+        "ledger sequence N the data can be safely removed by the instance."
+        "The actual deletion is performed by invoking the `maintenance` "
+        "endpoint."
+        "</p><p><h1> /maintenance[?queue=true]</h1> Performs maintenance tasks "
+        "on the instance."
+        "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
+        "for more information</li></ul"
         "</p>"
 
         "<br>";
@@ -665,5 +690,67 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     }
 
     retStr = output.str();
+}
+
+void
+CommandHandler::dropcursor(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+    std::string const& id = map["id"];
+
+    if (!ExternalQueue::validateResourceID(id))
+    {
+        retStr = "Invalid resource id";
+    }
+    else
+    {
+        ExternalQueue ps(mApp);
+        ps.deleteCursor(id);
+        retStr = "Done";
+    }
+}
+
+void
+CommandHandler::setcursor(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+    std::string const& id = map["id"];
+
+    uint32 cursor;
+
+    if (!parseOptionalNumParam(map, "cursor", cursor, retStr))
+    {
+        return;
+    }
+
+    if (!ExternalQueue::validateResourceID(id))
+    {
+        retStr = "Invalid resource id";
+    }
+    else
+    {
+        ExternalQueue ps(mApp);
+        ps.setCursorForResource(id, cursor);
+        retStr = "Done";
+    }
+}
+
+void
+CommandHandler::maintenance(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+    if (map["queue"] == "true")
+    {
+        ExternalQueue ps(mApp);
+        ps.process();
+        retStr = "Done";
+    }
+    else
+    {
+        retStr = "No work performed";
+    }
 }
 }

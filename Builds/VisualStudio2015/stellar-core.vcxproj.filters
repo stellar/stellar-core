@@ -462,6 +462,9 @@
     <ClCompile Include="..\..\src\main\dumpxdr.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -803,6 +806,9 @@
     </ClInclude>
     <ClInclude Include="src\generated\xdr\Stellar-types.h">
       <Filter>xdr\generated</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\ExternalQueue.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

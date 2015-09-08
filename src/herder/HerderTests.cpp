@@ -14,6 +14,8 @@
 #include "transactions/TxTests.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
+#include "main/CommandHandler.h"
+#include "ledger/LedgerHeaderFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -92,6 +94,46 @@ TEST_CASE("standalone", "[herder]")
         while (!stop)
         {
             app->getClock().crank(true);
+        }
+
+        SECTION("Queue processing test")
+        {
+            app->getCommandHandler().manualCmd("maintenance?queue=true");
+
+            app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
+            app->getCommandHandler().manualCmd("maintenance?queue=true");
+            auto& db = app->getDatabase();
+            auto& sess = db.getSession();
+            LedgerHeaderFrame::pointer lh;
+
+            app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
+            app->getCommandHandler().manualCmd("maintenance?queue=true");
+            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            REQUIRE(!!lh);
+
+            app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
+            // this should delete items older than sequence 2
+            app->getCommandHandler().manualCmd("maintenance?queue=true");
+            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            REQUIRE(!lh);
+            lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+            REQUIRE(!!lh);
+
+            // this should delete items older than sequence 3
+            SECTION("set min to 3 by update")
+            {
+                app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=3");
+                app->getCommandHandler().manualCmd("maintenance?queue=true");
+                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                REQUIRE(!lh);
+            }
+            SECTION("set min to 3 by deletion")
+            {
+                app->getCommandHandler().manualCmd("dropcursor?id=A1");
+                app->getCommandHandler().manualCmd("maintenance?queue=true");
+                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                REQUIRE(!lh);
+            }
         }
     }
 }

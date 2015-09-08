@@ -214,6 +214,13 @@ LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db, soci::session& sess,
 }
 
 void
+LedgerHeaderFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+{
+    db.getSession() << "DELETE FROM ledgerheaders WHERE ledgerseq <= "
+                    << ledgerSeq;
+}
+
+void
 LedgerHeaderFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS ledgerheaders;";

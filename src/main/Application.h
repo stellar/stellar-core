@@ -32,6 +32,7 @@ class OverlayManager;
 class Database;
 class PersistentState;
 class LoadGenerator;
+class CommandHandler;
 
 /*
  * State of a single instance of the stellar-core application.
@@ -181,6 +182,7 @@ class Application
     virtual OverlayManager& getOverlayManager() = 0;
     virtual Database& getDatabase() = 0;
     virtual PersistentState& getPersistentState() = 0;
+    virtual CommandHandler& getCommandHandler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

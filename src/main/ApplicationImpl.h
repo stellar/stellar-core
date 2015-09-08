@@ -55,6 +55,7 @@ class ApplicationImpl : public Application
     virtual OverlayManager& getOverlayManager() override;
     virtual Database& getDatabase() override;
     virtual PersistentState& getPersistentState() override;
+    virtual CommandHandler& getCommandHandler() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 

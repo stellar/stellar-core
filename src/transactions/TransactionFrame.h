@@ -165,5 +165,7 @@ class TransactionFrame
                                            XDROutputFileStream& txOut,
                                            XDROutputFileStream& txResultOut);
     static void dropAll(Database& db);
+
+    static void deleteOldEntries(Database& db, uint32_t ledgerSeq);
 };
 }
