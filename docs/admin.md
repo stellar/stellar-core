@@ -1,10 +1,17 @@
 # Administration
 
 Stellar Core is responsible for communicating directly with and/or maintaining 
-the Stellar peer-to-peer network. Run stellar-core if you want to:
-* Participate in validating the Stellar network
+the Stellar peer-to-peer network.
+
+## Why run a node?
+
+Run stellar-core if you want to:
 * Obtain the most up-to-date and reliable data from the Stellar network
-* Submit transactions without depending on a third party
+* Generate extended meta data on activity within the Stellar network (change tracking, etc)
+* Submit transactions and their confirmations without depending on a third party
+* Extended control on which parties to trust in the Stellar network
+* Participate in validating the Stellar network
+
 
 ## Building
 See [readme](/README.md) for build instructions.
