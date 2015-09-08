@@ -160,6 +160,9 @@ class LedgerManager
     // permit testing.
     virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
 
+    // deletes old entries stored in the database
+    virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq) = 0;
+
     virtual ~LedgerManager()
     {
     }

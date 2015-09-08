@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
+#include "main/ExternalQueue.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
@@ -154,6 +155,7 @@ Database::initialize()
     TrustFrame::dropAll(*this);
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
+    ExternalQueue::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
     BucketManager::dropAll(mApp);

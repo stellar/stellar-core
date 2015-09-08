@@ -664,4 +664,10 @@ TransactionFrame::dropAll(Database& db)
                        "UNIQUE      (ledgerseq, txindex)"
                        ")";
 }
+
+void
+TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+{
+    db.getSession() << "DELETE FROM txhistory WHERE ledgerseq <= " << ledgerSeq;
+}
 }

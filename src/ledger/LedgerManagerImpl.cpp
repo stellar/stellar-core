@@ -748,6 +748,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 }
 
 void
+LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+{
+    LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
+    TransactionFrame::deleteOldEntries(db, ledgerSeq);
+}
+
+void
 LedgerManagerImpl::advanceLedgerPointers()
 {
     CLOG(DEBUG, "Ledger") << "Advancing LCL: "
