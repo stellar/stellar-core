@@ -10,8 +10,23 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include <chrono>
 
 using namespace stellar;
+
+TEST_CASE("pointToTm tmToPoint stuff", "[timer]")
+{
+    VirtualClock::time_point tp;
+    tp = tp + std::chrono::seconds(12); //01/01/70 00:00:12 UTC+8 is before GMT epoch, mktime may fail.
+
+    std::tm tt = VirtualClock::pointToTm(tp);
+
+    VirtualClock::time_point tp2 = VirtualClock::tmToPoint(tt);
+
+    auto twelvesec = VirtualClock::to_time_t(tp2);
+    CHECK(twelvesec == 12);
+}
+
 
 TEST_CASE("VirtualClock::pointToISOString", "[timer]")
 {

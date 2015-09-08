@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 #include <functional>
+#include "util/NonCopyable.h"
 
 namespace stellar
 {
@@ -39,12 +40,11 @@ class ProcessExitEvent
     friend class ProcessManagerImpl;
 
   public:
-    ProcessExitEvent();
     ~ProcessExitEvent();
     void async_wait(std::function<void(asio::error_code)> const& handler);
 };
 
-class ProcessManager
+class ProcessManager : public NonMovableOrCopyable
 {
   public:
     static std::unique_ptr<ProcessManager> create(Application& app);

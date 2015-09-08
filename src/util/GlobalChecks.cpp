@@ -4,7 +4,7 @@
 
 #include "GlobalChecks.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #include <Windows.h>
 #endif
 #include <thread>
@@ -23,7 +23,7 @@ assertThreadIsMain()
 void
 dbgAbort()
 {
-#ifdef WIN32
+#ifdef _WIN32
     DebugBreak();
 #else
     abort();

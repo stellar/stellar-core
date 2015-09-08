@@ -147,7 +147,7 @@ restart:
 
     if (getenv("AFL_PERSISTENT") && persist_cnt++ < PERSIST_MAX)
     {
-#ifndef WIN32
+#ifndef _WIN32
         raise(SIGSTOP);
 #endif
         goto restart;

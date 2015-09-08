@@ -63,26 +63,29 @@ class ProcessExitEvent::Impl
     std::string mCmdLine;
     std::string mOutFile;
     bool mRunning{false};
-#ifdef _MSC_VER
+#ifdef _WIN32
     asio::windows::object_handle mProcessHandle;
 #endif
+    ProcessManagerImpl& mProcManagerImpl;
 
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc,
-         std::string const& cmdLine, std::string const& outFile)
+         std::string const& cmdLine, std::string const& outFile,
+         ProcessManagerImpl& pm)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
         , mOutFile(outFile)
-#ifdef _MSC_VER
+#ifdef _WIN32
         , mProcessHandle(outerTimer->get_io_service())
 #endif
+        , mProcManagerImpl(pm)
     {
     }
     void run();
 };
 
-#ifdef _MSC_VER
+#ifdef _WIN32
 #include <windows.h>
 #include <tchar.h>
 
@@ -176,7 +179,13 @@ ProcessExitEvent::Impl::run()
                 std::lock_guard<std::recursive_mutex> guard(
                     ProcessManagerImpl::gImplsMutex);
                 --ProcessManagerImpl::gNumProcessesActive;
+                sf->mProcManagerImpl.mImplsSize.set_count(
+                    ProcessManagerImpl::gNumProcessesActive);
             }
+            // Fire off any new processes we've made room for before we
+            // trigger the callback.
+            sf->mProcManagerImpl.maybeRunPendingProcesses();
+
             if (ec)
             {
                 *(sf->mOuterEc) = ec;
@@ -292,7 +301,6 @@ ProcessManagerImpl::handleSignalWait()
 
             // Fire off any new processes we've made room for before we
             // trigger the callback.
-            mImplsSize.set_count(gImpls.size());
             maybeRunPendingProcesses();
 
             *(impl->mOuterEc) = ec;
@@ -391,12 +399,12 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     auto& svc = mApp.getClock().getIOService();
     ProcessExitEvent pe(svc);
-    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(pe.mTimer, pe.mEc,
-                                                        cmdLine, outFile);
+    pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
+        pe.mTimer, pe.mEc, cmdLine, outFile, *this);
     mPendingImpls.push_back(pe.mImpl);
+
     maybeRunPendingProcesses();
-    mImplsSize.set_count(gNumProcessesActive);
-    return pe;
+    return std::move(pe);
 }
 
 void
@@ -413,10 +421,11 @@ ProcessManagerImpl::maybeRunPendingProcesses()
             CLOG(DEBUG, "Process") << "Running: " << i->mCmdLine;
             i->run();
             ++gNumProcessesActive;
+            mImplsSize.set_count(gNumProcessesActive);
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "Process") << "Error staring process: " << e.what();
+            CLOG(ERROR, "Process") << "Error starting process: " << e.what();
             CLOG(ERROR, "Process") << "When running: " << i->mCmdLine;
         }
     }
