@@ -517,6 +517,12 @@ ApplicationImpl::getPersistentState()
     return *mPersistentState;
 }
 
+CommandHandler&
+ApplicationImpl::getCommandHandler()
+{
+    return *mCommandHandler;
+}
+
 asio::io_service&
 ApplicationImpl::getWorkerIOService()
 {

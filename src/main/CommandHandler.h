@@ -32,13 +32,16 @@ class CommandHandler
     void checkpoint(std::string const& params, std::string& retStr);
     void checkdb(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
+    void dropcursor(std::string const& params, std::string& retStr);
     void generateLoad(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
     void logRotate(std::string const& params, std::string& retStr);
+    void maintenance(std::string const& params, std::string& retStr);
     void manualClose(std::string const& params, std::string& retStr);
     void metrics(std::string const& params, std::string& retStr);
     void peers(std::string const& params, std::string& retStr);
+    void setcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);
     void testAcc(std::string const& params, std::string& retStr);
