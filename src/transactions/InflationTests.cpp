@@ -20,7 +20,7 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-static const int maxWinners = 50;
+static const int maxWinners = 2000;
 
 static SecretKey
 getTestAccount(int i)
@@ -75,8 +75,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
 
     std::vector<std::pair<int, int64>> votesV;
 
-    int64 minBalance = (totCoins * 15) / 1000; // 1.5%
-    bool thresholdMode = false;
+    int64 minBalance = (totCoins * 5) / 10000; // .05%
 
     // computes all votes
     for (int i = 0; i < nbAccounts; i++)
@@ -98,10 +97,6 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
     for (auto const& v : votes)
     {
         votesV.emplace_back(v);
-        if (v.second >= minBalance)
-        {
-            thresholdMode = true;
-        }
     }
 
     // sort by votes, then by ID in descending order
@@ -122,19 +117,14 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
                   }
               });
 
-    if (!thresholdMode)
-    {
-        minBalance = 0;
-    }
 
     std::vector<int> winners;
-    int64 totVotes = 0;
+    int64 totVotes = totCoins;
     for (int i = 0; i < maxWinners && i < votesV.size(); i++)
     {
         if (votesV[i].second >= minBalance)
         {
             winners.emplace_back(votesV[i].first);
-            totVotes += votesV[i].second;
         }
     }
 
@@ -142,30 +132,21 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
     // 0.000190721
     int64 coinsToDole = bigDivide(totCoins, 190721, 1000000000);
     coinsToDole += totFees;
-    totFees = 0;
-
-    if (winners.empty())
+    int64 leftToDole = coinsToDole;
+   
+    for (auto w : winners)
     {
-        // no winners -> accumulate in feepool
-        totFees = coinsToDole;
-    }
-    else
-    {
-        for (auto w : winners)
+        // computes the share of this guy
+        int64 toDoleToThis = bigDivide(coinsToDole, votes.at(w), totVotes);
+        if (balances[w] >= 0)
         {
-            // computes the share of this guy
-            int64 toDoleToThis = bigDivide(coinsToDole, votes.at(w), totVotes);
-            if (balances[w] >= 0)
-            {
-                balances[w] += toDoleToThis;
-                totCoins += toDoleToThis;
-            }
-            else
-            {
-                totFees += toDoleToThis;
-            }
+            balances[w] += toDoleToThis;
+            totCoins += toDoleToThis;
+            leftToDole -= toDoleToThis;
         }
     }
+    
+    totFees = leftToDole;
 
     std::vector<int64> balRes;
     for (auto const& b : balances)
@@ -352,9 +333,9 @@ TEST_CASE("inflation", "[tx][inflation]")
     }
     // minVote to participate in inflation
     const int64 minVote = 1000000000LL;
-    // 1.5% of all coins
+    // .05% of all coins
     const int64 winnerVote = bigDivide(
-        app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 15, 1000);
+        app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 5, 10000);
 
     SECTION("inflation scenarios")
     {
@@ -401,12 +382,12 @@ TEST_CASE("inflation", "[tx][inflation]")
             SECTION("less than max")
             {
                 nbAccounts = 12;
-                expectedWinners = nbAccounts;
+                expectedWinners = 0;
             }
             SECTION("more than max")
             {
-                nbAccounts = 120;
-                expectedWinners = maxWinners;
+                nbAccounts = 2200;
+                expectedWinners = 0;
             }
             voteFunc = [&](int n)
             {
@@ -430,7 +411,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             };
             balanceFunc = [&](int n)
             {
-                return (n + 1) * minVote;
+                return 1+(winnerVote/ nbAccounts);
             };
             verify();
         }
