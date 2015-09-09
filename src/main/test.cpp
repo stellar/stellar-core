@@ -92,6 +92,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             thisConfig.VALIDATION_KEY.getPublicKey());
         thisConfig.QUORUM_SET.threshold = 1;
 
+        thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
+
         std::ostringstream dbname;
         switch (mode)
         {

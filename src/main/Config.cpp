@@ -25,7 +25,6 @@ Config::Config() : PEER_KEY(SecretKey::random())
     FORCE_SCP = false;
 
     // configurable
-    NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
     FAILURE_SAFETY = 1;
     UNSAFE_QUORUM = false;
     DESIRED_BASE_FEE = 10;
