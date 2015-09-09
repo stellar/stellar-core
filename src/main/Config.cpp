@@ -194,7 +194,7 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid DESIRED_BASE_FEE");
                 }
                 int64_t f = item.second->as<int64_t>()->value();
-                if (f <= 0 || f >= UINT32_MAX)
+                if (f < 0 || f >= UINT32_MAX)
                 {
                     throw std::invalid_argument("invalid DESIRED_BASE_FEE");
                 }
