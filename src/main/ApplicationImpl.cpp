@@ -218,6 +218,10 @@ ApplicationImpl::timeNow()
 void
 ApplicationImpl::start()
 {
+    if (mConfig.NETWORK_PASSPHRASE.empty())
+    {
+        throw std::invalid_argument("NETWORK_PASSPHRASE not configured");
+    }
     if (mConfig.QUORUM_SET.threshold == 0)
     {
         throw std::invalid_argument("Quorum not configured");

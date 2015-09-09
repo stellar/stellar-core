@@ -25,62 +25,119 @@ The [example config](/docs/stellar-core_example.cfg) describes all the possible
 configuration options.  
 
 ## Running
-Stellar-core can be run directly from the command line, or through a supervision system such as `init`, `upstart`, or `systemd`.
+Stellar-core can be run directly from the command line, or through a supervision 
+system such as `init`, `upstart`, or `systemd`.
 
-Stellar-core sends logs to standard output and `stellar-core.log` by default, configurable as `LOG_FILE_PATH`. Log messages are classified by progressive _priority levels_: `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`. The logging system only emits those messages at or above its configured logging level. 
+Stellar-core sends logs to standard output and `stellar-core.log` by default, 
+configurable as `LOG_FILE_PATH`.
+ Log messages are classified by progressive _priority levels_:
+  `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`.
+   The logging system only emits those messages at or above its configured logging level. 
 
-The log level can be controlled by the `-ll` command-line flag or adjusted dynamically by administrative (HTTP) commands. Log levels can also be adjusted on a partition-by-partition basis through the administrative interface. For example the history system can be set to DEBUG-level logging by running
-`> stellar-core -c “ll?level=debug&partition=history”`
-against a running system. The default log level is `INFO`, which is moderately verbose and should emit progress messages every few seconds under normal operation.
+The log level can be controlled by configuration, by the `-ll` command-line flag 
+or adjusted dynamically by administrative (HTTP) commands.
+ Run `stellar-core -c “ll?level=debug"` against a running system.
+Log levels can also be adjusted on a partition-by-partition basis through the 
+administrative interface.
+ For example the history system can be set to DEBUG-level logging by running
+`stellar-core -c “ll?level=debug&partition=history”` against a running system.
+ The default log level is `INFO`, which is moderately verbose and should emit 
+ progress messages every few seconds under normal operation.
 
-Stellar-core can be gracefully exited at any time by delivering `SIGINT` or pressing `CTRL-C`. It can be safely, forcibly terminated with `SIGTERM` or `SIGKILL`. The latter may leave a stale lock file in the `BUCKET_DIR_PATH`, and you may need to remove the file before it will restart. Otherwise, all components are designed to recover from abrupt termination.
+Stellar-core can be gracefully exited at any time by delivering `SIGINT` or
+ pressing `CTRL-C`. It can be safely, forcibly terminated with `SIGTERM` or
+  `SIGKILL`. The latter may leave a stale lock file in the `BUCKET_DIR_PATH`,
+   and you may need to remove the file before it will restart. 
+   Otherwise, all components are designed to recover from abrupt termination.
 
-Stellar-core can also be packaged in a container system such as Docker, so long as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core).
+Stellar-core can also be packaged in a container system such as Docker, so long 
+as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
+volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core).
 
 ## Administrative commands
-While running, interaction with stellar-core is done via an administrative HTTP endpoint. Commands can be submitted using command-line HTTP tools such as `curl`, or by `stellar-core -c <command>`. The endpoint is not intended to be exposed to the public internet. It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. See [commands](./commands.md) for a description of the available commands.
+While running, interaction with stellar-core is done via an administrative 
+HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
+as `curl`, or by `stellar-core -c <command>`. The endpoint is not intended to 
+be exposed to the public internet. It's typically accessed by administrators, 
+or by a mid-tier application to submit transactions to the Stellar network. 
+See [commands](./commands.md) for a description of the available commands.
 
 ## Hardware requirements
-The hardware requirements scale with the amount of activity in the network. Currently stellar-core requires very modest hardware. It would be fine to run on an AWS micro instance, for example.
+The hardware requirements scale with the amount of activity in the network. 
+Currently stellar-core requires very modest hardware. It would be fine to run 
+on an AWS micro instance, for example.
 
 # Configuration Choices
 
 ## Validating
-Nodes are considered **validating** if they take part in SCP and sign messages pledging that the network agreed to a particular transaction set. It isn't necessary to be a validator. Only set your node to validate if other nodes care about your validation. 
+Nodes are considered **validating** if they take part in SCP and sign messages 
+pledging that the network agreed to a particular transaction set. It isn't 
+necessary to be a validator. Only set your node to validate if other nodes 
+care about your validation. 
 
-If you want to validate, you must generate a public/private key for your node. Nodes shouldn't share keys. You should carefully secure your private key. If it is compromised, someone can send false messages to the network and those messages will look like they came from you. 
+If you want to validate, you must generate a public/private key for your node.
+ Nodes shouldn't share keys. You should carefully secure your private key. 
+If it is compromised, someone can send false messages to the network and those 
+messages will look like they came from you. 
 
 Generate a key pair like this:
-`> stellar-core --genseed`
+`stellar-core --genseed`
 Place the seed in your config:
 `VALIDATION_SEED="SBI3CZU7XZEWVXU7OZLW5MMUQAP334JFOPXSLTPOH43IRTEQ2QYXU5RG"`
 Advertise the public key so people can add it to their `QUORUM_SET` in their config.
-If you don't include a `VALIDATION_SEED`, you will still watch SCP and see all the data in the network but will not send validation messages. 
+If you don't include a `VALIDATION_SEED`, you will still watch SCP and see all 
+the data in the network but will not send validation messages. 
 
 ## Database
-Stellar-core stores the state of the ledger in a SQL database. This DB should either be a SQLite database or, for larger production instances, a separate PostgreSQL server. For how to specify the database, see [example config](/docs/stellar-core_example.cfg).
+Stellar-core stores the state of the ledger in a SQL database. This DB should 
+either be a SQLite database or, for larger production instances, a separate 
+PostgreSQL server. For how to specify the database, 
+see [example config](/docs/stellar-core_example.cfg).
 
 When running stellar-core for the first time, you must initialize the database:
 `> stellar-core --newdb`
-This command will initialize the database and then exit. You can also use this command if your DB gets corrupted and you want to restart it from scratch. 
+This command will initialize the database and then exit. You can also use this 
+command if your DB gets corrupted and you want to restart it from scratch. 
 
 ## Buckets
-Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files called “buckets.” These files are placed in a directory specified in the config file as `BUCKET_DIR_PATH`, which defaults to `buckets`. The bucket files are used for hashing and transmission of ledger differences to history archives. This directory must be on the same file system as the configured temporary directory `TMP_DIR_PATH`. For the most part, the contents of both directories can be ignored—they are managed by stellar-core, but they should be stored on a fast local disk with sufficient space to store several times the size of the current ledger. 
+Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
+called “buckets.” These files are placed in a directory specified in the config 
+file as `BUCKET_DIR_PATH`, which defaults to `buckets`. The bucket files are used
+ for hashing and transmission of ledger differences to history archives. This 
+ directory must be on the same file system as the configured temporary 
+ directory `TMP_DIR_PATH`. For the most part, the contents of both directories 
+can be ignored—they are managed by stellar-core, but they should be stored on 
+a fast local disk with sufficient space to store several times the size of the 
+current ledger. 
 
 ## History archives
-Stellar-core normally interacts with one or more “history archives,” which are configurable facilities for storing and retrieving flat files containing history checkpoints: bucket files and history logs. History archives are usually off-site commodity storage services such as Amazon S3, Google Cloud Storage, Azure Blob Storage, or custom SCP/SFTP/HTTP servers. 
+Stellar-core normally interacts with one or more “history archives,” which are 
+configurable facilities for storing and retrieving flat files containing history 
+checkpoints: bucket files and history logs. History archives are usually off-site 
+commodity storage services such as Amazon S3, Google Cloud Storage, 
+Azure Blob Storage, or custom SCP/SFTP/HTTP servers. 
 
-Use command templates in the config file to give the specifics of which services you will use and how to access them. The [example config](/docs/stellar-core_example.cfg) shows how to configure a history archive through command templates. 
+Use command templates in the config file to give the specifics of which 
+services you will use and how to access them. 
+The [example config](/docs/stellar-core_example.cfg) shows how to configure 
+a history archive through command templates. 
 
-While it is possible to run a stellar-core node with no configured history archives, it will be _severely limited_, unable to participate fully in a network, and likely unable to acquire synchronization at all. At the very least, if you are joining an existing network in a read-only capacity, you will still need to configure a `get` command to access that network’s history archives.
+While it is possible to run a stellar-core node with no configured history 
+archives, it will be _severely limited_, unable to participate fully in a 
+network, and likely unable to acquire synchronization at all. At the very 
+least, if you are joining an existing network in a read-only capacity, you 
+will still need to configure a `get` command to access that network’s history 
+archives.
 
 # Recipes
 
 ## Joining an existing network
 
 Put the network’s `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
-Optionally: If you’re going to be a validating node, generate key pair and set `VALIDATION_SEED`.
-Optionally: Create an external database to use—e.g., by using PostgreSQL’s `createdb` command.
+Optionally: If you’re going to be a validating node, generate key pair and 
+set `VALIDATION_SEED`.
+Optionally: Create an external database to use—e.g., by using 
+PostgreSQL’s `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
 Run `stellar-core --newdb` to initialize the database.
 Run `stellar-core`.
