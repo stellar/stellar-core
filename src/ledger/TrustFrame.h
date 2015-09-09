@@ -95,6 +95,7 @@ class TrustFrame : public EntryFrame
         return mTrustLine;
     }
 
+    static bool isValid(TrustLineEntry const& tl);
     bool isValid() const;
 
     static void dropAll(Database& db);

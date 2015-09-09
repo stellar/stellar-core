@@ -69,6 +69,9 @@ class OfferFrame : public EntryFrame
         return mOffer;
     }
 
+    static bool isValid(OfferEntry const& oe);
+    bool isValid() const;
+
     // Instance-based overrides of EntryFrame.
     void storeDelete(LedgerDelta& delta, Database& db) const override;
     void storeChange(LedgerDelta& delta, Database& db) override;

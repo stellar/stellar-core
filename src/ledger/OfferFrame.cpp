@@ -130,6 +130,18 @@ OfferFrame::getFlags() const
     return mOffer.flags;
 }
 
+bool
+OfferFrame::isValid(OfferEntry const& oe)
+{
+    return isAssetValid(oe.buying) && isAssetValid(oe.selling);
+}
+
+bool
+OfferFrame::isValid() const
+{
+    return isValid(mOffer);
+}
+
 OfferFrame::pointer
 OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db)
 {
@@ -240,6 +252,11 @@ OfferFrame::loadOffers(StatementContext& prep,
                 strToAssetCode(oe.buying.alphaNum4().assetCode,
                                buyingAssetCode);
             }
+        }
+
+        if (!isValid(oe))
+        {
+            throw std::runtime_error("Invalid asset");
         }
 
         offerProcessor(le);
@@ -419,6 +436,11 @@ OfferFrame::storeChange(LedgerDelta& delta, Database& db)
 {
     touch(delta);
 
+    if (!isValid())
+    {
+        throw std::runtime_error("Invalid asset");
+    }
+
     auto timer = db.getUpdateTimer("offer");
     auto prep =
         db.getPreparedStatement("UPDATE offers SET amount=:a, pricen=:n, "
@@ -448,6 +470,11 @@ void
 OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
     touch(delta);
+
+    if (!isValid())
+    {
+        throw std::runtime_error("Invalid asset");
+    }
 
     std::string actIDStrKey = PubKeyUtils::toStrKey(mOffer.sellerID);
     auto timer = db.getInsertTimer("offer");
