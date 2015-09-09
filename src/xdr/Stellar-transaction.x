@@ -591,7 +591,7 @@ enum OperationResultCode
 {
     opINNER = 0, // inner object result is valid
 
-    opBAD_AUTH = -1,  // not enough signatures to perform operation
+    opBAD_AUTH = -1,  // too few valid signatures / wrong network
     opNO_ACCOUNT = -2 // source account was not found
 };
 
@@ -637,11 +637,11 @@ enum TransactionResultCode
     txMISSING_OPERATION = -4, // no operation was specified
     txBAD_SEQ = -5,           // sequence number does not match source account
 
-    txBAD_AUTH = -6,             // not enough signatures to perform transaction
+    txBAD_AUTH = -6,             // too few valid signatures / wrong network
     txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
     txNO_ACCOUNT = -8,           // source account not found
     txINSUFFICIENT_FEE = -9,     // fee is too small
-    txBAD_AUTH_EXTRA = -10,      // too many signatures on transaction
+    txBAD_AUTH_EXTRA = -10,      // unused signatures attached to transaction
     txINTERNAL_ERROR = -11       // an unknown error occured
 };
 
