@@ -810,6 +810,9 @@
     <ClInclude Include="..\..\src\main\ExternalQueue.h">
       <Filter>main</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\lib\catch.hpp">
+      <Filter>lib</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />

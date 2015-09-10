@@ -39,6 +39,15 @@ Categories (or tags) can be combined: AND-ed (by juxtaposition) or OR-ed (by com
 
 Tests tagged as [.] or [hide] are not part of the default test test.
 
+supported test options can be seen with
+  `src/stellar-core --test --help`
+
+display tests timing information:
+  `src/stellar-core --test -d yes '[categoryName]'`
+
+xml test output (includes nested section information):
+  `src/stellar-core --test -r xml '[categoryName]'`
+
 # Running tests against postgreSQL
 
 There are two options.  The easiest is to have the test suite just
