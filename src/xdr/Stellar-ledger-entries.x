@@ -27,14 +27,14 @@ case ASSET_TYPE_NATIVE: // Not credit
 case ASSET_TYPE_CREDIT_ALPHANUM4:
     struct
     {
-        opaque assetCode[4];
+        opaque assetCode[4]; // 1 to 4 characters
         AccountID issuer;
     } alphaNum4;
 
 case ASSET_TYPE_CREDIT_ALPHANUM12:
     struct
     {
-        opaque assetCode[12];
+        opaque assetCode[12]; // 5 to 12 characters
         AccountID issuer;
     } alphaNum12;
 

@@ -156,13 +156,19 @@ TrustFrame::getMaxAmountReceive() const
 }
 
 bool
-TrustFrame::isValid() const
+TrustFrame::isValid(TrustLineEntry const& tl)
 {
-    TrustLineEntry const& tl = mTrustLine;
     bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
+    res = res && isAssetValid(tl.asset);
     res = res && (tl.balance >= 0);
     res = res && (tl.balance <= tl.limit);
     return res;
+}
+
+bool
+TrustFrame::isValid() const
+{
+    return isValid(mTrustLine);
 }
 
 bool
@@ -223,7 +229,10 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 void
 TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 {
-    assert(isValid());
+    if (!isValid())
+    {
+        throw std::runtime_error("Invalid TrustEntry");
+    }
 
     auto key = getKey();
     flushCachedEntry(key, db);
@@ -264,7 +273,10 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 void
 TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
-    assert(isValid());
+    if (!isValid())
+    {
+        throw std::runtime_error("Invalid TrustEntry");
+    }
 
     auto key = getKey();
     flushCachedEntry(key, db);
@@ -468,6 +480,11 @@ TrustFrame::loadLines(StatementContext& prep,
             tl.asset.alphaNum12().issuer =
                 PubKeyUtils::fromStrKey(issuerStrKey);
             strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
+        }
+
+        if (!isValid(tl))
+        {
+            throw std::runtime_error("Invalid TrustEntry");
         }
 
         trustProcessor(le);
