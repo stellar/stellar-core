@@ -207,10 +207,14 @@ TransactionFrame::resetResults()
     }
 
     // feeCharged is updated accordingly to represent the cost of the
-    // transaction
-    // regardless of the failure modes.
-    getResult().feeCharged = 0;
+    // transaction regardless of the failure modes.
+    getResult().feeCharged = getFee();
+}
 
+bool
+TransactionFrame::commonValid(Application& app, bool applying,
+                              SequenceNumber current)
+{
     if (mOperations.size() == 0)
     {
         app.getMetrics()
@@ -264,18 +268,22 @@ TransactionFrame::resetResults()
         return false;
     }
 
-    if (current == 0)
+    // when applying, the account's sequence number is updated when taking fees
+    if (!applying)
     {
-        current = mSigningAccount->getSeqNum();
-    }
+        if (current == 0)
+        {
+            current = mSigningAccount->getSeqNum();
+        }
 
-    if (current + 1 != mEnvelope.tx.seqNum)
-    {
-        app.getMetrics()
-            .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
-            .Mark();
-        getResult().result.code(txBAD_SEQ);
-        return false;
+        if (current + 1 != mEnvelope.tx.seqNum)
+        {
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
+                .Mark();
+            getResult().result.code(txBAD_SEQ);
+            return false;
+        }
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
@@ -286,10 +294,6 @@ TransactionFrame::resetResults()
         getResult().result.code(txBAD_AUTH);
         return false;
     }
-
-    // failures after this point will end up charging a fee if attempting to run
-    // "apply"
-    getResult().feeCharged = mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
@@ -303,41 +307,21 @@ TransactionFrame::resetResults()
         return false;
     }
 
-    if (!applying)
-    {
-        for (auto& op : mOperations)
-        {
-            if (!op->checkValid(app))
-            {
-                // it's OK to just fast fail here and not try to call
-                // checkValid on all operations as the resulting object
-                // is only used by applications
-                app.getMetrics()
-                    .NewMeter({"transaction", "invalid", "invalid-op"},
-                              "transaction")
-                    .Mark();
-                markResultFailed();
-                return false;
-            }
-        }
-        auto b = checkAllSignaturesUsed();
-        if (!b)
-        {
-            app.getMetrics()
-                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
-                          "transaction")
-                .Mark();
-        }
-        return b;
-    }
-
     return true;
 }
 
 void
-TransactionFrame::prepareResult(LedgerDelta& delta,
-                                LedgerManager& ledgerManager)
+TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
+                                   LedgerManager& ledgerManager)
 {
+    resetSignatureTracker();
+    resetResults();
+
+    if (!loadAccount(ledgerManager.getDatabase()))
+    {
+        throw std::runtime_error("Unexpected database state");
+    }
+
     Database& db = ledgerManager.getDatabase();
     int64_t& fee = getResult().feeCharged;
 
@@ -349,12 +333,17 @@ TransactionFrame::prepareResult(LedgerDelta& delta,
             // take all their balance to be safe
             fee = avail;
         }
-        mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;
         delta.getHeader().feePool += fee;
-
-        mSigningAccount->storeChange(delta, db);
     }
+    if (mSigningAccount->getSeqNum() + 1 != mEnvelope.tx.seqNum)
+    {
+        // this should not happen as the transaction set is sanitized for
+        // sequence numbers
+        throw std::runtime_error("Unexpected account state");
+    }
+    mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
+    mSigningAccount->storeChange(delta, db);
 }
 
 void
@@ -371,7 +360,7 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 }
 
 void
-TransactionFrame::resetState()
+TransactionFrame::resetSignatureTracker()
 {
     mSigningAccount.reset();
     mUsedSignatures = std::vector<bool>(mEnvelope.signatures.size());
@@ -394,8 +383,36 @@ TransactionFrame::checkAllSignaturesUsed()
 bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
-    resetState();
-    return checkValid(app, false, current);
+    resetSignatureTracker();
+    resetResults();
+    bool res = commonValid(app, false, current);
+    if (res)
+    {
+        for (auto& op : mOperations)
+        {
+            if (!op->checkValid(app))
+            {
+                // it's OK to just fast fail here and not try to call
+                // checkValid on all operations as the resulting object
+                // is only used by applications
+                app.getMetrics()
+                    .NewMeter({"transaction", "invalid", "invalid-op"},
+                              "transaction")
+                    .Mark();
+                markResultFailed();
+                return false;
+            }
+        }
+        res = checkAllSignaturesUsed();
+        if (!res)
+        {
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                          "transaction")
+                .Mark();
+        }
+    }
+    return res;
 }
 
 void
@@ -422,16 +439,11 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
                         Application& app)
 {
-    resetState();
-    LedgerManager& lm = app.getLedgerManager();
-    if (!checkValid(app, true, 0))
+    resetSignatureTracker();
+    if (!commonValid(app, true, 0))
     {
-        prepareResult(delta, lm);
         return false;
     }
-    // full fee charged at this point
-    prepareResult(delta, lm);
-
     auto& meta = tm.v0();
 
     meta.changes = delta.getChanges();
@@ -481,8 +493,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
         markResultFailed();
     }
 
-    // return true as the transaction executed and collected a fee
-    return true;
+    return !errorEncountered;
 }
 
 StellarMessage
@@ -496,7 +507,6 @@ TransactionFrame::toStellarMessage() const
 
 void
 TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
-                                   LedgerDelta const& delta,
                                    TransactionMeta& tm, int txindex,
                                    TransactionResultSet& resultSet) const
 {

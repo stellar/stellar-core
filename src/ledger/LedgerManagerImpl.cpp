@@ -641,6 +641,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // was sorted by hash; we reorder it so that transactions are
     // sorted such that sequence numbers are respected
     vector<TransactionFramePtr> txs = ledgerData.mTxSet->sortForApply();
+
+    // first, charge fees
+    processFeesSeqNums(txs, ledgerDelta);
+
     int index = 0;
 
     TransactionResultSet txResultSet;
@@ -658,41 +662,26 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << PubKeyUtils::toShortString(tx->getSourceID()) << ")";
 
-            // note that success here just means it got processed
-            // a failed transaction collecting a fee is successful at this layer
             if (tx->apply(delta, tm, mApp))
             {
                 delta.commit();
             }
             else
             {
-                // transaction failed validation and cannot have side effects
-                tx->getResult().feeCharged = 0;
+                // failure means there should be no side effects
+                assert(delta.getChanges().size() == 0);
+                assert(delta.getHeader() == ledgerDelta.getHeader());
             }
         }
         catch (std::runtime_error& e)
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
             tx->getResult().result.code(txINTERNAL_ERROR);
-            tx->getResult().feeCharged = 0;
         }
         catch (...)
         {
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
             tx->getResult().result.code(txINTERNAL_ERROR);
-            tx->getResult().feeCharged = 0;
-        }
-        if (tx->getResult().feeCharged == 0)
-        {
-            CLOG(ERROR, "Tx") << "invalid tx";
-            CLOG(ERROR, "Tx")
-                << "Transaction: " << xdr::xdr_to_string(tx->getEnvelope());
-            CLOG(ERROR, "Tx")
-                << "Result: " << xdr::xdr_to_string(tx->getResult());
-            // ensures that this transaction doesn't have any side effects
-            delta.rollback();
-            tm.v0().changes.clear();
-            tm.v0().operations.clear();
         }
         tx->storeTransaction(*this, delta, tm, ++index, txResultSet);
     }
@@ -701,6 +690,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         sha256(xdr::xdr_to_opaque(txResultSet));
 
     // apply any upgrades that were decided during consensus
+    // this must be done after applying transactions as the txset
+    // was validated before upgrades
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
@@ -734,7 +725,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     ledgerDelta.checkAgainstDatabase(mApp);
 
     ledgerDelta.commit();
-
     closeLedgerHelper(ledgerDelta);
     txscope.commit();
 
@@ -766,6 +756,31 @@ LedgerManagerImpl::advanceLedgerPointers()
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
     CLOG(DEBUG, "Ledger") << "New current ledger: seq="
                           << mCurrentLedger->mHeader.ledgerSeq;
+}
+
+void
+LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
+                                      LedgerDelta& delta)
+{
+    CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
+    int index = 0;
+    try
+    {
+        soci::transaction sqlTx(mApp.getDatabase().getSession());
+        for (auto tx : txs)
+        {
+            LedgerDelta thisTxDelta(delta);
+            tx->processFeeSeqNum(thisTxDelta, *this);
+            thisTxDelta.commit();
+        }
+        sqlTx.commit();
+    }
+    catch (std::exception& e)
+    {
+        CLOG(FATAL, "Ledger") << "processFeesSeqNums error @ " << index << " : "
+                              << e.what();
+        throw;
+    }
 }
 
 void

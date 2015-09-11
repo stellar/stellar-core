@@ -48,12 +48,10 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     bool loadAccount(Database& app);
-    // collect fee, consume sequence number
-    void prepareResult(LedgerDelta& delta, LedgerManager& ledgerManager);
+    bool commonValid(Application& app, bool applying, SequenceNumber current);
 
-    bool checkValid(Application& app, bool applying, SequenceNumber current);
-
-    void resetState();
+    void resetSignatureTracker();
+    void resetResults();
     bool checkAllSignaturesUsed();
     void markResultFailed();
 
@@ -136,6 +134,9 @@ class TransactionFrame
     bool checkSignature(AccountFrame& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
+
+    // collect fee, consume sequence number
+    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

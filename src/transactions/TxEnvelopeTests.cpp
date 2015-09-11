@@ -43,7 +43,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SecretKey root = getRoot(networkID);
     SecretKey a1 = getAccount("A");
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
-    ;
 
     const uint64_t paymentAmount =
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
@@ -150,7 +149,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             // updating thresholds requires high
             TransactionFramePtr tx = createSetOptions(
-                networkID, a1, a1Seq, nullptr, nullptr, nullptr, &th, &sk1);
+                networkID, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1);
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();
@@ -472,7 +471,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 clock.setCurrentTime(ledgerTime);
 
-                txFrame = createPaymentTx(networkID, root, a1, rootSeq,
+                txFrame = createPaymentTx(networkID, root, a1, rootSeq++,
                                           paymentAmount);
                 txFrame->getEnvelope().tx.timeBounds.activate() =
                     TimeBounds(start + 1000, start + 10000);
@@ -491,7 +490,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 applyCheck(txFrame, delta, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-                txFrame = createPaymentTx(networkID, root, a1, rootSeq,
+                txFrame = createPaymentTx(networkID, root, a1, rootSeq++,
                                           paymentAmount);
                 txFrame->getEnvelope().tx.timeBounds.activate() =
                     TimeBounds(1000, start);

@@ -53,6 +53,8 @@ class LedgerManagerImpl : public LedgerManager
                          HistoryManager::CatchupMode mode,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
+    void processFeesSeqNums(std::vector<TransactionFramePtr>& txs, LedgerDelta& delta);
+
     void closeLedgerHelper(LedgerDelta const& delta);
     void advanceLedgerPointers();
 

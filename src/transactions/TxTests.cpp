@@ -39,11 +39,36 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 {
     bool check = tx->checkValid(app, 0);
     TransactionResult checkResult = tx->getResult();
-    bool res = tx->apply(delta, app);
 
-    if (!check)
+    REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+
+    bool doApply;
+    // valid transaction sets ensure that
     {
-        REQUIRE(checkResult == tx->getResult());
+        auto code = checkResult.result.code();
+        if (code != txNO_ACCOUNT && code != txBAD_SEQ)
+        {
+            tx->processFeeSeqNum(delta, app.getLedgerManager());
+        }
+        doApply = (code != txBAD_SEQ);
+    }
+
+    bool res;
+
+    if (doApply)
+    {
+        res = tx->apply(delta, app);
+
+        REQUIRE((!res || tx->getResultCode() == txSUCCESS));
+
+        if (!check)
+        {
+            REQUIRE(checkResult == tx->getResult());
+        }
+    }
+    else
+    {
+        res = check;
     }
 
     // verify modified accounts invariants
