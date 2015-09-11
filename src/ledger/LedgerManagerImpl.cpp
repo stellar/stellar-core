@@ -645,46 +645,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // first, charge fees
     processFeesSeqNums(txs, ledgerDelta);
 
-    int index = 0;
-
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
-    for (auto tx : txs)
-    {
-        auto txTime = mTransactionApply.TimeScope();
-        LedgerDelta delta(ledgerDelta);
-        TransactionMeta tm;
-        try
-        {
-            CLOG(DEBUG, "Tx")
-                << "APPLY: ledger " << mCurrentLedger->mHeader.ledgerSeq
-                << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
-                << " txseq=" << tx->getSeqNum() << " (@ "
-                << PubKeyUtils::toShortString(tx->getSourceID()) << ")";
 
-            if (tx->apply(delta, tm, mApp))
-            {
-                delta.commit();
-            }
-            else
-            {
-                // failure means there should be no side effects
-                assert(delta.getChanges().size() == 0);
-                assert(delta.getHeader() == ledgerDelta.getHeader());
-            }
-        }
-        catch (std::runtime_error& e)
-        {
-            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
-            tx->getResult().result.code(txINTERNAL_ERROR);
-        }
-        catch (...)
-        {
-            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
-            tx->getResult().result.code(txINTERNAL_ERROR);
-        }
-        tx->storeTransaction(*this, tm, ++index, txResultSet);
-    }
+    applyTransactions(txs, ledgerDelta, txResultSet);
 
     ledgerDelta.getHeader().txSetResultHash =
         sha256(xdr::xdr_to_opaque(txResultSet));
@@ -781,6 +745,51 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         CLOG(FATAL, "Ledger") << "processFeesSeqNums error @ " << index << " : "
                               << e.what();
         throw;
+    }
+}
+
+void
+LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
+                                     LedgerDelta& ledgerDelta,
+                                     TransactionResultSet& txResultSet)
+{
+    CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
+                      << mCurrentLedger->mHeader.ledgerSeq;
+    int index = 0;
+    for (auto tx : txs)
+    {
+        auto txTime = mTransactionApply.TimeScope();
+        LedgerDelta delta(ledgerDelta);
+        TransactionMeta tm;
+        try
+        {
+            CLOG(DEBUG, "Tx")
+                << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
+                << " txseq=" << tx->getSeqNum() << " (@ "
+                << PubKeyUtils::toShortString(tx->getSourceID()) << ")";
+
+            if (tx->apply(delta, tm, mApp))
+            {
+                delta.commit();
+            }
+            else
+            {
+                // failure means there should be no side effects
+                assert(delta.getChanges().size() == 0);
+                assert(delta.getHeader() == ledgerDelta.getHeader());
+            }
+        }
+        catch (std::runtime_error& e)
+        {
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+            tx->getResult().result.code(txINTERNAL_ERROR);
+        }
+        catch (...)
+        {
+            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
+            tx->getResult().result.code(txINTERNAL_ERROR);
+        }
+        tx->storeTransaction(*this, tm, ++index, txResultSet);
     }
 }
 
