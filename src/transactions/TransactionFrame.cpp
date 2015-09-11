@@ -669,8 +669,9 @@ TransactionFrame::dropAll(Database& db)
                        "txbody      TEXT NOT NULL,"
                        "txresult    TEXT NOT NULL,"
                        "txmeta      TEXT NOT NULL,"
-                       "PRIMARY KEY (txid, ledgerseq),"
-                       "UNIQUE      (ledgerseq, txindex)"
+                       "PRIMARY KEY (ledgerseq, txindex)"
+                       ")";
+    db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
                        ")";
 }
 
