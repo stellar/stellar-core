@@ -104,6 +104,16 @@ txbody | TEXT NOT NULL | TransactionEnvelope (XDR)
 txresult | TEXT NOT NULL | TransactionResultPair (XDR)
 txmeta | TEXT NOT NULL | TransactionMeta (XDR)
 
+## txfeehistory
+
+Defined in [`src/transactions/TransactionFrame.cpp`](../src/transactions/TransactionFrame.cpp)
+
+Field | Type | Description
+------|------|---------------
+txid | CHARACTER(64) NOT NULL | Hash of the transaction (excluding signatures) (HEX)
+ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this transaction got applied
+txindex | INT NOT NULL | Apply order (per ledger, 1)
+txchanges | TEXT NOT NULL | LedgerEntryChanges (XDR)
 
 ## storestate
 
