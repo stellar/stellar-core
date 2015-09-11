@@ -154,6 +154,11 @@ class TransactionFrame
     void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,
                           int txindex, TransactionResultSet& resultSet) const;
 
+    // fee history
+    void storeTransactionFee(LedgerManager& ledgerManager,
+                             LedgerEntryChanges const& changes,
+                             int txindex) const;
+
     /*
     txOut: stream of TransactionHistoryEntry
     txResultOut: stream of TransactionHistoryResultEntry

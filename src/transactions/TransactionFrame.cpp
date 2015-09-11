@@ -550,6 +550,41 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     }
 }
 
+void
+TransactionFrame::storeTransactionFee(LedgerManager& ledgerManager,
+                                      LedgerEntryChanges const& changes,
+                                      int txindex) const
+{
+    xdr::opaque_vec<> txChanges(xdr::xdr_to_opaque(changes));
+
+    std::string txChanges64;
+    txChanges64 = bn::encode_b64(txChanges);
+
+    string txIDString(binToHex(getContentsHash()));
+
+    auto& db = ledgerManager.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO txfeehistory "
+        "( txid, ledgerseq, txindex,  txchanges) VALUES "
+        "(:id,  :seq,      :txindex, :txchanges)");
+
+    auto& st = prep.statement();
+    st.exchange(soci::use(txIDString));
+    st.exchange(soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq));
+    st.exchange(soci::use(txindex));
+    st.exchange(soci::use(txChanges64));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("txfeehistory");
+        st.execute(true);
+    }
+
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
+}
+
 static void
 saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       TxSetFrame& txSet, TransactionHistoryResultEntry& results,
@@ -659,6 +694,8 @@ TransactionFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
+    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
+
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
                        "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
@@ -669,12 +706,22 @@ TransactionFrame::dropAll(Database& db)
                        "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
     db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
+
+    db.getSession() << "CREATE TABLE txfeehistory ("
+                       "txid        CHARACTER(64) NOT NULL,"
+                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+                       "txindex     INT NOT NULL,"
+                       "txchanges   TEXT NOT NULL,"
+                       "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
+    db.getSession() << "CREATE INDEX histfeebyseq ON txfeehistory (ledgerseq);";
 }
 
 void
 TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     db.getSession() << "DELETE FROM txhistory WHERE ledgerseq <= " << ledgerSeq;
+    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq <= "
+                    << ledgerSeq;
 }
 }

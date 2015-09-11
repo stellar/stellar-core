@@ -771,6 +771,7 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         {
             LedgerDelta thisTxDelta(delta);
             tx->processFeeSeqNum(thisTxDelta, *this);
+            tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
             thisTxDelta.commit();
         }
         sqlTx.commit();
