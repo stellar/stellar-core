@@ -140,7 +140,7 @@ class TransactionFrame
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& tm, Application& app);
+    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
 
     // version without meta
     bool apply(LedgerDelta& delta, Application& app);
@@ -151,8 +151,7 @@ class TransactionFrame
                                       AccountID const& accountID);
 
     // transaction history
-    void storeTransaction(LedgerManager& ledgerManager,
-                          LedgerDelta const& delta, TransactionMeta& tm,
+    void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,
                           int txindex, TransactionResultSet& resultSet) const;
 
     /*

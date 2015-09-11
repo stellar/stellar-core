@@ -222,10 +222,6 @@ struct OperationMeta
 union TransactionMeta switch (int v)
 {
 case 0:
-    struct
-    {
-        LedgerEntryChanges changes;
-        OperationMeta operations<>;
-    } v0;
+    OperationMeta operations<>;
 };
 }

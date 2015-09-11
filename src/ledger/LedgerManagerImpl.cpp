@@ -683,7 +683,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
-        tx->storeTransaction(*this, delta, tm, ++index, txResultSet);
+        tx->storeTransaction(*this, tm, ++index, txResultSet);
     }
 
     ledgerDelta.getHeader().txSetResultHash =

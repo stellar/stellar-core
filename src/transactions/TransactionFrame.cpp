@@ -436,7 +436,7 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 }
 
 bool
-TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
+TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
     resetSignatureTracker();
@@ -444,9 +444,6 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
     {
         return false;
     }
-    auto& meta = tm.v0();
-
-    meta.changes = delta.getChanges();
 
     bool errorEncountered = false;
 
@@ -469,7 +466,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
             {
                 errorEncountered = true;
             }
-            meta.operations.emplace_back(opDelta.getChanges());
+            meta.operations().emplace_back(opDelta.getChanges());
             opDelta.commit();
         }
 
@@ -489,7 +486,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
 
     if (errorEncountered)
     {
-        meta.operations.clear();
+        meta.operations().clear();
         markResultFailed();
     }
 
