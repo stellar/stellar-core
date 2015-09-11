@@ -47,10 +47,10 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
+    bool loadAccount(Database& app);
     // collect fee, consume sequence number
     void prepareResult(LedgerDelta& delta, LedgerManager& ledgerManager);
 
-    bool loadAccount(Application& app);
     bool checkValid(Application& app, bool applying, SequenceNumber current);
 
     void resetState();
@@ -146,7 +146,7 @@ class TransactionFrame
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(Application& app,
+    AccountFrame::pointer loadAccount(Database& app,
                                       AccountID const& accountID);
 
     // transaction history

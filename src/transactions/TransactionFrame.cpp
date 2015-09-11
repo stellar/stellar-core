@@ -166,7 +166,7 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
+TransactionFrame::loadAccount(Database& db, AccountID const& accountID)
 {
     AccountFrame::pointer res;
 
@@ -176,21 +176,20 @@ TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
     }
     else
     {
-        res = AccountFrame::loadAccount(accountID, app.getDatabase());
+        res = AccountFrame::loadAccount(accountID, db);
     }
     return res;
 }
 
 bool
-TransactionFrame::loadAccount(Application& app)
+TransactionFrame::loadAccount(Database& db)
 {
-    mSigningAccount = loadAccount(app, getSourceID());
+    mSigningAccount = loadAccount(db, getSourceID());
     return !!mSigningAccount;
 }
 
-bool
-TransactionFrame::checkValid(Application& app, bool applying,
-                             SequenceNumber current)
+void
+TransactionFrame::resetResults()
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -256,7 +255,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if (!loadAccount(app))
+    if (!loadAccount(app.getDatabase()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "no-account"}, "transaction")

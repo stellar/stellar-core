@@ -104,9 +104,9 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(Application& app)
+OperationFrame::loadAccount(Database& db)
 {
-    mSourceAccount = mParentTx.loadAccount(app, getSourceID());
+    mSourceAccount = mParentTx.loadAccount(db, getSourceID());
     return !!mSourceAccount;
 }
 
@@ -126,7 +126,7 @@ OperationFrame::getResultCode() const
 bool
 OperationFrame::checkValid(Application& app, bool forApply)
 {
-    if (!loadAccount(app))
+    if (!loadAccount(app.getDatabase()))
     {
         if (forApply || !mOperation.sourceAccount)
         {
