@@ -17,8 +17,13 @@ namespace stellar
 class TransactionFrame;
 class LedgerDelta;
 class OperationFrame;
+class TxSetFrame;
+
 namespace txtest
 {
+
+typedef std::vector<std::pair<TransactionResultPair, LedgerEntryChanges>>
+    TxSetResultMeta;
 
 struct ThresholdSetter
 {
@@ -35,8 +40,12 @@ void checkAccount(AccountID const& id, Application& app);
 
 time_t getTestDate(int day, int month, int year);
 
-void closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month,
-                   int year, TransactionFramePtr tx = nullptr);
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
+                              int month, int year,
+                              TransactionFramePtr tx = nullptr);
+
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
+                              int month, int year, TxSetFramePtr txSet);
 
 SecretKey getRoot(Hash const& networkID);
 
@@ -57,7 +66,7 @@ TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
 
 SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
-uint64_t getAccountBalance(SecretKey const& k, Application& app);
+int64_t getAccountBalance(SecretKey const& k, Application& app);
 
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey& from,
                                       SecretKey& to, SequenceNumber seq,
@@ -183,6 +192,12 @@ void reSignTransaction(TransactionFrame& tx, SecretKey& source);
 //    * amount left in an offer should be higher than the exact calculation
 //    * amount received by a seller should be higher than the exact calculation
 void checkAmounts(int64_t a, int64_t b, int64_t maxd = 1);
+
+// methods to check results based off meta data
+void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected);
+
+void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+             OperationResultCode code);
 
 } // end txtest namespace
 }

@@ -145,24 +145,48 @@ getTestDate(int day, int month, int year)
     return t;
 }
 
-void
+TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               TransactionFramePtr tx)
 {
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
+
     if (tx)
     {
         txSet->add(tx);
         txSet->sortForHash();
     }
 
+    return closeLedgerOn(app, ledgerSeq, day, month, year, txSet);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
+              TxSetFramePtr txSet)
+{
+
     StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
                     emptyUpgradeSteps, 0);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
+    auto z1 = TransactionFrame::getTransactionHistoryMeta(app.getDatabase(),
+                                                          ledgerSeq);
+    auto z2 =
+        TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
+
     REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));
+
+    TxSetResultMeta res;
+    std::transform(z1.results.begin(), z1.results.end(), z2.begin(),
+                   std::back_inserter(res), [](TransactionResultPair const& r1,
+                                               LedgerEntryChanges const& r2)
+                   {
+                       return std::make_pair(r1, r2);
+                   });
+
+    return std::move(res);
 }
 
 SecretKey
@@ -233,7 +257,7 @@ getAccountSeqNum(SecretKey const& k, Application& app)
     return account->getSeqNum();
 }
 
-uint64_t
+int64_t
 getAccountBalance(SecretKey const& k, Application& app)
 {
     AccountFrame::pointer account;
@@ -833,5 +857,19 @@ checkAmounts(int64_t a, int64_t b, int64_t maxd)
     REQUIRE(a >= d);
     REQUIRE(a <= b);
 }
+
+void
+checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected)
+{
+    REQUIRE(r[index].first.result.result.code() == expected);
+};
+
+void
+checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+        OperationResultCode code)
+{
+    checkTx(index, r, expected);
+    REQUIRE(r[index].first.result.result.results()[0].code() == code);
+};
 }
 }

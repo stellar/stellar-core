@@ -608,6 +608,64 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     txResultOut.writeOne(results);
 }
 
+TransactionResultSet
+TransactionFrame::getTransactionHistoryMeta(Database& db, uint32 ledgerSeq)
+{
+    TransactionResultSet res;
+    std::string txresult64;
+    auto prep =
+        db.getPreparedStatement("SELECT txresult FROM txhistory "
+                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
+    auto& st = prep.statement();
+
+    st.exchange(soci::use(ledgerSeq));
+    st.exchange(soci::into(txresult64));
+    st.define_and_bind();
+    st.execute(true);
+    while (st.got_data())
+    {
+        std::vector<uint8_t> result;
+        bn::decode_b64(txresult64, result);
+
+        res.results.emplace_back();
+        TransactionResultPair& p = res.results.back();
+
+        xdr::xdr_get g(&result.front(), &result.back() + 1);
+        xdr_argpack_archive(g, p);
+
+        st.fetch();
+    }
+    return res;
+}
+
+std::vector<LedgerEntryChanges>
+TransactionFrame::getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
+{
+    std::vector<LedgerEntryChanges> res;
+    std::string changes64;
+    auto prep =
+        db.getPreparedStatement("SELECT txchanges FROM txfeehistory "
+                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
+    auto& st = prep.statement();
+
+    st.exchange(soci::into(changes64));
+    st.exchange(soci::use(ledgerSeq));
+    st.define_and_bind();
+    st.execute(true);
+    while (st.got_data())
+    {
+        std::vector<uint8_t> changesRaw;
+        bn::decode_b64(changes64, changesRaw);
+
+        xdr::xdr_get g1(&changesRaw.front(), &changesRaw.back() + 1);
+        res.emplace_back();
+        xdr_argpack_archive(g1, res.back());
+
+        st.fetch();
+    }
+    return res;
+}
+
 size_t
 TransactionFrame::copyTransactionsToStream(Hash const& networkID, Database& db,
                                            soci::session& sess,
