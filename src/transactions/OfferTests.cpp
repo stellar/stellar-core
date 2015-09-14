@@ -87,81 +87,84 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreateAccountTx(app, root, b1, root_seq++, minBalance2 * 2);
         SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
 
-        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", 1000);
-        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 1000);
-        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", 1000);
-        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", 1000);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
 
-        // fund a1 with some IDR
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 500);
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             trustLineBalance);
+        applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
+                             trustLineBalance);
 
+        uint64_t firstOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
         auto txFrame = manageOfferOp(networkID, 0, a1, idrCur, usdCur, oneone,
-                                     100, a1_seq++);
+                                     100 * assetMultiplier, a1_seq++);
         REQUIRE(applyCheck(txFrame, delta, app));
 
+        // offer2 is a passive offer
+        uint64_t secondOfferID =
+            delta.getHeaderFrame().getLastGeneratedID() + 1;
         txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, oneone,
-                                       100, b1_seq++);
-        applyCheck(txFrame, delta, app);
+                                       100 * assetMultiplier, b1_seq++);
+        REQUIRE(applyCheck(txFrame, delta, app));
 
-        // same price
-        OfferFrame::pointer offer = loadOffer(a1, 1, app);
-        REQUIRE(offer->getAmount() == 100);
+        REQUIRE(secondOfferID == (firstOfferID + 1));
 
-        offer = loadOffer(b1, 2, app);
-        REQUIRE(offer->getAmount() == 100);
-        REQUIRE((offer->getFlags() & PASSIVE_FLAG));
+        // offer1 didn't change
+        OfferFrame::pointer offer = loadOffer(a1, firstOfferID, app);
+        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+        REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-        // better price
+        offer = loadOffer(b1, secondOfferID, app);
+        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+        REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
+
         const Price highPrice(100, 99);
         const Price lowPrice(99, 100);
-        txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, lowPrice,
-                                       100, b1_seq++);
-        applyCheck(txFrame, delta, app);
 
-        REQUIRE(!loadOffer(a1, 1, app, false));
-        REQUIRE(!loadOffer(b1, 3, app, false));
+        SECTION("creates a passive offer with a better price")
+        {
+            uint64_t thirdOfferID =
+                delta.getHeaderFrame().getLastGeneratedID() + 1;
+            txFrame =
+                createPassiveOfferOp(networkID, b1, usdCur, idrCur, lowPrice,
+                                     100 * assetMultiplier, b1_seq++);
+            applyCheck(txFrame, delta, app);
 
-        // modify existing passive offer
-        txFrame = manageOfferOp(networkID, 0, a1, idrCur, usdCur, oneone, 200,
-                                a1_seq++);
-        applyCheck(txFrame, delta, app);
+            // offer1 is taken, offer3 was not created
+            REQUIRE(!loadOffer(a1, firstOfferID, app, false));
+            REQUIRE(!loadOffer(b1, thirdOfferID, app, false));
+        }
+        SECTION("modify existing passive offer")
+        {
+            SECTION("modify high")
+            {
+                txFrame =
+                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
+                                  highPrice, 100 * assetMultiplier, b1_seq++);
+                applyCheck(txFrame, delta, app);
 
-        REQUIRE(!loadOffer(a1, 1, app, false));
-        REQUIRE(!loadOffer(b1, 2, app, false));
-        REQUIRE(!loadOffer(b1, 3, app, false));
+                offer = loadOffer(a1, firstOfferID, app);
+                REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+                REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
+                offer = loadOffer(b1, secondOfferID, app);
+                REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+                REQUIRE(offer->getPrice() == highPrice);
+                REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
+            }
+            SECTION("modify low")
+            {
+                txFrame =
+                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
+                                  lowPrice, 100 * assetMultiplier, b1_seq++);
+                applyCheck(txFrame, delta, app);
 
-        txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, highPrice,
-                                       100, b1_seq++);
-        REQUIRE(applyCheck(txFrame, delta, app));
-
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        offer = loadOffer(b1, 4, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        txFrame = manageOfferOp(networkID, 4, b1, usdCur, idrCur, oneone, 100,
-                                b1_seq++);
-        applyCheck(txFrame, delta, app);
-
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        offer = loadOffer(b1, 4, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        txFrame = manageOfferOp(networkID, 4, b1, usdCur, idrCur, lowPrice, 100,
-                                b1_seq++);
-        REQUIRE(applyCheck(txFrame, delta, app));
-
-        REQUIRE(!loadOffer(a1, 3, app, false));
-        REQUIRE(!loadOffer(b1, 4, app, false));
+                REQUIRE(!loadOffer(a1, firstOfferID, app, false));
+                REQUIRE(!loadOffer(b1, secondOfferID, app, false));
+            }
+        }
     }
 
     SECTION("negative offer creation tests")
