@@ -225,7 +225,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
     }
 
-    SECTION("cancel offer")
+    SECTION("offer manipulation")
     {
         const int64_t minBalanceA = app.getLedgerManager().getMinBalance(3);
 
@@ -242,14 +242,61 @@ TEST_CASE("create offer", "[tx][offers]")
                                               MANAGE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
-        loadOffer(a1, offer.offerID, app);
+        auto orgOffer = loadOffer(a1, offer.offerID, app);
 
-        auto cancelRes = applyCreateOfferWithResult(
-            app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0, a1_seq++,
-            MANAGE_OFFER_SUCCESS);
+        SECTION("Cancel offer")
+        {
+            auto cancelRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
 
-        REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
-        REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+            REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
+            REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+        }
+        SECTION("Update price")
+        {
+            const Price onetwo(1, 2);
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, onetwo, 100,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().price == onetwo);
+            modOffer->getOffer().price = oneone;
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
+        SECTION("Update amount")
+        {
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 10,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().amount == 10);
+            modOffer->getOffer().amount = 100;
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
+        SECTION("Update selling/buying assets")
+        {
+            // needs usdCur
+            applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
+                                 trustLineBalance);
+
+            // swap selling and buying
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, usdCur, idrCur, oneone, 100,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().selling == usdCur);
+            REQUIRE(modOffer->getOffer().buying == idrCur);
+            std::swap(modOffer->getOffer().buying,
+                      modOffer->getOffer().selling);
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
     }
 
     // minimum balance to hold
