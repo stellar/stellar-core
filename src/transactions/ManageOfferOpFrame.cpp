@@ -127,9 +127,11 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        mSellSheepOffer = OfferFrame::from(getSourceID(), mManageOffer);
-        if (mPassive)
-            mSellSheepOffer->mEntry.data.offer().flags = PASSIVE_FLAG;
+        LedgerEntry le;
+        le.data.type(OFFER);
+        le.data.offer() = buildOffer(getSourceID(), mManageOffer,
+                                     mPassive ? PASSIVE_FLAG : 0);
+        mSellSheepOffer = std::make_shared<OfferFrame>(le);
     }
 
     int64_t maxSheepSend = mManageOffer.amount;
@@ -370,5 +372,20 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     }
 
     return true;
+}
+
+OfferEntry
+ManageOfferOpFrame::buildOffer(AccountID const& account,
+                               ManageOfferOp const& op, uint32 flags)
+{
+    OfferEntry o;
+    o.sellerID = account;
+    o.amount = op.amount;
+    o.price = op.price;
+    o.offerID = op.offerID;
+    o.selling = op.selling;
+    o.buying = op.buying;
+    o.flags = flags;
+    return o;
 }
 }

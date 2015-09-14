@@ -43,8 +43,6 @@ class OfferFrame : public EntryFrame
     OfferFrame(LedgerEntry const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
-    static OfferFrame::pointer from(AccountID const& account,
-                                    ManageOfferOp const& op);
 
     EntryFrame::pointer
     copy() const override

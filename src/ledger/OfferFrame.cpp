@@ -74,21 +74,6 @@ OfferFrame& OfferFrame::operator=(OfferFrame const& other)
     return *this;
 }
 
-OfferFrame::pointer
-OfferFrame::from(AccountID const& account, ManageOfferOp const& op)
-{
-    OfferFrame::pointer res = make_shared<OfferFrame>();
-    OfferEntry& o = res->mEntry.data.offer();
-    o.sellerID = account;
-    o.amount = op.amount;
-    o.price = op.price;
-    o.offerID = op.offerID;
-    o.selling = op.selling;
-    o.buying = op.buying;
-    o.flags = 0;
-    return res;
-}
-
 Price const&
 OfferFrame::getPrice() const
 {
