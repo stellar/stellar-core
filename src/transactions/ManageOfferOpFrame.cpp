@@ -138,7 +138,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         mSellSheepOffer = std::make_shared<OfferFrame>(le);
     }
 
-    int64_t maxSheepSend = mManageOffer.amount;
+    int64_t maxSheepSend = mSellSheepOffer->getAmount();
 
     int64_t maxAmountOfSheepCanSell;
     if (sheep.type() == ASSET_TYPE_NATIVE)
@@ -169,10 +169,12 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         }
     }
 
+    Price const& sheepPrice = mSellSheepOffer->getPrice();
+
     {
         int64_t maxSheepBasedOnWheat;
-        if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell,
-                       mManageOffer.price.d, mManageOffer.price.n))
+        if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
+                       sheepPrice.n))
         {
             maxSheepBasedOnWheat = INT64_MAX;
         }
@@ -190,8 +192,6 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
         maxSheepSend = maxAmountOfSheepCanSell;
     }
 
-    Price sheepPrice = mManageOffer.price;
-
     innerResult().code(MANAGE_OFFER_SUCCESS);
 
     {
@@ -202,11 +202,11 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         OfferExchange oe(tempDelta, ledgerManager);
 
-        Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
+        const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
-            wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
+            wheatReceived, [this, &maxWheatPrice](OfferFrame const& o)
             {
                 if (o.getOfferID() == mSellSheepOffer->getOfferID())
                 {
