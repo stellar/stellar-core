@@ -122,6 +122,10 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
+
+        // rebuild offer based off the manage offer
+        mSellSheepOffer->getOffer() = buildOffer(
+            getSourceID(), mManageOffer, mSellSheepOffer->getOffer().flags);
         mPassive = mSellSheepOffer->getFlags() & PASSIVE_FLAG;
     }
     else
