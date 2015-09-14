@@ -38,7 +38,8 @@ class OfferExchange
     enum OfferFilterResult
     {
         eKeep,
-        eStop
+        eStop,
+        eSkip
     };
 
     enum ConvertResult

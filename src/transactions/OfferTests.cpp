@@ -87,81 +87,84 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreateAccountTx(app, root, b1, root_seq++, minBalance2 * 2);
         SequenceNumber b1_seq = getAccountSeqNum(b1, app) + 1;
 
-        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", 1000);
-        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 1000);
-        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", 1000);
-        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", 1000);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "IDR", trustLineLimit);
+        applyChangeTrust(app, b1, gateway, b1_seq++, "USD", trustLineLimit);
 
-        // fund a1 with some IDR
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++, 500);
-        applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++, 500);
+        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway_seq++,
+                             trustLineBalance);
+        applyCreditPaymentTx(app, gateway, b1, usdCur, gateway_seq++,
+                             trustLineBalance);
 
+        uint64_t firstOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
         auto txFrame = manageOfferOp(networkID, 0, a1, idrCur, usdCur, oneone,
-                                     100, a1_seq++);
+                                     100 * assetMultiplier, a1_seq++);
         REQUIRE(applyCheck(txFrame, delta, app));
 
+        // offer2 is a passive offer
+        uint64_t secondOfferID =
+            delta.getHeaderFrame().getLastGeneratedID() + 1;
         txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, oneone,
-                                       100, b1_seq++);
-        applyCheck(txFrame, delta, app);
+                                       100 * assetMultiplier, b1_seq++);
+        REQUIRE(applyCheck(txFrame, delta, app));
 
-        // same price
-        OfferFrame::pointer offer = loadOffer(a1, 1, app);
-        REQUIRE(offer->getAmount() == 100);
+        REQUIRE(secondOfferID == (firstOfferID + 1));
 
-        offer = loadOffer(b1, 2, app);
-        REQUIRE(offer->getAmount() == 100);
-        REQUIRE((offer->getFlags() & PASSIVE_FLAG));
+        // offer1 didn't change
+        OfferFrame::pointer offer = loadOffer(a1, firstOfferID, app);
+        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+        REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-        // better price
+        offer = loadOffer(b1, secondOfferID, app);
+        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+        REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
+
         const Price highPrice(100, 99);
         const Price lowPrice(99, 100);
-        txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, lowPrice,
-                                       100, b1_seq++);
-        applyCheck(txFrame, delta, app);
 
-        REQUIRE(!loadOffer(a1, 1, app, false));
-        REQUIRE(!loadOffer(b1, 3, app, false));
+        SECTION("creates a passive offer with a better price")
+        {
+            uint64_t thirdOfferID =
+                delta.getHeaderFrame().getLastGeneratedID() + 1;
+            txFrame =
+                createPassiveOfferOp(networkID, b1, usdCur, idrCur, lowPrice,
+                                     100 * assetMultiplier, b1_seq++);
+            applyCheck(txFrame, delta, app);
 
-        // modify existing passive offer
-        txFrame = manageOfferOp(networkID, 0, a1, idrCur, usdCur, oneone, 200,
-                                a1_seq++);
-        applyCheck(txFrame, delta, app);
+            // offer1 is taken, offer3 was not created
+            REQUIRE(!loadOffer(a1, firstOfferID, app, false));
+            REQUIRE(!loadOffer(b1, thirdOfferID, app, false));
+        }
+        SECTION("modify existing passive offer")
+        {
+            SECTION("modify high")
+            {
+                txFrame =
+                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
+                                  highPrice, 100 * assetMultiplier, b1_seq++);
+                applyCheck(txFrame, delta, app);
 
-        REQUIRE(!loadOffer(a1, 1, app, false));
-        REQUIRE(!loadOffer(b1, 2, app, false));
-        REQUIRE(!loadOffer(b1, 3, app, false));
+                offer = loadOffer(a1, firstOfferID, app);
+                REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+                REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
+                offer = loadOffer(b1, secondOfferID, app);
+                REQUIRE(offer->getAmount() == (100 * assetMultiplier));
+                REQUIRE(offer->getPrice() == highPrice);
+                REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
+            }
+            SECTION("modify low")
+            {
+                txFrame =
+                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
+                                  lowPrice, 100 * assetMultiplier, b1_seq++);
+                applyCheck(txFrame, delta, app);
 
-        txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, highPrice,
-                                       100, b1_seq++);
-        REQUIRE(applyCheck(txFrame, delta, app));
-
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        offer = loadOffer(b1, 4, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        txFrame = manageOfferOp(networkID, 4, b1, usdCur, idrCur, oneone, 100,
-                                b1_seq++);
-        applyCheck(txFrame, delta, app);
-
-        offer = loadOffer(a1, 3, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        offer = loadOffer(b1, 4, app);
-        REQUIRE(offer->getAmount() == 100);
-
-        txFrame = manageOfferOp(networkID, 4, b1, usdCur, idrCur, lowPrice, 100,
-                                b1_seq++);
-        REQUIRE(applyCheck(txFrame, delta, app));
-
-        REQUIRE(!loadOffer(a1, 3, app, false));
-        REQUIRE(!loadOffer(b1, 4, app, false));
+                REQUIRE(!loadOffer(a1, firstOfferID, app, false));
+                REQUIRE(!loadOffer(b1, secondOfferID, app, false));
+            }
+        }
     }
 
     SECTION("negative offer creation tests")
@@ -222,7 +225,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
     }
 
-    SECTION("cancel offer")
+    SECTION("offer manipulation")
     {
         const int64_t minBalanceA = app.getLedgerManager().getMinBalance(3);
 
@@ -239,14 +242,61 @@ TEST_CASE("create offer", "[tx][offers]")
                                               MANAGE_OFFER_SUCCESS);
 
         auto offer = res.success().offer.offer();
-        loadOffer(a1, offer.offerID, app);
+        auto orgOffer = loadOffer(a1, offer.offerID, app);
 
-        auto cancelRes = applyCreateOfferWithResult(
-            app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0, a1_seq++,
-            MANAGE_OFFER_SUCCESS);
+        SECTION("Cancel offer")
+        {
+            auto cancelRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
 
-        REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
-        REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+            REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
+            REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+        }
+        SECTION("Update price")
+        {
+            const Price onetwo(1, 2);
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, onetwo, 100,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().price == onetwo);
+            modOffer->getOffer().price = oneone;
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
+        SECTION("Update amount")
+        {
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 10,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().amount == 10);
+            modOffer->getOffer().amount = 100;
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
+        SECTION("Update selling/buying assets")
+        {
+            // needs usdCur
+            applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
+                                 trustLineBalance);
+
+            // swap selling and buying
+            auto updateRes = applyCreateOfferWithResult(
+                app, delta, offer.offerID, a1, usdCur, idrCur, oneone, 100,
+                a1_seq++, MANAGE_OFFER_SUCCESS);
+
+            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
+            auto modOffer = loadOffer(a1, offer.offerID, app);
+            REQUIRE(modOffer->getOffer().selling == usdCur);
+            REQUIRE(modOffer->getOffer().buying == idrCur);
+            std::swap(modOffer->getOffer().buying,
+                      modOffer->getOffer().selling);
+            REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
+        }
     }
 
     // minimum balance to hold

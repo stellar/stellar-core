@@ -242,6 +242,8 @@ OfferExchange::convertWithOffers(
                     break;
                 case eStop:
                     return eFilterStop;
+                case eSkip:
+                    continue;
                 }
             }
 

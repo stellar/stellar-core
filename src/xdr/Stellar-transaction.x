@@ -436,9 +436,8 @@ enum ManageOfferResultCode
 
     // update errors
     MANAGE_OFFER_NOT_FOUND = -9, // offerID does not match an existing offer
-    MANAGE_OFFER_MISMATCH = -10, // currencies don't match offer
 
-    MANAGE_OFFER_LOW_RESERVE = -11 // not enough funds to create a new Offer
+    MANAGE_OFFER_LOW_RESERVE = -10 // not enough funds to create a new Offer
 };
 
 enum ManageOfferEffect

@@ -27,6 +27,9 @@ class ManageOfferOpFrame : public OperationFrame
 
     ManageOfferOp const& mManageOffer;
 
+    OfferEntry buildOffer(AccountID const& account, ManageOfferOp const& op,
+                          uint32 flags);
+
   protected:
     bool mPassive;
 
