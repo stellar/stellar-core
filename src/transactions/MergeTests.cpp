@@ -107,8 +107,35 @@ TEST_CASE("merge", "[tx][merge]")
         applyCreditPaymentTx(app, a1, gateway, usdCur, a1_seq++,
                              trustLineBalance);
 
-        applyAccountMerge(app, a1, b1, a1_seq++);
-        REQUIRE(
-            !AccountFrame::loadAccount(a1.getPublicKey(), app.getDatabase()));
+        SECTION("success - basic")
+        {
+            applyAccountMerge(app, a1, b1, a1_seq++);
+            REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
+                                               app.getDatabase()));
+        }
+        SECTION("success, invalidates dependent tx")
+        {
+            auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1, a1_seq++);
+            auto tx2 =
+                createPaymentTx(app.getNetworkID(), a1, root, a1_seq++, 100);
+            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+                app.getLedgerManager().getLastClosedLedgerHeader().hash);
+            txSet->add(tx1);
+            txSet->add(tx2);
+            txSet->sortForHash();
+            REQUIRE(txSet->checkValid(app));
+            int64 a1Balance = getAccountBalance(a1, app);
+            int64 b1Balance = getAccountBalance(b1, app);
+            auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txNO_ACCOUNT);
+
+            REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
+                                               app.getDatabase()));
+
+            int64 expectedB1Balance =
+                a1Balance + b1Balance - 2 * app.getLedgerManager().getTxFee();
+            REQUIRE(expectedB1Balance == getAccountBalance(b1, app));
+        }
     }
 }

@@ -44,10 +44,9 @@ A transaction is considered valid iff
  * the Source Account exists
  * the transaction is signed for the source account (see Signatures below)
  * the signatures together meet the "low" threshold
- * fee should be less than maxFee
+ * fee is less than maxFee
  * the sequence number follows the rules defined in the "Sequence Number" section
- * the current ledger sequence number must be within the [minLedger, maxLedger] 
-   range
+ * the current ledger sequence number is within the [minLedger, maxLedger]  range
 and
 (B)
  * all operations are valid
@@ -64,17 +63,12 @@ transaction; therefore this is really a best effort implementation specific.
 
 ##Applying a transaction
 
-When SCP externalizes the transaction set to apply to the last closed ledger, 
-the set of transaction is applied one by one.
+When SCP externalizes the transaction set to apply to the last closed ledger:
+Source Accounts for transactions are charged a fee and their sequence number
+is updated. 
+Then, the transactions are applied one by one.
 
 To apply a transaction, it first checks for part (A) of the validity check.
-
-If the transaction passes this test it will collect the fee and proceed to 
-applying the operations.
-If it does not pass this test, the transaction is ignored (doesn't charge a fee,
-doesn't consume a sequence number) - but is still kept in the applied 
-transaction set. This allows to preserve the mapping between SCP transaction 
-set and what is applied.
 
 If any operation fails, the transaction is rolled back entirely but marked as 
 such: the sequence number in the account is consumed, the fee is collected and 
@@ -82,7 +76,7 @@ the result set to "Failed".
 
 ##Result
 When transactions are applied (success or not), the result is saved in the 
-"txhistory" table in the database.
+"txhistory" and "txfeehistory" tables in the database.
 
 #Operations
 
@@ -143,6 +137,8 @@ side effects of the operation, in structured form.
 Results are queued in the txhistory table for other components to derive data:
 historical module for uploading it for long term storage, but also for API 
 servers to consume externally.
+The txfeehistory table is additional meta data that tracks changes to the ledger
+done before transactions are applied.
 
 ##List of operations
 See src/xdr/Stellar-transaction.x for a detailed list of all operations and results.

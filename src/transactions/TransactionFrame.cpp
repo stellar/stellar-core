@@ -166,7 +166,7 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
+TransactionFrame::loadAccount(Database& db, AccountID const& accountID)
 {
     AccountFrame::pointer res;
 
@@ -176,21 +176,20 @@ TransactionFrame::loadAccount(Application& app, AccountID const& accountID)
     }
     else
     {
-        res = AccountFrame::loadAccount(accountID, app.getDatabase());
+        res = AccountFrame::loadAccount(accountID, db);
     }
     return res;
 }
 
 bool
-TransactionFrame::loadAccount(Application& app)
+TransactionFrame::loadAccount(Database& db)
 {
-    mSigningAccount = loadAccount(app, getSourceID());
+    mSigningAccount = loadAccount(db, getSourceID());
     return !!mSigningAccount;
 }
 
-bool
-TransactionFrame::checkValid(Application& app, bool applying,
-                             SequenceNumber current)
+void
+TransactionFrame::resetResults()
 {
     // pre-allocates the results for all operations
     getResult().result.code(txSUCCESS);
@@ -208,10 +207,14 @@ TransactionFrame::checkValid(Application& app, bool applying,
     }
 
     // feeCharged is updated accordingly to represent the cost of the
-    // transaction
-    // regardless of the failure modes.
-    getResult().feeCharged = 0;
+    // transaction regardless of the failure modes.
+    getResult().feeCharged = getFee();
+}
 
+bool
+TransactionFrame::commonValid(Application& app, bool applying,
+                              SequenceNumber current)
+{
     if (mOperations.size() == 0)
     {
         app.getMetrics()
@@ -256,7 +259,7 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if (!loadAccount(app))
+    if (!loadAccount(app.getDatabase()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
@@ -265,18 +268,22 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if (current == 0)
+    // when applying, the account's sequence number is updated when taking fees
+    if (!applying)
     {
-        current = mSigningAccount->getSeqNum();
-    }
+        if (current == 0)
+        {
+            current = mSigningAccount->getSeqNum();
+        }
 
-    if (current + 1 != mEnvelope.tx.seqNum)
-    {
-        app.getMetrics()
-            .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
-            .Mark();
-        getResult().result.code(txBAD_SEQ);
-        return false;
+        if (current + 1 != mEnvelope.tx.seqNum)
+        {
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
+                .Mark();
+            getResult().result.code(txBAD_SEQ);
+            return false;
+        }
     }
 
     if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
@@ -287,10 +294,6 @@ TransactionFrame::checkValid(Application& app, bool applying,
         getResult().result.code(txBAD_AUTH);
         return false;
     }
-
-    // failures after this point will end up charging a fee if attempting to run
-    // "apply"
-    getResult().feeCharged = mEnvelope.tx.fee;
 
     // don't let the account go below the reserve
     if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
@@ -304,41 +307,21 @@ TransactionFrame::checkValid(Application& app, bool applying,
         return false;
     }
 
-    if (!applying)
-    {
-        for (auto& op : mOperations)
-        {
-            if (!op->checkValid(app))
-            {
-                // it's OK to just fast fail here and not try to call
-                // checkValid on all operations as the resulting object
-                // is only used by applications
-                app.getMetrics()
-                    .NewMeter({"transaction", "invalid", "invalid-op"},
-                              "transaction")
-                    .Mark();
-                markResultFailed();
-                return false;
-            }
-        }
-        auto b = checkAllSignaturesUsed();
-        if (!b)
-        {
-            app.getMetrics()
-                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
-                          "transaction")
-                .Mark();
-        }
-        return b;
-    }
-
     return true;
 }
 
 void
-TransactionFrame::prepareResult(LedgerDelta& delta,
-                                LedgerManager& ledgerManager)
+TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
+                                   LedgerManager& ledgerManager)
 {
+    resetSignatureTracker();
+    resetResults();
+
+    if (!loadAccount(ledgerManager.getDatabase()))
+    {
+        throw std::runtime_error("Unexpected database state");
+    }
+
     Database& db = ledgerManager.getDatabase();
     int64_t& fee = getResult().feeCharged;
 
@@ -350,12 +333,17 @@ TransactionFrame::prepareResult(LedgerDelta& delta,
             // take all their balance to be safe
             fee = avail;
         }
-        mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->getAccount().balance -= fee;
         delta.getHeader().feePool += fee;
-
-        mSigningAccount->storeChange(delta, db);
     }
+    if (mSigningAccount->getSeqNum() + 1 != mEnvelope.tx.seqNum)
+    {
+        // this should not happen as the transaction set is sanitized for
+        // sequence numbers
+        throw std::runtime_error("Unexpected account state");
+    }
+    mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
+    mSigningAccount->storeChange(delta, db);
 }
 
 void
@@ -372,7 +360,7 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 }
 
 void
-TransactionFrame::resetState()
+TransactionFrame::resetSignatureTracker()
 {
     mSigningAccount.reset();
     mUsedSignatures = std::vector<bool>(mEnvelope.signatures.size());
@@ -395,8 +383,36 @@ TransactionFrame::checkAllSignaturesUsed()
 bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
-    resetState();
-    return checkValid(app, false, current);
+    resetSignatureTracker();
+    resetResults();
+    bool res = commonValid(app, false, current);
+    if (res)
+    {
+        for (auto& op : mOperations)
+        {
+            if (!op->checkValid(app))
+            {
+                // it's OK to just fast fail here and not try to call
+                // checkValid on all operations as the resulting object
+                // is only used by applications
+                app.getMetrics()
+                    .NewMeter({"transaction", "invalid", "invalid-op"},
+                              "transaction")
+                    .Mark();
+                markResultFailed();
+                return false;
+            }
+        }
+        res = checkAllSignaturesUsed();
+        if (!res)
+        {
+            app.getMetrics()
+                .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                          "transaction")
+                .Mark();
+        }
+    }
+    return res;
 }
 
 void
@@ -420,22 +436,14 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 }
 
 bool
-TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
+TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
-    resetState();
-    LedgerManager& lm = app.getLedgerManager();
-    if (!checkValid(app, true, 0))
+    resetSignatureTracker();
+    if (!commonValid(app, true, 0))
     {
-        prepareResult(delta, lm);
         return false;
     }
-    // full fee charged at this point
-    prepareResult(delta, lm);
-
-    auto& meta = tm.v0();
-
-    meta.changes = delta.getChanges();
 
     bool errorEncountered = false;
 
@@ -458,7 +466,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
             {
                 errorEncountered = true;
             }
-            meta.operations.emplace_back(opDelta.getChanges());
+            meta.operations().emplace_back(opDelta.getChanges());
             opDelta.commit();
         }
 
@@ -478,12 +486,11 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& tm,
 
     if (errorEncountered)
     {
-        meta.operations.clear();
+        meta.operations().clear();
         markResultFailed();
     }
 
-    // return true as the transaction executed and collected a fee
-    return true;
+    return !errorEncountered;
 }
 
 StellarMessage
@@ -497,7 +504,6 @@ TransactionFrame::toStellarMessage() const
 
 void
 TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
-                                   LedgerDelta const& delta,
                                    TransactionMeta& tm, int txindex,
                                    TransactionResultSet& resultSet) const
 {
@@ -544,6 +550,41 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     }
 }
 
+void
+TransactionFrame::storeTransactionFee(LedgerManager& ledgerManager,
+                                      LedgerEntryChanges const& changes,
+                                      int txindex) const
+{
+    xdr::opaque_vec<> txChanges(xdr::xdr_to_opaque(changes));
+
+    std::string txChanges64;
+    txChanges64 = bn::encode_b64(txChanges);
+
+    string txIDString(binToHex(getContentsHash()));
+
+    auto& db = ledgerManager.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO txfeehistory "
+        "( txid, ledgerseq, txindex,  txchanges) VALUES "
+        "(:id,  :seq,      :txindex, :txchanges)");
+
+    auto& st = prep.statement();
+    st.exchange(soci::use(txIDString));
+    st.exchange(soci::use(ledgerManager.getCurrentLedgerHeader().ledgerSeq));
+    st.exchange(soci::use(txindex));
+    st.exchange(soci::use(txChanges64));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("txfeehistory");
+        st.execute(true);
+    }
+
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
+}
+
 static void
 saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       TxSetFrame& txSet, TransactionHistoryResultEntry& results,
@@ -565,6 +606,64 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
     txOut.writeOne(hist);
 
     txResultOut.writeOne(results);
+}
+
+TransactionResultSet
+TransactionFrame::getTransactionHistoryMeta(Database& db, uint32 ledgerSeq)
+{
+    TransactionResultSet res;
+    std::string txresult64;
+    auto prep =
+        db.getPreparedStatement("SELECT txresult FROM txhistory "
+                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
+    auto& st = prep.statement();
+
+    st.exchange(soci::use(ledgerSeq));
+    st.exchange(soci::into(txresult64));
+    st.define_and_bind();
+    st.execute(true);
+    while (st.got_data())
+    {
+        std::vector<uint8_t> result;
+        bn::decode_b64(txresult64, result);
+
+        res.results.emplace_back();
+        TransactionResultPair& p = res.results.back();
+
+        xdr::xdr_get g(&result.front(), &result.back() + 1);
+        xdr_argpack_archive(g, p);
+
+        st.fetch();
+    }
+    return res;
+}
+
+std::vector<LedgerEntryChanges>
+TransactionFrame::getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
+{
+    std::vector<LedgerEntryChanges> res;
+    std::string changes64;
+    auto prep =
+        db.getPreparedStatement("SELECT txchanges FROM txfeehistory "
+                                "WHERE ledgerseq = :lseq ORDER BY txindex ASC");
+    auto& st = prep.statement();
+
+    st.exchange(soci::into(changes64));
+    st.exchange(soci::use(ledgerSeq));
+    st.define_and_bind();
+    st.execute(true);
+    while (st.got_data())
+    {
+        std::vector<uint8_t> changesRaw;
+        bn::decode_b64(changes64, changesRaw);
+
+        xdr::xdr_get g1(&changesRaw.front(), &changesRaw.back() + 1);
+        res.emplace_back();
+        xdr_argpack_archive(g1, res.back());
+
+        st.fetch();
+    }
+    return res;
 }
 
 size_t
@@ -653,6 +752,8 @@ TransactionFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS txhistory";
 
+    db.getSession() << "DROP TABLE IF EXISTS txfeehistory";
+
     db.getSession() << "CREATE TABLE txhistory ("
                        "txid        CHARACTER(64) NOT NULL,"
                        "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
@@ -660,14 +761,25 @@ TransactionFrame::dropAll(Database& db)
                        "txbody      TEXT NOT NULL,"
                        "txresult    TEXT NOT NULL,"
                        "txmeta      TEXT NOT NULL,"
-                       "PRIMARY KEY (txid, ledgerseq),"
-                       "UNIQUE      (ledgerseq, txindex)"
+                       "PRIMARY KEY (ledgerseq, txindex)"
                        ")";
+    db.getSession() << "CREATE INDEX histbyseq ON txhistory (ledgerseq);";
+
+    db.getSession() << "CREATE TABLE txfeehistory ("
+                       "txid        CHARACTER(64) NOT NULL,"
+                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+                       "txindex     INT NOT NULL,"
+                       "txchanges   TEXT NOT NULL,"
+                       "PRIMARY KEY (ledgerseq, txindex)"
+                       ")";
+    db.getSession() << "CREATE INDEX histfeebyseq ON txfeehistory (ledgerseq);";
 }
 
 void
 TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     db.getSession() << "DELETE FROM txhistory WHERE ledgerseq <= " << ledgerSeq;
+    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq <= "
+                    << ledgerSeq;
 }
 }

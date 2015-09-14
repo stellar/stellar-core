@@ -66,7 +66,7 @@ class OperationFrame
 
     // load account if needed
     // returns true on success
-    bool loadAccount(Application& app);
+    bool loadAccount(Database& db);
 
     OperationResult&
     getResult() const

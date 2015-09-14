@@ -184,6 +184,34 @@ TEST_CASE("payment", "[tx][payment]")
         // payment goes through
         applyPaymentTx(app, b1, root, b1Seq++, 1);
     }
+    SECTION("two payments, first breaking second")
+    {
+        int64 startingBalance = paymentAmount + 5 +
+                                app.getLedgerManager().getMinBalance(0) +
+                                txfee * 2;
+        applyCreateAccountTx(app, root, b1, rootSeq++, startingBalance);
+
+        SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+        auto tx1 = createPaymentTx(app.getNetworkID(), b1, root, b1Seq++,
+                                   paymentAmount);
+        auto tx2 = createPaymentTx(app.getNetworkID(), b1, root, b1Seq++, 6);
+
+        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+            app.getLedgerManager().getLastClosedLedgerHeader().hash);
+        txSet->add(tx1);
+        txSet->add(tx2);
+        txSet->sortForHash();
+        REQUIRE(txSet->checkValid(app));
+        int64 rootBalance = getAccountBalance(root, app);
+        auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
+        checkTx(0, r, txSUCCESS);
+        checkTx(1, r, txINSUFFICIENT_BALANCE);
+
+        int64 expectedrootBalance = rootBalance + paymentAmount;
+        int64 expectedb1Balance = app.getLedgerManager().getMinBalance(0) + 5;
+        REQUIRE(expectedb1Balance == getAccountBalance(b1, app));
+        REQUIRE(expectedrootBalance == getAccountBalance(root, app));
+    }
 
     SECTION("simple credit")
     {

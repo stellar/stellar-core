@@ -94,10 +94,10 @@ class HistoryTests
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
-    std::vector<uint64_t> mRootBalances;
-    std::vector<uint64_t> mAliceBalances;
-    std::vector<uint64_t> mBobBalances;
-    std::vector<uint64_t> mCarolBalances;
+    std::vector<int64_t> mRootBalances;
+    std::vector<int64_t> mAliceBalances;
+    std::vector<int64_t> mBobBalances;
+    std::vector<int64_t> mCarolBalances;
 
     std::vector<SequenceNumber> mRootSeqs;
     std::vector<SequenceNumber> mAliceSeqs;
@@ -277,9 +277,12 @@ HistoryTests::generateRandomLedger()
     Hash const& networkID = app.getNetworkID();
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
+    txSet->add(
+        txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
+    txSet->add(
+        txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
+    txSet->add(
+        txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
     txSet->add(txtest::createPaymentTx(networkID, mRoot, mAlice, rseq++, big));
     txSet->add(txtest::createPaymentTx(networkID, mRoot, mBob, rseq++, big));
     txSet->add(txtest::createPaymentTx(networkID, mRoot, mCarol, rseq++, big));
@@ -292,25 +295,25 @@ HistoryTests::generateRandomLedger()
         SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
 
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mAlice, mBob, aseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mAlice, mBob, aseq++,
+                                               small));
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mAlice, mCarol, aseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mAlice, mCarol,
+                                               aseq++, small));
 
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mBob, mAlice, bseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mBob, mAlice, bseq++,
+                                               small));
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mBob, mCarol, bseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mBob, mCarol, bseq++,
+                                               small));
 
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mCarol, mAlice, cseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mCarol, mAlice,
+                                               cseq++, small));
         if (flip())
-            txSet->add(
-                txtest::createPaymentTx(networkID, mCarol, mBob, cseq++, small));
+            txSet->add(txtest::createPaymentTx(networkID, mCarol, mBob, cseq++,
+                                               small));
     }
 
     // Provoke sortForHash and hash-caching:

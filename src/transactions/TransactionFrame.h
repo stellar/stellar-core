@@ -47,13 +47,11 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    // collect fee, consume sequence number
-    void prepareResult(LedgerDelta& delta, LedgerManager& ledgerManager);
+    bool loadAccount(Database& app);
+    bool commonValid(Application& app, bool applying, SequenceNumber current);
 
-    bool loadAccount(Application& app);
-    bool checkValid(Application& app, bool applying, SequenceNumber current);
-
-    void resetState();
+    void resetSignatureTracker();
+    void resetResults();
     bool checkAllSignaturesUsed();
     void markResultFailed();
 
@@ -137,22 +135,35 @@ class TransactionFrame
 
     bool checkValid(Application& app, SequenceNumber current);
 
+    // collect fee, consume sequence number
+    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& tm, Application& app);
+    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
 
     // version without meta
     bool apply(LedgerDelta& delta, Application& app);
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(Application& app,
+    AccountFrame::pointer loadAccount(Database& app,
                                       AccountID const& accountID);
 
     // transaction history
-    void storeTransaction(LedgerManager& ledgerManager,
-                          LedgerDelta const& delta, TransactionMeta& tm,
+    void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,
                           int txindex, TransactionResultSet& resultSet) const;
+
+    // fee history
+    void storeTransactionFee(LedgerManager& ledgerManager,
+                             LedgerEntryChanges const& changes,
+                             int txindex) const;
+
+    // access to history tables
+    static TransactionResultSet getTransactionHistoryMeta(Database& db,
+                                                          uint32 ledgerSeq);
+    static std::vector<LedgerEntryChanges>
+    getTransactionFeeMeta(Database& db, uint32 ledgerSeq);
 
     /*
     txOut: stream of TransactionHistoryEntry
