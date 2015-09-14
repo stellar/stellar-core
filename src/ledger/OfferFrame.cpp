@@ -434,40 +434,17 @@ OfferFrame::computePrice() const
 void
 OfferFrame::storeChange(LedgerDelta& delta, Database& db)
 {
-    touch(delta);
-
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid asset");
-    }
-
-    auto timer = db.getUpdateTimer("offer");
-    auto prep =
-        db.getPreparedStatement("UPDATE offers SET amount=:a, pricen=:n, "
-                                "priced=:D, price=:p, flags=:f, "
-                                "lastmodified=:m WHERE offerid=:s");
-    auto& st = prep.statement();
-    st.exchange(use(mOffer.amount));
-    st.exchange(use(mOffer.price.n));
-    st.exchange(use(mOffer.price.d));
-    auto price = computePrice();
-    st.exchange(use(price));
-    st.exchange(use(mOffer.flags));
-    st.exchange(use(getLastModified()));
-    st.exchange(use(mOffer.offerID));
-    st.define_and_bind();
-    st.execute(true);
-
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("could not update SQL");
-    }
-
-    delta.modEntry(*this);
+    storeUpdateHelper(delta, db, false);
 }
 
 void
 OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
+{
+    storeUpdateHelper(delta, db, true);
+}
+
+void
+OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 {
     touch(delta);
 
@@ -477,24 +454,26 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
     }
 
     std::string actIDStrKey = PubKeyUtils::toStrKey(mOffer.sellerID);
-    auto timer = db.getInsertTimer("offer");
 
     unsigned int sellingType = mOffer.selling.type();
     unsigned int buyingType = mOffer.buying.type();
     std::string sellingIssuerStrKey, buyingIssuerStrKey;
     std::string sellingAssetCode, buyingAssetCode;
+    soci::indicator selling_ind = soci::i_null, buying_ind = soci::i_null;
 
     if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM4)
     {
         sellingIssuerStrKey =
             PubKeyUtils::toStrKey(mOffer.selling.alphaNum4().issuer);
         assetCodeToStr(mOffer.selling.alphaNum4().assetCode, sellingAssetCode);
+        selling_ind = soci::i_ok;
     }
     else if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         sellingIssuerStrKey =
             PubKeyUtils::toStrKey(mOffer.selling.alphaNum12().issuer);
         assetCodeToStr(mOffer.selling.alphaNum12().assetCode, sellingAssetCode);
+        selling_ind = soci::i_ok;
     }
 
     if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM4)
@@ -502,37 +481,60 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
         buyingIssuerStrKey =
             PubKeyUtils::toStrKey(mOffer.buying.alphaNum4().issuer);
         assetCodeToStr(mOffer.buying.alphaNum4().assetCode, buyingAssetCode);
+        buying_ind = soci::i_ok;
     }
     else if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         buyingIssuerStrKey =
             PubKeyUtils::toStrKey(mOffer.buying.alphaNum12().issuer);
         assetCodeToStr(mOffer.buying.alphaNum12().assetCode, buyingAssetCode);
+        buying_ind = soci::i_ok;
     }
 
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO offers (sellerid,offerid,"
-        "sellingassettype,sellingassetcode,sellingissuer,"
-        "buyingassettype,buyingassetcode,buyingissuer,"
-        "amount,pricen,priced,price,flags,lastmodified) VALUES "
-        "(:v1,:v2,:v3,:v4,:v5,:v6,:v7,:v8,:v9,:v10,:v11,:v12,:v13,:v14)");
+    string sql;
+
+    if (insert)
+    {
+        sql = "INSERT INTO offers (sellerid,offerid,"
+              "sellingassettype,sellingassetcode,sellingissuer,"
+              "buyingassettype,buyingassetcode,buyingissuer,"
+              "amount,pricen,priced,price,flags,lastmodified) VALUES "
+              "(:sid,:oid,:sat,:sac,:si,:bat,:bac,:bi,:a,:pn,:pd,:p,:f,:l)";
+    }
+    else
+    {
+        sql = "UPDATE offers SET sellingassettype=:sat "
+              ",sellingassetcode=:sac,sellingissuer=:si,"
+              "buyingassettype=:bat,buyingassetcode=:bac,buyingissuer=:bi,"
+              "amount=:a,pricen=:pn,priced=:pd,price=:p,flags=:f,"
+              "lastmodified=:l WHERE offerid=:oid";
+    }
+
+    auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-    st.exchange(use(mOffer.offerID));
-    st.exchange(use(sellingType));
-    st.exchange(use(sellingAssetCode));
-    st.exchange(use(sellingIssuerStrKey));
-    st.exchange(use(buyingType));
-    st.exchange(use(buyingAssetCode));
-    st.exchange(use(buyingIssuerStrKey));
-    st.exchange(use(mOffer.amount));
-    st.exchange(use(mOffer.price.n));
-    st.exchange(use(mOffer.price.d));
+
+    if (insert)
+    {
+        st.exchange(use(actIDStrKey, "sid"));
+    }
+    st.exchange(use(mOffer.offerID, "oid"));
+    st.exchange(use(sellingType, "sat"));
+    st.exchange(use(sellingAssetCode, selling_ind, "sac"));
+    st.exchange(use(sellingIssuerStrKey, selling_ind, "si"));
+    st.exchange(use(buyingType, "bat"));
+    st.exchange(use(buyingAssetCode, buying_ind, "bac"));
+    st.exchange(use(buyingIssuerStrKey, buying_ind, "bi"));
+    st.exchange(use(mOffer.amount, "a"));
+    st.exchange(use(mOffer.price.n, "pn"));
+    st.exchange(use(mOffer.price.d, "pd"));
     auto price = computePrice();
-    st.exchange(use(price));
-    st.exchange(use(mOffer.flags));
-    st.exchange(use(getLastModified()));
+    st.exchange(use(price, "p"));
+    st.exchange(use(mOffer.flags, "f"));
+    st.exchange(use(getLastModified(), "l"));
     st.define_and_bind();
+
+    auto timer =
+        insert ? db.getInsertTimer("offer") : db.getUpdateTimer("offer");
     st.execute(true);
 
     if (st.get_affected_rows() != 1)
@@ -540,7 +542,14 @@ OfferFrame::storeAdd(LedgerDelta& delta, Database& db)
         throw std::runtime_error("could not update SQL");
     }
 
-    delta.addEntry(*this);
+    if (insert)
+    {
+        delta.addEntry(*this);
+    }
+    else
+    {
+        delta.modEntry(*this);
+    }
 }
 
 void

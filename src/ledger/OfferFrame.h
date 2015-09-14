@@ -29,6 +29,8 @@ class OfferFrame : public EntryFrame
 
     OfferFrame(OfferFrame const& from);
 
+    void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
+
   public:
     typedef std::shared_ptr<OfferFrame> pointer;
 
