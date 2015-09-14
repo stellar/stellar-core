@@ -115,28 +115,14 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     { // modifying an old offer
         mSellSheepOffer = OfferFrame::loadOffer(getSourceID(), offerID, db);
 
-        if (mSellSheepOffer)
-        {
-            // make sure the currencies are the same
-            if (!compareAsset(mManageOffer.selling,
-                              mSellSheepOffer->getOffer().selling) ||
-                !compareAsset(mManageOffer.buying,
-                              mSellSheepOffer->getOffer().buying))
-            {
-                metrics.NewMeter({"op-manage-offer", "invalid", "mismatch"},
-                                 "operation").Mark();
-                innerResult().code(MANAGE_OFFER_MISMATCH);
-                return false;
-            }
-            mPassive = mSellSheepOffer->getFlags() & PASSIVE_FLAG;
-        }
-        else
+        if (!mSellSheepOffer)
         {
             metrics.NewMeter({"op-manage-offer", "invalid", "not-found"},
                              "operation").Mark();
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
+        mPassive = mSellSheepOffer->getFlags() & PASSIVE_FLAG;
     }
     else
     { // creating a new Offer
@@ -216,6 +202,11 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
             wheatReceived, [this, maxWheatPrice](OfferFrame const& o)
             {
+                if (o.getOfferID() == mSellSheepOffer->getOfferID())
+                {
+                    // don't let the offer cross itself when updating it
+                    return OfferExchange::eSkip;
+                }
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
                     (o.getPrice() > maxWheatPrice))
                 {
