@@ -290,9 +290,12 @@ PeerRecord::backOff(VirtualClock& clock)
 {
     mNumFailures++;
 
-    mNextAttempt =
-        clock.now() + std::chrono::seconds(static_cast<int64_t>(
-                          std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
+    auto nsecs = std::chrono::seconds(
+        static_cast<int64_t>(std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
+    mNextAttempt = clock.now() + nsecs;
+    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
+                           << " backoff, set nextAttempt at "
+                           << "+" << nsecs.count() << " secs";
 }
 
 string
