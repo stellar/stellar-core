@@ -387,7 +387,8 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
         st.exchange(use(mAccountEntry.seqNum, "v2"));
         st.exchange(use(mAccountEntry.numSubEntries, "v3"));
         st.exchange(use(inflationDestStrKey, inflation_ind, "v4"));
-        st.exchange(use(string(mAccountEntry.homeDomain), "v5"));
+        string homeDomain(mAccountEntry.homeDomain);
+        st.exchange(use(homeDomain, "v5"));
         st.exchange(use(thresholds, "v6"));
         st.exchange(use(mAccountEntry.flags, "v7"));
         st.exchange(use(getLastModified(), "v8"));
