@@ -11,6 +11,7 @@
 #include "main/dumpxdr.h"
 #include "main/fuzz.h"
 #include "main/test.h"
+#include "main/srv.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/Hex.h"
@@ -33,6 +34,7 @@ enum opttag
     OPT_CMD,
     OPT_CONF,
     OPT_CONVERTID,
+    OPT_DNSSRV,
     OPT_DUMPXDR,
     OPT_FORCESCP,
     OPT_FUZZ,
@@ -52,6 +54,7 @@ static const struct option stellar_core_options[] = {
     {"c", required_argument, nullptr, OPT_CMD},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
+    {"dnssrv", required_argument, nullptr, OPT_DNSSRV},
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
     {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
     {"fuzz", required_argument, nullptr, OPT_FUZZ},
@@ -78,6 +81,7 @@ usage(int err = 1)
           "      --conf FILE     To specify a config file ('-' for STDIN, "
           "default 'stellar-core.cfg')\n"
           "      --convertid ID  Displays ID in all known forms\n"
+          "      --dnssrv QUERY  To query bootstrap DNS SRV records\n"
           "      --dumpxdr FILE  To dump an XDR file, for debugging\n"
           "      --forcescp      Next time stellar-core is run, SCP will start "
           "with the local ledger rather than waiting to hear from the "
@@ -223,6 +227,17 @@ startApp(string cfgFile, Config& cfg)
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock(VirtualClock::REAL_TIME);
+
+    if (cfg.KNOWN_PEERS.empty() && ! cfg.BOOTSTRAP_DNS_SRV.empty())
+    {
+        LOG(INFO) << "Bootstrapping KNOWN_PEERS from DNS";
+        auto records = getSrvRecords(cfg.BOOTSTRAP_DNS_SRV);
+        for (auto const& r : records)
+        {
+            cfg.KNOWN_PEERS.push_back(r.hostAndPort());
+        }
+    }
+
     Application::pointer app = Application::create(clock, cfg);
 
     if (!checkInitialized(app))
@@ -291,6 +306,13 @@ main(int argc, char* const* argv)
         case OPT_CONVERTID:
             StrKeyUtils::logKey(std::cout, std::string(optarg));
             return 0;
+        case OPT_DNSSRV:
+        {
+            auto records = getSrvRecords(std::string(optarg));
+            auto r = pickSrvRecordByPriorityAndWeight(records);
+            std::cout << "Selected peer: " << r.hostAndPort() << std::endl;
+            return 0;
+        }
         case OPT_DUMPXDR:
             dumpxdr(std::string(optarg));
             return 0;

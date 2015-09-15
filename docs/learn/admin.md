@@ -156,7 +156,8 @@ archives.
 
 ## Joining an existing network
 
-Put the network's `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
+Put the network's `QUORUM_SET`, and `HISTORY` details in a config file.
+Either set `KNOWN_PEERS`, or `BOOTSTRAP_DNS_SRV` to connect to initial peers.
 Optionally: If you're going to be a validating node, generate key pair and 
 set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
 Optionally: Create an external database to use--e.g., by using 

@@ -4,6 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
+#include "main/srv.h"
 #include "history/HistoryArchive.h"
 #include "StellarCoreVersion.h"
 #include "lib/util/cpptoml.h"
@@ -47,6 +48,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
+    BOOTSTRAP_DNS_SRV = "";
     PREFERRED_PEERS_ONLY = false;
 
     MINIMUM_IDLE_PERCENT = 0;
@@ -457,6 +459,14 @@ Config::load(std::string const& filename)
                     }
                     KNOWN_PEERS.push_back(v->as<std::string>()->value());
                 }
+            }
+            else if (item.first == "BOOTSTRAP_DNS_SRV")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid BOOTSTRAP_DNS_SRV");
+                }
+                BOOTSTRAP_DNS_SRV = item.second->as<std::string>()->value();
             }
             else if (item.first == "QUORUM_SET")
             {
