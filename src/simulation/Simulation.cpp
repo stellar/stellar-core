@@ -63,6 +63,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     cfg->QUORUM_SET = qSet;
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
+    cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
 
     Application::pointer result = Application::create(clock, *cfg);
 
