@@ -48,13 +48,7 @@ class Simulation : public LoadGenerator
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
 
-    void addConnection(NodeID initiator, NodeID acceptor);
-
-    std::shared_ptr<LoopbackPeerConnection>
-    addLoopbackConnection(NodeID initiator, NodeID acceptor);
-
-    void addTCPConnection(NodeID initiator, NodeID acception);
-
+    void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
     void startAllNodes();
     void stopAllNodes();
 
@@ -81,12 +75,18 @@ class Simulation : public LoadGenerator
     std::string metricsSummary(std::string domain = "");
 
   private:
+
+    void addConnection(NodeID initiator, NodeID acceptor);
+    void addLoopbackConnection(NodeID initiator, NodeID acceptor);
+    void addTCPConnection(NodeID initiator, NodeID acception);
+
     VirtualClock mClock;
     Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
     std::map<NodeID, Config::pointer> mConfigs;
     std::map<NodeID, Application::pointer> mNodes;
-    std::vector<std::shared_ptr<LoopbackPeerConnection>> mConnections;
+    std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
+    std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 };
 }

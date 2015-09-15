@@ -97,6 +97,12 @@ Simulation::getNodeIDs()
 }
 
 void
+Simulation::addPendingConnection(NodeID const& initiator, NodeID const& acceptor)
+{
+    mPendingConnections.push_back(std::make_pair(initiator, acceptor));
+}
+
+void
 Simulation::addConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode == OVER_LOOPBACK)
@@ -105,17 +111,15 @@ Simulation::addConnection(NodeID initiator, NodeID acceptor)
         addTCPConnection(initiator, acceptor);
 }
 
-std::shared_ptr<LoopbackPeerConnection>
+void
 Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
-    std::shared_ptr<LoopbackPeerConnection> connection;
     if (mNodes[initiator] && mNodes[acceptor])
     {
-        connection = std::make_shared<LoopbackPeerConnection>(
+        auto conn = std::make_shared<LoopbackPeerConnection>(
             *getNode(initiator), *getNode(acceptor));
-        mConnections.emplace_back(connection);
+        mLoopbackConnections.push_back(conn);
     }
-    return connection;
 }
 
 void
@@ -135,14 +139,16 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
 void
 Simulation::startAllNodes()
 {
-    // We wait for the connections to set up (HELLO).
-    while (crankAllNodes() > 0)
-        ;
-
     for (auto const& it : mNodes)
     {
         it.second->start();
     }
+
+    for (auto const& pair : mPendingConnections)
+    {
+        addConnection(pair.first, pair.second);
+    }
+    mPendingConnections.clear();
 }
 
 void
