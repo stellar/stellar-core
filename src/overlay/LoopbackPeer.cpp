@@ -303,8 +303,8 @@ LoopbackPeer::setReorderProbability(double d)
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                                                Application& acceptor)
-    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::REMOTE_CALLED_US))
-    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::WE_CALLED_REMOTE))
+    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::WE_CALLED_REMOTE))
+    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::REMOTE_CALLED_US))
 {
     mInitiator->mRemote = mAcceptor;
     mInitiator->mState = Peer::CONNECTED;
@@ -315,7 +315,7 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     initiator.getOverlayManager().addConnectedPeer(mInitiator);
     acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
 
-    mAcceptor->connectHandler(asio::error_code());
+    mInitiator->connectHandler(asio::error_code());
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()
