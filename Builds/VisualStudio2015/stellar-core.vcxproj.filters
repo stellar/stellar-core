@@ -465,6 +465,9 @@
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -812,6 +815,9 @@
     </ClInclude>
     <ClInclude Include="..\..\lib\catch.hpp">
       <Filter>lib</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h">
+      <Filter>ledger\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

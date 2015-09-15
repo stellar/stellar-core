@@ -116,6 +116,9 @@ class AccountFrame : public EntryFrame
     static AccountFrame::pointer loadAccount(AccountID const& accountID,
                                              Database& db);
 
+    // compare signers, ignores weight
+    static bool signerCompare(Signer const& s1, Signer const& s2);
+
     // inflation helper
 
     struct InflationVotes

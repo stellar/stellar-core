@@ -19,6 +19,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
+#include "ledger/LedgerTestUtils.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -188,14 +189,14 @@ TEST_CASE("bucket list", "[bucket]")
     {
         Application::pointer app = Application::create(clock, cfg);
         BucketList bl;
-        autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
         for (uint32_t i = 1;
              !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
             app->getClock().crank(false);
-            bl.addBatch(*app, i, liveGen(8), deadGen(5));
+            bl.addBatch(*app, i, LedgerTestUtils::generateValidLedgerEntries(8),
+                        deadGen(5));
             if (i % 10 == 0)
                 CLOG(DEBUG, "Bucket") << "Added batch " << i
                                       << ", hash=" << binToHex(bl.getHash());
@@ -228,11 +229,9 @@ TEST_CASE("bucket list shadowing", "[bucket]")
     BucketList bl;
 
     // Alice and Bob change in every iteration.
-    autocheck::generator<AccountEntry> accountGen;
-    auto alice = accountGen(5);
-    auto bob = accountGen(5);
+    auto alice = LedgerTestUtils::generateValidAccountEntry(5);
+    auto bob = LedgerTestUtils::generateValidAccountEntry(5);
 
-    autocheck::generator<std::vector<LedgerEntry>> liveGen;
     autocheck::generator<std::vector<LedgerKey>> deadGen;
     CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
 
@@ -240,7 +239,7 @@ TEST_CASE("bucket list shadowing", "[bucket]")
          ++i)
     {
         app->getClock().crank(false);
-        auto liveBatch = liveGen(5);
+        auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(5);
 
         BucketEntry BucketEntryAlice, BucketEntryBob;
         alice.balance++;
@@ -302,14 +301,13 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
     {
         Application::pointer app = Application::create(clock, cfg);
         BucketList bl1, bl2;
-        autocheck::generator<std::vector<LedgerEntry>> liveGen;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket")
             << "Adding batches with duplicates to bucket list";
         for (uint32_t i = 1;
              !app->getClock().getIOService().stopped() && i < 130; ++i)
         {
-            auto liveBatch = liveGen(8);
+            auto liveBatch = LedgerTestUtils::generateValidLedgerEntries(8);
             auto doubleLiveBatch = liveBatch;
             doubleLiveBatch.insert(doubleLiveBatch.end(), liveBatch.begin(),
                                    liveBatch.end());
@@ -346,15 +344,16 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
     Application::pointer app = Application::create(clock, cfg);
     BucketList bl;
     BucketManager& bm = app->getBucketManager();
-    autocheck::generator<std::vector<LedgerEntry>> liveGen;
     autocheck::generator<std::vector<LedgerKey>> deadGen;
     auto& mergeTimer = bm.getMergeTimer();
     CLOG(INFO, "Bucket") << "Establishing random bucketlist";
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto& level = bl.getLevel(i);
-        level.setCurr(Bucket::fresh(bm, liveGen(8), deadGen(8)));
-        level.setSnap(Bucket::fresh(bm, liveGen(8), deadGen(8)));
+        level.setCurr(Bucket::fresh(
+            bm, LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8)));
+        level.setSnap(Bucket::fresh(
+            bm, LedgerTestUtils::generateValidLedgerEntries(8), deadGen(8)));
     }
 
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -364,7 +363,8 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
         for (auto j : ledgers)
         {
             auto n = mergeTimer.count();
-            bl.addBatch(*app, j, liveGen(8), deadGen(8));
+            bl.addBatch(*app, j, LedgerTestUtils::generateValidLedgerEntries(8),
+                        deadGen(8));
             app->getClock().crank(false);
             for (auto k = 0; k < BucketList::kNumLevels; ++k)
             {
@@ -402,13 +402,12 @@ TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
     Config const& cfg = getTestConfig();
     Application::pointer app = Application::create(clock, cfg);
 
-    autocheck::generator<LedgerEntry> liveGen;
     autocheck::generator<LedgerKey> deadGen;
     CLOG(DEBUG, "Bucket") << "Generating 10000 random ledger entries";
     std::vector<LedgerEntry> live(9000);
     std::vector<LedgerKey> dead(1000);
     for (auto& e : live)
-        e = liveGen(3);
+        e = LedgerTestUtils::generateValidLedgerEntry(3);
     for (auto& e : dead)
         e = deadGen(3);
     CLOG(DEBUG, "Bucket") << "Hashing entries";
@@ -419,7 +418,7 @@ TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
         CLOG(DEBUG, "Bucket") << "Merging 10000 new ledger entries into "
                               << (i * 10000) << " entry bucket";
         for (auto& e : live)
-            e = liveGen(3);
+            e = LedgerTestUtils::generateValidLedgerEntry(3);
         for (auto& e : dead)
             e = deadGen(3);
         {
@@ -441,16 +440,13 @@ TEST_CASE("merging bucket entries", "[bucket]")
     LedgerEntry liveEntry;
     LedgerKey deadEntry;
 
-    autocheck::generator<LedgerEntry> leGen;
-    autocheck::generator<AccountEntry> acGen;
-    autocheck::generator<TrustLineEntry> tlGen;
-    autocheck::generator<OfferEntry> ofGen;
     autocheck::generator<bool> flip;
 
     SECTION("dead account entry annihilates live account entry")
     {
         liveEntry.data.type(ACCOUNT);
-        liveEntry.data.account() = acGen(10);
+        liveEntry.data.account() =
+            LedgerTestUtils::generateValidAccountEntry(10);
         deadEntry.type(ACCOUNT);
         deadEntry.account().accountID = liveEntry.data.account().accountID;
         std::vector<LedgerEntry> live{liveEntry};
@@ -463,7 +459,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
     SECTION("dead trustline entry annihilates live trustline entry")
     {
         liveEntry.data.type(TRUSTLINE);
-        liveEntry.data.trustLine() = tlGen(10);
+        liveEntry.data.trustLine() =
+            LedgerTestUtils::generateValidTrustLineEntry(10);
         deadEntry.type(TRUSTLINE);
         deadEntry.trustLine().accountID = liveEntry.data.trustLine().accountID;
         deadEntry.trustLine().asset = liveEntry.data.trustLine().asset;
@@ -477,7 +474,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
     SECTION("dead offer entry annihilates live offer entry")
     {
         liveEntry.data.type(OFFER);
-        liveEntry.data.offer() = ofGen(10);
+        liveEntry.data.offer() = LedgerTestUtils::generateValidOfferEntry(10);
         deadEntry.type(OFFER);
         deadEntry.offer().sellerID = liveEntry.data.offer().sellerID;
         deadEntry.offer().offerID = liveEntry.data.offer().offerID;
@@ -494,7 +491,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         std::vector<LedgerKey> dead;
         for (auto& e : live)
         {
-            e = leGen(10);
+            e = LedgerTestUtils::generateValidLedgerEntry(10);
             if (flip())
             {
                 dead.push_back(LedgerEntryKey(e));
@@ -515,7 +512,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         std::vector<LedgerKey> dead;
         for (auto& e : live)
         {
-            e = leGen(10);
+            e = LedgerTestUtils::generateValidLedgerEntry(10);
         }
         std::shared_ptr<Bucket> b1 =
             Bucket::fresh(app->getBucketManager(), live, dead);
@@ -525,7 +522,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
         {
             if (flip())
             {
-                e = leGen(10);
+                e = LedgerTestUtils::generateValidLedgerEntry(10);
                 ++liveCount;
             }
         }
@@ -590,8 +587,8 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     Config const& cfg = getTestConfig();
     Application::pointer app = Application::create(clock, cfg);
 
-    autocheck::generator<LedgerEntry> leGen;
-    std::vector<LedgerEntry> live{leGen(10)};
+    std::vector<LedgerEntry> live(
+        LedgerTestUtils::generateValidLedgerEntries(10));
     std::vector<LedgerKey> dead{};
 
     std::shared_ptr<Bucket> b1;
@@ -638,7 +635,7 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
     CHECK(b1.use_count() == 3);
 
     // But if we mutate the curr bucket of the bucketlist, it should.
-    live[0] = leGen(10);
+    live[0] = LedgerTestUtils::generateValidLedgerEntry(10);
     bl.addBatch(*app, 1, live, dead);
     clearFutures(app, bl);
     CHECK(b1.use_count() == 2);
@@ -659,12 +656,12 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
     {
         Application::pointer app = Application::create(clock, cfg);
         BucketList bl;
-        autocheck::generator<std::vector<LedgerEntry>> liveGen;
         std::vector<stellar::LedgerKey> emptySet;
         std::vector<stellar::LedgerEntry> emptySetEntry;
 
         CLOG(DEBUG, "Bucket") << "Adding single entry in lowest level";
-        bl.addBatch(*app, 1, liveGen(1), emptySet);
+        bl.addBatch(*app, 1, LedgerTestUtils::generateValidLedgerEntries(1),
+                    emptySet);
 
         CLOG(DEBUG, "Bucket") << "Adding empty batches to bucket list";
         for (uint32_t i = 2;
@@ -729,8 +726,6 @@ closeLedger(Application& app)
 
 TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 {
-    autocheck::generator<std::vector<LedgerEntry>> liveGen;
-    autocheck::generator<LedgerEntry> liveSingleGen;
     std::vector<stellar::LedgerKey> emptySet;
     std::vector<stellar::LedgerEntry> emptySetEntry;
 
@@ -743,14 +738,14 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     std::vector<std::vector<LedgerEntry>> batches;
     for (size_t i = 0; i < 110; ++i)
     {
-        batches.push_back(liveGen(1));
+        batches.push_back(LedgerTestUtils::generateValidLedgerEntries(1));
     }
 
     // Inject a common object at the first batch we're going to run (batch #2)
     // and at the pause-merge threshold; this makes the pause-merge (#64, where
     // we stop and serialize) sensitive to shadowing, and requires shadows be
     // reconstituted when the merge is restarted.
-    auto alice = liveSingleGen(1);
+    auto alice = LedgerTestUtils::generateValidLedgerEntry(1);
     uint32_t pause = 65;
     batches[2].push_back(alice);
     batches[pause - 2].push_back(alice);
@@ -856,7 +851,6 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
     Application::pointer app = Application::create(clock, cfg);
     app->start();
 
-    autocheck::generator<std::vector<LedgerEntry>> liveGen;
     std::vector<stellar::LedgerKey> emptySet;
 
     app->generateLoad(1000, 1000, 1000, false);
@@ -894,7 +888,6 @@ TEST_CASE("bucket apply", "[bucket]")
     Application::pointer app = Application::create(clock, cfg);
     app->start();
 
-    autocheck::generator<AccountEntry> accGen;
     std::vector<LedgerEntry> live(10), noLive;
     std::vector<LedgerKey> dead, noDead;
 
@@ -902,7 +895,7 @@ TEST_CASE("bucket apply", "[bucket]")
     {
         e.data.type(ACCOUNT);
         auto& a = e.data.account();
-        a = accGen(5);
+        a = LedgerTestUtils::generateValidAccountEntry(5);
         a.balance = 1000000000;
         dead.emplace_back(LedgerEntryKey(e));
     }
@@ -937,7 +930,6 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     Application::pointer app = Application::create(clock, cfg);
     app->start();
 
-    autocheck::generator<AccountEntry> accGen;
     std::vector<LedgerEntry> live(100000);
     std::vector<LedgerKey> noDead;
 
@@ -945,14 +937,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     {
         l.data.type(ACCOUNT);
         auto& a = l.data.account();
-        a = accGen(5);
-        a.balance = 1000000000;
-        a.inflationDest.reset();
-        a.homeDomain.clear();
-        a.thresholds[0] = 0;
-        a.thresholds[1] = 0;
-        a.thresholds[2] = 0;
-        a.thresholds[3] = 0;
+        a = LedgerTestUtils::generateValidAccountEntry(5);
     }
 
     std::shared_ptr<Bucket> birth =

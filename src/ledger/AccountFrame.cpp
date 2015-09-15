@@ -80,14 +80,18 @@ AccountFrame::makeAuthOnlyAccount(AccountID const& id)
     return ret;
 }
 
+bool
+AccountFrame::signerCompare(Signer const& s1, Signer const& s2)
+{
+    return s1.pubKey < s2.pubKey;
+}
+
 void
 AccountFrame::normalize()
 {
     std::sort(mAccountEntry.signers.begin(), mAccountEntry.signers.end(),
-              [](Signer const& s1, Signer const& s2)
-              {
-                  return s1.pubKey < s2.pubKey;
-              });
+              &AccountFrame::signerCompare);
+}
 }
 
 bool
