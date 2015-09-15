@@ -465,6 +465,9 @@
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerEntryTests.cpp">
+      <Filter>ledger\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>

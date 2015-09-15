@@ -9,6 +9,7 @@
 #include "LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "util/basen.h"
+#include "util/types.h"
 #include <algorithm>
 
 using namespace soci;
@@ -92,6 +93,14 @@ AccountFrame::normalize()
     std::sort(mAccountEntry.signers.begin(), mAccountEntry.signers.end(),
               &AccountFrame::signerCompare);
 }
+
+bool
+AccountFrame::isValid()
+{
+    auto const& a = mAccountEntry;
+    return isString32Valid(a.homeDomain) && a.balance >= 0 &&
+           std::is_sorted(a.signers.begin(), a.signers.end(),
+                          &AccountFrame::signerCompare);
 }
 
 bool
@@ -271,7 +280,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     res->normalize();
     res->mUpdateSigners = false;
-
+    assert(res->isValid());
     res->mKeyCalculated = false;
     res->putCachedEntry(db);
     return res;
@@ -346,6 +355,8 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 void
 AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 {
+    assert(isValid());
+
     touch(delta);
 
     flushCachedEntry(db);

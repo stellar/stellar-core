@@ -32,6 +32,8 @@ class AccountFrame : public EntryFrame
 
     AccountFrame(AccountFrame const& from);
 
+    bool isValid();
+
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
 
