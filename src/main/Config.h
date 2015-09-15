@@ -78,13 +78,6 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
 
-    // With many `Application` running in the same process under the
-    // virtual clock, asio pooling never relinquishes the event loop.
-    // This option inserts a VirtualClock event after each read to
-    // restore fairness. (Consider removing this option once
-    // we are comfortable doing this on prod as well.)
-    bool BREAK_ASIO_LOOP_FOR_FAST_TESTS;
-
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.
     // If you don't have enough in your quorum set to tolerate the level you

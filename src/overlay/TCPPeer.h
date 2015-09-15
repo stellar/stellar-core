@@ -57,8 +57,6 @@ class TCPPeer : public Peer
     void readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred) override;
 
-    VirtualTimer mAsioLoopBreaker;
-
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
 

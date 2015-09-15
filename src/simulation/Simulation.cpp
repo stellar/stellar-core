@@ -58,7 +58,6 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     {
         cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
     }
-    cfg->BREAK_ASIO_LOOP_FOR_FAST_TESTS = (mMode == OVER_TCP);
     cfg->VALIDATION_KEY = nodeKey;
     cfg->QUORUM_SET = qSet;
     cfg->FORCE_SCP = true;

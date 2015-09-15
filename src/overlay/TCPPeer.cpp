@@ -51,7 +51,6 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
           app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
     , mTimeoutWrite(
           app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
-    , mAsioLoopBreaker(app)
 {
 }
 
@@ -236,35 +235,22 @@ TCPPeer::startRead()
     {
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-        auto cont = [self]()
-        {
-            assert(self->mIncomingHeader.size() == 0);
-            CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
-                                   << self->toString();
+        assert(self->mIncomingHeader.size() == 0);
+        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
+                               << self->toString();
 
-            self->mLastRead = self->mApp.getClock().now();
-            self->mIncomingHeader.resize(4);
-            asio::async_read(*(self->mSocket.get()),
-                             asio::buffer(self->mIncomingHeader),
-                             self->mStrand.wrap(
-                                 [self](asio::error_code ec, std::size_t length)
-                                 {
-                                     CLOG(TRACE, "Overlay")
-                                         << "TCPPeer::startRead calledback "
-                                         << ec << " length:" << length;
-                                     self->readHeaderHandler(ec, length);
-                                 }));
-        };
-
-        if (mApp.getConfig().BREAK_ASIO_LOOP_FOR_FAST_TESTS)
-        {
-            mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
-            mAsioLoopBreaker.async_wait(cont, VirtualTimer::onFailureNoop);
-        }
-        else
-        {
-            cont();
-        }
+        self->mLastRead = self->mApp.getClock().now();
+        self->mIncomingHeader.resize(4);
+        asio::async_read(*(self->mSocket.get()),
+                         asio::buffer(self->mIncomingHeader),
+                         self->mStrand.wrap(
+                             [self](asio::error_code ec, std::size_t length)
+                             {
+                                 CLOG(TRACE, "Overlay")
+                                     << "TCPPeer::startRead calledback "
+                                     << ec << " length:" << length;
+                                 self->readHeaderHandler(ec, length);
+                             }));
     }
     catch (asio::system_error& e)
     {
