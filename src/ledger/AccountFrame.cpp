@@ -251,8 +251,8 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         string pubKey;
         Signer signer;
 
-        auto prep2 = db.getPreparedStatement("SELECT publickey, weight from "
-                                             "signers where accountid =:id");
+        auto prep2 = db.getPreparedStatement("SELECT publickey, weight FROM "
+                                             "signers WHERE accountid =:id");
         auto& st2 = prep2.statement();
         st2.exchange(use(actIDStrKey));
         st2.exchange(into(pubKey));
@@ -424,131 +424,126 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 
     if (mUpdateSigners)
     {
-        // instead separate signatures from account, just like offers are
-        // separate entities
-        AccountFrame::pointer startAccountFrame;
-        startAccountFrame = loadAccount(getID(), db);
-        if (!startAccountFrame)
+        applySigners(db);
+    }
+}
+
+void
+AccountFrame::applySigners(Database& db)
+{
+    std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
+
+    // generates a diff with the signers stored in the database
+    AccountFrame::pointer startAccountFrame;
+    startAccountFrame = loadAccount(getID(), db);
+    if (!startAccountFrame)
+    {
+        throw runtime_error("could not load account!");
+    }
+    AccountEntry& startAccount = startAccountFrame->mAccountEntry;
+
+    auto it_new = mAccountEntry.signers.begin();
+    auto it_old = startAccount.signers.begin();
+    bool changed = false;
+    // iterate over both sets from smallest to biggest key
+    while (it_new != mAccountEntry.signers.end() ||
+           it_old != startAccount.signers.end())
+    {
+        bool updated = false, added = false;
+
+        if (it_old == startAccount.signers.end())
         {
-            throw runtime_error("could not load account!");
+            added = true;
         }
-        AccountEntry& startAccount = startAccountFrame->mAccountEntry;
-
-        // deal with changes to Signers
-        if (mAccountEntry.signers.size() < startAccount.signers.size())
-        { // some signers were removed
-            for (auto const& startSigner : startAccount.signers)
+        else if (it_new != mAccountEntry.signers.end())
+        {
+            updated = (it_new->pubKey == it_old->pubKey);
+            if (!updated)
             {
-                bool found = false;
-                for (auto const& finalSigner : mAccountEntry.signers)
-                {
-                    if (finalSigner.pubKey == startSigner.pubKey)
-                    {
-                        if (finalSigner.weight != startSigner.weight)
-                        {
-                            std::string signerStrKey =
-                                PubKeyUtils::toStrKey(finalSigner.pubKey);
-                            {
-                                auto timer = db.getUpdateTimer("signer");
-                                auto prep2 = db.getPreparedStatement(
-                                    "UPDATE signers set weight=:v1 where "
-                                    "accountid=:v2 and publickey=:v3");
-                                auto& st = prep2.statement();
-                                st.exchange(use(finalSigner.weight));
-                                st.exchange(use(actIDStrKey));
-                                st.exchange(use(signerStrKey));
-                                st.define_and_bind();
-                                st.execute(true);
-                            }
-                        }
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                { // delete signer
-                    std::string signerStrKey =
-                        PubKeyUtils::toStrKey(startSigner.pubKey);
-
-                    auto prep2 =
-                        db.getPreparedStatement("DELETE from signers where "
-                                                "accountid=:v2 and "
-                                                "publickey=:v3");
-                    auto& st = prep2.statement();
-                    st.exchange(use(actIDStrKey));
-                    st.exchange(use(signerStrKey));
-                    st.define_and_bind();
-                    {
-                        auto timer = db.getDeleteTimer("signer");
-                        st.execute(true);
-                    }
-
-                    if (st.get_affected_rows() != 1)
-                    {
-                        throw std::runtime_error(
-                            "Could not update data in SQL");
-                    }
-                }
+                added = (it_new->pubKey < it_old->pubKey);
             }
         }
         else
-        { // signers added or the same
-            for (auto const& finalSigner : mAccountEntry.signers)
-            {
-                bool found = false;
-                for (auto const& startSigner : startAccount.signers)
-                {
-                    if (finalSigner.pubKey == startSigner.pubKey)
-                    {
-                        if (finalSigner.weight != startSigner.weight)
-                        {
-                            std::string signerStrKey =
-                                PubKeyUtils::toStrKey(finalSigner.pubKey);
-                            auto prep2 = db.getPreparedStatement(
-                                "UPDATE signers set weight=:v1 where "
-                                "accountid=:v2 and publickey=:v3");
-                            auto& st = prep2.statement();
-                            st.exchange(use(finalSigner.weight));
-                            st.exchange(use(actIDStrKey));
-                            st.exchange(use(signerStrKey));
-                            st.define_and_bind();
-                            st.execute(true);
-
-                            if (st.get_affected_rows() != 1)
-                            {
-                                throw std::runtime_error(
-                                    "Could not update data in SQL");
-                            }
-                        }
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                { // new signer
-                    std::string signerStrKey =
-                        PubKeyUtils::toStrKey(finalSigner.pubKey);
-
-                    auto prep2 =
-                        db.getPreparedStatement("INSERT INTO signers "
-                                                "(accountid,publickey,weight) "
-                                                "VALUES (:v1,:v2,:v3)");
-                    auto& st = prep2.statement();
-                    st.exchange(use(actIDStrKey));
-                    st.exchange(use(signerStrKey));
-                    st.exchange(use(finalSigner.weight));
-                    st.define_and_bind();
-                    st.execute(true);
-
-                    if (st.get_affected_rows() != 1)
-                    {
-                        throw std::runtime_error(
-                            "Could not update data in SQL");
-                    }
-                }
-            }
+        {
+            // deleted
         }
 
+        if (updated)
+        {
+            if (it_new->weight != it_old->weight)
+            {
+                std::string signerStrKey =
+                    PubKeyUtils::toStrKey(it_new->pubKey);
+                auto timer = db.getUpdateTimer("signer");
+                auto prep2 = db.getPreparedStatement(
+                    "UPDATE signers set weight=:v1 WHERE "
+                    "accountid=:v2 AND publickey=:v3");
+                auto& st = prep2.statement();
+                st.exchange(use(it_new->weight));
+                st.exchange(use(actIDStrKey));
+                st.exchange(use(signerStrKey));
+                st.define_and_bind();
+                st.execute(true);
+                if (st.get_affected_rows() != 1)
+                {
+                    throw std::runtime_error("Could not update data in SQL");
+                }
+                changed = true;
+            }
+            it_new++;
+            it_old++;
+        }
+        else if (added)
+        {
+            // signer was added
+            std::string signerStrKey = PubKeyUtils::toStrKey(it_new->pubKey);
+
+            auto prep2 = db.getPreparedStatement("INSERT INTO signers "
+                                                 "(accountid,publickey,weight) "
+                                                 "VALUES (:v1,:v2,:v3)");
+            auto& st = prep2.statement();
+            st.exchange(use(actIDStrKey));
+            st.exchange(use(signerStrKey));
+            st.exchange(use(it_new->weight));
+            st.define_and_bind();
+            st.execute(true);
+
+            if (st.get_affected_rows() != 1)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
+            changed = true;
+            it_new++;
+        }
+        else
+        {
+            // signer was deleted
+            std::string signerStrKey = PubKeyUtils::toStrKey(it_old->pubKey);
+
+            auto prep2 = db.getPreparedStatement("DELETE from signers WHERE "
+                                                 "accountid=:v2 AND "
+                                                 "publickey=:v3");
+            auto& st = prep2.statement();
+            st.exchange(use(actIDStrKey));
+            st.exchange(use(signerStrKey));
+            st.define_and_bind();
+            {
+                auto timer = db.getDeleteTimer("signer");
+                st.execute(true);
+            }
+
+            if (st.get_affected_rows() != 1)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
+
+            changed = true;
+            it_old++;
+        }
+    }
+
+    if (changed)
+    {
         // Flush again to ensure changed signers are reloaded.
         flushCachedEntry(db);
     }

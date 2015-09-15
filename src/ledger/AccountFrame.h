@@ -34,6 +34,8 @@ class AccountFrame : public EntryFrame
 
     bool isValid();
 
+    void applySigners(Database& db);
+
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
 
