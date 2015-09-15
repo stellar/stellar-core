@@ -32,6 +32,20 @@ makePublicKey(uint256 const& b)
 }
 
 bool
+isString32Valid(std::string const& str)
+{
+    std::locale loc("C");
+    for (auto c : str)
+    {
+        if (c < 0 || std::iscntrl(c, loc))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
 isAssetValid(Asset const& cur)
 {
     if (cur.type() == ASSET_TYPE_NATIVE)
@@ -56,8 +70,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                char t = *(char*)&b; // safe conversion to char
-                if (!std::isalnum(t, loc))
+                if (b > 0x7F || !std::isalnum((char)b, loc))
                 {
                     return false;
                 }
@@ -86,8 +99,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                char t = *(char*)&b; // safe conversion to char
-                if (!std::isalnum(t, loc))
+                if (b > 0x7F || !std::isalnum((char)b, loc))
                 {
                     return false;
                 }

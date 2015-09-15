@@ -838,7 +838,8 @@ TEST_CASE("create offer", "[tx][offers]")
                             AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
                         applySetOptions(app, secgateway, secgw_seq++, nullptr,
-                                        &setFlags, nullptr, nullptr, nullptr);
+                                        &setFlags, nullptr, nullptr, nullptr,
+                                        nullptr);
 
                         // setup d1
                         SecretKey d1 = getAccount("D");
