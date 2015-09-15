@@ -27,8 +27,8 @@ const char* AccountFrame::kSQLCreateStatement1 =
     "seqnum          BIGINT       NOT NULL,"
     "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
     "inflationdest   VARCHAR(56),"
-    "homedomain      VARCHAR(32),"
-    "thresholds      TEXT,"
+    "homedomain      VARCHAR(32)  NOT NULL,"
+    "thresholds      TEXT         NOT NULL,"
     "flags           INT          NOT NULL,"
     "lastmodified    INT          NOT NULL"
     ");";
@@ -201,7 +201,7 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     std::string publicKey, inflationDest, creditAuthKey;
     std::string homeDomain, thresholds;
-    soci::indicator inflationDestInd, homeDomainInd, thresholdsInd;
+    soci::indicator inflationDestInd;
 
     AccountFrame::pointer res = make_shared<AccountFrame>(accountID);
     AccountEntry& account = res->getAccount();
@@ -216,8 +216,8 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     st.exchange(into(account.seqNum));
     st.exchange(into(account.numSubEntries));
     st.exchange(into(inflationDest, inflationDestInd));
-    st.exchange(into(homeDomain, homeDomainInd));
-    st.exchange(into(thresholds, thresholdsInd));
+    st.exchange(into(homeDomain));
+    st.exchange(into(thresholds));
     st.exchange(into(account.flags));
     st.exchange(into(res->getLastModified()));
     st.exchange(use(actIDStrKey));
@@ -233,16 +233,10 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         return nullptr;
     }
 
-    if (homeDomainInd == soci::i_ok)
-    {
-        account.homeDomain = homeDomain;
-    }
+    account.homeDomain = homeDomain;
 
-    if (thresholdsInd == soci::i_ok)
-    {
-        bn::decode_b64(thresholds.begin(), thresholds.end(),
-                       res->mAccountEntry.thresholds.begin());
-    }
+    bn::decode_b64(thresholds.begin(), thresholds.end(),
+                   res->mAccountEntry.thresholds.begin());
 
     if (inflationDestInd == soci::i_ok)
     {
