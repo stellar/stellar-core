@@ -29,7 +29,7 @@ class PeerStub : public Peer
   public:
     int sent = 0;
 
-    PeerStub(Application& app) : Peer(app, ACCEPTOR)
+    PeerStub(Application& app) : Peer(app, WE_CALLED_REMOTE)
     {
         mState = GOT_HELLO;
     }

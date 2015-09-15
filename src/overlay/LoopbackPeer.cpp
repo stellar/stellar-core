@@ -74,8 +74,8 @@ LoopbackPeer::recvHello(StellarMessage const& msg)
     if (!Peer::recvHello(msg))
         return false;
 
-    if (mRole == INITIATOR)
-    { // this guy called us
+    if (mRole == REMOTE_CALLED_US)
+    {
         sendHello();
     }
     return true;
@@ -303,8 +303,8 @@ LoopbackPeer::setReorderProbability(double d)
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                                                Application& acceptor)
-    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::INITIATOR))
-    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::ACCEPTOR))
+    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::REMOTE_CALLED_US))
+    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::WE_CALLED_REMOTE))
 {
     mInitiator->mRemote = mAcceptor;
     mInitiator->mState = Peer::CONNECTED;

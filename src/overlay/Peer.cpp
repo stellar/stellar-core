@@ -36,7 +36,7 @@ using namespace soci;
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
-    , mState(role == ACCEPTOR ? CONNECTING : CONNECTED)
+    , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayVersion(0)
     , mRemoteListeningPort(0)
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
@@ -424,7 +424,7 @@ Peer::recvHello(StellarMessage const& msg)
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
     mState = GOT_HELLO;
     mPeerID = msg.hello().peerID;
-    if (mRole == INITIATOR)
+    if (mRole == REMOTE_CALLED_US)
     {
         PeerRecord pr(getIP(), mRemoteListeningPort, mApp.getClock().now(), 0,
                       1);

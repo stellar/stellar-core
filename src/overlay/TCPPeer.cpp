@@ -62,9 +62,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
                            << " to " << ip << ":" << port;
     auto socket =
         make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
-    auto result = make_shared<TCPPeer>(
-        app, ACCEPTOR,
-        socket); // We are initiating; new `newed` TCPPeer is accepting
+    auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
@@ -81,9 +79,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
                            << "@" << app.getConfig().PEER_PORT;
-    auto result = make_shared<TCPPeer>(
-        app, INITIATOR,
-        socket); // We are accepting; new `newed` TCPPeer initiated
+    auto result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
     result->mIP = socket->remote_endpoint().address().to_string();
     result->startRead();
     return result;
@@ -397,7 +393,7 @@ TCPPeer::recvHello(StellarMessage const& msg)
     if (!Peer::recvHello(msg))
         return false;
 
-    if (mRole == INITIATOR)
+    if (mRole == REMOTE_CALLED_US)
     {
         if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
                                         getRemoteListeningPort()))

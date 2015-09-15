@@ -44,14 +44,14 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     enum PeerRole
     {
-        INITIATOR,
-        ACCEPTOR
+        REMOTE_CALLED_US,
+        WE_CALLED_REMOTE
     };
 
   protected:
     Application& mApp;
 
-    PeerRole mRole; // from point of view of the other end
+    PeerRole mRole;
     PeerState mState;
     NodeID mPeerID;
 
