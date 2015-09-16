@@ -118,6 +118,14 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer& a_sk2 = a1Account->getAccount().signers[0];
             REQUIRE(a_sk2.pubKey == sk2.pubKey);
             REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 2
+            sk2.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().signers.size() == 0);
         }
     }
 
