@@ -25,7 +25,7 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID)
     auto n0 = simulation->addNode(v10SecretKey, qSet0, simulation->getClock());
     auto n1 = simulation->addNode(v11SecretKey, qSet0, simulation->getClock());
 
-    simulation->addConnection(n0, n1);
+    simulation->addPendingConnection(n0, n1);
     return simulation;
 }
 
@@ -62,19 +62,13 @@ Topologies::cycle4(Hash const& networkID)
     auto n2 = simulation->addNode(v2SecretKey, qSet2, simulation->getClock());
     auto n3 = simulation->addNode(v3SecretKey, qSet3, simulation->getClock());
 
-    std::shared_ptr<LoopbackPeerConnection> n0n1 =
-        simulation->addLoopbackConnection(n0, n1);
-    std::shared_ptr<LoopbackPeerConnection> n1n2 =
-        simulation->addLoopbackConnection(n1, n2);
-    std::shared_ptr<LoopbackPeerConnection> n2n3 =
-        simulation->addLoopbackConnection(n2, n3);
-    std::shared_ptr<LoopbackPeerConnection> n3n0 =
-        simulation->addLoopbackConnection(n3, n0);
+    simulation->addPendingConnection(n0, n1);
+    simulation->addPendingConnection(n1, n2);
+    simulation->addPendingConnection(n2, n3);
+    simulation->addPendingConnection(n3, n0);
 
-    std::shared_ptr<LoopbackPeerConnection> n0n2 =
-        simulation->addLoopbackConnection(n0, n2);
-    std::shared_ptr<LoopbackPeerConnection> n1n3 =
-        simulation->addLoopbackConnection(n1, n3);
+    simulation->addPendingConnection(n0, n2);
+    simulation->addPendingConnection(n1, n3);
 
     return simulation;
 }
@@ -109,8 +103,8 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     {
         for (int to = from + 1; to < nNodes; to++)
         {
-            simulation->addConnection(keys[from].getPublicKey(),
-                                      keys[to].getPublicKey());
+            simulation->addPendingConnection(keys[from].getPublicKey(),
+                                             keys[to].getPublicKey());
         }
     }
 
@@ -173,9 +167,9 @@ Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
         for (auto const& middle : middletierKeys)
         {
             for (auto const& core : coreNodeIDs)
-                sim->addConnection(middle.getPublicKey(), core);
+                sim->addPendingConnection(middle.getPublicKey(), core);
 
-            // sim->addConnection(leafKey.getPublicKey(),
+            // sim->addPendingConnection(leafKey.getPublicKey(),
             // middle.getPublicKey());
         }
     }

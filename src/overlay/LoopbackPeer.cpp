@@ -8,6 +8,7 @@
 #include "overlay/StellarXDR.h"
 #include "xdrpp/marshal.h"
 #include "overlay/OverlayManager.h"
+#include "crypto/Random.h"
 
 namespace stellar
 {
@@ -26,6 +27,13 @@ LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
 void
 LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
+    // Damage authentication material.
+    if (mDamageAuth)
+    {
+        auto bytes = randomBytes(mSentNonce.size());
+        std::copy(bytes.begin(), bytes.end(), mSentNonce.begin());
+    }
+
     // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
     mQueue.emplace_back(std::move(msg));
     // Possibly flush some queued messages if queue's full.
@@ -62,23 +70,10 @@ LoopbackPeer::drop()
             [remote]()
             {
                 remote->getApp().getOverlayManager().dropPeer(remote);
-                remote->mRemote = nullptr;
+                remote->drop();
             });
         mRemote = nullptr;
     }
-}
-
-bool
-LoopbackPeer::recvHello(StellarMessage const& msg)
-{
-    if (!Peer::recvHello(msg))
-        return false;
-
-    if (mRole == INITIATOR)
-    { // this guy called us
-        sendHello();
-    }
-    return true;
 }
 
 static bool
@@ -269,6 +264,18 @@ LoopbackPeer::getDropProbability() const
 }
 
 void
+LoopbackPeer::setDamageAuth(bool b)
+{
+    mDamageAuth = b;
+}
+
+bool
+LoopbackPeer::getDamageAuth() const
+{
+    return mDamageAuth;
+}
+
+void
 LoopbackPeer::setDropProbability(double d)
 {
     checkProbRange(d);
@@ -303,8 +310,8 @@ LoopbackPeer::setReorderProbability(double d)
 
 LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
                                                Application& acceptor)
-    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::INITIATOR))
-    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::ACCEPTOR))
+    : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::WE_CALLED_REMOTE))
+    , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::REMOTE_CALLED_US))
 {
     mInitiator->mRemote = mAcceptor;
     mInitiator->mState = Peer::CONNECTED;
@@ -315,7 +322,7 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     initiator.getOverlayManager().addConnectedPeer(mInitiator);
     acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
 
-    mAcceptor->connectHandler(asio::error_code());
+    mInitiator->connectHandler(asio::error_code());
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

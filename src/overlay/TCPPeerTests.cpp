@@ -42,10 +42,10 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
 
     REQUIRE(n0->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)
-                ->getState() == Peer::GOT_HELLO);
+                ->getState() == Peer::GOT_AUTH);
     REQUIRE(n1->getOverlayManager()
                 .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)
-                ->getState() == Peer::GOT_HELLO);
+                ->getState() == Peer::GOT_AUTH);
     s->stopAllNodes();
 }
 }

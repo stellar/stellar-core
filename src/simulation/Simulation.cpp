@@ -58,11 +58,11 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     {
         cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
     }
-    cfg->BREAK_ASIO_LOOP_FOR_FAST_TESTS = (mMode == OVER_TCP);
     cfg->VALIDATION_KEY = nodeKey;
     cfg->QUORUM_SET = qSet;
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
+    cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
 
     Application::pointer result = Application::create(clock, *cfg);
 
@@ -97,6 +97,12 @@ Simulation::getNodeIDs()
 }
 
 void
+Simulation::addPendingConnection(NodeID const& initiator, NodeID const& acceptor)
+{
+    mPendingConnections.push_back(std::make_pair(initiator, acceptor));
+}
+
+void
 Simulation::addConnection(NodeID initiator, NodeID acceptor)
 {
     if (mMode == OVER_LOOPBACK)
@@ -105,17 +111,15 @@ Simulation::addConnection(NodeID initiator, NodeID acceptor)
         addTCPConnection(initiator, acceptor);
 }
 
-std::shared_ptr<LoopbackPeerConnection>
+void
 Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
-    std::shared_ptr<LoopbackPeerConnection> connection;
     if (mNodes[initiator] && mNodes[acceptor])
     {
-        connection = std::make_shared<LoopbackPeerConnection>(
+        auto conn = std::make_shared<LoopbackPeerConnection>(
             *getNode(initiator), *getNode(acceptor));
-        mConnections.emplace_back(connection);
+        mLoopbackConnections.push_back(conn);
     }
-    return connection;
 }
 
 void
@@ -128,21 +132,23 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     auto from = getNode(initiator);
     auto to = getNode(acceptor);
     PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT,
-                  from->getClock().now(), 0, 10};
+                  from->getClock().now()};
     from->getOverlayManager().connectTo(pr);
 }
 
 void
 Simulation::startAllNodes()
 {
-    // We wait for the connections to set up (HELLO).
-    while (crankAllNodes() > 0)
-        ;
-
     for (auto const& it : mNodes)
     {
         it.second->start();
     }
+
+    for (auto const& pair : mPendingConnections)
+    {
+        addConnection(pair.first, pair.second);
+    }
+    mPendingConnections.clear();
 }
 
 void

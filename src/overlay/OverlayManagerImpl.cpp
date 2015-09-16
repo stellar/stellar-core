@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -18,15 +19,20 @@
 #include <random>
 
 /*
+
 Connection process:
 A wants to connect to B
 A initiates a tcp connection to B
 connection is established
-A sends HELLO to B
-B now has IP and listening port of A
-B either:
-    sends HELLO back, or
-    sends list of other peers to connect to and disconnects
+A sends HELLO(nonce-a) to B
+B now has IP and listening port of A, sends HELLO(nonce-b) back
+A sends AUTH:sig(nonce-a,nonce-b)
+B verifies and either:
+    sends AUTH:sig(nonce-b,nonce-a) back or
+    sends list of other peers to connect to and disconnects, if it's full
+
+If any verify step fails, the peer disconnects immediately.
+
 */
 
 namespace stellar
@@ -129,12 +135,10 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 }
 
 void
-OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  int rank)
+OverlayManagerImpl::storePeerList(std::vector<std::string> const& list)
 {
     for (auto const& peerStr : list)
     {
-
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
@@ -150,16 +154,32 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
-    storePeerList(mApp.getConfig().KNOWN_PEERS, 2);
-    storePeerList(mApp.getConfig().PREFERRED_PEERS, 10);
+    storePeerList(mApp.getConfig().KNOWN_PEERS);
+    storePeerList(mApp.getConfig().PREFERRED_PEERS);
 }
 
 void
 OverlayManagerImpl::connectToMorePeers(int max)
 {
     vector<PeerRecord> peers;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
-                                peers);
+
+    // Always retry the preferred peers before anything else.
+    for (auto const& peerStr : mApp.getConfig().PREFERRED_PEERS)
+    {
+        PeerRecord pr;
+        if (PeerRecord::parseIPPort(peerStr, mApp, pr))
+        {
+            peers.push_back(pr);
+        }
+    }
+
+    // Load additional peers from the DB if we're not in whitelist mode.
+    if (!mApp.getConfig().PREFERRED_PEERS_ONLY)
+    {
+        PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
+                                    peers);
+    }
+
     for (auto& pr : peers)
     {
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
@@ -242,14 +262,32 @@ OverlayManagerImpl::dropPeer(Peer::pointer peer)
 bool
 OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
-    if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
-        return true;
-    bool accept = isPeerPreferred(peer);
-    if (!accept)
+    if (isPeerPreferred(peer))
     {
-        mConnectionsRejected.Mark();
+        if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        {
+            return true;
+        }
+
+        for (auto victim : mPeers)
+        {
+            if (!isPeerPreferred(victim))
+            {
+                CLOG(INFO, "Overlay")
+                    << "Evicting non-preferred peer " << victim->toString()
+                    << " for preferred peer " << peer->toString();
+                dropPeer(victim);
+                return true;
+            }
+        }
     }
-    return accept;
+
+    if (!mApp.getConfig().PREFERRED_PEERS_ONLY &&
+        mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        return true;
+
+    mConnectionsRejected.Mark();
+    return false;
 }
 
 std::vector<Peer::pointer>&
@@ -261,9 +299,28 @@ OverlayManagerImpl::getPeers()
 bool
 OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 {
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(),
-                                         peer->getRemoteListeningPort());
-    return pr->mRank > 9;
+    std::string pstr = peer->toString();
+    std::vector<std::string> const& pp = mApp.getConfig().PREFERRED_PEERS;
+
+    if (std::find(pp.begin(), pp.end(), pstr) != pp.end())
+    {
+        CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is preferred";
+        return true;
+    }
+
+    if (peer->isAuthenticated())
+    {
+        std::string kstr = PubKeyUtils::toStrKey(peer->getPeerID());
+        std::vector<std::string> const& pk = mApp.getConfig().PREFERRED_PEER_KEYS;
+        if (std::find(pk.begin(), pk.end(), kstr) != pp.end())
+        {
+            CLOG(DEBUG, "Overlay") << "Peer key " << kstr << " is preferred";
+            return true;
+        }
+    }
+
+    CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is not preferred";
+    return false;
 }
 
 Peer::pointer

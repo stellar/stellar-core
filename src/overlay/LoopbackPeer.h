@@ -30,6 +30,7 @@ class LoopbackPeer : public Peer
     bool mCorked{false};
     size_t mMaxQueueDepth{0};
 
+    bool mDamageAuth{false};
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mDuplicateProb{0.0};
     std::bernoulli_distribution mReorderProb{0.0};
@@ -78,6 +79,9 @@ class LoopbackPeer : public Peer
     double getDamageProbability() const;
     void setDamageProbability(double d);
 
+    bool getDamageAuth() const;
+    void setDamageAuth(bool d);
+
     double getDropProbability() const;
     void setDropProbability(double d);
 
@@ -86,8 +90,6 @@ class LoopbackPeer : public Peer
 
     double getReorderProbability() const;
     void setReorderProbability(double d);
-
-    bool recvHello(StellarMessage const& msg);
 
     friend class LoopbackPeerConnection;
 };

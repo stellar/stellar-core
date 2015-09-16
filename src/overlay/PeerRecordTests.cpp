@@ -27,7 +27,6 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     {
         REQUIRE(pr.mIP == "1.25.50.200");
         REQUIRE(pr.mPort == 256);
-        REQUIRE(pr.mRank == 1);
 
         PeerAddress xdr;
         pr.toXdr(xdr);
@@ -54,8 +53,7 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
             REQUIRE(*actualPR == pr);
         }
 
-        PeerRecord other;
-        PeerRecord::fromIPPort("1.2.3.4", 15, clock, other);
+        PeerRecord other("1.2.3.4", 15, clock.now());
         other.storePeerRecord(app->getDatabase());
 
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
@@ -73,14 +71,13 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
 TEST_CASE("private addresses", "[overlay][PeerRecord]")
 {
     VirtualClock clock;
-    PeerRecord pr;
-    PeerRecord::fromIPPort("1.2.3.4", 15, clock, pr);
+    PeerRecord pr("1.2.3.4", 15, clock.now());
     CHECK(!pr.isPrivateAddress());
-    PeerRecord::fromIPPort("10.1.2.3", 15, clock, pr);
+    pr = PeerRecord("10.1.2.3", 15, clock.now());
     CHECK(pr.isPrivateAddress());
-    PeerRecord::fromIPPort("172.17.1.2", 15, clock, pr);
+    pr = PeerRecord("172.17.1.2", 15, clock.now());
     CHECK(pr.isPrivateAddress());
-    PeerRecord::fromIPPort("192.168.1.2", 15, clock, pr);
+    pr = PeerRecord("192.168.1.2", 15, clock.now());
     CHECK(pr.isPrivateAddress());
 }
 }

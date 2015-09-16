@@ -77,8 +77,8 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
 
         simulation->addNode(keys[0], qSet, simulation->getClock());
         simulation->addNode(keys[1], qSet, simulation->getClock());
-        simulation->addConnection(keys[0].getPublicKey(),
-                                  keys[1].getPublicKey());
+        simulation->addPendingConnection(keys[0].getPublicKey(),
+                                         keys[1].getPublicKey());
 
         auto tBegin = std::chrono::system_clock::now();
 

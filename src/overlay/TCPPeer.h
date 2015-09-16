@@ -41,7 +41,6 @@ class TCPPeer : public Peer
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
     void recvMessage();
-    bool recvHello(StellarMessage const& msg) override;
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
     void messageSender();
@@ -56,8 +55,6 @@ class TCPPeer : public Peer
                            std::size_t bytes_transferred) override;
     void readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred) override;
-
-    VirtualTimer mAsioLoopBreaker;
 
   public:
     typedef std::shared_ptr<TCPPeer> pointer;

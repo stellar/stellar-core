@@ -93,7 +93,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         mFloodMapSize.set_count(mFloodMap.size());
         for (auto peer : mApp.getOverlayManager().getPeers())
         {
-            if (peer->getState() == Peer::GOT_HELLO)
+            if (peer->isAuthenticated())
             {
                 peer->sendMessage(msg);
                 record->mPeersTold.push_back(peer);
@@ -108,7 +108,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             if (find(peersTold.begin(), peersTold.end(), peer) ==
                 peersTold.end())
             {
-                if (peer->getState() == Peer::GOT_HELLO)
+                if (peer->isAuthenticated())
                 {
                     peer->sendMessage(msg);
                     peersTold.push_back(peer);

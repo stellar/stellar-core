@@ -21,19 +21,15 @@ class PeerRecord
     unsigned short mPort;
     VirtualClock::time_point mNextAttempt;
     uint32_t mNumFailures;
-    uint32_t mRank;
 
     PeerRecord(){};
 
     PeerRecord(string const& ip, unsigned short port,
-               VirtualClock::time_point nextAttempt, uint32_t fails,
-               uint32_t rank)
+               VirtualClock::time_point nextAttempt, uint32_t fails = 0)
         : mIP(ip)
         , mPort(port)
         , mNextAttempt(nextAttempt)
         , mNumFailures(fails)
-        , mRank(rank)
-
     {
     }
 
@@ -41,11 +37,9 @@ class PeerRecord
     {
         return mIP == other.mIP && mPort == other.mPort &&
                mNextAttempt == other.mNextAttempt &&
-               mNumFailures == other.mNumFailures && mRank == other.mRank;
+               mNumFailures == other.mNumFailures;
     }
 
-    static void fromIPPort(std::string const& ip, unsigned short port,
-                           VirtualClock& clock, PeerRecord& ret);
     static bool parseIPPort(std::string const& ipPort, Application& app,
                             PeerRecord& ret,
                             unsigned short defaultPort = DEFAULT_PEER_PORT);
@@ -56,7 +50,7 @@ class PeerRecord
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
 
-    bool isPrivateAddress();
+    bool isPrivateAddress() const;
 
     // returns true if peerRecord is already in the database
     bool isStored(Database& db);
@@ -68,9 +62,10 @@ class PeerRecord
     // insert or update record from database
     void storePeerRecord(Database& db);
 
+    void resetBackOff(VirtualClock& clock);
     void backOff(VirtualClock& clock);
 
-    void toXdr(PeerAddress& ret);
+    void toXdr(PeerAddress& ret) const;
 
     static void dropAll(Database& db);
     std::string toString();

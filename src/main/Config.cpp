@@ -18,7 +18,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 
     // non configurable
     LEDGER_PROTOCOL_VERSION = 1;
-    OVERLAY_PROTOCOL_VERSION = 1;
+    OVERLAY_PROTOCOL_VERSION = 2;
     VERSION_STR = STELLAR_CORE_VERSION;
     REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
@@ -36,9 +36,9 @@ Config::Config() : PEER_KEY(SecretKey::random())
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
-    BREAK_ASIO_LOOP_FOR_FAST_TESTS = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
+    PREFERRED_PEERS_ONLY = false;
     MAX_CONCURRENT_SUBPROCESSES = 32;
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
@@ -350,8 +350,36 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of PREFERRED_PEERS");
+                    }
                     PREFERRED_PEERS.push_back(v->as<std::string>()->value());
                 }
+            }
+            else if (item.first == "PREFERRED_PEER_KEYS")
+            {
+                if (!item.second->is_array())
+                {
+                    throw std::invalid_argument(
+                        "PREFERRED_PEER_KEYS must be an array");
+                }
+                for (auto v : item.second->as_array()->array())
+                {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of PREFERRED_PEER_KEYS");
+                    }
+                    PREFERRED_PEER_KEYS.push_back(v->as<std::string>()->value());
+                }
+            }
+            else if (item.first == "PREFERRED_PEERS_ONLY")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid PREFERRED_PEERS_ONLY");
+                }
+                PREFERRED_PEERS_ONLY = item.second->as<bool>()->value();
             }
             else if (item.first == "KNOWN_PEERS")
             {
@@ -361,6 +389,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of KNOWN_PEERS");
+                    }
                     KNOWN_PEERS.push_back(v->as<std::string>()->value());
                 }
             }
@@ -376,6 +408,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of COMMANDS");
+                    }
                     COMMANDS.push_back(v->as<std::string>()->value());
                 }
             }

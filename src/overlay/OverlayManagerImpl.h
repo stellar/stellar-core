@@ -47,7 +47,7 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list, int rank);
+    void storePeerList(std::vector<std::string> const& list);
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 

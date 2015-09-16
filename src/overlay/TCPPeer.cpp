@@ -51,7 +51,6 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
           app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
     , mTimeoutWrite(
           app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
-    , mAsioLoopBreaker(app)
 {
 }
 
@@ -62,9 +61,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
                            << " to " << ip << ":" << port;
     auto socket =
         make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
-    auto result = make_shared<TCPPeer>(
-        app, ACCEPTOR,
-        socket); // We are initiating; new `newed` TCPPeer is accepting
+    auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
@@ -81,9 +78,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
                            << "@" << app.getConfig().PEER_PORT;
-    auto result = make_shared<TCPPeer>(
-        app, INITIATOR,
-        socket); // We are accepting; new `newed` TCPPeer initiated
+    auto result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
     result->mIP = socket->remote_endpoint().address().to_string();
     result->startRead();
     return result;
@@ -211,7 +206,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
 {
     if (error)
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -240,35 +235,22 @@ TCPPeer::startRead()
     {
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-        auto cont = [self]()
-        {
-            assert(self->mIncomingHeader.size() == 0);
-            CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
-                                   << self->toString();
+        assert(self->mIncomingHeader.size() == 0);
+        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
+                               << self->toString();
 
-            self->mLastRead = self->mApp.getClock().now();
-            self->mIncomingHeader.resize(4);
-            asio::async_read(*(self->mSocket.get()),
-                             asio::buffer(self->mIncomingHeader),
-                             self->mStrand.wrap(
-                                 [self](asio::error_code ec, std::size_t length)
-                                 {
-                                     CLOG(TRACE, "Overlay")
-                                         << "TCPPeer::startRead calledback "
-                                         << ec << " length:" << length;
-                                     self->readHeaderHandler(ec, length);
-                                 }));
-        };
-
-        if (mApp.getConfig().BREAK_ASIO_LOOP_FOR_FAST_TESTS)
-        {
-            mAsioLoopBreaker.expires_from_now(std::chrono::milliseconds(0));
-            mAsioLoopBreaker.async_wait(cont, VirtualTimer::onFailureNoop);
-        }
-        else
-        {
-            cont();
-        }
+        self->mLastRead = self->mApp.getClock().now();
+        self->mIncomingHeader.resize(4);
+        asio::async_read(*(self->mSocket.get()),
+                         asio::buffer(self->mIncomingHeader),
+                         self->mStrand.wrap(
+                             [self](asio::error_code ec, std::size_t length)
+                             {
+                                 CLOG(TRACE, "Overlay")
+                                     << "TCPPeer::startRead calledback "
+                                     << ec << " length:" << length;
+                                 self->readHeaderHandler(ec, length);
+                             }));
     }
     catch (asio::system_error& e)
     {
@@ -329,7 +311,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     }
     else
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -359,7 +341,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     }
     else
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -389,52 +371,6 @@ TCPPeer::recvMessage()
         CLOG(TRACE, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
         drop();
     }
-}
-
-bool
-TCPPeer::recvHello(StellarMessage const& msg)
-{
-    if (!Peer::recvHello(msg))
-        return false;
-
-    if (mRole == INITIATOR)
-    {
-        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
-                                        getRemoteListeningPort()))
-        {
-            PeerRecord pr;
-            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(),
-                                   mApp.getClock(), pr);
-            pr.storePeerRecord(mApp.getDatabase());
-        }
-
-        if (mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
-        {
-            sendHello();
-            sendPeers();
-        }
-        else
-        { // we can't accept anymore peer connections
-            sendPeers();
-            drop();
-        }
-    }
-    else
-    { // we called this guy
-        // only lower numFailures if we were successful connecting out to him
-        auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
-                                             getRemoteListeningPort());
-        if (!pr)
-        {
-            pr = make_optional<PeerRecord>();
-            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(),
-                                   mApp.getClock(), *pr);
-        }
-        pr->mNumFailures = 0;
-        pr->mNextAttempt = mApp.getClock().now();
-        pr->storePeerRecord(mApp.getDatabase());
-    }
-    return true;
 }
 
 void
