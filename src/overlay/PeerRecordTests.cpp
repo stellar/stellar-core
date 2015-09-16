@@ -27,7 +27,6 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
     {
         REQUIRE(pr.mIP == "1.25.50.200");
         REQUIRE(pr.mPort == 256);
-        REQUIRE(pr.mRank == 1);
 
         PeerAddress xdr;
         pr.toXdr(xdr);

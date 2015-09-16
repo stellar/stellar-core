@@ -21,19 +21,15 @@ class PeerRecord
     unsigned short mPort;
     VirtualClock::time_point mNextAttempt;
     uint32_t mNumFailures;
-    uint32_t mRank;
 
     PeerRecord(){};
 
     PeerRecord(string const& ip, unsigned short port,
-               VirtualClock::time_point nextAttempt, uint32_t fails = 0,
-               uint32_t rank = 1)
+               VirtualClock::time_point nextAttempt, uint32_t fails = 0)
         : mIP(ip)
         , mPort(port)
         , mNextAttempt(nextAttempt)
         , mNumFailures(fails)
-        , mRank(rank)
-
     {
     }
 
@@ -41,7 +37,7 @@ class PeerRecord
     {
         return mIP == other.mIP && mPort == other.mPort &&
                mNextAttempt == other.mNextAttempt &&
-               mNumFailures == other.mNumFailures && mRank == other.mRank;
+               mNumFailures == other.mNumFailures;
     }
 
     static bool parseIPPort(std::string const& ipPort, Application& app,

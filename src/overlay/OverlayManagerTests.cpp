@@ -107,19 +107,16 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app.getOverlayManager();
 
-        pm.storePeerList(fourPeers, 10);
-        pm.storePeerList(threePeers, 3);
+        pm.storePeerList(fourPeers);
 
         rowset<row> rs = app.getDatabase().getSession().prepare
-                         << "SELECT ip,port FROM peers ORDER BY rank LIMIT 5 ";
+                         << "SELECT ip,port FROM peers";
         vector<string> actual;
         for (auto it = rs.begin(); it != rs.end(); ++it)
             actual.push_back(it->get<string>(0) + ":" +
                              to_string(it->get<int>(1)));
 
-        vector<string> expected = fourPeers;
-        expected.push_back(threePeers.front());
-        REQUIRE(actual == expected);
+        REQUIRE(actual == fourPeers);
     }
 
     vector<int>
@@ -136,8 +133,8 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app.getOverlayManager();
 
-        pm.storePeerList(fourPeers, 3);
-        pm.storePeerList(threePeers, 2);
+        pm.storePeerList(fourPeers);
+        pm.storePeerList(threePeers);
         pm.connectToMorePeers(5);
         REQUIRE(pm.mPeers.size() == 5);
         SecretKey a = getAccount("a");

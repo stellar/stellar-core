@@ -129,12 +129,10 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 }
 
 void
-OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  int rank)
+OverlayManagerImpl::storePeerList(std::vector<std::string> const& list)
 {
     for (auto const& peerStr : list)
     {
-
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
@@ -150,14 +148,26 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
 void
 OverlayManagerImpl::storeConfigPeers()
 {
-    storePeerList(mApp.getConfig().KNOWN_PEERS, 2);
-    storePeerList(mApp.getConfig().PREFERRED_PEERS, 10);
+    storePeerList(mApp.getConfig().KNOWN_PEERS);
+    storePeerList(mApp.getConfig().PREFERRED_PEERS);
 }
 
 void
 OverlayManagerImpl::connectToMorePeers(int max)
 {
     vector<PeerRecord> peers;
+
+    // Always retry the preferred peers before anything else.
+    for (auto const& peerStr : mApp.getConfig().PREFERRED_PEERS)
+    {
+        PeerRecord pr;
+        if (PeerRecord::parseIPPort(peerStr, mApp, pr))
+        {
+            peers.push_back(pr);
+        }
+    }
+
+    // Load any additional peers from the DB
     PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
                                 peers);
     for (auto& pr : peers)
@@ -261,9 +271,15 @@ OverlayManagerImpl::getPeers()
 bool
 OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 {
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), peer->getIP(),
-                                         peer->getRemoteListeningPort());
-    return pr->mRank > 9;
+    std::string pstr = peer->toString();
+    std::vector<std::string> const& pp = mApp.getConfig().PREFERRED_PEERS;
+
+    if (std::find(pp.begin(), pp.end(), pstr) != pp.end())
+    {
+        CLOG(INFO, "Overlay") << "Peer " << pstr << " is preferred";
+        return true;
+    }
+    return false;
 }
 
 Peer::pointer

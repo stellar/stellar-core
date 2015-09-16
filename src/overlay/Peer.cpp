@@ -563,7 +563,7 @@ Peer::recvPeers(StellarMessage const& msg)
             continue;
         }
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
-                      mApp.getClock().now(), peer.numFailures, 1};
+                      mApp.getClock().now(), peer.numFailures};
 
         if (pr.isPrivateAddress())
         {

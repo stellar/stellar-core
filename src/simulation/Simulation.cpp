@@ -132,7 +132,7 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     auto from = getNode(initiator);
     auto to = getNode(acceptor);
     PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT,
-                  from->getClock().now(), 0, 10};
+                  from->getClock().now()};
     from->getOverlayManager().connectTo(pr);
 }
 
