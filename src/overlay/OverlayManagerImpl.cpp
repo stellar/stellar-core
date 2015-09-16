@@ -19,15 +19,20 @@
 #include <random>
 
 /*
+
 Connection process:
 A wants to connect to B
 A initiates a tcp connection to B
 connection is established
-A sends HELLO to B
-B now has IP and listening port of A
-B either:
-    sends HELLO back, or
-    sends list of other peers to connect to and disconnects
+A sends HELLO(nonce-a) to B
+B now has IP and listening port of A, sends HELLO(nonce-b) back
+A sends AUTH:sig(nonce-a,nonce-b)
+B verifies and either:
+    sends AUTH:sig(nonce-b,nonce-a) back or
+    sends list of other peers to connect to and disconnects, if it's full
+
+If any verify step fails, the peer disconnects immediately.
+
 */
 
 namespace stellar
