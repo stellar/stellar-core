@@ -43,13 +43,6 @@ PeerRecord::toXdr(PeerAddress& ret)
     ipToXdr(mIP, ret.ip);
 }
 
-void
-PeerRecord::fromIPPort(string const& ip, unsigned short port,
-                       VirtualClock& clock, PeerRecord& ret)
-{
-    ret = PeerRecord{ip, port, clock.now(), 0, 1};
-}
-
 bool
 PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
                         unsigned short defaultPort)

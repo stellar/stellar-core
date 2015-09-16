@@ -44,8 +44,6 @@ class PeerRecord
                mNumFailures == other.mNumFailures && mRank == other.mRank;
     }
 
-    static void fromIPPort(std::string const& ip, unsigned short port,
-                           VirtualClock& clock, PeerRecord& ret);
     static bool parseIPPort(std::string const& ipPort, Application& app,
                             PeerRecord& ret,
                             unsigned short defaultPort = DEFAULT_PEER_PORT);
