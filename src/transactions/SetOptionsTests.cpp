@@ -85,9 +85,11 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
-            Signer& a_sk1 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk1.pubKey == sk1.pubKey);
-            REQUIRE(a_sk1.weight == sk1.weight);
+            {
+                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                REQUIRE(a_sk1.pubKey == sk1.pubKey);
+                REQUIRE(a_sk1.weight == sk1.weight);
+            }
 
             // add signer 2
             SecretKey s2 = getAccount("S2");
@@ -108,11 +110,11 @@ TEST_CASE("set options", "[tx][setoptions]")
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
-            // remove signer 1
             sk1.weight = 0;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
+            // remove signer 1
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
