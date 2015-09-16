@@ -39,4 +39,6 @@ TEST_CASE("loopback peer hello", "[overlay]")
                 io.stop();
         }
     }
+    REQUIRE(conn.getInitiator()->isAuthenticated());
+    REQUIRE(conn.getAcceptor()->isAuthenticated());
 }
