@@ -42,3 +42,32 @@ TEST_CASE("loopback peer hello", "[overlay]")
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
 }
+
+TEST_CASE("failed auth", "[overlay]")
+{
+    Config const& cfg1 = getTestConfig(0);
+    VirtualClock clock;
+    std::vector<Application::pointer> apps;
+    apps.push_back(Application::create(clock, cfg1));
+
+    Config const& cfg2 = getTestConfig(1);
+    apps.push_back(Application::create(clock, cfg2));
+
+    LoopbackPeerConnection conn(*apps[0], *apps[1]);
+
+    conn.getInitiator()->setDamageAuth(true);
+
+    size_t i = 0;
+    auto& io = clock.getIOService();
+    while (!io.stopped())
+    {
+        for (auto app : apps)
+        {
+            io.poll_one();
+            if (++i > 100)
+                io.stop();
+        }
+    }
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+}
