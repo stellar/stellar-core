@@ -54,13 +54,16 @@ AccountFrame::AccountFrame()
     : EntryFrame(ACCOUNT), mAccountEntry(mEntry.data.account())
 {
     mAccountEntry.thresholds[0] = 1; // by default, master key's weight is 1
-    mUpdateSigners = false;
+    mUpdateSigners = true;
 }
 
 AccountFrame::AccountFrame(LedgerEntry const& from)
     : EntryFrame(from), mAccountEntry(mEntry.data.account())
 {
-    mUpdateSigners = !mAccountEntry.signers.empty();
+    // we cannot make any assumption on mUpdateSigners:
+    // it's possible we're constructing an account with no signers
+    // but that the database's state had a previous version with signers
+    mUpdateSigners = true;
 }
 
 AccountFrame::AccountFrame(AccountFrame const& from) : AccountFrame(from.mEntry)
