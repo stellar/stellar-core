@@ -88,6 +88,9 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         }
     }
 
+    // validates db state
+    app.getLedgerManager().checkDbState();
+
     return res;
 }
 
@@ -693,7 +696,8 @@ applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
 TransactionFramePtr
 createSetOptions(Hash const& networkID, SecretKey& source, SequenceNumber seq,
                  AccountID* inflationDest, uint32_t* setFlags,
-                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer)
+                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
+                 std::string* homeDomain)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -740,6 +744,11 @@ createSetOptions(Hash const& networkID, SecretKey& source, SequenceNumber seq,
         setOp.signer.activate() = *signer;
     }
 
+    if (homeDomain)
+    {
+        setOp.homeDomain.activate() = *homeDomain;
+    }
+
     return transactionFromOperation(networkID, source, seq, op);
 }
 
@@ -747,12 +756,12 @@ void
 applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
                 AccountID* inflationDest, uint32_t* setFlags,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                SetOptionsResultCode result)
+                std::string* homeDomain, SetOptionsResultCode result)
 {
     TransactionFramePtr txFrame;
 
     txFrame = createSetOptions(app.getNetworkID(), source, seq, inflationDest,
-                               setFlags, clearFlags, thrs, signer);
+                               setFlags, clearFlags, thrs, signer, homeDomain);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());

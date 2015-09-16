@@ -6,6 +6,7 @@
 
 #include "ledger/EntryFrame.h"
 #include <functional>
+#include <unordered_map>
 
 namespace soci
 {
@@ -72,6 +73,10 @@ class TrustFrame : public EntryFrame
     static void loadLines(AccountID const& accountID,
                           std::vector<TrustFrame::pointer>& retLines,
                           Database& db);
+
+    // loads ALL trust lines from the database (very slow!)
+    static std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
+    loadAllLines(Database& db);
 
     static bool hasIssued(AccountID const& issuerID, Database& db);
 

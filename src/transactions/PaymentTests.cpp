@@ -283,7 +283,7 @@ TEST_CASE("payment", "[tx][payment]")
         uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
         applySetOptions(app, gateway, gateway_seq++, nullptr, &setFlags,
-                        nullptr, nullptr, nullptr);
+                        nullptr, nullptr, nullptr, nullptr);
 
         applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", trustLineLimit);
 

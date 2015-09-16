@@ -513,6 +513,25 @@ TrustFrame::loadLines(AccountID const& accountID,
               });
 }
 
+std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
+TrustFrame::loadAllLines(Database& db)
+{
+    std::unordered_map<AccountID, std::vector<TrustFrame::pointer>> retLines;
+
+    auto query = std::string(trustLineColumnSelector);
+    query += (" ORDER BY accountid");
+    auto prep = db.getPreparedStatement(query);
+
+    auto timer = db.getSelectTimer("trust");
+    loadLines(prep, [&retLines](LedgerEntry const& cur)
+              {
+                  auto& thisUserLines =
+                      retLines[cur.data.trustLine().accountID];
+                  thisUserLines.emplace_back(make_shared<TrustFrame>(cur));
+              });
+    return retLines;
+}
+
 void
 TrustFrame::dropAll(Database& db)
 {

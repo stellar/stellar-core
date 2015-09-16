@@ -259,6 +259,18 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
         }
     }
 
+    if (mSetOptions.homeDomain)
+    {
+        if (!isString32Valid(*mSetOptions.homeDomain))
+        {
+            metrics.NewMeter(
+                        {"op-set-options", "invalid", "invalid-home-domain"},
+                        "operation").Mark();
+            innerResult().code(SET_OPTIONS_INVALID_HOME_DOMAIN);
+            return false;
+        }
+    }
+
     return true;
 }
 }

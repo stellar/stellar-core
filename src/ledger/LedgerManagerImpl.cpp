@@ -19,6 +19,7 @@
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "util/format.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -706,6 +707,61 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
     TransactionFrame::deleteOldEntries(db, ledgerSeq);
+}
+
+void
+LedgerManagerImpl::checkDbState()
+{
+    std::unordered_map<AccountID, AccountFrame::pointer> aData =
+        AccountFrame::checkDB(getDatabase());
+    std::unordered_map<AccountID, std::vector<TrustFrame::pointer>> trustLines;
+    trustLines = TrustFrame::loadAllLines(getDatabase());
+    std::unordered_map<AccountID, std::vector<OfferFrame::pointer>> offers;
+    offers = OfferFrame::loadAllOffers(getDatabase());
+    for (auto& i : aData)
+    {
+        auto const& a = i.second->getAccount();
+
+        // checks the number of sub entries found in the database
+        size_t actualSubEntries = a.signers.size();
+        auto itTL = trustLines.find(i.first);
+        if (itTL != trustLines.end())
+        {
+            actualSubEntries += itTL->second.size();
+        }
+        auto itOffers = offers.find(i.first);
+        if (itOffers != offers.end())
+        {
+            actualSubEntries += itOffers->second.size();
+        }
+
+        if (a.numSubEntries != (uint32)actualSubEntries)
+        {
+            throw std::runtime_error(
+                fmt::format("Mismatch in number of subentries for account {}: "
+                            "account says {} but found {}",
+                            PubKeyUtils::toStrKey(i.first), a.numSubEntries,
+                            actualSubEntries));
+        }
+    }
+    for (auto& tl : trustLines)
+    {
+        if (aData.find(tl.first) == aData.end())
+        {
+            throw std::runtime_error(
+                fmt::format("Unexpected trust line found for account {}",
+                            PubKeyUtils::toStrKey(tl.first)));
+        }
+    }
+    for (auto& of : offers)
+    {
+        if (aData.find(of.first) == aData.end())
+        {
+            throw std::runtime_error(
+                fmt::format("Unexpected offer found for account {}",
+                            PubKeyUtils::toStrKey(of.first)));
+        }
+    }
 }
 
 void

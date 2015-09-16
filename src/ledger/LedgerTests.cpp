@@ -14,82 +14,9 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include <xdrpp/autocheck.h>
+#include "LedgerTestUtils.h"
 
 using namespace stellar;
-
-template <typename T>
-void
-clampLow(T low, T& v)
-{
-    if (v < low)
-    {
-        v = low;
-    }
-}
-
-template <typename T>
-void
-clampHigh(T high, T& v)
-{
-    if (v > high)
-    {
-        v = high;
-    }
-}
-
-auto validLedgerEntryGenerator = autocheck::map(
-    [](LedgerEntry&& le, size_t s)
-    {
-        auto& led = le.data;
-        switch (led.type())
-        {
-        case TRUSTLINE:
-        {
-            led.trustLine().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(led.trustLine().asset.alphaNum4().assetCode, "USD");
-            clampLow<int64_t>(0, led.trustLine().balance);
-            clampLow<int64_t>(0, led.trustLine().limit);
-            clampHigh<int64_t>(led.trustLine().limit, led.trustLine().balance);
-        }
-        break;
-
-        case OFFER:
-        {
-            led.offer().selling.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(led.offer().selling.alphaNum4().assetCode, "CAD");
-
-            led.offer().buying.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-            strToAssetCode(led.offer().buying.alphaNum4().assetCode, "EUR");
-
-            clampLow<int64_t>(0, led.offer().amount);
-            clampLow(0, led.offer().price.n);
-            clampLow(1, led.offer().price.d);
-        }
-        break;
-
-        case ACCOUNT:
-        {
-            auto& a = led.account();
-            clampLow<int64_t>(0, a.balance);
-            a.inflationDest.reset();
-            a.homeDomain.clear();
-            a.thresholds[0] = 0;
-            a.thresholds[1] = 0;
-            a.thresholds[2] = 0;
-            a.thresholds[3] = 0;
-            break;
-        }
-        }
-
-        return le;
-    },
-    autocheck::generator<LedgerEntry>());
-
-LedgerEntry
-generateValidLedgerEntry()
-{
-    return validLedgerEntryGenerator(10);
-}
 
 TEST_CASE("Ledger entry db lifecycle", "[ledger]")
 {
@@ -103,7 +30,8 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     auto& db = app->getDatabase();
     for (size_t i = 0; i < 100; ++i)
     {
-        auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
+        auto le =
+            EntryFrame::FromXDR(LedgerTestUtils::generateValidLedgerEntry(3));
         CHECK(!EntryFrame::exists(db, le->getKey()));
         le->storeAddOrChange(delta, db);
         CHECK(EntryFrame::exists(db, le->getKey()));
@@ -128,7 +56,7 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql]")
     LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
                       app->getDatabase());
     auto& db = app->getDatabase();
-    auto le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
+    auto le = EntryFrame::FromXDR(LedgerTestUtils::generateValidLedgerEntry(3));
     auto ctx = db.captureAndLogSQL("ledger-insert");
     le->storeAddOrChange(delta, db);
 }
@@ -152,7 +80,7 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
     EntryFrame::pointer le;
     do
     {
-        le = EntryFrame::FromXDR(validLedgerEntryGenerator(3));
+        le = EntryFrame::FromXDR(LedgerTestUtils::generateValidLedgerEntry(3));
     } while (le->mEntry.data.type() != ACCOUNT);
 
     auto key = le->getKey();

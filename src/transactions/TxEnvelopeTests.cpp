@@ -121,13 +121,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th.medThreshold = make_optional<uint8_t>(50);
         th.highThreshold = make_optional<uint8_t>(100);
 
-        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1);
+        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1,
+                        nullptr);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 95); // med rights account
 
         applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr,
-                        &sk2);
+                        &sk2, nullptr);
 
         SECTION("not enough rights (envelope)")
         {
@@ -148,8 +149,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("not enough rights (operation)")
         {
             // updating thresholds requires high
-            TransactionFramePtr tx = createSetOptions(
-                networkID, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1);
+            TransactionFramePtr tx =
+                createSetOptions(networkID, a1, a1Seq++, nullptr, nullptr,
+                                 nullptr, &th, &sk1, nullptr);
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();

@@ -62,14 +62,14 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("insufficient balance")
         {
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
-                            &sk1, SET_OPTIONS_LOW_RESERVE);
+                            &sk1, nullptr, SET_OPTIONS_LOW_RESERVE);
         }
 
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(a1.getPublicKey(), 100);
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
-                            nullptr, &sk, SET_OPTIONS_BAD_SIGNER);
+                            nullptr, &sk, nullptr, SET_OPTIONS_BAD_SIGNER);
         }
 
         SECTION("multiple signers")
@@ -79,21 +79,23 @@ TEST_CASE("set options", "[tx][setoptions]")
                            app.getLedgerManager().getMinBalance(2));
 
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
-                            &sk1);
+                            &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
-            Signer& a_sk1 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk1.pubKey == sk1.pubKey);
-            REQUIRE(a_sk1.weight == sk1.weight);
+            {
+                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                REQUIRE(a_sk1.pubKey == sk1.pubKey);
+                REQUIRE(a_sk1.weight == sk1.weight);
+            }
 
             // add signer 2
             SecretKey s2 = getAccount("S2");
             Signer sk2(s2.getPublicKey(), 100);
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
-                            nullptr, &sk2);
+                            nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
@@ -101,23 +103,31 @@ TEST_CASE("set options", "[tx][setoptions]")
             // update signer 2
             sk2.weight = 11;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
-                            nullptr, &sk2);
+                            nullptr, &sk2, nullptr);
 
             // update signer 1
             sk1.weight = 11;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
-                            nullptr, &sk1);
+                            nullptr, &sk1, nullptr);
 
-            // remove signer 1
             sk1.weight = 0;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
-                            nullptr, &sk1);
+                            nullptr, &sk1, nullptr);
 
+            // remove signer 1
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
             REQUIRE(a_sk2.pubKey == sk2.pubKey);
             REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 2
+            sk2.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().signers.size() == 0);
         }
     }
 
@@ -126,7 +136,21 @@ TEST_CASE("set options", "[tx][setoptions]")
         uint32_t setFlags = AUTH_REQUIRED_FLAG;
         uint32_t clearFlags = AUTH_REQUIRED_FLAG;
         applySetOptions(app, a1, a1seq++, nullptr, &setFlags, &clearFlags,
-                        nullptr, nullptr, SET_OPTIONS_BAD_FLAGS);
+                        nullptr, nullptr, nullptr, SET_OPTIONS_BAD_FLAGS);
+    }
+
+    SECTION("Home domain")
+    {
+        SECTION("invalid home domain")
+        {
+            std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
+            for (auto& s : bad)
+            {
+                applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                                nullptr, nullptr, &s,
+                                SET_OPTIONS_INVALID_HOME_DOMAIN);
+            }
+        }
     }
 
     // these are all tested by other tests

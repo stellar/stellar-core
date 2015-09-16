@@ -98,6 +98,8 @@ PublicKey fromBase58(std::string const& s);
 SignatureHint getHint(PublicKey const& pk);
 // returns true if the hint matches the key
 bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+
+PublicKey random();
 }
 
 namespace StrKeyUtils

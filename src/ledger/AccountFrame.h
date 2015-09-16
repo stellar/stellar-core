@@ -7,6 +7,7 @@
 #include "ledger/EntryFrame.h"
 #include <functional>
 #include <map>
+#include <unordered_map>
 
 namespace soci
 {
@@ -31,6 +32,12 @@ class AccountFrame : public EntryFrame
     void normalize();
 
     AccountFrame(AccountFrame const& from);
+
+    bool isValid();
+
+    static std::vector<Signer> loadSigners(Database& db,
+                                           std::string const& actIDStrKey);
+    void applySigners(Database& db);
 
   public:
     typedef std::shared_ptr<AccountFrame> pointer;
@@ -116,6 +123,9 @@ class AccountFrame : public EntryFrame
     static AccountFrame::pointer loadAccount(AccountID const& accountID,
                                              Database& db);
 
+    // compare signers, ignores weight
+    static bool signerCompare(Signer const& s1, Signer const& s2);
+
     // inflation helper
 
     struct InflationVotes
@@ -128,6 +138,10 @@ class AccountFrame : public EntryFrame
     static void processForInflation(
         std::function<bool(InflationVotes const&)> inflationProcessor,
         int maxWinners, Database& db);
+
+    // loads all accounts from database and checks for consistency (slow!)
+    static std::unordered_map<AccountID, AccountFrame::pointer>
+    checkDB(Database& db);
 
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

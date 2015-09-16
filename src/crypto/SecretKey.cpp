@@ -344,6 +344,16 @@ PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
                   hint.size()) == 0;
 }
 
+PublicKey
+PubKeyUtils::random()
+{
+    PublicKey pk;
+    pk.type(KEY_TYPE_ED25519);
+    pk.ed25519().resize(crypto_sign_PUBLICKEYBYTES);
+    randombytes_buf(pk.ed25519().data(), pk.ed25519().size());
+    return pk;
+}
+
 static void
 logPublicKey(std::ostream& s, PublicKey const& pk)
 {
