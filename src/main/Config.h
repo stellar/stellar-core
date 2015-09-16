@@ -113,6 +113,12 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> PREFERRED_PEERS;
     std::vector<std::string> KNOWN_PEERS;
 
+    // Preference can also be expressed by peer pubkey
+    std::vector<std::string> PREFERRED_PEER_KEYS;
+
+    // Whether to exclude peers that are not preferred.
+    bool PREFERRED_PEERS_ONLY;
+
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;
 

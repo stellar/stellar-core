@@ -38,6 +38,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
+    PREFERRED_PEERS_ONLY = false;
     MAX_CONCURRENT_SUBPROCESSES = 32;
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
@@ -351,6 +352,26 @@ Config::load(std::string const& filename)
                 {
                     PREFERRED_PEERS.push_back(v->as<std::string>()->value());
                 }
+            }
+            else if (item.first == "PREFERRED_PEER_KEYS")
+            {
+                if (!item.second->is_array())
+                {
+                    throw std::invalid_argument(
+                        "PREFERRED_PEER_KEYS must be an array");
+                }
+                for (auto v : item.second->as_array()->array())
+                {
+                    PREFERRED_PEER_KEYS.push_back(v->as<std::string>()->value());
+                }
+            }
+            else if (item.first == "PREFERRED_PEERS_ONLY")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid PREFERRED_PEERS_ONLY");
+                }
+                PREFERRED_PEERS_ONLY = item.second->as<bool>()->value();
             }
             else if (item.first == "KNOWN_PEERS")
             {
