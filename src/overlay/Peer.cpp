@@ -172,13 +172,16 @@ Peer::sendPeers()
                                 peerList);
     StellarMessage newMsg;
     newMsg.type(PEERS);
-    newMsg.peers().resize(xdr::size32(peerList.size()));
-    for (size_t n = 0; n < peerList.size(); n++)
+    newMsg.peers().reserve(peerList.size());
+    for (auto const& pr : peerList)
     {
-        if (!peerList[n].isPrivateAddress())
+        if (pr.isPrivateAddress())
         {
-            peerList[n].toXdr(newMsg.peers()[n]);
+            continue;
         }
+        PeerAddress pa;
+        pr.toXdr(pa);
+        newMsg.peers().push_back(pa);
     }
     sendMessage(newMsg);
 }

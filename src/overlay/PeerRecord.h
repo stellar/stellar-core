@@ -54,7 +54,7 @@ class PeerRecord
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
 
-    bool isPrivateAddress();
+    bool isPrivateAddress() const;
 
     // returns true if peerRecord is already in the database
     bool isStored(Database& db);
@@ -69,7 +69,7 @@ class PeerRecord
     void resetBackOff(VirtualClock& clock);
     void backOff(VirtualClock& clock);
 
-    void toXdr(PeerAddress& ret);
+    void toXdr(PeerAddress& ret) const;
 
     static void dropAll(Database& db);
     std::string toString();

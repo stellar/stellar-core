@@ -36,7 +36,7 @@ PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 }
 
 void
-PeerRecord::toXdr(PeerAddress& ret)
+PeerRecord::toXdr(PeerAddress& ret) const
 {
     ret.port = mPort;
     ret.numFailures = mNumFailures;
@@ -190,7 +190,7 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 }
 
 bool
-PeerRecord::isPrivateAddress()
+PeerRecord::isPrivateAddress() const
 {
     asio::error_code ec;
     asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
