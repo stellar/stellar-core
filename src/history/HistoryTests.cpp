@@ -590,6 +590,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     CHECK(haveAliceSeq == wantAliceSeq);
     CHECK(haveBobSeq == wantBobSeq);
     CHECK(haveCarolSeq == wantCarolSeq);
+
+    app.getLedgerManager().checkDbState();
     return true;
 }
 
