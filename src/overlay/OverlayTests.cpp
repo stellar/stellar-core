@@ -16,58 +16,94 @@
 
 using namespace stellar;
 
+void crankSome(VirtualClock& clock)
+{
+    for (size_t i = 0; i < 100 && clock.crank(false) > 0; ++i)
+        ;
+}
+
 TEST_CASE("loopback peer hello", "[overlay]")
 {
-    Config const& cfg1 = getTestConfig(0);
     VirtualClock clock;
-    std::vector<Application::pointer> apps;
-    apps.push_back(Application::create(clock, cfg1));
-
+    Config const& cfg1 = getTestConfig(0);
     Config const& cfg2 = getTestConfig(1);
-    apps.push_back(Application::create(clock, cfg2));
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
 
-    LoopbackPeerConnection conn(*apps[0], *apps[1]);
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
 
-    size_t i = 0;
-    auto& io = clock.getIOService();
-    while (!io.stopped())
-    {
-        for (auto app : apps)
-        {
-            io.poll_one();
-            if (++i > 100)
-                io.stop();
-        }
-    }
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
 }
 
 TEST_CASE("failed auth", "[overlay]")
 {
-    Config const& cfg1 = getTestConfig(0);
     VirtualClock clock;
-    std::vector<Application::pointer> apps;
-    apps.push_back(Application::create(clock, cfg1));
-
+    Config const& cfg1 = getTestConfig(0);
     Config const& cfg2 = getTestConfig(1);
-    apps.push_back(Application::create(clock, cfg2));
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
 
-    LoopbackPeerConnection conn(*apps[0], *apps[1]);
-
+    LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->setDamageAuth(true);
+    crankSome(clock);
 
-    size_t i = 0;
-    auto& io = clock.getIOService();
-    while (!io.stopped())
-    {
-        for (auto app : apps)
-        {
-            io.poll_one();
-            if (++i > 100)
-                io.stop();
-        }
-    }
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+}
+
+TEST_CASE("reject non-preferred peer", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg2.PREFERRED_PEERS_ONLY = true;
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+}
+
+TEST_CASE("accept preferred peer even when strict", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg2.PREFERRED_PEERS_ONLY = true;
+    cfg2.PREFERRED_PEER_KEYS.push_back(PubKeyUtils::toStrKey(cfg1.PEER_PUBLIC_KEY));
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticated());
+    REQUIRE(conn.getAcceptor()->isAuthenticated());
+}
+
+TEST_CASE("reject peers beyond max", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg2.MAX_PEER_CONNECTIONS = 0;
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
 }
