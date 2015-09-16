@@ -28,7 +28,7 @@ TEST_CASE("standalone", "[herder]")
 
     Config cfg(getTestConfig());
 
-    cfg.VALIDATION_KEY = v0SecretKey;
+    cfg.PEER_KEY = v0SecretKey;
 
     cfg.QUORUM_SET.threshold = 1;
     cfg.QUORUM_SET.validators.clear();

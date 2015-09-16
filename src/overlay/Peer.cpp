@@ -77,7 +77,7 @@ Peer::sendHello()
     msg.hello().versionStr = mApp.getConfig().VERSION_STR;
     msg.hello().networkID = mApp.getNetworkID();
     msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
-    msg.hello().peerID = mApp.getConfig().PEER_PUBLIC_KEY;
+    msg.hello().peerID = mApp.getConfig().PEER_KEY.getPublicKey();
     msg.hello().nonce = mSentNonce;
     sendMessage(msg);
 }
@@ -189,8 +189,9 @@ Peer::sendPeers()
 void
 Peer::sendMessage(StellarMessage const& msg)
 {
-    CLOG(TRACE, "Overlay") << "(" << PubKeyUtils::toShortString(
-                                         mApp.getConfig().PEER_PUBLIC_KEY)
+    CLOG(TRACE, "Overlay") << "("
+                           << PubKeyUtils::toShortString(
+                               mApp.getConfig().PEER_KEY.getPublicKey())
                            << ")send: " << msg.type()
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
@@ -236,8 +237,9 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
-    CLOG(TRACE, "Overlay") << "(" << PubKeyUtils::toShortString(
-                                         mApp.getConfig().PEER_PUBLIC_KEY)
+    CLOG(TRACE, "Overlay") << "("
+                           << PubKeyUtils::toShortString(
+                               mApp.getConfig().PEER_KEY.getPublicKey())
                            << ") recv: " << stellarMsg.type()
                            << " from:" << PubKeyUtils::toShortString(mPeerID);
 
@@ -454,7 +456,7 @@ void
 Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
-    if (msg.hello().peerID == mApp.getConfig().PEER_PUBLIC_KEY)
+    if (msg.hello().peerID == mApp.getConfig().PEER_KEY.getPublicKey())
     {
         CLOG(DEBUG, "Overlay") << "connecting to self";
         drop();

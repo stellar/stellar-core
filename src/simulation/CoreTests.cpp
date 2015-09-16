@@ -65,7 +65,7 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
         for (int i = 0; i < 3; i++)
         {
             keys.push_back(SecretKey::fromSeed(
-                sha256("SEED_VALIDATION_SEED_" + std::to_string(i))));
+                sha256("PEER_SEED_" + std::to_string(i))));
         }
 
         SCPQuorumSet qSet;

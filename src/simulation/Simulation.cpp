@@ -58,7 +58,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     {
         cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
     }
-    cfg->VALIDATION_KEY = nodeKey;
+    cfg->PEER_KEY = nodeKey;
     cfg->QUORUM_SET = qSet;
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);

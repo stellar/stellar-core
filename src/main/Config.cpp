@@ -47,7 +47,6 @@ Config::Config() : PEER_KEY(SecretKey::random())
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 20;
     MAX_PEER_CONNECTIONS = 50;
-    PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
     PREFERRED_PEERS_ONLY = false;
 
     MAX_CONCURRENT_SUBPROCESSES = 32;
@@ -144,6 +143,9 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
 void
 Config::load(std::string const& filename)
 {
+    bool setPeerSeed = false;
+    bool setValidationSeed = false;
+
     LOG(DEBUG) << "Loading config from: " << filename;
     try
     {
@@ -315,8 +317,31 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid VALIDATION_SEED");
                 }
+                setValidationSeed = true;
+                if (setPeerSeed)
+                {
+                    throw std::invalid_argument(
+                        "set both PEER_SEED and deprecated VALIDATION_SEED");
+                }
+                else
+                {
+                    LOG(WARNING) << "***************************************";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Deprecated variable: VALIDATION_SEED";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Config should instead contain:";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "   PEER_SEED=<seed>";
+                    LOG(WARNING) << "   PEER_IS_VALIDATOR=true";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Treating deprecated VALIDATION_SEED as";
+                    LOG(WARNING) << "implying the above, for the time being.";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "***************************************";
+                }
+                PEER_IS_VALIDATOR = true;
                 std::string seed = item.second->as<std::string>()->value();
-                VALIDATION_KEY = SecretKey::fromStrKeySeed(seed);
+                PEER_KEY = SecretKey::fromStrKeySeed(seed);
             }
             else if (item.first == "PEER_SEED")
             {
@@ -324,9 +349,22 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid PEER_SEED");
                 }
+                if (setValidationSeed)
+                {
+                    throw std::invalid_argument(
+                        "set both PEER_SEED and deprecated VALIDATION_SEED");
+                }
+                setPeerSeed = true;
                 std::string seed = item.second->as<std::string>()->value();
                 PEER_KEY = SecretKey::fromStrKeySeed(seed);
-                PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
+            }
+            else if (item.first == "PEER_IS_VALIDATOR")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid PEER_IS_VALIDATOR");
+                }
+                PEER_IS_VALIDATOR = item.second->as<bool>()->value();
             }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
             {
