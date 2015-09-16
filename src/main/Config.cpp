@@ -350,6 +350,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of PREFERRED_PEERS");
+                    }
                     PREFERRED_PEERS.push_back(v->as<std::string>()->value());
                 }
             }
@@ -362,6 +366,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of PREFERRED_PEER_KEYS");
+                    }
                     PREFERRED_PEER_KEYS.push_back(v->as<std::string>()->value());
                 }
             }
@@ -381,6 +389,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of KNOWN_PEERS");
+                    }
                     KNOWN_PEERS.push_back(v->as<std::string>()->value());
                 }
             }
@@ -396,6 +408,10 @@ Config::load(std::string const& filename)
                 }
                 for (auto v : item.second->as_array()->array())
                 {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument("invalid element of COMMANDS");
+                    }
                     COMMANDS.push_back(v->as<std::string>()->value());
                 }
             }
