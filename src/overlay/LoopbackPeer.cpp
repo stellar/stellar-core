@@ -68,19 +68,6 @@ LoopbackPeer::drop()
     }
 }
 
-bool
-LoopbackPeer::recvHello(StellarMessage const& msg)
-{
-    if (!Peer::recvHello(msg))
-        return false;
-
-    if (mRole == REMOTE_CALLED_US)
-    {
-        sendHello();
-    }
-    return true;
-}
-
 static bool
 damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
 {

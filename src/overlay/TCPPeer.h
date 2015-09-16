@@ -41,7 +41,6 @@ class TCPPeer : public Peer
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);
     void recvMessage();
-    bool recvHello(StellarMessage const& msg) override;
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
     void messageSender();

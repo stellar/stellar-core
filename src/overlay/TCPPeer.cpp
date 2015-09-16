@@ -206,7 +206,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
 {
     if (error)
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -311,7 +311,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     }
     else
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -341,7 +341,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
     }
     else
     {
-        if (mState == CONNECTED || mState == GOT_HELLO)
+        if (isConnected())
         {
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
@@ -371,52 +371,6 @@ TCPPeer::recvMessage()
         CLOG(TRACE, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
         drop();
     }
-}
-
-bool
-TCPPeer::recvHello(StellarMessage const& msg)
-{
-    if (!Peer::recvHello(msg))
-        return false;
-
-    if (mRole == REMOTE_CALLED_US)
-    {
-        if (!PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
-                                        getRemoteListeningPort()))
-        {
-            PeerRecord pr;
-            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(),
-                                   mApp.getClock(), pr);
-            pr.storePeerRecord(mApp.getDatabase());
-        }
-
-        if (mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
-        {
-            sendHello();
-            sendPeers();
-        }
-        else
-        { // we can't accept anymore peer connections
-            sendPeers();
-            drop();
-        }
-    }
-    else
-    { // we called this guy
-        // only lower numFailures if we were successful connecting out to him
-        auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
-                                             getRemoteListeningPort());
-        if (!pr)
-        {
-            pr = make_optional<PeerRecord>();
-            PeerRecord::fromIPPort(getIP(), getRemoteListeningPort(),
-                                   mApp.getClock(), *pr);
-        }
-        pr->mNumFailures = 0;
-        pr->mNextAttempt = mApp.getClock().now();
-        pr->storePeerRecord(mApp.getDatabase());
-    }
-    return true;
 }
 
 void

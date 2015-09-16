@@ -286,6 +286,15 @@ PeerRecord::storePeerRecord(Database& db)
 }
 
 void
+PeerRecord::resetBackOff(VirtualClock& clock)
+{
+    mNumFailures = 0;
+    mNextAttempt = clock.now();
+    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
+                           << " backoff reset";
+}
+
+void
 PeerRecord::backOff(VirtualClock& clock)
 {
     mNumFailures++;

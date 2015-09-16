@@ -21,6 +21,12 @@ struct Hello
     string versionStr<100>;
     int listeningPort;
     NodeID peerID;
+    uint256 nonce;
+};
+
+struct Auth
+{
+    Signature signature;
 };
 
 struct PeerAddress
@@ -34,20 +40,21 @@ enum MessageType
 {
     ERROR_MSG = 0,
     HELLO = 1,
-    DONT_HAVE = 2,
+    AUTH = 2,
+    DONT_HAVE = 3,
 
-    GET_PEERS = 3, // gets a list of peers this guy knows about
-    PEERS = 4,
+    GET_PEERS = 4, // gets a list of peers this guy knows about
+    PEERS = 5,
 
-    GET_TX_SET = 5, // gets a particular txset by hash
-    TX_SET = 6,
+    GET_TX_SET = 6, // gets a particular txset by hash
+    TX_SET = 7,
 
-    TRANSACTION = 7, // pass on a tx you have heard about
+    TRANSACTION = 8, // pass on a tx you have heard about
 
     // SCP
-    GET_SCP_QUORUMSET = 8,
-    SCP_QUORUMSET = 9,
-    SCP_MESSAGE = 10
+    GET_SCP_QUORUMSET = 9,
+    SCP_QUORUMSET = 10,
+    SCP_MESSAGE = 11
 };
 
 struct DontHave
@@ -62,6 +69,8 @@ case ERROR_MSG:
     Error error;
 case HELLO:
     Hello hello;
+case AUTH:
+    Auth auth;
 case DONT_HAVE:
     DontHave dontHave;
 case GET_PEERS:

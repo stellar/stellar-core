@@ -26,8 +26,8 @@ class PeerRecord
     PeerRecord(){};
 
     PeerRecord(string const& ip, unsigned short port,
-               VirtualClock::time_point nextAttempt, uint32_t fails,
-               uint32_t rank)
+               VirtualClock::time_point nextAttempt, uint32_t fails = 0,
+               uint32_t rank = 1)
         : mIP(ip)
         , mPort(port)
         , mNextAttempt(nextAttempt)
@@ -68,6 +68,7 @@ class PeerRecord
     // insert or update record from database
     void storePeerRecord(Database& db);
 
+    void resetBackOff(VirtualClock& clock);
     void backOff(VirtualClock& clock);
 
     void toXdr(PeerAddress& ret);

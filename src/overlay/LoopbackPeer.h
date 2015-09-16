@@ -87,8 +87,6 @@ class LoopbackPeer : public Peer
     double getReorderProbability() const;
     void setReorderProbability(double d);
 
-    bool recvHello(StellarMessage const& msg);
-
     friend class LoopbackPeerConnection;
 };
 

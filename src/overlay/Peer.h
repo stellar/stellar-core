@@ -39,7 +39,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         CONNECTING = 0,
         CONNECTED = 1,
         GOT_HELLO = 2,
-        CLOSING = 3
+        GOT_AUTH = 3,
+        CLOSING = 4
     };
 
     enum PeerRole
@@ -54,6 +55,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerRole mRole;
     PeerState mState;
     NodeID mPeerID;
+    uint256 mSentNonce;
+    uint256 mReceivedNonce;
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayVersion;
@@ -61,6 +64,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
+    medida::Timer& mRecvAuthTimer;
     medida::Timer& mRecvDontHaveTimer;
     medida::Timer& mRecvGetPeersTimer;
     medida::Timer& mRecvPeersTimer;
@@ -77,7 +81,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     virtual void recvError(StellarMessage const& msg);
     // returns false if we should drop this peer
-    virtual bool recvHello(StellarMessage const& msg);
+    void noteHandshakeSuccessInPeerRecord();
+    void recvHello(StellarMessage const& msg);
+    void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);
     void recvPeers(StellarMessage const& msg);
@@ -90,6 +96,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvSCPMessage(StellarMessage const& msg);
 
     void sendHello();
+    void sendAuth();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
@@ -126,6 +133,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
         return mRole;
     }
+
+    bool isConnected() const;
+    bool isAuthenticated() const;
 
     PeerState
     getState() const

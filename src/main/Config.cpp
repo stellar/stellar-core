@@ -18,7 +18,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 
     // non configurable
     LEDGER_PROTOCOL_VERSION = 1;
-    OVERLAY_PROTOCOL_VERSION = 1;
+    OVERLAY_PROTOCOL_VERSION = 2;
     VERSION_STR = STELLAR_CORE_VERSION;
     REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
