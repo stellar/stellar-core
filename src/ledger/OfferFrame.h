@@ -6,6 +6,7 @@
 
 #include "ledger/EntryFrame.h"
 #include <functional>
+#include <unordered_map>
 
 namespace soci
 {
@@ -95,6 +96,10 @@ class OfferFrame : public EntryFrame
     static void loadOffers(AccountID const& accountID,
                            std::vector<OfferFrame::pointer>& retOffers,
                            Database& db);
+
+    // load all offers from the database (very slow)
+    static std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
+    loadAllOffers(Database& db);
 
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

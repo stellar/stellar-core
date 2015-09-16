@@ -7,6 +7,7 @@
 #include "ledger/EntryFrame.h"
 #include <functional>
 #include <map>
+#include <unordered_map>
 
 namespace soci
 {
@@ -135,6 +136,10 @@ class AccountFrame : public EntryFrame
     static void processForInflation(
         std::function<bool(InflationVotes const&)> inflationProcessor,
         int maxWinners, Database& db);
+
+    // loads all accounts from database and checks for consistency (slow!)
+    static std::unordered_map<AccountID, AccountFrame::pointer>
+    checkDB(Database& db);
 
     static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;

@@ -10,6 +10,7 @@
 #include "ledger/LedgerManager.h"
 #include "util/basen.h"
 #include "util/types.h"
+#include "lib/util/format.h"
 #include <algorithm>
 
 using namespace soci;
@@ -591,6 +592,57 @@ AccountFrame::processForInflation(
         }
         st.fetch();
     }
+}
+
+std::unordered_map<AccountID, AccountFrame::pointer>
+AccountFrame::checkDB(Database& db)
+{
+    std::unordered_map<AccountID, AccountFrame::pointer> state;
+    {
+        std::string id;
+        soci::statement st =
+            (db.getSession().prepare << "select accountid from accounts",
+             soci::into(id));
+        st.execute(true);
+        while (st.got_data())
+        {
+            state.insert(std::make_pair(PubKeyUtils::fromStrKey(id), nullptr));
+            st.fetch();
+        }
+    }
+    // load all accounts
+    for (auto& s : state)
+    {
+        s.second = AccountFrame::loadAccount(s.first, db);
+    }
+
+    {
+        std::string id;
+        int n;
+        // sanity check signers state
+        soci::statement st =
+            (db.getSession().prepare << "select count(*), accountid from "
+                                        "signers group by accountid",
+             soci::into(n), soci::into(id));
+        st.execute(true);
+        while (st.got_data())
+        {
+            AccountID aid(PubKeyUtils::fromStrKey(id));
+            auto it = state.find(aid);
+            if (it == state.end())
+            {
+                throw std::runtime_error(fmt::format(
+                    "Found extra signers in database for account {}", id));
+            }
+            else if (n != it->second->mAccountEntry.signers.size())
+            {
+                throw std::runtime_error(
+                    fmt::format("Mismatch signers for account {}", id));
+            }
+            st.fetch();
+        }
+    }
+    return state;
 }
 
 void

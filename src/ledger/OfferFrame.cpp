@@ -366,6 +366,23 @@ OfferFrame::loadOffers(AccountID const& accountID,
                });
 }
 
+std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
+OfferFrame::loadAllOffers(Database& db)
+{
+    std::unordered_map<AccountID, std::vector<OfferFrame::pointer>> retOffers;
+    std::string sql = offerColumnSelector;
+    sql += " ORDER BY sellerid";
+    auto prep = db.getPreparedStatement(sql);
+
+    auto timer = db.getSelectTimer("offer");
+    loadOffers(prep, [&retOffers](LedgerEntry const& of)
+               {
+                   auto& thisUserOffers = retOffers[of.data.offer().sellerID];
+                   thisUserOffers.emplace_back(make_shared<OfferFrame>(of));
+               });
+    return retOffers;
+}
+
 bool
 OfferFrame::exists(Database& db, LedgerKey const& key)
 {
