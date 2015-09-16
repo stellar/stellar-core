@@ -88,6 +88,9 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         }
     }
 
+    // validates db state
+    app.getLedgerManager().checkDbState();
+
     return res;
 }
 

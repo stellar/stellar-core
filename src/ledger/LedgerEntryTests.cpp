@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
+#include "ledger/LedgerManager.h"
 #include "util/Timer.h"
 #include "main/test.h"
 #include "lib/catch.hpp"
@@ -13,6 +14,7 @@
 #include "xdrpp/autocheck.h"
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerTestUtils.h"
+#include "database/Database.h"
 #include <utility>
 #include <memory>
 #include <unordered_map>
@@ -56,6 +58,8 @@ TEST_CASE("Account Entry tests", "[ledgerentry]")
             auto fromDb = AccountFrame::loadAccount(af->getID(), db);
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
+        app->getLedgerManager().checkDbState();
+
         // updating accounts
         for (auto& l : accountsMap)
         {
@@ -71,6 +75,7 @@ TEST_CASE("Account Entry tests", "[ledgerentry]")
             auto fromDb = AccountFrame::loadAccount(af->getID(), db);
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
+        app->getLedgerManager().checkDbState();
 
         // deleting accounts
         for (auto const& l : accountsMap)
@@ -82,6 +87,7 @@ TEST_CASE("Account Entry tests", "[ledgerentry]")
             REQUIRE(AccountFrame::loadAccount(af->getID(), db) == nullptr);
             REQUIRE(!AccountFrame::exists(db, af->getKey()));
         }
+        app->getLedgerManager().checkDbState();
     }
 }
 }
