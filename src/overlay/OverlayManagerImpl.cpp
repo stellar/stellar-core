@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -167,9 +168,13 @@ OverlayManagerImpl::connectToMorePeers(int max)
         }
     }
 
-    // Load any additional peers from the DB
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
-                                peers);
+    // Load additional peers from the DB if we're not in whitelist mode.
+    if (!mApp.getConfig().PREFERRED_PEERS_ONLY)
+    {
+        PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
+                                    peers);
+    }
+
     for (auto& pr : peers)
     {
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
@@ -252,14 +257,32 @@ OverlayManagerImpl::dropPeer(Peer::pointer peer)
 bool
 OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
-    if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
-        return true;
-    bool accept = isPeerPreferred(peer);
-    if (!accept)
+    if (isPeerPreferred(peer))
     {
-        mConnectionsRejected.Mark();
+        if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        {
+            return true;
+        }
+
+        for (auto victim : mPeers)
+        {
+            if (!isPeerPreferred(victim))
+            {
+                CLOG(INFO, "Overlay")
+                    << "Evicting non-preferred peer " << victim->toString()
+                    << " for preferred peer " << peer->toString();
+                dropPeer(victim);
+                return true;
+            }
+        }
     }
-    return accept;
+
+    if (!mApp.getConfig().PREFERRED_PEERS_ONLY &&
+        mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        return true;
+
+    mConnectionsRejected.Mark();
+    return false;
 }
 
 std::vector<Peer::pointer>&
@@ -276,9 +299,22 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 
     if (std::find(pp.begin(), pp.end(), pstr) != pp.end())
     {
-        CLOG(INFO, "Overlay") << "Peer " << pstr << " is preferred";
+        CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is preferred";
         return true;
     }
+
+    if (peer->isAuthenticated())
+    {
+        std::string kstr = PubKeyUtils::toStrKey(peer->getPeerID());
+        std::vector<std::string> const& pk = mApp.getConfig().PREFERRED_PEER_KEYS;
+        if (std::find(pk.begin(), pk.end(), kstr) != pp.end())
+        {
+            CLOG(DEBUG, "Overlay") << "Peer key " << kstr << " is preferred";
+            return true;
+        }
+    }
+
+    CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is not preferred";
     return false;
 }
 
