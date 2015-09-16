@@ -79,7 +79,7 @@ TEST_CASE("accept preferred peer even when strict", "[overlay]")
 
     cfg2.PREFERRED_PEERS_ONLY = true;
     cfg2.PREFERRED_PEER_KEYS.push_back(
-        PubKeyUtils::toStrKey(cfg1.PEER_KEY.getPublicKey()));
+        PubKeyUtils::toStrKey(cfg1.NODE_SEED.getPublicKey()));
 
     auto app1 = Application::create(clock, cfg1);
     auto app2 = Application::create(clock, cfg2);

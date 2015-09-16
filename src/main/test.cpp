@@ -84,12 +84,12 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
             DEFAULT_PEER_PORT + instanceNumber * 2 + 1);
 
         // We set a secret key by default as FORCE_SCP is true by
-        // default and we do need a PEER_KEY to start a new network
-        thisConfig.PEER_KEY = SecretKey::random();
+        // default and we do need a NODE_SEED to start a new network
+        thisConfig.NODE_SEED = SecretKey::random();
 
         // single node setup
         thisConfig.QUORUM_SET.validators.push_back(
-            thisConfig.PEER_KEY.getPublicKey());
+            thisConfig.NODE_SEED.getPublicKey());
         thisConfig.QUORUM_SET.threshold = 1;
 
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";

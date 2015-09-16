@@ -12,7 +12,7 @@
 
 namespace stellar
 {
-Config::Config() : PEER_KEY(SecretKey::random())
+Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
 
@@ -51,6 +51,7 @@ Config::Config() : PEER_KEY(SecretKey::random())
 
     MAX_CONCURRENT_SUBPROCESSES = 32;
     PARANOID_MODE = false;
+    NODE_IS_VALIDATOR = false;
 
     DATABASE = "sqlite3://:memory:";
 }
@@ -143,7 +144,7 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
 void
 Config::load(std::string const& filename)
 {
-    bool setPeerSeed = false;
+    bool setNodeSeed = false;
     bool setValidationSeed = false;
 
     LOG(DEBUG) << "Loading config from: " << filename;
@@ -318,10 +319,10 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid VALIDATION_SEED");
                 }
                 setValidationSeed = true;
-                if (setPeerSeed)
+                if (setNodeSeed)
                 {
                     throw std::invalid_argument(
-                        "set both PEER_SEED and deprecated VALIDATION_SEED");
+                        "set both NODE_SEED and deprecated VALIDATION_SEED");
                 }
                 else
                 {
@@ -331,40 +332,53 @@ Config::load(std::string const& filename)
                     LOG(WARNING) << "";
                     LOG(WARNING) << "Config should instead contain:";
                     LOG(WARNING) << "";
-                    LOG(WARNING) << "   PEER_SEED=<seed>";
-                    LOG(WARNING) << "   PEER_IS_VALIDATOR=true";
+                    LOG(WARNING) << "   NODE_SEED=<seed>";
+                    LOG(WARNING) << "   NODE_IS_VALIDATOR=true";
                     LOG(WARNING) << "";
                     LOG(WARNING) << "Treating deprecated VALIDATION_SEED as";
                     LOG(WARNING) << "implying the above, for the time being.";
                     LOG(WARNING) << "";
                     LOG(WARNING) << "***************************************";
                 }
-                PEER_IS_VALIDATOR = true;
+                NODE_IS_VALIDATOR = true;
                 std::string seed = item.second->as<std::string>()->value();
-                PEER_KEY = SecretKey::fromStrKeySeed(seed);
+                NODE_SEED = SecretKey::fromStrKeySeed(seed);
             }
-            else if (item.first == "PEER_SEED")
+            else if (item.first == "NODE_SEED" ||
+                     item.first == "PEER_SEED")
             {
+                if (item.first == "PEER_SEED")
+                {
+                    LOG(WARNING) << "***************************************";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Deprecated variable: PEER_SEED";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Variable renamed to NODE_SEED, so";
+                    LOG(WARNING) << "treating as such for the time being.";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "***************************************";
+                }
+
                 if (!item.second->as<std::string>())
                 {
-                    throw std::invalid_argument("invalid PEER_SEED");
+                    throw std::invalid_argument("invalid NODE_SEED");
                 }
                 if (setValidationSeed)
                 {
                     throw std::invalid_argument(
-                        "set both PEER_SEED and deprecated VALIDATION_SEED");
+                        "set both NODE_SEED and deprecated VALIDATION_SEED");
                 }
-                setPeerSeed = true;
+                setNodeSeed = true;
                 std::string seed = item.second->as<std::string>()->value();
-                PEER_KEY = SecretKey::fromStrKeySeed(seed);
+                NODE_SEED = SecretKey::fromStrKeySeed(seed);
             }
-            else if (item.first == "PEER_IS_VALIDATOR")
+            else if (item.first == "NODE_IS_VALIDATOR")
             {
                 if (!item.second->as<bool>())
                 {
-                    throw std::invalid_argument("invalid PEER_IS_VALIDATOR");
+                    throw std::invalid_argument("invalid NODE_IS_VALIDATOR");
                 }
-                PEER_IS_VALIDATOR = item.second->as<bool>()->value();
+                NODE_IS_VALIDATOR = item.second->as<bool>()->value();
             }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
             {

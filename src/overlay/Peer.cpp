@@ -77,7 +77,7 @@ Peer::sendHello()
     msg.hello().versionStr = mApp.getConfig().VERSION_STR;
     msg.hello().networkID = mApp.getNetworkID();
     msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
-    msg.hello().peerID = mApp.getConfig().PEER_KEY.getPublicKey();
+    msg.hello().peerID = mApp.getConfig().NODE_SEED.getPublicKey();
     msg.hello().nonce = mSentNonce;
     sendMessage(msg);
 }
@@ -92,7 +92,7 @@ Peer::sendAuth()
     std::vector<uint8_t> bytes;
     bytes.insert(bytes.end(), mSentNonce.begin(), mSentNonce.end());
     bytes.insert(bytes.end(), mReceivedNonce.begin(), mReceivedNonce.end());
-    msg.auth().signature = mApp.getConfig().PEER_KEY.sign(bytes);
+    msg.auth().signature = mApp.getConfig().NODE_SEED.sign(bytes);
     sendMessage(msg);
 }
 
@@ -191,7 +191,7 @@ Peer::sendMessage(StellarMessage const& msg)
 {
     CLOG(TRACE, "Overlay") << "("
                            << PubKeyUtils::toShortString(
-                               mApp.getConfig().PEER_KEY.getPublicKey())
+                               mApp.getConfig().NODE_SEED.getPublicKey())
                            << ")send: " << msg.type()
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
@@ -239,7 +239,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 {
     CLOG(TRACE, "Overlay") << "("
                            << PubKeyUtils::toShortString(
-                               mApp.getConfig().PEER_KEY.getPublicKey())
+                               mApp.getConfig().NODE_SEED.getPublicKey())
                            << ") recv: " << stellarMsg.type()
                            << " from:" << PubKeyUtils::toShortString(mPeerID);
 
@@ -456,7 +456,7 @@ void
 Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
-    if (msg.hello().peerID == mApp.getConfig().PEER_KEY.getPublicKey())
+    if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(DEBUG, "Overlay") << "connecting to self";
         drop();

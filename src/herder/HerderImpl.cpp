@@ -100,7 +100,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : mSCP(*this, app.getConfig().PEER_KEY, app.getConfig().QUORUM_SET)
+    : mSCP(*this, app.getConfig().NODE_SEED, app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mLastStateChange(app.getClock().now())
