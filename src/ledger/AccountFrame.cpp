@@ -249,28 +249,9 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     if (account.numSubEntries != 0)
     {
-        string pubKey;
-        Signer signer;
-
-        auto prep2 = db.getPreparedStatement("SELECT publickey, weight FROM "
-                                             "signers WHERE accountid =:id");
-        auto& st2 = prep2.statement();
-        st2.exchange(use(actIDStrKey));
-        st2.exchange(into(pubKey));
-        st2.exchange(into(signer.weight));
-        st2.define_and_bind();
-        {
-            auto timer = db.getSelectTimer("signer");
-            st2.execute(true);
-        }
-        while (st2.got_data())
-        {
-            signer.pubKey = PubKeyUtils::fromStrKey(pubKey);
-
-            account.signers.push_back(signer);
-
-            st2.fetch();
-        }
+        auto signers = loadSigners(db, actIDStrKey);
+        account.signers.insert(account.signers.begin(), signers.begin(),
+                               signers.end());
     }
 
     res->normalize();
@@ -278,6 +259,36 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
     assert(res->isValid());
     res->mKeyCalculated = false;
     res->putCachedEntry(db);
+    return res;
+}
+
+std::vector<Signer>
+AccountFrame::loadSigners(Database& db, std::string const& actIDStrKey)
+{
+    std::vector<Signer> res;
+    string pubKey;
+    Signer signer;
+
+    auto prep2 = db.getPreparedStatement("SELECT publickey, weight FROM "
+                                         "signers WHERE accountid =:id");
+    auto& st2 = prep2.statement();
+    st2.exchange(use(actIDStrKey));
+    st2.exchange(into(pubKey));
+    st2.exchange(into(signer.weight));
+    st2.define_and_bind();
+    {
+        auto timer = db.getSelectTimer("signer");
+        st2.execute(true);
+    }
+    while (st2.got_data())
+    {
+        signer.pubKey = PubKeyUtils::fromStrKey(pubKey);
+        res.push_back(signer);
+        st2.fetch();
+    }
+
+    std::sort(res.begin(), res.end(), &AccountFrame::signerCompare);
+
     return res;
 }
 
@@ -435,24 +446,19 @@ AccountFrame::applySigners(Database& db)
     std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
 
     // generates a diff with the signers stored in the database
-    AccountFrame::pointer startAccountFrame;
-    startAccountFrame = loadAccount(getID(), db);
-    if (!startAccountFrame)
-    {
-        throw runtime_error("could not load account!");
-    }
-    AccountEntry& startAccount = startAccountFrame->mAccountEntry;
+
+    // first, load the signers stored in the database for this account
+    auto signers = loadSigners(db, actIDStrKey);
 
     auto it_new = mAccountEntry.signers.begin();
-    auto it_old = startAccount.signers.begin();
+    auto it_old = signers.begin();
     bool changed = false;
     // iterate over both sets from smallest to biggest key
-    while (it_new != mAccountEntry.signers.end() ||
-           it_old != startAccount.signers.end())
+    while (it_new != mAccountEntry.signers.end() || it_old != signers.end())
     {
         bool updated = false, added = false;
 
-        if (it_old == startAccount.signers.end())
+        if (it_old == signers.end())
         {
             added = true;
         }
