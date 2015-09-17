@@ -184,12 +184,13 @@ void
 LedgerDelta::commit()
 {
     checkState();
-    // checks if we're not about to override changes
-    // (commit a noop should never happen)
+    // checks if we about to override changes that were made
+    // outside of this LedgerDelta
     if (!(mPreviousHeaderValue == *mHeader))
     {
         throw std::runtime_error("unexpected header state");
     }
+
     if (mOuterDelta)
     {
         mOuterDelta->mergeEntries(*this);
