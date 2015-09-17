@@ -312,7 +312,7 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
     {
         std::string kstr = PubKeyUtils::toStrKey(peer->getPeerID());
         std::vector<std::string> const& pk = mApp.getConfig().PREFERRED_PEER_KEYS;
-        if (std::find(pk.begin(), pk.end(), kstr) != pp.end())
+        if (std::find(pk.begin(), pk.end(), kstr) != pk.end())
         {
             CLOG(DEBUG, "Overlay") << "Peer key " << kstr << " is preferred";
             return true;
