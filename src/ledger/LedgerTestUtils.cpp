@@ -35,7 +35,6 @@ clampHigh(T high, T& v)
     }
 }
 
-
 static void
 stripControlCharacters(std::string& s)
 {
@@ -89,6 +88,14 @@ makeValid(AccountEntry& a)
 void
 makeValid(TrustLineEntry& tl)
 {
+    if (tl.balance < 0)
+    {
+        tl.balance = -tl.balance;
+    }
+    if (tl.limit < 0)
+    {
+        tl.limit = -tl.limit;
+    }
     tl.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(tl.asset.alphaNum4().assetCode, "USD");
     clampLow<int64_t>(0, tl.balance);

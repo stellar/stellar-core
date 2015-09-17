@@ -11,6 +11,12 @@ namespace stellar
 namespace LedgerTestUtils
 {
 
+// note: entries generated are valid in the sense that they are sane by
+// themselves
+// it does NOT mean that it makes sense relative to other entries:
+// for example the numsubentries of a related account is not updated when
+// generating a 'valid' trust line
+
 void makeValid(AccountEntry& a);
 void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);
