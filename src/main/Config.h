@@ -105,8 +105,6 @@ class Config : public std::enable_shared_from_this<Config>
 
     // overlay config
     unsigned short PEER_PORT;
-    SecretKey PEER_KEY;
-    PublicKey PEER_PUBLIC_KEY;
     unsigned TARGET_PEER_CONNECTIONS;
     unsigned MAX_PEER_CONNECTIONS;
     // Peers we will always try to stay connected to
@@ -128,7 +126,8 @@ class Config : public std::enable_shared_from_this<Config>
     bool PARANOID_MODE;
 
     // SCP config
-    SecretKey VALIDATION_KEY;
+    SecretKey NODE_SEED;
+    bool NODE_IS_VALIDATOR;
     stellar::SCPQuorumSet QUORUM_SET;
 
     // History config

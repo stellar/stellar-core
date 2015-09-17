@@ -28,6 +28,7 @@ class SCP
 
   public:
     SCP(SCPDriver& driver, SecretKey const& secretKey,
+        bool isValidator,
         SCPQuorumSet const& qSetLocal);
 
     SCPDriver&
@@ -79,6 +80,9 @@ class SCP
 
     // Retrieves the local secret key as specified at construction
     SecretKey const& getSecretKey();
+
+    // Returns whether the local node is a validator.
+    bool isValidator();
 
     // Helpers for monitoring and reporting the internal memory-usage of the SCP
     // protocol to system metric reporters.

@@ -12,41 +12,46 @@
 
 namespace stellar
 {
-Config::Config() : PEER_KEY(SecretKey::random())
+Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
 
     // non configurable
+    FORCE_SCP = false;
+    REBUILD_DB = false;
     LEDGER_PROTOCOL_VERSION = 1;
     OVERLAY_PROTOCOL_VERSION = 2;
     VERSION_STR = STELLAR_CORE_VERSION;
-    REBUILD_DB = false;
     DESIRED_BASE_RESERVE = 10000000;
-    FORCE_SCP = false;
 
     // configurable
-    FAILURE_SAFETY = 1;
-    UNSAFE_QUORUM = false;
-    DESIRED_BASE_FEE = 10;
-    DESIRED_MAX_TX_PER_LEDGER = 500;
-    PEER_PORT = DEFAULT_PEER_PORT;
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
-    TARGET_PEER_CONNECTIONS = 20;
-    MAX_PEER_CONNECTIONS = 50;
-    PREFERRED_PEERS_ONLY = false;
-    MAX_CONCURRENT_SUBPROCESSES = 32;
+    FAILURE_SAFETY = 1;
+    UNSAFE_QUORUM = false;
+
     LOG_FILE_PATH = "stellar-core.log";
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
+
+    DESIRED_BASE_FEE = 10;
+    DESIRED_MAX_TX_PER_LEDGER = 500;
+
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
-    PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
+
+    PEER_PORT = DEFAULT_PEER_PORT;
+    TARGET_PEER_CONNECTIONS = 20;
+    MAX_PEER_CONNECTIONS = 50;
+    PREFERRED_PEERS_ONLY = false;
+
+    MAX_CONCURRENT_SUBPROCESSES = 32;
     PARANOID_MODE = false;
+    NODE_IS_VALIDATOR = false;
 
     DATABASE = "sqlite3://:memory:";
 }
@@ -139,6 +144,9 @@ loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
 void
 Config::load(std::string const& filename)
 {
+    bool setNodeSeed = false;
+    bool setValidationSeed = false;
+
     LOG(DEBUG) << "Loading config from: " << filename;
     try
     {
@@ -310,18 +318,67 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid VALIDATION_SEED");
                 }
+                setValidationSeed = true;
+                if (setNodeSeed)
+                {
+                    throw std::invalid_argument(
+                        "set both NODE_SEED and deprecated VALIDATION_SEED");
+                }
+                else
+                {
+                    LOG(WARNING) << "***************************************";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Deprecated variable: VALIDATION_SEED";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Config should instead contain:";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "   NODE_SEED=<seed>";
+                    LOG(WARNING) << "   NODE_IS_VALIDATOR=true";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Treating deprecated VALIDATION_SEED as";
+                    LOG(WARNING) << "implying the above, for the time being.";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "***************************************";
+                }
+                NODE_IS_VALIDATOR = true;
                 std::string seed = item.second->as<std::string>()->value();
-                VALIDATION_KEY = SecretKey::fromStrKeySeed(seed);
+                NODE_SEED = SecretKey::fromStrKeySeed(seed);
             }
-            else if (item.first == "PEER_SEED")
+            else if (item.first == "NODE_SEED" ||
+                     item.first == "PEER_SEED")
             {
+                if (item.first == "PEER_SEED")
+                {
+                    LOG(WARNING) << "***************************************";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Deprecated variable: PEER_SEED";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "Variable renamed to NODE_SEED, so";
+                    LOG(WARNING) << "treating as such for the time being.";
+                    LOG(WARNING) << "";
+                    LOG(WARNING) << "***************************************";
+                }
+
                 if (!item.second->as<std::string>())
                 {
-                    throw std::invalid_argument("invalid PEER_SEED");
+                    throw std::invalid_argument("invalid NODE_SEED");
                 }
+                if (setValidationSeed)
+                {
+                    throw std::invalid_argument(
+                        "set both NODE_SEED and deprecated VALIDATION_SEED");
+                }
+                setNodeSeed = true;
                 std::string seed = item.second->as<std::string>()->value();
-                PEER_KEY = SecretKey::fromStrKeySeed(seed);
-                PEER_PUBLIC_KEY = PEER_KEY.getPublicKey();
+                NODE_SEED = SecretKey::fromStrKeySeed(seed);
+            }
+            else if (item.first == "NODE_IS_VALIDATOR")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument("invalid NODE_IS_VALIDATOR");
+                }
+                NODE_IS_VALIDATOR = item.second->as<bool>()->value();
             }
             else if (item.first == "TARGET_PEER_CONNECTIONS")
             {

@@ -21,6 +21,7 @@ class LocalNode
   protected:
     const NodeID mNodeID;
     const SecretKey mSecretKey;
+    const bool mIsValidator;
     SCPQuorumSet mQSet;
     Hash mQSetHash;
 
@@ -31,7 +32,8 @@ class LocalNode
     SCP* mSCP;
 
   public:
-    LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet, SCP* scp);
+    LocalNode(SecretKey const& secretKey, bool isValidator,
+              SCPQuorumSet const& qSet, SCP* scp);
 
     NodeID const& getNodeID();
 
@@ -40,6 +42,7 @@ class LocalNode
     SCPQuorumSet const& getQuorumSet();
     Hash const& getQuorumSetHash();
     SecretKey const& getSecretKey();
+    bool isValidator();
 
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(NodeID const& nodeID);

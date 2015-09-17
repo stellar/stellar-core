@@ -35,7 +35,7 @@ class TestSCP : public SCPDriver
     SCP mSCP;
 
     TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
-        : mSCP(*this, secretKey, qSetLocal)
+        : mSCP(*this, secretKey, true, qSetLocal)
     {
         mPriorityLookup = [&](NodeID const& n)
         {

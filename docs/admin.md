@@ -83,10 +83,12 @@ messages will look like they came from you.
 Generate a key pair like this:
 `stellar-core --genseed`
 Place the seed in your config:
-`VALIDATION_SEED="SBI3CZU7XZEWVXU7OZLW5MMUQAP334JFOPXSLTPOH43IRTEQ2QYXU5RG"`
+`NODE_SEED="SBI3CZU7XZEWVXU7OZLW5MMUQAP334JFOPXSLTPOH43IRTEQ2QYXU5RG"`
+and set the following value in your config:
+`NODE_IS_VALIDATOR=true`
 Advertise the public key so people can add it to their `QUORUM_SET` in their config.
-If you don't include a `VALIDATION_SEED`, you will still watch SCP and see all 
-the data in the network but will not send validation messages. 
+If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
+watch SCP and see all the data in the network but will not send validation messages.
 
 ## Database
 Stellar-core stores the state of the ledger in a SQL database. This DB should 
@@ -135,7 +137,7 @@ archives.
 
 Put the network’s `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
 Optionally: If you’re going to be a validating node, generate key pair and 
-set `VALIDATION_SEED`.
+set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
 Optionally: Create an external database to use—e.g., by using 
 PostgreSQL’s `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
@@ -144,7 +146,8 @@ Run `stellar-core`.
 
 ## Starting a new network
 
-Generate a keypair for each node, and set `VALIDATION_SEED` on each node of your new network.
+Generate a keypair for each node, and set `NODE_SEED` and `NODE_IS_VALIDATOR=true`
+on each node of your new network.
 Set the `QUORUM_SET` and `KNOWN_PEERS` of each node to refer to one another.
 Decide on a history archive and add a HISTORY config entry for it on each node.
 Optionally: Create databases for each to use—e.g., by using PostgreSQL’s `createdb` command.

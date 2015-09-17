@@ -17,7 +17,7 @@
 #include "simulation/LoadGenerator.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \
-    const Hash v##N##VSeed = sha256("SEED_VALIDATION_SEED_" #N);               \
+    const Hash v##N##VSeed = sha256("NODE_SEED_" #N);               \
     const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed);        \
     const PublicKey v##N##NodeID = v##N##SecretKey.getPublicKey();
 
