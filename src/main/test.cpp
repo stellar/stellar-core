@@ -86,6 +86,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // We set a secret key by default as FORCE_SCP is true by
         // default and we do need a NODE_SEED to start a new network
         thisConfig.NODE_SEED = SecretKey::random();
+        thisConfig.NODE_IS_VALIDATOR = true;
 
         // single node setup
         thisConfig.QUORUM_SET.validators.push_back(

@@ -15,10 +15,11 @@ namespace stellar
 using xdr::operator==;
 using xdr::operator<;
 
-LocalNode::LocalNode(SecretKey const& secretKey, SCPQuorumSet const& qSet,
-                     SCP* scp)
+LocalNode::LocalNode(SecretKey const& secretKey, bool isValidator,
+                     SCPQuorumSet const& qSet, SCP* scp)
     : mNodeID(secretKey.getPublicKey())
     , mSecretKey(secretKey)
+    , mIsValidator(isValidator)
     , mQSet(qSet)
     , mQSetHash(sha256(xdr::xdr_to_opaque(qSet)))
     , mSCP(scp)
@@ -279,5 +280,11 @@ NodeID const&
 LocalNode::getNodeID()
 {
     return mNodeID;
+}
+
+bool
+LocalNode::isValidator()
+{
+    return mIsValidator;
 }
 }

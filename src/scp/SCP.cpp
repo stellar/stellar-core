@@ -19,10 +19,11 @@ namespace stellar
 using xdr::operator==;
 
 SCP::SCP(SCPDriver& driver, SecretKey const& secretKey,
+         bool isValidator,
          SCPQuorumSet const& qSetLocal)
     : mDriver(driver)
 {
-    mLocalNode = std::make_shared<LocalNode>(secretKey, qSetLocal, this);
+    mLocalNode = std::make_shared<LocalNode>(secretKey, isValidator, qSetLocal, this);
 }
 
 SCP::EnvelopeState
@@ -42,14 +43,14 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope)
 bool
 SCP::abandonBallot(uint64 slotIndex)
 {
-    dbgAssert(!getSecretKey().isZero());
+    dbgAssert(isValidator());
     return getSlot(slotIndex)->abandonBallot();
 }
 
 bool
 SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 {
-    dbgAssert(!getSecretKey().isZero());
+    dbgAssert(isValidator());
     return getSlot(slotIndex)->nominate(value, previousValue, false);
 }
 
@@ -118,6 +119,12 @@ SecretKey const&
 SCP::getSecretKey()
 {
     return mLocalNode->getSecretKey();
+}
+
+bool
+SCP::isValidator()
+{
+    return mLocalNode->isValidator();
 }
 
 size_t

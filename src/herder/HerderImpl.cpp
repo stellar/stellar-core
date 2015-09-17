@@ -100,7 +100,9 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : mSCP(*this, app.getConfig().NODE_SEED, app.getConfig().QUORUM_SET)
+    : mSCP(*this, app.getConfig().NODE_SEED,
+           app.getConfig().NODE_IS_VALIDATOR,
+           app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mLastStateChange(app.getClock().now())
@@ -159,7 +161,7 @@ void
 HerderImpl::bootstrap()
 {
     CLOG(INFO, "Herder") << "Force joining SCP with local state";
-    assert(!mSCP.getSecretKey().isZero());
+    assert(mSCP.isValidator());
     assert(mApp.getConfig().FORCE_SCP);
 
     // setup a sufficient state that we can participate in consensus
@@ -786,7 +788,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     // this should not happen: if we're just watching consensus
     // don't send out SCP messages
-    if (mSCP.getSecretKey().isZero())
+    if (!mSCP.isValidator())
     {
         return;
     }
@@ -1020,7 +1022,7 @@ HerderImpl::ledgerClosed()
 
     // If we are not a validating node and just watching SCP we don't call
     // triggerNextLedger. Likewise if we are not in synced state.
-    if (mSCP.getSecretKey().isZero())
+    if (!mSCP.isValidator())
     {
         CLOG(DEBUG, "Herder")
             << "Non-validating node, not triggering ledger-close.";
