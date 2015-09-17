@@ -267,28 +267,24 @@ LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
 uint32_t
 LedgerManagerImpl::getLedgerNum() const
 {
-    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.ledgerSeq;
 }
 
 uint64_t
 LedgerManagerImpl::getCloseTime() const
 {
-    assert(mCurrentLedger);
     return mCurrentLedger->mHeader.scpValue.closeTime;
 }
 
 LedgerHeader const&
 LedgerManagerImpl::getCurrentLedgerHeader() const
 {
-    assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
 LedgerHeader&
 LedgerManagerImpl::getCurrentLedgerHeader()
 {
-    assert(mCurrentLedger);
     return mCurrentLedger->mHeader;
 }
 
@@ -387,7 +383,6 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                 << mSyncingLedgers.back().mLedgerSeq << " but network closed "
                 << ledgerData.mLedgerSeq;
             CLOG(WARNING, "Ledger") << "this round of catchup will fail.";
-            assert(!mSyncingLedgers.empty());
         }
         break;
 
