@@ -20,15 +20,18 @@ LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     , mCurrentHeader(outerDelta.getHeader())
     , mPreviousHeaderValue(outerDelta.getHeader())
     , mDb(outerDelta.mDb)
+    , mUpdateLastModified(outerDelta.mUpdateLastModified)
 {
 }
 
-LedgerDelta::LedgerDelta(LedgerHeader& header, Database& db)
+LedgerDelta::LedgerDelta(LedgerHeader& header, Database& db,
+                         bool updateLastModified)
     : mOuterDelta(nullptr)
     , mHeader(&header)
     , mCurrentHeader(header)
     , mPreviousHeaderValue(header)
     , mDb(db)
+    , mUpdateLastModified(updateLastModified)
 {
 }
 
@@ -181,12 +184,13 @@ void
 LedgerDelta::commit()
 {
     checkState();
-    // checks if we're not about to override changes
-    // (commit a noop should never happen)
+    // checks if we about to override changes that were made
+    // outside of this LedgerDelta
     if (!(mPreviousHeaderValue == *mHeader))
     {
         throw std::runtime_error("unexpected header state");
     }
+
     if (mOuterDelta)
     {
         mOuterDelta->mergeEntries(*this);
@@ -272,6 +276,12 @@ LedgerDelta::getDeadEntries() const
         dead.push_back(k);
     }
     return dead;
+}
+
+bool
+LedgerDelta::updateLastModified() const
+{
+    return mUpdateLastModified;
 }
 
 void

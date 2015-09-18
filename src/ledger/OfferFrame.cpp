@@ -264,7 +264,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
 
     if (selling.type() == ASSET_TYPE_NATIVE)
     {
-        sql += " WHERE sellingassettype = 0";
+        sql += " WHERE sellingassettype = 0 AND sellingissuer IS NULL";
     }
     else
     {
@@ -291,7 +291,7 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
 
     if (buying.type() == ASSET_TYPE_NATIVE)
     {
-        sql += " AND buyingassettype = 0";
+        sql += " AND buyingassettype = 0 AND buyingissuer IS NULL";
     }
     else
     {

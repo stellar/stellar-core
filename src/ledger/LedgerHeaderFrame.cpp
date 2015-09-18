@@ -12,6 +12,7 @@
 #include "database/Database.h"
 #include "util/types.h"
 #include <util/basen.h>
+#include "util/format.h"
 
 namespace stellar
 {
@@ -166,11 +167,14 @@ LedgerHeaderFrame::loadBySequence(uint32_t seq, Database& db,
     if (sess.got_data())
     {
         lhf = decodeFromData(headerEncoded);
+        uint32_t loadedSeq = lhf->mHeader.ledgerSeq;
 
-        if (lhf->mHeader.ledgerSeq != seq)
+        if (loadedSeq != seq)
         {
-            // wrong sequence number
-            lhf.reset();
+            throw std::runtime_error(
+                fmt::format("Wrong sequence number in ledger header database: "
+                            "loaded ledger {} contains {}",
+                            seq, loadedSeq));
         }
     }
 

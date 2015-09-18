@@ -33,7 +33,7 @@ const char* TrustFrame::kSQLCreateStatement1 =
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
-    "CREATE INDEX accountlines ON trustlines (accountid);";
+    "CREATE INDEX issuerslines ON trustlines (issuer);";
 
 TrustFrame::TrustFrame()
     : EntryFrame(TRUSTLINE)
@@ -185,7 +185,7 @@ TrustFrame::exists(Database& db, LedgerKey const& key)
     auto timer = db.getSelectTimer("trust-exists");
     auto prep = db.getPreparedStatement(
         "SELECT EXISTS (SELECT NULL FROM trustlines "
-        "WHERE accountid=:v1 and issuer=:v2 and assetcode=:v3)");
+        "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(issuerStrKey));
@@ -423,8 +423,7 @@ TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
     int balance = 0;
 
     auto prep = db.getPreparedStatement(
-        "SELECT balance FROM trustlines WHERE issuer=:id "
-        "AND balance>0 LIMIT 1");
+        "SELECT balance FROM trustlines WHERE issuer=:id LIMIT 1");
     auto& st = prep.statement();
     st.exchange(use(accStrKey));
     st.exchange(into(balance));

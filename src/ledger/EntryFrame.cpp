@@ -81,6 +81,7 @@ EntryFrame::getLastModified()
 void
 EntryFrame::touch(uint32 ledgerSeq)
 {
+    assert(ledgerSeq != 0);
     getLastModified() = ledgerSeq;
 }
 
@@ -88,8 +89,7 @@ void
 EntryFrame::touch(LedgerDelta const& delta)
 {
     uint32 ledgerSeq = delta.getHeader().ledgerSeq;
-    // if we're tracking a valid header, mark the entry as modified by it
-    if (ledgerSeq != 0)
+    if (delta.updateLastModified())
     {
         touch(ledgerSeq);
     }

@@ -294,7 +294,7 @@ Bucket::apply(Database& db) const
     {
         LedgerHeader
             lh; // buckets, by definition are independent from the header
-        LedgerDelta delta(lh, db);
+        LedgerDelta delta(lh, db, false);
         if (entry.type() == LIVEENTRY)
         {
             EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());

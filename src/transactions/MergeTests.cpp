@@ -70,28 +70,29 @@ TEST_CASE("merge", "[tx][merge]")
 
     SequenceNumber gw_seq = getAccountSeqNum(gateway, app) + 1;
 
-    Asset usdCur = makeAsset(gateway, "USD");
-    applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
-    applyCreditPaymentTx(app, gateway, a1, usdCur, gw_seq++, trustLineBalance);
-
-    SECTION("account issued credits")
-    {
-        applyAccountMerge(app, gateway, a1, gw_seq++,
-                          ACCOUNT_MERGE_CREDIT_HELD);
-    }
-
-    SECTION("account has balance")
-    {
-        applyAccountMerge(app, a1, b1, a1_seq++, ACCOUNT_MERGE_HAS_CREDIT);
-    }
-
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
 
-    SECTION("success")
+    SECTION("With sub entries")
     {
-        SECTION("with offers")
+        Asset usdCur = makeAsset(gateway, "USD");
+        applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
+
+        SECTION("account issued credits to somebody else")
         {
+            applyAccountMerge(app, gateway, a1, gw_seq++,
+                              ACCOUNT_MERGE_CREDIT_HELD);
+        }
+
+        SECTION("account has trust line")
+        {
+            applyAccountMerge(app, a1, b1, a1_seq++,
+                              ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        }
+        SECTION("account has offer")
+        {
+            applyCreditPaymentTx(app, gateway, a1, usdCur, gw_seq++,
+                                 trustLineBalance);
             Asset xlmCur;
             xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
 
@@ -101,12 +102,19 @@ TEST_CASE("merge", "[tx][merge]")
                 applyCreateOffer(app, delta, 0, a1, xlmCur, usdCur, somePrice,
                                  100 * assetMultiplier, a1_seq++);
             }
+            // empty out balance
+            applyCreditPaymentTx(app, a1, gateway, usdCur, a1_seq++,
+                                 trustLineBalance);
+            // delete the trust line
+            applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 0);
+
+            applyAccountMerge(app, a1, b1, a1_seq++,
+                              ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         }
+    }
 
-        // empty out balance
-        applyCreditPaymentTx(app, a1, gateway, usdCur, a1_seq++,
-                             trustLineBalance);
-
+    SECTION("success")
+    {
         SECTION("success - basic")
         {
             applyAccountMerge(app, a1, b1, a1_seq++);
