@@ -49,6 +49,15 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         return false;
     }
 
+    auto const& sourceAccount = mSourceAccount->getAccount();
+    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
+    {
+        metrics.NewMeter({"op-merge", "failure", "hassubentries"}, "operation")
+            .Mark();
+        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        return false;
+    }
+
     if (TrustFrame::hasIssued(getSourceID(), db))
     {
         metrics.NewMeter({"op-merge", "failure", "credit-held"}, "operation")
@@ -57,34 +66,7 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         return false;
     }
 
-    std::vector<TrustFrame::pointer> lines;
-    TrustFrame::loadLines(getSourceID(), lines, db);
-    for (auto& l : lines)
-    {
-        if (l->getBalance() > 0)
-        {
-            metrics.NewMeter({"op-merge", "failure", "has-credit"}, "operation")
-                .Mark();
-            innerResult().code(ACCOUNT_MERGE_HAS_CREDIT);
-            return false;
-        }
-    }
-
-    // delete offers
-    std::vector<OfferFrame::pointer> offers;
-    OfferFrame::loadOffers(getSourceID(), offers, db);
-    for (auto& offer : offers)
-    {
-        offer->storeDelete(delta, db);
-    }
-
-    // delete trust lines
-    for (auto& l : lines)
-    {
-        l->storeDelete(delta, db);
-    }
-
-    int64 sourceBalance = mSourceAccount->getAccount().balance;
+    int64 sourceBalance = sourceAccount.balance;
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
