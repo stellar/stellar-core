@@ -13,6 +13,13 @@ struct Error
     string msg<100>;
 };
 
+struct AuthCert
+{
+    Curve25519Public pubkey;
+    hyper expiration;
+    Signature sig;
+};
+
 struct Hello
 {
     uint32 ledgerVersion;
@@ -21,6 +28,7 @@ struct Hello
     string versionStr<100>;
     int listeningPort;
     NodeID peerID;
+    AuthCert cert;
     uint256 nonce;
 };
 

@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "Peer.h"
+#include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerRecord.h"
 #include "overlay/ItemFetcher.h"
@@ -34,6 +35,7 @@ class OverlayManagerImpl : public OverlayManager
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
     PeerDoor mDoor;
+    PeerAuth mAuth;
     bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
@@ -78,6 +80,8 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(int max);
     Peer::pointer getRandomPeer() override;
+
+    PeerAuth& getPeerAuth() override;
 
     void start() override;
     void shutdown() override;
