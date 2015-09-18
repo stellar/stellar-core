@@ -49,7 +49,7 @@ OverlayManager::create(Application& app)
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
-    , mDoor(make_shared<PeerDoor>(mApp))
+    , mDoor(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
           {"overlay", "message", "receive"}, "message"))
@@ -76,7 +76,7 @@ OverlayManagerImpl::~OverlayManagerImpl()
 void
 OverlayManagerImpl::start()
 {
-    mDoor->start();
+    mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
     if (!mApp.getConfig().RUN_STANDALONE)
@@ -383,10 +383,7 @@ OverlayManagerImpl::shutdown()
         return;
     }
     mShuttingDown = true;
-    if (mDoor)
-    {
-        mDoor->close();
-    }
+    mDoor.close();
     mFloodGate.shutdown();
     auto peersToStop = mPeers;
     for (auto& p : peersToStop)

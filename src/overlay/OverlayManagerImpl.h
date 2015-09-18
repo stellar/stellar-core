@@ -33,7 +33,7 @@ class OverlayManagerImpl : public OverlayManager
     Application& mApp;
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
-    PeerDoor::pointer mDoor;
+    PeerDoor mDoor;
     bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
