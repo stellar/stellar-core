@@ -33,9 +33,6 @@ const char* TrustFrame::kSQLCreateStatement1 =
     ");";
 
 const char* TrustFrame::kSQLCreateStatement2 =
-    "CREATE INDEX accountlines ON trustlines (accountid);";
-
-const char* TrustFrame::kSQLCreateStatement3 =
     "CREATE INDEX issuerslines ON trustlines (issuer);";
 
 TrustFrame::TrustFrame()
@@ -540,6 +537,5 @@ TrustFrame::dropAll(Database& db)
     db.getSession() << "DROP TABLE IF EXISTS trustlines;";
     db.getSession() << kSQLCreateStatement1;
     db.getSession() << kSQLCreateStatement2;
-    db.getSession() << kSQLCreateStatement3;
 }
 }
