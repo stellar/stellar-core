@@ -425,6 +425,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
         (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
     root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     root["info"]["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
+    root["info"]["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
 
     retStr = root.toStyledString();
 }
