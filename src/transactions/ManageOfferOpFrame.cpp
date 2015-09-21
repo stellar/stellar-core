@@ -39,6 +39,12 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
 
+    if (mManageOffer.amount == 0)
+    {
+        // don't bother loading trust lines as we're deleting the offer
+        return true;
+    }
+
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
         mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
@@ -141,62 +147,69 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     int64_t maxSheepSend = mSellSheepOffer->getAmount();
 
     int64_t maxAmountOfSheepCanSell;
-    if (sheep.type() == ASSET_TYPE_NATIVE)
-    {
-        maxAmountOfSheepCanSell =
-            mSourceAccount->getBalanceAboveReserve(ledgerManager);
-    }
-    else
-    {
-        maxAmountOfSheepCanSell = mSheepLineA->getBalance();
-    }
-
-    // the maximum is defined by how much wheat it can receive
-    int64_t maxWheatCanSell;
-    if (wheat.type() == ASSET_TYPE_NATIVE)
-    {
-        maxWheatCanSell = INT64_MAX;
-    }
-    else
-    {
-        maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
-        if (maxWheatCanSell == 0)
-        {
-            metrics.NewMeter({"op-manage-offer", "invalid", "line-full"},
-                             "operation").Mark();
-            innerResult().code(MANAGE_OFFER_LINE_FULL);
-            return false;
-        }
-    }
-
-    Price const& sheepPrice = mSellSheepOffer->getPrice();
-
-    {
-        int64_t maxSheepBasedOnWheat;
-        if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
-                       sheepPrice.n))
-        {
-            maxSheepBasedOnWheat = INT64_MAX;
-        }
-
-        if (maxAmountOfSheepCanSell > maxSheepBasedOnWheat)
-        {
-            maxAmountOfSheepCanSell = maxSheepBasedOnWheat;
-        }
-    }
-
-    // amount of sheep for sale is the lesser of amount we can sell and amount
-    // put in the offer
-    if (maxAmountOfSheepCanSell < maxSheepSend)
-    {
-        maxSheepSend = maxAmountOfSheepCanSell;
-    }
 
     innerResult().code(MANAGE_OFFER_SUCCESS);
 
+    soci::transaction sqlTx(db.getSession());
+    LedgerDelta tempDelta(delta);
+
+    if (mManageOffer.amount == 0)
     {
-        soci::transaction sqlTx(db.getSession());
-        LedgerDelta tempDelta(delta);
+        mSellSheepOffer->getOffer().amount = 0;
+    }
+    else
+    {
+        if (sheep.type() == ASSET_TYPE_NATIVE)
+        {
+            maxAmountOfSheepCanSell =
+                mSourceAccount->getBalanceAboveReserve(ledgerManager);
+        }
+        else
+        {
+            maxAmountOfSheepCanSell = mSheepLineA->getBalance();
+        }
+
+        // the maximum is defined by how much wheat it can receive
+        int64_t maxWheatCanSell;
+        if (wheat.type() == ASSET_TYPE_NATIVE)
+        {
+            maxWheatCanSell = INT64_MAX;
+        }
+        else
+        {
+            maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
+            if (maxWheatCanSell == 0)
+            {
+                metrics.NewMeter({"op-manage-offer", "invalid", "line-full"},
+                                 "operation").Mark();
+                innerResult().code(MANAGE_OFFER_LINE_FULL);
+                return false;
+            }
+        }
+
+        Price const& sheepPrice = mSellSheepOffer->getPrice();
+
+        {
+            int64_t maxSheepBasedOnWheat;
+            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
+                           sheepPrice.n))
+            {
+                maxSheepBasedOnWheat = INT64_MAX;
+            }
+
+            if (maxAmountOfSheepCanSell > maxSheepBasedOnWheat)
+            {
+                maxAmountOfSheepCanSell = maxSheepBasedOnWheat;
+            }
+        }
+
+        // amount of sheep for sale is the lesser of amount we can sell and
+        // amount
+        // put in the offer
+        if (maxAmountOfSheepCanSell < maxSheepSend)
+        {
+            maxSheepSend = maxAmountOfSheepCanSell;
+        }
 
         int64_t sheepSent, wheatReceived;
 
@@ -227,20 +240,16 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
                 return OfferExchange::eKeep;
             });
 
-        bool offerIsValid = false;
-
         switch (r)
         {
         case OfferExchange::eOK:
         case OfferExchange::ePartial:
-            offerIsValid = true;
             break;
         case OfferExchange::eFilterStop:
             if (innerResult().code() != MANAGE_OFFER_SUCCESS)
             {
                 return false;
             }
-            offerIsValid = true;
             break;
         }
 
@@ -295,50 +304,50 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         // recomputes the amount of sheep for sale
         mSellSheepOffer->getOffer().amount = maxSheepSend - sheepSent;
+    }
 
-        if (offerIsValid && mSellSheepOffer->getOffer().amount > 0)
-        { // we still have sheep to sell so leave an offer
+    if (mSellSheepOffer->getOffer().amount > 0)
+    { // we still have sheep to sell so leave an offer
 
-            if (creatingNewOffer)
+        if (creatingNewOffer)
+        {
+            // make sure we don't allow us to add offers when we don't have
+            // the minbalance
+            if (!mSourceAccount->addNumEntries(1, ledgerManager))
             {
-                // make sure we don't allow us to add offers when we don't have
-                // the minbalance
-                if (!mSourceAccount->addNumEntries(1, ledgerManager))
-                {
-                    metrics.NewMeter(
-                                {"op-manage-offer", "invalid", "low reserve"},
-                                "operation").Mark();
-                    innerResult().code(MANAGE_OFFER_LOW_RESERVE);
-                    return false;
-                }
-                mSellSheepOffer->mEntry.data.offer().offerID =
-                    tempDelta.getHeaderFrame().generateID();
-                innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
-                mSellSheepOffer->storeAdd(tempDelta, db);
-                mSourceAccount->storeChange(tempDelta, db);
+                metrics.NewMeter({"op-manage-offer", "invalid", "low reserve"},
+                                 "operation").Mark();
+                innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+                return false;
             }
-            else
-            {
-                innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
-                mSellSheepOffer->storeChange(tempDelta, db);
-            }
-            innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
+            mSellSheepOffer->mEntry.data.offer().offerID =
+                tempDelta.getHeaderFrame().generateID();
+            innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
+            mSellSheepOffer->storeAdd(tempDelta, db);
+            mSourceAccount->storeChange(tempDelta, db);
         }
         else
         {
-            innerResult().success().offer.effect(MANAGE_OFFER_DELETED);
-
-            if (!creatingNewOffer)
-            {
-                mSellSheepOffer->storeDelete(tempDelta, db);
-                mSourceAccount->addNumEntries(-1, ledgerManager);
-                mSourceAccount->storeChange(tempDelta, db);
-            }
+            innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
+            mSellSheepOffer->storeChange(tempDelta, db);
         }
-
-        sqlTx.commit();
-        tempDelta.commit();
+        innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
     }
+    else
+    {
+        innerResult().success().offer.effect(MANAGE_OFFER_DELETED);
+
+        if (!creatingNewOffer)
+        {
+            mSellSheepOffer->storeDelete(tempDelta, db);
+            mSourceAccount->addNumEntries(-1, ledgerManager);
+            mSourceAccount->storeChange(tempDelta, db);
+        }
+    }
+
+    sqlTx.commit();
+    tempDelta.commit();
+
     metrics.NewMeter({"op-create-offer", "success", "apply"}, "operation")
         .Mark();
     return true;
