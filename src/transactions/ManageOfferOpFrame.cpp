@@ -262,6 +262,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (wheatReceived > 0)
         {
+            // it's OK to use mSourceAccount, mWheatLineA and mSheepLineA
+            // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
                 mSourceAccount->getAccount().balance += wheatReceived;
@@ -269,21 +271,13 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             }
             else
             {
-                TrustFrame::pointer wheatLineSigningAccount;
-                wheatLineSigningAccount =
-                    TrustFrame::loadTrustLine(getSourceID(), wheat, db);
-                if (!wheatLineSigningAccount)
-                {
-                    throw std::runtime_error("invalid database state: must "
-                                             "have matching trust line");
-                }
-                if (!wheatLineSigningAccount->addBalance(wheatReceived))
+                if (!mWheatLineA->addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
 
-                wheatLineSigningAccount->storeChange(delta, db);
+                mWheatLineA->storeChange(delta, db);
             }
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
