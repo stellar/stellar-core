@@ -209,7 +209,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(TRACE, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
+        CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
         drop();
         return;
     }

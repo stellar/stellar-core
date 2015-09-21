@@ -131,13 +131,13 @@ TCPPeer::idleTimerExpired(asio::error_code const& error)
         auto now = mApp.getClock().now();
         if (now - mLastRead > std::chrono::seconds(IO_TIMEOUT_SECONDS))
         {
-            CLOG(INFO, "Overlay") << "read timeout";
+            CLOG(WARNING, "Overlay") << "read timeout";
             mTimeoutRead.Mark();
             drop();
         }
         else if (now - mLastWrite > std::chrono::seconds(IO_TIMEOUT_SECONDS))
         {
-            CLOG(DEBUG, "Overlay") << "write timeout";
+            CLOG(WARNING, "Overlay") << "write timeout";
             mTimeoutWrite.Mark();
             drop();
         }
@@ -368,7 +368,7 @@ TCPPeer::recvMessage()
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(TRACE, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
+        CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
         drop();
     }
 }
