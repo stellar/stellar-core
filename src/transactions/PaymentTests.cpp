@@ -499,6 +499,75 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 170 * assetMultiplier);
         }
+        SECTION("missing trust line")
+        {
+            // modify C's trustlines to invalidate C's offer
+            // * C's offer should be deleted
+            // sell 100 IDR for 200 USD
+            // * B's offer 25 IDR by 50 USD
+
+            auto checkBalances = [&]()
+            {
+                std::vector<Asset> path;
+                path.push_back(usdCur);
+
+                auto res = applyPathPaymentTx(
+                    app, a1, b1, usdCur, 200 * assetMultiplier, idrCur,
+                    25 * assetMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
+
+                auto& multi = res.success();
+
+                REQUIRE(multi.offers.size() == 2);
+
+                TrustFrame::pointer line;
+
+                // C1
+                // offer was deleted
+                REQUIRE(multi.offers[0].offerID == offerC1);
+                REQUIRE(multi.offers[0].amountSold == 0);
+                REQUIRE(multi.offers[0].amountBought == 0);
+                REQUIRE(!loadOffer(c1, offerC1, app, false));
+
+                // B1
+                auto const& b1Res = multi.offers[1];
+                REQUIRE(b1Res.offerID == offerB1);
+                offer = loadOffer(b1, offerB1, app);
+                OfferEntry const& oe = offer->getOffer();
+                REQUIRE(b1Res.sellerID == b1.getPublicKey());
+                checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
+                checkAmounts(oe.amount, 75 * assetMultiplier);
+                line = loadTrustLine(b1, idrCur, app);
+                // As B was the sole participant in the exchange, the IDR
+                // balance should not have changed
+                checkAmounts(line->getBalance(), trustLineStartingBalance);
+                line = loadTrustLine(b1, usdCur, app);
+                // but 25 USD cost 50 USD to send
+                checkAmounts(line->getBalance(), 50 * assetMultiplier);
+
+                // A1
+                line = loadTrustLine(a1, idrCur, app);
+                checkAmounts(line->getBalance(), 0);
+                line = loadTrustLine(a1, usdCur, app);
+                checkAmounts(line->getBalance(),
+                             trustLineStartingBalance - 50 * assetMultiplier);
+            };
+
+            SECTION("deleted selling line")
+            {
+                applyCreditPaymentTx(app, c1, gateway, idrCur, c1Seq++,
+                                     trustLineStartingBalance);
+
+                applyChangeTrust(app, c1, gateway, c1Seq++, "IDR", 0);
+
+                checkBalances();
+            }
+
+            SECTION("deleted buying line")
+            {
+                applyChangeTrust(app, c1, gateway, c1Seq++, "USD", 0);
+                checkBalances();
+            }
+        }
     }
 }
 
