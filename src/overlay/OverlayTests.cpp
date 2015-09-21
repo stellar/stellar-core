@@ -108,3 +108,21 @@ TEST_CASE("reject peers beyond max", "[overlay]")
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
 }
+
+TEST_CASE("reject peers with differing overlay versions", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg2.OVERLAY_PROTOCOL_VERSION = 0xdeadbeef;
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+}

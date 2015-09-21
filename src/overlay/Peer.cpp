@@ -465,7 +465,8 @@ Peer::recvHello(StellarMessage const& msg)
 
     if (msg.hello().networkID != mApp.getNetworkID())
     {
-        CLOG(INFO, "Overlay") << "connection from misconfigured peer";
+        CLOG(ERROR, "Overlay")
+            << "connection from peer with different NetworkID";
         CLOG(DEBUG, "Overlay")
             << "NetworkID = " << hexAbbrev(msg.hello().networkID)
             << " expected: " << hexAbbrev(mApp.getNetworkID());
@@ -475,6 +476,18 @@ Peer::recvHello(StellarMessage const& msg)
 
     mRemoteOverlayVersion = msg.hello().overlayVersion;
     mRemoteVersion = msg.hello().versionStr;
+
+    if (mRemoteOverlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+    {
+        CLOG(ERROR, "Overlay")
+            << "connection from peer with different overlay protocol version";
+        CLOG(DEBUG, "Overlay")
+            << "Protocol = " << mRemoteOverlayVersion
+            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+        drop();
+        return;
+    }
+
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)
     {
