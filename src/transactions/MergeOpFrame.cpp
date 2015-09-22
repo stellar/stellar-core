@@ -49,6 +49,14 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         return false;
     }
 
+    if (mSourceAccount->isImmutableAuth())
+    {
+        metrics.NewMeter({"op-merge", "failure", "static-auth"}, "operation")
+            .Mark();
+        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
+        return false;
+    }
+
     auto const& sourceAccount = mSourceAccount->getAccount();
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {

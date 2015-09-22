@@ -73,6 +73,15 @@ TEST_CASE("merge", "[tx][merge]")
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
 
+    SECTION("Account has static auth flag set")
+    {
+        uint32 flags = AUTH_IMMUTABLE_FLAG;
+        applySetOptions(app, a1, a1_seq++, nullptr, &flags, nullptr, nullptr,
+                        nullptr, nullptr);
+
+        applyAccountMerge(app, a1, b1, a1_seq++, ACCOUNT_MERGE_IMMUTABLE_SET);
+    }
+
     SECTION("With sub entries")
     {
         Asset usdCur = makeAsset(gateway, "USD");
