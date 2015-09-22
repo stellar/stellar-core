@@ -39,9 +39,21 @@ struct Auth
     int unused;
 };
 
+enum IPAddrType
+{
+    IPv4 = 0,
+    IPv6 = 1
+};
+
 struct PeerAddress
 {
-    opaque ip[4];
+    union switch (IPAddrType type)
+    {
+    case IPv4:
+        opaque ipv4[4];
+    case IPv6:
+        opaque ipv6[16];
+    } ip;
     uint32 port;
     uint32 numFailures;
 };

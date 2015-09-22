@@ -40,7 +40,7 @@ PeerRecord::toXdr(PeerAddress& ret) const
 {
     ret.port = mPort;
     ret.numFailures = mNumFailures;
-    ipToXdr(mIP, ret.ip);
+    ipToXdr(mIP, ret.ip.ipv4());
 }
 
 bool

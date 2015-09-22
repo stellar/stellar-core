@@ -718,9 +718,15 @@ Peer::recvPeers(StellarMessage const& msg)
                                      << peer.port;
             continue;
         }
+        if (peer.ip.type() == IPv6)
+        {
+            CLOG(WARNING, "Overlay") << "ignoring received IPv6 address"
+                                     << " (not yet supported)";
+            continue;
+        }
         stringstream ip;
-        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
-           << (int)peer.ip[2] << "." << (int)peer.ip[3];
+        ip << (int)peer.ip.ipv4()[0] << "." << (int)peer.ip.ipv4()[1] << "."
+           << (int)peer.ip.ipv4()[2] << "." << (int)peer.ip.ipv4()[3];
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
                       mApp.getClock().now(), peer.numFailures};
 
