@@ -20,6 +20,7 @@
 
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "medida/meter.h"
 
 #include "xdrpp/marshal.h"
 
@@ -60,6 +61,41 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewTimer({"overlay", "recv", "scp-qset"}))
     , mRecvSCPMessageTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
+
+    , mSendErrorMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "error"},
+                                  "message"))
+    , mSendHelloMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "hello"},
+                                  "message"))
+    , mSendAuthMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "auth"},
+                                  "message"))
+    , mSendDontHaveMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "dont-have"},
+                                  "message"))
+    , mSendGetPeersMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "get-peers"},
+                                  "message"))
+    , mSendPeersMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "peers"},
+                                  "message"))
+    , mSendGetTxSetMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "get-txset"},
+                                  "message"))
+    , mSendTxSetMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "txset"},
+                                  "message"))
+    , mSendTransactionMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "transaction"},
+                                  "message"))
+    , mSendGetSCPQuorumSetMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "get-scp-qset"},
+                                  "message"))
+    , mSendSCPQuorumSetMeter(
+        app.getMetrics().NewMeter({"overlay", "send", "scp-qset"},
+                                  "message"))
+
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -69,7 +105,6 @@ void
 Peer::sendHello()
 {
     CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
-
     StellarMessage msg;
     msg.type(HELLO);
     msg.hello().ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
@@ -81,6 +116,7 @@ Peer::sendHello()
     msg.hello().cert = mApp.getOverlayManager().getPeerAuth().getAuthCert();
     msg.hello().nonce = mSendNonce;
     sendMessage(msg);
+    mSendHelloMeter.Mark();
 }
 
 void
@@ -89,6 +125,7 @@ Peer::sendAuth()
     StellarMessage msg;
     msg.type(AUTH);
     sendMessage(msg);
+    mSendAuthMeter.Mark();
 }
 
 std::string
@@ -126,6 +163,7 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
     msg.dontHave().type = type;
 
     sendMessage(msg);
+    mSendDontHaveMeter.Mark();
 }
 
 void
@@ -136,6 +174,7 @@ Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
     msg.qSet() = *qSet;
 
     sendMessage(msg);
+    mSendSCPQuorumSetMeter.Mark();
 }
 void
 Peer::sendGetTxSet(uint256 const& setID)
@@ -145,6 +184,7 @@ Peer::sendGetTxSet(uint256 const& setID)
     newMsg.txSetHash() = setID;
 
     sendMessage(newMsg);
+    mSendGetTxSetMeter.Mark();
 }
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
@@ -156,6 +196,7 @@ Peer::sendGetQuorumSet(uint256 const& setID)
     newMsg.qSetHash() = setID;
 
     sendMessage(newMsg);
+    mSendGetSCPQuorumSetMeter.Mark();
 }
 
 void
@@ -179,6 +220,7 @@ Peer::sendPeers()
         newMsg.peers().push_back(pa);
     }
     sendMessage(newMsg);
+    mSendPeersMeter.Mark();
 }
 
 void
@@ -187,7 +229,7 @@ Peer::sendMessage(StellarMessage const& msg)
     CLOG(TRACE, "Overlay") << "("
                            << PubKeyUtils::toShortString(
                                mApp.getConfig().NODE_SEED.getPublicKey())
-                           << ")send: " << msg.type()
+                           << ") send: " << msg.type()
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
 
     if (msg.type() == HELLO)

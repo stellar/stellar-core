@@ -14,6 +14,7 @@
 namespace medida
 {
 class Timer;
+class Meter;
 }
 
 namespace stellar
@@ -79,6 +80,18 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Timer& mRecvGetSCPQuorumSetTimer;
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
+
+    medida::Meter& mSendErrorMeter;
+    medida::Meter& mSendHelloMeter;
+    medida::Meter& mSendAuthMeter;
+    medida::Meter& mSendDontHaveMeter;
+    medida::Meter& mSendGetPeersMeter;
+    medida::Meter& mSendPeersMeter;
+    medida::Meter& mSendGetTxSetMeter;
+    medida::Meter& mSendTxSetMeter;
+    medida::Meter& mSendTransactionMeter;
+    medida::Meter& mSendGetSCPQuorumSetMeter;
+    medida::Meter& mSendSCPQuorumSetMeter;
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
