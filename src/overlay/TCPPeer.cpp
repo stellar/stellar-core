@@ -15,6 +15,7 @@
 #include "main/Config.h"
 
 #define IO_TIMEOUT_SECONDS 30
+#define MAX_UNAUTH_MESSAGE_SIZE 0x1000
 #define MAX_MESSAGE_SIZE 0x1000000
 
 using namespace soci;
@@ -270,12 +271,15 @@ TCPPeer::getIncomingMsgLength()
     length |= mIncomingHeader[2];
     length <<= 8;
     length |= mIncomingHeader[3];
-    if (length < 0 || length > MAX_MESSAGE_SIZE)
+    if (length < 0 ||
+        (!isAuthenticated() && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
+        length > MAX_MESSAGE_SIZE)
     {
         mErrorRead.Mark();
         CLOG(ERROR, "Overlay")
-            << "TCP::Peer::getIncomingMsgLength message size unacceptable: "
-            << length;
+            << "TCP: message size unacceptable: "
+            << length
+            << (isAuthenticated() ? "" : " while not authenticated");
         drop();
     }
     return (length);
@@ -316,7 +320,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(DEBUG, "Overlay")
+            CLOG(ERROR, "Overlay")
                 << "readHeaderHandler error: " << error.message() << " :"
                 << toString();
         }
@@ -362,7 +366,7 @@ TCPPeer::recvMessage()
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
         mMessageRead.Mark();
-        if (isAuthenticated())
+        if (mState >= GOT_HELLO)
         {
             AuthenticatedMessage am;
             xdr::xdr_argpack_archive(g, am);

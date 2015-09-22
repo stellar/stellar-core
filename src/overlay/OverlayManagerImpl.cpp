@@ -29,7 +29,7 @@ B now has IP and listening port of A, sends HELLO(CertB,NonceB) back
 A sends AUTH(signed([0],keyAB))
 B verifies and either:
     sends AUTH(signed([0],keyBA)) back or
-    sends list of other peers to connect to and disconnects, if it's full
+    disconnects, if it's full, optionally sending a list of other peers to try first
 
 keyAB and keyBA are per-connection HMAC keys derived from non-interactive
 ECDH on random curve25519 keys conveyed in CertA and CertB (certs signed by

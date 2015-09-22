@@ -39,7 +39,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
         CONNECTING = 0,
         CONNECTED = 1,
         GOT_HELLO = 2,
-        CLOSING = 3
+        GOT_AUTH = 3,
+        CLOSING = 4
     };
 
     enum PeerRole

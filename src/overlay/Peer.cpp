@@ -192,7 +192,8 @@ Peer::sendMessage(StellarMessage const& msg)
 
     if (msg.type() == HELLO)
     {
-        assert(mRole == WE_CALLED_REMOTE || isAuthenticated());
+        assert((mState == CONNECTED && mRole == WE_CALLED_REMOTE) ||
+               (mState == GOT_HELLO && mRole == REMOTE_CALLED_US));
         xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
         this->sendMessage(std::move(xdrBytes));
     }
@@ -215,7 +216,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
     {
-        if (isAuthenticated())
+        if (mState >= GOT_HELLO)
         {
             AuthenticatedMessage am;
             xdr::xdr_from_msg(msg, am);
@@ -245,7 +246,7 @@ Peer::isConnected() const
 bool
 Peer::isAuthenticated() const
 {
-    return mState == GOT_HELLO;
+    return mState == GOT_AUTH;
 }
 
 bool
@@ -287,7 +288,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            << " from:" << PubKeyUtils::toShortString(mPeerID);
 
     if (!isAuthenticated() &&
-        (stellarMsg.type() != HELLO))
+        (stellarMsg.type() != HELLO) &&
+        (stellarMsg.type() != AUTH))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before completed handshake";
@@ -295,7 +297,9 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    assert(isAuthenticated() || stellarMsg.type() == HELLO);
+    assert(isAuthenticated() ||
+           stellarMsg.type() == HELLO ||
+           stellarMsg.type() == AUTH);
 
     switch (stellarMsg.type())
     {
@@ -513,7 +517,7 @@ Peer::recvHello(StellarMessage const& msg)
 
     if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
-        CLOG(DEBUG, "Overlay") << "connecting to self";
+        CLOG(WARNING, "Overlay") << "connecting to self";
         drop();
         return;
     }
@@ -529,7 +533,7 @@ Peer::recvHello(StellarMessage const& msg)
 
     if (msg.hello().networkID != mApp.getNetworkID())
     {
-        CLOG(ERROR, "Overlay")
+        CLOG(WARNING, "Overlay")
             << "connection from peer with different NetworkID";
         CLOG(DEBUG, "Overlay")
             << "NetworkID = " << hexAbbrev(msg.hello().networkID)
@@ -541,7 +545,7 @@ Peer::recvHello(StellarMessage const& msg)
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)
     {
-        CLOG(DEBUG, "Overlay") << "bad port in recvHello";
+        CLOG(WARNING, "Overlay") << "bad port in recvHello";
         drop();
         return;
     }
@@ -575,7 +579,7 @@ Peer::recvHello(StellarMessage const& msg)
 void
 Peer::recvAuth(StellarMessage const& msg)
 {
-    if (!isAuthenticated())
+    if (isAuthenticated())
     {
         CLOG(ERROR, "Overlay") << "Unexpected AUTH message";
         drop();
@@ -583,22 +587,24 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     noteHandshakeSuccessInPeerRecord();
+    mState = GOT_AUTH;
+
+    if (!mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
+    {
+        CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
+        if (mRole == REMOTE_CALLED_US)
+        {
+            sendPeers();
+        }
+        drop();
+        return;
+    }
 
     if (mRole == REMOTE_CALLED_US)
     {
-        if (mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
-        {
-            sendAuth();
-            sendPeers();
-        }
-        else
-        {
-            CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
-            sendPeers();
-            drop();
-        }
+        sendAuth();
+        sendPeers();
     }
-
 }
 
 void
