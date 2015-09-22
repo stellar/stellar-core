@@ -22,6 +22,9 @@ bool isString32Valid(std::string const& str);
 // returns true if the Asset value is well formed
 bool isAssetValid(Asset const& cur);
 
+// returns the issuer for the given asset
+AccountID getIssuer(Asset const& asset);
+
 // returns true if the currencies are the same
 bool compareAsset(Asset const& first, Asset const& second);
 

@@ -330,14 +330,7 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
     res->mIsIssuer = true;
     TrustLineEntry& tl = res->mEntry.data.trustLine();
 
-    if (issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        tl.accountID = issuer.alphaNum4().issuer;
-    }
-    else if (issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        tl.accountID = issuer.alphaNum12().issuer;
-    }
+    tl.accountID = getIssuer(issuer);
 
     tl.flags |= AUTHORIZED_FLAG;
     tl.balance = INT64_MAX;
@@ -350,18 +343,17 @@ TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
                           Database& db)
 {
-    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        if (accountID == asset.alphaNum4().issuer)
-            return createIssuerFrame(asset);
-    }
-    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        if (accountID == asset.alphaNum12().issuer)
-            return createIssuerFrame(asset);
+        throw std::runtime_error("XLM TrustLine?");
     }
     else
-        throw std::runtime_error("XLM TrustLine?");
+    {
+        if (accountID == getIssuer(asset))
+        {
+            return createIssuerFrame(asset);
+        }
+    }
 
     LedgerKey key;
     key.type(TRUSTLINE);

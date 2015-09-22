@@ -111,6 +111,14 @@ isAssetValid(Asset const& cur)
     return false;
 }
 
+AccountID
+getIssuer(Asset const& asset)
+{
+    return (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4
+                                 ? asset.alphaNum4().issuer
+                                 : asset.alphaNum12().issuer);
+}
+
 bool
 compareAsset(Asset const& first, Asset const& second)
 {
