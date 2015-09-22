@@ -685,22 +685,18 @@ Peer::recvAuth(StellarMessage const& msg)
     noteHandshakeSuccessInPeerRecord();
     mState = GOT_AUTH;
 
-    if (!mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
-    {
-        CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
-        if (mRole == REMOTE_CALLED_US)
-        {
-            sendPeers();
-        }
-        mDropInRecvAuthRejectMeter.Mark();
-        drop();
-        return;
-    }
-
     if (mRole == REMOTE_CALLED_US)
     {
         sendAuth();
         sendPeers();
+    }
+
+    if (!mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
+    {
+        CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
+        mDropInRecvAuthRejectMeter.Mark();
+        drop();
+        return;
     }
 }
 
