@@ -16,22 +16,54 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-TEST_CASE("change trust", "[tx][changeTrust]")
+TEST_CASE("change trust", "[tx][changetrust]")
 {
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
+    Database& db = app.getDatabase();
 
     app.start();
 
     // set up world
     SecretKey root = getRoot(app.getNetworkID());
-    SecretKey a1 = getAccount("A");
+    SecretKey gateway = getAccount("gw");
 
     SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
+    SECTION("basic tests")
+    {
+        const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
+
+        applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance2);
+        SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
+        Asset idrCur = makeAsset(gateway, "IDR");
+
+        // create a trustline with a limit of 100
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 100);
+
+        // fill it to 90
+        applyCreditPaymentTx(app, gateway, root, idrCur, gateway_seq++, 90);
+
+        // can't lower the limit below balance
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 89,
+                         CHANGE_TRUST_INVALID_LIMIT);
+        // can't delete if there is a balance
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0,
+                         CHANGE_TRUST_INVALID_LIMIT);
+
+        // lower the limit at the balance
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 90);
+
+        // clear the balance
+        applyCreditPaymentTx(app, root, gateway, idrCur, rootSeq++, 90);
+        // delete the trust line
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0);
+        REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idrCur, db)));
+    }
     SECTION("issuer does not exist")
     {
         applyChangeTrust(app, root, a1, rootSeq, "USD", 100,
