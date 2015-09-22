@@ -78,12 +78,6 @@ TEST_CASE("merge", "[tx][merge]")
         Asset usdCur = makeAsset(gateway, "USD");
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
-        SECTION("account issued credits to somebody else")
-        {
-            applyAccountMerge(app, gateway, a1, gw_seq++,
-                              ACCOUNT_MERGE_CREDIT_HELD);
-        }
-
         SECTION("account has trust line")
         {
             applyAccountMerge(app, a1, b1, a1_seq++,

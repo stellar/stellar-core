@@ -58,14 +58,6 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         return false;
     }
 
-    if (TrustFrame::hasIssued(getSourceID(), db))
-    {
-        metrics.NewMeter({"op-merge", "failure", "credit-held"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
-        return false;
-    }
-
     int64 sourceBalance = sourceAccount.balance;
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
