@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/EntryFrame.h"
+#include "ledger/AccountFrame.h"
 #include <functional>
 #include <unordered_map>
 
@@ -68,6 +69,11 @@ class TrustFrame : public EntryFrame
     // returns the specified trustline or a generated one for issuers
     static pointer loadTrustLine(AccountID const& accountID, Asset const& asset,
                                  Database& db);
+
+    // overload that also returns the issuer
+    static std::pair<TrustFrame::pointer, AccountFrame::pointer>
+    loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
+                        Database& db);
 
     // note: only returns trust lines stored in the database
     static void loadLines(AccountID const& accountID,

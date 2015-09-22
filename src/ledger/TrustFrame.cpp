@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/TrustFrame.h"
-#include "ledger/AccountFrame.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
@@ -405,6 +404,17 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
         putCachedEntry(key, nullptr, db);
     }
     return retLine;
+}
+
+std::pair<TrustFrame::pointer, AccountFrame::pointer>
+TrustFrame::loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
+                                Database& db)
+{
+    std::pair<TrustFrame::pointer, AccountFrame::pointer> res;
+
+    res.first = loadTrustLine(accountID, asset, db);
+    res.second = AccountFrame::loadAccount(getIssuer(asset), db);
+    return res;
 }
 
 bool

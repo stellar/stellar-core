@@ -24,10 +24,13 @@ bool
 ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
                             LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    TrustFrame::pointer trustLine;
     Database& db = ledgerManager.getDatabase();
 
-    trustLine = TrustFrame::loadTrustLine(getSourceID(), mChangeTrust.line, db);
+    auto tlI =
+        TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line, db);
+
+    auto& trustLine = tlI.first;
+    auto& issuer = tlI.second;
 
     if (trustLine)
     { // we are modifying an old trustline
@@ -61,14 +64,6 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
     }
     else
     { // new trust line
-        AccountFrame::pointer issuer;
-        if (mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-            issuer = AccountFrame::loadAccount(
-                mChangeTrust.line.alphaNum4().issuer, db);
-        else if (mChangeTrust.line.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-            issuer = AccountFrame::loadAccount(
-                mChangeTrust.line.alphaNum12().issuer, db);
-
         if (!issuer)
         {
             metrics.NewMeter({"op-change-trust", "failure", "no-issuer"},
