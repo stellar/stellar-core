@@ -47,7 +47,15 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
-        mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
+        auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), sheep, db);
+        mSheepLineA = tlI.first;
+        if (!tlI.second)
+        {
+            metrics.NewMeter({"op-manage-offer", "invalid", "sell-no-issuer"},
+                             "operation").Mark();
+            innerResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
+            return false;
+        }
         if (!mSheepLineA)
         { // we don't have what we are trying to sell
             metrics.NewMeter({"op-manage-offer", "invalid", "sell-no-trust"},
@@ -76,7 +84,15 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
+        auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), wheat, db);
+        mWheatLineA = tlI.first;
+        if (!tlI.second)
+        {
+            metrics.NewMeter({"op-manage-offer", "invalid", "buy-no-issuer"},
+                             "operation").Mark();
+            innerResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
+            return false;
+        }
         if (!mWheatLineA)
         { // we can't hold what we are trying to buy
             metrics.NewMeter({"op-manage-offer", "invalid", "buy-no-trust"},
@@ -84,7 +100,6 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
             return false;
         }
-
         if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we are trying to buy
             metrics.NewMeter(

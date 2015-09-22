@@ -178,6 +178,12 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
                                    100, a1_seq++, MANAGE_OFFER_SELL_NO_TRUST);
 
+        // no issuer for selling
+        SecretKey gateway2 = getAccount("other gate");
+        Asset idrCur2 = makeAsset(gateway2, "IDR");
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur2, usdCur, oneone,
+                                   100, a1_seq++, MANAGE_OFFER_SELL_NO_ISSUER);
+
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
@@ -191,6 +197,11 @@ TEST_CASE("create offer", "[tx][offers]")
         // missing USD trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
                                    100, a1_seq++, MANAGE_OFFER_BUY_NO_TRUST);
+
+        // no issuer for buying
+        Asset usdCur2 = makeAsset(gateway2, "USD");
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur2, oneone,
+                                   100, a1_seq++, MANAGE_OFFER_BUY_NO_ISSUER);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 

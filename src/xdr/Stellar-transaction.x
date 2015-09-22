@@ -430,14 +430,16 @@ enum ManageOfferResultCode
     MANAGE_OFFER_BUY_NO_TRUST = -3,  // no trust line for what we're buying
     MANAGE_OFFER_SELL_NOT_AUTHORIZED = -4, // not authorized to sell
     MANAGE_OFFER_BUY_NOT_AUTHORIZED = -5,  // not authorized to buy
-    MANAGE_OFFER_LINE_FULL = -6,   // can't receive more of what it's buying
-    MANAGE_OFFER_UNDERFUNDED = -7, // doesn't hold what it's trying to sell
-    MANAGE_OFFER_CROSS_SELF = -8,  // would cross an offer from the same user
+    MANAGE_OFFER_LINE_FULL = -6,      // can't receive more of what it's buying
+    MANAGE_OFFER_UNDERFUNDED = -7,    // doesn't hold what it's trying to sell
+    MANAGE_OFFER_CROSS_SELF = -8,     // would cross an offer from the same user
+    MANAGE_OFFER_SELL_NO_ISSUER = -9, // no issuer for what we're selling
+    MANAGE_OFFER_BUY_NO_ISSUER = -10, // no issuer for what we're buying
 
     // update errors
-    MANAGE_OFFER_NOT_FOUND = -9, // offerID does not match an existing offer
+    MANAGE_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
 
-    MANAGE_OFFER_LOW_RESERVE = -10 // not enough funds to create a new Offer
+    MANAGE_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
 };
 
 enum ManageOfferEffect
