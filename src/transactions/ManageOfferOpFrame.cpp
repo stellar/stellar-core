@@ -50,9 +50,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         mSheepLineA = TrustFrame::loadTrustLine(getSourceID(), sheep, db);
         if (!mSheepLineA)
         { // we don't have what we are trying to sell
-            metrics.NewMeter(
-                        {"op-manage-offer", "invalid", "underfunded-absent"},
-                        "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "sell-no-trust"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
             return false;
         }
@@ -66,8 +65,9 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         }
         if (!mSheepLineA->isAuthorized())
         {
-            metrics.NewMeter({"op-manage-offer", "invalid", "not-authorized"},
-                             "operation").Mark();
+            metrics.NewMeter(
+                        {"op-manage-offer", "invalid", "sell-not-authorized"},
+                        "operation").Mark();
             // we are not authorized to sell
             innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
             return false;
@@ -79,7 +79,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         mWheatLineA = TrustFrame::loadTrustLine(getSourceID(), wheat, db);
         if (!mWheatLineA)
         { // we can't hold what we are trying to buy
-            metrics.NewMeter({"op-manage-offer", "invalid", "no-trust"},
+            metrics.NewMeter({"op-manage-offer", "invalid", "buy-no-trust"},
                              "operation").Mark();
             innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
             return false;
@@ -87,8 +87,9 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
         if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we are trying to buy
-            metrics.NewMeter({"op-manage-offer", "invalid", "not-authorized"},
-                             "operation").Mark();
+            metrics.NewMeter(
+                        {"op-manage-offer", "invalid", "buy-not-authorized"},
+                        "operation").Mark();
             innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
             return false;
         }
