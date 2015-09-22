@@ -249,19 +249,37 @@ TEST_CASE("payment", "[tx][payment]")
 
             applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", 100);
 
-            // first, send 40 from a1 to b1
-            applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
+            SECTION("positive")
+            {
+                // first, send 40 from a1 to b1
+                applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
 
-            line = loadTrustLine(a1, idrCur, app);
-            REQUIRE(line->getBalance() == 60);
-            line = loadTrustLine(b1, idrCur, app);
-            REQUIRE(line->getBalance() == 40);
+                line = loadTrustLine(a1, idrCur, app);
+                REQUIRE(line->getBalance() == 60);
+                line = loadTrustLine(b1, idrCur, app);
+                REQUIRE(line->getBalance() == 40);
 
-            // then, send back to the gateway
-            // the gateway does not have a trust line as it's the issuer
-            applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
-            line = loadTrustLine(b1, idrCur, app);
-            REQUIRE(line->getBalance() == 0);
+                // then, send back to the gateway
+                // the gateway does not have a trust line as it's the issuer
+                applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
+                line = loadTrustLine(b1, idrCur, app);
+                REQUIRE(line->getBalance() == 0);
+            }
+            SECTION("missing issuer")
+            {
+                applyAccountMerge(app, gateway, root, gateway_seq++);
+                // cannot send to an account that is not the issuer
+                applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40,
+                                     PAYMENT_NO_ISSUER);
+                // should be able to send back credits to issuer
+                applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, 75);
+                // cannot change the limit
+                applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 25,
+                                 CHANGE_TRUST_NO_ISSUER);
+                applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, 25);
+                // and should be able to delete the trust line too
+                applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 0);
+            }
         }
     }
     SECTION("issuer large amounts")
@@ -462,6 +480,21 @@ TEST_CASE("payment", "[tx][payment]")
                         125 * assetMultiplier, a1Seq++, PATH_PAYMENT_NO_ISSUER,
                         &path);
                     REQUIRE(res.noIssuer() == btcCur);
+                }
+            }
+            SECTION("dest is issuer")
+            {
+                // single currency payment already covered elsewhere
+                // only one negative test:
+                SECTION("cannot take offers on the way")
+                {
+                    // gateway issued idrCur
+                    applyAccountMerge(app, gateway, root, gateway_seq++);
+
+                    auto res = applyPathPaymentTx(
+                        app, a1, gateway, usdCur, 250 * assetMultiplier, idrCur,
+                        125 * assetMultiplier, a1Seq++,
+                        PATH_PAYMENT_NO_DESTINATION);
                 }
             }
         }

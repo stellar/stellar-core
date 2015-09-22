@@ -32,19 +32,7 @@ bool
 PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
                             LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    AccountFrame::pointer destination;
-
     Database& db = ledgerManager.getDatabase();
-
-    destination = AccountFrame::loadAccount(mPathPayment.destination, db);
-
-    if (!destination)
-    {
-        metrics.NewMeter({"op-path-payment", "failure", "no-destination"},
-                         "operation").Mark();
-        innerResult().code(PATH_PAYMENT_NO_DESTINATION);
-        return false;
-    }
 
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
@@ -59,6 +47,32 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     fullPath.emplace_back(mPathPayment.sendAsset);
     fullPath.insert(fullPath.end(), mPathPayment.path.begin(),
                     mPathPayment.path.end());
+
+    bool bypassIssuerCheck = false;
+
+    // if the payment doesn't involve intermediate accounts
+    // and the destination is the issuer we don't bother
+    // checking if the destination account even exist
+    // so that it's always possible to send credits back to its issuer
+    bypassIssuerCheck = (curB.type() != ASSET_TYPE_NATIVE) &&
+                        (fullPath.size() == 1) &&
+                        (mPathPayment.sendAsset == mPathPayment.destAsset) &&
+                        (getIssuer(curB) == mPathPayment.destination);
+
+    AccountFrame::pointer destination;
+
+    if (!bypassIssuerCheck)
+    {
+        destination = AccountFrame::loadAccount(mPathPayment.destination, db);
+
+        if (!destination)
+        {
+            metrics.NewMeter({"op-path-payment", "failure", "no-destination"},
+                             "operation").Mark();
+            innerResult().code(PATH_PAYMENT_NO_DESTINATION);
+            return false;
+        }
+    }
 
     // update last balance in the chain
     if (curB.type() == ASSET_TYPE_NATIVE)
@@ -222,10 +236,13 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     else
     {
         TrustFrame::pointer sourceLineFrame;
+        if (bypassIssuerCheck)
         {
-            metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
-                             "operation").Mark();
-            throw std::runtime_error("sendCredit Issuer not found");
+            sourceLineFrame =
+                TrustFrame::loadTrustLine(getSourceID(), curB, db);
+        }
+        else
+        {
             auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db);
 
             if (!tlI.second)
