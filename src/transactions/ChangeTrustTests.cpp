@@ -66,7 +66,24 @@ TEST_CASE("change trust", "[tx][changetrust]")
     }
     SECTION("issuer does not exist")
     {
-        applyChangeTrust(app, root, a1, rootSeq, "USD", 100,
-                         CHANGE_TRUST_NO_ISSUER);
+        SECTION("new trust line")
+        {
+            applyChangeTrust(app, root, gateway, rootSeq, "USD", 100,
+                             CHANGE_TRUST_NO_ISSUER);
+        }
+        SECTION("edit existing")
+        {
+            const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
+
+            applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance2);
+            SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
+            applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 100);
+            // Merge gateway back into root (the trustline still exists)
+            applyAccountMerge(app, gateway, root, gateway_seq++);
+
+            applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 99,
+                             CHANGE_TRUST_NO_ISSUER);
+        }
     }
 }

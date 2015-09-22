@@ -55,6 +55,13 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
         }
         else
         {
+            if (!issuer)
+            {
+                metrics.NewMeter({"op-change-trust", "failure", "no-issuer"},
+                                 "operation").Mark();
+                innerResult().code(CHANGE_TRUST_NO_ISSUER);
+                return false;
+            }
             trustLine->storeChange(delta, db);
         }
         metrics.NewMeter({"op-change-trust", "success", "apply"}, "operation")
