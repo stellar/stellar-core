@@ -84,8 +84,6 @@ class TrustFrame : public EntryFrame
     static std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
     loadAllLines(Database& db);
 
-    static bool hasIssued(AccountID const& issuerID, Database& db);
-
     int64_t getBalance() const;
     bool addBalance(int64_t delta);
 

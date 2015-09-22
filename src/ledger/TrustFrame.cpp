@@ -31,9 +31,6 @@ const char* TrustFrame::kSQLCreateStatement1 =
     "PRIMARY KEY  (accountid, issuer, assetcode)"
     ");";
 
-const char* TrustFrame::kSQLCreateStatement2 =
-    "CREATE INDEX issuerslines ON trustlines (issuer);";
-
 TrustFrame::TrustFrame()
     : EntryFrame(TRUSTLINE)
     , mTrustLine(mEntry.data.trustLine())
@@ -417,31 +414,6 @@ TrustFrame::loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
     return res;
 }
 
-bool
-TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
-{
-    std::string accStrKey;
-    accStrKey = PubKeyUtils::toStrKey(issuerID);
-    int balance = 0;
-
-    auto prep = db.getPreparedStatement(
-        "SELECT balance FROM trustlines WHERE issuer=:id LIMIT 1");
-    auto& st = prep.statement();
-    st.exchange(use(accStrKey));
-    st.exchange(into(balance));
-    st.define_and_bind();
-
-    {
-        auto timer = db.getSelectTimer("trust");
-        st.execute(true);
-    }
-    if (st.got_data())
-    {
-        return true;
-    }
-    return false;
-}
-
 void
 TrustFrame::loadLines(StatementContext& prep,
                       std::function<void(LedgerEntry const&)> trustProcessor)
@@ -538,6 +510,5 @@ TrustFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS trustlines;";
     db.getSession() << kSQLCreateStatement1;
-    db.getSession() << kSQLCreateStatement2;
 }
 }
