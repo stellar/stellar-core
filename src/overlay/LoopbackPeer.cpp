@@ -24,6 +24,17 @@ LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
 {
 }
 
+AuthCert
+LoopbackPeer::getAuthCert()
+{
+    auto c = Peer::getAuthCert();
+    if (mDamageCert)
+    {
+        c.expiration++;
+    }
+    return c;
+}
+
 void
 LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
@@ -261,6 +272,18 @@ double
 LoopbackPeer::getDropProbability() const
 {
     return mDropProb.p();
+}
+
+void
+LoopbackPeer::setDamageCert(bool b)
+{
+    mDamageCert = b;
+}
+
+bool
+LoopbackPeer::getDamageCert() const
+{
+    return mDamageCert;
 }
 
 void

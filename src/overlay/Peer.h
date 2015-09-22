@@ -93,6 +93,19 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mSendGetSCPQuorumSetMeter;
     medida::Meter& mSendSCPQuorumSetMeter;
 
+    medida::Meter& mDropInConnectHandlerMeter;
+    medida::Meter& mDropInRecvMessageDecodeMeter;
+    medida::Meter& mDropInRecvMessageSeqMeter;
+    medida::Meter& mDropInRecvMessageMacMeter;
+    medida::Meter& mDropInRecvMessageUnauthMeter;
+    medida::Meter& mDropInRecvHelloVersionMeter;
+    medida::Meter& mDropInRecvHelloSelfMeter;
+    medida::Meter& mDropInRecvHelloCertMeter;
+    medida::Meter& mDropInRecvHelloNetMeter;
+    medida::Meter& mDropInRecvHelloPortMeter;
+    medida::Meter& mDropInRecvAuthUnexpectedMeter;
+    medida::Meter& mDropInRecvAuthRejectMeter;
+
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
     void recvMessage(AuthenticatedMessage const& msg);
@@ -132,6 +145,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     connected()
     {
     }
+
+    virtual AuthCert getAuthCert();
 
   public:
     Peer(Application& app, PeerRole role);

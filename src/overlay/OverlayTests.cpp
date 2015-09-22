@@ -14,6 +14,10 @@
 #include "overlay/PeerRecord.h"
 #include "overlay/OverlayManagerImpl.h"
 
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
+#include "medida/meter.h"
+
 using namespace stellar;
 
 void crankSome(VirtualClock& clock)
@@ -51,6 +55,9 @@ TEST_CASE("failed auth", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app1->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-message-mac"},
+                "drop").count() != 0);
 }
 
 TEST_CASE("reject non-preferred peer", "[overlay]")
@@ -69,6 +76,9 @@ TEST_CASE("reject non-preferred peer", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-auth-reject"},
+                "drop").count() != 0);
 }
 
 TEST_CASE("accept preferred peer even when strict", "[overlay]")
@@ -107,6 +117,50 @@ TEST_CASE("reject peers beyond max", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-auth-reject"},
+                "drop").count() != 0);
+}
+
+TEST_CASE("reject peers with differing network passphrases", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    cfg2.NETWORK_PASSPHRASE = "nothing to see here";
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-hello-net"},
+                "drop").count() != 0);
+}
+
+TEST_CASE("reject peers with invalid cert", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    conn.getAcceptor()->setDamageCert(true);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app1->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-hello-cert"},
+                "drop").count() != 0);
 }
 
 TEST_CASE("reject peers with differing overlay versions", "[overlay]")
@@ -125,4 +179,7 @@ TEST_CASE("reject peers with differing overlay versions", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-hello-version"},
+                "drop").count() != 0);
 }
