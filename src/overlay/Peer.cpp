@@ -255,7 +255,8 @@ Peer::sendPeers()
     newMsg.peers().reserve(peerList.size());
     for (auto const& pr : peerList)
     {
-        if (pr.isPrivateAddress())
+        if (pr.isPrivateAddress() ||
+            pr.isSelfAddressAndPort(getIP(), mRemoteListeningPort))
         {
             continue;
         }
@@ -711,22 +712,27 @@ Peer::recvPeers(StellarMessage const& msg)
 {
     for (auto const& peer : msg.peers())
     {
-        stringstream ip;
-
-        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
-           << (int)peer.ip[2] << "." << (int)peer.ip[3];
-
         if (peer.port == 0 || peer.port > UINT16_MAX)
         {
-            CLOG(DEBUG, "Overlay") << "ignoring peer with bad port";
+            CLOG(WARNING, "Overlay") << "ignoring received peer with bad port "
+                                     << peer.port;
             continue;
         }
+        stringstream ip;
+        ip << (int)peer.ip[0] << "." << (int)peer.ip[1] << "."
+           << (int)peer.ip[2] << "." << (int)peer.ip[3];
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
                       mApp.getClock().now(), peer.numFailures};
 
         if (pr.isPrivateAddress())
         {
-            CLOG(DEBUG, "Overlay") << "ignoring flooded private address";
+            CLOG(WARNING, "Overlay") << "ignoring received private address "
+                                     << pr.toString();
+        }
+        else if (pr.isSelfAddressAndPort(getIP(), mApp.getConfig().PEER_PORT))
+        {
+            CLOG(WARNING, "Overlay") << "ignoring received self-address "
+                                     << pr.toString();
         }
         else
         {

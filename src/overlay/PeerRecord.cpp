@@ -188,6 +188,23 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 }
 
 bool
+PeerRecord::isSelfAddressAndPort(std::string const& ip, unsigned short port) const
+{
+   asio::error_code ec;
+   asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
+   if (ec)
+   {
+       return false;
+   }
+   asio::ip::address_v4 otherAddr = asio::ip::address_v4::from_string(ip, ec);
+   if (ec)
+   {
+       return false;
+   }
+   return (addr == otherAddr && port == mPort);
+ }
+
+bool
 PeerRecord::isPrivateAddress() const
 {
     asio::error_code ec;
