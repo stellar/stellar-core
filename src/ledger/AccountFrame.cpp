@@ -110,7 +110,13 @@ AccountFrame::isValid()
 bool
 AccountFrame::isAuthRequired() const
 {
-    return (mAccountEntry.flags & AUTH_REQUIRED_FLAG);
+    return (mAccountEntry.flags & AUTH_REQUIRED_FLAG) != 0;
+}
+
+bool
+AccountFrame::isImmutableAuth() const
+{
+    return (mAccountEntry.flags & AUTH_IMMUTABLE_FLAG) != 0;
 }
 
 int64_t
