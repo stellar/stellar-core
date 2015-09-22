@@ -51,11 +51,11 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     , mStartBallotProtocol(
           app.getMetrics().NewMeter({"scp", "ballot", "started"}, "ballot"))
     , mAcceptedBallotPrepared(app.getMetrics().NewMeter(
-          {"scp", "ballot", "acceptedprepared"}, "ballot"))
+          {"scp", "ballot", "accepted-prepared"}, "ballot"))
     , mConfirmedBallotPrepared(app.getMetrics().NewMeter(
-          {"scp", "ballot", "confirmedprepared"}, "ballot"))
+          {"scp", "ballot", "confirmed-prepared"}, "ballot"))
     , mAcceptedCommit(app.getMetrics().NewMeter(
-          {"scp", "ballot", "acceptedcommit"}, "ballot"))
+          {"scp", "ballot", "accepted-commit"}, "ballot"))
     , mBallotExpire(
           app.getMetrics().NewMeter({"scp", "ballot", "expire"}, "ballot"))
 
@@ -100,8 +100,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderImpl::HerderImpl(Application& app)
-    : mSCP(*this, app.getConfig().NODE_SEED,
-           app.getConfig().NODE_IS_VALIDATOR,
+    : mSCP(*this, app.getConfig().NODE_SEED, app.getConfig().NODE_IS_VALIDATOR,
            app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)

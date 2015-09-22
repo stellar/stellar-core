@@ -65,9 +65,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
         }
         if (mSheepLineA->getBalance() == 0)
         {
-            metrics.NewMeter(
-                        {"op-manage-offer", "invalid", "underfunded-absent"},
-                        "operation").Mark();
+            metrics.NewMeter({"op-manage-offer", "invalid", "underfunded"},
+                             "operation").Mark();
             innerResult().code(MANAGE_OFFER_UNDERFUNDED);
             return false;
         }

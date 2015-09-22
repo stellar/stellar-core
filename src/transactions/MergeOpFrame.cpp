@@ -60,8 +60,8 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     auto const& sourceAccount = mSourceAccount->getAccount();
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
-        metrics.NewMeter({"op-merge", "failure", "hassubentries"}, "operation")
-            .Mark();
+        metrics.NewMeter({"op-merge", "failure", "has-sub-entries"},
+                         "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
     }
