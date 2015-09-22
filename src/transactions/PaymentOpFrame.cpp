@@ -105,6 +105,11 @@ PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
                              "operation").Mark();
             res = PAYMENT_LINE_FULL;
             break;
+        case PATH_PAYMENT_NO_ISSUER:
+            metrics.NewMeter({"op-payment", "failure", "no-issuer"},
+                             "operation").Mark();
+            res = PAYMENT_NO_ISSUER;
+            break;
         default:
             throw std::runtime_error("Unexpected error code from pathPayment");
         }

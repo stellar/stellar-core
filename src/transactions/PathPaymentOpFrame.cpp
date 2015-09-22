@@ -61,49 +61,64 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
                     mPathPayment.path.end());
 
     // update last balance in the chain
+    if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        if (curB.type() == ASSET_TYPE_NATIVE)
+        destination->getAccount().balance += curBReceived;
+        destination->storeChange(delta, db);
+    }
+    else
+    {
+        TrustFrame::pointer destLine;
+
+        if (bypassIssuerCheck)
         {
-            destination->getAccount().balance += curBReceived;
-            destination->storeChange(delta, db);
+            destLine =
+                TrustFrame::loadTrustLine(mPathPayment.destination, curB, db);
         }
         else
         {
-            TrustFrame::pointer destLine;
-
-            destLine =
-                TrustFrame::loadTrustLine(destination->getID(), curB, db);
-            if (!destLine)
+            auto tlI = TrustFrame::loadTrustLineIssuer(mPathPayment.destination,
+                                                       curB, db);
+            if (!tlI.second)
             {
-                metrics.NewMeter({"op-path-payment", "failure", "no-trust"},
+                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
-                innerResult().code(PATH_PAYMENT_NO_TRUST);
+                innerResult().code(PATH_PAYMENT_NO_ISSUER);
+                innerResult().noIssuer() = curB;
                 return false;
             }
-
-            if (!destLine->isAuthorized())
-            {
-                metrics.NewMeter(
-                            {"op-path-payment", "failure", "not-authorized"},
-                            "operation").Mark();
-                innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
-                return false;
-            }
-
-            if (!destLine->addBalance(curBReceived))
-            {
-                metrics.NewMeter({"op-path-payment", "failure", "line-full"},
-                                 "operation").Mark();
-                innerResult().code(PATH_PAYMENT_LINE_FULL);
-                return false;
-            }
-
-            destLine->storeChange(delta, db);
+            destLine = tlI.first;
         }
 
-        innerResult().success().last =
-            SimplePaymentResult(destination->getID(), curB, curBReceived);
+        if (!destLine)
+        {
+            metrics.NewMeter({"op-path-payment", "failure", "no-trust"},
+                             "operation").Mark();
+            innerResult().code(PATH_PAYMENT_NO_TRUST);
+            return false;
+        }
+
+        if (!destLine->isAuthorized())
+        {
+            metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
+                             "operation").Mark();
+            innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
+            return false;
+        }
+
+        if (!destLine->addBalance(curBReceived))
+        {
+            metrics.NewMeter({"op-path-payment", "failure", "line-full"},
+                             "operation").Mark();
+            innerResult().code(PATH_PAYMENT_LINE_FULL);
+            return false;
+        }
+
+        destLine->storeChange(delta, db);
     }
+
+    innerResult().success().last =
+        SimplePaymentResult(mPathPayment.destination, curB, curBReceived);
 
     // now, walk the path backwards
     for (int i = (int)fullPath.size() - 1; i >= 0; i--)
@@ -114,6 +129,18 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         if (curA == curB)
         {
             continue;
+        }
+
+        if (curA.type() != ASSET_TYPE_NATIVE)
+        {
+            if (!AccountFrame::loadAccount(getIssuer(curA), db))
+            {
+                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                                 "operation").Mark();
+                innerResult().code(PATH_PAYMENT_NO_ISSUER);
+                innerResult().noIssuer() = curA;
+                return false;
+            }
         }
 
         OfferExchange oe(delta, ledgerManager);
@@ -139,7 +166,6 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         {
         case OfferExchange::eFilterStop:
             return false;
-            break;
         case OfferExchange::eOK:
             if (curBReceived == actualCurBReceived)
             {
@@ -195,21 +221,24 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
     }
     else
     {
-        AccountFrame::pointer issuer;
-        if (curB.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-            issuer = AccountFrame::loadAccount(curB.alphaNum4().issuer, db);
-        else if (curB.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-            issuer = AccountFrame::loadAccount(curB.alphaNum12().issuer, db);
-
-        if (!issuer)
+        TrustFrame::pointer sourceLineFrame;
         {
             metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
                              "operation").Mark();
             throw std::runtime_error("sendCredit Issuer not found");
+            auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db);
+
+            if (!tlI.second)
+            {
+                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                                 "operation").Mark();
+                innerResult().code(PATH_PAYMENT_NO_ISSUER);
+                innerResult().noIssuer() = curB;
+                return false;
+            }
+            sourceLineFrame = tlI.first;
         }
 
-        TrustFrame::pointer sourceLineFrame;
-        sourceLineFrame = TrustFrame::loadTrustLine(getSourceID(), curB, db);
         if (!sourceLineFrame)
         {
             metrics.NewMeter({"op-path-payment", "failure", "src-no-trust"},
