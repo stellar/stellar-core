@@ -362,9 +362,18 @@ TCPPeer::recvMessage()
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
         mMessageRead.Mark();
-        StellarMessage sm;
-        xdr::xdr_argpack_archive(g, sm);
-        Peer::recvMessage(sm);
+        if (isAuthenticated())
+        {
+            AuthenticatedMessage am;
+            xdr::xdr_argpack_archive(g, am);
+            Peer::recvMessage(am);
+        }
+        else
+        {
+            StellarMessage sm;
+            xdr::xdr_argpack_archive(g, sm);
+            Peer::recvMessage(sm);
+        }
     }
     catch (xdr::xdr_runtime_error& e)
     {

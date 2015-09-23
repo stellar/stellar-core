@@ -30,8 +30,8 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     // Damage authentication material.
     if (mDamageAuth)
     {
-        auto bytes = randomBytes(mSentNonce.size());
-        std::copy(bytes.begin(), bytes.end(), mSentNonce.begin());
+        auto bytes = randomBytes(mRecvMacKey.key.size());
+        std::copy(bytes.begin(), bytes.end(), mRecvMacKey.key.begin());
     }
 
     // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";

@@ -39,8 +39,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         CONNECTING = 0,
         CONNECTED = 1,
         GOT_HELLO = 2,
-        GOT_AUTH = 3,
-        CLOSING = 4
+        CLOSING = 3
     };
 
     enum PeerRole
@@ -55,8 +54,13 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerRole mRole;
     PeerState mState;
     NodeID mPeerID;
-    uint256 mSentNonce;
-    uint256 mReceivedNonce;
+    uint256 mSendNonce;
+    uint256 mRecvNonce;
+
+    HmacSha256Key mSendMacKey;
+    HmacSha256Key mRecvMacKey;
+    uint64_t mSendMacSeq{0};
+    uint64_t mRecvMacSeq{0};
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayVersion;
@@ -77,6 +81,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
+    void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);

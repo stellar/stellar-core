@@ -6,9 +6,11 @@
 #include "main/Config.h"
 #include "overlay/PeerAuth.h"
 #include "crypto/ECDH.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "xdrpp/marshal.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
@@ -28,7 +30,10 @@ makeAuthCert(Application& app, Curve25519Public const& pub)
 
     auto hash = sha256(xdr::xdr_to_opaque(app.getNetworkID(),
                                           ENVELOPE_TYPE_AUTH,
-                                          cert));
+                                          cert.expiration,
+                                          cert.pubkey));
+    CLOG(DEBUG, "Overlay") << "PeerAuth signing cert hash: "
+                           << hexAbbrev(hash);
     cert.sig = app.getConfig().NODE_SEED.sign(hash);
     return cert;
 }
@@ -56,14 +61,20 @@ bool
 PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode,
                                AuthCert const& cert)
 {
-    if (cert.expiration < mApp.timeNow() + expirationLimit)
+    if (cert.expiration < mApp.timeNow())
     {
+        CLOG(ERROR, "Overlay") << "PeerAuth cert expired: "
+                               << "expired= " << cert.expiration
+                               << ", now=" << mApp.timeNow();
         return false;
     }
     auto hash = sha256(xdr::xdr_to_opaque(mApp.getNetworkID(),
                                           ENVELOPE_TYPE_AUTH,
-                                          cert));
+                                          cert.expiration,
+                                          cert.pubkey));
 
+    CLOG(DEBUG, "Overlay") << "PeerAuth verifying cert hash: "
+                           << hexAbbrev(hash);
     return PubKeyUtils::verifySig(remoteNode, cert.sig, hash);
 }
 

@@ -31,7 +31,7 @@ class PeerStub : public Peer
 
     PeerStub(Application& app) : Peer(app, WE_CALLED_REMOTE)
     {
-        mState = GOT_AUTH;
+        mState = GOT_HELLO;
     }
     virtual void
     drop() override

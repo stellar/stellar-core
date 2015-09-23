@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "Peer.h"
+#include "overlay/Peer.h"
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -14,6 +14,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
 #include "util/Logging.h"
 
@@ -60,15 +61,14 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecvSCPMessageTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
 {
+    auto bytes = randomBytes(mSendNonce.size());
+    std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
 }
 
 void
 Peer::sendHello()
 {
     CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
-
-    auto bytes = randomBytes(mSentNonce.size());
-    std::copy(bytes.begin(), bytes.end(), mSentNonce.begin());
 
     StellarMessage msg;
     msg.type(HELLO);
@@ -78,7 +78,8 @@ Peer::sendHello()
     msg.hello().networkID = mApp.getNetworkID();
     msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
     msg.hello().peerID = mApp.getConfig().NODE_SEED.getPublicKey();
-    msg.hello().nonce = mSentNonce;
+    msg.hello().cert = mApp.getOverlayManager().getPeerAuth().getAuthCert();
+    msg.hello().nonce = mSendNonce;
     sendMessage(msg);
 }
 
@@ -87,12 +88,6 @@ Peer::sendAuth()
 {
     StellarMessage msg;
     msg.type(AUTH);
-
-    // We do not want to sign things wholly under the control of the peer.
-    std::vector<uint8_t> bytes;
-    bytes.insert(bytes.end(), mSentNonce.begin(), mSentNonce.end());
-    bytes.insert(bytes.end(), mReceivedNonce.begin(), mReceivedNonce.end());
-    msg.auth().signature = mApp.getConfig().NODE_SEED.sign(bytes);
     sendMessage(msg);
 }
 
@@ -194,18 +189,44 @@ Peer::sendMessage(StellarMessage const& msg)
                                mApp.getConfig().NODE_SEED.getPublicKey())
                            << ")send: " << msg.type()
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
-    xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
-    this->sendMessage(std::move(xdrBytes));
+
+    if (msg.type() == HELLO)
+    {
+        assert(mRole == WE_CALLED_REMOTE || isAuthenticated());
+        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
+        this->sendMessage(std::move(xdrBytes));
+    }
+    else
+    {
+        AuthenticatedMessage amsg;
+        amsg.message = msg;
+        amsg.sequence = mSendMacSeq;
+        amsg.mac = hmacSha256(mSendMacKey,
+                              xdr::xdr_to_opaque(mSendMacSeq, msg));
+        ++mSendMacSeq;
+        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
+        this->sendMessage(std::move(xdrBytes));
+    }
 }
 
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
-    StellarMessage sm;
     try
     {
-        xdr::xdr_from_msg(msg, sm);
+        if (isAuthenticated())
+        {
+            AuthenticatedMessage am;
+            xdr::xdr_from_msg(msg, am);
+            recvMessage(am);
+        }
+        else
+        {
+            StellarMessage sm;
+            xdr::xdr_from_msg(msg, sm);
+            recvMessage(sm);
+        }
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -213,7 +234,6 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
         drop();
         return;
     }
-    recvMessage(sm);
 }
 
 bool
@@ -225,13 +245,36 @@ Peer::isConnected() const
 bool
 Peer::isAuthenticated() const
 {
-    return mState == GOT_AUTH;
+    return mState == GOT_HELLO;
 }
 
 bool
 Peer::shouldAbort() const
 {
     return (mState == CLOSING) || mApp.getOverlayManager().isShuttingDown();
+}
+
+void
+Peer::recvMessage(AuthenticatedMessage const& msg)
+{
+    if (msg.sequence != mRecvMacSeq)
+    {
+        CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
+        drop();
+        return;
+    }
+
+    if (!hmacSha256Verify(msg.mac, mRecvMacKey,
+                          xdr::xdr_to_opaque(msg.sequence,
+                                             msg.message)))
+    {
+        CLOG(ERROR, "Overlay") << "Message-auth check failed";
+        drop();
+        return;
+    }
+
+    ++mRecvMacSeq;
+    recvMessage(msg.message);
 }
 
 void
@@ -243,16 +286,16 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            << ") recv: " << stellarMsg.type()
                            << " from:" << PubKeyUtils::toShortString(mPeerID);
 
-    if (mState < GOT_AUTH &&
-        ((stellarMsg.type() != HELLO) &&
-         (stellarMsg.type() != AUTH) &&
-         (stellarMsg.type() != PEERS)))
+    if (!isAuthenticated() &&
+        (stellarMsg.type() != HELLO))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before completed handshake";
         drop();
         return;
     }
+
+    assert(isAuthenticated() || stellarMsg.type() == HELLO);
 
     switch (stellarMsg.type())
     {
@@ -456,9 +499,30 @@ void
 Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
+
+    if (msg.hello().overlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+    {
+        CLOG(ERROR, "Overlay")
+            << "connection from peer with different overlay protocol version";
+        CLOG(DEBUG, "Overlay")
+            << "Protocol = " << msg.hello().overlayVersion
+            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+        drop();
+        return;
+    }
+
     if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(DEBUG, "Overlay") << "connecting to self";
+        drop();
+        return;
+    }
+
+    auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
+    if (!peerAuth.verifyRemoteAuthCert(msg.hello().peerID, msg.hello().cert))
+    {
+        CLOG(ERROR, "Overlay")
+            << "failed to verify remote peer auth cert";
         drop();
         return;
     }
@@ -474,20 +538,6 @@ Peer::recvHello(StellarMessage const& msg)
         return;
     }
 
-    mRemoteOverlayVersion = msg.hello().overlayVersion;
-    mRemoteVersion = msg.hello().versionStr;
-
-    if (mRemoteOverlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
-    {
-        CLOG(ERROR, "Overlay")
-            << "connection from peer with different overlay protocol version";
-        CLOG(DEBUG, "Overlay")
-            << "Protocol = " << mRemoteOverlayVersion
-            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
-        drop();
-        return;
-    }
-
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)
     {
@@ -498,10 +548,19 @@ Peer::recvHello(StellarMessage const& msg)
 
     mRemoteListeningPort =
         static_cast<unsigned short>(msg.hello().listeningPort);
-    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
-    mState = GOT_HELLO;
+    mRemoteOverlayVersion = msg.hello().overlayVersion;
+    mRemoteVersion = msg.hello().versionStr;
     mPeerID = msg.hello().peerID;
-    mReceivedNonce = msg.hello().nonce;
+    mRecvNonce = msg.hello().nonce;
+    mSendMacSeq = 0;
+    mRecvMacSeq = 0;
+    mSendMacKey = peerAuth.getSendingMacKey(msg.hello().cert.pubkey,
+                                            mSendNonce, mRecvNonce, mRole);
+    mRecvMacKey = peerAuth.getReceivingMacKey(msg.hello().cert.pubkey,
+                                              mSendNonce, mRecvNonce, mRole);
+
+    mState = GOT_HELLO;
+    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
 
     if (mRole == WE_CALLED_REMOTE)
     {
@@ -516,28 +575,14 @@ Peer::recvHello(StellarMessage const& msg)
 void
 Peer::recvAuth(StellarMessage const& msg)
 {
-
-    if (mState != GOT_HELLO)
+    if (!isAuthenticated())
     {
         CLOG(ERROR, "Overlay") << "Unexpected AUTH message";
         drop();
         return;
     }
 
-    std::vector<uint8_t> bytes;
-    bytes.insert(bytes.end(), mReceivedNonce.begin(), mReceivedNonce.end());
-    bytes.insert(bytes.end(), mSentNonce.begin(), mSentNonce.end());
-
-    if (!PubKeyUtils::verifySig(mPeerID, msg.auth().signature, bytes))
-    {
-        CLOG(ERROR, "Overlay") << "Bad signature on AUTH message";
-        drop();
-        return;
-    }
-
     noteHandshakeSuccessInPeerRecord();
-
-    mState = GOT_AUTH;
 
     if (mRole == REMOTE_CALLED_US)
     {

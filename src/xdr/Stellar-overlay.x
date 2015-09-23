@@ -16,7 +16,7 @@ struct Error
 struct AuthCert
 {
     Curve25519Public pubkey;
-    hyper expiration;
+    uint64 expiration;
     Signature sig;
 };
 
@@ -34,7 +34,9 @@ struct Hello
 
 struct Auth
 {
-    Signature signature;
+    // Empty message, just to confirm
+    // establishment of MAC keys.
+    int unused;
 };
 
 struct PeerAddress
@@ -102,4 +104,12 @@ case SCP_QUORUMSET:
 case SCP_MESSAGE:
     SCPEnvelope envelope;
 };
+
+struct AuthenticatedMessage
+{
+   uint64 sequence;
+   StellarMessage message;
+   HmacSha256Mac mac;
+};
+
 }
