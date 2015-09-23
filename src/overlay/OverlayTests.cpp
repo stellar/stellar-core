@@ -144,7 +144,7 @@ TEST_CASE("reject peers with differing network passphrases", "[overlay]")
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-hello-net"},
+                {"overlay", "drop", "recv-hello-cert"},
                 "drop").count() != 0);
 }
 

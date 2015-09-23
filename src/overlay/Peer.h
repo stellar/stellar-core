@@ -119,6 +119,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mDropInRecvHelloPortMeter;
     medida::Meter& mDropInRecvAuthUnexpectedMeter;
     medida::Meter& mDropInRecvAuthRejectMeter;
+    medida::Meter& mDropInRecvErrorMeter;
 
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
@@ -239,6 +240,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
+    void drop(ErrorCode err, std::string const &msg);
     virtual void drop() = 0;
     virtual std::string getIP() = 0;
     virtual ~Peer()

@@ -322,7 +322,7 @@ TCPPeer::recvMessage()
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
-        drop();
+        Peer::drop(ERR_DATA, "received corrupt XDR");
     }
 }
 

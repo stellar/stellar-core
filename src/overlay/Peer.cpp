@@ -153,6 +153,10 @@ Peer::Peer(Application& app, PeerRole role)
     , mDropInRecvAuthRejectMeter(
         app.getMetrics().NewMeter({"overlay", "drop", "recv-auth-reject"},
                                   "drop"))
+
+    , mDropInRecvErrorMeter(
+        app.getMetrics().NewMeter({"overlay", "drop", "recv-error"},
+                                  "drop"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -256,6 +260,19 @@ Peer::toString()
     std::stringstream s;
     s << getIP() << ":" << mRemoteListeningPort;
     return s.str();
+}
+
+void
+Peer::drop(ErrorCode err, std::string const &msg)
+{
+    StellarMessage m;
+    m.type(ERROR_MSG);
+    m.error().code = err;
+    m.error().msg = msg;
+    sendMessage(m);
+    mSendErrorMeter.Mark();
+    auto self = shared_from_this();
+    mStrand.post([self]() { self->drop(); });
 }
 
 void
@@ -433,7 +450,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
     {
         CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
         mDropInRecvMessageSeqMeter.Mark();
-        drop();
+        ++mRecvMacSeq;
+        drop(ERR_AUTH, "unexpected auth sequence");
         return;
     }
 
@@ -443,7 +461,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
     {
         CLOG(ERROR, "Overlay") << "Message-auth check failed";
         mDropInRecvMessageMacMeter.Mark();
-        drop();
+        ++mRecvMacSeq;
+        drop(ERR_AUTH, "unexpected MAC");
         return;
     }
 
@@ -653,6 +672,31 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 void
 Peer::recvError(StellarMessage const& msg)
 {
+    std::string codeStr = "UNKNOWN";
+    switch (msg.error().code)
+    {
+    case ERR_MISC:
+        codeStr = "ERR_MISC";
+        break;
+    case ERR_DATA:
+        codeStr = "ERR_DATA";
+        break;
+    case ERR_CONF:
+        codeStr = "ERR_CONF";
+        break;
+    case ERR_AUTH:
+        codeStr = "ERR_AUTH";
+        break;
+    case ERR_LOAD:
+        codeStr = "ERR_LOAD";
+        break;
+    default:
+        break;
+    }
+    CLOG(WARNING, "Overlay")
+        << "Received error (" << codeStr << "): " << msg.error().msg;
+    mDropInRecvErrorMeter.Mark();
+    drop();
 }
 
 void
@@ -678,47 +722,6 @@ Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
 
-    if (msg.hello().overlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
-    {
-        CLOG(ERROR, "Overlay")
-            << "connection from peer with different overlay protocol version";
-        CLOG(DEBUG, "Overlay")
-            << "Protocol = " << msg.hello().overlayVersion
-            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
-        mDropInRecvHelloVersionMeter.Mark();
-        drop();
-        return;
-    }
-
-    if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
-    {
-        CLOG(WARNING, "Overlay") << "connecting to self";
-        mDropInRecvHelloSelfMeter.Mark();
-        drop();
-        return;
-    }
-
-    if (msg.hello().networkID != mApp.getNetworkID())
-    {
-        CLOG(WARNING, "Overlay")
-            << "connection from peer with different NetworkID";
-        CLOG(DEBUG, "Overlay")
-            << "NetworkID = " << hexAbbrev(msg.hello().networkID)
-            << " expected: " << hexAbbrev(mApp.getNetworkID());
-        mDropInRecvHelloNetMeter.Mark();
-        drop();
-        return;
-    }
-
-    if (msg.hello().listeningPort <= 0 ||
-        msg.hello().listeningPort > UINT16_MAX)
-    {
-        CLOG(WARNING, "Overlay") << "bad port in recvHello";
-        mDropInRecvHelloPortMeter.Mark();
-        drop();
-        return;
-    }
-
     auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
     if (!peerAuth.verifyRemoteAuthCert(msg.hello().peerID, msg.hello().cert))
     {
@@ -742,6 +745,47 @@ Peer::recvHello(StellarMessage const& msg)
     mRecvMacKey = peerAuth.getReceivingMacKey(msg.hello().cert.pubkey,
                                               mSendNonce, mRecvNonce, mRole);
 
+    if (msg.hello().overlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+    {
+        CLOG(ERROR, "Overlay")
+            << "connection from peer with different overlay protocol version";
+        CLOG(DEBUG, "Overlay")
+            << "Protocol = " << msg.hello().overlayVersion
+            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+        mDropInRecvHelloVersionMeter.Mark();
+        drop(ERR_CONF, "wrong protocol version");
+        return;
+    }
+
+    if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
+    {
+        CLOG(WARNING, "Overlay") << "connecting to self";
+        mDropInRecvHelloSelfMeter.Mark();
+        drop(ERR_CONF, "connecting to self");
+        return;
+    }
+
+    if (msg.hello().networkID != mApp.getNetworkID())
+    {
+        CLOG(WARNING, "Overlay")
+            << "connection from peer with different NetworkID";
+        CLOG(DEBUG, "Overlay")
+            << "NetworkID = " << hexAbbrev(msg.hello().networkID)
+            << " expected: " << hexAbbrev(mApp.getNetworkID());
+        mDropInRecvHelloNetMeter.Mark();
+        drop(ERR_CONF, "wrong network passphrase");
+        return;
+    }
+
+    if (msg.hello().listeningPort <= 0 ||
+        msg.hello().listeningPort > UINT16_MAX)
+    {
+        CLOG(WARNING, "Overlay") << "bad port in recvHello";
+        mDropInRecvHelloPortMeter.Mark();
+        drop(ERR_CONF, "bad port number");
+        return;
+    }
+
     mState = GOT_HELLO;
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
 
@@ -762,7 +806,7 @@ Peer::recvAuth(StellarMessage const& msg)
     {
         CLOG(ERROR, "Overlay") << "Unexpected AUTH message";
         mDropInRecvAuthUnexpectedMeter.Mark();
-        drop();
+        drop(ERR_MISC, "out-of-order AUTH message");
         return;
     }
 
@@ -779,7 +823,7 @@ Peer::recvAuth(StellarMessage const& msg)
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
         mDropInRecvAuthRejectMeter.Mark();
-        drop();
+        drop(ERR_LOAD, "peer rejected");
         return;
     }
 }

@@ -87,7 +87,6 @@ LoopbackPeer::drop()
                 remote->getApp().getOverlayManager().dropPeer(remote);
                 remote->drop();
             });
-        mRemote = nullptr;
     }
 }
 
