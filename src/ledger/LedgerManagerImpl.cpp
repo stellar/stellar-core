@@ -169,6 +169,7 @@ LedgerManagerImpl::startNewLedger()
 
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
+    CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed();
     closeLedgerHelper(delta);
 }
 
