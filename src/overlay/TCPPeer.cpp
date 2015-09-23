@@ -14,7 +14,6 @@
 #include "medida/meter.h"
 #include "main/Config.h"
 
-#define IO_TIMEOUT_SECONDS 30
 #define MAX_UNAUTH_MESSAGE_SIZE 0x1000
 #define MAX_MESSAGE_SIZE 0x1000000
 
@@ -33,25 +32,6 @@ TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<asio::ip::tcp::socket> socket)
     : Peer(app, role)
     , mSocket(socket)
-    , mIdleTimer(app)
-    , mLastRead(app.getClock().now())
-    , mLastWrite(app.getClock().now())
-    , mStrand(app.getClock().getIOService())
-    , mMessageRead(
-          app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
-    , mMessageWrite(
-          app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
-    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
-    , mByteWrite(
-          app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
-    , mErrorRead(
-          app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
-    , mErrorWrite(
-          app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
-    , mTimeoutRead(
-          app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
-    , mTimeoutWrite(
-          app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
 {
 }
 
@@ -65,6 +45,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
+    result->startIdleTimer();
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->async_connect(
         endpoint, result->mStrand.wrap([result](asio::error_code const& error)
@@ -81,6 +62,7 @@ TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
                            << "@" << app.getConfig().PEER_PORT;
     auto result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
     result->mIP = socket->remote_endpoint().address().to_string();
+    result->startIdleTimer();
     result->startRead();
     return result;
 }
@@ -104,48 +86,6 @@ TCPPeer::~TCPPeer()
     {
         // Ignore: this indicates an attempt to cancel events
         // on a not-established socket.
-    }
-}
-
-void
-TCPPeer::startIdleTimer()
-{
-    if (shouldAbort())
-    {
-        return;
-    }
-
-    std::shared_ptr<TCPPeer> self =
-        std::static_pointer_cast<TCPPeer>(shared_from_this());
-    mIdleTimer.expires_from_now(std::chrono::seconds(IO_TIMEOUT_SECONDS));
-    mIdleTimer.async_wait(mStrand.wrap([self](asio::error_code const& error)
-                                       {
-                                           self->idleTimerExpired(error);
-                                       }));
-}
-
-void
-TCPPeer::idleTimerExpired(asio::error_code const& error)
-{
-    if (!error)
-    {
-        auto now = mApp.getClock().now();
-        if (now - mLastRead > std::chrono::seconds(IO_TIMEOUT_SECONDS))
-        {
-            CLOG(WARNING, "Overlay") << "read timeout";
-            mTimeoutRead.Mark();
-            drop();
-        }
-        else if (now - mLastWrite > std::chrono::seconds(IO_TIMEOUT_SECONDS))
-        {
-            CLOG(WARNING, "Overlay") << "write timeout";
-            mTimeoutWrite.Mark();
-            drop();
-        }
-        else
-        {
-            startIdleTimer();
-        }
     }
 }
 
@@ -182,8 +122,6 @@ TCPPeer::messageSender()
         return;
     }
 
-    mLastWrite = mApp.getClock().now();
-
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     // peek the buffer from the queue
@@ -219,6 +157,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
     }
     else
     {
+        mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
         mByteWrite.Mark(bytes_transferred);
     }
@@ -240,7 +179,6 @@ TCPPeer::startRead()
         CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
                                << self->toString();
 
-        self->mLastRead = self->mApp.getClock().now();
         self->mIncomingHeader.resize(4);
         asio::async_read(*(self->mSocket.get()),
                          asio::buffer(self->mIncomingHeader),
@@ -361,11 +299,13 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
+    mLastRead = mApp.getClock().now();
+    mMessageRead.Mark();
+
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
-        mMessageRead.Mark();
         if (mState >= GOT_HELLO)
         {
             AuthenticatedMessage am;

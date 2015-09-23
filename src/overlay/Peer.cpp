@@ -42,6 +42,27 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayVersion(0)
     , mRemoteListeningPort(0)
+    , mStrand(app.getClock().getIOService())
+    , mIdleTimer(app)
+    , mLastRead(app.getClock().now())
+    , mLastWrite(app.getClock().now())
+
+    , mMessageRead(
+          app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
+    , mMessageWrite(
+          app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
+    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
+    , mByteWrite(
+          app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
+    , mErrorRead(
+          app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
+    , mErrorWrite(
+          app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
+    , mTimeoutRead(
+          app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
+    , mTimeoutWrite(
+          app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
+
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
     , mRecvAuthTimer(app.getMetrics().NewTimer({"overlay", "recv", "auth"}))
@@ -132,7 +153,6 @@ Peer::Peer(Application& app, PeerRole role)
     , mDropInRecvAuthRejectMeter(
         app.getMetrics().NewMeter({"overlay", "drop", "recv-auth-reject"},
                                   "drop"))
-
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -160,6 +180,65 @@ AuthCert
 Peer::getAuthCert()
 {
     return mApp.getOverlayManager().getPeerAuth().getAuthCert();
+}
+
+
+size_t
+Peer::getIOTimeoutSeconds() const
+{
+    if (isAuthenticated())
+    {
+        // Normally willing to wait 30s to hear anything
+        // from an authenticated peer.
+        return 30;
+    }
+    else
+    {
+        // We give peers much less timing leeway while
+        // performing handshake.
+        return 2;
+    }
+}
+
+void
+Peer::startIdleTimer()
+{
+    if (shouldAbort())
+    {
+        return;
+    }
+
+    auto self = shared_from_this();
+    mIdleTimer.expires_from_now(std::chrono::seconds(getIOTimeoutSeconds()));
+    mIdleTimer.async_wait(mStrand.wrap([self](asio::error_code const& error)
+                                       {
+                                           self->idleTimerExpired(error);
+                                       }));
+}
+
+void
+Peer::idleTimerExpired(asio::error_code const& error)
+{
+    if (!error)
+    {
+        auto now = mApp.getClock().now();
+        if ((now - mLastRead) >= std::chrono::seconds(getIOTimeoutSeconds()))
+        {
+            CLOG(WARNING, "Overlay") << "read timeout";
+            mTimeoutRead.Mark();
+            drop();
+        }
+        else if ((now - mLastWrite) >= std::chrono::seconds(getIOTimeoutSeconds()))
+        {
+            CLOG(WARNING, "Overlay") << "write timeout";
+            mTimeoutWrite.Mark();
+            drop();
+        }
+        else
+        {
+            startIdleTimer();
+        }
+    }
 }
 
 void
@@ -300,6 +379,10 @@ Peer::sendMessage(StellarMessage const& msg)
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
+    mLastRead = mApp.getClock().now();
+    mMessageRead.Mark();
+    mByteRead.Mark(msg->raw_size());
+
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
     {

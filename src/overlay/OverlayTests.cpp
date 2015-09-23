@@ -22,7 +22,12 @@ using namespace stellar;
 
 void crankSome(VirtualClock& clock)
 {
-    for (size_t i = 0; i < 100 && clock.crank(false) > 0; ++i)
+    auto start = clock.now();
+    for (size_t i = 0;
+         (i < 100 &&
+          clock.now() < (start + std::chrono::seconds(1)) &&
+          clock.crank(false) > 0);
+         ++i)
         ;
 }
 
@@ -182,4 +187,31 @@ TEST_CASE("reject peers with differing overlay versions", "[overlay]")
     REQUIRE(app2->getMetrics().NewMeter(
                 {"overlay", "drop", "recv-hello-version"},
                 "drop").count() != 0);
+}
+
+TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    conn.getInitiator()->setCorked(true);
+    auto start = clock.now();
+    while (clock.now() < (start + std::chrono::seconds(3))
+           && conn.getInitiator()->isConnected()
+           && conn.getAcceptor()->isConnected())
+    {
+        LOG(INFO) << "clock.now() = " << clock.now().time_since_epoch().count();
+        clock.crank(false);
+    }
+    REQUIRE(clock.now() < (start + std::chrono::seconds(5)));
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "timeout", "read"},
+                "timeout").count() != 0);
 }

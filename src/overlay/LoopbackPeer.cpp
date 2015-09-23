@@ -9,6 +9,9 @@
 #include "xdrpp/marshal.h"
 #include "overlay/OverlayManager.h"
 #include "crypto/Random.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
+#include "medida/meter.h"
 
 namespace stellar
 {
@@ -68,8 +71,9 @@ LoopbackPeer::drop()
         return;
     }
     mState = CLOSING;
+    mIdleTimer.cancel();
     auto self = shared_from_this();
-    mApp.getClock().getIOService().post(
+    mStrand.post(
         [self]()
         {
             self->getApp().getOverlayManager().dropPeer(self);
@@ -77,7 +81,7 @@ LoopbackPeer::drop()
     if (mRemote)
     {
         auto remote = mRemote;
-        mRemote->getApp().getClock().getIOService().post(
+        mRemote->mStrand.post(
             [remote]()
             {
                 remote->getApp().getOverlayManager().dropPeer(remote);
@@ -174,11 +178,14 @@ LoopbackPeer::deliverOne()
         // Peer's io_service.
         auto remote = mRemote;
         auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
-        remote->getApp().getClock().getIOService().post(
+        remote->mStrand.post(
             [remote, m]()
             {
                 remote->recvMessage(std::move(*m));
             });
+        mLastWrite = mApp.getClock().now();
+        mMessageWrite.Mark();
+        mByteWrite.Mark((*m)->raw_size());
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }
@@ -344,8 +351,15 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
 
     initiator.getOverlayManager().addConnectedPeer(mInitiator);
     acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
+    mInitiator->startIdleTimer();
+    mAcceptor->startIdleTimer();
 
-    mInitiator->connectHandler(asio::error_code());
+    auto init = mInitiator;
+    mInitiator->mStrand.post(
+        [init]()
+        {
+            init->connectHandler(asio::error_code());
+        });
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

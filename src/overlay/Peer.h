@@ -68,6 +68,20 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
 
+    asio::io_service::strand mStrand;
+    VirtualTimer mIdleTimer;
+    VirtualClock::time_point mLastRead;
+    VirtualClock::time_point mLastWrite;
+
+    medida::Meter& mMessageRead;
+    medida::Meter& mMessageWrite;
+    medida::Meter& mByteRead;
+    medida::Meter& mByteWrite;
+    medida::Meter& mErrorRead;
+    medida::Meter& mErrorWrite;
+    medida::Meter& mTimeoutRead;
+    medida::Meter& mTimeoutWrite;
+
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
     medida::Timer& mRecvAuthTimer;
@@ -147,6 +161,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     virtual AuthCert getAuthCert();
+
+    void startIdleTimer();
+    void idleTimerExpired(asio::error_code const& error);
+    size_t getIOTimeoutSeconds() const;
 
   public:
     Peer(Application& app, PeerRole role);

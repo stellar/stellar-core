@@ -20,26 +20,11 @@ class TCPPeer : public Peer
 {
     std::string mIP;
     std::shared_ptr<asio::ip::tcp::socket> mSocket;
-    VirtualTimer mIdleTimer;
-    VirtualClock::time_point mLastRead;
-    VirtualClock::time_point mLastWrite;
     std::vector<uint8_t> mIncomingHeader;
     std::vector<uint8_t> mIncomingBody;
-    asio::io_service::strand mStrand;
 
     std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
 
-    medida::Meter& mMessageRead;
-    medida::Meter& mMessageWrite;
-    medida::Meter& mByteRead;
-    medida::Meter& mByteWrite;
-    medida::Meter& mErrorRead;
-    medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutRead;
-    medida::Meter& mTimeoutWrite;
-
-    void startIdleTimer();
-    void idleTimerExpired(asio::error_code const& error);
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
 
