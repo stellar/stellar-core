@@ -76,6 +76,7 @@ class AccountFrame : public EntryFrame
     bool addNumEntries(int count, LedgerManager const& lm);
 
     bool isAuthRequired() const;
+    bool isImmutableAuth() const;
     AccountID const& getID() const;
 
     uint32_t getMasterWeight() const;

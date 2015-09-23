@@ -366,7 +366,8 @@ enum PaymentResultCode
     PAYMENT_NO_DESTINATION = -5,     // destination account does not exist
     PAYMENT_NO_TRUST = -6,       // destination missing a trust line for asset
     PAYMENT_NOT_AUTHORIZED = -7, // destination not authorized to hold asset
-    PAYMENT_LINE_FULL = -8       // destination would go above their limit
+    PAYMENT_LINE_FULL = -8,      // destination would go above their limit
+    PAYMENT_NO_ISSUER = -9       // missing issuer on asset
 };
 
 union PaymentResult switch (PaymentResultCode code)
@@ -393,9 +394,10 @@ enum PathPaymentResultCode
     PATH_PAYMENT_NO_TRUST = -6,           // dest missing a trust line for asset
     PATH_PAYMENT_NOT_AUTHORIZED = -7,     // dest not authorized to hold asset
     PATH_PAYMENT_LINE_FULL = -8,          // dest would go above their limit
-    PATH_PAYMENT_TOO_FEW_OFFERS = -9,     // not enough offers to satisfy path
-    PATH_PAYMENT_OFFER_CROSS_SELF = -10,  // would cross one of its own offers
-    PATH_PAYMENT_OVER_SENDMAX = -11       // could not satisfy sendmax
+    PATH_PAYMENT_NO_ISSUER = -9,          // missing issuer on one asset
+    PATH_PAYMENT_TOO_FEW_OFFERS = -10,    // not enough offers to satisfy path
+    PATH_PAYMENT_OFFER_CROSS_SELF = -11,  // would cross one of its own offers
+    PATH_PAYMENT_OVER_SENDMAX = -12       // could not satisfy sendmax
 };
 
 struct SimplePaymentResult
@@ -413,6 +415,8 @@ case PATH_PAYMENT_SUCCESS:
         ClaimOfferAtom offers<>;
         SimplePaymentResult last;
     } success;
+case PATH_PAYMENT_NO_ISSUER:
+    Asset noIssuer; // the asset that caused the error
 default:
     void;
 };
@@ -430,14 +434,16 @@ enum ManageOfferResultCode
     MANAGE_OFFER_BUY_NO_TRUST = -3,  // no trust line for what we're buying
     MANAGE_OFFER_SELL_NOT_AUTHORIZED = -4, // not authorized to sell
     MANAGE_OFFER_BUY_NOT_AUTHORIZED = -5,  // not authorized to buy
-    MANAGE_OFFER_LINE_FULL = -6,   // can't receive more of what it's buying
-    MANAGE_OFFER_UNDERFUNDED = -7, // doesn't hold what it's trying to sell
-    MANAGE_OFFER_CROSS_SELF = -8,  // would cross an offer from the same user
+    MANAGE_OFFER_LINE_FULL = -6,      // can't receive more of what it's buying
+    MANAGE_OFFER_UNDERFUNDED = -7,    // doesn't hold what it's trying to sell
+    MANAGE_OFFER_CROSS_SELF = -8,     // would cross an offer from the same user
+    MANAGE_OFFER_SELL_NO_ISSUER = -9, // no issuer for what we're selling
+    MANAGE_OFFER_BUY_NO_ISSUER = -10, // no issuer for what we're buying
 
     // update errors
-    MANAGE_OFFER_NOT_FOUND = -9, // offerID does not match an existing offer
+    MANAGE_OFFER_NOT_FOUND = -11, // offerID does not match an existing offer
 
-    MANAGE_OFFER_LOW_RESERVE = -10 // not enough funds to create a new Offer
+    MANAGE_OFFER_LOW_RESERVE = -12 // not enough funds to create a new Offer
 };
 
 enum ManageOfferEffect
@@ -547,10 +553,10 @@ enum AccountMergeResultCode
     // codes considered as "success" for the operation
     ACCOUNT_MERGE_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    ACCOUNT_MERGE_MALFORMED = -1,       // can't merge onto itself
-    ACCOUNT_MERGE_NO_ACCOUNT = -2,      // destination does not exist
-    ACCOUNT_MERGE_HAS_SUB_ENTRIES = -3, // account has trust lines/offers
-    ACCOUNT_MERGE_CREDIT_HELD = -4      // an issuer cannot be merged if used
+    ACCOUNT_MERGE_MALFORMED = -1,      // can't merge onto itself
+    ACCOUNT_MERGE_NO_ACCOUNT = -2,     // destination does not exist
+    ACCOUNT_MERGE_IMMUTABLE_SET = -3,  // source account has AUTH_IMMUTABLE set
+    ACCOUNT_MERGE_HAS_SUB_ENTRIES = -4 // account has trust lines/offers
 };
 
 union AccountMergeResult switch (AccountMergeResultCode code)

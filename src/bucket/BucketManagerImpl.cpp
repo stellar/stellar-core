@@ -127,7 +127,11 @@ BucketManagerImpl::getBucketDir()
             std::ofstream lockfile(lock, std::ios::trunc);
             lockfile << std::to_string(self) << std::endl;
         }
-        assert(fs::exists(lock));
+        if (!fs::exists(lock))
+        {
+            throw std::runtime_error("Invalid database state (bucket folder "
+                                     "missing/corrupted) ; newdb required");
+        }
         mLockedBucketDir = make_unique<std::string>(d);
     }
     return *(mLockedBucketDir);

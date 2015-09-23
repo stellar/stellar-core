@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/TrustFrame.h"
-#include "ledger/AccountFrame.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
@@ -31,9 +30,6 @@ const char* TrustFrame::kSQLCreateStatement1 =
     "lastmodified INT             NOT NULL,"
     "PRIMARY KEY  (accountid, issuer, assetcode)"
     ");";
-
-const char* TrustFrame::kSQLCreateStatement2 =
-    "CREATE INDEX issuerslines ON trustlines (issuer);";
 
 TrustFrame::TrustFrame()
     : EntryFrame(TRUSTLINE)
@@ -330,14 +326,7 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
     res->mIsIssuer = true;
     TrustLineEntry& tl = res->mEntry.data.trustLine();
 
-    if (issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        tl.accountID = issuer.alphaNum4().issuer;
-    }
-    else if (issuer.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        tl.accountID = issuer.alphaNum12().issuer;
-    }
+    tl.accountID = getIssuer(issuer);
 
     tl.flags |= AUTHORIZED_FLAG;
     tl.balance = INT64_MAX;
@@ -350,18 +339,17 @@ TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
                           Database& db)
 {
-    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        if (accountID == asset.alphaNum4().issuer)
-            return createIssuerFrame(asset);
-    }
-    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        if (accountID == asset.alphaNum12().issuer)
-            return createIssuerFrame(asset);
+        throw std::runtime_error("XLM TrustLine?");
     }
     else
-        throw std::runtime_error("XLM TrustLine?");
+    {
+        if (accountID == getIssuer(asset))
+        {
+            return createIssuerFrame(asset);
+        }
+    }
 
     LedgerKey key;
     key.type(TRUSTLINE);
@@ -415,29 +403,15 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
     return retLine;
 }
 
-bool
-TrustFrame::hasIssued(AccountID const& issuerID, Database& db)
+std::pair<TrustFrame::pointer, AccountFrame::pointer>
+TrustFrame::loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
+                                Database& db)
 {
-    std::string accStrKey;
-    accStrKey = PubKeyUtils::toStrKey(issuerID);
-    int balance = 0;
+    std::pair<TrustFrame::pointer, AccountFrame::pointer> res;
 
-    auto prep = db.getPreparedStatement(
-        "SELECT balance FROM trustlines WHERE issuer=:id LIMIT 1");
-    auto& st = prep.statement();
-    st.exchange(use(accStrKey));
-    st.exchange(into(balance));
-    st.define_and_bind();
-
-    {
-        auto timer = db.getSelectTimer("trust");
-        st.execute(true);
-    }
-    if (st.got_data())
-    {
-        return true;
-    }
-    return false;
+    res.first = loadTrustLine(accountID, asset, db);
+    res.second = AccountFrame::loadAccount(getIssuer(asset), db);
+    return res;
 }
 
 void
@@ -536,6 +510,5 @@ TrustFrame::dropAll(Database& db)
 {
     db.getSession() << "DROP TABLE IF EXISTS trustlines;";
     db.getSession() << kSQLCreateStatement1;
-    db.getSession() << kSQLCreateStatement2;
 }
 }

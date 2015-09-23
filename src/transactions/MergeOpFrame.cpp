@@ -49,20 +49,20 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         return false;
     }
 
-    auto const& sourceAccount = mSourceAccount->getAccount();
-    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
+    if (mSourceAccount->isImmutableAuth())
     {
-        metrics.NewMeter({"op-merge", "failure", "hassubentries"}, "operation")
+        metrics.NewMeter({"op-merge", "failure", "static-auth"}, "operation")
             .Mark();
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
         return false;
     }
 
-    if (TrustFrame::hasIssued(getSourceID(), db))
+    auto const& sourceAccount = mSourceAccount->getAccount();
+    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
-        metrics.NewMeter({"op-merge", "failure", "credit-held"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_CREDIT_HELD);
+        metrics.NewMeter({"op-merge", "failure", "has-sub-entries"},
+                         "operation").Mark();
+        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
     }
 

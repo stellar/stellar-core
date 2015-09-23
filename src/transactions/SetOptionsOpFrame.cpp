@@ -12,6 +12,11 @@ namespace stellar
 {
 using xdr::operator==;
 
+static const uint32 allAccountFlags =
+    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);
+static const uint32 allAccountAuthFlags =
+    (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);
+
 SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
@@ -56,22 +61,26 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     if (mSetOptions.clearFlags)
     {
+        if ((*mSetOptions.clearFlags & allAccountAuthFlags) &&
+            mSourceAccount->isImmutableAuth())
+        {
+            metrics.NewMeter({"op-set-options", "failure", "cant-change"},
+                             "operation").Mark();
+            innerResult().code(SET_OPTIONS_CANT_CHANGE);
+            return false;
+        }
         account.flags = account.flags & ~*mSetOptions.clearFlags;
     }
 
     if (mSetOptions.setFlags)
     {
-        if ((*mSetOptions.setFlags & AUTH_REQUIRED_FLAG) ||
-            (*mSetOptions.setFlags & AUTH_REVOCABLE_FLAG))
+        if ((*mSetOptions.setFlags & allAccountAuthFlags) &&
+            mSourceAccount->isImmutableAuth())
         {
-            // must ensure no one is holding your credit
-            if (TrustFrame::hasIssued(account.accountID, db))
-            {
-                metrics.NewMeter({"op-set-options", "failure", "cant-change"},
-                                 "operation").Mark();
-                innerResult().code(SET_OPTIONS_CANT_CHANGE);
-                return false;
-            }
+            metrics.NewMeter({"op-set-options", "failure", "cant-change"},
+                             "operation").Mark();
+            innerResult().code(SET_OPTIONS_CANT_CHANGE);
+            return false;
         }
         account.flags = account.flags | *mSetOptions.setFlags;
     }
@@ -172,7 +181,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 {
     if (mSetOptions.setFlags)
     {
-        if (*mSetOptions.setFlags & ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
+        if (*mSetOptions.setFlags & ~allAccountFlags)
         {
             innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
             return false;
@@ -181,8 +190,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (mSetOptions.clearFlags)
     {
-        if (*mSetOptions.clearFlags &
-            ~(AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG))
+        if (*mSetOptions.clearFlags & ~allAccountFlags)
         {
             innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
             return false;

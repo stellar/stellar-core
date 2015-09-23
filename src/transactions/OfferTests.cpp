@@ -178,6 +178,12 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
                                    100, a1_seq++, MANAGE_OFFER_SELL_NO_TRUST);
 
+        // no issuer for selling
+        SecretKey gateway2 = getAccount("other gate");
+        Asset idrCur2 = makeAsset(gateway2, "IDR");
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur2, usdCur, oneone,
+                                   100, a1_seq++, MANAGE_OFFER_SELL_NO_ISSUER);
+
         applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", trustLineLimit);
 
         // can't sell IDR if account doesn't have any
@@ -191,6 +197,11 @@ TEST_CASE("create offer", "[tx][offers]")
         // missing USD trust
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
                                    100, a1_seq++, MANAGE_OFFER_BUY_NO_TRUST);
+
+        // no issuer for buying
+        Asset usdCur2 = makeAsset(gateway2, "USD");
+        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur2, oneone,
+                                   100, a1_seq++, MANAGE_OFFER_BUY_NO_ISSUER);
 
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
 
@@ -246,12 +257,52 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("Cancel offer")
         {
-            auto cancelRes = applyCreateOfferWithResult(
-                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
-                a1_seq++, MANAGE_OFFER_SUCCESS);
+            auto cancelCheck = [&]()
+            {
+                auto cancelRes = applyCreateOfferWithResult(
+                    app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
+                    a1_seq++, MANAGE_OFFER_SUCCESS);
 
-            REQUIRE(cancelRes.success().offer.effect() == MANAGE_OFFER_DELETED);
-            REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+                REQUIRE(cancelRes.success().offer.effect() ==
+                        MANAGE_OFFER_DELETED);
+                REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+            };
+            SECTION("Typical")
+            {
+                cancelCheck();
+            }
+            SECTION("selling trust line")
+            {
+                // not having a balance should not stop deleting the offer
+                applyCreditPaymentTx(app, a1, gateway, idrCur, a1_seq++,
+                                     trustLineBalance);
+                SECTION("empty")
+                {
+                    cancelCheck();
+                }
+                SECTION("Deleted trust line")
+                {
+                    applyChangeTrust(app, a1, gateway, a1_seq++, "IDR", 0);
+                    cancelCheck();
+                }
+            }
+            SECTION("buying trust line")
+            {
+                SECTION("trust line full")
+                {
+                    // having a trust line full should not stop from deleting
+                    // the
+                    // offer
+                    applyCreditPaymentTx(app, gateway, a1, usdCur,
+                                         gateway_seq++, trustLineLimit);
+                    cancelCheck();
+                }
+                SECTION("Deleted trust line")
+                {
+                    applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 0);
+                    cancelCheck();
+                }
+            }
         }
         SECTION("Update price")
         {

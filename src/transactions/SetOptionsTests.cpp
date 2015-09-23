@@ -131,12 +131,48 @@ TEST_CASE("set options", "[tx][setoptions]")
         }
     }
 
-    SECTION("Can't set and clear same flag")
+    SECTION("flags")
     {
-        uint32_t setFlags = AUTH_REQUIRED_FLAG;
-        uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-        applySetOptions(app, a1, a1seq++, nullptr, &setFlags, &clearFlags,
-                        nullptr, nullptr, nullptr, SET_OPTIONS_BAD_FLAGS);
+        SECTION("Can't set and clear same flag")
+        {
+            uint32_t setFlags = AUTH_REQUIRED_FLAG;
+            uint32_t clearFlags = AUTH_REQUIRED_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, &setFlags, &clearFlags,
+                            nullptr, nullptr, nullptr, SET_OPTIONS_BAD_FLAGS);
+        }
+        SECTION("auth flags")
+        {
+            uint32_t flags;
+
+            flags = AUTH_REQUIRED_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+                            nullptr, nullptr);
+
+            flags = AUTH_REVOCABLE_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+                            nullptr, nullptr);
+
+            // clear flag
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+                            nullptr, nullptr);
+
+            flags = AUTH_IMMUTABLE_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+                            nullptr, nullptr);
+
+            // at this point trying to change any flag should fail
+
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+                            nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
+
+            flags = AUTH_REQUIRED_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+                            nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
+
+            flags = AUTH_REVOCABLE_FLAG;
+            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+                            nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
+        }
     }
 
     SECTION("Home domain")

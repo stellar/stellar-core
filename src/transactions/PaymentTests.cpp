@@ -66,6 +66,7 @@ TEST_CASE("payment", "[tx][payment]")
     const int64_t morePayment = paymentAmount / 2;
 
     SecretKey gateway = getAccount("gate");
+    SecretKey gateway2 = getAccount("gate2");
 
     const int64_t assetMultiplier = 1000000;
 
@@ -74,12 +75,16 @@ TEST_CASE("payment", "[tx][payment]")
     int64_t trustLineStartingBalance = 20000 * assetMultiplier;
 
     Asset idrCur = makeAsset(gateway, "IDR");
-    Asset usdCur = makeAsset(gateway, "USD");
+    Asset usdCur = makeAsset(gateway2, "USD");
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
     applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
+    // sets up gateway2 account
+    applyCreateAccountTx(app, root, gateway2, rootSeq++, gatewayPayment);
+    SequenceNumber gateway2_seq = getAccountSeqNum(gateway2, app) + 1;
 
     AccountFrame::pointer a1Account, rootAccount;
     rootAccount = loadAccount(root, app);
@@ -94,8 +99,8 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(a1Account->getLowThreshold() == 0);
     REQUIRE(a1Account->getMediumThreshold() == 0);
     // root did 2 transactions at this point
-    REQUIRE(rootAccount->getBalance() ==
-            (100000000000000000 - paymentAmount - gatewayPayment - txfee * 2));
+    REQUIRE(rootAccount->getBalance() == (100000000000000000 - paymentAmount -
+                                          gatewayPayment * 2 - txfee * 3));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
@@ -244,19 +249,37 @@ TEST_CASE("payment", "[tx][payment]")
 
             applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", 100);
 
-            // first, send 40 from a1 to b1
-            applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
+            SECTION("positive")
+            {
+                // first, send 40 from a1 to b1
+                applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40);
 
-            line = loadTrustLine(a1, idrCur, app);
-            REQUIRE(line->getBalance() == 60);
-            line = loadTrustLine(b1, idrCur, app);
-            REQUIRE(line->getBalance() == 40);
+                line = loadTrustLine(a1, idrCur, app);
+                REQUIRE(line->getBalance() == 60);
+                line = loadTrustLine(b1, idrCur, app);
+                REQUIRE(line->getBalance() == 40);
 
-            // then, send back to the gateway
-            // the gateway does not have a trust line as it's the issuer
-            applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
-            line = loadTrustLine(b1, idrCur, app);
-            REQUIRE(line->getBalance() == 0);
+                // then, send back to the gateway
+                // the gateway does not have a trust line as it's the issuer
+                applyCreditPaymentTx(app, b1, gateway, idrCur, b1Seq++, 40);
+                line = loadTrustLine(b1, idrCur, app);
+                REQUIRE(line->getBalance() == 0);
+            }
+            SECTION("missing issuer")
+            {
+                applyAccountMerge(app, gateway, root, gateway_seq++);
+                // cannot send to an account that is not the issuer
+                applyCreditPaymentTx(app, a1, b1, idrCur, a1Seq++, 40,
+                                     PAYMENT_NO_ISSUER);
+                // should be able to send back credits to issuer
+                applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, 75);
+                // cannot change the limit
+                applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 25,
+                                 CHANGE_TRUST_NO_ISSUER);
+                applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++, 25);
+                // and should be able to delete the trust line too
+                applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", 0);
+            }
         }
     }
     SECTION("issuer large amounts")
@@ -317,10 +340,10 @@ TEST_CASE("payment", "[tx][payment]")
         }
 
         // setup a1
-        applyChangeTrust(app, a1, gateway, a1Seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, a1, gateway2, a1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, a1, gateway, a1Seq++, "IDR", trustLineLimit);
 
-        applyCreditPaymentTx(app, gateway, a1, usdCur, gateway_seq++,
+        applyCreditPaymentTx(app, gateway2, a1, usdCur, gateway2_seq++,
                              trustLineStartingBalance);
 
         // add a couple offers in the order book
@@ -332,7 +355,7 @@ TEST_CASE("payment", "[tx][payment]")
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
         applyCreateAccountTx(app, root, b1, rootSeq++, minBalance3 + 10000);
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
-        applyChangeTrust(app, b1, gateway, b1Seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, b1, gateway2, b1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, b1, idrCur, gateway_seq++,
@@ -348,7 +371,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyCreateAccountTx(app, root, c1, rootSeq++, minBalance3 + 10000);
         SequenceNumber c1Seq = getAccountSeqNum(c1, app) + 1;
 
-        applyChangeTrust(app, c1, gateway, c1Seq++, "USD", trustLineLimit);
+        applyChangeTrust(app, c1, gateway2, c1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, c1, gateway, c1Seq++, "IDR", trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, c1, idrCur, gateway_seq++,
@@ -378,9 +401,6 @@ TEST_CASE("payment", "[tx][payment]")
             // A1: try to send 125 IDR to B1 using USD
             // should cost 150 (C's offer taken entirely) +
             //  50 (1/4 of B's offer)=200 USD
-
-            std::vector<Asset> path;
-            path.push_back(usdCur);
 
             auto res = applyPathPaymentTx(
                 app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
@@ -425,6 +445,60 @@ TEST_CASE("payment", "[tx][payment]")
                          trustLineStartingBalance - 200 * assetMultiplier);
         }
 
+        SECTION("missing issuer")
+        {
+            SECTION("dest is standard account")
+            {
+                SECTION("last")
+                {
+                    // gateway issued idrCur
+                    applyAccountMerge(app, gateway, root, gateway_seq++);
+
+                    auto res = applyPathPaymentTx(
+                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
+                        125 * assetMultiplier, a1Seq++, PATH_PAYMENT_NO_ISSUER);
+                    REQUIRE(res.noIssuer() == idrCur);
+                }
+                SECTION("first")
+                {
+                    // gateway2 issued usdCur
+                    applyAccountMerge(app, gateway2, root, gateway2_seq++);
+
+                    auto res = applyPathPaymentTx(
+                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
+                        125 * assetMultiplier, a1Seq++, PATH_PAYMENT_NO_ISSUER);
+                    REQUIRE(res.noIssuer() == usdCur);
+                }
+                SECTION("mid")
+                {
+                    std::vector<Asset> path;
+                    SecretKey missing = getAccount("missing");
+                    Asset btcCur = makeAsset(missing, "BTC");
+                    path.emplace_back(btcCur);
+                    auto res = applyPathPaymentTx(
+                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
+                        125 * assetMultiplier, a1Seq++, PATH_PAYMENT_NO_ISSUER,
+                        &path);
+                    REQUIRE(res.noIssuer() == btcCur);
+                }
+            }
+            SECTION("dest is issuer")
+            {
+                // single currency payment already covered elsewhere
+                // only one negative test:
+                SECTION("cannot take offers on the way")
+                {
+                    // gateway issued idrCur
+                    applyAccountMerge(app, gateway, root, gateway_seq++);
+
+                    auto res = applyPathPaymentTx(
+                        app, a1, gateway, usdCur, 250 * assetMultiplier, idrCur,
+                        125 * assetMultiplier, a1Seq++,
+                        PATH_PAYMENT_NO_DESTINATION);
+                }
+            }
+        }
+
         SECTION("send with path (takes own offer)")
         {
             // raise A1's balance by what we're trying to send
@@ -436,9 +510,6 @@ TEST_CASE("payment", "[tx][payment]")
 
             // A1: try to send 100 USD to B1 using XLM
 
-            std::vector<Asset> path;
-            path.push_back(xlmCur);
-
             applyPathPaymentTx(app, a1, b1, xlmCur, 100 * assetMultiplier,
                                usdCur, 100 * assetMultiplier, a1Seq++,
                                PATH_PAYMENT_OFFER_CROSS_SELF);
@@ -447,15 +518,12 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send with path (offer participant reaching limit)")
         {
             // make it such that C can only receive 120 USD (4/5th of offerC)
-            applyChangeTrust(app, c1, gateway, c1Seq++, "USD",
+            applyChangeTrust(app, c1, gateway2, c1Seq++, "USD",
                              120 * assetMultiplier);
 
             // A1: try to send 105 IDR to B1 using USD
             // cost 120 (C's offer maxed out at 4/5th of published amount)
             //  50 (1/4 of B's offer)=170 USD
-
-            std::vector<Asset> path;
-            path.push_back(usdCur);
 
             auto res = applyPathPaymentTx(
                 app, a1, b1, usdCur, 400 * assetMultiplier, idrCur,
@@ -498,6 +566,72 @@ TEST_CASE("payment", "[tx][payment]")
             line = loadTrustLine(a1, usdCur, app);
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 170 * assetMultiplier);
+        }
+        SECTION("missing trust line")
+        {
+            // modify C's trustlines to invalidate C's offer
+            // * C's offer should be deleted
+            // sell 100 IDR for 200 USD
+            // * B's offer 25 IDR by 50 USD
+
+            auto checkBalances = [&]()
+            {
+                auto res = applyPathPaymentTx(
+                    app, a1, b1, usdCur, 200 * assetMultiplier, idrCur,
+                    25 * assetMultiplier, a1Seq++, PATH_PAYMENT_SUCCESS);
+
+                auto& multi = res.success();
+
+                REQUIRE(multi.offers.size() == 2);
+
+                TrustFrame::pointer line;
+
+                // C1
+                // offer was deleted
+                REQUIRE(multi.offers[0].offerID == offerC1);
+                REQUIRE(multi.offers[0].amountSold == 0);
+                REQUIRE(multi.offers[0].amountBought == 0);
+                REQUIRE(!loadOffer(c1, offerC1, app, false));
+
+                // B1
+                auto const& b1Res = multi.offers[1];
+                REQUIRE(b1Res.offerID == offerB1);
+                offer = loadOffer(b1, offerB1, app);
+                OfferEntry const& oe = offer->getOffer();
+                REQUIRE(b1Res.sellerID == b1.getPublicKey());
+                checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
+                checkAmounts(oe.amount, 75 * assetMultiplier);
+                line = loadTrustLine(b1, idrCur, app);
+                // As B was the sole participant in the exchange, the IDR
+                // balance should not have changed
+                checkAmounts(line->getBalance(), trustLineStartingBalance);
+                line = loadTrustLine(b1, usdCur, app);
+                // but 25 USD cost 50 USD to send
+                checkAmounts(line->getBalance(), 50 * assetMultiplier);
+
+                // A1
+                line = loadTrustLine(a1, idrCur, app);
+                checkAmounts(line->getBalance(), 0);
+                line = loadTrustLine(a1, usdCur, app);
+                checkAmounts(line->getBalance(),
+                             trustLineStartingBalance - 50 * assetMultiplier);
+            };
+
+            SECTION("deleted selling line")
+            {
+                applyCreditPaymentTx(app, c1, gateway, idrCur, c1Seq++,
+                                     trustLineStartingBalance);
+
+                applyChangeTrust(app, c1, gateway, c1Seq++, "IDR", 0);
+
+                checkBalances();
+            }
+
+            SECTION("deleted buying line")
+            {
+                applyChangeTrust(app, c1, gateway2, c1Seq++, "USD", 0);
+                checkBalances();
+            }
         }
     }
 }

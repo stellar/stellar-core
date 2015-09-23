@@ -73,16 +73,19 @@ TEST_CASE("merge", "[tx][merge]")
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
 
+    SECTION("Account has static auth flag set")
+    {
+        uint32 flags = AUTH_IMMUTABLE_FLAG;
+        applySetOptions(app, a1, a1_seq++, nullptr, &flags, nullptr, nullptr,
+                        nullptr, nullptr);
+
+        applyAccountMerge(app, a1, b1, a1_seq++, ACCOUNT_MERGE_IMMUTABLE_SET);
+    }
+
     SECTION("With sub entries")
     {
         Asset usdCur = makeAsset(gateway, "USD");
         applyChangeTrust(app, a1, gateway, a1_seq++, "USD", trustLineLimit);
-
-        SECTION("account issued credits to somebody else")
-        {
-            applyAccountMerge(app, gateway, a1, gw_seq++,
-                              ACCOUNT_MERGE_CREDIT_HELD);
-        }
 
         SECTION("account has trust line")
         {
