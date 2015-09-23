@@ -47,7 +47,7 @@ const char* AccountFrame::kSQLCreateStatement3 =
     "CREATE INDEX signersaccount ON signers (accountid)";
 
 const char* AccountFrame::kSQLCreateStatement4 = "CREATE INDEX accountbalances "
-                                                 "ON Accounts (balance) WHERE "
+                                                 "ON accounts (balance) WHERE "
                                                  "balance >= 1000000000";
 
 AccountFrame::AccountFrame()
