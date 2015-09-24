@@ -84,7 +84,6 @@ LoopbackPeer::drop()
         mRemote->mStrand.post(
             [remote]()
             {
-                remote->getApp().getOverlayManager().dropPeer(remote);
                 remote->drop();
             });
     }
