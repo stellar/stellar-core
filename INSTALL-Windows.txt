@@ -23,9 +23,12 @@ Build Dependencies
 - In order to compile xdrc and run the binary you will need to either
        * Download and install mingw from http://sourceforge.net/projects/mingw/files/
           * * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
+          Note: while MinGW is a much smaller install than Cygwin, it's not kept up to date
+          and tends to have virtual memory address space conflict on modern versions of Windows.
+          You will run into errors like `Couldn't reserve space for mingw's heap, Win32 error 0`
        * Download and install cygwin from https://cygwin.com/install.html
           * Get cygwin setup to install `Flex` and `Bison`
-          * Add `c:\cygwin\bin` to the end of `%PATH%`
+          * Add `c:\cygwin64\bin` to the end of `%PATH%`
 
 - For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
 
