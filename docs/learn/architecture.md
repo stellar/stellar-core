@@ -1,5 +1,6 @@
-Process-level architecture
-==========================
+---
+title: Process-level architecture
+---
 
 Application owns a ledger-forming component, a p2p "overlay" component for
 connecting to peers and flooding messages between peers, a set-synchronization

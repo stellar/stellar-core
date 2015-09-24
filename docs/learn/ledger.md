@@ -1,4 +1,6 @@
-
+---
+title: Ledger 
+---
 
 - **Ledger**: A ledger is the state of the distributed Stellar database at a
   particular point in time. It is composed of a set of _ledger entries_,

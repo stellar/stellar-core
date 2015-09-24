@@ -1,9 +1,11 @@
-# Overview
+---
+title: Versioning
+---
 
 This document describes the various mechanisms used to keep the overall system working as it evolves.
 
-# Ledger versioning
-## ledgerVersion
+## Ledger versioning
+### ledgerVersion
 This uint32 stored in the ledger header describes the version number of the overall protocol.
 Protocol in this case is defined both as "wire format" (ie, the serialized forms of all objects stored in the ledger) and its behavior.
 

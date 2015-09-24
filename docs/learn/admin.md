@@ -1,4 +1,6 @@
-# Administration
+---
+title: Administration
+---
 
 Stellar Core is responsible for communicating directly with and/or maintaining 
 the Stellar peer-to-peer network.
@@ -36,11 +38,11 @@ configurable as `LOG_FILE_PATH`.
 
 The log level can be controlled by configuration, by the `-ll` command-line flag 
 or adjusted dynamically by administrative (HTTP) commands.
- Run `stellar-core -c “ll?level=debug"` against a running system.
+ Run `stellar-core -c "ll?level=debug"` against a running system.
 Log levels can also be adjusted on a partition-by-partition basis through the 
 administrative interface.
  For example the history system can be set to DEBUG-level logging by running
-`stellar-core -c “ll?level=debug&partition=history”` against a running system.
+`stellar-core -c "ll?level=debug&partition=history"` against a running system.
  The default log level is `INFO`, which is moderately verbose and should emit 
  progress messages every few seconds under normal operation.
 
@@ -103,17 +105,17 @@ command if your DB gets corrupted and you want to restart it from scratch.
 
 ## Buckets
 Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
-called “buckets.” These files are placed in a directory specified in the config 
+called "buckets." These files are placed in a directory specified in the config 
 file as `BUCKET_DIR_PATH`, which defaults to `buckets`. The bucket files are used
  for hashing and transmission of ledger differences to history archives. This 
  directory must be on the same file system as the configured temporary 
  directory `TMP_DIR_PATH`. For the most part, the contents of both directories 
-can be ignored—they are managed by stellar-core, but they should be stored on 
+can be ignored--they are managed by stellar-core, but they should be stored on 
 a fast local disk with sufficient space to store several times the size of the 
 current ledger. 
 
 ## History archives
-Stellar-core normally interacts with one or more “history archives,” which are 
+Stellar-core normally interacts with one or more "history archives," which are 
 configurable facilities for storing and retrieving flat files containing history 
 checkpoints: bucket files and history logs. History archives are usually off-site 
 commodity storage services such as Amazon S3, Google Cloud Storage, 
@@ -128,18 +130,18 @@ While it is possible to run a stellar-core node with no configured history
 archives, it will be _severely limited_, unable to participate fully in a 
 network, and likely unable to acquire synchronization at all. At the very 
 least, if you are joining an existing network in a read-only capacity, you 
-will still need to configure a `get` command to access that network’s history 
+will still need to configure a `get` command to access that network's history 
 archives.
 
 # Recipes
 
 ## Joining an existing network
 
-Put the network’s `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
-Optionally: If you’re going to be a validating node, generate key pair and 
+Put the network's `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
+Optionally: If you're going to be a validating node, generate key pair and 
 set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
-Optionally: Create an external database to use—e.g., by using 
-PostgreSQL’s `createdb` command.
+Optionally: Create an external database to use--e.g., by using 
+PostgreSQL's `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
 Run `stellar-core --newdb` to initialize the database.
 Run `stellar-core`.
@@ -150,7 +152,7 @@ Generate a keypair for each node, and set `NODE_SEED` and `NODE_IS_VALIDATOR=tru
 on each node of your new network.
 Set the `QUORUM_SET` and `KNOWN_PEERS` of each node to refer to one another.
 Decide on a history archive and add a HISTORY config entry for it on each node.
-Optionally: Create databases for each to use—e.g., by using PostgreSQL’s `createdb` command.
+Optionally: Create databases for each to use--e.g., by using PostgreSQL's `createdb` command.
 Set the `DATABASE` config variables on each node to your choice of database.
 Run `stellar-core --newhist <historyarchive>` on _one_ node, to initialize the history archive.
 Run `stellar-core --newdb` to initialize the database on each node.

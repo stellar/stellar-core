@@ -1,4 +1,6 @@
-# Fuzzing
+---
+title: Fuzzing
+---
 
 This is a little howto on using the [AFL][0] (["American Fuzzy Lop"][1])
 fuzzer with stellar-core. Support for this is still preliminary but it has

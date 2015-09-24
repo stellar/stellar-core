@@ -1,3 +1,6 @@
+---
+title: DB Schema
+---
 
 stellar-core maintains the current state of the ledger in a SQL DB. Currently
 it can be configured to use either sqlite or postgres. 

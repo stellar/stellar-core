@@ -1,3 +1,7 @@
+---
+title: Commands
+---
+
 stellar-core can be controlled via the following commands.
 
 ## Command line options
