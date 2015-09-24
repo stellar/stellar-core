@@ -290,7 +290,7 @@ Peer::connectHandler(asio::error_code const& error)
     }
     else
     {
-        CLOG(DEBUG, "Overlay") << "connected @" << toString();
+        CLOG(DEBUG, "Overlay") << "connected " << toString();
         connected();
         mState = CONNECTED;
         sendHello();
@@ -718,7 +718,9 @@ Peer::noteHandshakeSuccessInPeerRecord()
         pr = make_optional<PeerRecord>(getIP(), mRemoteListeningPort,
                                        mApp.getClock().now());
     }
-    CLOG(INFO, "Overlay") << "sucessful handshake with " << pr->toString();
+    CLOG(INFO, "Overlay") << "sucessful handshake with "
+                          << PubKeyUtils::toShortString(mPeerID)
+                          << "@" << pr->toString();
     pr->storePeerRecord(mApp.getDatabase());
 }
 

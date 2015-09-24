@@ -256,7 +256,9 @@ void
 OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
-    CLOG(DEBUG, "Overlay") << "Dropping peer " << peer->toString();
+    CLOG(INFO, "Overlay") << "Dropping peer "
+                          << PubKeyUtils::toShortString(peer->getPeerID())
+                          << "@" << peer->toString();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);
