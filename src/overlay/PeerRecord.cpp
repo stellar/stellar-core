@@ -122,9 +122,9 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     // SOCI only support signed short, using intermediate int avoids ending up
     // with negative numbers in the database
     uint32_t lport;
-    auto prep = db.getPreparedStatement(
-        "SELECT ip,port, nextattempt, numfailures FROM "
-        "peers WHERE ip = :v1 AND port = :v2");
+    auto prep =
+        db.getPreparedStatement("SELECT ip,port, nextattempt, numfailures FROM "
+                                "peers WHERE ip = :v1 AND port = :v2");
     auto& st = prep.statement();
     st.exchange(into(ret->mIP));
     st.exchange(into(lport));
@@ -188,21 +188,22 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 }
 
 bool
-PeerRecord::isSelfAddressAndPort(std::string const& ip, unsigned short port) const
+PeerRecord::isSelfAddressAndPort(std::string const& ip,
+                                 unsigned short port) const
 {
-   asio::error_code ec;
-   asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
-   if (ec)
-   {
-       return false;
-   }
-   asio::ip::address_v4 otherAddr = asio::ip::address_v4::from_string(ip, ec);
-   if (ec)
-   {
-       return false;
-   }
-   return (addr == otherAddr && port == mPort);
- }
+    asio::error_code ec;
+    asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
+    if (ec)
+    {
+        return false;
+    }
+    asio::ip::address_v4 otherAddr = asio::ip::address_v4::from_string(ip, ec);
+    if (ec)
+    {
+        return false;
+    }
+    return (addr == otherAddr && port == mPort);
+}
 
 bool
 PeerRecord::isPrivateAddress() const
@@ -295,8 +296,7 @@ PeerRecord::resetBackOff(VirtualClock& clock)
 {
     mNumFailures = 0;
     mNextAttempt = clock.now();
-    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
-                           << " backoff reset";
+    CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString() << " backoff reset";
 }
 
 void

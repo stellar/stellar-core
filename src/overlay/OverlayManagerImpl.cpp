@@ -29,7 +29,8 @@ B now has IP and listening port of A, sends HELLO(CertB,NonceB) back
 A sends AUTH(signed([0],keyAB))
 B verifies and either:
     sends AUTH(signed([0],keyBA)) back or
-    disconnects, if it's full, optionally sending a list of other peers to try first
+    disconnects, if it's full, optionally sending a list of other peers to try
+first
 
 keyAB and keyBA are per-connection HMAC keys derived from non-interactive
 ECDH on random curve25519 keys conveyed in CertA and CertB (certs signed by
@@ -182,8 +183,8 @@ OverlayManagerImpl::connectToMorePeers(int max)
     // Load additional peers from the DB if we're not in whitelist mode.
     if (!mApp.getConfig().PREFERRED_PEERS_ONLY)
     {
-        PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
-                                    peers);
+        PeerRecord::loadPeerRecords(mApp.getDatabase(), max,
+                                    mApp.getClock().now(), peers);
     }
 
     for (auto& pr : peers)
@@ -319,7 +320,8 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
     if (peer->isAuthenticated())
     {
         std::string kstr = PubKeyUtils::toStrKey(peer->getPeerID());
-        std::vector<std::string> const& pk = mApp.getConfig().PREFERRED_PEER_KEYS;
+        std::vector<std::string> const& pk =
+            mApp.getConfig().PREFERRED_PEER_KEYS;
         if (std::find(pk.begin(), pk.end(), kstr) != pk.end())
         {
             CLOG(DEBUG, "Overlay") << "Peer key " << kstr << " is preferred";

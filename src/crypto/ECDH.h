@@ -39,7 +39,6 @@ HmacSha256Key EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
                                   Curve25519Public const& localPublic,
                                   Curve25519Public const& remotePublic,
                                   bool localFirst);
-
 }
 
 namespace std

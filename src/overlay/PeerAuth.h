@@ -24,7 +24,7 @@ class PeerAuth
     // HKDF_expand(K{us,them}, 1 || nonce_B || nonce_A) for
     // use in a particular A-called-B p2p session.
 
-    Application &mApp;
+    Application& mApp;
     Curve25519Secret mECDHSecretKey;
     Curve25519Public mECDHPublicKey;
     AuthCert mCert;
@@ -34,7 +34,7 @@ class PeerAuth
     HmacSha256Key getSharedKey(Curve25519Public const& remotePublic,
                                Peer::PeerRole role);
 
-public:
+  public:
     PeerAuth(Application& app);
 
     AuthCert getAuthCert();
@@ -48,7 +48,5 @@ public:
                                      uint256 const& localNonce,
                                      uint256 const& remoteNonce,
                                      Peer::PeerRole role);
-
 };
-
 }

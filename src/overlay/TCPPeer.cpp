@@ -30,8 +30,7 @@ using namespace std;
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
                  std::shared_ptr<asio::ip::tcp::socket> socket)
-    : Peer(app, role)
-    , mSocket(socket)
+    : Peer(app, role), mSocket(socket)
 {
 }
 
@@ -176,20 +175,18 @@ TCPPeer::startRead()
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
         assert(self->mIncomingHeader.size() == 0);
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to "
-                               << self->toString();
+        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
         self->mIncomingHeader.resize(4);
-        asio::async_read(*(self->mSocket.get()),
-                         asio::buffer(self->mIncomingHeader),
-                         self->mStrand.wrap(
-                             [self](asio::error_code ec, std::size_t length)
-                             {
-                                 CLOG(TRACE, "Overlay")
-                                     << "TCPPeer::startRead calledback "
-                                     << ec << " length:" << length;
-                                 self->readHeaderHandler(ec, length);
-                             }));
+        asio::async_read(
+            *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
+            self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+                               {
+                                   CLOG(TRACE, "Overlay")
+                                       << "TCPPeer::startRead calledback " << ec
+                                       << " length:" << length;
+                                   self->readHeaderHandler(ec, length);
+                               }));
     }
     catch (asio::system_error& e)
     {
@@ -215,8 +212,7 @@ TCPPeer::getIncomingMsgLength()
     {
         mErrorRead.Mark();
         CLOG(ERROR, "Overlay")
-            << "TCP: message size unacceptable: "
-            << length
+            << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
         drop();
     }
@@ -385,7 +381,8 @@ TCPPeer::drop()
                     if (ec2)
                     {
                         CLOG(ERROR, "Overlay")
-                            << "TCPPeer::drop close socket failed: " << ec2.message();
+                            << "TCPPeer::drop close socket failed: "
+                            << ec2.message();
                     }
                 });
         });

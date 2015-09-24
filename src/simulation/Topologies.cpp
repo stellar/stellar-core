@@ -82,8 +82,8 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     vector<SecretKey> keys;
     for (int i = 0; i < nNodes; i++)
     {
-        keys.push_back(SecretKey::fromSeed(
-            sha256("NODE_SEED_" + to_string(i))));
+        keys.push_back(
+            SecretKey::fromSeed(sha256("NODE_SEED_" + to_string(i))));
     }
 
     SCPQuorumSet qSet;
@@ -135,9 +135,8 @@ Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
         vector<SecretKey> middletierKeys;
         for (int j = 0; j < 1; j++)
         {
-            middletierKeys.push_back(SecretKey::fromSeed(
-                sha256("NODE_SEED_" + to_string(i) + "_middle_" +
-                       to_string(j))));
+            middletierKeys.push_back(SecretKey::fromSeed(sha256(
+                "NODE_SEED_" + to_string(i) + "_middle_" + to_string(j))));
         }
 
         for (auto const& key : middletierKeys)

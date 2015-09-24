@@ -26,10 +26,7 @@ class PeerRecord
 
     PeerRecord(string const& ip, unsigned short port,
                VirtualClock::time_point nextAttempt, uint32_t fails = 0)
-        : mIP(ip)
-        , mPort(port)
-        , mNextAttempt(nextAttempt)
-        , mNumFailures(fails)
+        : mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails)
     {
     }
 

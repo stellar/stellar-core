@@ -17,7 +17,7 @@
 #include "simulation/LoadGenerator.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \
-    const Hash v##N##VSeed = sha256("NODE_SEED_" #N);               \
+    const Hash v##N##VSeed = sha256("NODE_SEED_" #N);                          \
     const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed);        \
     const PublicKey v##N##NodeID = v##N##SecretKey.getPublicKey();
 
@@ -75,7 +75,6 @@ class Simulation : public LoadGenerator
     std::string metricsSummary(std::string domain = "");
 
   private:
-
     void addConnection(NodeID initiator, NodeID acceptor);
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);

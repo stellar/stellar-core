@@ -97,7 +97,8 @@ Simulation::getNodeIDs()
 }
 
 void
-Simulation::addPendingConnection(NodeID const& initiator, NodeID const& acceptor)
+Simulation::addPendingConnection(NodeID const& initiator,
+                                 NodeID const& acceptor)
 {
     mPendingConnections.push_back(std::make_pair(initiator, acceptor));
 }

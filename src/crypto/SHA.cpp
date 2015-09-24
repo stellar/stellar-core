@@ -85,8 +85,6 @@ SHA256Impl::finish()
     return out;
 }
 
-
-
 // HMAC-SHA256
 HmacSha256Mac
 hmacSha256(HmacSha256Key const& key, ByteSlice const& bin)
@@ -104,10 +102,8 @@ bool
 hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
                  ByteSlice const& bin)
 {
-    return 0 == crypto_auth_hmacsha256_verify(hmac.mac.data(),
-                                              bin.data(),
-                                              bin.size(),
-                                              key.key.data());
+    return 0 == crypto_auth_hmacsha256_verify(hmac.mac.data(), bin.data(),
+                                              bin.size(), key.key.data());
 }
 
 // Unsalted HKDF-extract(bytes) == HMAC(<zero>,bytes)
@@ -132,6 +128,4 @@ hkdfExpand(HmacSha256Key const& key, ByteSlice const& bin)
     out.key = mac.mac;
     return out;
 }
-
-
 }

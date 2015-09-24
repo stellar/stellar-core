@@ -344,8 +344,7 @@ Config::load(std::string const& filename)
                 std::string seed = item.second->as<std::string>()->value();
                 NODE_SEED = SecretKey::fromStrKeySeed(seed);
             }
-            else if (item.first == "NODE_SEED" ||
-                     item.first == "PEER_SEED")
+            else if (item.first == "NODE_SEED" || item.first == "PEER_SEED")
             {
                 if (item.first == "PEER_SEED")
                 {
@@ -409,7 +408,8 @@ Config::load(std::string const& filename)
                 {
                     if (!v->as<std::string>())
                     {
-                        throw std::invalid_argument("invalid element of PREFERRED_PEERS");
+                        throw std::invalid_argument(
+                            "invalid element of PREFERRED_PEERS");
                     }
                     PREFERRED_PEERS.push_back(v->as<std::string>()->value());
                 }
@@ -425,9 +425,11 @@ Config::load(std::string const& filename)
                 {
                     if (!v->as<std::string>())
                     {
-                        throw std::invalid_argument("invalid element of PREFERRED_PEER_KEYS");
+                        throw std::invalid_argument(
+                            "invalid element of PREFERRED_PEER_KEYS");
                     }
-                    PREFERRED_PEER_KEYS.push_back(v->as<std::string>()->value());
+                    PREFERRED_PEER_KEYS.push_back(
+                        v->as<std::string>()->value());
                 }
             }
             else if (item.first == "PREFERRED_PEERS_ONLY")
@@ -448,7 +450,8 @@ Config::load(std::string const& filename)
                 {
                     if (!v->as<std::string>())
                     {
-                        throw std::invalid_argument("invalid element of KNOWN_PEERS");
+                        throw std::invalid_argument(
+                            "invalid element of KNOWN_PEERS");
                     }
                     KNOWN_PEERS.push_back(v->as<std::string>()->value());
                 }
@@ -467,7 +470,8 @@ Config::load(std::string const& filename)
                 {
                     if (!v->as<std::string>())
                     {
-                        throw std::invalid_argument("invalid element of COMMANDS");
+                        throw std::invalid_argument(
+                            "invalid element of COMMANDS");
                     }
                     COMMANDS.push_back(v->as<std::string>()->value());
                 }

@@ -25,22 +25,16 @@ class SHA256
     virtual uint256 finish() = 0;
 };
 
-
 // HMAC-SHA256 (keyed)
-HmacSha256Mac hmacSha256(HmacSha256Key const& key,
-                         ByteSlice const& bin);
+HmacSha256Mac hmacSha256(HmacSha256Key const& key, ByteSlice const& bin);
 
 // Use this rather than HMAC-output ==, to avoid timing leaks.
-bool hmacSha256Verify(HmacSha256Mac const& hmac,
-                      HmacSha256Key const& key,
+bool hmacSha256Verify(HmacSha256Mac const& hmac, HmacSha256Key const& key,
                       ByteSlice const& bin);
-
 
 // Unsalted HKDF-extract(bytes) == HMAC(<zero>,bytes)
 HmacSha256Key hkdfExtract(ByteSlice const& bin);
 
 // Single-step HKDF-expand(key,bytes) == HMAC(key,bytes|0x1)
-HmacSha256Key hkdfExpand(HmacSha256Key const& key,
-                         ByteSlice const& bin);
-
+HmacSha256Key hkdfExpand(HmacSha256Key const& key, ByteSlice const& bin);
 }

@@ -28,12 +28,9 @@ makeAuthCert(Application& app, Curve25519Public const& pub)
     cert.pubkey = pub;
     cert.expiration = app.timeNow() + expirationLimit;
 
-    auto hash = sha256(xdr::xdr_to_opaque(app.getNetworkID(),
-                                          ENVELOPE_TYPE_AUTH,
-                                          cert.expiration,
-                                          cert.pubkey));
-    CLOG(DEBUG, "Overlay") << "PeerAuth signing cert hash: "
-                           << hexAbbrev(hash);
+    auto hash = sha256(xdr::xdr_to_opaque(
+        app.getNetworkID(), ENVELOPE_TYPE_AUTH, cert.expiration, cert.pubkey));
+    CLOG(DEBUG, "Overlay") << "PeerAuth signing cert hash: " << hexAbbrev(hash);
     cert.sig = app.getConfig().NODE_SEED.sign(hash);
     return cert;
 }
@@ -58,8 +55,7 @@ PeerAuth::getAuthCert()
 }
 
 bool
-PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode,
-                               AuthCert const& cert)
+PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
 {
     if (cert.expiration < mApp.timeNow())
     {
@@ -68,10 +64,8 @@ PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode,
                                << ", now=" << mApp.timeNow();
         return false;
     }
-    auto hash = sha256(xdr::xdr_to_opaque(mApp.getNetworkID(),
-                                          ENVELOPE_TYPE_AUTH,
-                                          cert.expiration,
-                                          cert.pubkey));
+    auto hash = sha256(xdr::xdr_to_opaque(
+        mApp.getNetworkID(), ENVELOPE_TYPE_AUTH, cert.expiration, cert.pubkey));
 
     CLOG(DEBUG, "Overlay") << "PeerAuth verifying cert hash: "
                            << hexAbbrev(hash);
@@ -86,9 +80,7 @@ PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
     {
         return mSharedKeyCache.get(remotePublic);
     }
-    auto k = EcdhDeriveSharedKey(mECDHSecretKey,
-                                 mECDHPublicKey,
-                                 remotePublic,
+    auto k = EcdhDeriveSharedKey(mECDHSecretKey, mECDHPublicKey, remotePublic,
                                  role == Peer::WE_CALLED_REMOTE);
     mSharedKeyCache.put(remotePublic, k);
     return k;
@@ -97,8 +89,7 @@ PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
 HmacSha256Key
 PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
                            uint256 const& localNonce,
-                           uint256 const& remoteNonce,
-                           Peer::PeerRole role)
+                           uint256 const& remoteNonce, Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -119,14 +110,12 @@ PeerAuth::getSendingMacKey(Curve25519Public const& remotePublic,
     }
     auto k = getSharedKey(remotePublic, role);
     return hkdfExpand(k, buf);
-
 }
 
 HmacSha256Key
 PeerAuth::getReceivingMacKey(Curve25519Public const& remotePublic,
                              uint256 const& localNonce,
-                             uint256 const& remoteNonce,
-                             Peer::PeerRole role)
+                             uint256 const& remoteNonce, Peer::PeerRole role)
 {
     std::vector<uint8_t> buf;
     if (role == Peer::WE_CALLED_REMOTE)
@@ -148,5 +137,4 @@ PeerAuth::getReceivingMacKey(Curve25519Public const& remotePublic,
     auto k = getSharedKey(remotePublic, role);
     return hkdfExpand(k, buf);
 }
-
 }

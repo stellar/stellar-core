@@ -20,12 +20,12 @@
 
 using namespace stellar;
 
-void crankSome(VirtualClock& clock)
+void
+crankSome(VirtualClock& clock)
 {
     auto start = clock.now();
     for (size_t i = 0;
-         (i < 100 &&
-          clock.now() < (start + std::chrono::seconds(1)) &&
+         (i < 100 && clock.now() < (start + std::chrono::seconds(1)) &&
           clock.crank(false) > 0);
          ++i)
         ;
@@ -60,9 +60,9 @@ TEST_CASE("failed auth", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app1->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-message-mac"},
-                "drop").count() != 0);
+    REQUIRE(app1->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-message-mac"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("reject non-preferred peer", "[overlay]")
@@ -81,9 +81,9 @@ TEST_CASE("reject non-preferred peer", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-auth-reject"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-auth-reject"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("accept preferred peer even when strict", "[overlay]")
@@ -122,9 +122,9 @@ TEST_CASE("reject peers beyond max", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-auth-reject"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-auth-reject"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("reject peers with differing network passphrases", "[overlay]")
@@ -143,9 +143,9 @@ TEST_CASE("reject peers with differing network passphrases", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-hello-cert"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-hello-cert"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("reject peers with invalid cert", "[overlay]")
@@ -163,9 +163,9 @@ TEST_CASE("reject peers with invalid cert", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app1->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-hello-cert"},
-                "drop").count() != 0);
+    REQUIRE(app1->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-hello-cert"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("reject peers with differing overlay versions", "[overlay]")
@@ -184,9 +184,9 @@ TEST_CASE("reject peers with differing overlay versions", "[overlay]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-hello-version"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-hello-version"}, "drop")
+                .count() != 0);
 }
 
 TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
@@ -201,9 +201,9 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->setCorked(true);
     auto start = clock.now();
-    while (clock.now() < (start + std::chrono::seconds(3))
-           && conn.getInitiator()->isConnected()
-           && conn.getAcceptor()->isConnected())
+    while (clock.now() < (start + std::chrono::seconds(3)) &&
+           conn.getInitiator()->isConnected() &&
+           conn.getAcceptor()->isConnected())
     {
         LOG(INFO) << "clock.now() = " << clock.now().time_since_epoch().count();
         clock.crank(false);
@@ -211,9 +211,9 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
     REQUIRE(clock.now() < (start + std::chrono::seconds(5)));
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "timeout", "read"},
-                "timeout").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "timeout", "read"}, "timeout")
+                .count() != 0);
 }
 
 TEST_CASE("reject peers with the same nodeid", "[overlay]")
@@ -237,7 +237,7 @@ TEST_CASE("reject peers with the same nodeid", "[overlay]")
     REQUIRE(conn.getAcceptor()->isAuthenticated());
     REQUIRE(!conn2.getInitiator()->isConnected());
     REQUIRE(!conn2.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "recv-hello-peerid"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-hello-peerid"}, "drop")
+                .count() != 0);
 }

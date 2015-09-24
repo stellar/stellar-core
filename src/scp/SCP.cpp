@@ -18,12 +18,12 @@ namespace stellar
 {
 using xdr::operator==;
 
-SCP::SCP(SCPDriver& driver, SecretKey const& secretKey,
-         bool isValidator,
+SCP::SCP(SCPDriver& driver, SecretKey const& secretKey, bool isValidator,
          SCPQuorumSet const& qSetLocal)
     : mDriver(driver)
 {
-    mLocalNode = std::make_shared<LocalNode>(secretKey, isValidator, qSetLocal, this);
+    mLocalNode =
+        std::make_shared<LocalNode>(secretKey, isValidator, qSetLocal, this);
 }
 
 SCP::EnvelopeState
