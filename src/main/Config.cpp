@@ -22,7 +22,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LEDGER_PROTOCOL_VERSION = 1;
     OVERLAY_PROTOCOL_VERSION = 3;
     VERSION_STR = STELLAR_CORE_VERSION;
-    DESIRED_BASE_RESERVE = 10000000;
+    DESIRED_BASE_RESERVE = 100000000;
 
     // configurable
     RUN_STANDALONE = false;
@@ -38,7 +38,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
 
-    DESIRED_BASE_FEE = 10;
+    DESIRED_BASE_FEE = 100;
     DESIRED_MAX_TX_PER_LEDGER = 500;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
