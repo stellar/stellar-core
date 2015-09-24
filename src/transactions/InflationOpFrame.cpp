@@ -35,7 +35,7 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     auto& lcl = inflationDelta.getHeader();
 
     time_t closeTime = lcl.scpValue.closeTime;
-    uint32_t seq = lcl.inflationSeq;
+    uint64_t seq = lcl.inflationSeq;
 
     time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
@@ -51,7 +51,7 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     1. calculate tally of votes based on "inflationDest" set on each account
     2. take the top accounts (by vote) that get at least .05% of the vote
-    3. If no accounts are over this threshold then the extra goes back to the 
+    3. If no accounts are over this threshold then the extra goes back to the
        inflation pool
     */
 
@@ -87,13 +87,11 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     int64 leftAfterDole = amountToDole;
 
-   
     for (auto const& w : winners)
     {
         AccountFrame::pointer winner;
 
-        int64 toDoleThisWinner =
-            bigDivide(amountToDole, w.mVotes, totalVotes);
+        int64 toDoleThisWinner = bigDivide(amountToDole, w.mVotes, totalVotes);
 
         if (toDoleThisWinner == 0)
             continue;
@@ -109,10 +107,9 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
             payouts.emplace_back(w.mInflationDest, toDoleThisWinner);
         }
     }
-   
+
     // put back in fee pool as unclaimed funds
     lcl.feePool += leftAfterDole;
-    
 
     inflationDelta.commit();
 
