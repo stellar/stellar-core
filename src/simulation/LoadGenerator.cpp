@@ -903,7 +903,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
                 signingAccounts.insert(mTo);
             }
 
-            e.tx.fee = 10 * static_cast<uint32>(e.tx.operations.size());
+            e.tx.fee = 100 * static_cast<uint32>(e.tx.operations.size());
             TransactionFramePtr res =
                 TransactionFrame::makeTransactionFromWire(networkID, e);
             for (auto a : signingAccounts)

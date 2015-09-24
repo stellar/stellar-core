@@ -271,7 +271,7 @@ getAccountBalance(SecretKey const& k, Application& app)
 void
 checkTransaction(TransactionFrame& txFrame)
 {
-    REQUIRE(txFrame.getResult().feeCharged == 10); // default fee
+    REQUIRE(txFrame.getResult().feeCharged == 100); // default fee
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -283,7 +283,7 @@ transactionFromOperation(Hash const& networkID, SecretKey& from,
     TransactionEnvelope e;
 
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = 10;
+    e.tx.fee = 100;
     e.tx.seqNum = seq;
     e.tx.operations.push_back(op);
 

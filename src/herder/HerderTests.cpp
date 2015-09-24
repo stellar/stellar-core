@@ -334,14 +334,14 @@ TEST_CASE("surge", "[herder]")
 
     SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
 
-    applyCreateAccountTx(*app, root, destAccount, rootSeq++, 50000000);
+    applyCreateAccountTx(*app, root, destAccount, rootSeq++, 500000000);
 
     SecretKey accountB = getAccount("accountB");
-    applyCreateAccountTx(*app, root, accountB, rootSeq++, 500000000);
+    applyCreateAccountTx(*app, root, accountB, rootSeq++, 5000000000);
     SequenceNumber accountBSeq = getAccountSeqNum(accountB, *app) + 1;
 
     SecretKey accountC = getAccount("accountC");
-    applyCreateAccountTx(*app, root, accountC, rootSeq++, 500000000);
+    applyCreateAccountTx(*app, root, accountC, rootSeq++, 5000000000);
     SequenceNumber accountCSeq = getAccountSeqNum(accountC, *app) + 1;
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
