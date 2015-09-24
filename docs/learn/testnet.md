@@ -1,3 +1,7 @@
+---
+title: Testnet
+---
+
 ## Starting a test network with 1 node
 
 First, make sure you have copied the example config to your current working directory.

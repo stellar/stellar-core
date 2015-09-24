@@ -1,16 +1,17 @@
-
-# History
+---
+title: History
+---
 
 Stellar Core separates data into "current" and "historical."
 
-Current data is the subject of peer-to-peer messages뾠onsensus is only concerned with the present,
+Current data is the subject of peer-to-peer messages혰consensus is only concerned with the present,
 not the past. Current data _resides_ in a local SQL database paired with each stellar-core
 process. This database is consulted and updated "live" in an ACID fashion as stellar-core applies
 each [transaction](transaction.md) set for which consensus was reached and forms each new [ledger](ledger.md).
 
 Unlike many similar systems, stellar-core does _not_ need to consult history in order to apply a
-single transaction or set of transactions. Only "current" data뾲he state of the current ledger
-and the hash of the previous one뾦s required to apply transactions. "Historical" data exists for
+single transaction or set of transactions. Only "current" data혰the state of the current ledger
+and the hash of the previous one혰is required to apply transactions. "Historical" data exists for
 peers to catch up to one another, as well as for record auditing and interoperability with other
 programs.
 
@@ -81,8 +82,8 @@ safely copied to any other history archive that is missing them.
 
 ## Catching up
 
-When stellar-core finds that it is out of sync with its peers뾢ither because it is joining
-a network for the first time, or because it crashed or was disconnected for some reason뾦t
+When stellar-core finds that it is out of sync with its peers혰either because it is joining
+a network for the first time, or because it crashed or was disconnected for some reason혰it
 contacts a history archive and attempts to find published history records from which to "catch up."
 This is the first and most essential use of history archives: they are how peers catch up with
 one another.

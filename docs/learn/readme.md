@@ -1,4 +1,6 @@
-# Stellar-core Overview
+---
+title: Overview
+---
 
 Stellar is a decentralized, federated peer-to-peer network that allows people to
 send payments in any asset anywhere in the world instantaneously, and with
