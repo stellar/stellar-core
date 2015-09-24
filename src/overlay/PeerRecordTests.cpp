@@ -31,10 +31,10 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
         PeerAddress xdr;
         pr.toXdr(xdr);
         REQUIRE(xdr.port == 256);
-        REQUIRE(xdr.ip[0] == 1);
-        REQUIRE(xdr.ip[1] == 25);
-        REQUIRE(xdr.ip[2] == 50);
-        REQUIRE(xdr.ip[3] == 200);
+        REQUIRE(xdr.ip.ipv4()[0] == 1);
+        REQUIRE(xdr.ip.ipv4()[1] == 25);
+        REQUIRE(xdr.ip.ipv4()[2] == 50);
+        REQUIRE(xdr.ip.ipv4()[3] == 200);
         REQUIRE(xdr.numFailures == 2);
     }
     SECTION("loadPeerRecord and storePeerRecord")

@@ -14,6 +14,7 @@
 namespace medida
 {
 class Timer;
+class Meter;
 }
 
 namespace stellar
@@ -55,12 +56,31 @@ class Peer : public std::enable_shared_from_this<Peer>,
     PeerRole mRole;
     PeerState mState;
     NodeID mPeerID;
-    uint256 mSentNonce;
-    uint256 mReceivedNonce;
+    uint256 mSendNonce;
+    uint256 mRecvNonce;
+
+    HmacSha256Key mSendMacKey;
+    HmacSha256Key mRecvMacKey;
+    uint64_t mSendMacSeq{0};
+    uint64_t mRecvMacSeq{0};
 
     std::string mRemoteVersion;
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
+
+    asio::io_service::strand mStrand;
+    VirtualTimer mIdleTimer;
+    VirtualClock::time_point mLastRead;
+    VirtualClock::time_point mLastWrite;
+
+    medida::Meter& mMessageRead;
+    medida::Meter& mMessageWrite;
+    medida::Meter& mByteRead;
+    medida::Meter& mByteWrite;
+    medida::Meter& mErrorRead;
+    medida::Meter& mErrorWrite;
+    medida::Meter& mTimeoutRead;
+    medida::Meter& mTimeoutWrite;
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
@@ -75,8 +95,36 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
 
+    medida::Meter& mSendErrorMeter;
+    medida::Meter& mSendHelloMeter;
+    medida::Meter& mSendAuthMeter;
+    medida::Meter& mSendDontHaveMeter;
+    medida::Meter& mSendGetPeersMeter;
+    medida::Meter& mSendPeersMeter;
+    medida::Meter& mSendGetTxSetMeter;
+    medida::Meter& mSendTxSetMeter;
+    medida::Meter& mSendTransactionMeter;
+    medida::Meter& mSendGetSCPQuorumSetMeter;
+    medida::Meter& mSendSCPQuorumSetMeter;
+
+    medida::Meter& mDropInConnectHandlerMeter;
+    medida::Meter& mDropInRecvMessageDecodeMeter;
+    medida::Meter& mDropInRecvMessageSeqMeter;
+    medida::Meter& mDropInRecvMessageMacMeter;
+    medida::Meter& mDropInRecvMessageUnauthMeter;
+    medida::Meter& mDropInRecvHelloVersionMeter;
+    medida::Meter& mDropInRecvHelloSelfMeter;
+    medida::Meter& mDropInRecvHelloPeerIDMeter;
+    medida::Meter& mDropInRecvHelloCertMeter;
+    medida::Meter& mDropInRecvHelloNetMeter;
+    medida::Meter& mDropInRecvHelloPortMeter;
+    medida::Meter& mDropInRecvAuthUnexpectedMeter;
+    medida::Meter& mDropInRecvAuthRejectMeter;
+    medida::Meter& mDropInRecvErrorMeter;
+
     bool shouldAbort() const;
     void recvMessage(StellarMessage const& msg);
+    void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
     virtual void recvError(StellarMessage const& msg);
@@ -113,6 +161,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     connected()
     {
     }
+
+    virtual AuthCert getAuthCert();
+
+    void startIdleTimer();
+    void idleTimerExpired(asio::error_code const& error);
+    size_t getIOTimeoutSeconds() const;
 
   public:
     Peer(Application& app, PeerRole role);
@@ -187,6 +241,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     {
     }
 
+    void drop(ErrorCode err, std::string const &msg);
     virtual void drop() = 0;
     virtual std::string getIP() = 0;
     virtual ~Peer()

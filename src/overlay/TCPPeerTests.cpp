@@ -34,18 +34,21 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     n1_qset.validators.push_back(v11SecretKey.getPublicKey());
     auto n1 = s->getNode(s->addNode(v11SecretKey, n1_qset, s->getClock()));
 
+    s->addPendingConnection(v10SecretKey.getPublicKey(),
+                            v11SecretKey.getPublicKey());
     s->startAllNodes();
+    s->crankForAtLeast(std::chrono::seconds(1), false);
 
-    auto b = TCPPeer::initiate(*n0, "127.0.0.1", n1->getConfig().PEER_PORT);
+    auto p0 = n0->getOverlayManager()
+        .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT);
 
-    s->crankForAtLeast(std::chrono::seconds(3), false);
+    auto p1 = n1->getOverlayManager()
+        .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT);
 
-    REQUIRE(n0->getOverlayManager()
-                .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT)
-                ->getState() == Peer::GOT_AUTH);
-    REQUIRE(n1->getOverlayManager()
-                .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT)
-                ->getState() == Peer::GOT_AUTH);
+    REQUIRE(p0);
+    REQUIRE(p1);
+    REQUIRE(p0->isAuthenticated());
+    REQUIRE(p1->isAuthenticated());
     s->stopAllNodes();
 }
 }

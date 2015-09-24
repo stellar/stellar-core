@@ -50,6 +50,7 @@ class PeerRecord
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
 
+    bool isSelfAddressAndPort(std::string const& ip, unsigned short port) const;
     bool isPrivateAddress() const;
 
     // returns true if peerRecord is already in the database

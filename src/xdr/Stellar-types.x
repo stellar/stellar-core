@@ -31,4 +31,25 @@ typedef opaque Signature<64>;
 typedef opaque SignatureHint[4];
 
 typedef PublicKey NodeID;
+
+struct Curve25519Secret
+{
+        opaque key[32];
+};
+
+struct Curve25519Public
+{
+        opaque key[32];
+};
+
+struct HmacSha256Key
+{
+        opaque key[32];
+};
+
+struct HmacSha256Mac
+{
+        opaque mac[32];
+};
+
 }

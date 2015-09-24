@@ -48,6 +48,7 @@ namespace stellar
 {
 
 class PeerRecord;
+class PeerAuth;
 
 class OverlayManager
 {
@@ -112,6 +113,9 @@ class OverlayManager
 
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
+
+    // Return the persistent p2p authentication-key cache.
+    virtual PeerAuth& getPeerAuth() = 0;
 
     // start up all background tasks for overlay
     virtual void start() = 0;

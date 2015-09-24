@@ -40,7 +40,7 @@ PeerRecord::toXdr(PeerAddress& ret) const
 {
     ret.port = mPort;
     ret.numFailures = mNumFailures;
-    ipToXdr(mIP, ret.ip);
+    ipToXdr(mIP, ret.ip.ipv4());
 }
 
 bool
@@ -186,6 +186,23 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         LOG(ERROR) << "loadPeers Error: " << err.what();
     }
 }
+
+bool
+PeerRecord::isSelfAddressAndPort(std::string const& ip, unsigned short port) const
+{
+   asio::error_code ec;
+   asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
+   if (ec)
+   {
+       return false;
+   }
+   asio::ip::address_v4 otherAddr = asio::ip::address_v4::from_string(ip, ec);
+   if (ec)
+   {
+       return false;
+   }
+   return (addr == otherAddr && port == mPort);
+ }
 
 bool
 PeerRecord::isPrivateAddress() const

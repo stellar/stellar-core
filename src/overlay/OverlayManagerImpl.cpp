@@ -24,12 +24,17 @@ Connection process:
 A wants to connect to B
 A initiates a tcp connection to B
 connection is established
-A sends HELLO(nonce-a) to B
-B now has IP and listening port of A, sends HELLO(nonce-b) back
-A sends AUTH:sig(nonce-a,nonce-b)
+A sends HELLO(CertA,NonceA) to B
+B now has IP and listening port of A, sends HELLO(CertB,NonceB) back
+A sends AUTH(signed([0],keyAB))
 B verifies and either:
-    sends AUTH:sig(nonce-b,nonce-a) back or
-    sends list of other peers to connect to and disconnects, if it's full
+    sends AUTH(signed([0],keyBA)) back or
+    disconnects, if it's full, optionally sending a list of other peers to try first
+
+keyAB and keyBA are per-connection HMAC keys derived from non-interactive
+ECDH on random curve25519 keys conveyed in CertA and CertB (certs signed by
+Node Ed25519 keys) the result of which is then fed through HKDF with the
+per-connection nonces. See PeerAuth.h.
 
 If any verify step fails, the peer disconnects immediately.
 
@@ -49,7 +54,8 @@ OverlayManager::create(Application& app)
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
-    , mDoor(make_shared<PeerDoor>(mApp))
+    , mDoor(mApp)
+    , mAuth(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
           {"overlay", "message", "receive"}, "message"))
@@ -76,7 +82,7 @@ OverlayManagerImpl::~OverlayManagerImpl()
 void
 OverlayManagerImpl::start()
 {
-    mDoor->start();
+    mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
     if (!mApp.getConfig().RUN_STANDALONE)
@@ -250,7 +256,9 @@ void
 OverlayManagerImpl::dropPeer(Peer::pointer peer)
 {
     mConnectionsDropped.Mark();
-    CLOG(DEBUG, "Overlay") << "Dropping peer " << peer->toString();
+    CLOG(INFO, "Overlay") << "Dropping peer "
+                          << PubKeyUtils::toShortString(peer->getPeerID())
+                          << "@" << peer->toString();
     auto iter = find(mPeers.begin(), mPeers.end(), peer);
     if (iter != mPeers.end())
         mPeers.erase(iter);
@@ -375,6 +383,12 @@ OverlayManager::dropAll(Database& db)
     PeerRecord::dropAll(db);
 }
 
+PeerAuth&
+OverlayManagerImpl::getPeerAuth()
+{
+    return mAuth;
+}
+
 void
 OverlayManagerImpl::shutdown()
 {
@@ -383,15 +397,12 @@ OverlayManagerImpl::shutdown()
         return;
     }
     mShuttingDown = true;
-    if (mDoor)
-    {
-        mDoor->close();
-    }
+    mDoor.close();
     mFloodGate.shutdown();
     auto peersToStop = mPeers;
     for (auto& p : peersToStop)
     {
-        p->drop();
+        p->drop(ERR_MISC, "peer shutdown");
     }
 }
 

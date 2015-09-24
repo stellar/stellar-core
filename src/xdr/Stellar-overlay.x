@@ -7,10 +7,26 @@
 namespace stellar
 {
 
+enum ErrorCode
+{
+    ERR_MISC = 0, // Unspecific error
+    ERR_DATA = 1, // Malformed data
+    ERR_CONF = 2, // Misconfiguration error
+    ERR_AUTH = 3, // Authentication failure
+    ERR_LOAD = 4  // System overloaded
+};
+
 struct Error
 {
-    int code;
+    ErrorCode code;
     string msg<100>;
+};
+
+struct AuthCert
+{
+    Curve25519Public pubkey;
+    uint64 expiration;
+    Signature sig;
 };
 
 struct Hello
@@ -21,17 +37,32 @@ struct Hello
     string versionStr<100>;
     int listeningPort;
     NodeID peerID;
+    AuthCert cert;
     uint256 nonce;
 };
 
 struct Auth
 {
-    Signature signature;
+    // Empty message, just to confirm
+    // establishment of MAC keys.
+    int unused;
+};
+
+enum IPAddrType
+{
+    IPv4 = 0,
+    IPv6 = 1
 };
 
 struct PeerAddress
 {
-    opaque ip[4];
+    union switch (IPAddrType type)
+    {
+    case IPv4:
+        opaque ipv4[4];
+    case IPv6:
+        opaque ipv6[16];
+    } ip;
     uint32 port;
     uint32 numFailures;
 };
@@ -94,4 +125,12 @@ case SCP_QUORUMSET:
 case SCP_MESSAGE:
     SCPEnvelope envelope;
 };
+
+struct AuthenticatedMessage
+{
+   uint64 sequence;
+   StellarMessage message;
+   HmacSha256Mac mac;
+};
+
 }
