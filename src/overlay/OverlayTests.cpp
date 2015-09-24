@@ -215,3 +215,29 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
                 {"overlay", "timeout", "read"},
                 "timeout").count() != 0);
 }
+
+TEST_CASE("reject peers with the same nodeid", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config const& cfg2 = getTestConfig(1);
+    Config cfg3 = getTestConfig(2);
+
+    cfg3.NODE_SEED = cfg1.NODE_SEED;
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+    auto app3 = Application::create(clock, cfg3);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    LoopbackPeerConnection conn2(*app3, *app2);
+    crankSome(clock);
+
+    REQUIRE(conn.getInitiator()->isAuthenticated());
+    REQUIRE(conn.getAcceptor()->isAuthenticated());
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics().NewMeter(
+                {"overlay", "drop", "recv-hello-peerid"},
+                "drop").count() != 0);
+}

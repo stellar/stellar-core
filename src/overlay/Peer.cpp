@@ -138,6 +138,9 @@ Peer::Peer(Application& app, PeerRole role)
     , mDropInRecvHelloSelfMeter(
         app.getMetrics().NewMeter({"overlay", "drop", "recv-hello-self"},
                                   "drop"))
+    , mDropInRecvHelloPeerIDMeter(
+        app.getMetrics().NewMeter({"overlay", "drop", "recv-hello-peerid"},
+                                  "drop"))
     , mDropInRecvHelloCertMeter(
         app.getMetrics().NewMeter({"overlay", "drop", "recv-hello-cert"},
                                   "drop"))
@@ -481,7 +484,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     if (!isAuthenticated() &&
         (stellarMsg.type() != HELLO) &&
-        (stellarMsg.type() != AUTH))
+        (stellarMsg.type() != AUTH) &&
+        (stellarMsg.type() != ERROR_MSG))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before completed handshake";
@@ -492,7 +496,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 
     assert(isAuthenticated() ||
            stellarMsg.type() == HELLO ||
-           stellarMsg.type() == AUTH);
+           stellarMsg.type() == AUTH ||
+           stellarMsg.type() == ERROR_MSG);
 
     switch (stellarMsg.type())
     {
@@ -745,6 +750,18 @@ Peer::recvHello(StellarMessage const& msg)
     mRecvMacKey = peerAuth.getReceivingMacKey(msg.hello().cert.pubkey,
                                               mSendNonce, mRecvNonce, mRole);
 
+    mState = GOT_HELLO;
+    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
+
+    if (mRole == REMOTE_CALLED_US)
+    {
+        // Send a HELLO back, even if it's going to be followed
+        // immediately by ERROR, because ERROR is an authenticated
+        // message type and the caller won't decode it right if
+        // still waiting for an unauthenticated HELLO.
+        sendHello();
+    }
+
     if (msg.hello().overlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
         CLOG(ERROR, "Overlay")
@@ -777,6 +794,23 @@ Peer::recvHello(StellarMessage const& msg)
         return;
     }
 
+    for (auto const& p : mApp.getOverlayManager().getPeers())
+    {
+        if (&(p->mPeerID) == &mPeerID)
+        {
+            continue;
+        }
+        if (p->getPeerID() == mPeerID)
+        {
+            CLOG(WARNING, "Overlay")
+                    << "connection from already-connected peerID "
+                    << PubKeyUtils::toShortString(mPeerID);
+            mDropInRecvHelloPeerIDMeter.Mark();
+            drop(ERR_CONF, "connecting already-connected peer");
+            return;
+        }
+    }
+
     if (msg.hello().listeningPort <= 0 ||
         msg.hello().listeningPort > UINT16_MAX)
     {
@@ -786,16 +820,9 @@ Peer::recvHello(StellarMessage const& msg)
         return;
     }
 
-    mState = GOT_HELLO;
-    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
-
     if (mRole == WE_CALLED_REMOTE)
     {
         sendAuth();
-    }
-    else
-    {
-        sendHello();
     }
 }
 
