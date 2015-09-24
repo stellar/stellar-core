@@ -68,7 +68,7 @@ TEST_CASE("payment", "[tx][payment]")
     SecretKey gateway = getAccount("gate");
     SecretKey gateway2 = getAccount("gate2");
 
-    const int64_t assetMultiplier = 1000000;
+    const int64_t assetMultiplier = 10000000;
 
     int64_t trustLineLimit = INT64_MAX;
 
@@ -99,7 +99,7 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(a1Account->getLowThreshold() == 0);
     REQUIRE(a1Account->getMediumThreshold() == 0);
     // root did 2 transactions at this point
-    REQUIRE(rootAccount->getBalance() == (100000000000000000 - paymentAmount -
+    REQUIRE(rootAccount->getBalance() == (1000000000000000000 - paymentAmount -
                                           gatewayPayment * 2 - txfee * 3));
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),

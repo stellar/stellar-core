@@ -152,6 +152,7 @@
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
+    <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
@@ -238,6 +239,7 @@
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\PeerAuth.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
@@ -310,6 +312,7 @@
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
+    <ClInclude Include="..\..\src\crypto\ECDH.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
     <ClInclude Include="..\..\src\crypto\Random.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
@@ -318,6 +321,7 @@
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
+    <ClInclude Include="..\..\src\overlay\PeerAuth.h" />
     <ClInclude Include="..\..\src\overlay\StellarXDR.h" />
     <ClInclude Include="..\..\src\herder\HerderImpl.h" />
     <ClInclude Include="..\..\src\herder\Herder.h" />

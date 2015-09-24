@@ -153,13 +153,13 @@ LedgerManagerImpl::startNewLedger()
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = 100000000000000000;
+    masterAccount.getAccount().balance = 1000000000000000000;
     LedgerHeader genesisHeader;
 
     // all fields are initialized by default to 0
     // set the ones that are not 0
-    genesisHeader.baseFee = 10;
-    genesisHeader.baseReserve = 10000000;
+    genesisHeader.baseFee = 100;
+    genesisHeader.baseReserve = 100000000;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
