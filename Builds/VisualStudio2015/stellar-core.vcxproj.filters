@@ -471,6 +471,12 @@
     <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerAuth.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\ECDH.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -821,6 +827,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h">
       <Filter>ledger\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerAuth.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\ECDH.h">
+      <Filter>crypto</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
