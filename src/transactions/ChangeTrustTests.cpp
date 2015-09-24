@@ -42,6 +42,10 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
         Asset idrCur = makeAsset(gateway, "IDR");
 
+        // create a trustline with a limit of 0
+        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0,
+                         CHANGE_TRUST_INVALID_LIMIT);
+
         // create a trustline with a limit of 100
         applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 100);
 

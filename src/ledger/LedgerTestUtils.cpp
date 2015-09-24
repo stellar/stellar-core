@@ -99,7 +99,7 @@ makeValid(TrustLineEntry& tl)
     tl.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(tl.asset.alphaNum4().assetCode, "USD");
     clampLow<int64_t>(0, tl.balance);
-    clampLow<int64_t>(0, tl.limit);
+    clampLow<int64_t>(1, tl.limit);
     clampHigh<int64_t>(tl.limit, tl.balance);
 }
 void

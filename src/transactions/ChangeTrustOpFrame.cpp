@@ -35,8 +35,7 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
     if (trustLine)
     { // we are modifying an old trustline
 
-        if (mChangeTrust.limit < 0 ||
-            mChangeTrust.limit < trustLine->getBalance())
+        if (mChangeTrust.limit < trustLine->getBalance())
         { // Can't drop the limit below the balance you are holding with them
             metrics.NewMeter({"op-change-trust", "failure", "invalid-limit"},
                              "operation").Mark();
@@ -44,9 +43,7 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
             return false;
         }
 
-        trustLine->getTrustLine().limit = mChangeTrust.limit;
-        if (trustLine->getTrustLine().limit == 0 &&
-            trustLine->getBalance() == 0)
+        if (mChangeTrust.limit == 0)
         {
             // line gets deleted
             trustLine->storeDelete(delta, db);
@@ -62,6 +59,7 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
                 return false;
             }
+            trustLine->getTrustLine().limit = mChangeTrust.limit;
             trustLine->storeChange(delta, db);
         }
         metrics.NewMeter({"op-change-trust", "success", "apply"}, "operation")
@@ -71,6 +69,13 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
     }
     else
     { // new trust line
+        if (mChangeTrust.limit == 0)
+        {
+            metrics.NewMeter({"op-change-trust", "failure", "invalid-limit"},
+                             "operation").Mark();
+            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
+            return false;
+        }
         if (!issuer)
         {
             metrics.NewMeter({"op-change-trust", "failure", "no-issuer"},
