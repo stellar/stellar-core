@@ -649,23 +649,22 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
+    Hash candidatesHash;
+
+    std::vector<StellarValue> candidateValues;
+
     for (auto const& c : candidates)
     {
-        StellarValue sv;
+        candidateValues.emplace_back();
+        StellarValue& sv = candidateValues.back();
+
         xdr::xdr_from_opaque(c, sv);
+        candidatesHash ^= sha256(c);
+
         // max closeTime
         if (comp.closeTime < sv.closeTime)
         {
             comp.closeTime = sv.closeTime;
-        }
-        // union of all transactions
-        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
-        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
-        {
-            for (auto const& tx : cTxSet->mTransactions)
-            {
-                aggSet.insert(tx);
-            }
         }
         for (auto const& upgrade : sv.upgrades)
         {
@@ -714,25 +713,46 @@ HerderImpl::combineCandidates(uint64 slotIndex,
         }
     }
 
+    // take the txSet with the highest number of transactions,
+    // highest xored hash that we have
+    Hash highest;
+    TxSetFramePtr bestTxSet;
+    for (auto const& sv : candidateValues)
+    {
+        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
+
+        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
+        {
+            if (!bestTxSet || (cTxSet->mTransactions.size() >
+                               bestTxSet->mTransactions.size()) ||
+                ((cTxSet->mTransactions.size() ==
+                  bestTxSet->mTransactions.size()) &&
+                 lessThanXored(highest, sv.txSetHash, candidatesHash)))
+            {
+                bestTxSet = cTxSet;
+                highest = sv.txSetHash;
+            }
+        }
+    }
+
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade.second));
         comp.upgrades.emplace_back(v.begin(), v.end());
     }
 
-    TxSetFramePtr aggTxSet = std::make_shared<TxSetFrame>(lcl.hash);
-    for (auto const& tx : aggSet)
-    {
-        aggTxSet->add(tx);
-    }
-
     std::vector<TransactionFramePtr> removed;
-    aggTxSet->trimInvalid(mApp, removed);
 
-    aggTxSet->surgePricingFilter(mLedgerManager);
-    comp.txSetHash = aggTxSet->getContentsHash();
+    // just to be sure
+    bestTxSet->trimInvalid(mApp, removed);
+    comp.txSetHash = bestTxSet->getContentsHash();
 
-    mPendingEnvelopes.recvTxSet(comp.txSetHash, aggTxSet);
+    if (removed.size() != 0)
+    {
+        CLOG(WARNING, "Herder") << "Candidate set had " << removed.size()
+                                << " invalid transactions";
+        mPendingEnvelopes.recvTxSet(comp.txSetHash, bestTxSet);
+    }
 
     return xdr::xdr_to_opaque(comp);
 }

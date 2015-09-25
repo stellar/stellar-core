@@ -475,3 +475,79 @@ TEST_CASE("surge", "[herder]")
         REQUIRE(txSet->checkValid(*app));
     }
 }
+
+TEST_CASE("SCP Driver", "[herder]")
+{
+    Config cfg(getTestConfig());
+    cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
+
+    Hash const& networkID = app->getNetworkID();
+
+    app->start();
+
+    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
+        cfg.DESIRED_MAX_TX_PER_LEDGER;
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+
+    SecretKey root = getRoot(networkID);
+    SecretKey a1 = getAccount("A");
+
+    SECTION("combineCandidates")
+    {
+        auto& herder = *static_cast<HerderImpl*>(&app->getHerder());
+
+        std::set<Value> candidates;
+
+        auto addToCandidates = [&](TxSetFramePtr txSet, uint64_t closeTime)
+        {
+            txSet->sortForHash();
+            herder.recvTxSet(txSet->getContentsHash(), *txSet);
+
+            StellarValue sv(txSet->getContentsHash(), closeTime,
+                            emptyUpgradeSteps, 0);
+            candidates.emplace(xdr::xdr_to_opaque(sv));
+        };
+        auto addTransactions = [&](TxSetFramePtr txSet, int n)
+        {
+            SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
+            for (int i = 0; i < n; i++)
+            {
+                txSet->mTransactions.emplace_back(createCreateAccountTx(
+                    networkID, root, a1, rootSeq++, 10000000));
+            }
+        };
+
+        TxSetFramePtr txSet0 = std::make_shared<TxSetFrame>(lcl.hash);
+        addToCandidates(txSet0, 100);
+
+        Value v;
+        StellarValue sv;
+
+        v = herder.combineCandidates(1, candidates);
+        xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.closeTime == 100);
+        REQUIRE(sv.txSetHash == txSet0->getContentsHash());
+
+        TxSetFramePtr txSet1 = std::make_shared<TxSetFrame>(lcl.hash);
+        addTransactions(txSet1, 10);
+
+        addToCandidates(txSet1, 10);
+        v = herder.combineCandidates(1, candidates);
+        xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.closeTime == 100);
+        REQUIRE(sv.txSetHash == txSet1->getContentsHash());
+
+        TxSetFramePtr txSet2 = std::make_shared<TxSetFrame>(lcl.hash);
+        addTransactions(txSet2, 5);
+
+        addToCandidates(txSet2, 1000);
+        v = herder.combineCandidates(1, candidates);
+        xdr::xdr_from_opaque(v, sv);
+        REQUIRE(sv.closeTime == 1000);
+        REQUIRE(sv.txSetHash == txSet1->getContentsHash());
+    }
+}

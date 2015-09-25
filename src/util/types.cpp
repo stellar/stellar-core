@@ -5,6 +5,7 @@
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
 #include <locale>
+#include <algorithm>
 
 namespace stellar
 {
@@ -18,6 +19,16 @@ isZero(uint256 const& b)
             return false;
 
     return true;
+}
+
+Hash& operator^=(Hash& l, Hash const& r)
+{
+    std::transform(l.begin(), l.end(), r.begin(), l.begin(),
+                   [](uint8_t a, uint8_t b)
+                   {
+                       return a ^ b;
+                   });
+    return l;
 }
 
 bool
