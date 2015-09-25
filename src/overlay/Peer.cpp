@@ -36,6 +36,18 @@ namespace stellar
 using namespace std;
 using namespace soci;
 
+medida::Meter&
+Peer::getByteReadMeter(Application& app)
+{
+    return app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte");
+}
+
+medida::Meter&
+Peer::getByteWriteMeter(Application& app)
+{
+    return app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte");
+}
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -51,9 +63,8 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(
           app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
-    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
-    , mByteWrite(
-          app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
+    , mByteRead(getByteReadMeter(app))
+    , mByteWrite(getByteWriteMeter(app))
     , mErrorRead(
           app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
     , mErrorWrite(

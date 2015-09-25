@@ -50,6 +50,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
+    static medida::Meter& getByteReadMeter(Application& app);
+    static medida::Meter& getByteWriteMeter(Application& app);
+
   protected:
     Application& mApp;
 
