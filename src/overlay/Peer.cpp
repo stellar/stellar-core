@@ -13,6 +13,7 @@
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
@@ -388,6 +389,7 @@ Peer::sendMessage(StellarMessage const& msg)
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
+    LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     mMessageRead.Mark();
     mByteRead.Mark(msg->raw_size());

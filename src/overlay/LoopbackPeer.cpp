@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "xdrpp/marshal.h"
+#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "crypto/Random.h"
 #include "medida/metrics_registry.h"
@@ -178,6 +179,7 @@ LoopbackPeer::deliverOne()
                              {
                                  remote->recvMessage(std::move(*m));
                              });
+        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
         mByteWrite.Mark((*m)->raw_size());
