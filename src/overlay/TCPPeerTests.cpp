@@ -19,7 +19,8 @@ namespace stellar
 TEST_CASE("TCPPeer can communicate", "[overlay]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    Simulation::pointer s = std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+    Simulation::pointer s =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
 
     auto v10SecretKey = SecretKey::fromSeed(sha256("v10"));
     auto v11SecretKey = SecretKey::fromSeed(sha256("v11"));
@@ -39,11 +40,11 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     s->startAllNodes();
     s->crankForAtLeast(std::chrono::seconds(1), false);
 
-    auto p0 = n0->getOverlayManager()
-        .getConnectedPeer("127.0.0.1", n1->getConfig().PEER_PORT);
+    auto p0 = n0->getOverlayManager().getConnectedPeer(
+        "127.0.0.1", n1->getConfig().PEER_PORT);
 
-    auto p1 = n1->getOverlayManager()
-        .getConnectedPeer("127.0.0.1", n0->getConfig().PEER_PORT);
+    auto p1 = n1->getOverlayManager().getConnectedPeer(
+        "127.0.0.1", n0->getConfig().PEER_PORT);
 
     REQUIRE(p0);
     REQUIRE(p1);

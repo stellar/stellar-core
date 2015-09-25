@@ -11,7 +11,6 @@
 namespace stellar
 {
 
-
 Curve25519Secret
 EcdhRandomSecret()
 {
@@ -31,26 +30,24 @@ EcdhDerivePublic(Curve25519Secret const& sec)
 HmacSha256Key
 EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
                     Curve25519Public const& localPublic,
-                    Curve25519Public const& remotePublic,
-                    bool localFirst)
+                    Curve25519Public const& remotePublic, bool localFirst)
 {
     auto const& publicA = localFirst ? localPublic : remotePublic;
     auto const& publicB = localFirst ? remotePublic : localPublic;
 
     unsigned char q[crypto_scalarmult_BYTES];
     crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data());
-    std::vector<uint8_t> buf(q, q+crypto_scalarmult_BYTES);
+    std::vector<uint8_t> buf(q, q + crypto_scalarmult_BYTES);
     buf.insert(buf.end(), publicA.key.begin(), publicA.key.end());
     buf.insert(buf.end(), publicB.key.begin(), publicB.key.end());
     return hkdfExtract(buf);
 }
-
 }
 
 namespace std
 {
-size_t hash<stellar::Curve25519Public>::operator()(stellar::Curve25519Public const& k) const
-    noexcept
+size_t hash<stellar::Curve25519Public>::
+operator()(stellar::Curve25519Public const& k) const noexcept
 {
     return std::hash<stellar::uint256>()(k.key);
 }

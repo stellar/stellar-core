@@ -73,19 +73,17 @@ LoopbackPeer::drop()
     mState = CLOSING;
     mIdleTimer.cancel();
     auto self = shared_from_this();
-    mStrand.post(
-        [self]()
-        {
-            self->getApp().getOverlayManager().dropPeer(self);
-        });
+    mStrand.post([self]()
+                 {
+                     self->getApp().getOverlayManager().dropPeer(self);
+                 });
     if (mRemote)
     {
         auto remote = mRemote;
-        mRemote->mStrand.post(
-            [remote]()
-            {
-                remote->drop();
-            });
+        mRemote->mStrand.post([remote]()
+                              {
+                                  remote->drop();
+                              });
     }
 }
 
@@ -176,11 +174,10 @@ LoopbackPeer::deliverOne()
         // Peer's io_service.
         auto remote = mRemote;
         auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
-        remote->mStrand.post(
-            [remote, m]()
-            {
-                remote->recvMessage(std::move(*m));
-            });
+        remote->mStrand.post([remote, m]()
+                             {
+                                 remote->recvMessage(std::move(*m));
+                             });
         mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
         mByteWrite.Mark((*m)->raw_size());
@@ -353,11 +350,10 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->startIdleTimer();
 
     auto init = mInitiator;
-    mInitiator->mStrand.post(
-        [init]()
-        {
-            init->connectHandler(asio::error_code());
-        });
+    mInitiator->mStrand.post([init]()
+                             {
+                                 init->connectHandler(asio::error_code());
+                             });
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()

@@ -116,13 +116,10 @@ OperationFrame::getResultCode() const
     return mResult.code();
 }
 
-// called when determining if we should accept this tx.
+// called when determining if we should accept this operation.
 // called when determining if we should flood
 // make sure sig is correct
-// make sure maxFee is above the current fee
-// make sure it is in the correct ledger bounds
-// don't consider minBalance since you want to allow them to still send
-// around credit etc
+// verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(Application& app, bool forApply)
 {

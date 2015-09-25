@@ -24,8 +24,8 @@ const char* TrustFrame::kSQLCreateStatement1 =
     "assettype    INT             NOT NULL,"
     "issuer       VARCHAR(56)     NOT NULL,"
     "assetcode    VARCHAR(12)     NOT NULL,"
-    "tlimit       BIGINT          NOT NULL DEFAULT 0 CHECK (tlimit >= 0),"
-    "balance      BIGINT          NOT NULL DEFAULT 0 CHECK (balance >= 0),"
+    "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
+    "balance      BIGINT          NOT NULL CHECK (balance >= 0),"
     "flags        INT             NOT NULL,"
     "lastmodified INT             NOT NULL,"
     "PRIMARY KEY  (accountid, issuer, assetcode)"
@@ -157,6 +157,7 @@ TrustFrame::isValid(TrustLineEntry const& tl)
     bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
     res = res && isAssetValid(tl.asset);
     res = res && (tl.balance >= 0);
+    res = res && (tl.limit > 0);
     res = res && (tl.balance <= tl.limit);
     return res;
 }

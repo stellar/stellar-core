@@ -358,8 +358,8 @@ main(int argc, char* const* argv)
             s += cfgFile + " found";
             throw std::invalid_argument(s);
         }
-        Logging::setFmt(PubKeyUtils::toShortString(
-                            cfg.NODE_SEED.getPublicKey()));
+        Logging::setFmt(
+            PubKeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())

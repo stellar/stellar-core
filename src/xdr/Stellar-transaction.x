@@ -513,6 +513,7 @@ enum ChangeTrustResultCode
     CHANGE_TRUST_MALFORMED = -1,     // bad input
     CHANGE_TRUST_NO_ISSUER = -2,     // could not find issuer
     CHANGE_TRUST_INVALID_LIMIT = -3, // cannot drop limit below balance
+                                     // cannot create with a limit of 0
     CHANGE_TRUST_LOW_RESERVE = -4 // not enough funds to create a new trust line
 };
 

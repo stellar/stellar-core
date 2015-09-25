@@ -27,8 +27,7 @@ class SCP
     SCPDriver& mDriver;
 
   public:
-    SCP(SCPDriver& driver, SecretKey const& secretKey,
-        bool isValidator,
+    SCP(SCPDriver& driver, SecretKey const& secretKey, bool isValidator,
         SCPQuorumSet const& qSetLocal);
 
     SCPDriver&

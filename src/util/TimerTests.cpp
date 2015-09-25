@@ -17,7 +17,8 @@ using namespace stellar;
 TEST_CASE("pointToTm tmToPoint stuff", "[timer]")
 {
     VirtualClock::time_point tp;
-    tp = tp + std::chrono::seconds(12); //01/01/70 00:00:12 UTC+8 is before GMT epoch, mktime may fail.
+    tp = tp + std::chrono::seconds(12); // 01/01/70 00:00:12 UTC+8 is before GMT
+                                        // epoch, mktime may fail.
 
     std::tm tt = VirtualClock::pointToTm(tp);
 
@@ -26,7 +27,6 @@ TEST_CASE("pointToTm tmToPoint stuff", "[timer]")
     auto twelvesec = VirtualClock::to_time_t(tp2);
     CHECK(twelvesec == 12);
 }
-
 
 TEST_CASE("VirtualClock::pointToISOString", "[timer]")
 {

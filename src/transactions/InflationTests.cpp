@@ -117,7 +117,6 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
                   }
               });
 
-
     std::vector<int> winners;
     int64 totVotes = totCoins;
     for (int i = 0; i < maxWinners && i < votesV.size(); i++)
@@ -133,7 +132,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
     int64 coinsToDole = bigDivide(totCoins, 190721, 1000000000);
     coinsToDole += totFees;
     int64 leftToDole = coinsToDole;
-   
+
     for (auto w : winners)
     {
         // computes the share of this guy
@@ -145,7 +144,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
             leftToDole -= toDoleToThis;
         }
     }
-    
+
     totFees = leftToDole;
 
     std::vector<int64> balRes;
@@ -411,7 +410,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             };
             balanceFunc = [&](int n)
             {
-                return 1+(winnerVote/ nbAccounts);
+                return 1 + (winnerVote / nbAccounts);
             };
             verify();
         }

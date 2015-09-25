@@ -108,7 +108,8 @@ TEST_CASE("HMAC test vector", "[crypto]")
     k.key[1] = 'e';
     k.key[2] = 'y';
     auto s = "The quick brown fox jumps over the lazy dog";
-    auto h = hexToBin256("f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
+    auto h = hexToBin256(
+        "f7bc83f430538424b13298e6aa6fb143ef4d59a14946175997479dbc2d1a3cd8");
     auto v = hmacSha256(k, s);
     REQUIRE(h == v.mac);
     REQUIRE(hmacSha256Verify(v, k, s));
@@ -118,8 +119,10 @@ TEST_CASE("HKDF test vector", "[crypto]")
 {
     auto ikm = hexToBin("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b");
     HmacSha256Key prk, okm;
-    prk.key = hexToBin256("19ef24a32c717b167f33a91d6f648bdf96596776afdb6377ac434c1c293ccb04");
-    okm.key = hexToBin256("8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d");
+    prk.key = hexToBin256(
+        "19ef24a32c717b167f33a91d6f648bdf96596776afdb6377ac434c1c293ccb04");
+    okm.key = hexToBin256(
+        "8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d");
     REQUIRE(hkdfExtract(ikm) == prk);
     std::vector<uint8_t> empty;
     REQUIRE(hkdfExpand(prk, empty) == okm);
