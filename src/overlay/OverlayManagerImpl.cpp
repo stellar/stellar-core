@@ -205,6 +205,9 @@ void
 OverlayManagerImpl::tick()
 {
     CLOG(TRACE, "Overlay") << "OverlayManagerImpl tick";
+
+    mLoad.maybeShedExcessLoad(mApp);
+
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(
@@ -390,6 +393,13 @@ OverlayManagerImpl::getPeerAuth()
 {
     return mAuth;
 }
+
+LoadManager&
+OverlayManagerImpl::getLoadManager()
+{
+    return mLoad;
+}
+
 
 void
 OverlayManagerImpl::shutdown()

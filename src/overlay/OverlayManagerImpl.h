@@ -8,6 +8,7 @@
 #include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerRecord.h"
+#include "LoadManager.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
@@ -36,6 +37,7 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<Peer::pointer> mPeers;
     PeerDoor mDoor;
     PeerAuth mAuth;
+    LoadManager mLoad;
     bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
@@ -82,6 +84,8 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getRandomPeer() override;
 
     PeerAuth& getPeerAuth() override;
+
+    LoadManager& getLoadManager() override;
 
     void start() override;
     void shutdown() override;
