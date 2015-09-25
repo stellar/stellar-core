@@ -20,6 +20,19 @@ isZero(uint256 const& b)
     return true;
 }
 
+bool
+lessThanXored(Hash const& l, Hash const& r, Hash const& x)
+{
+    Hash v1, v2;
+    for (size_t i = 0; i < l.size(); i++)
+    {
+        v1[i] = x[i] ^ l[i];
+        v2[i] = x[i] ^ r[i];
+    }
+
+    return v1 < v2;
+}
+
 uint256
 makePublicKey(uint256 const& b)
 {

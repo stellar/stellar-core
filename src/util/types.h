@@ -14,6 +14,9 @@ typedef std::vector<unsigned char> Blob;
 
 bool isZero(uint256 const& b);
 
+// returns true if ( l ^ x ) < ( r ^ x)
+bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
+
 uint256 makePublicKey(uint256 const& b);
 
 // returns true if the passed string32 is valid

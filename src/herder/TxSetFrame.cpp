@@ -70,16 +70,7 @@ struct ApplyTxSorter
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
-        Hash h1 = tx1->getFullHash();
-        Hash h2 = tx2->getFullHash();
-        Hash v1, v2;
-        for (int n = 0; n < 32; n++)
-        {
-            v1[n] = mSetHash[n] ^ h1[n];
-            v2[n] = mSetHash[n] ^ h2[n];
-        }
-
-        return v1 < v2;
+        return lessThanXored(tx1->getFullHash(), tx2->getFullHash(), mSetHash);
     }
 };
 
