@@ -9,7 +9,7 @@ namespace stellar
 
 struct DecoratedSignature
 {
-    SignatureHint hint;  // first 4 bytes of the public key, used as a hint
+    SignatureHint hint;  // last 4 bytes of the public key, used as a hint
     Signature signature; // actual signature
 };
 
