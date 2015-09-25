@@ -66,6 +66,8 @@ Database::registerDrivers()
 
 Database::Database(Application& app)
     : mApp(app)
+    , mQueryMeter(app.getMetrics().NewMeter({"database", "query", "exec"},
+                                            "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
     , mEntryCache(4096)
@@ -86,6 +88,7 @@ Database::Database(Application& app)
 medida::TimerContext
 Database::getInsertTimer(std::string const& entityName)
 {
+    mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "insert", entityName})
         .TimeScope();
@@ -94,6 +97,7 @@ Database::getInsertTimer(std::string const& entityName)
 medida::TimerContext
 Database::getSelectTimer(std::string const& entityName)
 {
+    mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "select", entityName})
         .TimeScope();
@@ -102,6 +106,7 @@ Database::getSelectTimer(std::string const& entityName)
 medida::TimerContext
 Database::getDeleteTimer(std::string const& entityName)
 {
+    mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "delete", entityName})
         .TimeScope();
@@ -110,6 +115,7 @@ Database::getDeleteTimer(std::string const& entityName)
 medida::TimerContext
 Database::getUpdateTimer(std::string const& entityName)
 {
+    mQueryMeter.Mark();
     return mApp.getMetrics()
         .NewTimer({"database", "update", entityName})
         .TimeScope();
@@ -267,4 +273,11 @@ Database::captureAndLogSQL(std::string contextName)
 {
     return make_shared<SQLLogContext>(contextName, mSession);
 }
+
+medida::Meter&
+Database::getQueryMeter()
+{
+    return mQueryMeter;
+}
+
 }

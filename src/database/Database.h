@@ -86,6 +86,7 @@ class StatementContext : NonCopyable
 class Database : NonMovableOrCopyable
 {
     Application& mApp;
+    medida::Meter& mQueryMeter;
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
 
@@ -102,6 +103,10 @@ class Database : NonMovableOrCopyable
     // Instantiate object and connect to app.getConfig().DATABASE;
     // if there is a connection error, this will throw.
     Database(Application& app);
+
+    // Return a crude meter of total queries to the db, for use in
+    // overlay/LoadManager.
+    medida::Meter& getQueryMeter();
 
     // Return a logging helper that will capture all SQL statements made
     // on the main connection while active, and will log those statements
