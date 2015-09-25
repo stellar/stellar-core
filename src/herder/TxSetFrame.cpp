@@ -250,15 +250,23 @@ TxSetFrame::checkValid(Application& app) const
     soci::transaction sqltx(app.getDatabase().getSession());
     app.getDatabase().setCurrentTransactionReadOnly();
 
+    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Start by checking previousLedgerHash
-    if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
-        mPreviousLedgerHash)
+    if (lcl.hash != mPreviousLedgerHash)
     {
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
             << hexAbbrev(
                    app.getLedgerManager().getLastClosedLedgerHeader().hash);
+        return false;
+    }
+
+    if (mTransactions.size() > lcl.header.maxTxSetSize)
+    {
+        CLOG(DEBUG, "Herder") << "Got bad txSet: too many txs "
+                              << mTransactions.size() << " > "
+                              << lcl.header.maxTxSetSize;
         return false;
     }
 
