@@ -845,17 +845,8 @@
     </None>
     <None Include="libmedida\libmedida.vcxproj" />
     <None Include="..\..\README.md" />
-    <None Include="..\..\docs\testnet.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\Makefile.am" />
-    <None Include="..\..\docs\admin.md">
-      <Filter>docs</Filter>
-    </None>
-    <None Include="..\..\docs\architecture.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\src\bucket\readme.md">
       <Filter>bucket</Filter>
     </None>
@@ -880,43 +871,52 @@
     <None Include="..\..\src\scp\readme.md">
       <Filter>scp</Filter>
     </None>
+    <None Include="..\..\src\herder\readme.md">
+      <Filter>herder\docs</Filter>
+    </None>
+    <None Include="..\..\INSTALL.md" />
+    <None Include="..\..\docs\architecture.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\db-schema.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\fuzzing.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\history.md">
+      <Filter>docs</Filter>
+    </None>
+    <None Include="..\..\docs\ledger.md">
+      <Filter>docs</Filter>
+    </None>
     <None Include="..\..\docs\readme.md">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\stellar-core_example.cfg">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\src\herder\readme.md">
-      <Filter>herder\docs</Filter>
-    </None>
-    <None Include="..\..\docs\stellar-core_testnet.cfg">
+    <None Include="..\..\docs\stellar-core_standalone.cfg">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\ledger.md">
+    <None Include="..\..\docs\stellar-core_testnet.cfg">
       <Filter>docs</Filter>
     </None>
     <None Include="..\..\docs\transaction.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\stellar-core_standalone.cfg">
-      <Filter>docs</Filter>
-    </None>
-    <None Include="..\..\docs\commands.md">
-      <Filter>docs</Filter>
-    </None>
-    <None Include="..\..\docs\fuzzing.md">
-      <Filter>docs</Filter>
-    </None>
     <None Include="..\..\docs\versioning.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\history.md">
+    <None Include="..\..\docs\learn\admin.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\db-schema.md">
+    <None Include="..\..\docs\learn\commands.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\INSTALL.md" />
+    <None Include="..\..\docs\learn\testnet.md">
+      <Filter>docs</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
