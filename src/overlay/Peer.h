@@ -115,6 +115,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mDropInRecvMessageSeqMeter;
     medida::Meter& mDropInRecvMessageMacMeter;
     medida::Meter& mDropInRecvMessageUnauthMeter;
+    medida::Meter& mDropInRecvHelloUnexpectedMeter;
     medida::Meter& mDropInRecvHelloVersionMeter;
     medida::Meter& mDropInRecvHelloSelfMeter;
     medida::Meter& mDropInRecvHelloPeerIDMeter;

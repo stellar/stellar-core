@@ -114,9 +114,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "send", "transaction"}, "message"))
     , mSendGetSCPQuorumSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-qset"}, "message"))
-    , mSendSCPQuorumSetMeter(
-          app.getMetrics().NewMeter({"overlay", "send", "scp-qset"}, "message"))
-
+    , mSendSCPQuorumSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "scp-qset"}, "message"))
     , mDropInConnectHandlerMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "connect-handler"}, "drop"))
     , mDropInRecvMessageDecodeMeter(app.getMetrics().NewMeter(
@@ -127,6 +126,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-message-mac"}, "drop"))
     , mDropInRecvMessageUnauthMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-message-unauth"}, "drop"))
+    , mDropInRecvHelloUnexpectedMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-hello-unexpected"}, "drop"))
     , mDropInRecvHelloVersionMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-hello-version"}, "drop"))
     , mDropInRecvHelloSelfMeter(app.getMetrics().NewMeter(
@@ -143,9 +144,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-reject"}, "drop"))
-
-    , mDropInRecvErrorMeter(
-          app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
+    , mDropInRecvErrorMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-error"}, "drop"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -712,6 +712,15 @@ void
 Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
+
+    if (mState >= GOT_HELLO)
+    {
+        CLOG(ERROR, "Overlay")
+            << "received unexpected HELLO";
+        mDropInRecvHelloUnexpectedMeter.Mark();
+        drop();
+        return;
+    }
 
     auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
     if (!peerAuth.verifyRemoteAuthCert(msg.hello().peerID, msg.hello().cert))
