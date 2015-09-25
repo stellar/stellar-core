@@ -680,6 +680,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         case LEDGER_UPGRADE_BASE_FEE:
             ledgerDelta.getHeader().baseFee = lupgrade.newBaseFee();
             break;
+        case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+            ledgerDelta.getHeader().maxTxSetSize = lupgrade.newMaxTxSetSize();
+            break;
         default:
         {
             string s;

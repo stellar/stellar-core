@@ -316,6 +316,14 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
               (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
     }
     break;
+    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+    {
+        // allow max to be within 30% of the config value
+        uint32 newMax = lupgrade.newMaxTxSetSize();
+        res = (newMax >= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 7 / 10) &&
+              (newMax <= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 13 / 10);
+    }
+    break;
     default:
         res = false;
     }
@@ -687,6 +695,15 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                     if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
                     {
                         clUpgrade.newBaseFee() = lupgrade.newBaseFee();
+                    }
+                    break;
+                case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+                    // take the max tx set size
+                    if (clUpgrade.newMaxTxSetSize() <
+                        lupgrade.newMaxTxSetSize())
+                    {
+                        clUpgrade.newMaxTxSetSize() =
+                            lupgrade.newMaxTxSetSize();
                     }
                     break;
                 default:
@@ -1237,6 +1254,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     std::vector<LedgerUpgrade> upgrades;
 
+    // see if we need to include some upgrades
     if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
         upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
@@ -1247,6 +1265,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     {
         upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
         upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+    if (lcl.header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        upgrades.back().newMaxTxSetSize() =
+            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
     }
 
     UpgradeType ut; // only used for max size check

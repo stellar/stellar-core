@@ -67,8 +67,8 @@ range defined in the nodes configuration file.
 
 The reason it is done after applying the transaction set is that the
 transaction set is validated against the last closed ledger, independently of
-any upgrades. This allows to update `baseFee` (see ledger header), without
-risking invalidating transactions for the current ledger.
+any upgrades. For example, this allows to update `baseFee` (see ledger header)
+without risking invalidating transactions for the current ledger.
 
 ###Other notable fields from the ledger header
 ####Hash of the previous ledger header

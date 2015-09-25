@@ -55,7 +55,7 @@ TEST_CASE("ledgerheader", "[ledger]")
                 app2->getLedgerManager().getLastClosedLedgerHeader().hash);
     }
 
-    SECTION("update fee")
+    SECTION("update")
     {
         VirtualClock clock;
         Application::pointer app = Application::create(clock, cfg);
@@ -66,20 +66,41 @@ TEST_CASE("ledgerheader", "[ledger]")
         TxSetFramePtr txSet = make_shared<TxSetFrame>(lastHash);
 
         REQUIRE(lcl.header.baseFee == 100);
+        REQUIRE(lcl.header.maxTxSetSize == 100);
 
-        StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);
+        SECTION("fee")
         {
-            LedgerUpgrade up(LEDGER_UPGRADE_BASE_FEE);
-            up.newBaseFee() = 1000;
-            Value v(xdr::xdr_to_opaque(up));
-            sv.upgrades.emplace_back(v.begin(), v.end());
+            StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);
+            {
+                LedgerUpgrade up(LEDGER_UPGRADE_BASE_FEE);
+                up.newBaseFee() = 1000;
+                Value v(xdr::xdr_to_opaque(up));
+                sv.upgrades.emplace_back(v.begin(), v.end());
+            }
+
+            LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+            app->getLedgerManager().closeLedger(ledgerData);
+
+            auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
+
+            REQUIRE(newLCL.header.baseFee == 1000);
         }
+        SECTION("max tx")
+        {
+            StellarValue sv(txSet->getContentsHash(), 2, emptyUpgradeSteps, 0);
+            {
+                LedgerUpgrade up(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+                up.newMaxTxSetSize() = 1300;
+                Value v(xdr::xdr_to_opaque(up));
+                sv.upgrades.emplace_back(v.begin(), v.end());
+            }
 
-        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-        app->getLedgerManager().closeLedger(ledgerData);
+            LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+            app->getLedgerManager().closeLedger(ledgerData);
 
-        auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
+            auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
 
-        REQUIRE(newLCL.header.baseFee == 1000);
+            REQUIRE(newLCL.header.maxTxSetSize == 1300);
+        }
     }
 }

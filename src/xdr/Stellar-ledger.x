@@ -21,7 +21,7 @@ struct StellarValue
     // unknown steps during consensus if needed.
     // see notes below on 'LedgerUpgrade' for more detail
     // max size is dictated by number of upgrade types (+ room for future)
-    UpgradeType upgrades<4>;
+    UpgradeType upgrades<6>;
 
     // reserved for future use
     union switch (int v)
@@ -45,7 +45,7 @@ struct LedgerHeader
 
     uint32 ledgerSeq; // sequence number of this ledger
 
-    int64 totalCoins; // total number of stroops in existence. 
+    int64 totalCoins; // total number of stroops in existence.
                       // 10,000,000 stroops in 1 XLM
 
     int64 feePool;       // fees burned since last inflation run
@@ -81,7 +81,8 @@ in ascending order
 enum LedgerUpgradeType
 {
     LEDGER_UPGRADE_VERSION = 1,
-    LEDGER_UPGRADE_BASE_FEE = 2
+    LEDGER_UPGRADE_BASE_FEE = 2,
+    LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3
 };
 
 union LedgerUpgrade switch (LedgerUpgradeType type)
@@ -90,6 +91,8 @@ case LEDGER_UPGRADE_VERSION:
     uint32 newLedgerVersion; // update ledgerVersion
 case LEDGER_UPGRADE_BASE_FEE:
     uint32 newBaseFee; // update baseFee
+case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+    uint32 newMaxTxSetSize; // update maxTxSetSize
 };
 
 /* Entries used to define the bucket list */
