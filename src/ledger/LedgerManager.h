@@ -108,6 +108,10 @@ class LedgerManager
     // arithmetic operation.
     virtual int64_t getTxFee() const = 0;
 
+    // return the maximum size of a transaction set to apply to the current
+    // ledger
+    virtual uint32_t getMaxTxSetSize() const = 0;
+
     // Return the (changing) number of seconds since the LCL closed.
     virtual uint64_t secondsSinceLastLedgerClose() const = 0;
 
