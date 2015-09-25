@@ -90,10 +90,10 @@ TransactionFrame::getEnvelope()
     return mEnvelope;
 }
 
-float
-TransactionFrame::getFeeRatio(Application& app) const
+double
+TransactionFrame::getFeeRatio(LedgerManager const& lm) const
 {
-    return ((float)getFee() / (float)getMinFee(app));
+    return ((double)getFee() / (double)getMinFee(lm));
 }
 
 int64_t
@@ -103,7 +103,7 @@ TransactionFrame::getFee() const
 }
 
 int64_t
-TransactionFrame::getMinFee(Application& app) const
+TransactionFrame::getMinFee(LedgerManager const& lm) const
 {
     size_t count = mOperations.size();
 
@@ -112,7 +112,7 @@ TransactionFrame::getMinFee(Application& app) const
         count = 1;
     }
 
-    return app.getLedgerManager().getTxFee() * count;
+    return lm.getTxFee() * count;
 }
 
 void
@@ -225,10 +225,10 @@ TransactionFrame::commonValid(Application& app, bool applying,
         return false;
     }
 
+    auto& lm = app.getLedgerManager();
     if (mEnvelope.tx.timeBounds)
     {
-        uint64 closeTime =
-            app.getLedgerManager().getCurrentLedgerHeader().scpValue.closeTime;
+        uint64 closeTime = lm.getCurrentLedgerHeader().scpValue.closeTime;
         if (mEnvelope.tx.timeBounds->minTime > closeTime)
         {
             app.getMetrics()
@@ -249,7 +249,7 @@ TransactionFrame::commonValid(Application& app, bool applying,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(app))
+    if (mEnvelope.tx.fee < getMinFee(lm))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "insufficient-fee"},

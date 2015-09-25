@@ -17,6 +17,8 @@
 #include "main/CommandHandler.h"
 #include "ledger/LedgerHeaderFrame.h"
 
+#include "xdrpp/marshal.h"
+
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -323,6 +325,11 @@ TEST_CASE("surge", "[herder]")
 
     app->start();
 
+    auto& lm = app->getLedgerManager();
+
+    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
+        cfg.DESIRED_MAX_TX_PER_LEDGER;
+
     // set up world
     SecretKey root = getRoot(networkID);
 
@@ -356,7 +363,7 @@ TEST_CASE("surge", "[herder]")
                                        n + 10));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -372,7 +379,7 @@ TEST_CASE("surge", "[herder]")
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -390,7 +397,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -415,7 +422,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -441,7 +448,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -463,7 +470,7 @@ TEST_CASE("surge", "[herder]")
                                        accountCSeq++, n + 10));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(*app);
+        txSet->surgePricingFilter(lm);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }

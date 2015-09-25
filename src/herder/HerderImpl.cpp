@@ -711,8 +711,8 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 
     std::vector<TransactionFramePtr> removed;
     aggTxSet->trimInvalid(mApp, removed);
-    aggTxSet->surgePricingFilter(mApp);
 
+    aggTxSet->surgePricingFilter(mLedgerManager);
     comp.txSetHash = aggTxSet->getContentsHash();
 
     mPendingEnvelopes.recvTxSet(comp.txSetHash, aggTxSet);
@@ -1195,7 +1195,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     proposedSet->trimInvalid(mApp, removed);
     removeReceivedTxs(removed);
 
-    proposedSet->surgePricingFilter(mApp);
+    proposedSet->surgePricingFilter(mLedgerManager);
 
     if (!proposedSet->checkValid(mApp))
     {

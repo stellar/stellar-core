@@ -133,8 +133,8 @@ TxSetFrame::sortForApply()
 
 struct SurgeSorter
 {
-    map<AccountID, float>& mAccountFeeMap;
-    SurgeSorter(map<AccountID, float>& afm) : mAccountFeeMap(afm)
+    map<AccountID, double>& mAccountFeeMap;
+    SurgeSorter(map<AccountID, double>& afm) : mAccountFeeMap(afm)
     {
     }
 
@@ -143,8 +143,8 @@ struct SurgeSorter
     {
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
-        float fee1 = mAccountFeeMap[tx1->getSourceID()];
-        float fee2 = mAccountFeeMap[tx2->getSourceID()];
+        double fee1 = mAccountFeeMap[tx1->getSourceID()];
+        double fee2 = mAccountFeeMap[tx2->getSourceID()];
         if (fee1 == fee2)
             return tx1->getSourceID() < tx2->getSourceID();
         return fee1 > fee2;
@@ -152,20 +152,20 @@ struct SurgeSorter
 };
 
 void
-TxSetFrame::surgePricingFilter(Application& app)
+TxSetFrame::surgePricingFilter(LedgerManager const& lm)
 {
-    int max = app.getConfig().DESIRED_MAX_TX_PER_LEDGER;
+    size_t max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!
         CLOG(DEBUG, "Herder") << "surge pricing in effect! "
                               << mTransactions.size();
 
         // determine the fee ratio for each account
-        map<AccountID, float> accountFeeMap;
+        map<AccountID, double> accountFeeMap;
         for (auto& tx : mTransactions)
         {
-            float r = tx->getFeeRatio(app);
-            float now = accountFeeMap[tx->getSourceID()];
+            double r = tx->getFeeRatio(lm);
+            double now = accountFeeMap[tx->getSourceID()];
             if (now == 0)
                 accountFeeMap[tx->getSourceID()] = r;
             else if (r < now)

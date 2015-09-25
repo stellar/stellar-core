@@ -41,7 +41,7 @@ class TxSetFrame
     bool checkValid(Application& app) const;
     void trimInvalid(Application& app,
                      std::vector<TransactionFramePtr>& trimmed);
-    void surgePricingFilter(Application& app);
+    void surgePricingFilter(LedgerManager const& lm);
 
     void removeTx(TransactionFramePtr tx);
 

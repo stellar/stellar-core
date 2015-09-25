@@ -264,6 +264,11 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
+    // force maxTxSetSize to avoid throwing txSets on the floor during the first
+    // ledger close
+    appPtr->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
+        cfg.DESIRED_MAX_TX_PER_LEDGER;
+
     appPtr->generateLoad(100000, 100000, 10, true);
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
