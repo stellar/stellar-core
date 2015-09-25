@@ -16,14 +16,14 @@ Run stellar-core if you want to:
 
 
 ## Building
-See [readme](/README.md) for build instructions.
+See [readme](https://github.com/stellar/stellar-core/blob/master/README.md) for build instructions.
 
 ## Configuring
 All configuration for stellar-core is done with a TOML file. By default 
 stellar-core loads `./stellar-core.cfg`, but you can specify a different file 
 to load on the command line: `> stellar-core --conf betterfile.cfg` 
 
-The [example config](/docs/stellar-core_example.cfg) describes all the possible 
+The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
 configuration options.  
 
 ## Running
@@ -96,7 +96,7 @@ watch SCP and see all the data in the network but will not send validation messa
 Stellar-core stores the state of the ledger in a SQL database. This DB should 
 either be a SQLite database or, for larger production instances, a separate 
 PostgreSQL server. For how to specify the database, 
-see [example config](/docs/stellar-core_example.cfg).
+see [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
 
 When running stellar-core for the first time, you must initialize the database:
 `> stellar-core --newdb`
@@ -123,8 +123,8 @@ Azure Blob Storage, or custom SCP/SFTP/HTTP servers.
 
 Use command templates in the config file to give the specifics of which 
 services you will use and how to access them. 
-The [example config](/docs/stellar-core_example.cfg) shows how to configure 
-a history archive through command templates. 
+The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) 
+shows how to configure a history archive through command templates. 
 
 While it is possible to run a stellar-core node with no configured history 
 archives, it will be _severely limited_, unable to participate fully in a 
@@ -173,6 +173,7 @@ This directory contains the following additional documentation:
 * [testnet.md](./testnet.md) is a short tutorial demonstrating how to
   configure and run a short-lived, isolated test network.
 
-* [architecture.md](/docs/architecture.md) describes how stellar-core is
-  structured internally, how it is intended to be deployed, and the collection of
-  servers and services needed to get the full functionality and performance.
+* [architecture.md](https://github.com/stellar/stellar-core/blob/master/docs/architecture.md) 
+  describes how stellar-core is structured internally, how it is intended to be 
+  deployed, and the collection of servers and services needed to get the full 
+  functionality and performance.
