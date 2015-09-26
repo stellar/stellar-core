@@ -15,7 +15,7 @@ The central [SCP class](SCP.h) should be subclassed by any module wishing to
 implement consensus using the SCP protocol, implementing the necessary abstract
 methods for handling SCP-generated events, and calling SCP base-class methods to
 receive incoming messages. The messages making up the protocol are defined in
-XDR, in the file [Stellar-SCP.x](Stellar-SCP.x)
+XDR, in the file [Stellar-SCP.x](../xdr/Stellar-SCP.x)
 
 The `stellar-core` program has a single subclass of SCP called
 [Herder](../herder), which gives a specific interpretation to "slot" and
