@@ -125,9 +125,9 @@ class TransactionFrame
 
     int64_t getFee() const;
 
-    int64_t getMinFee(Application& app) const;
+    int64_t getMinFee(LedgerManager const& lm) const;
 
-    float getFeeRatio(Application& app) const;
+    double getFeeRatio(LedgerManager const& lm) const;
 
     void addSignature(SecretKey const& secretKey);
 

@@ -70,16 +70,7 @@ struct ApplyTxSorter
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
-        Hash h1 = tx1->getFullHash();
-        Hash h2 = tx2->getFullHash();
-        Hash v1, v2;
-        for (int n = 0; n < 32; n++)
-        {
-            v1[n] = mSetHash[n] ^ h1[n];
-            v2[n] = mSetHash[n] ^ h2[n];
-        }
-
-        return v1 < v2;
+        return lessThanXored(tx1->getFullHash(), tx2->getFullHash(), mSetHash);
     }
 };
 
@@ -142,8 +133,8 @@ TxSetFrame::sortForApply()
 
 struct SurgeSorter
 {
-    map<AccountID, float>& mAccountFeeMap;
-    SurgeSorter(map<AccountID, float>& afm) : mAccountFeeMap(afm)
+    map<AccountID, double>& mAccountFeeMap;
+    SurgeSorter(map<AccountID, double>& afm) : mAccountFeeMap(afm)
     {
     }
 
@@ -152,8 +143,8 @@ struct SurgeSorter
     {
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
-        float fee1 = mAccountFeeMap[tx1->getSourceID()];
-        float fee2 = mAccountFeeMap[tx2->getSourceID()];
+        double fee1 = mAccountFeeMap[tx1->getSourceID()];
+        double fee2 = mAccountFeeMap[tx2->getSourceID()];
         if (fee1 == fee2)
             return tx1->getSourceID() < tx2->getSourceID();
         return fee1 > fee2;
@@ -161,20 +152,20 @@ struct SurgeSorter
 };
 
 void
-TxSetFrame::surgePricingFilter(Application& app)
+TxSetFrame::surgePricingFilter(LedgerManager const& lm)
 {
-    int max = app.getConfig().DESIRED_MAX_TX_PER_LEDGER;
+    size_t max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!
         CLOG(DEBUG, "Herder") << "surge pricing in effect! "
                               << mTransactions.size();
 
         // determine the fee ratio for each account
-        map<AccountID, float> accountFeeMap;
+        map<AccountID, double> accountFeeMap;
         for (auto& tx : mTransactions)
         {
-            float r = tx->getFeeRatio(app);
-            float now = accountFeeMap[tx->getSourceID()];
+            double r = tx->getFeeRatio(lm);
+            double now = accountFeeMap[tx->getSourceID()];
             if (now == 0)
                 accountFeeMap[tx->getSourceID()] = r;
             else if (r < now)
@@ -259,15 +250,23 @@ TxSetFrame::checkValid(Application& app) const
     soci::transaction sqltx(app.getDatabase().getSession());
     app.getDatabase().setCurrentTransactionReadOnly();
 
+    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Start by checking previousLedgerHash
-    if (app.getLedgerManager().getLastClosedLedgerHeader().hash !=
-        mPreviousLedgerHash)
+    if (lcl.hash != mPreviousLedgerHash)
     {
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
             << hexAbbrev(
                    app.getLedgerManager().getLastClosedLedgerHeader().hash);
+        return false;
+    }
+
+    if (mTransactions.size() > lcl.header.maxTxSetSize)
+    {
+        CLOG(DEBUG, "Herder") << "Got bad txSet: too many txs "
+                              << mTransactions.size() << " > "
+                              << lcl.header.maxTxSetSize;
         return false;
     }
 

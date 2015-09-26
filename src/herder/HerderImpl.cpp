@@ -316,6 +316,14 @@ HerderImpl::validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
               (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
     }
     break;
+    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+    {
+        // allow max to be within 30% of the config value
+        uint32 newMax = lupgrade.newMaxTxSetSize();
+        res = (newMax >= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 7 / 10) &&
+              (newMax <= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 13 / 10);
+    }
+    break;
     default:
         res = false;
     }
@@ -641,23 +649,22 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
 
+    Hash candidatesHash;
+
+    std::vector<StellarValue> candidateValues;
+
     for (auto const& c : candidates)
     {
-        StellarValue sv;
+        candidateValues.emplace_back();
+        StellarValue& sv = candidateValues.back();
+
         xdr::xdr_from_opaque(c, sv);
+        candidatesHash ^= sha256(c);
+
         // max closeTime
         if (comp.closeTime < sv.closeTime)
         {
             comp.closeTime = sv.closeTime;
-        }
-        // union of all transactions
-        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
-        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
-        {
-            for (auto const& tx : cTxSet->mTransactions)
-            {
-                aggSet.insert(tx);
-            }
         }
         for (auto const& upgrade : sv.upgrades)
         {
@@ -689,10 +696,41 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                         clUpgrade.newBaseFee() = lupgrade.newBaseFee();
                     }
                     break;
+                case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+                    // take the max tx set size
+                    if (clUpgrade.newMaxTxSetSize() <
+                        lupgrade.newMaxTxSetSize())
+                    {
+                        clUpgrade.newMaxTxSetSize() =
+                            lupgrade.newMaxTxSetSize();
+                    }
+                    break;
                 default:
                     // should never get there with values that are not valid
                     throw std::runtime_error("invalid upgrade step");
                 }
+            }
+        }
+    }
+
+    // take the txSet with the highest number of transactions,
+    // highest xored hash that we have
+    Hash highest;
+    TxSetFramePtr bestTxSet;
+    for (auto const& sv : candidateValues)
+    {
+        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
+
+        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
+        {
+            if (!bestTxSet || (cTxSet->mTransactions.size() >
+                               bestTxSet->mTransactions.size()) ||
+                ((cTxSet->mTransactions.size() ==
+                  bestTxSet->mTransactions.size()) &&
+                 lessThanXored(highest, sv.txSetHash, candidatesHash)))
+            {
+                bestTxSet = cTxSet;
+                highest = sv.txSetHash;
             }
         }
     }
@@ -703,19 +741,18 @@ HerderImpl::combineCandidates(uint64 slotIndex,
         comp.upgrades.emplace_back(v.begin(), v.end());
     }
 
-    TxSetFramePtr aggTxSet = std::make_shared<TxSetFrame>(lcl.hash);
-    for (auto const& tx : aggSet)
-    {
-        aggTxSet->add(tx);
-    }
-
     std::vector<TransactionFramePtr> removed;
-    aggTxSet->trimInvalid(mApp, removed);
-    aggTxSet->surgePricingFilter(mApp);
 
-    comp.txSetHash = aggTxSet->getContentsHash();
+    // just to be sure
+    bestTxSet->trimInvalid(mApp, removed);
+    comp.txSetHash = bestTxSet->getContentsHash();
 
-    mPendingEnvelopes.recvTxSet(comp.txSetHash, aggTxSet);
+    if (removed.size() != 0)
+    {
+        CLOG(WARNING, "Herder") << "Candidate set had " << removed.size()
+                                << " invalid transactions";
+        mPendingEnvelopes.recvTxSet(comp.txSetHash, bestTxSet);
+    }
 
     return xdr::xdr_to_opaque(comp);
 }
@@ -1195,7 +1232,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     proposedSet->trimInvalid(mApp, removed);
     removeReceivedTxs(removed);
 
-    proposedSet->surgePricingFilter(mApp);
+    proposedSet->surgePricingFilter(mLedgerManager);
 
     if (!proposedSet->checkValid(mApp))
     {
@@ -1237,6 +1274,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     std::vector<LedgerUpgrade> upgrades;
 
+    // see if we need to include some upgrades
     if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
         upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
@@ -1247,6 +1285,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     {
         upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
         upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+    if (lcl.header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
+    {
+        upgrades.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        upgrades.back().newMaxTxSetSize() =
+            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
     }
 
     UpgradeType ut; // only used for max size check

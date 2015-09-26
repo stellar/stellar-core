@@ -160,6 +160,7 @@ LedgerManagerImpl::startNewLedger()
     // set the ones that are not 0
     genesisHeader.baseFee = 100;
     genesisHeader.baseReserve = 100000000;
+    genesisHeader.maxTxSetSize = 100; // 100 tx/ledger max
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
@@ -257,6 +258,12 @@ int64_t
 LedgerManagerImpl::getTxFee() const
 {
     return mCurrentLedger->mHeader.baseFee;
+}
+
+uint32_t
+LedgerManagerImpl::getMaxTxSetSize() const
+{
+    return mCurrentLedger->mHeader.maxTxSetSize;
 }
 
 int64_t
@@ -672,6 +679,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             break;
         case LEDGER_UPGRADE_BASE_FEE:
             ledgerDelta.getHeader().baseFee = lupgrade.newBaseFee();
+            break;
+        case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+            ledgerDelta.getHeader().maxTxSetSize = lupgrade.newMaxTxSetSize();
             break;
         default:
         {
