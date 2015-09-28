@@ -21,7 +21,9 @@ See [readme](https://github.com/stellar/stellar-core/blob/master/README.md) for 
 ## Configuring
 All configuration for stellar-core is done with a TOML file. By default 
 stellar-core loads `./stellar-core.cfg`, but you can specify a different file 
-to load on the command line: `> stellar-core --conf betterfile.cfg` 
+to load on the command line:
+
+`$ stellar-core --conf betterfile.cfg` 
 
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
 configuration options.  
@@ -37,12 +39,18 @@ configurable as `LOG_FILE_PATH`.
    The logging system only emits those messages at or above its configured logging level. 
 
 The log level can be controlled by configuration, by the `-ll` command-line flag 
-or adjusted dynamically by administrative (HTTP) commands.
- Run `stellar-core -c "ll?level=debug"` against a running system.
+or adjusted dynamically by administrative (HTTP) commands. Run:
+
+`$ stellar-core -c "ll?level=debug"`
+
+against a running system.
 Log levels can also be adjusted on a partition-by-partition basis through the 
 administrative interface.
- For example the history system can be set to DEBUG-level logging by running
-`stellar-core -c "ll?level=debug&partition=history"` against a running system.
+ For example the history system can be set to DEBUG-level logging by running:
+
+`$ stellar-core -c "ll?level=debug&partition=history"` 
+
+against a running system.
  The default log level is `INFO`, which is moderately verbose and should emit 
  progress messages every few seconds under normal operation.
 
@@ -59,8 +67,11 @@ volumes. For an example, see [docker-stellar-core](https://github.com/stellar/do
 ## Administrative commands
 While running, interaction with stellar-core is done via an administrative 
 HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
-as `curl`, or by `stellar-core -c <command>`. The endpoint is not intended to 
-be exposed to the public internet. It's typically accessed by administrators, 
+as `curl`, or by 
+
+`$ stellar-core -c <command>`
+
+. The endpoint is not intended to be exposed to the public internet. It's typically accessed by administrators, 
 or by a mid-tier application to submit transactions to the Stellar network. 
 See [commands](./commands.md) for a description of the available commands.
 
@@ -83,11 +94,17 @@ If it is compromised, someone can send false messages to the network and those
 messages will look like they came from you. 
 
 Generate a key pair like this:
-`stellar-core --genseed`
+
+`$ stellar-core --genseed`
+
 Place the seed in your config:
+
 `NODE_SEED="SBI3CZU7XZEWVXU7OZLW5MMUQAP334JFOPXSLTPOH43IRTEQ2QYXU5RG"`
+
 and set the following value in your config:
+
 `NODE_IS_VALIDATOR=true`
+
 Advertise the public key so people can add it to their `QUORUM_SET` in their config.
 If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
@@ -99,7 +116,9 @@ PostgreSQL server. For how to specify the database,
 see [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
 
 When running stellar-core for the first time, you must initialize the database:
-`> stellar-core --newdb`
+
+`$ stellar-core --newdb`
+
 This command will initialize the database and then exit. You can also use this 
 command if your DB gets corrupted and you want to restart it from scratch. 
 
@@ -143,8 +162,13 @@ set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
 Optionally: Create an external database to use--e.g., by using 
 PostgreSQL's `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
-Run `stellar-core --newdb` to initialize the database.
-Run `stellar-core`.
+Run:
+
+`$ stellar-core --newdb`
+
+to initialize the database.  Run:
+
+`$ stellar-core`
 
 ## Starting a new network
 
@@ -154,10 +178,23 @@ Set the `QUORUM_SET` and `KNOWN_PEERS` of each node to refer to one another.
 Decide on a history archive and add a HISTORY config entry for it on each node.
 Optionally: Create databases for each to use--e.g., by using PostgreSQL's `createdb` command.
 Set the `DATABASE` config variables on each node to your choice of database.
-Run `stellar-core --newhist <historyarchive>` on _one_ node, to initialize the history archive.
-Run `stellar-core --newdb` to initialize the database on each node.
-Run `stellar-core --forcescp` to set a flag to force each node to start SCP rather than join.
-Run `stellar-core` on each node.
+Run:
+
+`$ stellar-core --newhist <historyarchive>`
+
+on _one_ node, to initialize the history archive. Run:
+
+`$ stellar-core --newdb`
+
+to initialize the database on each node. Run:
+
+`$ stellar-core --forcescp`
+
+to set a flag to force each node to start SCP rather than join. Run:
+
+`$ stellar-core` 
+
+on each node.
 
 
 # Notes
