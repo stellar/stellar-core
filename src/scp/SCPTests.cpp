@@ -349,7 +349,7 @@ TEST_CASE("vblocking and quorum", "[scp]")
     REQUIRE(LocalNode::isVBlocking(qSet, nodeSet) == true);
 }
 
-TEST_CASE("protocol core5", "[scp][ballotprotocol]")
+TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 {
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -542,6 +542,70 @@ TEST_CASE("protocol core5", "[scp][ballotprotocol]")
             REQUIRE(scp.mEnvs.size() == 5);
             REQUIRE(scp.mExternalizedValues.size() == 1);
         }
+    }
+
+    SECTION("range check")
+    {
+        nodesAllPledgeToCommit();
+        REQUIRE(scp.mEnvs.size() == 3);
+
+        SCPBallot b(1, xValue);
+
+        // bunch of prepare messages with "commit b"
+        SCPEnvelope preparedC1 =
+            makePrepare(v1SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
+        SCPEnvelope preparedC2 =
+            makePrepare(v2SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
+        SCPEnvelope preparedC3 =
+            makePrepare(v3SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
+        SCPEnvelope preparedC4 =
+            makePrepare(v4SecretKey, qSetHash, 0, b, &b, b.counter, b.counter);
+
+        // those should not trigger anything just yet
+        scp.receiveEnvelope(preparedC1);
+        scp.receiveEnvelope(preparedC2);
+        REQUIRE(scp.mEnvs.size() == 3);
+
+        // this should cause the node to accept 'commit b' (quorum)
+        // and therefore send a "CONFIRM" message
+        scp.receiveEnvelope(preparedC3);
+        REQUIRE(scp.mEnvs.size() == 4);
+
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash, 0, 1, b, b.counter);
+
+        // bunch of confirm messages with different ranges
+        SCPBallot b5(5, xValue);
+        SCPEnvelope confirm1 =
+            makeConfirm(v1SecretKey, qSetHash, 0, 4, SCPBallot(2, xValue), 4);
+        SCPEnvelope confirm2 =
+            makeConfirm(v2SecretKey, qSetHash, 0, 6, SCPBallot(2, xValue), 6);
+        SCPEnvelope confirm3 =
+            makeConfirm(v3SecretKey, qSetHash, 0, 5, SCPBallot(3, xValue), 5);
+        SCPEnvelope confirm4 =
+            makeConfirm(v4SecretKey, qSetHash, 0, 6, SCPBallot(3, xValue), 6);
+
+        // this should not trigger anything just yet
+        scp.receiveEnvelope(confirm1);
+        scp.receiveEnvelope(confirm2);
+        REQUIRE(scp.mEnvs.size() == 4);
+
+        // this should allow to raise p to 5
+        // as all nodes are commiting xValue
+        scp.receiveEnvelope(confirm3);
+        REQUIRE(scp.mEnvs.size() == 5);
+        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash, 0, 5, b, b.counter);
+
+        // this causes to externalize
+        // range is [3,4]
+        scp.receiveEnvelope(confirm4);
+        REQUIRE(scp.mEnvs.size() == 6);
+
+        // The slot should have externalized the value
+        REQUIRE(scp.mExternalizedValues.size() == 1);
+        REQUIRE(scp.mExternalizedValues[0] == xValue);
+
+        verifyExternalize(scp.mEnvs[5], v0SecretKey, qSetHash, 0,
+                          SCPBallot(3, xValue), 4);
     }
 
     SECTION("prepare (a), then prepared (b) by v-blocking")
