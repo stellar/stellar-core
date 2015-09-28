@@ -21,7 +21,12 @@ stellar-core SCP will start immediately rather than waiting.
 
 ## Adding multiple nodes
 
-If you want to add additional nodes to your test network, simply change the .cfg appropriately. You will need to fill out the `KNOWN_PEERS` section. You should set `RUN_STANDALONE=false`. Generate a seed for each node you want to add using `stellar-core --genseed`. See the [admin guide](./admin.md) for more info.
+If you want to add additional nodes to your test network, simply change the .cfg 
+appropriately. You will need to fill out the `KNOWN_PEERS` section. You should set `RUN_STANDALONE=false`. Generate a seed for each node you want to add using 
+
+`$ stellar-core --genseed`
+
+. See the [admin guide](./admin.md) for more info.
 
 
 For each server in the cluster you need to do:
