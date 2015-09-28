@@ -208,7 +208,7 @@ TCPPeer::getIncomingMsgLength()
     length |= mIncomingHeader[2];
     length <<= 8;
     length |= mIncomingHeader[3];
-    if (length < 0 ||
+    if (length <= 0 ||
         (!isAuthenticated() && (length > MAX_UNAUTH_MESSAGE_SIZE)) ||
         length > MAX_MESSAGE_SIZE)
     {
@@ -217,6 +217,7 @@ TCPPeer::getIncomingMsgLength()
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
         drop();
+        length = 0;
     }
     return (length);
 }
@@ -240,15 +241,19 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     {
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mByteRead.Mark(bytes_transferred);
-        mIncomingBody.resize(getIncomingMsgLength());
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-        asio::async_read(
-            *mSocket.get(), asio::buffer(mIncomingBody),
-            self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
-                               {
-                                   self->mIncomingHeader.clear();
-                                   self->readBodyHandler(ec, length);
-                               }));
+        int length = getIncomingMsgLength();
+        if (length != 0)
+        {
+            mIncomingBody.resize(length);
+            auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+            asio::async_read(
+                *mSocket.get(), asio::buffer(mIncomingBody),
+                self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+            {
+                self->mIncomingHeader.clear();
+                self->readBodyHandler(ec, length);
+            }));
+        }
     }
     else
     {
