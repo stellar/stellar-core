@@ -174,4 +174,39 @@ Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
     }
     return sim;
 }
+
+Simulation::pointer
+Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
+                                         Simulation::Mode mode,
+                                         Hash const& networkID)
+{
+    // outer nodes are independent validators that point to a [core network]
+    auto sim = Topologies::core(coreSize, 0.75, mode, networkID);
+
+    // each additional node considers themselves as validator
+    // with a quorum set that also includes the core
+    int n = coreSize + 1;
+    SCPQuorumSet qSetBuilder;
+    qSetBuilder.threshold = n - (n - 1) / 3;
+    vector<NodeID> coreNodeIDs;
+    for (auto const& coreNodeID : sim->getNodeIDs())
+    {
+        qSetBuilder.validators.push_back(coreNodeID);
+        coreNodeIDs.emplace_back(coreNodeID);
+    }
+    qSetBuilder.validators.emplace_back();
+    for (int i = 0; i < nbOuterNodes; i++)
+    {
+        SecretKey sk =
+            SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));
+        auto const& pubKey = sk.getPublicKey();
+        qSetBuilder.validators.back() = pubKey;
+        sim->addNode(sk, qSetBuilder, sim->getClock());
+
+        // connect it to one of the core nodes
+        sim->addPendingConnection(pubKey, coreNodeIDs[i % coreSize]);
+    }
+
+    return sim;
+}
 }

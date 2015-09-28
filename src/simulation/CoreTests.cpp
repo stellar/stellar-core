@@ -136,8 +136,8 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
     }
 }
 
-void
-hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode,
+static void
+hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
                  Hash const& networkID)
 {
     auto tBegin = std::chrono::system_clock::now();
@@ -158,29 +158,69 @@ hierarchicalTopo(int nLedgers, int nBranches, Simulation::Mode mode,
     // printStats(nLedgers, tBegin, sim);
 }
 
-/* this test is still busted for some reason:
-core4 doesn't close, connections get dropped
 TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 {
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+    auto test = [&]()
+    {
+        int const nLedgers = 4;
+        for (int nBranches = 1; nBranches <= 3; nBranches += 2)
+        {
+            hierarchicalTopoTest(nLedgers, nBranches, mode, networkID);
+        }
+    };
     SECTION("Over loopback")
     {
         LOG(DEBUG) << "OVER_LOOPBACK";
         mode = Simulation::OVER_LOOPBACK;
+        test();
     }
     SECTION("Over tcp")
     {
         LOG(DEBUG) << "OVER_TCP";
         mode = Simulation::OVER_TCP;
+        test();
+    }
     }
 
-    int const nLedgers = 4;
-    for (int nBranches = 1; nBranches <= 3; nBranches += 2)
+static void
+hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
+                           Simulation::Mode mode, Hash const& networkID)
+{
+    auto tBegin = std::chrono::system_clock::now();
+
+    Simulation::pointer sim = Topologies::hierarchicalQuorumSimplified(
+        nbCore, nbOuterNodes, mode, networkID);
+    sim->startAllNodes();
+
+    sim->crankUntil(
+        [&sim, nLedgers]()
+        {
+            return sim->haveAllExternalized(nLedgers + 1);
+        },
+        20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+
+    REQUIRE(sim->haveAllExternalized(nLedgers + 1));
+
+    // printStats(nLedgers, tBegin, sim);
+}
+
+TEST_CASE("core-nodes with outer nodes", "[simulation]")
+{
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+    SECTION("Over loopback")
     {
-        hierarchicalTopo(nLedgers, nBranches, mode);
+        mode = Simulation::OVER_LOOPBACK;
+        hierarchicalSimplifiedTest(4, 5, 10, mode, networkID);
+    }
+    SECTION("Over tcp")
+    {
+        mode = Simulation::OVER_TCP;
+        hierarchicalSimplifiedTest(4, 5, 10, mode, networkID);
     }
 }
-*/
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {

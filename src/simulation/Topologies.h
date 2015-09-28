@@ -21,5 +21,8 @@ class Topologies
     static Simulation::pointer hierarchicalQuorum(int nBranches,
                                                   Simulation::Mode mode,
                                                   Hash const& networkID);
+    static Simulation::pointer
+    hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
+                                 Simulation::Mode mode, Hash const& networkID);
 };
 }
