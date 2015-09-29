@@ -85,6 +85,9 @@
     <Filter Include="xdr\generated">
       <UniqueIdentifier>{02035318-e72a-43b0-a250-8b3af9fb4bbf}</UniqueIdentifier>
     </Filter>
+    <Filter Include="scp\tests">
+      <UniqueIdentifier>{34037c6d-2c07-471b-8dde-6b69003d4ca7}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -381,9 +384,6 @@
     <ClCompile Include="..\..\src\scp\SCP.cpp">
       <Filter>scp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\scp\SCPTests.cpp">
-      <Filter>scp</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\scp\Slot.cpp">
       <Filter>scp</Filter>
     </ClCompile>
@@ -476,6 +476,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\ECDH.cpp">
       <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCPTests.cpp">
+      <Filter>scp\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

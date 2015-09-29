@@ -889,54 +889,40 @@ BallotProtocol::findExtendedInterval(Interval& candidate,
                                      std::set<Interval> const& boundaries,
                                      std::function<bool(Interval const&)> pred)
 {
+    // first, build the list of interesting values
+    std::set<uint32> values;
     for (auto const& seg : boundaries)
     {
-        if (candidate.second != 0)
+        values.insert(seg.first);
+        values.insert(seg.second);
+    }
+
+    for (auto b : values)
+    {
+        Interval cur;
+        if (candidate.first == 0)
         {
-            // ensure that the segment is adjacent to the candidate we have so
-            // far
-            if (candidate.second < seg.first || candidate.first > seg.second)
-            {
-                break;
-            }
+            // first, find the low bound
+            cur = Interval(b, b);
+        }
+        else if (b < candidate.second)
+        {
+            continue;
+        }
+        else
+        {
+            cur.first = candidate.first;
+            cur.second = b;
         }
 
-        dbgAssert(seg.first <= seg.second);
-
-        for (int i = 0; i < 2; i++)
+        if (pred(cur))
         {
-            uint32 b = i ? seg.second : seg.first;
-
-            // candidate Interval
-            Interval cur;
-
-            if (candidate.first != 0)
-            {
-                // see if we can expand the Interval
-                cur.first = candidate.first;
-                cur.second = b;
-            }
-            else
-            {
-                // see if we can pin the lowest boundary on [b,b]
-                cur.first = cur.second = b;
-            }
-
-            bool keep = pred(cur);
-
-            if (keep)
-            {
-                candidate = cur;
-            }
-            else
-            {
-                if (candidate.first != 0)
-                {
-                    // found the end of the Interval
-                    break;
-                }
-                // otherwise, keep scanning for the lower bound
-            }
+            candidate = cur;
+        }
+        else if (candidate.first != 0)
+        {
+            // could not extend further
+            break;
         }
     }
 }
@@ -1062,6 +1048,7 @@ BallotProtocol::isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
         // in confirm phase we can only extend the upper bound
         candidate.first = mCommit->counter;
         candidate.second = mConfirmedPrepared->counter;
+        dbgAssert(candidate.first <= candidate.second);
 
         // remove boundaries that have no chance of increasing P
         for (auto it = boundaries.begin(); it != boundaries.end();)
