@@ -480,6 +480,9 @@
     <ClCompile Include="..\..\src\scp\SCPTests.cpp">
       <Filter>scp\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -836,6 +839,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\ECDH.h">
       <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\LoadManager.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

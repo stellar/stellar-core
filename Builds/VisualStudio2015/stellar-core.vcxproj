@@ -238,6 +238,7 @@
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp" />
+    <ClCompile Include="..\..\src\overlay\LoadManager.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerAuth.cpp" />
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp" />
@@ -321,6 +322,7 @@
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
+    <ClInclude Include="..\..\src\overlay\LoadManager.h" />
     <ClInclude Include="..\..\src\overlay\PeerAuth.h" />
     <ClInclude Include="..\..\src\overlay\StellarXDR.h" />
     <ClInclude Include="..\..\src\herder\HerderImpl.h" />
