@@ -25,6 +25,7 @@ See [Installation](./INSTALL.md)
 See [Contributing](./CONTRIBUTING.md)
 
 # Running tests
+Some of the tests depend on having postgres installed and configured for the tests. See below for setting this up.
 
 run tests with:
   `src/stellar-core --test`
@@ -48,7 +49,7 @@ display tests timing information:
 xml test output (includes nested section information):
   `src/stellar-core --test -r xml '[categoryName]'`
 
-# Running tests against postgreSQL
+# Setting up postgreSQL for the tests
 
 There are two options.  The easiest is to have the test suite just
 create a temporary postgreSQL database cluster in /tmp and delete it
