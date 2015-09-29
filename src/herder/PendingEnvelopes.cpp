@@ -80,36 +80,34 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     try
     {
         auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
+        auto& processedList = mProcessedEnvelopes[envelope.statement.slotIndex];
 
-        if (find(set.begin(), set.end(), envelope) == set.end())
-        { // we aren't fetching this envelop
+        auto fetching = find(set.begin(), set.end(), envelope);
 
-            auto& receivedList =
-                mReceivedEnvelopes[envelope.statement.slotIndex];
-            if (find(receivedList.begin(), receivedList.end(), envelope) ==
-                receivedList.end())
+        if (fetching == set.end())
+        { // we aren't fetching this envelope
+            if (find(processedList.begin(), processedList.end(), envelope) ==
+                processedList.end())
             { // we haven't seen this envelope before
-
-                receivedList.push_back(envelope);
-                if (startFetch(envelope))
-                { // fully fetched
-                    envelopeReady(envelope);
-                }
-                else
-                {
-                    mFetchingEnvelopes[envelope.statement.slotIndex].insert(
-                        envelope);
-                }
-
-                CLOG(DEBUG, "Herder") << "PendingEnvelopes::recvSCPEnvelope";
-
-            } // else we already have this one
+                // insert it into the fetching set
+                fetching = set.insert(envelope).first;
+                startFetch(envelope);
+            }
+            else
+            {
+                // we already have this one
+                fetching = set.end();
+            }
         }
-        else
+
+        if (fetching != set.end())
         { // we are fetching this envelope
             // check if we are done fetching it
             if (isFullyFetched(envelope))
             {
+                // move the item from fetching to processed
+                processedList.emplace_back(*fetching);
+                set.erase(fetching);
                 envelopeReady(envelope);
             } // else just keep waiting for it to come in
         }
@@ -250,7 +248,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     mPendingEnvelopes.erase(slotIndex);
 
     // keep the last few ledgers worth of messages around to give to people
-    mReceivedEnvelopes.erase(slotIndex - 10);
+    mProcessedEnvelopes.erase(slotIndex - 10);
     mFetchingEnvelopes.erase(slotIndex);
 
     mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
