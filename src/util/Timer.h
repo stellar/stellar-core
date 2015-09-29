@@ -106,6 +106,9 @@ class VirtualClock
     asio::basic_waitable_timer<std::chrono::system_clock> mRealTimer;
     Mode mMode;
 
+    uint32_t mRecentCrankCount;
+    uint32_t mRecentIdleCrankCount;
+
     size_t nRealTimerCancelEvents;
     time_point mNow;
 
@@ -133,6 +136,8 @@ class VirtualClock
     VirtualClock(Mode mode = VIRTUAL_TIME);
     ~VirtualClock();
     size_t crank(bool block = true);
+    void noteCrankOccurred(bool hadIdle);
+    uint32_t recentIdleCrankPercent() const;
     asio::io_service& getIOService();
 
     // Note: this is not a static method, which means that VirtualClock is
