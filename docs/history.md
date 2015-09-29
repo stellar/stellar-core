@@ -51,9 +51,9 @@ and formats.
 
 XDR is used for 3 related but different tasks, the first 2 of which are discussed elsewhere:
 
-  # Exchanging peer-to-peer network protocol messages and achieving consensus.
-  # Cryptographically hashing ledger entries, buckets, transactions, and similar values.
-  # Storing and retrieving history (discussed in this document).
+  * Exchanging peer-to-peer network protocol messages and achieving consensus.
+  * Cryptographically hashing ledger entries, buckets, transactions, and similar values.
+  * Storing and retrieving history (discussed in this document).
 
 When storing XDR files to history archives, stellar-core first applies gzip (RFC 1952) compression
 to the files. The resulting `.xdr.gz` files can be concatenated, accessed in streaming fashion, or
