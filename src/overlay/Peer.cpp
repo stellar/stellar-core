@@ -333,6 +333,18 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 }
 
 void
+Peer::sendGetPeers()
+{
+    CLOG(TRACE, "Overlay") << "Get peers";
+
+    StellarMessage newMsg;
+    newMsg.type(GET_PEERS);
+
+    sendMessage(newMsg);
+    mSendGetPeersMeter.Mark();
+}
+
+void
 Peer::sendPeers()
 {
     // send top 50 peers we know about

@@ -183,6 +183,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
+    void sendGetPeers();
 
     void sendMessage(StellarMessage const& msg);
 
