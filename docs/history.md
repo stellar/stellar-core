@@ -2,7 +2,7 @@
 title: History
 ---
 
-Stellar Core separates data into "current" and "historical."
+Stellar Core, or stellar-core, separates data into "current" and "historical."
 
 Current data is the subject of peer-to-peer messages--consensus is only concerned with the present,
 not the past. Current data _resides_ in a local SQL database paired with each stellar-core
@@ -36,7 +36,7 @@ may be FTP or SFTP servers, filesystem directories shared between stellar-core p
 Google Cloud Storage, Azure Blob storage or similar commodity object storage services.
 
 History archives are defined in a very lightweight fashion, in stellar-core's configuration file, by
-providing a pair of `get` and `put` command templates. Stellar-core will run the provided command
+providing a pair of `get` and `put` command templates. stellar-core will run the provided command
 template, with its own file names substituted for placeholders in the template, in order to get files
 from, and put files into, a given history archive. This interface is meant to support simple
 commands like `curl`, `wget`, `aws`, `gcutil`, `s3cmd`, `cp`, `scp`, `ftp` or similar. Several
@@ -45,7 +45,7 @@ examples are provided in the example configuration files.
 
 ## Serialization to XDR and gzip
 
-Stellar-core leans heavily on the XDR data format. This is an old, stable, standardized
+stellar-core leans heavily on the XDR data format. This is an old, stable, standardized
 serialization format, defined in RFC 4506 and used for several standard unix and internet protocols
 and formats.
 
@@ -138,7 +138,7 @@ A few reasons that the extra effort of configuring independent history archives 
     to use the _same code path_ that is making continuous, long-term flat-file backups, we help
     ensure the backup code _works_, and is being run on a regular schedule.
 
-  - This design reduces the risk of lost peers. Stellar-core peers are comparatively ephemeral: new ones can
+  - This design reduces the risk of lost peers. stellar-core peers are comparatively ephemeral: new ones can
     be brought online relatively quickly (only downloading missing buckets) and the state stored on
     a given peer is likely only one checkpoint, or 5 minutes, worth of unique data (the rest has
     been archived). While stellar-core is designed to run as a highly fault-tolerant replicated
