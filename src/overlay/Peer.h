@@ -50,6 +50,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
+    static medida::Meter& getByteReadMeter(Application& app);
+    static medida::Meter& getByteWriteMeter(Application& app);
+
   protected:
     Application& mApp;
 
@@ -112,6 +115,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mDropInRecvMessageSeqMeter;
     medida::Meter& mDropInRecvMessageMacMeter;
     medida::Meter& mDropInRecvMessageUnauthMeter;
+    medida::Meter& mDropInRecvHelloUnexpectedMeter;
     medida::Meter& mDropInRecvHelloVersionMeter;
     medida::Meter& mDropInRecvHelloSelfMeter;
     medida::Meter& mDropInRecvHelloPeerIDMeter;
@@ -179,6 +183,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
+    void sendGetPeers();
 
     void sendMessage(StellarMessage const& msg);
 

@@ -49,6 +49,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MAX_PEER_CONNECTIONS = 50;
     PREFERRED_PEERS_ONLY = false;
 
+    MINIMUM_IDLE_PERCENT = 0;
+
     MAX_CONCURRENT_SUBPROCESSES = 32;
     PARANOID_MODE = false;
     NODE_IS_VALIDATOR = false;
@@ -485,6 +487,18 @@ Config::load(std::string const& filename)
                 }
                 MAX_CONCURRENT_SUBPROCESSES =
                     (size_t)item.second->as<int64_t>()->value();
+            }
+            else if (item.first == "MINIMUM_IDLE_PERCENT")
+            {
+                if (!item.second->as<int64_t>() ||
+                    item.second->as<int64_t>()->value() > 100 ||
+                    item.second->as<int64_t>()->value() < 0)
+                {
+                    throw std::invalid_argument(
+                        "invalid MINIMUM_IDLE_PERCENT");
+                }
+                MINIMUM_IDLE_PERCENT =
+                    (uint32_t)item.second->as<int64_t>()->value();
             }
             else if (item.first == "HISTORY")
             {

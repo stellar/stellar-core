@@ -13,6 +13,7 @@
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
@@ -36,6 +37,18 @@ namespace stellar
 using namespace std;
 using namespace soci;
 
+medida::Meter&
+Peer::getByteReadMeter(Application& app)
+{
+    return app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte");
+}
+
+medida::Meter&
+Peer::getByteWriteMeter(Application& app)
+{
+    return app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte");
+}
+
 Peer::Peer(Application& app, PeerRole role)
     : mApp(app)
     , mRole(role)
@@ -51,9 +64,8 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewMeter({"overlay", "message", "read"}, "message"))
     , mMessageWrite(
           app.getMetrics().NewMeter({"overlay", "message", "write"}, "message"))
-    , mByteRead(app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte"))
-    , mByteWrite(
-          app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte"))
+    , mByteRead(getByteReadMeter(app))
+    , mByteWrite(getByteWriteMeter(app))
     , mErrorRead(
           app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
     , mErrorWrite(
@@ -103,9 +115,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "send", "transaction"}, "message"))
     , mSendGetSCPQuorumSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-qset"}, "message"))
-    , mSendSCPQuorumSetMeter(
-          app.getMetrics().NewMeter({"overlay", "send", "scp-qset"}, "message"))
-
+    , mSendSCPQuorumSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "scp-qset"}, "message"))
     , mDropInConnectHandlerMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "connect-handler"}, "drop"))
     , mDropInRecvMessageDecodeMeter(app.getMetrics().NewMeter(
@@ -116,6 +127,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-message-mac"}, "drop"))
     , mDropInRecvMessageUnauthMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-message-unauth"}, "drop"))
+    , mDropInRecvHelloUnexpectedMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-hello-unexpected"}, "drop"))
     , mDropInRecvHelloVersionMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-hello-version"}, "drop"))
     , mDropInRecvHelloSelfMeter(app.getMetrics().NewMeter(
@@ -132,9 +145,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-reject"}, "drop"))
-
-    , mDropInRecvErrorMeter(
-          app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
+    , mDropInRecvErrorMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-error"}, "drop"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -321,6 +333,18 @@ Peer::sendGetQuorumSet(uint256 const& setID)
 }
 
 void
+Peer::sendGetPeers()
+{
+    CLOG(TRACE, "Overlay") << "Get peers";
+
+    StellarMessage newMsg;
+    newMsg.type(GET_PEERS);
+
+    sendMessage(newMsg);
+    mSendGetPeersMeter.Mark();
+}
+
+void
 Peer::sendPeers()
 {
     // send top 50 peers we know about
@@ -377,6 +401,7 @@ Peer::sendMessage(StellarMessage const& msg)
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
+    LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     mMessageRead.Mark();
     mByteRead.Mark(msg->raw_size());
@@ -701,6 +726,15 @@ void
 Peer::recvHello(StellarMessage const& msg)
 {
     using xdr::operator==;
+
+    if (mState >= GOT_HELLO)
+    {
+        CLOG(ERROR, "Overlay")
+            << "received unexpected HELLO";
+        mDropInRecvHelloUnexpectedMeter.Mark();
+        drop();
+        return;
+    }
 
     auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
     if (!peerAuth.verifyRemoteAuthCert(msg.hello().peerID, msg.hello().cert))

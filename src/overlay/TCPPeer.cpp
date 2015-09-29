@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "xdrpp/marshal.h"
+#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "database/Database.h"
 #include "overlay/PeerRecord.h"
@@ -156,6 +157,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
     }
     else
     {
+        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
         mByteWrite.Mark(bytes_transferred);
@@ -236,6 +238,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
 
     if (!error)
     {
+        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mByteRead.Mark(bytes_transferred);
         mIncomingBody.resize(getIncomingMsgLength());
         auto self = static_pointer_cast<TCPPeer>(shared_from_this());
@@ -273,6 +276,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 
     if (!error)
     {
+        LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mByteRead.Mark(bytes_transferred);
         recvMessage();
         startRead();

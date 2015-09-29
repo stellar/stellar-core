@@ -49,6 +49,7 @@ namespace stellar
 
 class PeerRecord;
 class PeerAuth;
+class LoadManager;
 
 class OverlayManager
 {
@@ -116,6 +117,9 @@ class OverlayManager
 
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
+
+    // Return the persistent peer-load-accounting cache.
+    virtual LoadManager& getLoadManager() = 0;
 
     // start up all background tasks for overlay
     virtual void start() = 0;

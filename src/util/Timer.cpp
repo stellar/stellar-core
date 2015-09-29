@@ -14,7 +14,13 @@ namespace stellar
 
 using namespace std;
 
-VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
+static const uint32_t RECENT_CRANK_WINDOW = 1024;
+
+VirtualClock::VirtualClock(Mode mode)
+    : mRealTimer(mIOService)
+    , mMode(mode)
+    , mRecentCrankCount(RECENT_CRANK_WINDOW >> 1)
+    , mRecentIdleCrankCount(RECENT_CRANK_WINDOW >> 1)
 {
     if (mMode == REAL_TIME)
     {
@@ -228,6 +234,7 @@ VirtualClock::crank(bool block)
     size_t nWorkDone = 0;
 
     nWorkDone += mIOService.poll();
+    noteCrankOccurred(nWorkDone == 0);
 
     if (mMode == REAL_TIME)
     {
@@ -251,6 +258,56 @@ VirtualClock::crank(bool block)
     }
 
     return nWorkDone;
+}
+
+void
+VirtualClock::noteCrankOccurred(bool hadIdle)
+{
+    // Record execution of a crank and, optionally, whether we had an idle
+    // poll event; this is used to estimate overall business of the system
+    // via recentIdleCrankPercent().
+    ++mRecentCrankCount;
+    if (hadIdle)
+    {
+        ++mRecentIdleCrankCount;
+    }
+
+    // Divide-out older samples once we have a suitable number of cranks to
+    // evaluate a ratio. This makes the measurement "present-biased" and
+    // the threshold (RECENT_CRANK_WINDOW) sets the size of the window (in
+    // cranks) that we consider as "the present". Using an event count
+    // rather than a time based EWMA (as in a medida::Meter) makes the
+    // ratio more precise, at the expense of accuracy of present-focus --
+    // we might accidentally consider samples from 1s, 1m or even 1h ago as
+    // "present" if the system is very lightly loaded. But since we're
+    // going to use this value to disconnect peers when overloaded, this is
+    // the preferred tradeoff.
+    if (mRecentCrankCount > RECENT_CRANK_WINDOW)
+    {
+        mRecentCrankCount >>= 1;
+        mRecentIdleCrankCount >>= 1;
+    }
+}
+
+uint32_t
+VirtualClock::recentIdleCrankPercent() const
+{
+    if (mRecentCrankCount == 0)
+    {
+        return 0;
+    }
+    uint32_t v = static_cast<uint32_t>(
+        (100ULL * static_cast<uint64_t>(mRecentIdleCrankCount)) /
+        static_cast<uint64_t>(mRecentCrankCount));
+
+    LOG(DEBUG) << "Estimated clock loop idle: " << v
+               << "% (" << mRecentIdleCrankCount
+               << "/" << mRecentCrankCount << ")";
+
+    // This should _really_ never be >100, it's a bug in our code if so.
+    assert(v <= 100);
+
+    return v;
 }
 
 asio::io_service&
