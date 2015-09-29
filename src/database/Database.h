@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <string>
+#include <set>
 #include <soci.h>
 #include "overlay/StellarXDR.h"
 #include "ledger/AccountFrame.h"
@@ -13,6 +14,7 @@
 #include "medida/timer_context.h"
 #include "util/NonCopyable.h"
 #include "util/lrucache.hpp"
+#include "util/Timer.h"
 
 namespace medida
 {
@@ -96,6 +98,14 @@ class Database : NonMovableOrCopyable
     cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
         mEntryCache;
 
+    // Helpers for maintaining the total query time and calculating
+    // idle percentage.
+    std::set<std::string> mEntityTypes;
+    std::chrono::nanoseconds mExcludedQueryTime;
+    std::chrono::nanoseconds mExcludedTotalTime;
+    std::chrono::nanoseconds mLastIdleQueryTime;
+    VirtualClock::time_point mLastIdleTotalTime;
+
     static bool gDriversRegistered;
     static void registerDrivers();
 
@@ -107,6 +117,21 @@ class Database : NonMovableOrCopyable
     // Return a crude meter of total queries to the db, for use in
     // overlay/LoadManager.
     medida::Meter& getQueryMeter();
+
+    // Number of nanoseconds spent processing queries since app startup,
+    // without any reference to excluded time or running counters.
+    // Strictly a sum of measured time.
+    std::chrono::nanoseconds totalQueryTime() const;
+
+    // Subtract a number of nanoseconds from the running time counts,
+    // due to database usage spikes, specifically during ledger-close.
+    void excludeTime(std::chrono::nanoseconds const& queryTime,
+                     std::chrono::nanoseconds const& totalTime);
+
+    // Return the percent of the time since the last call to this
+    // method that database has been idle, _excluding_ the times
+    // excluded above via `excludeTime`.
+    uint32_t recentIdleDbPercent();
 
     // Return a logging helper that will capture all SQL statements made
     // on the main connection while active, and will log those statements
@@ -157,4 +182,15 @@ class Database : NonMovableOrCopyable
         EntryCache;
     EntryCache& getEntryCache();
 };
+
+class DBTimeExcluder : NonCopyable
+{
+    Application& mApp;
+    std::chrono::nanoseconds mStartQueryTime;
+    VirtualClock::time_point mStartTotalTime;
+public:
+    DBTimeExcluder(Application& mApp);
+    ~DBTimeExcluder();
+};
+
 }
