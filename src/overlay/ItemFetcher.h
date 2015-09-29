@@ -46,7 +46,7 @@ class Tracker
     template <class T> friend class ItemFetcher;
     Application& mApp;
     Peer::pointer mLastAskedPeer;
-    std::vector<Peer::pointer> mPeersAsked;
+    std::vector<Peer::pointer> mPeersToAsk;
     VirtualTimer mTimer;
     bool mIsStopped = false;
     std::vector<SCPEnvelope> mWaitingEnvelopes;

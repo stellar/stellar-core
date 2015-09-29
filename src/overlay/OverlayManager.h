@@ -76,14 +76,8 @@ class OverlayManager
     virtual void recvFloodedMsg(StellarMessage const& msg,
                                 Peer::pointer peer) = 0;
 
-    // Return a random peer from the set of connected peers.
-    virtual Peer::pointer getRandomPeer() = 0;
-
-    // Returns the peer following the provided peer, in the set of connected
-    // peers, looping to the beginning if needed.
-    // Returns a `nullptr`-valued pointer if the provided peer is not part of
-    // the in-memory peer set.
-    virtual Peer::pointer getNextPeer(Peer::pointer peer) = 0;
+    // Return a list of random peers from the set of authenticated peers.
+    virtual std::vector<Peer::pointer> getRandomPeers() = 0;
 
     // Return an already-connected peer at the given ip address and port;
     // returns a `nullptr`-valued pointer if no such connected peer exists.

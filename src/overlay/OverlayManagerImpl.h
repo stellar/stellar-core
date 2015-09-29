@@ -76,12 +76,11 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<Peer::pointer>& getPeers() override;
 
     // returns NULL if the passed peer isn't found
-    Peer::pointer getNextPeer(Peer::pointer peer) override;
     Peer::pointer getConnectedPeer(std::string const& ip,
                                    unsigned short port) override;
 
     void connectToMorePeers(int max);
-    Peer::pointer getRandomPeer() override;
+    std::vector<Peer::pointer> getRandomPeers() override;
 
     PeerAuth& getPeerAuth() override;
 

@@ -129,7 +129,6 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
         return true;
     }
 
-    mPeersAsked.clear();
     mTimer.cancel();
     mLastAskedPeer = nullptr;
     mIsStopped = true;
@@ -153,38 +152,31 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    if (!mPeersAsked.empty())
+    if (mPeersToAsk.empty())
     {
-        while (!peer && !mPeersAsked.empty())
-        {
-            peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
-            if (!peer)
-            {
-                // no longer connected to this peer.
-                // try another.
-                mPeersAsked.pop_back();
-            }
-        }
+        mPeersToAsk = mApp.getOverlayManager().getRandomPeers();
     }
-    else
+
+    while (!peer && !mPeersToAsk.empty())
     {
-        peer = mApp.getOverlayManager().getRandomPeer();
+        peer = mPeersToAsk.back();
+        if (!peer->isAuthenticated())
+        {
+            peer.reset();
+        }
+        mPeersToAsk.pop_back();
     }
 
     std::chrono::milliseconds nextTry;
-    if (!peer ||
-        find(mPeersAsked.begin(), mPeersAsked.end(), peer) != mPeersAsked.end())
+    if (!peer)
     { // we have asked all our peers
         // clear list and try again in a bit
-        mPeersAsked.clear();
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
     }
     else
     {
-        askPeer(peer);
-
         mLastAskedPeer = peer;
-        mPeersAsked.push_back(peer);
+        askPeer(peer);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 

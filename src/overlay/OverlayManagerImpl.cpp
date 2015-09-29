@@ -336,35 +336,20 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
     return false;
 }
 
-Peer::pointer
-OverlayManagerImpl::getRandomPeer()
+std::vector<Peer::pointer>
+OverlayManagerImpl::getRandomPeers()
 {
-    if (mPeers.size())
-    {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<size_t> dis(0, mPeers.size() - 1);
-        return mPeers[dis(gen)];
-    }
+    std::vector<std::shared_ptr<Peer>> goodPeers(mPeers.size());
+    auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),
+                           [](std::shared_ptr<Peer> const& p)
+                           {
+                               return p && p->isAuthenticated();
+                           });
+    goodPeers.resize(std::distance(goodPeers.begin(), it));
 
-    return Peer::pointer();
-}
+    std::random_shuffle(goodPeers.begin(), goodPeers.end());
 
-// returns NULL if the passed peer isn't found
-Peer::pointer
-OverlayManagerImpl::getNextPeer(Peer::pointer peer)
-{
-    auto index = std::find(mPeers.begin(), mPeers.end(), peer);
-    if (mPeers.empty() || index == mPeers.end())
-    {
-        return nullptr;
-    }
-    else if (index + 1 == mPeers.end())
-    {
-        return mPeers.front();
-    }
-    else
-        return *(index + 1);
+    return goodPeers;
 }
 
 void
