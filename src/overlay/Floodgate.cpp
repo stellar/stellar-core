@@ -87,7 +87,6 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
-        record->mPeersTold = mApp.getOverlayManager().getPeers();
 
         mFloodMap[index] = record;
         mFloodMapSize.set_count(mFloodMap.size());
