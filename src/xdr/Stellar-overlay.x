@@ -126,11 +126,15 @@ case SCP_MESSAGE:
     SCPEnvelope envelope;
 };
 
-struct AuthenticatedMessage
+union AuthenticatedMessage switch (uint32 v)
 {
-   uint64 sequence;
-   StellarMessage message;
-   HmacSha256Mac mac;
+case 0:
+    struct
+    {
+        uint64 sequence;
+        StellarMessage message;
+        HmacSha256Mac mac;
+    } v0;
 };
 
 }

@@ -379,11 +379,11 @@ Peer::sendMessage(StellarMessage const& msg)
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
 
     AuthenticatedMessage amsg;
-    amsg.message = msg;
+    amsg.v0().message = msg;
     if (msg.type() != HELLO)
     {
-        amsg.sequence = mSendMacSeq;
-        amsg.mac =
+        amsg.v0().sequence = mSendMacSeq;
+        amsg.v0().mac =
             hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
         ++mSendMacSeq;
     }
@@ -438,7 +438,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
 {
     if (mState >= GOT_HELLO)
     {
-        if (msg.sequence != mRecvMacSeq)
+        if (msg.v0().sequence != mRecvMacSeq)
         {
             CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
             mDropInRecvMessageSeqMeter.Mark();
@@ -447,8 +447,9 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
             return;
         }
 
-        if (!hmacSha256Verify(msg.mac, mRecvMacKey,
-                              xdr::xdr_to_opaque(msg.sequence, msg.message)))
+        if (!hmacSha256Verify(msg.v0().mac, mRecvMacKey,
+                              xdr::xdr_to_opaque(msg.v0().sequence,
+                                                 msg.v0().message)))
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             mDropInRecvMessageMacMeter.Mark();
@@ -459,7 +460,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
 
         ++mRecvMacSeq;
     }
-    recvMessage(msg.message);
+    recvMessage(msg.v0().message);
 }
 
 void
