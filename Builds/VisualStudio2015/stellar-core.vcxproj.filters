@@ -806,7 +806,6 @@
     <ClInclude Include="..\..\src\main\dumpxdr.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\StellarXDR.h" />
     <ClInclude Include="src\generated\xdr\Stellar-ledger.h">
       <Filter>xdr\generated</Filter>
     </ClInclude>
@@ -841,6 +840,9 @@
       <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\LoadManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\StellarXDR.h">
       <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
@@ -943,7 +945,9 @@
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger-entries.x">
       <Filter>xdr</Filter>
     </CustomBuild>
-    <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x" />
+    <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x">
+      <Filter>xdr</Filter>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\INSTALL-Windows.txt" />
