@@ -32,7 +32,8 @@ See [INSTALL-Windows.txt](INSTALL-Windows.txt)
 
 ## Basic Installation
 
-- `git clone ...`
+- `git clone https://github.com/stellar/stellar-core.git`
+- `cd stellar-core`
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
