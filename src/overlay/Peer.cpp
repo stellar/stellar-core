@@ -378,24 +378,17 @@ Peer::sendMessage(StellarMessage const& msg)
                            << ") send: " << msg.type()
                            << " to : " << PubKeyUtils::toShortString(mPeerID);
 
-    if (msg.type() == HELLO)
+    AuthenticatedMessage amsg;
+    amsg.message = msg;
+    if (msg.type() != HELLO)
     {
-        assert((mState == CONNECTED && mRole == WE_CALLED_REMOTE) ||
-               (mState == GOT_HELLO && mRole == REMOTE_CALLED_US));
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(msg));
-        this->sendMessage(std::move(xdrBytes));
-    }
-    else
-    {
-        AuthenticatedMessage amsg;
-        amsg.message = msg;
         amsg.sequence = mSendMacSeq;
         amsg.mac =
             hmacSha256(mSendMacKey, xdr::xdr_to_opaque(mSendMacSeq, msg));
         ++mSendMacSeq;
-        xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
-        this->sendMessage(std::move(xdrBytes));
     }
+    xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
+    this->sendMessage(std::move(xdrBytes));
 }
 
 void
@@ -409,18 +402,9 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
     {
-        if (mState >= GOT_HELLO)
-        {
-            AuthenticatedMessage am;
-            xdr::xdr_from_msg(msg, am);
-            recvMessage(am);
-        }
-        else
-        {
-            StellarMessage sm;
-            xdr::xdr_from_msg(msg, sm);
-            recvMessage(sm);
-        }
+        AuthenticatedMessage am;
+        xdr::xdr_from_msg(msg, am);
+        recvMessage(am);
     }
     catch (xdr::xdr_runtime_error& e)
     {
@@ -452,26 +436,29 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(AuthenticatedMessage const& msg)
 {
-    if (msg.sequence != mRecvMacSeq)
+    if (mState >= GOT_HELLO)
     {
-        CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
-        mDropInRecvMessageSeqMeter.Mark();
-        ++mRecvMacSeq;
-        drop(ERR_AUTH, "unexpected auth sequence");
-        return;
-    }
+        if (msg.sequence != mRecvMacSeq)
+        {
+            CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
+            mDropInRecvMessageSeqMeter.Mark();
+            ++mRecvMacSeq;
+            drop(ERR_AUTH, "unexpected auth sequence");
+            return;
+        }
 
-    if (!hmacSha256Verify(msg.mac, mRecvMacKey,
-                          xdr::xdr_to_opaque(msg.sequence, msg.message)))
-    {
-        CLOG(ERROR, "Overlay") << "Message-auth check failed";
-        mDropInRecvMessageMacMeter.Mark();
-        ++mRecvMacSeq;
-        drop(ERR_AUTH, "unexpected MAC");
-        return;
-    }
+        if (!hmacSha256Verify(msg.mac, mRecvMacKey,
+                              xdr::xdr_to_opaque(msg.sequence, msg.message)))
+        {
+            CLOG(ERROR, "Overlay") << "Message-auth check failed";
+            mDropInRecvMessageMacMeter.Mark();
+            ++mRecvMacSeq;
+            drop(ERR_AUTH, "unexpected MAC");
+            return;
+        }
 
-    ++mRecvMacSeq;
+        ++mRecvMacSeq;
+    }
     recvMessage(msg.message);
 }
 

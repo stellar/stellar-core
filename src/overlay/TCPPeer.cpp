@@ -306,18 +306,9 @@ TCPPeer::recvMessage()
     {
         xdr::xdr_get g(mIncomingBody.data(),
                        mIncomingBody.data() + mIncomingBody.size());
-        if (mState >= GOT_HELLO)
-        {
-            AuthenticatedMessage am;
-            xdr::xdr_argpack_archive(g, am);
-            Peer::recvMessage(am);
-        }
-        else
-        {
-            StellarMessage sm;
-            xdr::xdr_argpack_archive(g, sm);
-            Peer::recvMessage(sm);
-        }
+        AuthenticatedMessage am;
+        xdr::xdr_argpack_archive(g, am);
+        Peer::recvMessage(am);
     }
     catch (xdr::xdr_runtime_error& e)
     {
