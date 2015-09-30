@@ -1130,6 +1130,11 @@ HerderImpl::ledgerClosed()
     {
         seconds = std::chrono::seconds(1);
     }
+    if (mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    {
+        seconds = std::chrono::seconds(
+            mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING);
+    }
 
     auto now = mApp.getClock().now();
     if ((now - mLastTrigger) < seconds)

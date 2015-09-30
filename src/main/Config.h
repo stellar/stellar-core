@@ -77,6 +77,10 @@ class Config : public std::enable_shared_from_this<Config>
     // will make your history archives incompatible with those of anyone else.
     bool ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING;
 
+    // A config parameter to override the close time (in seconds). Do not use
+    // in production as it may render the network unstable.
+    uint32 ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING;
+
     // A config parameter that avoids resolving FutureBuckets before writing
     // them to the database's persistent state; this option exists only
     // for stress-testing the ability to resume from an interrupted merge,

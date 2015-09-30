@@ -34,6 +34,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     CATCHUP_COMPLETE = false;
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
+    ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     FAILURE_SAFETY = 1;
     UNSAFE_QUORUM = false;
@@ -284,6 +285,21 @@ Config::load(std::string const& filename)
                 ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING =
                     item.second->as<bool>()->value();
             }
+            else if (item.first == "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING")
+            {
+                if (!item.second->as<int64>())
+                {
+                    throw std::invalid_argument(
+                        "invalid ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING");
+                }
+                int64_t f = item.second->as<int64_t>()->value();
+                if (f < 0 || f >= UINT32_MAX)
+                {
+                    throw std::invalid_argument(
+                        "invalid ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING");
+                }
+                ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = (uint32_t)f;
+            }
             else if (item.first == "MANUAL_CLOSE")
             {
                 if (!item.second->as<bool>())
@@ -469,8 +485,7 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value() > 100 ||
                     item.second->as<int64_t>()->value() < 0)
                 {
-                    throw std::invalid_argument(
-                        "invalid MINIMUM_IDLE_PERCENT");
+                    throw std::invalid_argument("invalid MINIMUM_IDLE_PERCENT");
                 }
                 MINIMUM_IDLE_PERCENT =
                     (uint32_t)item.second->as<int64_t>()->value();
