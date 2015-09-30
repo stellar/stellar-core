@@ -37,7 +37,7 @@ class Simulation : public LoadGenerator
 
     typedef std::shared_ptr<Simulation> pointer;
 
-    Simulation(Mode mode, Hash const& networkID);
+    Simulation(Mode mode, Hash const& networkID, std::function<Config()> confGen = nullptr);
     ~Simulation();
 
     VirtualClock& getClock();
@@ -87,5 +87,8 @@ class Simulation : public LoadGenerator
     std::map<NodeID, Application::pointer> mNodes;
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
+
+    Config newConfig(); // generates a new config
+    std::function<Config()> mConfigGen; // config generator
 };
 }

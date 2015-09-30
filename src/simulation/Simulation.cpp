@@ -24,14 +24,16 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(Mode mode, Hash const& networkID)
+Simulation::Simulation(Mode mode, Hash const& networkID,
+                       std::function<Config()> confGen)
     : LoadGenerator(networkID)
     , mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME
                               : VirtualClock::VIRTUAL_TIME)
     , mMode(mode)
     , mConfigCount(0)
-    , mIdleApp(Application::create(mClock, getTestConfig(mConfigCount++)))
+    , mConfigGen(confGen)
 {
+    mIdleApp = Application::create(mClock, newConfig());
 }
 
 Simulation::~Simulation()
@@ -57,8 +59,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     std::shared_ptr<Config> cfg;
     if (!cfg2)
     {
-        cfg = std::make_shared<Config>(getTestConfig(mConfigCount++));
-        cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        cfg = std::make_shared<Config>(newConfig());
     }
     else
     {
@@ -436,6 +437,21 @@ Simulation::loadAccount(AccountInfo& account)
     // assumes all nodes are in sync
     auto app = mNodes.begin()->second;
     return LoadGenerator::loadAccount(*app, account);
+}
+
+Config
+Simulation::newConfig()
+{
+    if (mConfigGen)
+    {
+        return mConfigGen();
+    }
+    else
+    {
+        Config res = getTestConfig(mConfigCount++);
+        res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+        return res;
+    }
 }
 
 class ConsoleReporterWithSum : public medida::reporting::ConsoleReporter
