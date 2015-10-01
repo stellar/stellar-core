@@ -600,7 +600,7 @@ TEST_CASE("SCP State", "[herder]")
         // wait to close exactly once
 
         sim->crankUntil([&]() {
-            return sim->haveAllExternalized(2);
+            return sim->haveAllExternalized(2, 1);
         }, std::chrono::seconds(1), true);
 
         REQUIRE(sim->getNode(nodeIDs[0])->getLedgerManager().getLastClosedLedgerNum() == 2);
@@ -658,7 +658,7 @@ TEST_CASE("SCP State", "[herder]")
 
         // then let the nodes run a bit more, they should all externalize the next ledger
         sim->crankUntil([&]() {
-            return sim->haveAllExternalized(3);
+            return sim->haveAllExternalized(3, 2);
         }, Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         // nodes are at least on ledger 3 (some may be on 4)

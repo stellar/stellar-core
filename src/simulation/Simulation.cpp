@@ -185,16 +185,22 @@ Simulation::crankAllNodes(int nbTicks)
 }
 
 bool
-Simulation::haveAllExternalized(SequenceNumber num)
+Simulation::haveAllExternalized(SequenceNumber num, uint32 maxSpread)
 {
-    uint32_t min = UINT_MAX;
+    uint32_t min = UINT_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
         auto n = it->second->getLedgerManager().getLastClosedLedgerNum();
-        LOG(DEBUG) << "Ledger#: " << n;
+        LOG(DEBUG) << it->second->getConfig().PEER_PORT << " @ ledger#: " << n;
 
         if (n < min)
             min = n;
+        if (n > max)
+            max = n;
+    }
+    if (max - min > maxSpread)
+    {
+        throw std::runtime_error("Too wide spread between nodes");
     }
     return num <= min;
 }
@@ -298,6 +304,10 @@ Simulation::crankUntil(function<bool()> const& predicate,
 
     checkTimer.expires_from_now(chrono::seconds(1));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
+
+    // initial check, pre crank (mostly used for getting a snapshot of the
+    // starting state)
+    checkDone();
 
     for (;;)
     {

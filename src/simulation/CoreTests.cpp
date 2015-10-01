@@ -90,13 +90,13 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
         simulation->crankUntil(
             [&simulation, nLedgers]()
             {
-                return simulation->haveAllExternalized(nLedgers + 1);
+                return simulation->haveAllExternalized(nLedgers + 1, 5);
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         // printStats(nLedgers, tBegin, simulation);
 
-        REQUIRE(simulation->haveAllExternalized(nLedgers + 1));
+        REQUIRE(simulation->haveAllExternalized(nLedgers + 1, 5));
     }
     LOG(DEBUG) << "done with core3 test";
 }
@@ -126,11 +126,11 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
         sim->crankUntil(
             [&sim, nLedgers]()
             {
-                return sim->haveAllExternalized(nLedgers + 1);
+                return sim->haveAllExternalized(nLedgers + 1, nLedgers);
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-        REQUIRE(sim->haveAllExternalized(nLedgers + 1));
+        REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
 
         // printStats(nLedgers, tBegin, sim);
     }
@@ -149,11 +149,11 @@ hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
     sim->crankUntil(
         [&sim, nLedgers]()
         {
-            return sim->haveAllExternalized(nLedgers + 1);
+            return sim->haveAllExternalized(nLedgers + 1, 5);
         },
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-    REQUIRE(sim->haveAllExternalized(nLedgers + 1));
+    REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
 
     // printStats(nLedgers, tBegin, sim);
 }
@@ -197,11 +197,11 @@ hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
     sim->crankUntil(
         [&sim, nLedgers]()
         {
-            return sim->haveAllExternalized(nLedgers + 1);
+            return sim->haveAllExternalized(nLedgers + 1, 3);
         },
         20 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
-    REQUIRE(sim->haveAllExternalized(nLedgers + 1));
+    REQUIRE(sim->haveAllExternalized(nLedgers + 1, 3));
 
     // printStats(nLedgers, tBegin, sim);
 }
@@ -231,12 +231,12 @@ TEST_CASE("cycle4 topology", "[simulation]")
     simulation->crankUntil(
         [&simulation]()
         {
-            return simulation->haveAllExternalized(2);
+            return simulation->haveAllExternalized(2, 4);
         },
         std::chrono::seconds(20), true);
 
     // Still transiently does not work (quorum retrieval)
-    REQUIRE(simulation->haveAllExternalized(2));
+    REQUIRE(simulation->haveAllExternalized(2, 4));
 }
 
 TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
@@ -250,7 +250,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     simulation->crankUntil(
         [&]()
         {
-            return simulation->haveAllExternalized(3);
+            return simulation->haveAllExternalized(3, 1);
         },
         2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
@@ -264,7 +264,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
                 // we need to wait 2 rounds in case the tx don't propagate
                 // to the second node in time and the second node gets the
                 // nomination
-                return simulation->haveAllExternalized(5) &&
+                return simulation->haveAllExternalized(5, 2) &&
                        simulation->accountsOutOfSyncWithDb().empty();
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
