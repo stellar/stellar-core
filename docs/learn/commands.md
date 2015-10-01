@@ -21,6 +21,7 @@ network has lost quorum because of failed nodes or otherwise. It sets a flag in
 the database. The next time stellar-core is run, stellar-core will start 
 emitting SCP messages based on its last known ledger. Without this flag stellar-core waits to hear
 a ledger close from the network before starting SCP. 
+
 forcescp doesn't change the requirements for quorum so although this node will emit SCP messages SCP won't complete until there are also a quorum of other nodes also emitting SCP messages on this same ledger.
 * **--fuzz FILE**: Run a single fuzz input and exit.
 * **--genfuzz FILE**:  Generate a random fuzzer input file.
