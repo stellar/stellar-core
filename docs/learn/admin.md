@@ -152,6 +152,12 @@ least, if you are joining an existing network in a read-only capacity, you
 will still need to configure a `get` command to access that network's history 
 archives.
 
+If you configure a history archive to **put** to, then you must run:
+
+`$ stellar-core --newhist <historyarchive>`
+
+to initialize that archive before you start.
+
 # Recipes
 
 ## Joining an existing network
@@ -182,7 +188,8 @@ Run:
 
 `$ stellar-core --newhist <historyarchive>`
 
-on _one_ node, to initialize the history archive. Run:
+to initialize every history archive you are putting to. 
+Run:
 
 `$ stellar-core --newdb`
 
