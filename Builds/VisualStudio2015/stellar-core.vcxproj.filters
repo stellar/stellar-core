@@ -88,6 +88,9 @@
     <Filter Include="scp\tests">
       <UniqueIdentifier>{34037c6d-2c07-471b-8dde-6b69003d4ca7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="overlay\tests">
+      <UniqueIdentifier>{c9352652-3868-4d3d-9663-cb7f68f6ecf8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -127,9 +130,6 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\http\connection.cpp">
@@ -333,9 +333,6 @@
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -353,9 +350,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\herder\HerderTests.cpp">
       <Filter>herder\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
       <Filter>overlay</Filter>
@@ -387,9 +381,6 @@
     <ClCompile Include="..\..\src\scp\Slot.cpp">
       <Filter>scp</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
-      <Filter>overlay</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\Fs.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -419,9 +410,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp">
       <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp">
       <Filter>transactions\tests</Filter>
@@ -482,6 +470,24 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
       <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\OverlayTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FloodTests.cpp">
+      <Filter>overlay\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
