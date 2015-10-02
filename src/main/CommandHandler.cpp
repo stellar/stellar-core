@@ -508,16 +508,21 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
     auto& hm = mApp.getHistoryManager();
     if (hm.hasAnyWritableHistoryArchive())
     {
-        bool done = false;
+        size_t done = 0;
         asio::error_code ec;
         uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
         uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
-        hm.publishHistory([&done, &ec](asio::error_code const& ec2)
-                          {
-                              ec = ec2;
-                              done = true;
-                          });
-        while (!done)
+        hm.queueCurrentHistory();
+        size_t toPublish =
+            hm.publishQueuedHistory([&done, &ec](asio::error_code const& ec2)
+                                    {
+                                        if (ec2)
+                                        {
+                                            ec = ec2;
+                                        }
+                                        ++done;
+                                    });
+        while (done != toPublish)
         {
             mApp.getClock().crank(false);
         }

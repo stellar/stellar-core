@@ -44,7 +44,8 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
     VirtualTimer mRetryTimer;
     size_t mRetryCount{0};
 
-    StateSnapshot(Application& app);
+    StateSnapshot(Application& app, HistoryArchiveState const& state);
+    void makeLiveAndRetainBuckets();
     bool writeHistoryBlocks() const;
     void writeHistoryBlocksWithRetry();
     void retryHistoryBlockWriteOrFail(asio::error_code const& ec);
@@ -357,6 +358,16 @@ PublishStateMachine::PublishStateMachine(Application& app)
 {
 }
 
+uint32_t
+PublishStateMachine::maxQueuedSnapshotLedger() const
+{
+    if (mPendingSnaps.empty())
+    {
+        return 0;
+    }
+    return mPendingSnaps.back().first->mLocalState.currentLedger;
+}
+
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
@@ -374,9 +385,10 @@ PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
     return delayed;
 }
 
-StateSnapshot::StateSnapshot(Application& app)
+StateSnapshot::StateSnapshot(Application& app,
+                             HistoryArchiveState const& state)
     : mApp(app)
-    , mLocalState(app.getHistoryManager().getLastClosedHistoryArchiveState())
+    , mLocalState(state)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
     , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
@@ -391,17 +403,34 @@ StateSnapshot::StateSnapshot(Application& app)
           mLocalState.currentLedger))
     , mRetryTimer(app)
 {
-    BucketList& buckets = app.getBucketManager().getBucketList();
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    makeLiveAndRetainBuckets();
+}
+
+void
+StateSnapshot::makeLiveAndRetainBuckets()
+{
+    std::vector<std::shared_ptr<Bucket>> retain;
+    auto& bm = mApp.getBucketManager();
+    for (auto& hb : mLocalState.currentBuckets)
     {
-        auto& level = buckets.getLevel(i);
-        if (level.getNext().isLive())
+        auto curr = bm.getBucketByHash(hexToBin256(hb.curr));
+        auto snap = bm.getBucketByHash(hexToBin256(hb.snap));
+        assert(curr);
+        assert(snap);
+        retain.push_back(curr);
+        retain.push_back(snap);
+
+        if (hb.next.hasHashes() && !hb.next.isLive())
         {
-            mLocalBuckets.push_back(level.getNext().resolve());
+            hb.next.makeLive(mApp);
         }
-        mLocalBuckets.push_back(level.getCurr());
-        mLocalBuckets.push_back(level.getSnap());
+
+        if (hb.next.isLive())
+        {
+            retain.push_back(hb.next.resolve());
+        }
     }
+    mLocalBuckets = retain;
 }
 
 bool
@@ -521,13 +550,13 @@ StateSnapshot::writeHistoryBlocksWithRetry()
 }
 
 std::shared_ptr<StateSnapshot>
-PublishStateMachine::takeSnapshot(Application& app)
+PublishStateMachine::takeSnapshot(Application& app, HistoryArchiveState const& state)
 {
     // Capture local state and _all_ the local buckets at this instant; these
     // may be expired from the bucketlist while the subsequent put-callbacks are
     // running but the buckets are immutable and we hold shared_ptrs to them
     // here, include those in the callbacks themselves.
-    return std::make_shared<StateSnapshot>(app);
+    return std::make_shared<StateSnapshot>(app, state);
 }
 
 void
@@ -547,6 +576,7 @@ PublishStateMachine::writeNextSnapshot()
     auto snap = mPendingSnaps.front().first;
 
     snap->mLocalState.resolveAnyReadyFutures();
+    snap->makeLiveAndRetainBuckets();
 
     bool readyToWrite = true;
 

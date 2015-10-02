@@ -110,7 +110,12 @@ class PublishStateMachine
 
   public:
     PublishStateMachine(Application& app);
-    static SnapshotPtr takeSnapshot(Application& app);
+    static SnapshotPtr takeSnapshot(Application& app,
+                                    HistoryArchiveState const& state);
+
+    // Returns the ledger number of the maximum currently-queued snapshot.
+    // If no ledgers are queued, returns 0.
+    uint32_t maxQueuedSnapshotLedger() const;
 
     // Returns true if delayed, false if immediately dispatched.
     bool queueSnapshot(SnapshotPtr snap, PublishCallback handler);

@@ -239,6 +239,13 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            auto npub = mHistoryManager->publishQueuedHistory(
+                [](asio::error_code const&){});
+            if (npub != 0)
+            {
+                CLOG(INFO, "Ledger") << "Restarted publishing " << npub
+                                     << " queued snapshots";
+            }
             if (mConfig.FORCE_SCP)
             {
                 std::string flagClearedMsg = "";
