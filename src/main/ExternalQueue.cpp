@@ -7,7 +7,9 @@
 #include "database/Database.h"
 #include "Application.h"
 #include "ledger/LedgerManager.h"
+#include "util/Logging.h"
 #include <regex>
+#include <limits>
 
 namespace stellar
 {
@@ -106,10 +108,39 @@ ExternalQueue::process()
         st.execute(true);
     }
 
+    // rmin is the minimum of all last-reads, which means that remote
+    // subscribers are ok with us deleting any history N <= rmin.
+    // If we do not have subscribers, take this as maxint, and just
+    // use the LCL/checkpoint number (see below) to control trimming.
+    uint32_t rmin = std::numeric_limits<uint32_t>::max();
     if (st.got_data() && minIndicator == soci::indicator::i_ok)
     {
-        mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), (uint32)m);
+        rmin = static_cast<uint32_t>(m);
     }
+
+    // Next calculate the minimum of the LCL and/or any queued checkpoint.
+    uint32_t lcl = mApp.getLedgerManager().getLastClosedLedgerNum();
+    uint32_t ql = mApp.getHistoryManager().getMinLedgerQueuedToPublish();
+    uint32_t qmin = ql == 0 ? lcl : std::min(ql, lcl);
+
+    // Next calculate, given qmin, the first ledger it'd be _safe to
+    // delete_ while still keeping everything required to publish.
+    // So if qmin is (for example) 0x7f = 127, then we want to keep 64
+    // ledgers before that, and therefore can erase 0x3f = 63 and less.
+    uint32_t freq = mApp.getHistoryManager().getCheckpointFrequency();
+    uint32_t lmin = qmin >= freq ? qmin - freq : 0;
+
+    // Cumulative minimum is the lesser of the requirements of history
+    // publication and the requirements of our pubsub subscribers.
+    uint32_t cmin = std::min(lmin, rmin);
+
+    LOG(INFO) << "Trimming history <= ledger " << cmin
+              << " (rmin=" << rmin
+              << ", qmin=" << qmin
+              << ", lmin=" << lmin
+              << ")";
+
+    mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), cmin);
 }
 
 void

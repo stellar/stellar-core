@@ -102,6 +102,12 @@ TEST_CASE("standalone", "[herder]")
         {
             app->getCommandHandler().manualCmd("maintenance?queue=true");
 
+            while (app->getLedgerManager().getLastClosedLedgerNum() <
+                   (app->getHistoryManager().getCheckpointFrequency() + 5))
+            {
+                app->getClock().crank(true);
+            }
+
             app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=1");
             app->getCommandHandler().manualCmd("maintenance?queue=true");
             auto& db = app->getDatabase();
