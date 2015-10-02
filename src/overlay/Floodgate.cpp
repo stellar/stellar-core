@@ -21,7 +21,7 @@ Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
     : mLedgerSeq(ledger), mMessage(msg)
 {
     if (peer)
-        mPeersTold.push_back(peer);
+        mPeersTold.insert(peer);
 }
 
 Floodgate::Floodgate(Application& app)
@@ -70,7 +70,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     }
     else
     {
-        result->second->mPeersTold.push_back(peer);
+        result->second->mPeersTold.insert(peer);
         return false;
     }
 }
@@ -91,38 +91,25 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
-
-        mFloodMap[index] = record;
+        result = mFloodMap.insert(std::make_pair(index, record)).first;
         mFloodMapSize.set_count(mFloodMap.size());
-        for (auto peer : mApp.getOverlayManager().getPeers())
-        {
-            if (peer->isAuthenticated())
-            {
-                mSendFromBroadcast.Mark();
-                peer->sendMessage(msg);
-                record->mPeersTold.push_back(peer);
-            }
-        }
-        CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << record->mPeersTold.size();
     }
-    else
-    { // send it to people that haven't sent it to us
-        std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
-        for (auto peer : mApp.getOverlayManager().getPeers())
+    // send it to people that haven't sent it to us
+    std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
+
+    auto& peers = mApp.getOverlayManager().getPeers();
+
+    for (auto peer : peers)
+    {
+        if (peersTold.find(peer) ==
+            peersTold.end() && peer->isAuthenticated())
         {
-            if (find(peersTold.begin(), peersTold.end(), peer) ==
-                peersTold.end())
-            {
-                if (peer->isAuthenticated())
-                {
-                    mSendFromBroadcast.Mark();
-                    peer->sendMessage(msg);
-                    peersTold.push_back(peer);
-                }
-            }
+            mSendFromBroadcast.Mark();
+            peer->sendMessage(msg);
+            peersTold.insert(peer);
         }
-        CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << peersTold.size();
     }
+    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << peersTold.size();
 }
 
 void

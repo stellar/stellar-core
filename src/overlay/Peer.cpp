@@ -709,11 +709,18 @@ Peer::recvTransaction(StellarMessage const& msg)
     {
         // add it to our current set
         // and make sure it is valid
-        if (mApp.getHerder().recvTransaction(transaction) ==
-            Herder::TX_STATUS_PENDING)
+        auto recvRes = mApp.getHerder().recvTransaction(transaction);
+
+        if (recvRes == Herder::TX_STATUS_PENDING || recvRes == Herder::TX_STATUS_DUPLICATE)
         {
+            // record that this peer sent us this transaction
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
-            mApp.getOverlayManager().broadcastMessage(msg);
+
+            if (recvRes == Herder::TX_STATUS_PENDING)
+            {
+                // if it's a new transaction, broadcast it
+                mApp.getOverlayManager().broadcastMessage(msg);
+            }
         }
     }
 }
