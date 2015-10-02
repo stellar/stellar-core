@@ -252,8 +252,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
 
     if (!error)
     {
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mByteRead.Mark(bytes_transferred);
+        receivedBytes(bytes_transferred, false);
         int length = getIncomingMsgLength();
         if (length != 0)
         {
@@ -294,8 +293,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 
     if (!error)
     {
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mByteRead.Mark(bytes_transferred);
+        receivedBytes(bytes_transferred, true);
         recvMessage();
         startRead();
     }
@@ -317,9 +315,6 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
-    mLastRead = mApp.getClock().now();
-    mMessageRead.Mark();
-
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),

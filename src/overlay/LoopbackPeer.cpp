@@ -177,6 +177,7 @@ LoopbackPeer::deliverOne()
         auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
         remote->mStrand.post([remote, m]()
                              {
+                                 remote->receivedBytes((*m)->size(), true);
                                  remote->recvMessage(std::move(*m));
                              });
         LoadManager::PeerContext loadCtx(mApp, mPeerID);

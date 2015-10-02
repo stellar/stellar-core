@@ -221,6 +221,16 @@ Peer::getIOTimeoutSeconds() const
 }
 
 void
+Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
+{
+    LoadManager::PeerContext loadCtx(mApp, mPeerID);
+    mLastRead = mApp.getClock().now();
+    if (gotFullMessage)
+        mMessageRead.Mark();
+    mByteRead.Mark(byteCount);
+}
+
+void
 Peer::startIdleTimer()
 {
     if (shouldAbort())
@@ -435,9 +445,6 @@ void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
-    mLastRead = mApp.getClock().now();
-    mMessageRead.Mark();
-    mByteRead.Mark(msg->raw_size());
 
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
     try
