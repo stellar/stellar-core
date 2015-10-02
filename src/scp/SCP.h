@@ -96,7 +96,7 @@ class SCP
     std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
 
     // Slot getter
-    std::shared_ptr<Slot> getSlot(uint64 slotIndex);
+    std::shared_ptr<Slot> getSlot(uint64 slotIndex, bool create);
 
     friend class TestSCP;
 };

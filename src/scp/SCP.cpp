@@ -37,21 +37,21 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope)
     }
 
     uint64 slotIndex = envelope.statement.slotIndex;
-    return getSlot(slotIndex)->processEnvelope(envelope);
+    return getSlot(slotIndex, true)->processEnvelope(envelope);
 }
 
 bool
 SCP::abandonBallot(uint64 slotIndex)
 {
     dbgAssert(isValidator());
-    return getSlot(slotIndex)->abandonBallot();
+    return getSlot(slotIndex, true)->abandonBallot();
 }
 
 bool
 SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 {
     dbgAssert(isValidator());
-    return getSlot(slotIndex)->nominate(value, previousValue, false);
+    return getSlot(slotIndex, true)->nominate(value, previousValue, false);
 }
 
 void
@@ -96,14 +96,23 @@ SCP::getLocalNode()
 }
 
 std::shared_ptr<Slot>
-SCP::getSlot(uint64 slotIndex)
+SCP::getSlot(uint64 slotIndex, bool create)
 {
+    std::shared_ptr<Slot> res;
     auto it = mKnownSlots.find(slotIndex);
     if (it == mKnownSlots.end())
     {
-        mKnownSlots[slotIndex] = std::make_shared<Slot>(slotIndex, *this);
+        if (create)
+        {
+            res = std::make_shared<Slot>(slotIndex, *this);
+            mKnownSlots[slotIndex] = res;
+        }
     }
-    return mKnownSlots[slotIndex];
+    else
+    {
+        res = it->second;
+    }
+    return res;
 }
 
 void
@@ -147,6 +156,15 @@ SCP::getCumulativeStatemtCount() const
 std::vector<SCPEnvelope>
 SCP::getLatestMessagesSend(uint64 slotIndex)
 {
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
         return slot->getLatestMessagesSend();
+    }
+    else
+    {
+        return std::vector<SCPEnvelope>();
+    }
+}
 }
 }

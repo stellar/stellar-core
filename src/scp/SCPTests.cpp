@@ -109,13 +109,13 @@ class TestSCP : public SCPDriver
     bool
     bumpState(uint64 slotIndex, Value const& v)
     {
-        return mSCP.getSlot(slotIndex)->bumpState(v, true);
+        return mSCP.getSlot(slotIndex, true)->bumpState(v, true);
     }
 
     bool
     nominate(uint64 slotIndex, Value const& value, bool timedout)
     {
-        return mSCP.getSlot(slotIndex)->nominate(value, value, timedout);
+        return mSCP.getSlot(slotIndex, true)->nominate(value, value, timedout);
     }
 
     // only used by nomination protocol
@@ -175,7 +175,7 @@ class TestSCP : public SCPDriver
     Value const&
     getLatestCompositeCandidate(uint64 slotIndex)
     {
-        return mSCP.getSlot(slotIndex)->getLatestCompositeCandidate();
+        return mSCP.getSlot(slotIndex, true)->getLatestCompositeCandidate();
     }
 
     void
