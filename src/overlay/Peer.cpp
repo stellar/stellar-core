@@ -111,16 +111,18 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewMeter({"overlay", "send", "peers"}, "message"))
     , mSendGetTxSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-txset"}, "message"))
-    , mSendTxSetMeter(
-          app.getMetrics().NewMeter({"overlay", "send", "txset"}, "message"))
     , mSendTransactionMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "transaction"}, "message"))
+    , mSendTxSetMeter(
+          app.getMetrics().NewMeter({"overlay", "send", "txset"}, "message"))
     , mSendGetSCPQuorumSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-qset"}, "message"))
+    , mSendSCPQuorumSetMeter(
+          app.getMetrics().NewMeter({"overlay", "send", "scp-qset"}, "message"))
+    , mSendSCPMessageSetMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "scp-message"}, "message"))
     , mSendGetSCPStateMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-state"}, "message"))
-    , mSendSCPQuorumSetMeter(app.getMetrics().NewMeter(
-          {"overlay", "send", "scp-qset"}, "message"))
     , mDropInConnectHandlerMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "connect-handler"}, "drop"))
     , mDropInRecvMessageDecodeMeter(app.getMetrics().NewMeter(
@@ -149,8 +151,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-reject"}, "drop"))
-    , mDropInRecvErrorMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-error"}, "drop"))
+    , mDropInRecvErrorMeter(
+          app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
 {
     auto bytes = randomBytes(mSendNonce.size());
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
@@ -174,7 +176,6 @@ Peer::sendHello()
     elo.cert = this->getAuthCert();
     elo.nonce = mSendNonce;
     sendMessage(msg);
-    mSendHelloMeter.Mark();
 }
 
 void
@@ -194,7 +195,6 @@ Peer::sendHello2()
     elo.cert = this->getAuthCert();
     elo.nonce = mSendNonce;
     sendMessage(msg);
-    mSendHelloMeter.Mark();
 }
 
 AuthCert
@@ -278,7 +278,6 @@ Peer::sendAuth()
     StellarMessage msg;
     msg.type(AUTH);
     sendMessage(msg);
-    mSendAuthMeter.Mark();
 }
 
 std::string
@@ -297,7 +296,6 @@ Peer::drop(ErrorCode err, std::string const& msg)
     m.error().code = err;
     m.error().msg = msg;
     sendMessage(m);
-    mSendErrorMeter.Mark();
     auto self = shared_from_this();
     mStrand.post([self]()
                  {
@@ -333,7 +331,6 @@ Peer::sendDontHave(MessageType type, uint256 const& itemID)
     msg.dontHave().type = type;
 
     sendMessage(msg);
-    mSendDontHaveMeter.Mark();
 }
 
 void
@@ -344,7 +341,6 @@ Peer::sendSCPQuorumSet(SCPQuorumSetPtr qSet)
     msg.qSet() = *qSet;
 
     sendMessage(msg);
-    mSendSCPQuorumSetMeter.Mark();
 }
 void
 Peer::sendGetTxSet(uint256 const& setID)
@@ -354,7 +350,6 @@ Peer::sendGetTxSet(uint256 const& setID)
     newMsg.txSetHash() = setID;
 
     sendMessage(newMsg);
-    mSendGetTxSetMeter.Mark();
 }
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
@@ -366,7 +361,6 @@ Peer::sendGetQuorumSet(uint256 const& setID)
     newMsg.qSetHash() = setID;
 
     sendMessage(newMsg);
-    mSendGetSCPQuorumSetMeter.Mark();
 }
 
 void
@@ -378,7 +372,6 @@ Peer::sendGetPeers()
     newMsg.type(GET_PEERS);
 
     sendMessage(newMsg);
-    mSendGetPeersMeter.Mark();
 }
 
 void
@@ -391,7 +384,6 @@ Peer::sendGetScpState(uint32 ledgerSeq)
     newMsg.getSCPLedgerSeq() = ledgerSeq;
 
     sendMessage(newMsg);
-    mSendGetSCPStateMeter.Mark();
 }
 
 void
@@ -416,7 +408,6 @@ Peer::sendPeers()
         newMsg.peers().push_back(pa);
     }
     sendMessage(newMsg);
-    mSendPeersMeter.Mark();
 }
 
 void
@@ -427,6 +418,50 @@ Peer::sendMessage(StellarMessage const& msg)
                                   mApp.getConfig().NODE_SEED.getPublicKey())
                            << ") send: " << msg.type()
                            << " to : " << mApp.getConfig().toShortString(mPeerID);
+
+    switch (msg.type())
+    {
+    case ERROR_MSG:
+        mSendErrorMeter.Mark();
+        break;
+    case HELLO:
+    case HELLO2:
+        mSendHelloMeter.Mark();
+        break;
+    case AUTH:
+        mSendAuthMeter.Mark();
+        break;
+    case DONT_HAVE:
+        mSendDontHaveMeter.Mark();
+        break;
+    case GET_PEERS:
+        mSendGetPeersMeter.Mark();
+        break;
+    case PEERS:
+        mSendPeersMeter.Mark();
+        break;
+    case GET_TX_SET:
+        mSendGetTxSetMeter.Mark();
+        break;
+    case TX_SET:
+        mSendTxSetMeter.Mark();
+        break;
+    case TRANSACTION:
+        mSendTransactionMeter.Mark();
+        break;
+    case GET_SCP_QUORUMSET:
+        mSendGetSCPQuorumSetMeter.Mark();
+        break;
+    case SCP_QUORUMSET:
+        mSendSCPQuorumSetMeter.Mark();
+        break;
+    case SCP_MESSAGE:
+        mSendSCPMessageSetMeter.Mark();
+        break;
+    case GET_SCP_STATE:
+        mSendGetSCPStateMeter.Mark();
+        break;
+    };
 
     AuthenticatedMessage amsg;
     amsg.v0().message = msg;
@@ -494,9 +529,9 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
             return;
         }
 
-        if (!hmacSha256Verify(msg.v0().mac, mRecvMacKey,
-                              xdr::xdr_to_opaque(msg.v0().sequence,
-                                                 msg.v0().message)))
+        if (!hmacSha256Verify(
+                msg.v0().mac, mRecvMacKey,
+                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             mDropInRecvMessageMacMeter.Mark();
@@ -790,8 +825,7 @@ Peer::recvHello(Hello const& elo)
 
     if (mState >= GOT_HELLO)
     {
-        CLOG(ERROR, "Overlay")
-            << "received unexpected HELLO";
+        CLOG(ERROR, "Overlay") << "received unexpected HELLO";
         mDropInRecvHelloUnexpectedMeter.Mark();
         drop();
         return;

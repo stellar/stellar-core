@@ -107,11 +107,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mSendGetPeersMeter;
     medida::Meter& mSendPeersMeter;
     medida::Meter& mSendGetTxSetMeter;
-    medida::Meter& mSendTxSetMeter;
     medida::Meter& mSendTransactionMeter;
+    medida::Meter& mSendTxSetMeter;
     medida::Meter& mSendGetSCPQuorumSetMeter;
-    medida::Meter& mSendGetSCPStateMeter;
     medida::Meter& mSendSCPQuorumSetMeter;
+    medida::Meter& mSendSCPMessageSetMeter;
+    medida::Meter& mSendGetSCPStateMeter;
 
     medida::Meter& mDropInConnectHandlerMeter;
     medida::Meter& mDropInRecvMessageDecodeMeter;
