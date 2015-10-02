@@ -88,8 +88,8 @@ class SCP
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
 
-    // returns the latest messages for the given slot
-    std::vector<SCPEnvelope> getLatestMessages(uint64 slotIndex);
+    // returns the latest messages sent for the given slot
+    std::vector<SCPEnvelope> getLatestMessagesSend(uint64 slotIndex);
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;

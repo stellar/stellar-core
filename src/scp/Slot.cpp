@@ -36,16 +36,16 @@ Slot::getLatestCompositeCandidate()
 }
 
 std::vector<SCPEnvelope>
-Slot::getLatestMessages() const
+Slot::getLatestMessagesSend() const
 {
     std::vector<SCPEnvelope> res;
     SCPEnvelope* e;
-    e = mNominationProtocol.getLastMessage();
+    e = mNominationProtocol.getLastMessageSend();
     if (e)
     {
         res.emplace_back(*e);
     }
-    e = mBallotProtocol.getLastMessage();
+    e = mBallotProtocol.getLastMessageSend();
     if (e)
     {
         res.emplace_back(*e);

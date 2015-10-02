@@ -785,7 +785,8 @@ HerderImpl::setupTimer(uint64 slotIndex, int timerID,
 void
 HerderImpl::rebroadcast()
 {
-    for (auto const& e : mSCP.getLatestMessages(mLedgerManager.getLedgerNum()))
+    for (auto const& e :
+         mSCP.getLatestMessagesSend(mLedgerManager.getLedgerNum()))
     {
         broadcast(e);
     }

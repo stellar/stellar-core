@@ -102,7 +102,7 @@ class NominationProtocol
     void dumpInfo(Json::Value& ret);
 
     SCPEnvelope*
-    getLastMessage() const
+    getLastMessageSend() const
     {
         return mLastEnvelope.get();
     }

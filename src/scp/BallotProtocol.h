@@ -90,7 +90,7 @@ class BallotProtocol
     static SCPBallot getWorkingBallot(SCPStatement const& st);
 
     SCPEnvelope*
-    getLastMessage() const
+    getLastMessageSend() const
     {
         return mLastEnvelope.get();
     }
