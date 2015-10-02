@@ -176,6 +176,7 @@ class Application;
 class Bucket;
 class BucketList;
 class Config;
+class Database;
 class HistoryArchive;
 struct StateSnapshot;
 
@@ -230,6 +231,9 @@ class HistoryManager
     static bool checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
+
+    // Initialize DB table for persistent publishing queue.
+    static void dropAll(Database& db);
 
     // Checkpoints are made every getCheckpointFrequency() ledgers.
     // This should normally be a constant (64) but in testing cases

@@ -38,6 +38,20 @@ namespace stellar
 
 using namespace std;
 
+static string kSQLCreateStatement =
+    "CREATE TABLE IF NOT EXISTS publishqueue ("
+    "ledger   INTEGER PRIMARY KEY,"
+    "state    TEXT"
+    "); ";
+
+void
+HistoryManager::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS publishqueue;";
+    soci::statement st = db.getSession().prepare << kSQLCreateStatement;
+    st.execute(true);
+}
+
 bool
 HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 {
