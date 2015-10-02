@@ -1352,6 +1352,17 @@ BallotProtocol::areBallotsLessAndCompatible(SCPBallot const& b1,
     return (compareBallots(b1, b2) <= 0) && areBallotsCompatible(b1, b2);
 }
 
+std::vector<SCPEnvelope>
+BallotProtocol::getCurrentState() const
+{
+    std::vector<SCPEnvelope> res;
+    for (auto it : mLatestEnvelopes)
+    {
+        res.emplace_back(it.second);
+    }
+    return res;
+}
+
 void
 BallotProtocol::advanceSlot(SCPBallot const& ballot)
 {

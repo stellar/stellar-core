@@ -91,6 +91,9 @@ class SCP
     // returns the latest messages sent for the given slot
     std::vector<SCPEnvelope> getLatestMessagesSend(uint64 slotIndex);
 
+    // returns all messages for the slot
+    std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
+
   protected:
     std::shared_ptr<LocalNode> mLocalNode;
     std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;

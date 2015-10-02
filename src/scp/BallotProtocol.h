@@ -95,6 +95,8 @@ class BallotProtocol
         return mLastEnvelope.get();
     }
 
+    std::vector<SCPEnvelope> getCurrentState() const;
+
   private:
     // attempts to make progress using `ballot` as a hint
     void advanceSlot(SCPBallot const& ballot);

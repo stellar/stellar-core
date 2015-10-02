@@ -531,4 +531,15 @@ NominationProtocol::dumpInfo(Json::Value& ret)
 
     ret["nomination"].append(nomState);
 }
+
+std::vector<SCPEnvelope>
+NominationProtocol::getCurrentState() const
+{
+    std::vector<SCPEnvelope> res;
+    for (auto it : mLatestNominations)
+    {
+        res.emplace_back(it.second);
+    }
+    return res;
+}
 }

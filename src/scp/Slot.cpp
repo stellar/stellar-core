@@ -53,6 +53,16 @@ Slot::getLatestMessagesSend() const
     return res;
 }
 
+std::vector<SCPEnvelope>
+Slot::getCurrentState() const
+{
+    std::vector<SCPEnvelope> res;
+    res = mNominationProtocol.getCurrentState();
+    auto r2 = mBallotProtocol.getCurrentState();
+    res.insert(res.end(), r2.begin(), r2.end());
+    return res;
+}
+
 void
 Slot::recordStatement(SCPStatement const& st)
 {

@@ -166,5 +166,18 @@ SCP::getLatestMessagesSend(uint64 slotIndex)
         return std::vector<SCPEnvelope>();
     }
 }
+
+std::vector<SCPEnvelope>
+SCP::getCurrentState(uint64 slotIndex)
+{
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->getLatestMessagesSend();
+    }
+    else
+    {
+        return std::vector<SCPEnvelope>();
+    }
 }
 }
