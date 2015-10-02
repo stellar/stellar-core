@@ -47,6 +47,7 @@ class Floodgate
     std::map<uint256, FloodRecord::pointer> mFloodMap;
     Application& mApp;
     medida::Counter& mFloodMapSize;
+    medida::Meter& mSendFromBroadcast;
     bool mShuttingDown;
 
   public:

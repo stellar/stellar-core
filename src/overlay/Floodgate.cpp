@@ -28,6 +28,7 @@ Floodgate::Floodgate(Application& app)
     : mApp(app)
     , mFloodMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
+    , mSendFromBroadcast(app.getMetrics().NewMeter({ "overlay", "message", "send-from-broadcast" }, "message"))
     , mShuttingDown(false)
 {
 }
@@ -97,6 +98,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         {
             if (peer->isAuthenticated())
             {
+                mSendFromBroadcast.Mark();
                 peer->sendMessage(msg);
                 record->mPeersTold.push_back(peer);
             }
@@ -113,6 +115,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
             {
                 if (peer->isAuthenticated())
                 {
+                    mSendFromBroadcast.Mark();
                     peer->sendMessage(msg);
                     peersTold.push_back(peer);
                 }

@@ -59,7 +59,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mAuth(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
-          {"overlay", "message", "receive"}, "message"))
+          {"overlay", "message", "flood-receive"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(
           {"overlay", "message", "broadcast"}, "message"))
     , mConnectionsAttempted(app.getMetrics().NewMeter(
