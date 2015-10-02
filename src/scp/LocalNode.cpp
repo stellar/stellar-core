@@ -228,13 +228,13 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 
 bool
 LocalNode::isVBlocking(SCPQuorumSet const& qSet,
-                       std::map<NodeID, SCPStatement> const& map,
+                       std::map<NodeID, SCPEnvelope> const& map,
                        std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.second))
+        if (filter(it.second.statement))
         {
             pNodes.push_back(it.first);
         }
@@ -245,14 +245,14 @@ LocalNode::isVBlocking(SCPQuorumSet const& qSet,
 
 bool
 LocalNode::isQuorum(
-    SCPQuorumSet const& qSet, std::map<NodeID, SCPStatement> const& map,
+    SCPQuorumSet const& qSet, std::map<NodeID, SCPEnvelope> const& map,
     std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
     std::function<bool(SCPStatement const&)> const& filter)
 {
     std::vector<NodeID> pNodes;
     for (auto const& it : map)
     {
-        if (filter(it.second))
+        if (filter(it.second.statement))
         {
             pNodes.push_back(it.first);
         }
@@ -265,7 +265,8 @@ LocalNode::isQuorum(
         std::vector<NodeID> fNodes(pNodes.size());
         auto quorumFilter = [&](NodeID nodeID) -> bool
         {
-            return isQuorumSlice(*qfun(map.find(nodeID)->second), pNodes);
+            return isQuorumSlice(*qfun(map.find(nodeID)->second.statement),
+                                 pNodes);
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), fNodes.begin(),
                                quorumFilter);

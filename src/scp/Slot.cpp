@@ -322,12 +322,11 @@ Slot::envToStr(SCPStatement const& st) const
 
 bool
 Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                      std::map<NodeID, SCPStatement> const& statements)
+                      std::map<NodeID, SCPEnvelope> const& envs)
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
-    if (LocalNode::isVBlocking(getLocalNode()->getQuorumSet(), statements,
-                               accepted))
+    if (LocalNode::isVBlocking(getLocalNode()->getQuorumSet(), envs, accepted))
     {
         return true;
     }
@@ -343,7 +342,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
     };
 
     if (LocalNode::isQuorum(
-            getLocalNode()->getQuorumSet(), statements,
+            getLocalNode()->getQuorumSet(), envs,
             std::bind(&Slot::getQuorumSetFromStatement, this, _1),
             ratifyFilter))
     {
@@ -355,10 +354,10 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
 bool
 Slot::federatedRatify(StatementPredicate voted,
-                      std::map<NodeID, SCPStatement> const& statements)
+                      std::map<NodeID, SCPEnvelope> const& envs)
 {
     return LocalNode::isQuorum(
-        getLocalNode()->getQuorumSet(), statements,
+        getLocalNode()->getQuorumSet(), envs,
         std::bind(&Slot::getQuorumSetFromStatement, this, _1), voted);
 }
 

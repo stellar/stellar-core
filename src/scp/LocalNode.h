@@ -70,7 +70,7 @@ class LocalNode
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.
     static bool isVBlocking(SCPQuorumSet const& qSet,
-                            std::map<NodeID, SCPStatement> const& map,
+                            std::map<NodeID, SCPEnvelope> const& map,
                             std::function<bool(SCPStatement const&)> const&
                                 filter = [](SCPStatement const&)
                             {
@@ -83,8 +83,7 @@ class LocalNode
     // SCPQuorumSetPtr from the SCPStatement for its associated node in map
     // (required for transitivity)
     static bool
-    isQuorum(SCPQuorumSet const& qSet,
-             std::map<NodeID, SCPStatement> const& map,
+    isQuorum(SCPQuorumSet const& qSet, std::map<NodeID, SCPEnvelope> const& map,
              std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
              std::function<bool(SCPStatement const&)> const& filter =
                  [](SCPStatement const&)

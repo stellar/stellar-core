@@ -41,13 +41,13 @@ class BallotProtocol
     // human readable names matching SCPPhase
     static const char* phaseNames[];
 
-    std::unique_ptr<SCPBallot> mCurrentBallot;        // b
-    std::unique_ptr<SCPBallot> mPrepared;             // p
-    std::unique_ptr<SCPBallot> mPreparedPrime;        // p'
-    std::unique_ptr<SCPBallot> mConfirmedPrepared;    // P
-    std::unique_ptr<SCPBallot> mCommit;               // c
-    std::map<NodeID, SCPStatement> mLatestStatements; // M
-    SCPPhase mPhase;                                  // Phi
+    std::unique_ptr<SCPBallot> mCurrentBallot;      // b
+    std::unique_ptr<SCPBallot> mPrepared;           // p
+    std::unique_ptr<SCPBallot> mPreparedPrime;      // p'
+    std::unique_ptr<SCPBallot> mConfirmedPrepared;  // P
+    std::unique_ptr<SCPBallot> mCommit;             // c
+    std::map<NodeID, SCPEnvelope> mLatestEnvelopes; // M
+    SCPPhase mPhase;                                // Phi
 
     int mCurrentMessageLevel; // number of messages triggered in one run
 
@@ -201,7 +201,7 @@ class BallotProtocol
     static bool isStatementSane(SCPStatement const& st);
 
     // records the statement in the state machine
-    void recordStatement(SCPStatement const& env);
+    void recordEnvelope(SCPEnvelope const& env);
 
     // ** State related methods
 
