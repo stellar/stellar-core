@@ -12,9 +12,9 @@ Two slightly-obscurely-named components are:
 
   - "bucketList", stored in the directory "bucket": the in-memory and on-disk
     linear history and ledger form that is hashed. A specific arrangement of
-    concatenations-of-XDR. Organized around "temporal buckets". Entries tending 
+    concatenations-of-XDR. Organized around "temporal buckets". Entries tending
 	to stay in buckets grouped by how frequently they change.
-	see [`src/bucket/readme.md`](../src/bucket/readme.md)
+	see [`src/bucket/readme.md`](/src/bucket/readme.md)
 
   - SCP -- "Stellar Consensus Protocol", the component implementing the
     [consensus algorithm](https://www.stellar.org/papers/stellar-consensus-protocol.pdf).

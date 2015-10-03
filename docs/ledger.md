@@ -1,5 +1,5 @@
 ---
-title: Ledger 
+title: Ledger
 ---
 
 - **Ledger**: A ledger is the state of the distributed Stellar database at a
@@ -15,7 +15,7 @@ title: Ledger
 
 - **Ledger header**: The ledger's header contains meta data about the ledger,
   including the hash of the previous ledger (thus recording the chain) and its
-  own hash. (See [`src/xdr/Stellar-ledger.x`](../src/xdr/Stellar-ledger.x))
+  own hash. (See [`src/xdr/Stellar-ledger.x`](/src/xdr/Stellar-ledger.x))
 
 
 `Stellar-core` maintains the content of the latest ledger and of the ledger
@@ -27,7 +27,7 @@ performance needs.
     it possible to determine efficiently whether a newly submitted operation is
     valid. (See the `load` and `store` functions in the subclasses of
     `EntryFrame`: `AccountFrame`, `TrustFrame`, and `OfferFrame` in
-    [`src/ledger`](../src/ledger)).
+    [`src/ledger`](/src/ledger)).
 
  2. The ledger chain is represented in the the ledger headers as hashes linking
     each hedger to the previous one. The spine of the chain is lightweight data
@@ -42,7 +42,7 @@ performance needs.
     where a minority of the accounts see the majority of the operations. Second,
     it participates in providing nodes that have fallen behind with the ledger
     data they need to catch-up with the current state of the chain. (See
-    [`src/bucket/readme.md`](../src/bucket/readme.md)). While the hash computed
+    [`src/bucket/readme.md`](/src/bucket/readme.md)). While the hash computed
 	by the bucket list is functionally equivalent to a hash obtained
 	concatenating all the entries, it is not the same value since the bucket
 	list deduplicates changed entries incrementally.
@@ -53,5 +53,5 @@ performance needs.
     the full ledger chain's history, and is used to catch-up new nodes and nodes
     that have fallen far behind the rest of the network without imposing an
     undue burden on the nodes participating in the consensus protocol (See
-    [`src/history/readme.md`](../src/history/readme.md)).
+    [`src/history/readme.md`](/src/history/readme.md)).
 
