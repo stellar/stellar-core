@@ -6,6 +6,7 @@
 #include "history/HistoryManager.h"
 #include "history/HistoryArchive.h"
 #include "main/test.h"
+#include "main/ExternalQueue.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "bucket/BucketManager.h"
@@ -18,6 +19,7 @@
 #include "util/TmpDir.h"
 #include "transactions/TxTests.h"
 #include "ledger/LedgerManager.h"
+#include "process/ProcessManager.h"
 #include "util/NonCopyable.h"
 #include "herder/LedgerCloseData.h"
 #include <cstdio>
@@ -866,4 +868,71 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3", "[hide][s3]")
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
         Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
         "s3");
+}
+
+TEST_CASE("persist publish queue", "[history]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
+    cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    TmpDirConfigurator tcfg;
+    cfg = tcfg.configure(cfg, true);
+
+    {
+        VirtualClock clock;
+        Application::pointer app0 = Application::create(clock, cfg);
+        app0->start();
+        auto& hm0 = app0->getHistoryManager();
+        while (hm0.getPublishQueueCount() < 5)
+        {
+            clock.crank(true);
+        }
+        // We should have published nothing and have the first
+        // checkpoint still queued.
+        CHECK(hm0.getPublishSuccessCount() == 0);
+        CHECK(hm0.getMinLedgerQueuedToPublish() == 7);
+        while (clock.cancelAllEvents() ||
+               app0->getProcessManager().getNumRunningProcesses() > 0)
+        {
+            clock.crank(true);
+        }
+        LOG(INFO) << app0->isStopping();
+
+        // Trim history after publishing.
+        ExternalQueue ps(*app0);
+        ps.process();
+    }
+
+    cfg.MAX_CONCURRENT_SUBPROCESSES = 32;
+    cfg.REBUILD_DB = false;
+
+    {
+        VirtualClock clock;
+        Application::pointer app1 = Application::create(clock, cfg);
+        HistoryManager::initializeHistoryArchive(*app1, "test");
+        for (size_t i = 0; i < 100; ++i)
+            clock.crank(false);
+        app1->start();
+        auto& hm1 = app1->getHistoryManager();
+        while (hm1.getPublishSuccessCount() < 5)
+        {
+            clock.crank(true);
+
+            // Trim history after publishing whenever possible.
+            ExternalQueue ps(*app1);
+            ps.process();
+        }
+        // We should have either an empty publish queue or a
+        // ledger sometime after the 5th checkpoint
+        auto minLedger = hm1.getMinLedgerQueuedToPublish();
+        LOG(INFO) << "minLedger " << minLedger;
+        bool okQueue = minLedger == 0 || minLedger >= 35;
+        CHECK(okQueue);
+        while (clock.cancelAllEvents() ||
+               app1->getProcessManager().getNumRunningProcesses() > 0)
+        {
+            clock.crank(true);
+        }
+        LOG(INFO) << app1->isStopping();
+    }
 }
