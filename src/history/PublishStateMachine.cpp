@@ -192,7 +192,9 @@ ArchivePublisher::fileStateChange(asio::error_code const& ec,
         mError = ec;
     }
     mFileInfos[name]->setState(newState);
-    if (mState != PUBLISH_RETRYING)
+
+    // Only re-enter "sending" if we aren't retrying or ending.
+    if (mState == PUBLISH_OBSERVED || mState == PUBLISH_SENDING)
     {
         enterSendingState();
     }
