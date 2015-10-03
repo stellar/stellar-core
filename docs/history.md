@@ -121,7 +121,7 @@ sequentially. Anyone wishing to audit or reconstruct the activity of stellar-cor
 history archive can simply poll the archive and consume new files as they arrive.
 
 All XDR encoding and decoding in stellar-core is done by code generated automatically from the
-associated [XDR schemas](../src/xdr); any other compliant XDR code generator should produce a
+associated [XDR schemas](/src/xdr); any other compliant XDR code generator should produce a
 deserializer that can read and write the same history. The XDR code generator used in stellar-core
 is developed independently, but [included in the source tree as a submodule](../lib/xdrpp).
 
@@ -130,7 +130,7 @@ is developed independently, but [included in the source tree as a submodule](../
 
 In addition to the considerations of interoperability and software flexibility presented above, a
 few additional, less obvious motives are at work in the design of the history system in stellar-core.
-A few reasons that the extra effort of configuring independent history archives is, in our judgment, worth its slight awkwardness: 
+A few reasons that the extra effort of configuring independent history archives is, in our judgment, worth its slight awkwardness:
 
   - Configuring independent history archives helps ensure valid backups get made. It is very easy to build a backup system that is not run
     frequently enough, only run in emergencies, or never run at all. Such systems tend to accumulate

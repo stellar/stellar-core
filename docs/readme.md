@@ -12,13 +12,13 @@ of ledgers that are guaranteed to be in agreement across all the participating
 nodes at all times.
 
 For more detail on the Stellar Consensus Protocol and how it establishes this
-guarantee see [`src/scp/readme.md`](../src/scp/readme.md).
+guarantee see [`src/scp/readme.md`](/src/scp/readme.md).
 
 
 - [Building & Installing] (/INSTALL.md)
 - [Stellar-core administration] (learn/admin.md)
 - [Architecture] (architecture.md)
-- [Key Concepts] (https://www.stellar.org/developers/learn)
+- [Key Concepts] (https://www.stellar.org/developers/learn/)
 - [Major Components] (#major-components)
 - [Supporting Code Directories] (#supporting-code-directories)
 - [Contributing] (/CONTRIBUTING.md)
@@ -35,19 +35,19 @@ source directory and its own dedicated `readme.md`.
   component is fully abstracted from the rest of the system. It receives
   candidate black-box values and signals when these values have reached
   consensus by the network (called _externalizing_ a value) (See
-  [`src/scp/readme.md`](../src/scp/readme.md)).
+  [`src/scp/readme.md`](/src/scp/readme.md)).
 
 * **Herder** is responsible for interfacing between SCP and the rest of
   `stellar-core`. Herder provides SCP with concrete implementations of the
   methods SCP uses to communicate with peers, to compare values, to determine
   whether values contain valid signatures, and so forth. Herder often
   accomplishes its tasks by delegating to other components
-  (See [`src/herder/readme.md`](../src/herder/readme.md)).
+  (See [`src/herder/readme.md`](/src/herder/readme.md)).
 
 * **Overlay** connects to and keeps track of the peers this nodeis knows
   about and is connected to. It floods messages and fetches from peers the data
   that is needed to accomplish consensus (See
-  [`src/overlay/readme.md`](../src/overlay/readme.md)). All
+  [`src/overlay/readme.md`](/src/overlay/readme.md)). All
   other data downloads are handled without imposing on the SCP-nodes, see
   [`./architecture.md`](/docs/architecture.md).
 
@@ -57,21 +57,21 @@ source directory and its own dedicated `readme.md`.
   informs the overlay system to update its map of flooded messages. Ledger also
   triggers the history system's catching-up routine when it detects that this
   node has fallen behind of the rest of the network (See
-  [`src/ledger/readme.md`](../src/ledger/readme.md)).
+  [`src/ledger/readme.md`](/src/ledger/readme.md)).
 
 * **History** publishes transaction and ledger entries to off-site permanent
   storage for auditing, and as a source of catch-up data for other nodes. When
   this node falls behind, the history system fetches catch-up data and submits
   it to Ledger twice: first to verify its security, then to apply it (See
-  [`src/history/readme.md`](../src/history/readme.md)).
+  [`src/history/readme.md`](/src/history/readme.md)).
 
 * **BucketList** stores ledger entries on disk arranged for hashing and
   block-catch-up. BucketList coordinates the hashing and deduplicating of
   buckets by multiple background threads
-  (See [`src/buckets/readme.md`](../src/buckets/readme.md)).
+  (See [`src/buckets/readme.md`](/src/buckets/readme.md)).
 
 * **Transactions** implements all the various transaction types (See
-  [src/transactions/readme.md](../src/transactions/readme.md)).
+  [src/transactions/readme.md](/src/transactions/readme.md)).
 
 
 ## Supporting Code Directories
@@ -100,10 +100,3 @@ source directory and its own dedicated `readme.md`.
 
 * **src/generated** contains the wire protocol's C++ classes, generated from
   the definitions in `src/xdr`.
-
-
-
-
-
-
-

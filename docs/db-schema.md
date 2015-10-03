@@ -3,12 +3,12 @@ title: DB Schema
 ---
 
 stellar-core maintains the current state of the ledger in a SQL DB. Currently
-it can be configured to use either sqlite or postgres. 
+it can be configured to use either sqlite or postgres.
 
 This database is the main way a dependent service such as Horizon can gather information on the current ledger state or transaction history.
 
 Most objects are the straight representation of the equivalent XDR object.
-See [`src/ledger/readme.md`](../src/ledger/readme.md) for a detailed description of those.
+See [`src/ledger/readme.md`](/src/ledger/readme.md) for a detailed description of those.
 
 Types used in the tables:
 Type Name | Description
@@ -16,11 +16,11 @@ Type Name | Description
 HEX | Hex encoded binary blob
 BASE64 | Base 64 encoded binary blob
 XDR | Base 64 encoded object serialized in XDR form
-STRKEY | Custom encoding for public/private keys. See [`src/crypto/readme.md`](../src/crypto/readme.md)
+STRKEY | Custom encoding for public/private keys. See [`src/crypto/readme.md`](/src/crypto/readme.md)
 
 ## ledgerheaders
 
-Defined in [`src/ledger/LedgerHeaderFrame.cpp`](../src/ledger/LedgerHeaderFrame.cpp)
+Defined in [`src/ledger/LedgerHeaderFrame.cpp`](/src/ledger/LedgerHeaderFrame.cpp)
 
 Equivalent to _LedgerHeader_
 
@@ -29,14 +29,14 @@ Field | Type | Description
 ledgerhash | CHARACTER(64) PRIMARY KEY | Hash of the ledger header (HEX)
 prevhash | CHARACTER(64) NOT NULL | previousLedgerHash (HEX)
 bucketlisthash | CHARACTER(64) NOT NULL | (HEX)
-ledgerseq | INT UNIQUE CHECK (ledgerseq >= 0) | 
+ledgerseq | INT UNIQUE CHECK (ledgerseq >= 0) |
 closetime | BIGINT NOT NULL CHECK (closetime >= 0) | scpValue.closeTime
 data | TEXT NOT NULL | Entire LedgerHeader (XDR)
 
 
 ## accounts
 
-Defined in [`src/ledger/AccountFrame.cpp`](../src/ledger/AccountFrame.cpp)
+Defined in [`src/ledger/AccountFrame.cpp`](/src/ledger/AccountFrame.cpp)
 
 Equivalent to _AccountEntry_
 
@@ -44,17 +44,17 @@ Field | Type | Description
 ------|------|---------------
 accountid | VARCHAR(56)  PRIMARY KEY | (STRKEY)
 balance | BIGINT NOT NULL CHECK (balance >= 0) |
-seqnum | BIGINT NOT NULL | 
+seqnum | BIGINT NOT NULL |
 numsubentries | INT NOT NULL CHECK (numsubentries >= 0) |
 inflationdest | VARCHAR(56) | (STRKEY)
-homedomain | VARCHAR(32) | 
+homedomain | VARCHAR(32) |
 thresholds | TEXT | (BASE64)
-flags | INT NOT NULL | 
+flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## offers
 
-Defined in [`src/ledger/OfferFrame.cpp`](../src/ledger/OfferFrame.cpp)
+Defined in [`src/ledger/OfferFrame.cpp`](/src/ledger/OfferFrame.cpp)
 
 Equivalent to _OfferEntry_
 
@@ -78,7 +78,7 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## trustlines
 
-Defined in [`src/ledger/TrustFrame.cpp`](../src/ledger/TrustFrame.cpp)
+Defined in [`src/ledger/TrustFrame.cpp`](/src/ledger/TrustFrame.cpp)
 
 Equivalent to _TrustLineEntry_
 
@@ -96,7 +96,7 @@ lastmodified | INT NOT NULL | lastModifiedLedgerSeq
 
 ## txhistory
 
-Defined in [`src/transactions/TransactionFrame.cpp`](../src/transactions/TransactionFrame.cpp)
+Defined in [`src/transactions/TransactionFrame.cpp`](/src/transactions/TransactionFrame.cpp)
 
 Field | Type | Description
 ------|------|---------------
@@ -109,7 +109,7 @@ txmeta | TEXT NOT NULL | TransactionMeta (XDR)
 
 ## txfeehistory
 
-Defined in [`src/transactions/TransactionFrame.cpp`](../src/transactions/TransactionFrame.cpp)
+Defined in [`src/transactions/TransactionFrame.cpp`](/src/transactions/TransactionFrame.cpp)
 
 Field | Type | Description
 ------|------|---------------
@@ -120,7 +120,7 @@ txchanges | TEXT NOT NULL | LedgerEntryChanges (XDR)
 
 ## storestate
 
-Defined in [`src/main/PersistantState.cpp`](../src/main/PersistantState.cpp)
+Defined in [`src/main/PersistantState.cpp`](/src/main/PersistantState.cpp)
 
 Field | Type | Description
 ------|------|---------------
@@ -130,13 +130,13 @@ state | TEXT | Value
 
 ## peers
 
-Defined in [`src/overlay/PeerRecord.cpp`](../src/overlay/PeerRecord.cpp)
+Defined in [`src/overlay/PeerRecord.cpp`](/src/overlay/PeerRecord.cpp)
 
 Field | Type | Description
 ------|------|---------------
-ip | VARCHAR(15) NOT NULL | 
-port | INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL | 
-nextattempt | TIMESTAMP NOT NULL | 
-numfailures | INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL | 
-rank | INT DEFAULT 0 CHECK (rank >= 0) NOT NULL | 
+ip | VARCHAR(15) NOT NULL |
+port | INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL |
+nextattempt | TIMESTAMP NOT NULL |
+numfailures | INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL |
+rank | INT DEFAULT 0 CHECK (rank >= 0) NOT NULL |
 
