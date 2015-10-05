@@ -398,7 +398,7 @@ TEST_CASE("StrKey tests", "[crypto]")
         std::vector<uint8_t> in(input(expectedSize));
         std::string encoded = strKey::toStrKey(version, in);
 
-        for (int p = 0; p < encoded.size(); p++)
+        for (size_t p = 0u; p < encoded.size(); p++)
         {
             for (int st = 0; st < 4; st++)
             {

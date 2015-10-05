@@ -20,7 +20,7 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
-static const int maxWinners = 2000;
+static const unsigned maxWinners = 2000u;
 
 static SecretKey
 getTestAccount(int i)
@@ -119,7 +119,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
 
     std::vector<int> winners;
     int64 totVotes = totCoins;
-    for (int i = 0; i < maxWinners && i < votesV.size(); i++)
+    for (size_t i = 0u; i < maxWinners && i < votesV.size(); i++)
     {
         if (votesV[i].second >= minBalance)
         {
