@@ -54,6 +54,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, uint256 const& itemID,
 void
 PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
+    CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
     mQsetCache.put(hash, qset);
     mQuorumSetFetcher.recv(hash);
@@ -62,6 +63,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 void
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
+    CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
     mTxSetCache.put(hash, txset);
     mApp.getClock().getIOService().post([hash, this]()
                                         {
@@ -130,6 +132,9 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 
     mPendingEnvelopes[envelope.statement.slotIndex].push_back(envelope);
 
+    CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
+                          << " t:" << envelope.statement.pledges.type();
+
     mApp.getClock().getIOService().post([this]()
                                         {
                                             mHerder.processSCPQueue();
@@ -183,6 +188,8 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         }
     }
 
+    CLOG(TRACE, "Herder") << "StartFetch i:" << envelope.statement.slotIndex
+                          << " t:" << envelope.statement.pledges.type();
     return ret;
 }
 

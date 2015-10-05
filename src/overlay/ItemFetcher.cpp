@@ -27,6 +27,7 @@ template <class TrackerT>
 void
 ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
 {
+    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemID);
     auto entryIt = mTrackers.find(itemID);
     if (entryIt == mTrackers.end())
     { // not being tracked
@@ -87,6 +88,7 @@ template <class TrackerT>
 void
 ItemFetcher<TrackerT>::recv(uint256 itemID)
 {
+    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID);
     const auto& iter = mTrackers.find(itemID);
     using xdr::operator==;
     if (iter != mTrackers.end())
@@ -94,6 +96,9 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
         // this code can safely be called even if recvSCPEnvelope ends up
         // calling recv on the same itemID
         auto& waiting = iter->second->mWaitingEnvelopes;
+
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : " << waiting.size();
+
         while (!waiting.empty())
         {
             SCPEnvelope env = waiting.back();
@@ -141,6 +146,7 @@ Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
+        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemID);
         tryNextPeer();
     }
 }
@@ -152,9 +158,15 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
+    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID) << " last: "
+                          << (mLastAskedPeer ? mLastAskedPeer->toString()
+                                             : "<none>");
+
     if (mPeersToAsk.empty())
     {
         mPeersToAsk = mApp.getOverlayManager().getRandomPeers();
+        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
+                              << " reset to #" << mPeersToAsk.size();
     }
 
     while (!peer && !mPeersToAsk.empty())
@@ -176,6 +188,8 @@ Tracker::tryNextPeer()
     else
     {
         mLastAskedPeer = peer;
+        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
+                              << peer->toString();
         askPeer(peer);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }

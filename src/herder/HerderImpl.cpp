@@ -944,6 +944,9 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return TX_STATUS_ERROR;
     }
 
+    CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
+                          << PubKeyUtils::toShortString(acc);
+
     auto txmap = findOrAdd(mReceivedTransactions[0], acc);
     txmap->addTx(tx);
 

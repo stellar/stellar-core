@@ -7,7 +7,8 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "herder/Herder.h"
-
+#include "util/Logging.h"
+#include "crypto/Hex.h"
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "xdrpp/marshal.h"
@@ -82,6 +83,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         return;
     }
     Hash index = sha256(xdr::xdr_to_opaque(msg));
+    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index);
+
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
@@ -98,6 +101,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                 record->mPeersTold.push_back(peer);
             }
         }
+        CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << record->mPeersTold.size();
     }
     else
     { // send it to people that haven't sent it to us
@@ -114,6 +118,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                 }
             }
         }
+        CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << peersTold.size();
     }
 }
 
