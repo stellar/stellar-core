@@ -633,7 +633,7 @@ AccountFrame::checkDB(Database& db)
 
     {
         std::string id;
-        int n;
+        size_t n;
         // sanity check signers state
         soci::statement st =
             (db.getSession().prepare << "select count(*), accountid from "

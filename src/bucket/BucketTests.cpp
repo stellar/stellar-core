@@ -366,7 +366,7 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
             bl.addBatch(*app, j, LedgerTestUtils::generateValidLedgerEntries(8),
                         deadGen(8));
             app->getClock().crank(false);
-            for (auto k = 0; k < BucketList::kNumLevels; ++k)
+            for (uint32_t k = 0u; k < BucketList::kNumLevels; ++k)
             {
                 auto& next = bl.getLevel(k).getNext();
                 if (next.isLive())
