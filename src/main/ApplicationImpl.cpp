@@ -238,6 +238,8 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            // restores the SCP state before starting overlay
+            mHerder->restoreSCPState();
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory(
                 [](asio::error_code const&){});

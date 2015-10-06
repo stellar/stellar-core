@@ -17,11 +17,13 @@
 #include "util/make_unique.h"
 #include "lib/json/json.h"
 #include "scp/LocalNode.h"
+#include "main/PersistentState.h"
 
 #include "medida/meter.h"
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "xdrpp/marshal.h"
+#include "util/basen.h"
 
 #include <ctime>
 
@@ -845,6 +847,8 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
                           << " i:" << slotIndex
                           << " a:" << mApp.getStateHuman();
 
+    persistSCPState();
+
     broadcast(envelope);
 
     // this resets the re-broadcast timer
@@ -1407,6 +1411,98 @@ HerderImpl::dumpInfo(Json::Value& ret)
     mSCP.dumpInfo(ret);
 
     mPendingEnvelopes.dumpInfo(ret);
+}
+
+void
+HerderImpl::persistSCPState()
+{
+    // saves SCP messages and related data (transaction sets, quorum sets)
+    xdr::xvector<SCPEnvelope> latestEnvs;
+    std::map<Hash, TxSetFramePtr> txSets;
+    std::map<Hash, SCPQuorumSetPtr> quorumSets;
+
+    for (auto const& e :
+         mSCP.getLatestMessagesSend(mLedgerManager.getLedgerNum()))
+    {
+        latestEnvs.emplace_back(e);
+
+        // saves transaction sets referred by the statement
+        std::vector<Value> vals = Slot::getStatementValues(e.statement);
+        for (auto const& v : vals)
+        {
+            StellarValue wb;
+            xdr::xdr_from_opaque(v, wb);
+            TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(wb.txSetHash);
+            txSets.insert(std::make_pair(wb.txSetHash, txSet));
+        }
+        Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
+        SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
+        quorumSets.insert(std::make_pair(qsHash, qSet));
+    }
+
+    xdr::xvector<TransactionSet> latestTxSets;
+    for (auto it : txSets)
+    {
+        latestTxSets.emplace_back();
+        it.second->toXDR(latestTxSets.back());
+    }
+
+    xdr::xvector<SCPQuorumSet> latestQSets;
+    for (auto it : quorumSets)
+    {
+        latestQSets.emplace_back(*it.second);
+    }
+
+    auto latestSCPData = xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
+    std::string scpState;
+    scpState = bn::encode_b64(latestSCPData);
+
+
+    mApp.getPersistentState().setState(PersistentState::kLastSCPData, scpState);
+}
+
+void
+HerderImpl::restoreSCPState()
+{
+    auto latest64 = mApp.getPersistentState().getState(PersistentState::kLastSCPData);
+
+    if (latest64.empty())
+    {
+        return;
+    }
+
+    std::vector<uint8_t> buffer;
+    bn::decode_b64(latest64, buffer);
+
+    xdr::xvector<SCPEnvelope> latestEnvs;
+    xdr::xvector<TransactionSet> latestTxSets;
+    xdr::xvector<SCPQuorumSet> latestQSets;
+
+    // no exception guard here: we want to crash if we don't recognize old messages
+    // only way out of this situation is probably to reset the node and catchup to
+    // the network's state (it's unsafe to participate with bad SCP messages)
+    xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
+
+    for(auto const& txset : latestTxSets)
+    {
+        TxSetFramePtr cur = make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
+        Hash h = cur->getContentsHash();
+        mPendingEnvelopes.recvTxSet(h, cur);
+    }
+    for(auto const& qset : latestQSets)
+    {
+        Hash hash = sha256(xdr::xdr_to_opaque(qset));
+        mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    }
+    for (auto const& e : latestEnvs)
+    {
+        mSCP.setStateFromEnvelope(e.statement.slotIndex, e);
+    }
+
+    if (latestEnvs.size() != 0)
+    {
+        startRebroadcastTimer();
+    }
 }
 
 void
