@@ -72,6 +72,10 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns the latest messages the slot emited
     std::vector<SCPEnvelope> getLatestMessagesSend() const;
 
+    // forces the state to match the one in the envelope
+    // this is used when rebuilding the state after a crash for example
+    void setStateFromEnvelope(SCPEnvelope const& e);
+
     // returns the latest messages known for this slot
     std::vector<SCPEnvelope> getCurrentState() const;
 

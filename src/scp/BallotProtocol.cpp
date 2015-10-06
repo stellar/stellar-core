@@ -1352,6 +1352,71 @@ BallotProtocol::areBallotsLessAndCompatible(SCPBallot const& b1,
     return (compareBallots(b1, b2) <= 0) && areBallotsCompatible(b1, b2);
 }
 
+void
+BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
+{
+    if (mCurrentBallot)
+    {
+        throw std::runtime_error("Cannot set state after starting ballot protocol");
+    }
+
+    recordEnvelope(e);
+
+    mLastEnvelope = make_unique<SCPEnvelope>(e);
+
+    auto const& pl = e.statement.pledges;
+
+    switch (pl.type())
+    {
+        case SCPStatementType::SCP_ST_PREPARE:
+        {
+            auto const& prep = pl.prepare();
+            auto const& b = prep.ballot;
+            bumpToBallot(b);
+            if (prep.prepared)
+            {
+                mPrepared = make_unique<SCPBallot>(*prep.prepared);
+            }
+            if (prep.preparedPrime)
+            {
+                mPreparedPrime = make_unique<SCPBallot>(*prep.preparedPrime);
+            }
+            if (prep.nP)
+            {
+                mConfirmedPrepared = make_unique<SCPBallot>(prep.nP, b.value);
+            }
+            if (prep.nC)
+            {
+                mCommit = make_unique<SCPBallot>(prep.nC, b.value);
+            }
+            mPhase = SCP_PHASE_PREPARE;
+        }
+        break;
+        case SCPStatementType::SCP_ST_CONFIRM:
+        {
+            auto const& c = pl.confirm();
+            auto const& v = c.commit.value;
+            bumpToBallot(SCPBallot(UINT32_MAX, v));
+            mPrepared = make_unique<SCPBallot>(c.nPrepared, v);
+            mConfirmedPrepared = make_unique<SCPBallot>(c.nP, v);
+            mCommit = make_unique<SCPBallot>(c.commit);
+            mPhase = SCP_PHASE_CONFIRM;
+        }
+        break;
+        case SCPStatementType::SCP_ST_EXTERNALIZE:
+        {
+            auto const& ext = pl.externalize();
+            auto const& v = ext.commit.value;
+            bumpToBallot(SCPBallot(UINT32_MAX, v));
+            mPrepared = make_unique<SCPBallot>(UINT32_MAX, v);
+            mConfirmedPrepared = make_unique<SCPBallot>(ext.nP, v);
+            mCommit = make_unique<SCPBallot>(ext.commit);
+            mPhase = SCP_PHASE_EXTERNALIZE;
+        }
+        break;
+    }
+}
+
 std::vector<SCPEnvelope>
 BallotProtocol::getCurrentState() const
 {

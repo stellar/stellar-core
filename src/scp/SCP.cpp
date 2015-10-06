@@ -167,6 +167,16 @@ SCP::getLatestMessagesSend(uint64 slotIndex)
     }
 }
 
+void
+SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e)
+{
+    if (mDriver.verifyEnvelope(e))
+    {
+        auto slot = getSlot(slotIndex, true);
+        slot->setStateFromEnvelope(e);
+    }
+}
+
 std::vector<SCPEnvelope>
 SCP::getCurrentState(uint64 slotIndex)
 {

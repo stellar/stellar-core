@@ -91,6 +91,10 @@ class SCP
     // returns the latest messages sent for the given slot
     std::vector<SCPEnvelope> getLatestMessagesSend(uint64 slotIndex);
 
+    // forces the state to match the one in the envelope
+    // this is used when rebuilding the state after a crash for example
+    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e);
+
     // returns all messages for the slot
     std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
 

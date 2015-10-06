@@ -107,6 +107,8 @@ class NominationProtocol
         return mLastEnvelope.get();
     }
 
+    void setStateFromEnvelope(SCPEnvelope const& e);
+
     std::vector<SCPEnvelope> getCurrentState() const;
 };
 }

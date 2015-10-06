@@ -374,7 +374,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     }
                 }
 
-                // only take round leader votes if we still looking for
+                // only take round leader votes if we're still looking for
                 // candidates
                 if (mCandidates.empty() &&
                     mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
@@ -530,6 +530,27 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     }
 
     ret["nomination"].append(nomState);
+}
+
+void
+NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
+{
+    if (mNominationStarted)
+    {
+        throw std::runtime_error("Cannot set state after nomination is started");
+    }
+    recordEnvelope(e);
+    auto const& nom = e.statement.pledges.nominate();
+    for(auto const& a : nom.accepted)
+    {
+        mAccepted.emplace(a);
+    }
+    for (auto const& v : nom.votes)
+    {
+        mVotes.emplace(v);
+    }
+
+    mLastEnvelope = make_unique<SCPEnvelope>(e);
 }
 
 std::vector<SCPEnvelope>

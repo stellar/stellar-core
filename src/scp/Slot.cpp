@@ -53,6 +53,29 @@ Slot::getLatestMessagesSend() const
     return res;
 }
 
+void
+Slot::setStateFromEnvelope(SCPEnvelope const& e)
+{
+    if (e.statement.nodeID == getSCP().getLocalNodeID() &&
+        e.statement.slotIndex == mSlotIndex)
+    {
+        if (e.statement.pledges.type() ==
+            SCPStatementType::SCP_ST_NOMINATE)
+        {
+            mNominationProtocol.setStateFromEnvelope(e);
+        }
+        else
+        {
+            mBallotProtocol.setStateFromEnvelope(e);
+        }
+    }
+    else
+    {
+        CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
+            << " i: " << getSlotIndex() << " " << envToStr(e);
+    }
+}
+
 std::vector<SCPEnvelope>
 Slot::getCurrentState() const
 {
