@@ -97,6 +97,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Timer& mRecvGetSCPQuorumSetTimer;
     medida::Timer& mRecvSCPQuorumSetTimer;
     medida::Timer& mRecvSCPMessageTimer;
+    medida::Timer& mRecvGetSCPStateTimer;
 
     medida::Meter& mSendErrorMeter;
     medida::Meter& mSendHelloMeter;
@@ -108,6 +109,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mSendTxSetMeter;
     medida::Meter& mSendTransactionMeter;
     medida::Meter& mSendGetSCPQuorumSetMeter;
+    medida::Meter& mSendGetSCPStateMeter;
     medida::Meter& mSendSCPQuorumSetMeter;
 
     medida::Meter& mDropInConnectHandlerMeter;
@@ -146,6 +148,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetSCPQuorumSet(StellarMessage const& msg);
     void recvSCPQuorumSet(StellarMessage const& msg);
     void recvSCPMessage(StellarMessage const& msg);
+    void recvGetSCPState(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();
@@ -184,6 +187,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetTxSet(uint256 const& setID);
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
+    void sendGetScpState(uint32 ledgerSeq);
 
     void sendMessage(StellarMessage const& msg);
 
