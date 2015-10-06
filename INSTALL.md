@@ -20,12 +20,12 @@ See [installing gcc 4.9 on ubuntu 14.04](http://askubuntu.com/questions/428198/g
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
--Install xcode
--Install homebrew
--brew install libsodium
--brew install libtool
--brew install automake
--brew install pkg-config
+- Install xcode
+- Install homebrew
+- brew install libsodium
+- brew install libtool
+- brew install automake
+- brew install pkg-config
 
 ### Windows 
 See [INSTALL-Windows.txt](INSTALL-Windows.txt)
