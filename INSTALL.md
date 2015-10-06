@@ -3,10 +3,10 @@ Installation Instructions
 
 ## Build Dependencies
 
-
 - `clang` >= 3.5 or `g++` >= 4.9
 - `pkg-config`
 - `bison` and `flex`
+- `libpq-devel` unless you `./configure --disable-postgres` in the build step below.
 
 
 ### Ubuntu 14.04
