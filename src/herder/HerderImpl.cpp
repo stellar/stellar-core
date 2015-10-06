@@ -981,6 +981,48 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 }
 
 void
+HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
+{
+    uint32 minSeq, maxSeq;
+
+    if (ledgerSeq == 0)
+    {
+        const uint32 nbLedgers = 3;
+        maxSeq = getCurrentLedgerSeq();
+        if (maxSeq >= 2 + nbLedgers)
+        {
+            minSeq = maxSeq - nbLedgers;
+        }
+        else
+        {
+            minSeq = 2;
+        }
+    }
+    else
+    {
+        minSeq = maxSeq = ledgerSeq;
+    }
+
+    for (uint32 seq = minSeq; seq <= maxSeq; seq++)
+    {
+        auto const& envelopes = mSCP.getCurrentState(seq);
+
+        CLOG(DEBUG, "Herder") << "Send state " << envelopes.size() << " for ledger "
+            << seq;
+
+        for (auto const& e : envelopes)
+        {
+            StellarMessage m;
+            m.type(SCP_MESSAGE);
+            m.envelope() = e;
+
+            mSCPMetrics.mEnvelopeEmit.Mark();
+            peer->sendMessage(m);
+        }
+    }
+}
+
+void
 HerderImpl::processSCPQueue()
 {
     if (mTrackingSCP)

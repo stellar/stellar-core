@@ -89,6 +89,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     void recvSCPEnvelope(SCPEnvelope const& envelope) override;
 
+    void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
+
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
     void recvTxSet(Hash hash, const TxSetFrame& txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,

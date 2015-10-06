@@ -87,6 +87,9 @@ class Herder
     // We are learning about a new envelope.
     virtual void recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
+    // a peer needs our SCP state
+    virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
+
     // returns the latest known ledger seq using consensus information
     // and local state
     virtual uint32_t getCurrentLedgerSeq() const = 0;
