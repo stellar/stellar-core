@@ -1439,6 +1439,24 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(scp.mEnvs.size() == 6);
         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash, 0, x3, &x2, 0, 2);
     }
+    SECTION("restore ballot protocol")
+    {
+        TestSCP scp2(v0SecretKey, qSet);
+        scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+        SCPBallot b(2, xValue);
+        SECTION("prepare")
+        {
+            scp2.mSCP.setStateFromEnvelope(0, makePrepare(v0SecretKey, qSetHash, 0, b));
+        }
+        SECTION("confirm")
+        {
+            scp2.mSCP.setStateFromEnvelope(0, makeConfirm(v0SecretKey, qSetHash, 0, 2, b, 3));
+        }
+        SECTION("externalize")
+        {
+            scp2.mSCP.setStateFromEnvelope(0, makeExternalize(v0SecretKey, qSetHash, 0, b, 3));
+        }
+    }
 }
 
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
@@ -1534,12 +1552,12 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             scp.receiveEnvelope(acc4);
             REQUIRE(scp.mEnvs.size() == 3);
 
+            std::vector<Value> votes2 = votes;
+            votes2.emplace_back(yValue);
+
             SECTION("nominate x -> accept x -> prepare (x) ; others accepted y "
                     "-> update latest to (z=x+y)")
             {
-                std::vector<Value> votes2 = votes;
-                votes2.emplace_back(yValue);
-
                 SCPEnvelope acc1_2 =
                     makeNominate(v1SecretKey, qSetHash, 0, votes2, votes2);
                 SCPEnvelope acc2_2 =
@@ -1569,6 +1587,63 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
                 scp.receiveEnvelope(acc4_2);
                 REQUIRE(scp.mEnvs.size() == 4);
+            }
+            SECTION("nomination - restored state")
+            {
+                TestSCP scp2(v0SecretKey, qSet);
+                scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+                // tests if nomination proceeds like normal
+                // nominates x
+                auto nominationRestore = [&]()
+                {
+                    // restores from the previous state
+                    scp2.mSCP.setStateFromEnvelope(0, makeNominate(v0SecretKey, qSetHash, 0, votes,
+                                                                   accepted));
+                    // tries to start nomination with yValue
+                    REQUIRE(scp2.nominate(0, yValue, false));
+
+                    REQUIRE(scp2.mEnvs.size() == 1);
+                    verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash, 0, votes2,
+                                   accepted);
+
+                    // other nodes only vote for 'x'
+                    scp2.receiveEnvelope(nom1);
+                    scp2.receiveEnvelope(nom2);
+                    REQUIRE(scp2.mEnvs.size() == 1);
+                    // this causes 'x' to be accepted (quorum)
+
+                    scp2.receiveEnvelope(nom3);
+
+                    scp2.mExpectedCandidates.emplace(xValue);
+                    scp2.mCompositeValue = xValue;
+
+                    scp2.receiveEnvelope(acc1);
+                    scp2.receiveEnvelope(acc2);
+                    REQUIRE(scp2.mEnvs.size() == 1);
+
+                    scp2.mCompositeValue = xValue;
+
+                    // this causes the node to update its composite value to x
+                    scp2.receiveEnvelope(acc3);
+                };
+
+                SECTION("ballot protocol not started")
+                {
+                    nominationRestore();
+                    // nomination ended up starting the ballot protocol
+                    REQUIRE(scp2.mEnvs.size() == 2);
+
+                    verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash, 0,
+                                  SCPBallot(1, xValue));
+                }
+                SECTION("ballot protocol started (on value y)")
+                {
+                    scp2.mSCP.setStateFromEnvelope(0, makePrepare(v0SecretKey, qSetHash, 0, SCPBallot(1, yValue)));
+                    nominationRestore();
+                    // nomination didn't do anything (already working on y)
+                    REQUIRE(scp2.mEnvs.size() == 1);
+                }
             }
         }
         SECTION("self nominates 'x', others nominate y -> prepare y")
