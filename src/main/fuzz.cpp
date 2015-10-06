@@ -103,12 +103,16 @@ fuzz(std::string const& filename, el::Level logLevel,
     Config cfg1, cfg2;
 
     cfg1.RUN_STANDALONE = true;
+    cfg1.HTTP_PORT = 0;
+    cfg1.PUBLIC_HTTP_PORT = false;
     cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-1.log";
     cfg1.TMP_DIR_PATH = "fuzz-tmp-1";
     cfg1.BUCKET_DIR_PATH = "fuzz-buckets-1";
 
     cfg2.RUN_STANDALONE = true;
+    cfg1.HTTP_PORT = 0;
+    cfg1.PUBLIC_HTTP_PORT = false;
     cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-2.log";
     cfg2.TMP_DIR_PATH = "fuzz-tmp-2";
@@ -123,8 +127,11 @@ restart:
     Application::pointer app1 = Application::create(clock, cfg1);
     Application::pointer app2 = Application::create(clock, cfg2);
     LoopbackPeerConnection loop(*app1, *app2);
-    while (clock.crank(false) > 0)
-        ;
+    while (!(loop.getInitiator()->isAuthenticated() &&
+             loop.getAcceptor()->isAuthenticated()))
+    {
+        clock.crank(true);
+    }
 
     XDRInputFileStream in;
     in.open(filename);
@@ -133,15 +140,18 @@ restart:
     while (tryRead(in, msg))
     {
         ++i;
-        if (msg.type() != HELLO)
-        {
-            LOG(INFO) << "Fuzzer injecting message " << i << ": "
-                      << msgSummary(msg);
-            loop.getAcceptor()->Peer::sendMessage(msg);
-        }
-        size_t iter = 20;
-        while (clock.crank(false) > 0 && iter-- > 0)
-            ;
+        LOG(INFO) << "Fuzzer injecting message " << i << ": "
+                  << msgSummary(msg);
+        auto peer = loop.getInitiator();
+        clock.getIOService().post(
+            [peer, msg]()
+            {
+                peer->Peer::sendMessage(msg);
+            });
+    }
+    while (loop.getAcceptor()->isConnected())
+    {
+        clock.crank(true);
     }
 }
 
@@ -158,7 +168,7 @@ void
 genfuzz(std::string const& filename)
 {
     Logging::setFmt("<fuzz>");
-    size_t n = 8;
+    size_t n = 3;
     LOG(INFO) << "Writing " << n << "-message random fuzz file " << filename;
     XDROutputFileStream out;
     out.open(filename);
