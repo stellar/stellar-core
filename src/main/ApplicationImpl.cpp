@@ -226,7 +226,6 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    mOverlayManager->start();
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
@@ -239,6 +238,7 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory(
                 [](asio::error_code const&){});
             if (npub != 0)
