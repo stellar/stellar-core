@@ -69,7 +69,6 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     NodeID nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
-    updateMinBalance(*result);
 
     return nodeID;
 }
@@ -143,6 +142,7 @@ Simulation::startAllNodes()
     for (auto const& it : mNodes)
     {
         it.second->start();
+        updateMinBalance(*it.second);
     }
 
     for (auto const& pair : mPendingConnections)
