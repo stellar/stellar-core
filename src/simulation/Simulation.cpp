@@ -278,7 +278,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
             done = true;
         else
         {
-            checkTimer.expires_from_now(chrono::seconds(5));
+            checkTimer.expires_from_now(chrono::seconds(1));
             checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
         }
     };
@@ -291,7 +291,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
         },
         &VirtualTimer::onFailureNoop);
 
-    checkTimer.expires_from_now(chrono::seconds(5));
+    checkTimer.expires_from_now(chrono::seconds(1));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
 
     for (;;)
