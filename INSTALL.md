@@ -37,7 +37,7 @@ See [INSTALL-Windows.txt](INSTALL-Windows.txt)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `CXX=gcc++-4.9 ./configure` or `CXX=clang++-3.5 ./configure`
+- Type `./configure` *if configure complains about compiler versions, try `CXX=clang-3.5 ./configure` or `CXX=g++-4.9 ./configure` or similar, depending on your compiler*
 - Type `make`.
 - Type `make check` to run tests.
 - Type `make install` to install.
