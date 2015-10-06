@@ -186,7 +186,7 @@ CatchupStateMachine::fileStateChange(asio::error_code const& ec,
     }
     auto fi = mFileInfos[name];
     fi->setState(newState);
-    if (mState != CATCHUP_RETRYING)
+    if (mState == CATCHUP_ANCHORED || mState == CATCHUP_FETCHING)
     {
         enterFetchingState(fi);
     }
