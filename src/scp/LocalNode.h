@@ -31,11 +31,16 @@ class LocalNode
 
     SCP* mSCP;
 
+    // first: nodeID found, second: quorum set well formed
+    static std::pair<bool,bool> isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSet);
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
               SCPQuorumSet const& qSet, SCP* scp);
 
     NodeID const& getNodeID();
+
+    // returns if a nodeID's quorum set passes sanity checks
+    static bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 

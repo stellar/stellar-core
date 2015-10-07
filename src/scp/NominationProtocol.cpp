@@ -112,6 +112,9 @@ NominationProtocol::isSane(SCPStatement const& st)
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
 
+    res = res && LocalNode::isQuorumSetSane(
+                     st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+
     return res;
 }
 
@@ -404,6 +407,11 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     mSlot.bumpState(mLatestCompositeCandidate, false);
                 }
             }
+        }
+        else
+        {
+            CLOG(DEBUG, "SCP")
+                << "NominationProtocol: message didn't pass sanity check";
         }
     }
     return res;

@@ -21,6 +21,7 @@
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
+#include "scp/LocalNode.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -225,6 +226,13 @@ ApplicationImpl::start()
     if (mConfig.QUORUM_SET.threshold == 0)
     {
         throw std::invalid_argument("Quorum not configured");
+    }
+    if (mConfig.NODE_IS_VALIDATOR &&
+        !LocalNode::isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
+                                    mConfig.QUORUM_SET))
+    {
+        throw std::invalid_argument(
+            "Invalid QUORUM_SET: bad threshold or validator is not a member");
     }
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
