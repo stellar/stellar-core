@@ -156,6 +156,8 @@ Peer::Peer(Application& app, PeerRole role)
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
 }
 
+// copy/pasted from sendHello2
+// (to be removed when HELLO is not used)
 void
 Peer::sendHello()
 {
@@ -174,6 +176,23 @@ Peer::sendHello()
     sendMessage(msg);
     mSendHelloMeter.Mark();
 }
+
+void
+Peer::sendHello2()
+{
+    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
+    StellarMessage msg;
+    msg.type(HELLO2);
+    Hello2& elo = msg.hello2();
+    elo.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    elo.overlayMinVersion = mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION;
+    elo.overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+    elo.versionStr = mApp.getConfig().VERSION_STR;
+    elo.networkID = mApp.getNetworkID();
+    elo.listeningPort = mApp.getConfig().PEER_PORT;
+    elo.peerID = mApp.getConfig().NODE_SEED.getPublicKey();
+    elo.cert = this->getAuthCert();
+    elo.nonce = mSendNonce;
     sendMessage(msg);
     mSendHelloMeter.Mark();
 }
@@ -521,6 +540,12 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         this->recvHello(stellarMsg.hello());
     }
     break;
+    case HELLO2:
+    {
+        auto t = mRecvHelloTimer.TimeScope();
+        this->recvHello2(stellarMsg.hello2());
+    }
+    break;
 
     case AUTH:
     {
@@ -746,6 +771,11 @@ Peer::noteHandshakeSuccessInPeerRecord()
     pr->storePeerRecord(mApp.getDatabase());
 }
 
+// this is a copy/pasted from recvHello2
+// only differences are
+// force mRemoteOverlayMinVersion to protocol version
+// sendHello (we can't assume that the remote understands sendHello2)
+
 void
 Peer::recvHello(Hello const& elo)
 {
@@ -771,7 +801,7 @@ Peer::recvHello(Hello const& elo)
 
     mRemoteListeningPort =
         static_cast<unsigned short>(elo.listeningPort);
-    mRemoteOverlayMinVersion = elo.overlayVersion;
+    mRemoteOverlayMinVersion = elo.overlayVersion;   /// This is the only difference
     mRemoteOverlayVersion = elo.overlayVersion;
     mRemoteVersion = elo.versionStr;
     mPeerID = elo.peerID;
@@ -793,6 +823,122 @@ Peer::recvHello(Hello const& elo)
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
         sendHello();
+    }
+
+    if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
+        mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
+        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+    {
+        CLOG(ERROR, "Overlay")
+            << "connection from peer with incompatible overlay protocol version";
+        CLOG(DEBUG, "Overlay")
+            << "Protocol = [" << mRemoteOverlayMinVersion << "," << mRemoteOverlayVersion
+            << "] expected: [" << mApp.getConfig().OVERLAY_PROTOCOL_VERSION
+            << "," << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
+        mDropInRecvHelloVersionMeter.Mark();
+        drop(ERR_CONF, "wrong protocol version");
+        return;
+    }
+
+    if (elo.peerID == mApp.getConfig().NODE_SEED.getPublicKey())
+    {
+        CLOG(WARNING, "Overlay") << "connecting to self";
+        mDropInRecvHelloSelfMeter.Mark();
+        drop(ERR_CONF, "connecting to self");
+        return;
+    }
+
+    if (elo.networkID != mApp.getNetworkID())
+    {
+        CLOG(WARNING, "Overlay")
+            << "connection from peer with different NetworkID";
+        CLOG(DEBUG, "Overlay")
+            << "NetworkID = " << hexAbbrev(elo.networkID)
+            << " expected: " << hexAbbrev(mApp.getNetworkID());
+        mDropInRecvHelloNetMeter.Mark();
+        drop(ERR_CONF, "wrong network passphrase");
+        return;
+    }
+
+    for (auto const& p : mApp.getOverlayManager().getPeers())
+    {
+        if (&(p->mPeerID) == &mPeerID)
+        {
+            continue;
+        }
+        if (p->getPeerID() == mPeerID)
+        {
+            CLOG(WARNING, "Overlay")
+                << "connection from already-connected peerID "
+                << PubKeyUtils::toShortString(mPeerID);
+            mDropInRecvHelloPeerIDMeter.Mark();
+            drop(ERR_CONF, "connecting already-connected peer");
+            return;
+        }
+    }
+
+    if (elo.listeningPort <= 0 ||
+        elo.listeningPort > UINT16_MAX)
+    {
+        CLOG(WARNING, "Overlay") << "bad port in recvHello";
+        mDropInRecvHelloPortMeter.Mark();
+        drop(ERR_CONF, "bad port number");
+        return;
+    }
+
+    if (mRole == WE_CALLED_REMOTE)
+    {
+        sendAuth();
+    }
+}
+
+void
+Peer::recvHello2(Hello2 const& elo)
+{
+    using xdr::operator==;
+
+    if (mState >= GOT_HELLO)
+    {
+        CLOG(ERROR, "Overlay")
+            << "received unexpected HELLO";
+        mDropInRecvHelloUnexpectedMeter.Mark();
+        drop();
+        return;
+    }
+
+    auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
+    if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
+    {
+        CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
+        mDropInRecvHelloCertMeter.Mark();
+        drop();
+        return;
+    }
+
+    mRemoteListeningPort =
+        static_cast<unsigned short>(elo.listeningPort);
+    mRemoteOverlayMinVersion = elo.overlayMinVersion;
+    mRemoteOverlayVersion = elo.overlayVersion;
+    mRemoteVersion = elo.versionStr;
+    mPeerID = elo.peerID;
+    mRecvNonce = elo.nonce;
+    mSendMacSeq = 0;
+    mRecvMacSeq = 0;
+    mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
+                                            mRecvNonce, mRole);
+    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey,
+                                              mSendNonce, mRecvNonce, mRole);
+
+    mState = GOT_HELLO;
+    CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
+
+    if (mRole == REMOTE_CALLED_US)
+    {
+        // Send a HELLO2 back, even if it's going to be followed
+        // immediately by ERROR, because ERROR is an authenticated
+        // message type and the caller won't decode it right if
+        // still waiting for an unauthenticated HELLO2.
+        sendHello2();
     }
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||

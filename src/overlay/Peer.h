@@ -141,6 +141,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);
     void recvHello(Hello const& elo);
+    void recvHello2(Hello2 const& elo);
     void recvPeers(StellarMessage const& msg);
 
     void recvGetTxSet(StellarMessage const& msg);
@@ -152,6 +153,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvGetSCPState(StellarMessage const& msg);
 
     void sendHello();
+    void sendHello2();
     void sendAuth();
     void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
     void sendDontHave(MessageType type, uint256 const& itemID);

@@ -168,25 +168,37 @@ TEST_CASE("reject peers with invalid cert", "[overlay]")
                 .count() != 0);
 }
 
-TEST_CASE("reject peers with differing overlay versions", "[overlay]")
+TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
 {
-    VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
-    Config cfg2 = getTestConfig(1);
 
-    cfg2.OVERLAY_PROTOCOL_VERSION = 0xdeadbeef;
+    auto doVersionCheck = [&](uint32 version)
+    {
+        VirtualClock clock;
+        Config cfg2 = getTestConfig(1);
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+        cfg2.OVERLAY_PROTOCOL_MIN_VERSION = version;
+        cfg2.OVERLAY_PROTOCOL_VERSION = version;
+        auto app1 = Application::create(clock, cfg1);
+        auto app2 = Application::create(clock, cfg2);
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    crankSome(clock);
+        LoopbackPeerConnection conn(*app1, *app2);
+        crankSome(clock);
 
-    REQUIRE(!conn.getInitiator()->isConnected());
-    REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics()
-                .NewMeter({"overlay", "drop", "recv-hello-version"}, "drop")
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(app2->getMetrics()
+                .NewMeter({ "overlay", "drop", "recv-hello-version" }, "drop")
                 .count() != 0);
+    };
+    SECTION("cfg2 above")
+    {
+        doVersionCheck(cfg1.OVERLAY_PROTOCOL_VERSION + 1);
+    }
+    SECTION("cfg2 below")
+    {
+        doVersionCheck(cfg1.OVERLAY_PROTOCOL_MIN_VERSION - 1);
+    }
 }
 
 TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
