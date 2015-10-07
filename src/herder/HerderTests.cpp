@@ -16,6 +16,8 @@
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "simulation/Simulation.h"
+#include "overlay/OverlayManager.h"
 
 #include "xdrpp/marshal.h"
 
@@ -555,5 +557,135 @@ TEST_CASE("SCP Driver", "[herder]")
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
+    }
+}
+
+TEST_CASE("SCP State", "[herder]")
+{
+    SecretKey nodeKeys[3];
+    PublicKey nodeIDs[3];
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    Simulation::pointer sim =
+        std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+
+    Config nodeCfgs[3];
+
+    for (int i = 0; i < 3; i++)
+    {
+        nodeKeys[i] = SecretKey::random();
+        nodeIDs[i] = nodeKeys[i].getPublicKey();
+        nodeCfgs[i] = getTestConfig(i+1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
+    }
+
+    VirtualClock* clock = &sim->getClock();
+
+    LedgerHeaderHistoryEntry lcl;
+
+    auto doTest = [&](bool forceSCP)
+    {
+        // add node0 and node1, in lockstep
+        {
+            SCPQuorumSet qSet;
+            qSet.threshold = 2;
+            qSet.validators.push_back(nodeIDs[0]);
+            qSet.validators.push_back(nodeIDs[1]);
+
+            sim->addNode(nodeKeys[0], qSet, *clock, &nodeCfgs[0]);
+            sim->addNode(nodeKeys[1], qSet, *clock, &nodeCfgs[1]);
+            sim->addPendingConnection(nodeIDs[0], nodeIDs[1]);
+        }
+
+        sim->startAllNodes();
+        // wait to close exactly once
+
+        sim->crankUntil([&]() {
+            return sim->haveAllExternalized(2);
+        }, std::chrono::seconds(1), true);
+
+        REQUIRE(sim->getNode(nodeIDs[0])->getLedgerManager().getLastClosedLedgerNum() == 2);
+        REQUIRE(sim->getNode(nodeIDs[1])->getLedgerManager().getLastClosedLedgerNum() == 2);
+
+        lcl = sim->getNode(nodeIDs[0])->getLedgerManager().getLastClosedLedgerHeader();
+
+        // adjust configs for a clean restart
+        for (int i = 0; i < 2; i++)
+        {
+            nodeCfgs[i] = sim->getNode(nodeIDs[i])->getConfig();
+            nodeCfgs[i].REBUILD_DB = false;
+            nodeCfgs[i].FORCE_SCP = forceSCP;
+        }
+
+        // restart simulation
+        sim.reset();
+
+        sim = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+        clock = &sim->getClock();
+
+        // start a new node that will switch to whatever node0 & node1 says
+        SCPQuorumSet qSetAll;
+        qSetAll.threshold = 2;
+        for (int i = 0; i < 3; i++)
+        {
+            qSetAll.validators.push_back(nodeIDs[i]);
+        }
+        sim->addNode(nodeKeys[2], qSetAll, *clock, &nodeCfgs[2]);
+        sim->getNode(nodeIDs[2])->start();
+
+        // crank a bit (nothing should happen, node 2 is waiting for SCP messages)
+        sim->crankForAtLeast(std::chrono::seconds(1), false);
+
+        REQUIRE(sim->getNode(nodeIDs[2])->getLedgerManager().getLastClosedLedgerNum() == 1);
+
+        // start up node 0 and 1 again
+        // nodes 0 and 1 have lost their SCP state as they got restarted
+        // yet they should have their own last statements that should be
+        // forwarded to node 2 when they connect to it
+        // causing node 2 to externalize ledger #2
+
+        sim->addNode(nodeKeys[0], qSetAll, *clock, &nodeCfgs[0]);
+        sim->addNode(nodeKeys[1], qSetAll, *clock, &nodeCfgs[1]);
+        sim->getNode(nodeIDs[0])->start();
+        sim->getNode(nodeIDs[1])->start();
+
+        sim->addConnection(nodeIDs[0], nodeIDs[2]);
+        sim->addConnection(nodeIDs[1], nodeIDs[2]);
+    };
+
+    SECTION("Force SCP")
+    {
+        doTest(true);
+
+        // then let the nodes run a bit more, they should all externalize the next ledger
+        sim->crankUntil([&]() {
+            return sim->haveAllExternalized(3);
+        }, Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+
+        // nodes are at least on ledger 3 (some may be on 4)
+        for (int i = 0; i <= 2; i++)
+        {
+            auto const& actual = sim->getNode(nodeIDs[i])->getLedgerManager().getLastClosedLedgerHeader().header;
+            if (actual.ledgerSeq == 3)
+            {
+                REQUIRE(actual.previousLedgerHash == lcl.hash);
+            }
+        }
+    }
+
+    SECTION("No Force SCP")
+    {
+        // node 0 and 1 don't try to close, causing all nodes
+        // to get stuck at ledger #2
+        doTest(false);
+
+        sim->crankUntil([&]() {
+            return sim->getNode(nodeIDs[2])->getLedgerManager().getLastClosedLedgerNum() == 2;
+        }, std::chrono::seconds(1), false);
+
+        for (int i = 0; i <= 2; i++)
+        {
+            auto const& actual = sim->getNode(nodeIDs[i])->getLedgerManager().getLastClosedLedgerHeader().header;
+            REQUIRE(actual == lcl.header);
+        }
     }
 }

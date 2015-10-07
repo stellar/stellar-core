@@ -74,8 +74,8 @@ class Simulation : public LoadGenerator
     bool loadAccount(AccountInfo& account);
     std::string metricsSummary(std::string domain = "");
 
-  private:
     void addConnection(NodeID initiator, NodeID acceptor);
+  private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
 
