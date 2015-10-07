@@ -501,13 +501,18 @@ StateSnapshot::retryHistoryBlockWriteOrFail(asio::error_code const& ec)
     if (ec && mRetryCount++ < ArchivePublisher::kRetryLimit)
     {
         CLOG(INFO, "History") << "Retrying history-block write";
-        auto self = shared_from_this();
+        std::weak_ptr<StateSnapshot> weak(shared_from_this());
         mRetryTimer.expires_from_now(std::chrono::seconds(2));
-        mRetryTimer.async_wait([self](asio::error_code const& ec2)
+        mRetryTimer.async_wait([weak](asio::error_code const& ec2)
                                {
+                                   auto snap = weak.lock();
+                                   if (!snap)
+                                   {
+                                       return;
+                                   }
                                    if (!ec2)
                                    {
-                                       self->writeHistoryBlocksWithRetry();
+                                       snap->writeHistoryBlocksWithRetry();
                                    }
                                });
     }
@@ -520,20 +525,32 @@ StateSnapshot::retryHistoryBlockWriteOrFail(asio::error_code const& ec)
 void
 StateSnapshot::writeHistoryBlocksWithRetry()
 {
-    auto snap = shared_from_this();
+    std::weak_ptr<StateSnapshot> weak(shared_from_this());
+
     if (mApp.getDatabase().canUsePool())
     {
         mApp.getWorkerIOService().post(
-            [snap]()
+            [weak]()
             {
+                auto snap = weak.lock();
+                if (!snap)
+                {
+                    return;
+                }
+
                 asio::error_code ec;
                 if (!snap->writeHistoryBlocks())
                 {
                     ec = std::make_error_code(std::errc::io_error);
                 }
                 snap->mApp.getClock().getIOService().post(
-                    [snap, ec]()
+                    [weak, ec]()
                     {
+                        auto snap = weak.lock();
+                        if (!snap)
+                        {
+                            return;
+                        }
                         snap->retryHistoryBlockWriteOrFail(ec);
                     });
             });
@@ -541,7 +558,7 @@ StateSnapshot::writeHistoryBlocksWithRetry()
     else
     {
         asio::error_code ec;
-        if (!snap->writeHistoryBlocks())
+        if (!writeHistoryBlocks())
         {
             ec = std::make_error_code(std::errc::io_error);
         }
