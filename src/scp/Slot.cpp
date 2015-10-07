@@ -121,7 +121,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
 
         dumpInfo(info);
 
-        CLOG(DEBUG, "SCP") << "Exception in processEnvelope "
+        CLOG(ERROR, "SCP") << "Exception in processEnvelope "
                            << "state: " << info.toStyledString()
                            << " processing envelope: " << envToStr(envelope);
 
