@@ -15,6 +15,7 @@ stellar-core can be controlled via the following commands.
 
 `$ stellar-core --convertid SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
 
+* **--dnssrv QUERY**:  Queries DNS SRV records for QUERY, prints selected host:port.
 * **--dumpxdr FILE**:  Dumps the given XDR file and then exits.
 * **--forcescp**: This command is used to start a network from scratch or when a 
 network has lost quorum because of failed nodes or otherwise. It sets a flag in 

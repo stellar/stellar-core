@@ -110,6 +110,7 @@ class Config : public std::enable_shared_from_this<Config>
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;
     std::vector<std::string> KNOWN_PEERS;
+    std::string BOOTSTRAP_DNS_SRV;  // DNS SRV query to bootstrap KNOWN_PEERS
 
     // Preference can also be expressed by peer pubkey
     std::vector<std::string> PREFERRED_PEER_KEYS;
