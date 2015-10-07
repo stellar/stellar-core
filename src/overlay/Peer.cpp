@@ -162,14 +162,18 @@ Peer::sendHello()
     CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
     StellarMessage msg;
     msg.type(HELLO);
-    msg.hello().ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    msg.hello().overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
-    msg.hello().versionStr = mApp.getConfig().VERSION_STR;
-    msg.hello().networkID = mApp.getNetworkID();
-    msg.hello().listeningPort = mApp.getConfig().PEER_PORT;
-    msg.hello().peerID = mApp.getConfig().NODE_SEED.getPublicKey();
-    msg.hello().cert = this->getAuthCert();
-    msg.hello().nonce = mSendNonce;
+    Hello& elo = msg.hello();
+    elo.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    elo.overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+    elo.versionStr = mApp.getConfig().VERSION_STR;
+    elo.networkID = mApp.getNetworkID();
+    elo.listeningPort = mApp.getConfig().PEER_PORT;
+    elo.peerID = mApp.getConfig().NODE_SEED.getPublicKey();
+    elo.cert = this->getAuthCert();
+    elo.nonce = mSendNonce;
+    sendMessage(msg);
+    mSendHelloMeter.Mark();
+}
     sendMessage(msg);
     mSendHelloMeter.Mark();
 }
@@ -514,7 +518,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case HELLO:
     {
         auto t = mRecvHelloTimer.TimeScope();
-        this->recvHello(stellarMsg);
+        this->recvHello(stellarMsg.hello());
     }
     break;
 
@@ -743,7 +747,7 @@ Peer::noteHandshakeSuccessInPeerRecord()
 }
 
 void
-Peer::recvHello(StellarMessage const& msg)
+Peer::recvHello(Hello const& elo)
 {
     using xdr::operator==;
 
@@ -757,7 +761,7 @@ Peer::recvHello(StellarMessage const& msg)
     }
 
     auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
-    if (!peerAuth.verifyRemoteAuthCert(msg.hello().peerID, msg.hello().cert))
+    if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
         mDropInRecvHelloCertMeter.Mark();
@@ -766,16 +770,17 @@ Peer::recvHello(StellarMessage const& msg)
     }
 
     mRemoteListeningPort =
-        static_cast<unsigned short>(msg.hello().listeningPort);
-    mRemoteOverlayVersion = msg.hello().overlayVersion;
-    mRemoteVersion = msg.hello().versionStr;
-    mPeerID = msg.hello().peerID;
-    mRecvNonce = msg.hello().nonce;
+        static_cast<unsigned short>(elo.listeningPort);
+    mRemoteOverlayMinVersion = elo.overlayVersion;
+    mRemoteOverlayVersion = elo.overlayVersion;
+    mRemoteVersion = elo.versionStr;
+    mPeerID = elo.peerID;
+    mRecvNonce = elo.nonce;
     mSendMacSeq = 0;
     mRecvMacSeq = 0;
-    mSendMacKey = peerAuth.getSendingMacKey(msg.hello().cert.pubkey, mSendNonce,
+    mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
                                             mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(msg.hello().cert.pubkey,
+    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey,
                                               mSendNonce, mRecvNonce, mRole);
 
     mState = GOT_HELLO;
@@ -790,19 +795,22 @@ Peer::recvHello(StellarMessage const& msg)
         sendHello();
     }
 
-    if (msg.hello().overlayVersion != mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
+    if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||
+        mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
+        mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
         CLOG(ERROR, "Overlay")
-            << "connection from peer with different overlay protocol version";
+            << "connection from peer with incompatible overlay protocol version";
         CLOG(DEBUG, "Overlay")
-            << "Protocol = " << msg.hello().overlayVersion
-            << " expected: " << mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
+            << "Protocol = [" << mRemoteOverlayMinVersion << "," << mRemoteOverlayVersion
+            << "] expected: [" << mApp.getConfig().OVERLAY_PROTOCOL_VERSION
+            << "," << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
         mDropInRecvHelloVersionMeter.Mark();
         drop(ERR_CONF, "wrong protocol version");
         return;
     }
 
-    if (msg.hello().peerID == mApp.getConfig().NODE_SEED.getPublicKey())
+    if (elo.peerID == mApp.getConfig().NODE_SEED.getPublicKey())
     {
         CLOG(WARNING, "Overlay") << "connecting to self";
         mDropInRecvHelloSelfMeter.Mark();
@@ -810,12 +818,12 @@ Peer::recvHello(StellarMessage const& msg)
         return;
     }
 
-    if (msg.hello().networkID != mApp.getNetworkID())
+    if (elo.networkID != mApp.getNetworkID())
     {
         CLOG(WARNING, "Overlay")
             << "connection from peer with different NetworkID";
         CLOG(DEBUG, "Overlay")
-            << "NetworkID = " << hexAbbrev(msg.hello().networkID)
+            << "NetworkID = " << hexAbbrev(elo.networkID)
             << " expected: " << hexAbbrev(mApp.getNetworkID());
         mDropInRecvHelloNetMeter.Mark();
         drop(ERR_CONF, "wrong network passphrase");
@@ -839,8 +847,8 @@ Peer::recvHello(StellarMessage const& msg)
         }
     }
 
-    if (msg.hello().listeningPort <= 0 ||
-        msg.hello().listeningPort > UINT16_MAX)
+    if (elo.listeningPort <= 0 ||
+        elo.listeningPort > UINT16_MAX)
     {
         CLOG(WARNING, "Overlay") << "bad port in recvHello";
         mDropInRecvHelloPortMeter.Mark();

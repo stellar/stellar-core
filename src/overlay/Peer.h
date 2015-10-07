@@ -68,6 +68,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint64_t mRecvMacSeq{0};
 
     std::string mRemoteVersion;
+    uint32_t mRemoteOverlayMinVersion;
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
 
@@ -136,10 +137,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual void recvError(StellarMessage const& msg);
     // returns false if we should drop this peer
     void noteHandshakeSuccessInPeerRecord();
-    void recvHello(StellarMessage const& msg);
     void recvAuth(StellarMessage const& msg);
     void recvDontHave(StellarMessage const& msg);
     void recvGetPeers(StellarMessage const& msg);
+    void recvHello(Hello const& elo);
     void recvPeers(StellarMessage const& msg);
 
     void recvGetTxSet(StellarMessage const& msg);
@@ -210,6 +211,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     getRemoteVersion() const
     {
         return mRemoteVersion;
+    }
+
+    uint32_t
+    getRemoteOverlayMinVersion() const
+    {
+        return mRemoteOverlayMinVersion;
     }
 
     uint32_t
