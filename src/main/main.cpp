@@ -223,36 +223,44 @@ startApp(string cfgFile, Config& cfg)
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
     VirtualClock clock(VirtualClock::REAL_TIME);
-    Application::pointer app = Application::create(clock, cfg);
-
-    if (!checkInitialized(app))
+    Application::pointer app;
+    try
     {
-        return 0;
+        app = Application::create(clock, cfg);
+
+        if (!checkInitialized(app))
+        {
+            return 0;
+        }
+        else
+        {
+            if (!HistoryManager::checkSensibleConfig(cfg))
+            {
+                return 1;
+            }
+            if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+            {
+                LOG(WARNING) << "Artificial acceleration of time enabled "
+                             << "(for testing only)";
+            }
+
+            app->applyCfgCommands();
+
+            app->start();
+        }
     }
-    else
+    catch (std::exception& e)
     {
-        if (!HistoryManager::checkSensibleConfig(cfg))
-        {
-            return 1;
-        }
-        if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-        {
-            LOG(WARNING) << "Artificial acceleration of time enabled "
-                         << "(for testing only)";
-        }
-
-        app->applyCfgCommands();
-
-        app->start();
-
-        auto& io = clock.getIOService();
-        asio::io_service::work mainWork(io);
-        while (!io.stopped())
-        {
-            clock.crank();
-        }
-        return 0;
+        LOG(FATAL) << "Got an exception: " << e.what();
+        return 1;
     }
+    auto& io = clock.getIOService();
+    asio::io_service::work mainWork(io);
+    while (!io.stopped())
+    {
+        clock.crank();
+    }
+    return 0;
 }
 }
 
