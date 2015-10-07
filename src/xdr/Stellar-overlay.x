@@ -41,6 +41,19 @@ struct Hello
     uint256 nonce;
 };
 
+struct Hello2
+{
+    uint32 ledgerVersion;
+    uint32 overlayVersion;
+    uint32 overlayMinVersion;
+    Hash networkID;
+    string versionStr<100>;
+    int listeningPort;
+    NodeID peerID;
+    AuthCert cert;
+    uint256 nonce;
+};
+
 struct Auth
 {
     // Empty message, just to confirm
@@ -87,7 +100,10 @@ enum MessageType
     GET_SCP_QUORUMSET = 9,
     SCP_QUORUMSET = 10,
     SCP_MESSAGE = 11,
-    GET_SCP_STATE = 12
+    GET_SCP_STATE = 12,
+
+    // new messages
+    HELLO2 = 13
 };
 
 struct DontHave
@@ -102,6 +118,8 @@ case ERROR_MSG:
     Error error;
 case HELLO:
     Hello hello;
+case HELLO2:
+    Hello2 hello2;
 case AUTH:
     Auth auth;
 case DONT_HAVE:
