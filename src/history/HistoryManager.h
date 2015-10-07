@@ -176,6 +176,7 @@ class Application;
 class Bucket;
 class BucketList;
 class Config;
+class Database;
 class HistoryArchive;
 struct StateSnapshot;
 
@@ -230,6 +231,9 @@ class HistoryManager
     static bool checkSensibleConfig(Config const& cfg);
 
     static std::unique_ptr<HistoryManager> create(Application& app);
+
+    // Initialize DB table for persistent publishing queue.
+    static void dropAll(Database& db);
 
     // Checkpoints are made every getCheckpointFrequency() ledgers.
     // This should normally be a constant (64) but in testing cases
@@ -289,22 +293,39 @@ class HistoryManager
     mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
           std::function<void(asio::error_code const&)> handler) const = 0;
 
-    // Publish history if the current ledger is a multiple of
-    // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than a
-    // multiple of getCheckpointFrequency() -- and no publish action is
-    // currently in
-    // progress. Returns true if checkpoint publication of the LCL was started
-    // (and the completion-handler queued), otherwise false.
-    virtual bool maybePublishHistory(
-        std::function<void(asio::error_code const&)> handler) = 0;
-
-    virtual bool hasAnyWritableHistoryArchive() = 0;
+    // Calls queueCurrentHistory() if the current ledger is a multiple of
+    // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than
+    // a multiple of getCheckpointFrequency(). Returns true if checkpoint
+    // publication of the LCL was queued, otherwise false.
+    virtual bool maybeQueueHistoryCheckpoint() = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
-    // checkpoint to it, as well as the bucketlist of its state -- to all
-    // writable history archives.
-    virtual void
-    publishHistory(std::function<void(asio::error_code const&)> handler) = 0;
+    // checkpoint to it, as well as the bucketlist of its state -- to a
+    // publication-queue in the database. This should be followed shortly
+    // (typically after commit) with a call to publishQueuedHistory.
+    virtual void queueCurrentHistory() = 0;
+
+    // Returns whether or not the HistoryManager has any writable history
+    // archives (those configured with both a `get` and `put` command).
+    virtual bool hasAnyWritableHistoryArchive() = 0;
+
+    // Return the youngest ledger still in the outgoing publish queue;
+    // returns 0 if the publish queue has nothing in it.
+    virtual uint32_t getMinLedgerQueuedToPublish() = 0;
+
+    // Publish any checkpoints queued (in the database) for publication.
+    // Returns the number of publishes initiated, which is the same number
+    // as the number of times the provided handler will be called (once for
+    // each, as they complete).
+    virtual size_t
+    publishQueuedHistory(std::function<void(asio::error_code const&)>
+                         handler) = 0;
+
+    // Return the set of buckets referenced by the persistent (DB) publish
+    // queue that are not present in the BucketManager. These need to be
+    // fetched from somewhere before publishing can begin again.
+    virtual std::vector<std::string>
+    getMissingBucketsReferencedByPublishQueue() = 0;
 
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,

@@ -434,6 +434,11 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     {
         bucketsToFetch =
             mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
+        auto publishBuckets =
+            mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
+        bucketsToFetch.insert(bucketsToFetch.end(),
+                              publishBuckets.begin(),
+                              publishBuckets.end());
     }
     else if (mMode == HistoryManager::CATCHUP_MINIMAL)
     {

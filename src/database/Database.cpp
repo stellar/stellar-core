@@ -170,6 +170,7 @@ Database::initialize()
     ExternalQueue::dropAll(*this);
     LedgerHeaderFrame::dropAll(*this);
     TransactionFrame::dropAll(*this);
+    HistoryManager::dropAll(*this);
     BucketManager::dropAll(mApp);
 }
 

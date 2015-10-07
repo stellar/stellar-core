@@ -73,13 +73,23 @@ class HistoryManagerImpl : public HistoryManager
     mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
           std::function<void(asio::error_code const&)> handler) const override;
 
-    bool maybePublishHistory(
-        std::function<void(asio::error_code const&)> handler) override;
+    bool maybeQueueHistoryCheckpoint() override;
+
+    void queueCurrentHistory() override;
+
+    void takeSnapshotAndQueue(HistoryArchiveState const& has,
+                              std::function<void(asio::error_code const&)> handler);
 
     bool hasAnyWritableHistoryArchive() override;
 
-    void publishHistory(
+    uint32_t getMinLedgerQueuedToPublish() override;
+
+    size_t publishQueuedHistory(
         std::function<void(asio::error_code const&)> handler) override;
+
+    std::vector<std::string> getMissingBucketsReferencedByPublishQueue() override;
+
+    void historyPublished(uint32_t ledgerSeq);
 
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,

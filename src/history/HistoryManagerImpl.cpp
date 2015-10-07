@@ -38,6 +38,20 @@ namespace stellar
 
 using namespace std;
 
+static string kSQLCreateStatement =
+    "CREATE TABLE IF NOT EXISTS publishqueue ("
+    "ledger   INTEGER PRIMARY KEY,"
+    "state    TEXT"
+    "); ";
+
+void
+HistoryManager::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS publishqueue;";
+    soci::statement st = db.getSession().prepare << kSQLCreateStatement;
+    st.execute(true);
+}
+
 bool
 HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 {
@@ -464,9 +478,26 @@ HistoryManagerImpl::hasAnyWritableHistoryArchive()
     return false;
 }
 
+uint32_t
+HistoryManagerImpl::getMinLedgerQueuedToPublish()
+{
+    uint32_t seq;
+    soci::indicator minIndicator;
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT min(ledger) FROM publishqueue;");
+    auto& st = prep.statement();
+    st.exchange(soci::into(seq, minIndicator));
+    st.define_and_bind();
+    st.execute(true);
+    if (minIndicator == soci::indicator::i_ok)
+    {
+        return seq;
+    }
+    return 0;
+}
+
 bool
-HistoryManagerImpl::maybePublishHistory(
-    std::function<void(asio::error_code const&)> handler)
+HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 {
     uint32_t seq = mApp.getLedgerManager().getLedgerNum();
     if (seq != nextCheckpointLedger(seq))
@@ -482,37 +513,141 @@ HistoryManagerImpl::maybePublishHistory(
         return false;
     }
 
-    publishHistory(handler);
+    queueCurrentHistory();
     return true;
 }
 
 void
-HistoryManagerImpl::publishHistory(
+HistoryManagerImpl::queueCurrentHistory()
+{
+    auto has = getLastClosedHistoryArchiveState();
+
+    auto ledger = has.currentLedger;
+    CLOG(DEBUG, "History")
+        << "Queueing publish state for ledger " << ledger;
+    auto state = has.toString();
+    auto timer = mApp.getDatabase().getInsertTimer("publishqueue");
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "INSERT INTO publishqueue (ledger, state) VALUES (:lg, :st);");
+    auto& st = prep.statement();
+    st.exchange(soci::use(ledger));
+    st.exchange(soci::use(state));
+    st.define_and_bind();
+    st.execute(true);
+
+    // We have now written the current HAS to the database, so
+    // it's "safe" to crash (at least after the enclosing tx commits);
+    // but that HAS might have merges running and if we throw it
+    // away at this point we'll lose the merges and have to restart
+    // them. So instead we're going to insert the HAS we have in hand
+    // into the in-memory publish queue in order to preserve those
+    // merges-in-progress, avoid restarting them.
+
+    takeSnapshotAndQueue(has, [](asio::error_code const&){});
+}
+
+void
+HistoryManagerImpl::takeSnapshotAndQueue(
+    HistoryArchiveState const& has,
+    std::function<void(asio::error_code const&)> handler)
+{
+    mPublishQueue.Mark();
+    auto ledgerSeq = has.currentLedger;
+
+    CLOG(DEBUG, "History")
+        << "Activating publish for ledger " << ledgerSeq;
+
+    auto snap = PublishStateMachine::takeSnapshot(mApp, has);
+    if (mPublish->queueSnapshot(
+            snap,
+            [this, ledgerSeq, handler](asio::error_code const& ec)
+            {
+                if (ec)
+                {
+                    this->mPublishFailure.Mark();
+                }
+                else
+                {
+                    this->mPublishSuccess.Mark();
+                    this->historyPublished(ledgerSeq);
+                }
+                handler(ec);
+            }))
+    {
+        // Only bump this counter if there's a delay building up.
+        mPublishDelay.Mark();
+    }
+}
+
+size_t
+HistoryManagerImpl::publishQueuedHistory(
     std::function<void(asio::error_code const&)> handler)
 {
     if (!mPublish)
     {
         mPublish = make_unique<PublishStateMachine>(mApp);
     }
-    mPublishQueue.Mark();
-    auto snap = PublishStateMachine::takeSnapshot(mApp);
-    if (mPublish->queueSnapshot(snap,
-                                [this, handler](asio::error_code const& ec)
-                                {
-                                    if (ec)
-                                    {
-                                        this->mPublishFailure.Mark();
-                                    }
-                                    else
-                                    {
-                                        this->mPublishSuccess.Mark();
-                                    }
-                                    handler(ec);
-                                }))
+
+    // Don't re-queue anything already queued.
+    uint32_t maxLedger = mPublish->maxQueuedSnapshotLedger();
+    std::string state;
+
+    CLOG(TRACE, "History")
+        << "Max active publish " << maxLedger;
+
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT state FROM publishqueue"
+        " WHERE ledger > :maxLedger ORDER BY ledger ASC;");
+    auto& st = prep.statement();
+    st.exchange(soci::use(maxLedger));
+    st.exchange(soci::into(state));
+    st.define_and_bind();
+    st.execute(true);
+    size_t count = 0;
+    while (st.got_data())
     {
-        // Only bump this counter if there's a delay building up.
-        mPublishDelay.Mark();
+        ++count;
+        HistoryArchiveState has;
+        has.fromString(state);
+        takeSnapshotAndQueue(has, handler);
+        st.fetch();
     }
+    return count;
+}
+
+std::vector<std::string>
+HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
+{
+    std::vector<std::string> buckets;
+    std::string state;
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT state FROM publishqueue;");
+    auto& st = prep.statement();
+    st.exchange(soci::into(state));
+    st.define_and_bind();
+    st.execute(true);
+    auto& bm = mApp.getBucketManager();
+    while (st.got_data())
+    {
+        HistoryArchiveState has;
+        has.fromString(state);
+        auto bs = bm.checkForMissingBucketsFiles(has);
+        buckets.insert(buckets.end(), bs.begin(), bs.end());
+        st.fetch();
+    }
+    return buckets;
+}
+
+void
+HistoryManagerImpl::historyPublished(uint32_t ledgerSeq)
+{
+    auto timer = mApp.getDatabase().getDeleteTimer("publishqueue");
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "DELETE FROM publishqueue WHERE ledger = :lg;");
+    auto& st = prep.statement();
+    st.exchange(soci::use(ledgerSeq));
+    st.define_and_bind();
+    st.execute(true);
 }
 
 void

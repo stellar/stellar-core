@@ -326,6 +326,7 @@ FutureBucket::makeLive(Application& app)
         for (auto const& h : mInputShadowBucketHashes)
         {
             auto b = bm.getBucketByHash(hexToBin256(h));
+            assert(b);
             CLOG(DEBUG, "Bucket") << "Reconstituting shadow " << h;
             mInputShadowBuckets.push_back(b);
         }
