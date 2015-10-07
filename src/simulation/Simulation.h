@@ -43,7 +43,7 @@ class Simulation : public LoadGenerator
     VirtualClock& getClock();
 
     NodeID addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                   Config::pointer cfg = std::shared_ptr<Config>());
+                   Config const* cfg = nullptr);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
