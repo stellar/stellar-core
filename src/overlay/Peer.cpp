@@ -94,6 +94,8 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewTimer({"overlay", "recv", "scp-qset"}))
     , mRecvSCPMessageTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
+    , mRecvGetSCPStateTimer(
+        app.getMetrics().NewTimer({ "overlay", "recv", "get-scp-state" }))
 
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
@@ -115,6 +117,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "send", "transaction"}, "message"))
     , mSendGetSCPQuorumSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "get-scp-qset"}, "message"))
+    , mSendGetSCPStateMeter(app.getMetrics().NewMeter(
+          {"overlay", "send", "get-scp-state"}, "message"))
     , mSendSCPQuorumSetMeter(app.getMetrics().NewMeter(
           {"overlay", "send", "scp-qset"}, "message"))
     , mDropInConnectHandlerMeter(app.getMetrics().NewMeter(
@@ -345,6 +349,19 @@ Peer::sendGetPeers()
 }
 
 void
+Peer::sendGetScpState(uint32 ledgerSeq)
+{
+    CLOG(TRACE, "Overlay") << "Get SCP State for " << ledgerSeq;
+
+    StellarMessage newMsg;
+    newMsg.type(GET_SCP_STATE);
+    newMsg.getSCPLedgerSeq() = ledgerSeq;
+
+    sendMessage(newMsg);
+    mSendGetSCPStateMeter.Mark();
+}
+
+void
 Peer::sendPeers()
 {
     // send top 50 peers we know about
@@ -570,6 +587,13 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         recvSCPMessage(stellarMsg);
     }
     break;
+
+    case GET_SCP_STATE:
+    {
+        auto t = mRecvGetSCPStateTimer.TimeScope();
+        recvGetSCPState(stellarMsg);
+    }
+    break;
     }
 }
 
@@ -650,7 +674,7 @@ Peer::recvSCPQuorumSet(StellarMessage const& msg)
 void
 Peer::recvSCPMessage(StellarMessage const& msg)
 {
-    SCPEnvelope envelope = msg.envelope();
+    SCPEnvelope const& envelope = msg.envelope();
     CLOG(TRACE, "Overlay") << "recvSCPMessage node: "
                            << PubKeyUtils::toShortString(
                                   msg.envelope().statement.nodeID);
@@ -658,6 +682,14 @@ Peer::recvSCPMessage(StellarMessage const& msg)
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
 
     mApp.getHerder().recvSCPEnvelope(envelope);
+}
+
+void
+Peer::recvGetSCPState(StellarMessage const& msg)
+{
+    uint32 seq = msg.getSCPLedgerSeq();
+    CLOG(TRACE, "Overlay") << "get SCP State " << seq;
+    mApp.getHerder().sendSCPStateToPeer(seq, shared_from_this());
 }
 
 void
@@ -836,19 +868,23 @@ Peer::recvAuth(StellarMessage const& msg)
     noteHandshakeSuccessInPeerRecord();
     mState = GOT_AUTH;
 
+    auto self = shared_from_this();
     if (mRole == REMOTE_CALLED_US)
     {
         sendAuth();
         sendPeers();
     }
 
-    if (!mApp.getOverlayManager().isPeerAccepted(shared_from_this()))
+    if (!mApp.getOverlayManager().isPeerAccepted(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
         mDropInRecvAuthRejectMeter.Mark();
         drop(ERR_LOAD, "peer rejected");
         return;
     }
+
+    // send SCP State
+    mApp.getHerder().sendSCPStateToPeer(0, self);
 }
 
 void

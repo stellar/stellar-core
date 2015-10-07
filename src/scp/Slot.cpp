@@ -36,20 +36,53 @@ Slot::getLatestCompositeCandidate()
 }
 
 std::vector<SCPEnvelope>
-Slot::getLatestMessages() const
+Slot::getLatestMessagesSend() const
 {
     std::vector<SCPEnvelope> res;
     SCPEnvelope* e;
-    e = mNominationProtocol.getLastMessage();
+    e = mNominationProtocol.getLastMessageSend();
     if (e)
     {
         res.emplace_back(*e);
     }
-    e = mBallotProtocol.getLastMessage();
+    e = mBallotProtocol.getLastMessageSend();
     if (e)
     {
         res.emplace_back(*e);
     }
+    return res;
+}
+
+void
+Slot::setStateFromEnvelope(SCPEnvelope const& e)
+{
+    if (e.statement.nodeID == getSCP().getLocalNodeID() &&
+        e.statement.slotIndex == mSlotIndex)
+    {
+        if (e.statement.pledges.type() ==
+            SCPStatementType::SCP_ST_NOMINATE)
+        {
+            mNominationProtocol.setStateFromEnvelope(e);
+        }
+        else
+        {
+            mBallotProtocol.setStateFromEnvelope(e);
+        }
+    }
+    else
+    {
+        CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
+            << " i: " << getSlotIndex() << " " << envToStr(e);
+    }
+}
+
+std::vector<SCPEnvelope>
+Slot::getCurrentState() const
+{
+    std::vector<SCPEnvelope> res;
+    res = mNominationProtocol.getCurrentState();
+    auto r2 = mBallotProtocol.getCurrentState();
+    res.insert(res.end(), r2.begin(), r2.end());
     return res;
 }
 
@@ -88,7 +121,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
 
         dumpInfo(info);
 
-        CLOG(DEBUG, "SCP") << "Exception in processEnvelope "
+        CLOG(ERROR, "SCP") << "Exception in processEnvelope "
                            << "state: " << info.toStyledString()
                            << " processing envelope: " << envToStr(envelope);
 
@@ -322,12 +355,11 @@ Slot::envToStr(SCPStatement const& st) const
 
 bool
 Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                      std::map<NodeID, SCPStatement> const& statements)
+                      std::map<NodeID, SCPEnvelope> const& envs)
 {
     // Checks if the nodes that claimed to accept the statement form a
     // v-blocking set
-    if (LocalNode::isVBlocking(getLocalNode()->getQuorumSet(), statements,
-                               accepted))
+    if (LocalNode::isVBlocking(getLocalNode()->getQuorumSet(), envs, accepted))
     {
         return true;
     }
@@ -343,7 +375,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
     };
 
     if (LocalNode::isQuorum(
-            getLocalNode()->getQuorumSet(), statements,
+            getLocalNode()->getQuorumSet(), envs,
             std::bind(&Slot::getQuorumSetFromStatement, this, _1),
             ratifyFilter))
     {
@@ -355,10 +387,10 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
 bool
 Slot::federatedRatify(StatementPredicate voted,
-                      std::map<NodeID, SCPStatement> const& statements)
+                      std::map<NodeID, SCPEnvelope> const& envs)
 {
     return LocalNode::isQuorum(
-        getLocalNode()->getQuorumSet(), statements,
+        getLocalNode()->getQuorumSet(), envs,
         std::bind(&Slot::getQuorumSetFromStatement, this, _1), voted);
 }
 

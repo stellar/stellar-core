@@ -30,7 +30,7 @@ Simulation::Simulation(Mode mode, Hash const& networkID)
                               : VirtualClock::VIRTUAL_TIME)
     , mMode(mode)
     , mConfigCount(0)
-    , mIdleApp(Application::create(mClock, getTestConfig(++mConfigCount)))
+    , mIdleApp(Application::create(mClock, getTestConfig(mConfigCount++)))
 {
 }
 
@@ -52,24 +52,27 @@ Simulation::getClock()
 
 NodeID
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                    Config::pointer cfg)
+                    Config const* cfg2)
 {
-    if (!cfg)
+    std::shared_ptr<Config> cfg;
+    if (!cfg2)
     {
-        cfg = std::make_shared<Config>(getTestConfig(++mConfigCount));
+        cfg = std::make_shared<Config>(getTestConfig(mConfigCount++));
+        cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+    }
+    else
+    {
+        cfg = std::make_shared<Config>(*cfg2);
     }
     cfg->NODE_SEED = nodeKey;
     cfg->QUORUM_SET = qSet;
-    cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
-    cfg->ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
 
     Application::pointer result = Application::create(clock, *cfg);
 
     NodeID nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
-    updateMinBalance(*result);
 
     return nodeID;
 }
@@ -143,6 +146,7 @@ Simulation::startAllNodes()
     for (auto const& it : mNodes)
     {
         it.second->start();
+        updateMinBalance(*it.second);
     }
 
     for (auto const& pair : mPendingConnections)
@@ -278,7 +282,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
             done = true;
         else
         {
-            checkTimer.expires_from_now(chrono::seconds(5));
+            checkTimer.expires_from_now(chrono::seconds(1));
             checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
         }
     };
@@ -291,7 +295,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
         },
         &VirtualTimer::onFailureNoop);
 
-    checkTimer.expires_from_now(chrono::seconds(5));
+    checkTimer.expires_from_now(chrono::seconds(1));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
 
     for (;;)

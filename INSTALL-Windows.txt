@@ -21,14 +21,21 @@ Build Dependencies
 
 
 - In order to compile xdrc and run the binary you will need to either
-       * Download and install mingw from http://sourceforge.net/projects/mingw/files/
-          * * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
-          Note: while MinGW is a much smaller install than Cygwin, it's not kept up to date
-          and tends to have virtual memory address space conflict on modern versions of Windows.
-          You will run into errors like `Couldn't reserve space for mingw's heap, Win32 error 0`
+       * Download and install MinGW from http://sourceforge.net/projects/mingw/files/
+          * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
        * Download and install cygwin from https://cygwin.com/install.html
           * Get cygwin setup to install `Flex` and `Bison`
           * Add `c:\cygwin64\bin` to the end of `%PATH%`
+          Note: if you're going to use 'cp'and 'mkdir' from cygwin (tests do),
+                make sure that your install is correct by trying to copy a
+                file from a `cmd.exe` console (not from a cygwin terminal).
+                `cp in.txt out.txt` and then try to open *out.txt* with
+                notepad. You should not get a permission denied error.
+    Note: both MinGW and CygWin may run into virtual memory address space
+    conflicts on modern versions of Windows. You will run into errors like
+    `Couldn't reserve space for mingw's heap, Win32 error 0`.
+    A workaround is to reboot until you can run `bison.exe` from a cmd.exe
+    prompt.
 
 - For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
 

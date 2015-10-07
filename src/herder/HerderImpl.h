@@ -48,6 +48,9 @@ class HerderImpl : public Herder, public SCPDriver
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
 
+    // restores SCP state based on the last messages saved on disk
+    void restoreSCPState() override;
+
     // SCP methods
 
     void signEnvelope(SCPEnvelope& envelope) override;
@@ -88,6 +91,8 @@ class HerderImpl : public Herder, public SCPDriver
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
     void recvSCPEnvelope(SCPEnvelope const& envelope) override;
+
+    void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
     void recvTxSet(Hash hash, const TxSetFrame& txset) override;
@@ -188,6 +193,9 @@ class HerderImpl : public Herder, public SCPDriver
 
     // timer that detects that we're stuck on an SCP slot
     VirtualTimer mTrackingTimer;
+
+    // saves the SCP messages that the instance sent out last
+    void persistSCPState();
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into

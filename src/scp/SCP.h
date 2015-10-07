@@ -88,15 +88,22 @@ class SCP
     size_t getKnownSlotsCount() const;
     size_t getCumulativeStatemtCount() const;
 
-    // returns the latest messages for the given slot
-    std::vector<SCPEnvelope> getLatestMessages(uint64 slotIndex);
+    // returns the latest messages sent for the given slot
+    std::vector<SCPEnvelope> getLatestMessagesSend(uint64 slotIndex);
+
+    // forces the state to match the one in the envelope
+    // this is used when rebuilding the state after a crash for example
+    void setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e);
+
+    // returns all messages for the slot
+    std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
 
   protected:
     std::shared_ptr<LocalNode> mLocalNode;
     std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
 
     // Slot getter
-    std::shared_ptr<Slot> getSlot(uint64 slotIndex);
+    std::shared_ptr<Slot> getSlot(uint64 slotIndex, bool create);
 
     friend class TestSCP;
 };

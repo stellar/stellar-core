@@ -19,10 +19,10 @@ class NominationProtocol
     Slot& mSlot;
 
     int32 mRoundNumber;
-    std::set<Value> mVotes;                            // X
-    std::set<Value> mAccepted;                         // Y
-    std::set<Value> mCandidates;                       // Z
-    std::map<NodeID, SCPStatement> mLatestNominations; // N
+    std::set<Value> mVotes;                           // X
+    std::set<Value> mAccepted;                        // Y
+    std::set<Value> mCandidates;                      // Z
+    std::map<NodeID, SCPEnvelope> mLatestNominations; // N
 
     std::unique_ptr<SCPEnvelope>
         mLastEnvelope; // last envelope emitted by this node
@@ -54,7 +54,7 @@ class NominationProtocol
 
     bool isSane(SCPStatement const& st);
 
-    void recordStatement(SCPStatement const& st);
+    void recordEnvelope(SCPEnvelope const& env);
 
     void emitNomination();
 
@@ -102,9 +102,13 @@ class NominationProtocol
     void dumpInfo(Json::Value& ret);
 
     SCPEnvelope*
-    getLastMessage() const
+    getLastMessageSend() const
     {
         return mLastEnvelope.get();
     }
+
+    void setStateFromEnvelope(SCPEnvelope const& e);
+
+    std::vector<SCPEnvelope> getCurrentState() const;
 };
 }

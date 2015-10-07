@@ -75,6 +75,9 @@ class Herder
 
     virtual void bootstrap() = 0;
 
+    // restores SCP state based on the last messages saved on disk
+    virtual void restoreSCPState() = 0;
+
     virtual void recvSCPQuorumSet(Hash hash, SCPQuorumSet const& qset) = 0;
     virtual void recvTxSet(Hash hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
@@ -86,6 +89,9 @@ class Herder
 
     // We are learning about a new envelope.
     virtual void recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
+
+    // a peer needs our SCP state
+    virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state

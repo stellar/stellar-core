@@ -43,7 +43,7 @@ class Simulation : public LoadGenerator
     VirtualClock& getClock();
 
     NodeID addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                   Config::pointer cfg = std::shared_ptr<Config>());
+                   Config const* cfg = nullptr);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
@@ -74,8 +74,8 @@ class Simulation : public LoadGenerator
     bool loadAccount(AccountInfo& account);
     std::string metricsSummary(std::string domain = "");
 
-  private:
     void addConnection(NodeID initiator, NodeID acceptor);
+  private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
 

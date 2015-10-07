@@ -21,6 +21,7 @@
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
+#include "scp/LocalNode.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -226,7 +227,13 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    mOverlayManager->start();
+    if (mConfig.NODE_IS_VALIDATOR &&
+        !LocalNode::isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
+                                    mConfig.QUORUM_SET))
+    {
+        throw std::invalid_argument(
+            "Invalid QUORUM_SET: bad threshold or validator is not a member");
+    }
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
         "true")
@@ -239,6 +246,9 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            // restores the SCP state before starting overlay
+            mHerder->restoreSCPState();
+            mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory(
                 [](asio::error_code const&){});
             if (npub != 0)

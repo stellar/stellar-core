@@ -30,7 +30,7 @@
  *    TRANSACTION and SCP_MESSAGE
  *
  *  - Two-way anycast messages requesting a value (by hash) or providing it:
- *    GET_TX_SET, TX_SET, GET_SCP_QUORUMSET, SCP_QUORUMSET
+ *    GET_TX_SET, TX_SET, GET_SCP_QUORUMSET, SCP_QUORUMSET, GET_SCP_STATE
  *
  * Anycasts are initiated and serviced two instances of ItemFetcher
  * (mTxSetFetcher and mQuorumSetFetcher). Anycast messages are sent to

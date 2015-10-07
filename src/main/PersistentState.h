@@ -21,6 +21,7 @@ class PersistentState
         kHistoryArchiveState,
         kForceSCPOnNextLaunch,
         kDatabaseInitialized,
+        kLastSCPData,
         kLastEntry
     };
 

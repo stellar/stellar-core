@@ -70,7 +70,14 @@ class Slot : public std::enable_shared_from_this<Slot>
     Value const& getLatestCompositeCandidate();
 
     // returns the latest messages the slot emited
-    std::vector<SCPEnvelope> getLatestMessages() const;
+    std::vector<SCPEnvelope> getLatestMessagesSend() const;
+
+    // forces the state to match the one in the envelope
+    // this is used when rebuilding the state after a crash for example
+    void setStateFromEnvelope(SCPEnvelope const& e);
+
+    // returns the latest messages known for this slot
+    std::vector<SCPEnvelope> getCurrentState() const;
 
     // records the statement in the historical record for this slot
     void recordStatement(SCPStatement const& st);
@@ -133,11 +140,11 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns true if the statement defined by voted and accepted
     // should be accepted
     bool federatedAccept(StatementPredicate voted, StatementPredicate accepted,
-                         std::map<NodeID, SCPStatement> const& statements);
+                         std::map<NodeID, SCPEnvelope> const& envs);
     // returns true if the statement defined by voted
     // is ratified
     bool federatedRatify(StatementPredicate voted,
-                         std::map<NodeID, SCPStatement> const& statements);
+                         std::map<NodeID, SCPEnvelope> const& envs);
 
     std::shared_ptr<LocalNode> getLocalNode();
 

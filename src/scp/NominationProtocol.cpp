@@ -40,7 +40,7 @@ NominationProtocol::isNewerStatement(NodeID const& nodeID,
     }
     else
     {
-        res = isNewerStatement(oldp->second.pledges.nominate(), st);
+        res = isNewerStatement(oldp->second.statement.pledges.nominate(), st);
     }
     return res;
 }
@@ -112,24 +112,28 @@ NominationProtocol::isSane(SCPStatement const& st)
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
 
+    res = res && LocalNode::isQuorumSetSane(
+                     st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+
     return res;
 }
 
 // only called after a call to isNewerStatement so safe to replace the
 // mLatestNomination
 void
-NominationProtocol::recordStatement(SCPStatement const& st)
+NominationProtocol::recordEnvelope(SCPEnvelope const& env)
 {
+    auto const& st = env.statement;
     auto oldp = mLatestNominations.find(st.nodeID);
     if (oldp == mLatestNominations.end())
     {
-        mLatestNominations.insert(std::make_pair(st.nodeID, st));
+        mLatestNominations.insert(std::make_pair(st.nodeID, env));
     }
     else
     {
-        oldp->second = st;
+        oldp->second = env;
     }
-    mSlot.recordStatement(st);
+    mSlot.recordStatement(env.statement);
 }
 
 void
@@ -303,7 +307,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
     {
         if (isSane(st))
         {
-            recordStatement(st);
+            recordEnvelope(envelope);
             res = SCP::EnvelopeState::VALID;
 
             if (mNominationStarted)
@@ -373,7 +377,7 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     }
                 }
 
-                // only take round leader votes if we still looking for
+                // only take round leader votes if we're still looking for
                 // candidates
                 if (mCandidates.empty() &&
                     mRoundLeaders.find(st.nodeID) != mRoundLeaders.end())
@@ -403,6 +407,11 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     mSlot.bumpState(mLatestCompositeCandidate, false);
                 }
             }
+        }
+        else
+        {
+            CLOG(DEBUG, "SCP")
+                << "NominationProtocol: message didn't pass sanity check";
         }
     }
     return res;
@@ -455,8 +464,8 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
             auto it = mLatestNominations.find(leader);
             if (it != mLatestNominations.end())
             {
-                nominatingValue =
-                    getNewValueFromNomination(it->second.pledges.nominate());
+                nominatingValue = getNewValueFromNomination(
+                    it->second.statement.pledges.nominate());
                 if (!nominatingValue.empty())
                 {
                     mVotes.insert(nominatingValue);
@@ -529,5 +538,37 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     }
 
     ret["nomination"].append(nomState);
+}
+
+void
+NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
+{
+    if (mNominationStarted)
+    {
+        throw std::runtime_error("Cannot set state after nomination is started");
+    }
+    recordEnvelope(e);
+    auto const& nom = e.statement.pledges.nominate();
+    for(auto const& a : nom.accepted)
+    {
+        mAccepted.emplace(a);
+    }
+    for (auto const& v : nom.votes)
+    {
+        mVotes.emplace(v);
+    }
+
+    mLastEnvelope = make_unique<SCPEnvelope>(e);
+}
+
+std::vector<SCPEnvelope>
+NominationProtocol::getCurrentState() const
+{
+    std::vector<SCPEnvelope> res;
+    for (auto it : mLatestNominations)
+    {
+        res.emplace_back(it.second);
+    }
+    return res;
 }
 }

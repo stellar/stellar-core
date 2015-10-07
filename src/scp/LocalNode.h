@@ -31,11 +31,16 @@ class LocalNode
 
     SCP* mSCP;
 
+    // first: nodeID found, second: quorum set well formed
+    static std::pair<bool,bool> isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSet);
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
               SCPQuorumSet const& qSet, SCP* scp);
 
     NodeID const& getNodeID();
+
+    // returns if a nodeID's quorum set passes sanity checks
+    static bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 
@@ -70,7 +75,7 @@ class LocalNode
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.
     static bool isVBlocking(SCPQuorumSet const& qSet,
-                            std::map<NodeID, SCPStatement> const& map,
+                            std::map<NodeID, SCPEnvelope> const& map,
                             std::function<bool(SCPStatement const&)> const&
                                 filter = [](SCPStatement const&)
                             {
@@ -83,8 +88,7 @@ class LocalNode
     // SCPQuorumSetPtr from the SCPStatement for its associated node in map
     // (required for transitivity)
     static bool
-    isQuorum(SCPQuorumSet const& qSet,
-             std::map<NodeID, SCPStatement> const& map,
+    isQuorum(SCPQuorumSet const& qSet, std::map<NodeID, SCPEnvelope> const& map,
              std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
              std::function<bool(SCPStatement const&)> const& filter =
                  [](SCPStatement const&)
