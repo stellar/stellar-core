@@ -34,8 +34,8 @@ class TestSCP : public SCPDriver
   public:
     SCP mSCP;
 
-    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal)
-        : mSCP(*this, secretKey, true, qSetLocal)
+    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal, bool isValidator=true)
+        : mSCP(*this, secretKey, isValidator, qSetLocal)
     {
         mPriorityLookup = [&](NodeID const& n)
         {
@@ -432,6 +432,30 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(prepared1);
         REQUIRE(scp.mEnvs.size() == 3);
     };
+
+    SECTION("non validator watching the network")
+    {
+        SIMULATION_CREATE_NODE(NV);
+        TestSCP scpNV(vNVSecretKey, qSet, false);
+        scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+
+        SCPBallot b(1, xValue);
+        REQUIRE(scpNV.bumpState(0, xValue));
+        REQUIRE(scpNV.mEnvs.size() == 1);
+        verifyPrepare(scpNV.mEnvs[0], vNVSecretKey, qSetHash, 0, b);
+        auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
+        auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
+        auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
+        auto ext4 = makeExternalize(v4SecretKey, qSetHash, 0, b, 1);
+        scpNV.receiveEnvelope(ext1);
+        scpNV.receiveEnvelope(ext2);
+        scpNV.receiveEnvelope(ext3);
+        REQUIRE(scpNV.mEnvs.size() == 2);
+        verifyConfirm(scpNV.mEnvs[1], vNVSecretKey, qSetHash, 0, 1, b, 1);
+        scpNV.receiveEnvelope(ext4);
+        REQUIRE(scpNV.mEnvs.size() == 3);
+        verifyExternalize(scpNV.mEnvs[2], vNVSecretKey, qSetHash, 0, b, b.counter);
+    }
 
     SECTION("bumpState x")
     {

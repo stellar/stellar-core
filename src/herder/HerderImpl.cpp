@@ -1373,6 +1373,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
+bool
+HerderImpl::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
+{
+    return mSCP.getLocalNode()->isQuorumSetSane(nodeID, qSet);
+}
+
 // Extra SCP methods overridden solely to increment metrics.
 void
 HerderImpl::updatedCandidateValue(uint64 slotIndex, Value const& value)

@@ -40,7 +40,7 @@ class LocalNode
     NodeID const& getNodeID();
 
     // returns if a nodeID's quorum set passes sanity checks
-    static bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
+    bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 
