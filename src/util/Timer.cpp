@@ -234,7 +234,6 @@ VirtualClock::crank(bool block)
     size_t nWorkDone = 0;
 
     nWorkDone += mIOService.poll();
-    noteCrankOccurred(nWorkDone == 0);
 
     if (mMode == REAL_TIME)
     {
@@ -256,6 +255,8 @@ VirtualClock::crank(bool block)
     {
         nWorkDone += mIOService.run_one();
     }
+
+    noteCrankOccurred(nWorkDone == 0);
 
     return nWorkDone;
 }
