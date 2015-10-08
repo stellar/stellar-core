@@ -103,7 +103,7 @@ BucketManagerImpl::getBucketDir()
             std::ifstream lockfile(lock);
             std::string pidStr;
             lockfile >> pidStr;
-            auto pid = stoi(pidStr);
+            auto pid = stol(pidStr);
             if (pid == self)
             {
                 CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock
