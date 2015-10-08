@@ -70,7 +70,9 @@ bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
     auto res = isQuorumSetSaneInternal(nodeID, qSet);
-    return res.first && res.second;
+    // it's OK for a non validating node to not have itself in its quorum set
+    return (res.first || (!mIsValidator && nodeID == mNodeID)) &&
+        res.second;
 }
 
 void

@@ -109,6 +109,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
+    bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet) override;
+
     void dumpInfo(Json::Value& ret) override;
 
     struct TxMap

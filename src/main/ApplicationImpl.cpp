@@ -228,7 +228,7 @@ ApplicationImpl::start()
         throw std::invalid_argument("Quorum not configured");
     }
     if (mConfig.NODE_IS_VALIDATOR &&
-        !LocalNode::isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
+        !mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
                                     mConfig.QUORUM_SET))
     {
         throw std::invalid_argument(
