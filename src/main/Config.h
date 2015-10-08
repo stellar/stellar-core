@@ -91,7 +91,11 @@ class Config : public std::enable_shared_from_this<Config>
     bool UNSAFE_QUORUM;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
-    uint32_t OVERLAY_PROTOCOL_VERSION;
+
+    // note: all versions in the range
+    // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
+    uint32_t OVERLAY_PROTOCOL_MIN_VERSION; // min overlay version understood
+    uint32_t OVERLAY_PROTOCOL_VERSION;     // max overlay version understood
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
     std::string TMP_DIR_PATH;
