@@ -11,8 +11,10 @@
 #include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include <regex>
+#include <algorithm>
 
 #define SECONDS_PER_BACKOFF 10
+#define MAX_BACKOFF_EXPONENT 10
 
 namespace stellar
 {
@@ -271,7 +273,7 @@ PeerRecord::storePeerRecord(Database& db)
         auto prep = db.getPreparedStatement("UPDATE peers SET "
                                             "nextattempt = :v1, "
                                             "numfailures = :v2 "
-                                            "WHERE ip = :v4 AND port = :v5");
+                                            "WHERE ip = :v3 AND port = :v4");
         auto& st = prep.statement();
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
@@ -304,12 +306,23 @@ PeerRecord::backOff(VirtualClock& clock)
 {
     mNumFailures++;
 
-    auto nsecs = std::chrono::seconds(
-        static_cast<int64_t>(std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
-    mNextAttempt = clock.now() + nsecs;
+    auto nsecs = computeBackoff(clock);
+
     CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
                            << " backoff, set nextAttempt at "
                            << "+" << nsecs.count() << " secs";
+}
+
+std::chrono::seconds
+PeerRecord::computeBackoff(VirtualClock& clock)
+{
+    uint32 backoffCount = std::min<uint32>(MAX_BACKOFF_EXPONENT, mNumFailures);
+
+    auto nsecs = std::chrono::seconds(
+        std::rand() % (static_cast<uint32>(std::pow(2, backoffCount) *
+                                           SECONDS_PER_BACKOFF)));
+    mNextAttempt = clock.now() + nsecs;
+    return nsecs;
 }
 
 string
