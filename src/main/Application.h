@@ -156,6 +156,8 @@ class Application
     // (derived from the state of other modules
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
+    virtual std::string getExtraStateInfo() const = 0;
+    virtual void setExtraStateInfo(std::string const& stateStr) = 0;
     virtual bool isStopping() const = 0;
 
     // Get the external VirtualClock to which this Application is bound.
