@@ -6,6 +6,7 @@
 
 #include "util/asio.h"
 #include <memory>
+#include "TCPPeer.h"
 
 /*
 listens for peer connections.
@@ -24,7 +25,7 @@ class PeerDoor
     asio::ip::tcp::acceptor mAcceptor;
 
     virtual void acceptNextPeer();
-    virtual void handleKnock(std::shared_ptr<asio::ip::tcp::socket> pSocket);
+    virtual void handleKnock(std::shared_ptr<TCPPeer::SocketType> pSocket);
 
     friend PeerDoorStub;
 

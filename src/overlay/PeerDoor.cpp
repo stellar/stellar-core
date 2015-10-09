@@ -62,7 +62,7 @@ PeerDoor::acceptNextPeer()
     }
 
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
-    auto sock = make_shared<tcp::socket>(mApp.getClock().getIOService());
+    auto sock = make_shared<TCPPeer::SocketType>(mApp.getClock().getIOService());
     mAcceptor.async_accept(*sock, [this, sock](asio::error_code const& ec)
                            {
                                if (ec)
@@ -73,7 +73,7 @@ PeerDoor::acceptNextPeer()
 }
 
 void
-PeerDoor::handleKnock(shared_ptr<tcp::socket> socket)
+PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
     CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock() @"
                            << mApp.getConfig().PEER_PORT;

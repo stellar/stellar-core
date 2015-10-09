@@ -30,7 +30,7 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
-                 std::shared_ptr<asio::ip::tcp::socket> socket)
+                 std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role), mSocket(socket)
 {
 }
@@ -41,7 +41,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << ip << ":" << port;
     auto socket =
-        make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
+        make_shared<SocketType>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
@@ -56,7 +56,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 }
 
 TCPPeer::pointer
-TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
+TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
     shared_ptr<TCPPeer> result;
     asio::error_code ec;
