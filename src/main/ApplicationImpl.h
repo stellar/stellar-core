@@ -41,6 +41,8 @@ class ApplicationImpl : public Application
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
+    virtual std::string getExtraStateInfo() const override;
+    virtual void setExtraStateInfo(std::string const& stateStr) override;
     virtual bool isStopping() const override;
     virtual VirtualClock& getClock() override;
     virtual medida::MetricsRegistry& getMetrics() override;
@@ -129,6 +131,8 @@ class ApplicationImpl : public Application
     medida::Counter& mAppStateCurrent;
     medida::Timer& mAppStateChanges;
     VirtualClock::time_point mLastStateChange;
+
+    std::string mExtraStateInfo;
 
     Hash mNetworkID;
 

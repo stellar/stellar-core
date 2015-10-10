@@ -129,6 +129,10 @@ LedgerManagerImpl::setState(State s)
         mApp.syncOwnMetrics();
         CLOG(INFO, "Ledger") << "Changing state " << oldState << " -> "
                              << getStateHuman();
+        if(mState != LM_CATCHING_UP_STATE)
+        { 
+            mApp.setExtraStateInfo(std::string());
+        }
     }
 }
 
@@ -353,10 +357,14 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
         else
         {
             // Out of sync, buffer what we just heard and start catchup.
-            CLOG(INFO, "Ledger") << "Lost sync, local LCL is "
+            std::stringstream stateStr;
+            stateStr << "Lost sync, local LCL is "
                                  << mLastClosedLedger.header.ledgerSeq
                                  << ", network closed ledger "
                                  << ledgerData.mLedgerSeq;
+
+            CLOG(INFO, "Ledger") << stateStr.str();
+            mApp.setExtraStateInfo(stateStr.str());
 
             assert(mSyncingLedgers.size() == 0);
             mSyncingLedgers.push_back(ledgerData);
@@ -383,18 +391,29 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                            mApp.getHistoryManager().nextCheckpointCatchupProbe(
                                mSyncingLedgers.front().mLedgerSeq);
 
-            CLOG(INFO, "Ledger") << "Catchup awaiting checkpoint"
+            std::stringstream stateStr;
+
+            stateStr << "Catchup awaiting checkpoint"
                                  << " (ETA: " << (now > eta ? 0 : (eta - now))
                                  << " seconds), buffering close of ledger "
                                  << ledgerData.mLedgerSeq;
+
+             CLOG(INFO, "Ledger") << stateStr.str();
+             mApp.setExtraStateInfo(stateStr.str());
+
         }
         else
         {
             // Out-of-order close while catching up; timeout / network failure?
-            CLOG(INFO, "Ledger")
+            std::stringstream stateStr;
+            stateStr
                 << "Out-of-order close during catchup, buffered to "
                 << mSyncingLedgers.back().mLedgerSeq << " but network closed "
                 << ledgerData.mLedgerSeq;
+
+            CLOG(INFO, "Ledger") << stateStr.str();
+            mApp.setExtraStateInfo(stateStr.str());
+
             CLOG(WARNING, "Ledger") << "this round of catchup will fail.";
         }
         break;
