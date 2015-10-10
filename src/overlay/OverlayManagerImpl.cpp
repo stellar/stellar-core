@@ -176,6 +176,12 @@ OverlayManagerImpl::connectToMorePeers(int max)
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
+            // see if we can get current information from the peer table
+            auto prFromDB = PeerRecord::loadPeerRecord(mApp.getDatabase(), pr.mIP, pr.mPort);
+            if (prFromDB)
+            {
+                pr = *prFromDB;
+            }
             peers.push_back(pr);
         }
     }
@@ -189,6 +195,10 @@ OverlayManagerImpl::connectToMorePeers(int max)
 
     for (auto& pr : peers)
     {
+        if (pr.mNextAttempt > mApp.getClock().now())
+        {
+            continue;
+        }
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
