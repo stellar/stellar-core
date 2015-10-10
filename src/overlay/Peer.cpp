@@ -465,7 +465,7 @@ Peer::sendMessage(StellarMessage const& msg)
 
     AuthenticatedMessage amsg;
     amsg.v0().message = msg;
-    if (msg.type() != HELLO)
+    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
     {
         amsg.v0().sequence = mSendMacSeq;
         amsg.v0().mac =
@@ -518,7 +518,7 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(AuthenticatedMessage const& msg)
 {
-    if (mState >= GOT_HELLO)
+    if (mState >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
     {
         if (msg.v0().sequence != mRecvMacSeq)
         {
@@ -530,8 +530,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         }
 
         if (!hmacSha256Verify(
-                msg.v0().mac, mRecvMacKey,
-                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
+            msg.v0().mac, mRecvMacKey,
+            xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             mDropInRecvMessageMacMeter.Mark();
@@ -539,7 +539,6 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
             drop(ERR_AUTH, "unexpected MAC");
             return;
         }
-
         ++mRecvMacSeq;
     }
     recvMessage(msg.v0().message);
