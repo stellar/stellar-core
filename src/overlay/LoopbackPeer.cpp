@@ -24,7 +24,7 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
-    : Peer(app, role), mRemote(nullptr)
+    : Peer(app, role)
 {
 }
 
@@ -78,10 +78,10 @@ LoopbackPeer::drop()
                  {
                      self->getApp().getOverlayManager().dropPeer(self);
                  });
-    if (mRemote)
+    auto remote = mRemote.lock();
+    if (remote)
     {
-        auto remote = mRemote;
-        mRemote->mStrand.post([remote]()
+        remote->mStrand.post([remote]()
                               {
                                   remote->drop();
                               });
@@ -123,7 +123,7 @@ void
 LoopbackPeer::deliverOne()
 {
     // CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
-    if (!mRemote)
+    if (mRemote.expired())
     {
         throw std::runtime_error("LoopbackPeer missing target");
     }
@@ -173,7 +173,7 @@ LoopbackPeer::deliverOne()
         // Pass ownership of a serialized XDR message buffer to a recvMesage
         // callback event against the remote Peer, posted on the remote
         // Peer's io_service.
-        auto remote = mRemote;
+        auto remote = mRemote.lock();
         auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
         remote->mStrand.post([remote, m]()
                              {

@@ -24,7 +24,7 @@ namespace stellar
 class LoopbackPeer : public Peer
 {
   private:
-    std::shared_ptr<LoopbackPeer> mRemote;
+    std::weak_ptr<LoopbackPeer> mRemote;
     std::deque<xdr::msg_ptr> mQueue;
 
     bool mCorked{false};
