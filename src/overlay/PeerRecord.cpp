@@ -156,8 +156,9 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 {
     try
     {
-        tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
+        tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
+        tm nextAttempt;
         uint32_t lport;
         auto prep = db.getPreparedStatement(
             "SELECT ip, port, nextattempt, numfailures "
@@ -165,22 +166,23 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
             "WHERE nextattempt <= :nextattempt "
             "ORDER BY nextattempt ASC, numfailures ASC limit :max ");
         auto& st = prep.statement();
-        st.exchange(use(tm));
+        st.exchange(use(nextAttemptMax));
         st.exchange(use(max));
         st.exchange(into(pr.mIP));
         st.exchange(into(lport));
-        st.exchange(into(tm));
+        st.exchange(into(nextAttempt));
         st.exchange(into(pr.mNumFailures));
         st.define_and_bind();
         {
             auto timer = db.getSelectTimer("peer");
-            st.execute();
+            st.execute(true);
         }
-        while (st.fetch())
+        while (st.got_data())
         {
             pr.mPort = static_cast<unsigned short>(lport);
-            pr.mNextAttempt = VirtualClock::tmToPoint(tm);
+            pr.mNextAttempt = VirtualClock::tmToPoint(nextAttempt);
             retList.push_back(pr);
+            st.fetch();
         }
     }
     catch (soci_error& err)
