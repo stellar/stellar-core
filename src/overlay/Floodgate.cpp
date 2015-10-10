@@ -97,7 +97,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     // send it to people that haven't sent it to us
     std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
 
-    auto& peers = mApp.getOverlayManager().getPeers();
+    // make a copy, in case peers gets modified
+    std::vector<Peer::pointer> peers(mApp.getOverlayManager().getPeers());
 
     for (auto peer : peers)
     {
