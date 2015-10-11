@@ -296,11 +296,10 @@ Peer::drop(ErrorCode err, std::string const& msg)
     m.error().code = err;
     m.error().msg = msg;
     sendMessage(m);
-    auto self = shared_from_this();
-    mStrand.post([self]()
-                 {
-                     self->drop();
-                 });
+    // note: this used to be a post which caused delays in stopping
+    // to process read messages.
+    // this has no effect wrt the sending queue.
+    drop();
 }
 
 void
