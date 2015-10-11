@@ -47,14 +47,11 @@ command line option (see above). Most commands return their results in JSON form
   Triggers the instance to catch up to ledger NNN from history;
   Mode is either 'minimal' (the default, if omitted) or 'complete'.
 
-* **checkpoint**
-  Triggers the instance to write an immediate history checkpoint.
-
 * **checkdb**
   Triggers the instance to perform a background check of the database's state.
 
 * **checkpoint**
-  Forces uploading a history checkpoint to the archive.
+  Triggers the instance to write an immediate history checkpoint. And uploads it to the archive.
 
 * **connect**
   `/connect?peer=NAME&port=NNN`<br>
