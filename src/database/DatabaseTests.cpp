@@ -326,3 +326,15 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
 }
 
 #endif
+
+TEST_CASE("schema test", "[db]")
+{
+    Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
+
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
+    auto& db = app->getDatabase();
+    auto dbv = db.getDBSchemaVersion();
+    auto av = db.getAppSchemaVersion();
+    REQUIRE(dbv == av);
+}

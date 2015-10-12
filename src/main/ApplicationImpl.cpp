@@ -102,6 +102,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mConfig.FORCE_SCP = true;
     }
 
+    mDatabase->upgradeToCurrentSchema();
+
     mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
     mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
