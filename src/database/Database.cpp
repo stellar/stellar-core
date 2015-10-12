@@ -45,6 +45,8 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
+static unsigned long const SCHEMA_VERSION = 1;
+
 static void
 setSerializable(soci::session& sess)
 {
@@ -85,6 +87,77 @@ Database::Database(Application& app)
     {
         setSerializable(mSession);
     }
+}
+
+static void
+applySchemaUpgrade(Database& db, unsigned long vers)
+{
+    switch (vers)
+    {
+    case SCHEMA_VERSION:
+        break;
+
+    default:
+        throw std::runtime_error("Unknown DB schema version");
+        break;
+    }
+}
+
+void
+Database::upgradeToCurrentSchema()
+{
+    auto vers = getDBSchemaVersion();
+    if (vers > SCHEMA_VERSION)
+    {
+        std::string s = ("DB schema version "
+                         + std::to_string(vers)
+                         + " is newer than application schema "
+                         + std::to_string(SCHEMA_VERSION));
+        throw std::runtime_error(s);
+    }
+    while (vers < SCHEMA_VERSION)
+    {
+        ++vers;
+        CLOG(INFO, "Database")
+            << "Applying DB schema upgrade to version "
+            << vers;
+        applySchemaUpgrade(*this, vers);
+    }
+    assert(vers == SCHEMA_VERSION);
+    putSchemaVersion(SCHEMA_VERSION);
+}
+
+void
+Database::putSchemaVersion(unsigned long vers)
+{
+    mApp.getPersistentState().setState(PersistentState::kDatabaseSchema,
+                                       std::to_string(vers));
+}
+
+unsigned long
+Database::getDBSchemaVersion()
+{
+    auto vstr = mApp.getPersistentState().getState(
+        PersistentState::kDatabaseSchema);
+    unsigned long vers = 0;
+    try
+    {
+        vers = std::stoul(vstr);
+    }
+    catch (...)
+    {
+    }
+    if (vers == 0)
+    {
+        throw std::runtime_error("No DB schema version found, try --newdb");
+    }
+    return vers;
+}
+
+unsigned long
+Database::getAppSchemaVersion()
+{
+    return SCHEMA_VERSION;
 }
 
 medida::TimerContext
@@ -172,6 +245,7 @@ Database::initialize()
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     BucketManager::dropAll(mApp);
+    putSchemaVersion(SCHEMA_VERSION);
 }
 
 soci::session&

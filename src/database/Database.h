@@ -168,6 +168,18 @@ class Database : NonMovableOrCopyable
     // by the --newdb command-line flag on stellar-core.
     void initialize();
 
+    // Save `vers` as schema version.
+    void putSchemaVersion(unsigned long vers);
+
+    // Get current schema version in DB.
+    unsigned long getDBSchemaVersion();
+
+    // Get current schema version of running application.
+    unsigned long getAppSchemaVersion();
+
+    // Check schema version and apply any upgrades if necessary.
+    void upgradeToCurrentSchema();
+
     // Access the underlying SOCI session object
     soci::session& getSession();
 
