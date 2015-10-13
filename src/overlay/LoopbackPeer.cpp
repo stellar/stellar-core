@@ -50,9 +50,9 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     }
 
     // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
-    mQueue.emplace_back(std::move(msg));
+    mOutQueue.emplace_back(std::move(msg));
     // Possibly flush some queued messages if queue's full.
-    while (mQueue.size() > mMaxQueueDepth && !mCorked)
+    while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
     {
         deliverOne();
     }
@@ -128,10 +128,10 @@ LoopbackPeer::deliverOne()
         throw std::runtime_error("LoopbackPeer missing target");
     }
 
-    if (!mQueue.empty() && !mCorked)
+    if (!mOutQueue.empty() && !mCorked)
     {
-        xdr::msg_ptr msg = std::move(mQueue.front());
-        mQueue.pop_front();
+        xdr::msg_ptr msg = std::move(mOutQueue.front());
+        mOutQueue.pop_front();
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
 
@@ -139,16 +139,16 @@ LoopbackPeer::deliverOne()
         if (mDuplicateProb(mGenerator))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
-            mQueue.emplace_front(std::move(duplicateMessage(msg)));
+            mOutQueue.emplace_front(std::move(duplicateMessage(msg)));
             mStats.messagesDuplicated++;
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(mGenerator) && mQueue.size() > 0)
+        if (mReorderProb(mGenerator) && mOutQueue.size() > 0)
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
-            mQueue.emplace_back(std::move(msg));
+            mOutQueue.emplace_back(std::move(msg));
             return;
         }
 
@@ -192,7 +192,7 @@ LoopbackPeer::deliverOne()
 void
 LoopbackPeer::deliverAll()
 {
-    while (!mQueue.empty() && !mCorked)
+    while (!mOutQueue.empty() && !mCorked)
     {
         deliverOne();
     }
@@ -201,14 +201,14 @@ LoopbackPeer::deliverAll()
 void
 LoopbackPeer::dropAll()
 {
-    mQueue.clear();
+    mOutQueue.clear();
 }
 
 size_t
 LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
-    for (auto const& m : mQueue)
+    for (auto const& m : mOutQueue)
     {
         t += m->raw_size();
     }
@@ -218,7 +218,7 @@ LoopbackPeer::getBytesQueued() const
 size_t
 LoopbackPeer::getMessagesQueued() const
 {
-    return mQueue.size();
+    return mOutQueue.size();
 }
 
 LoopbackPeer::Stats const&

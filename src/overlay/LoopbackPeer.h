@@ -25,7 +25,7 @@ class LoopbackPeer : public Peer
 {
   private:
     std::weak_ptr<LoopbackPeer> mRemote;
-    std::deque<xdr::msg_ptr> mQueue;
+    std::deque<xdr::msg_ptr> mOutQueue;
 
     bool mCorked{false};
     size_t mMaxQueueDepth{0};
