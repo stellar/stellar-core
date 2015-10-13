@@ -225,7 +225,7 @@ Database::canUsePool() const
 }
 
 void
-Database::initialize()
+Database::clearPreparedStatementCache()
 {
     // Flush all prepared statements; in sqlite they represent open cursors
     // and will conflict with any DROP TABLE commands issued below
@@ -234,7 +234,13 @@ Database::initialize()
         st.second->clean_up(true);
     }
     mStatements.clear();
+    mStatementsSize.set_count(mStatements.size());
+}
 
+void
+Database::initialize()
+{
+    clearPreparedStatementCache();
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);

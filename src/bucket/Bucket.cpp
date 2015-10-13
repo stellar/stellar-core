@@ -26,7 +26,6 @@
 #include "ledger/LedgerDelta.h"
 #include "medida/medida.h"
 #include "lib/util/format.h"
-
 #include <cassert>
 #include <future>
 
@@ -299,6 +298,7 @@ Bucket::apply(Database& db) const
         LedgerDelta delta(lh, db, false);
         if ((i++ & 0xfff) == 0xfff)
         {
+            db.clearPreparedStatementCache();
             db.getSession().commit();
             CLOG(INFO, "Bucket") << "Bucket-apply: committed " << i << " entries";
             db.getSession().begin();

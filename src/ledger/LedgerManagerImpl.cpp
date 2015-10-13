@@ -745,6 +745,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.maybeQueueHistoryCheckpoint();
 
     // step 2
+    mApp.getDatabase().clearPreparedStatementCache();
     txscope.commit();
 
     // step 3
