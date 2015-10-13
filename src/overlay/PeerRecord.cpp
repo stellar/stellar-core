@@ -133,7 +133,8 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     st.exchange(into(tm));
     st.exchange(into(ret->mNumFailures));
     st.exchange(use(ip));
-    st.exchange(use(uint32_t(port)));
+    uint32_t port32(port);
+    st.exchange(use(port32));
     st.define_and_bind();
     {
         auto timer = db.getSelectTimer("peer");
