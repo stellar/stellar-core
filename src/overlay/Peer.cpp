@@ -1084,11 +1084,6 @@ Peer::recvAuth(StellarMessage const& msg)
     mState = GOT_AUTH;
 
     auto self = shared_from_this();
-    if (mRole == REMOTE_CALLED_US)
-    {
-        sendAuth();
-        sendPeers();
-    }
 
     if (!mApp.getOverlayManager().isPeerAccepted(self))
     {
@@ -1096,6 +1091,12 @@ Peer::recvAuth(StellarMessage const& msg)
         mDropInRecvAuthRejectMeter.Mark();
         drop(ERR_LOAD, "peer rejected");
         return;
+    }
+
+    if (mRole == REMOTE_CALLED_US)
+    {
+        sendAuth();
+        sendPeers();
     }
 
     // send SCP State
