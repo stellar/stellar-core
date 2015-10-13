@@ -478,6 +478,11 @@ Peer::sendMessage(StellarMessage const& msg)
 void
 Peer::recvMessage(xdr::msg_ptr const& msg)
 {
+    if (shouldAbort())
+    {
+        return;
+    }
+
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
 
     CLOG(TRACE, "Overlay") << "received xdr::msg_ptr";
@@ -517,6 +522,11 @@ Peer::shouldAbort() const
 void
 Peer::recvMessage(AuthenticatedMessage const& msg)
 {
+    if (shouldAbort())
+    {
+        return;
+    }
+
     if (mState >= GOT_HELLO && msg.v0().message.type() != ERROR_MSG)
     {
         if (msg.v0().sequence != mRecvMacSeq)
@@ -546,6 +556,11 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
 void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
+    if (shouldAbort())
+    {
+        return;
+    }
+
     CLOG(TRACE, "Overlay") << "("
                            << mApp.getConfig().toShortString(
                                   mApp.getConfig().NODE_SEED.getPublicKey())
