@@ -19,6 +19,7 @@
 #include "main/PersistentState.h"
 #include <sodium.h>
 #include "database/Database.h"
+#include "bucket/Bucket.h"
 #include "util/optional.h"
 
 _INITIALIZE_EASYLOGGINGPP
@@ -34,6 +35,7 @@ enum opttag
     OPT_CONF,
     OPT_CONVERTID,
     OPT_DUMPXDR,
+    OPT_LOADXDR,
     OPT_FORCESCP,
     OPT_FUZZ,
     OPT_GENFUZZ,
@@ -53,6 +55,7 @@ static const struct option stellar_core_options[] = {
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
+    {"loadxdr", required_argument, nullptr, OPT_LOADXDR},
     {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
     {"fuzz", required_argument, nullptr, OPT_FUZZ},
     {"genfuzz", required_argument, nullptr, OPT_GENFUZZ},
@@ -79,6 +82,7 @@ usage(int err = 1)
           "default 'stellar-core.cfg')\n"
           "      --convertid ID  Displays ID in all known forms\n"
           "      --dumpxdr FILE  To dump an XDR file, for debugging\n"
+          "      --loadxdr FILE  To load an XDR bucket file, for testing\n"
           "      --forcescp      Next time stellar-core is run, SCP will start "
           "with the local ledger rather than waiting to hear from the "
           "network.\n"
@@ -191,6 +195,24 @@ showInfo(Config const& cfg)
 }
 
 void
+loadXdr(Config const& cfg, std::string const& bucketFile)
+{
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg);
+    if (checkInitialized(app))
+    {
+        uint256 zero;
+        Bucket bucket(bucketFile, zero);
+        bucket.setRetain(true);
+        bucket.apply(app->getDatabase());
+    }
+    else
+    {
+        LOG(INFO) << "Database is not initialized";
+    }
+}
+
+void
 initializeDatabase(Config& cfg)
 {
     VirtualClock clock;
@@ -280,6 +302,7 @@ main(int argc, char* const* argv)
     optional<bool> forceSCP = nullptr;
     bool newDB = false;
     bool getInfo = false;
+    std::string loadXdrBucket = "";
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
 
@@ -302,6 +325,9 @@ main(int argc, char* const* argv)
         case OPT_DUMPXDR:
             dumpxdr(std::string(optarg));
             return 0;
+        case OPT_LOADXDR:
+            loadXdrBucket = std::string(optarg);
+            break;
         case OPT_FORCESCP:
             forceSCP = make_optional<bool>(optarg == nullptr ||
                                            string(optarg) == "true");
@@ -384,7 +410,7 @@ main(int argc, char* const* argv)
         cfg.REBUILD_DB = newDB;
         cfg.REPORT_METRICS = metrics;
 
-        if (forceSCP || newDB || getInfo)
+        if (forceSCP || newDB || getInfo || !loadXdrBucket.empty())
         {
             setNoListen(cfg);
             if (newDB)
@@ -393,6 +419,8 @@ main(int argc, char* const* argv)
                 setForceSCPFlag(cfg, *forceSCP);
             if (getInfo)
                 showInfo(cfg);
+            if (!loadXdrBucket.empty())
+                loadXdr(cfg, loadXdrBucket);
             return 0;
         }
         else if (!newHistories.empty())
