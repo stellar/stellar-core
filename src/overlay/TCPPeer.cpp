@@ -58,12 +58,25 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 TCPPeer::pointer
 TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
 {
-    CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-                           << "@" << app.getConfig().PEER_PORT;
-    auto result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
-    result->mIP = socket->remote_endpoint().address().to_string();
-    result->startIdleTimer();
-    result->startRead();
+    shared_ptr<TCPPeer> result;
+    asio::error_code ec;
+    auto ep = socket->remote_endpoint(ec);
+    if (!ec)
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
+            << "@" << app.getConfig().PEER_PORT;
+        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
+        result->mIP = ep.address().to_string();
+        result->startIdleTimer();
+        result->startRead();
+    }
+    else
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
+            << "@" << app.getConfig().PEER_PORT
+            << " error " << ec.message();
+    }
+
     return result;
 }
 
