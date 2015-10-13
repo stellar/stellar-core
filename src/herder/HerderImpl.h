@@ -51,6 +51,11 @@ class HerderImpl : public Herder, public SCPDriver
     // restores SCP state based on the last messages saved on disk
     void restoreSCPState() override;
 
+    SCP&
+    getSCP()
+    {
+        return mSCP; 
+    }
     // SCP methods
 
     void signEnvelope(SCPEnvelope& envelope) override;
