@@ -74,10 +74,8 @@ LoopbackPeer::drop()
     mState = CLOSING;
     mIdleTimer.cancel();
     auto self = shared_from_this();
-    mStrand.post([self]()
-                 {
-                     self->getApp().getOverlayManager().dropPeer(self);
-                 });
+    getApp().getOverlayManager().dropPeer(self);
+
     auto remote = mRemote.lock();
     if (remote)
     {
@@ -117,6 +115,24 @@ duplicateMessage(xdr::msg_ptr const& msg)
     xdr::msg_ptr msg2 = xdr::message_t::alloc(msg->size());
     memcpy(msg2->raw_data(), msg->raw_data(), msg->raw_size());
     return std::move(msg2);
+}
+
+void
+LoopbackPeer::processInQueue()
+{
+    if (!mInQueue.empty() && mState != CLOSING)
+    {
+        auto const& m = mInQueue.front();
+        receivedBytes(m->size(), true);
+        recvMessage(m);
+        mInQueue.pop();
+
+        if (!mInQueue.empty())
+        {
+            auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
+            mStrand.post([self]() { self->processInQueue(); });
+        }
+    }
 }
 
 void
@@ -168,22 +184,26 @@ LoopbackPeer::deliverOne()
             return;
         }
 
-        mStats.bytesDelivered += msg->raw_size();
+        size_t nBytes = msg->raw_size();
+        mStats.bytesDelivered += nBytes;
 
         // Pass ownership of a serialized XDR message buffer to a recvMesage
         // callback event against the remote Peer, posted on the remote
         // Peer's io_service.
         auto remote = mRemote.lock();
-        auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
-        remote->mStrand.post([remote, m]()
-                             {
-                                 remote->receivedBytes((*m)->size(), true);
-                                 remote->recvMessage(std::move(*m));
-                             });
+        if (remote)
+        {
+            // move msg to remote's in queue
+            remote->mInQueue.emplace(std::move(msg));
+            remote->mStrand.post([remote]()
+            {
+                remote->processInQueue();
+            });
+        }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
-        mByteWrite.Mark((*m)->raw_size());
+        mByteWrite.Mark(nBytes);
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }

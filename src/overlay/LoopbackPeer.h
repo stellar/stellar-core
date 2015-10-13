@@ -25,7 +25,8 @@ class LoopbackPeer : public Peer
 {
   private:
     std::weak_ptr<LoopbackPeer> mRemote;
-    std::deque<xdr::msg_ptr> mOutQueue;
+    std::deque<xdr::msg_ptr> mOutQueue; // sending queue
+    std::queue<xdr::msg_ptr> mInQueue; // receiving queue
 
     bool mCorked{false};
     size_t mMaxQueueDepth{0};
@@ -54,6 +55,7 @@ class LoopbackPeer : public Peer
     void sendMessage(xdr::msg_ptr&& xdrBytes);
     AuthCert getAuthCert();
 
+    void processInQueue();
   public:
     virtual ~LoopbackPeer()
     {
