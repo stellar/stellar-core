@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <map>
+#include <deque>
 #include <functional>
 #include "xdr/Stellar-SCP.h"
 #include "overlay/Peer.h"
@@ -46,10 +47,10 @@ class Tracker
     template <class T> friend class ItemFetcher;
     Application& mApp;
     Peer::pointer mLastAskedPeer;
-    std::vector<Peer::pointer> mPeersToAsk;
+    std::deque<Peer::pointer> mPeersToAsk;
     VirtualTimer mTimer;
     bool mIsStopped = false;
-    std::vector<SCPEnvelope> mWaitingEnvelopes;
+    std::vector<std::pair<Hash,SCPEnvelope>> mWaitingEnvelopes;
     uint256 mItemID;
 
     bool clearEnvelopesBelow(uint64 slotIndex);

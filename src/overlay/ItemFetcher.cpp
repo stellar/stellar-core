@@ -9,8 +9,10 @@
 #include "medida/metrics_registry.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/StellarXDR.h"
-#include <crypto/Hex.h>
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "herder/Herder.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -101,7 +103,7 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
 
         while (!waiting.empty())
         {
-            SCPEnvelope env = waiting.back();
+            SCPEnvelope env = waiting.back().second;
             waiting.pop_back();
             mApp.getHerder().recvSCPEnvelope(env);
         }
@@ -120,7 +122,7 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
-        if (iter->statement.slotIndex < slotIndex)
+        if (iter->second.statement.slotIndex < slotIndex)
         {
             iter = mWaitingEnvelopes.erase(iter);
         }
@@ -164,9 +166,32 @@ Tracker::tryNextPeer()
 
     if (mPeersToAsk.empty())
     {
-        mPeersToAsk = mApp.getOverlayManager().getRandomPeers();
+        //
+        std::set<std::shared_ptr<Peer>> peersWithEnvelope;
+        for (auto const& e : mWaitingEnvelopes)
+        {
+            auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
+            peersWithEnvelope.insert(s.begin(), s.end());
+        }
+
+        mPeersToAsk.clear();
+
+        // move the peers that have the envelope to the back,
+        // to be processed first
+        for(auto const& p: mApp.getOverlayManager().getRandomPeers())
+        {
+            if (peersWithEnvelope.find(p) != peersWithEnvelope.end())
+            {
+                mPeersToAsk.emplace_back(p);
+            }
+            else
+            {
+                mPeersToAsk.emplace_front(p);
+            }
+        }
+
         CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
-                              << " reset to #" << mPeersToAsk.size();
+            << " reset to #" << mPeersToAsk.size();
     }
 
     while (!peer && !mPeersToAsk.empty())
@@ -206,7 +231,10 @@ Tracker::tryNextPeer()
 void
 Tracker::listen(const SCPEnvelope& env)
 {
-    mWaitingEnvelopes.push_back(env);
+    StellarMessage m;
+    m.type(SCP_MESSAGE);
+    m.envelope() = env;
+    mWaitingEnvelopes.push_back(std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
 
 void
