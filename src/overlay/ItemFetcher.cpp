@@ -107,6 +107,8 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
             waiting.pop_back();
             mApp.getHerder().recvSCPEnvelope(env);
         }
+        // stop the timer, stop requesting the item as we have it
+        iter->second->mTimer.cancel();
     }
 }
 
@@ -166,7 +168,6 @@ Tracker::tryNextPeer()
 
     if (mPeersToAsk.empty())
     {
-        //
         std::set<std::shared_ptr<Peer>> peersWithEnvelope;
         for (auto const& e : mWaitingEnvelopes)
         {
