@@ -144,6 +144,10 @@ class Database : NonMovableOrCopyable
     // when the statement context is destroyed.
     StatementContext getPreparedStatement(std::string const& query);
 
+    // Purge all cached prepared statements, closing their handles with the
+    // database.
+    void clearPreparedStatementCache();
+
     // Return metric-gathering timers for various families of SQL operation.
     // These timers automatically count the time they are alive for,
     // so only acquire them immediately before executing an SQL statement.
