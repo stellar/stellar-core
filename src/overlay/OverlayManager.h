@@ -109,6 +109,9 @@ class OverlayManager
     // Attempt to connect to a peer identified by peer record.
     virtual void connectTo(PeerRecord& pr) = 0;
 
+    // returns the list of peers that sent us the item with hash `h`
+    virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
+
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
 
