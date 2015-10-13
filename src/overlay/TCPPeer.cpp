@@ -344,7 +344,7 @@ TCPPeer::drop()
     mStrand.post(
         [self]()
         {
-            // Graecfully shut down connection: this pushes a FIN packet into
+            // Gracefully shut down connection: this pushes a FIN packet into
             // TCP which, if we wanted to be really polite about, we would wait
             // for an ACK from by doing repeated reads until we get a 0-read.
             //
