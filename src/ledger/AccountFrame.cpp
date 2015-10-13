@@ -445,19 +445,23 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 
     if (mUpdateSigners)
     {
-        applySigners(db);
+        applySigners(db, insert);
     }
 }
 
 void
-AccountFrame::applySigners(Database& db)
+AccountFrame::applySigners(Database& db, bool insert)
 {
     std::string actIDStrKey = PubKeyUtils::toStrKey(mAccountEntry.accountID);
 
     // generates a diff with the signers stored in the database
 
     // first, load the signers stored in the database for this account
-    auto signers = loadSigners(db, actIDStrKey);
+    std::vector<Signer> signers;
+    if (!insert)
+    {
+        signers = loadSigners(db, actIDStrKey);
+    }
 
     auto it_new = mAccountEntry.signers.begin();
     auto it_old = signers.begin();
