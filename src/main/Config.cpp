@@ -54,7 +54,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     MINIMUM_IDLE_PERCENT = 0;
 
-    MAX_CONCURRENT_SUBPROCESSES = 32;
+    MAX_CONCURRENT_SUBPROCESSES = 16;
     PARANOID_MODE = false;
     NODE_IS_VALIDATOR = false;
 
