@@ -19,7 +19,7 @@ namespace stellar
 class TCPPeer : public Peer
 {
 public:
-    typedef asio::ip::tcp::socket SocketType;
+    typedef asio::buffered_stream<asio::ip::tcp::socket> SocketType;
 private:
     std::string mIP;
     std::shared_ptr<SocketType> mSocket;
@@ -27,6 +27,7 @@ private:
     std::vector<uint8_t> mIncomingBody;
 
     std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
+    bool mWriting{ false };
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
