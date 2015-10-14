@@ -265,6 +265,15 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
     return (((next - ledger) + 5) * ledger_duration.count());
 }
 
+void
+HistoryManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
+{
+    if (mCatchup)
+    {
+        mCatchup->logAndUpdateStatus(contiguous);
+    }
+}
+
 string const&
 HistoryManagerImpl::getTmpDir()
 {

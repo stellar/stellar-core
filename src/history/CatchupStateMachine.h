@@ -170,6 +170,8 @@ class CatchupStateMachine
             void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
                  LedgerHeaderHistoryEntry const& lastClosed)> handler);
 
+    void logAndUpdateStatus(bool contiguous);
+
     void begin();
 
     static const std::chrono::seconds SLEEP_SECONDS_PER_LEDGER;

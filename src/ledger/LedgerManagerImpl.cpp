@@ -379,44 +379,32 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
         break;
 
     case LedgerManager::LM_CATCHING_UP_STATE:
-        if (mSyncingLedgers.empty() ||
-            mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq)
+    {
+        bool contiguous =
+            (mSyncingLedgers.empty() ||
+             mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq);
+
+        if (contiguous)
         {
             // Normal close while catching up
             mSyncingLedgers.push_back(ledgerData);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-
-            uint64_t now = mApp.timeNow();
-            uint64_t eta = mSyncingLedgers.front().mValue.closeTime +
-                           mApp.getHistoryManager().nextCheckpointCatchupProbe(
-                               mSyncingLedgers.front().mLedgerSeq);
-
-            std::stringstream stateStr;
-
-            stateStr << "Catchup awaiting checkpoint"
-                                 << " (ETA: " << (now > eta ? 0 : (eta - now))
-                                 << " seconds), buffering close of ledger "
-                                 << ledgerData.mLedgerSeq;
-
-             CLOG(INFO, "Ledger") << stateStr.str();
-             mApp.setExtraStateInfo(stateStr.str());
-
         }
         else
         {
             // Out-of-order close while catching up; timeout / network failure?
-            std::stringstream stateStr;
-            stateStr
+            CLOG(WARNING, "Ledger")
                 << "Out-of-order close during catchup, buffered to "
                 << mSyncingLedgers.back().mLedgerSeq << " but network closed "
                 << ledgerData.mLedgerSeq;
 
-            CLOG(INFO, "Ledger") << stateStr.str();
-            mApp.setExtraStateInfo(stateStr.str());
-
-            CLOG(WARNING, "Ledger") << "this round of catchup will fail.";
+            CLOG(WARNING, "Ledger")
+                << "this round of catchup will fail and restart.";
         }
-        break;
+
+        mApp.getHistoryManager().logAndUpdateCatchupStatus(contiguous);
+    }
+    break;
 
     default:
         assert(false);

@@ -47,6 +47,8 @@ class HistoryManagerImpl : public HistoryManager
     uint32_t nextCheckpointLedger(uint32_t ledger) override;
     uint64_t nextCheckpointCatchupProbe(uint32_t ledger) override;
 
+    void logAndUpdateCatchupStatus(bool contiguous) override;
+
     void verifyHash(
         std::string const& filename, uint256 const& hash,
         std::function<void(asio::error_code const&)> handler) const override;

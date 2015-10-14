@@ -83,6 +83,113 @@ CatchupStateMachine::begin()
     enterBeginState();
 }
 
+void
+CatchupStateMachine::logAndUpdateStatus(bool contiguous)
+{
+    std::stringstream stateStr;
+    stateStr << "Catchup mode";
+
+    switch (mMode)
+    {
+    case HistoryManager::CATCHUP_MINIMAL:
+        stateStr << " 'minimal'";
+        break;
+    case HistoryManager::CATCHUP_COMPLETE:
+        stateStr << " 'complete'";
+        break;
+    case HistoryManager::CATCHUP_BUCKET_REPAIR:
+        stateStr << " 'bucket-repair'";
+        break;
+    default:
+        break;
+    }
+
+    switch (mState)
+    {
+    case CATCHUP_BEGIN:
+        stateStr << " beginning";
+        break;
+
+    case CATCHUP_RETRYING:
+    {
+        auto retry = VirtualClock::to_time_t(mRetryTimer.expiry_time());
+        auto now = mApp.timeNow();
+        auto eta = now > retry ? 0 : retry - now;
+        stateStr << " awaiting checkpoint"
+                 << " (ETA: " << eta << " seconds)";
+    }
+    break;
+
+    case CATCHUP_ANCHORED:
+        stateStr << " anchored";
+        break;
+
+    case CATCHUP_FETCHING:
+    {
+        size_t nFiles = mFileInfos.size();
+        size_t nDownloaded = 0;
+        for (auto& pair : mFileInfos)
+        {
+            if (pair.second->getState() >= FILE_CATCHUP_DOWNLOADED)
+            {
+                ++nDownloaded;
+            }
+        }
+        stateStr << ", downloaded "
+                 << nDownloaded << "/" << nFiles
+                 << " files";
+    }
+    break;
+
+    case CATCHUP_VERIFYING:
+        if (mMode == HistoryManager::CATCHUP_COMPLETE)
+        {
+            // FIXME: give a progress count here, maybe? It usually
+            // runs very quickly, even on huge history. Like disk-speed.
+            stateStr << ", verifying "
+                     << mHeaderInfos.size() << "-ledger history chain";
+        }
+        else
+        {
+            stateStr << ", verifying buckets";
+        }
+        break;
+
+    case CATCHUP_APPLYING:
+        if (mMode == HistoryManager::CATCHUP_COMPLETE)
+        {
+            assert(mApplyState);
+            stateStr << ", applying ledger "
+                     << mApplyState->mCheckpointNumber
+                     << "/"
+                     << (mHeaderInfos.empty() ? 0 :
+                         mHeaderInfos.rbegin()->first);
+        }
+        else if (mMode == HistoryManager::CATCHUP_MINIMAL)
+        {
+            assert(mApplyState);
+            stateStr << ", appying bucket level "
+                     << mApplyState->mBucketLevel;
+        }
+        break;
+
+    case CATCHUP_END:
+        stateStr << ", finished";
+        break;
+
+    default:
+        break;
+    }
+
+    if (!contiguous)
+    {
+        stateStr << " (discontiguous, will restart)";
+    }
+    CLOG(INFO, "History") << stateStr.str();
+    mApp.setExtraStateInfo(stateStr.str());
+}
+
+
 /**
  * Select any readable history archive. If there are more than one,
  * select one at random.
@@ -805,6 +912,7 @@ CatchupStateMachine::advanceApplyingState()
     assert(mState == CATCHUP_APPLYING);
     assert(mApplyState);
     bool keepGoing = true;
+    logAndUpdateStatus(true);
     try
     {
         if (mMode == HistoryManager::CATCHUP_MINIMAL)
