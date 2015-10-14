@@ -445,6 +445,12 @@ VirtualTimer::cancel()
     }
 }
 
+VirtualClock::time_point const&
+VirtualTimer::expiry_time() const
+{
+    return mExpiryTime;
+}
+
 void
 VirtualTimer::expires_at(VirtualClock::time_point t)
 {
