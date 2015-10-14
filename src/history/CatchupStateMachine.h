@@ -151,8 +151,10 @@ class CatchupStateMachine
     void finishVerifyingState(HistoryManager::VerifyHashStatus status);
 
     struct ApplyState;
+    std::shared_ptr<ApplyState> mApplyState;
+
     void enterApplyingState();
-    void advanceApplyingState(std::shared_ptr<ApplyState>);
+    void advanceApplyingState();
 
     void enterEndState();
 

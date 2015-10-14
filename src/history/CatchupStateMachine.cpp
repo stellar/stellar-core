@@ -34,6 +34,23 @@ const size_t CatchupStateMachine::kRetryLimit = 16;
 const std::chrono::seconds CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER =
     Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1);
 
+// Helper struct that encapsulates the state of ongoing incremental
+// application of either buckets or headers.
+struct CatchupStateMachine::ApplyState
+    : std::enable_shared_from_this<ApplyState>
+{
+    // Variables for CATCHUP_COMPLETE application
+    uint32_t mCheckpointNumber;
+
+    // Variables for CATCHUP_MINIMAL application
+    size_t mBucketLevel{BucketList::kNumLevels - 1};
+    bool mApplyingBuckets{false};
+
+    ApplyState(Application& app)
+    {
+    }
+};
+
 CatchupStateMachine::CatchupStateMachine(
     Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
     HistoryArchiveState localState,
@@ -745,23 +762,6 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
     return HistoryManager::VERIFY_HASH_OK;
 }
 
-// Helper struct that encapsulates the state of ongoing incremental
-// application of either buckets or headers.
-struct CatchupStateMachine::ApplyState
-    : std::enable_shared_from_this<ApplyState>
-{
-    // Variables for CATCHUP_COMPLETE application
-    uint32_t mCheckpointNumber;
-
-    // Variables for CATCHUP_MINIMAL application
-    size_t mBucketLevel{BucketList::kNumLevels - 1};
-    bool mApplyingBuckets{false};
-
-    ApplyState(Application& app)
-    {
-    }
-};
-
 void
 CatchupStateMachine::enterApplyingState()
 {
@@ -769,7 +769,7 @@ CatchupStateMachine::enterApplyingState()
     mState = CATCHUP_APPLYING;
     try
     {
-        std::shared_ptr<ApplyState> state = std::make_shared<ApplyState>(mApp);
+        mApplyState = std::make_shared<ApplyState>(mApp);
         if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             auto& lm = mApp.getLedgerManager();
@@ -777,7 +777,7 @@ CatchupStateMachine::enterApplyingState()
                 << "Replaying contents of " << mHeaderInfos.size()
                 << " transaction-history files from LCL "
                 << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
-            state->mCheckpointNumber =
+            mApplyState->mCheckpointNumber =
                 (mHeaderInfos.empty() ? 0 : mHeaderInfos.begin()->first);
         }
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
@@ -789,7 +789,7 @@ CatchupStateMachine::enterApplyingState()
                 << "mLastClosed bucketListHash: "
                 << hexAbbrev(mLastClosed.header.bucketListHash);
         }
-        advanceApplyingState(state);
+        advanceApplyingState();
     }
     catch (std::runtime_error& e)
     {
@@ -800,9 +800,10 @@ CatchupStateMachine::enterApplyingState()
 }
 
 void
-CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
+CatchupStateMachine::advanceApplyingState()
 {
     assert(mState == CATCHUP_APPLYING);
+    assert(mApplyState);
     bool keepGoing = true;
     try
     {
@@ -810,19 +811,19 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
         {
             // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
             // without any history replay.
-            keepGoing = (state->mBucketLevel != 0);
-            applySingleBucketLevel(state->mApplyingBuckets,
-                                   state->mBucketLevel);
+            keepGoing = (mApplyState->mBucketLevel != 0);
+            applySingleBucketLevel(mApplyState->mApplyingBuckets,
+                                   mApplyState->mBucketLevel);
         }
         else if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
             // HistoryManager's LCL through mNextLedger, without any
             // reconstitution.
-            auto i = mHeaderInfos.find(state->mCheckpointNumber);
+            auto i = mHeaderInfos.find(mApplyState->mCheckpointNumber);
             if (i != mHeaderInfos.end())
             {
-                applyHistoryOfSingleCheckpoint(state->mCheckpointNumber);
+                applyHistoryOfSingleCheckpoint(mApplyState->mCheckpointNumber);
                 ++i;
             }
             if (i == mHeaderInfos.end())
@@ -831,7 +832,7 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
             }
             else
             {
-                state->mCheckpointNumber = i->first;
+                mApplyState->mCheckpointNumber = i->first;
             }
         }
         else
@@ -850,14 +851,14 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
     {
         std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
         mApp.getClock().getIOService().post(
-            [weak, state]()
+            [weak]()
             {
                 auto self = weak.lock();
                 if (!self)
                 {
                     return;
                 }
-                self->advanceApplyingState(state);
+                self->advanceApplyingState();
             });
     }
     else
@@ -1121,6 +1122,7 @@ void
 CatchupStateMachine::enterEndState()
 {
     assert(mState == CATCHUP_APPLYING);
+    mApplyState.reset();
     mState = CATCHUP_END;
     CLOG(DEBUG, "History") << "Completed catchup from '" << mArchive->getName()
                            << "', at nextLedger=" << mNextLedger;
