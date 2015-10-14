@@ -187,6 +187,7 @@ class VirtualTimer : private NonMovableOrCopyable
     VirtualTimer(VirtualClock& app);
     ~VirtualTimer();
 
+    VirtualClock::time_point const& expiry_time() const;
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     template <typename R, typename P>

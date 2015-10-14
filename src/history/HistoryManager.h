@@ -260,6 +260,10 @@ class HistoryManager
     // catchup probe.
     virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
 
+    // Emit a log message and call app.setExtraStateInfo() to
+    // describe current catchup state, given a network ledger-close.
+    virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
+
     // Verify that a file has a given hash.
     virtual void
     verifyHash(std::string const& filename, uint256 const& hash,

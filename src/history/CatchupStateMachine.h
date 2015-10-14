@@ -151,8 +151,10 @@ class CatchupStateMachine
     void finishVerifyingState(HistoryManager::VerifyHashStatus status);
 
     struct ApplyState;
+    std::shared_ptr<ApplyState> mApplyState;
+
     void enterApplyingState();
-    void advanceApplyingState(std::shared_ptr<ApplyState>);
+    void advanceApplyingState();
 
     void enterEndState();
 
@@ -167,6 +169,8 @@ class CatchupStateMachine
         std::function<
             void(asio::error_code const& ec, HistoryManager::CatchupMode mode,
                  LedgerHeaderHistoryEntry const& lastClosed)> handler);
+
+    void logAndUpdateStatus(bool contiguous);
 
     void begin();
 

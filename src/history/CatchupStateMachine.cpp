@@ -34,6 +34,23 @@ const size_t CatchupStateMachine::kRetryLimit = 16;
 const std::chrono::seconds CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER =
     Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1);
 
+// Helper struct that encapsulates the state of ongoing incremental
+// application of either buckets or headers.
+struct CatchupStateMachine::ApplyState
+    : std::enable_shared_from_this<ApplyState>
+{
+    // Variables for CATCHUP_COMPLETE application
+    uint32_t mCheckpointNumber;
+
+    // Variables for CATCHUP_MINIMAL application
+    size_t mBucketLevel{BucketList::kNumLevels - 1};
+    bool mApplyingBuckets{false};
+
+    ApplyState(Application& app)
+    {
+    }
+};
+
 CatchupStateMachine::CatchupStateMachine(
     Application& app, uint32_t initLedger, HistoryManager::CatchupMode mode,
     HistoryArchiveState localState,
@@ -65,6 +82,113 @@ CatchupStateMachine::begin()
     // call it during the constructor.
     enterBeginState();
 }
+
+void
+CatchupStateMachine::logAndUpdateStatus(bool contiguous)
+{
+    std::stringstream stateStr;
+    stateStr << "Catchup mode";
+
+    switch (mMode)
+    {
+    case HistoryManager::CATCHUP_MINIMAL:
+        stateStr << " 'minimal'";
+        break;
+    case HistoryManager::CATCHUP_COMPLETE:
+        stateStr << " 'complete'";
+        break;
+    case HistoryManager::CATCHUP_BUCKET_REPAIR:
+        stateStr << " 'bucket-repair'";
+        break;
+    default:
+        break;
+    }
+
+    switch (mState)
+    {
+    case CATCHUP_BEGIN:
+        stateStr << " beginning";
+        break;
+
+    case CATCHUP_RETRYING:
+    {
+        auto retry = VirtualClock::to_time_t(mRetryTimer.expiry_time());
+        auto now = mApp.timeNow();
+        auto eta = now > retry ? 0 : retry - now;
+        stateStr << " awaiting checkpoint"
+                 << " (ETA: " << eta << " seconds)";
+    }
+    break;
+
+    case CATCHUP_ANCHORED:
+        stateStr << " anchored";
+        break;
+
+    case CATCHUP_FETCHING:
+    {
+        size_t nFiles = mFileInfos.size();
+        size_t nDownloaded = 0;
+        for (auto& pair : mFileInfos)
+        {
+            if (pair.second->getState() >= FILE_CATCHUP_DOWNLOADED)
+            {
+                ++nDownloaded;
+            }
+        }
+        stateStr << ", downloaded "
+                 << nDownloaded << "/" << nFiles
+                 << " files";
+    }
+    break;
+
+    case CATCHUP_VERIFYING:
+        if (mMode == HistoryManager::CATCHUP_COMPLETE)
+        {
+            // FIXME: give a progress count here, maybe? It usually
+            // runs very quickly, even on huge history. Like disk-speed.
+            stateStr << ", verifying "
+                     << mHeaderInfos.size() << "-ledger history chain";
+        }
+        else
+        {
+            stateStr << ", verifying buckets";
+        }
+        break;
+
+    case CATCHUP_APPLYING:
+        if (mMode == HistoryManager::CATCHUP_COMPLETE)
+        {
+            assert(mApplyState);
+            stateStr << ", applying ledger "
+                     << mApplyState->mCheckpointNumber
+                     << "/"
+                     << (mHeaderInfos.empty() ? 0 :
+                         mHeaderInfos.rbegin()->first);
+        }
+        else if (mMode == HistoryManager::CATCHUP_MINIMAL)
+        {
+            assert(mApplyState);
+            stateStr << ", appying bucket level "
+                     << mApplyState->mBucketLevel;
+        }
+        break;
+
+    case CATCHUP_END:
+        stateStr << ", finished";
+        break;
+
+    default:
+        break;
+    }
+
+    if (!contiguous)
+    {
+        stateStr << " (discontiguous, will restart)";
+    }
+    CLOG(INFO, "History") << stateStr.str();
+    mApp.setExtraStateInfo(stateStr.str());
+}
+
 
 /**
  * Select any readable history archive. If there are more than one,
@@ -230,7 +354,7 @@ CatchupStateMachine::advanceFileState(
         else
         {
             fi->setState(FILE_CATCHUP_DOWNLOADING);
-            CLOG(INFO, "History") << "Downloading " << name;
+            CLOG(DEBUG, "History") << "Downloading " << name;
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
                        [weak, name](asio::error_code const& ec)
@@ -254,7 +378,7 @@ CatchupStateMachine::advanceFileState(
     case FILE_CATCHUP_DOWNLOADED:
     {
         fi->setState(FILE_CATCHUP_DECOMPRESSING);
-        CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
+        CLOG(DEBUG, "History") << "Decompressing " << fi->localPath_gz();
         std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
         hm.decompress(
             fi->localPath_gz(), [weak, name](asio::error_code const& ec)
@@ -289,7 +413,7 @@ CatchupStateMachine::advanceFileState(
         }
         else
         {
-            CLOG(INFO, "History") << "Verifying " << name;
+            CLOG(DEBUG, "History") << "Verifying " << name;
             auto filename = fi->localPath_nogz();
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.verifyHash(
@@ -416,9 +540,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
             std::remove(filename_nogz.c_str());
             std::remove(filename_gz.c_str());
-            CLOG(INFO, "History") << "Retrying fetch for " << fi->remoteName()
-                                  << " from archive '" << mArchive->getName()
-                                  << "'";
+            CLOG(DEBUG, "History") << "Retrying fetch for " << fi->remoteName()
+                                   << " from archive '" << mArchive->getName()
+                                   << "'";
             fi->setState(FILE_CATCHUP_NEEDED);
         }
     }
@@ -478,9 +602,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         auto name = fi->baseName_nogz();
         if (mFileInfos.find(name) == mFileInfos.end())
         {
-            CLOG(INFO, "History") << "Starting fetch for " << name
-                                  << " from archive '" << mArchive->getName()
-                                  << "'";
+            CLOG(DEBUG, "History") << "Starting fetch for " << name
+                                   << " from archive '" << mArchive->getName()
+                                   << "'";
             mFileInfos[name] = fi;
         }
     }
@@ -528,7 +652,7 @@ CatchupStateMachine::enterRetryingState(uint64_t nseconds)
             else if (!anchored)
             {
                 CLOG(WARNING, "History")
-                    << "Unable to anchor, restarting catchup";
+                    << "Restarting catchup after failure to anchor";
                 self->enterBeginState();
             }
             else if (!verifying)
@@ -715,9 +839,9 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
     auto hi = i->second;
 
     XDRInputFileStream hdrIn;
-    CLOG(INFO, "History") << "Verifying ledger headers from "
-                          << hi->localPath_nogz() << " starting from ledger "
-                          << LedgerManager::ledgerAbbrev(*prev);
+    CLOG(DEBUG, "History") << "Verifying ledger headers from "
+                           << hi->localPath_nogz() << " starting from ledger "
+                           << LedgerManager::ledgerAbbrev(*prev);
     hdrIn.open(hi->localPath_nogz());
     LedgerHeaderHistoryEntry curr;
     while (hdrIn && hdrIn.readOne(curr))
@@ -745,23 +869,6 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
     return HistoryManager::VERIFY_HASH_OK;
 }
 
-// Helper struct that encapsulates the state of ongoing incremental
-// application of either buckets or headers.
-struct CatchupStateMachine::ApplyState
-    : std::enable_shared_from_this<ApplyState>
-{
-    // Variables for CATCHUP_COMPLETE application
-    uint32_t mCheckpointNumber;
-
-    // Variables for CATCHUP_MINIMAL application
-    size_t mBucketLevel{BucketList::kNumLevels - 1};
-    bool mApplyingBuckets{false};
-
-    ApplyState(Application& app)
-    {
-    }
-};
-
 void
 CatchupStateMachine::enterApplyingState()
 {
@@ -769,27 +876,27 @@ CatchupStateMachine::enterApplyingState()
     mState = CATCHUP_APPLYING;
     try
     {
-        std::shared_ptr<ApplyState> state = std::make_shared<ApplyState>(mApp);
+        mApplyState = std::make_shared<ApplyState>(mApp);
         if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             auto& lm = mApp.getLedgerManager();
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "Replaying contents of " << mHeaderInfos.size()
                 << " transaction-history files from LCL "
                 << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
-            state->mCheckpointNumber =
+            mApplyState->mCheckpointNumber =
                 (mHeaderInfos.empty() ? 0 : mHeaderInfos.begin()->first);
         }
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "Archive bucketListHash: "
                 << hexAbbrev(mArchiveState.getBucketListHash());
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "mLastClosed bucketListHash: "
                 << hexAbbrev(mLastClosed.header.bucketListHash);
         }
-        advanceApplyingState(state);
+        advanceApplyingState();
     }
     catch (std::runtime_error& e)
     {
@@ -800,29 +907,31 @@ CatchupStateMachine::enterApplyingState()
 }
 
 void
-CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
+CatchupStateMachine::advanceApplyingState()
 {
     assert(mState == CATCHUP_APPLYING);
+    assert(mApplyState);
     bool keepGoing = true;
+    logAndUpdateStatus(true);
     try
     {
         if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
             // In CATCHUP_MINIMAL mode we're applying the _state_ at mLastClosed
             // without any history replay.
-            keepGoing = (state->mBucketLevel != 0);
-            applySingleBucketLevel(state->mApplyingBuckets,
-                                   state->mBucketLevel);
+            keepGoing = (mApplyState->mBucketLevel != 0);
+            applySingleBucketLevel(mApplyState->mApplyingBuckets,
+                                   mApplyState->mBucketLevel);
         }
         else if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             // In CATCHUP_COMPLETE mode we're applying the _log_ of history from
             // HistoryManager's LCL through mNextLedger, without any
             // reconstitution.
-            auto i = mHeaderInfos.find(state->mCheckpointNumber);
+            auto i = mHeaderInfos.find(mApplyState->mCheckpointNumber);
             if (i != mHeaderInfos.end())
             {
-                applyHistoryOfSingleCheckpoint(state->mCheckpointNumber);
+                applyHistoryOfSingleCheckpoint(mApplyState->mCheckpointNumber);
                 ++i;
             }
             if (i == mHeaderInfos.end())
@@ -831,7 +940,7 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
             }
             else
             {
-                state->mCheckpointNumber = i->first;
+                mApplyState->mCheckpointNumber = i->first;
             }
         }
         else
@@ -850,14 +959,14 @@ CatchupStateMachine::advanceApplyingState(std::shared_ptr<ApplyState> state)
     {
         std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
         mApp.getClock().getIOService().post(
-            [weak, state]()
+            [weak]()
             {
                 auto self = weak.lock();
                 if (!self)
                 {
                     return;
                 }
-                self->advanceApplyingState(state);
+                self->advanceApplyingState();
             });
     }
     else
@@ -903,8 +1012,8 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getBucketManager().getBucketList();
 
-    CLOG(INFO, "History") << "Applying buckets for level " << n << " at ledger "
-                          << mLastClosed.header.ledgerSeq;
+    CLOG(DEBUG, "History") << "Applying buckets for level " << n << " at ledger "
+                           << mLastClosed.header.ledgerSeq;
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
     // CATCHUP_VERIFY phase; we now need to check that the BucketListHash we're
@@ -998,10 +1107,10 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
     XDRInputFileStream hdrIn;
     XDRInputFileStream txIn;
 
-    CLOG(INFO, "History") << "Replaying ledger headers from "
-                          << hi->localPath_nogz();
-    CLOG(INFO, "History") << "Replaying transactions from "
-                          << ti->localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying ledger headers from "
+                           << hi->localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying transactions from "
+                           << ti->localPath_nogz();
 
     hdrIn.open(hi->localPath_nogz());
     txIn.open(ti->localPath_nogz());
@@ -1121,6 +1230,7 @@ void
 CatchupStateMachine::enterEndState()
 {
     assert(mState == CATCHUP_APPLYING);
+    mApplyState.reset();
     mState = CATCHUP_END;
     CLOG(DEBUG, "History") << "Completed catchup from '" << mArchive->getName()
                            << "', at nextLedger=" << mNextLedger;
