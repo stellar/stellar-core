@@ -50,7 +50,18 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     socket->next_layer().async_connect(
         endpoint, result->mStrand.wrap([result](asio::error_code const& error)
                                        {
-                                           result->connectHandler(error);
+                                           asio::error_code ec;
+                                           if (!error)
+                                           {
+                                               asio::ip::tcp::no_delay nodelay(true);
+                                               result->mSocket->next_layer().set_option(nodelay, ec);
+                                           }
+                                           else
+                                           {
+                                               ec = error;
+                                           }
+
+                                           result->connectHandler(ec);
                                        }));
     return result;
 }
@@ -61,6 +72,12 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     shared_ptr<TCPPeer> result;
     asio::error_code ec;
     auto ep = socket->next_layer().remote_endpoint(ec);
+    if (!ec)
+    {
+        asio::ip::tcp::no_delay nodelay(true);
+        socket->next_layer().set_option(nodelay, ec);
+    }
+
     if (!ec)
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
