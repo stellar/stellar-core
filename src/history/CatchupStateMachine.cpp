@@ -545,7 +545,7 @@ CatchupStateMachine::enterRetryingState(uint64_t nseconds)
             else if (!anchored)
             {
                 CLOG(WARNING, "History")
-                    << "Unable to anchor, restarting catchup";
+                    << "Restarting catchup after failure to anchor";
                 self->enterBeginState();
             }
             else if (!verifying)
