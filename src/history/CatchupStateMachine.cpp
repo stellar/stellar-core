@@ -230,7 +230,7 @@ CatchupStateMachine::advanceFileState(
         else
         {
             fi->setState(FILE_CATCHUP_DOWNLOADING);
-            CLOG(INFO, "History") << "Downloading " << name;
+            CLOG(DEBUG, "History") << "Downloading " << name;
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.getFile(mArchive, fi->remoteName(), fi->localPath_gz(),
                        [weak, name](asio::error_code const& ec)
@@ -254,7 +254,7 @@ CatchupStateMachine::advanceFileState(
     case FILE_CATCHUP_DOWNLOADED:
     {
         fi->setState(FILE_CATCHUP_DECOMPRESSING);
-        CLOG(INFO, "History") << "Decompressing " << fi->localPath_gz();
+        CLOG(DEBUG, "History") << "Decompressing " << fi->localPath_gz();
         std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
         hm.decompress(
             fi->localPath_gz(), [weak, name](asio::error_code const& ec)
@@ -289,7 +289,7 @@ CatchupStateMachine::advanceFileState(
         }
         else
         {
-            CLOG(INFO, "History") << "Verifying " << name;
+            CLOG(DEBUG, "History") << "Verifying " << name;
             auto filename = fi->localPath_nogz();
             std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
             hm.verifyHash(
@@ -416,9 +416,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
 
             std::remove(filename_nogz.c_str());
             std::remove(filename_gz.c_str());
-            CLOG(INFO, "History") << "Retrying fetch for " << fi->remoteName()
-                                  << " from archive '" << mArchive->getName()
-                                  << "'";
+            CLOG(DEBUG, "History") << "Retrying fetch for " << fi->remoteName()
+                                   << " from archive '" << mArchive->getName()
+                                   << "'";
             fi->setState(FILE_CATCHUP_NEEDED);
         }
     }
@@ -478,9 +478,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
         auto name = fi->baseName_nogz();
         if (mFileInfos.find(name) == mFileInfos.end())
         {
-            CLOG(INFO, "History") << "Starting fetch for " << name
-                                  << " from archive '" << mArchive->getName()
-                                  << "'";
+            CLOG(DEBUG, "History") << "Starting fetch for " << name
+                                   << " from archive '" << mArchive->getName()
+                                   << "'";
             mFileInfos[name] = fi;
         }
     }
@@ -715,9 +715,9 @@ CatchupStateMachine::verifyHistoryOfSingleCheckpoint(
     auto hi = i->second;
 
     XDRInputFileStream hdrIn;
-    CLOG(INFO, "History") << "Verifying ledger headers from "
-                          << hi->localPath_nogz() << " starting from ledger "
-                          << LedgerManager::ledgerAbbrev(*prev);
+    CLOG(DEBUG, "History") << "Verifying ledger headers from "
+                           << hi->localPath_nogz() << " starting from ledger "
+                           << LedgerManager::ledgerAbbrev(*prev);
     hdrIn.open(hi->localPath_nogz());
     LedgerHeaderHistoryEntry curr;
     while (hdrIn && hdrIn.readOne(curr))
@@ -773,7 +773,7 @@ CatchupStateMachine::enterApplyingState()
         if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             auto& lm = mApp.getLedgerManager();
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "Replaying contents of " << mHeaderInfos.size()
                 << " transaction-history files from LCL "
                 << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
@@ -782,10 +782,10 @@ CatchupStateMachine::enterApplyingState()
         }
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "Archive bucketListHash: "
                 << hexAbbrev(mArchiveState.getBucketListHash());
-            CLOG(INFO, "History")
+            CLOG(DEBUG, "History")
                 << "mLastClosed bucketListHash: "
                 << hexAbbrev(mLastClosed.header.bucketListHash);
         }
@@ -903,8 +903,8 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getBucketManager().getBucketList();
 
-    CLOG(INFO, "History") << "Applying buckets for level " << n << " at ledger "
-                          << mLastClosed.header.ledgerSeq;
+    CLOG(DEBUG, "History") << "Applying buckets for level " << n << " at ledger "
+                           << mLastClosed.header.ledgerSeq;
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
     // CATCHUP_VERIFY phase; we now need to check that the BucketListHash we're
@@ -998,10 +998,10 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
     XDRInputFileStream hdrIn;
     XDRInputFileStream txIn;
 
-    CLOG(INFO, "History") << "Replaying ledger headers from "
-                          << hi->localPath_nogz();
-    CLOG(INFO, "History") << "Replaying transactions from "
-                          << ti->localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying ledger headers from "
+                           << hi->localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying transactions from "
+                           << ti->localPath_nogz();
 
     hdrIn.open(hi->localPath_nogz());
     txIn.open(ti->localPath_nogz());
