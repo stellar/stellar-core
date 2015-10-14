@@ -517,7 +517,7 @@ HistoryManagerImpl::maybeQueueHistoryCheckpoint()
     if (!hasAnyWritableHistoryArchive())
     {
         mPublishSkip.Mark();
-        CLOG(WARNING, "History")
+        CLOG(DEBUG, "History")
             << "Skipping checkpoint, no writable history archives";
         return false;
     }
