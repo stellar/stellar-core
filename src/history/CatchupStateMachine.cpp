@@ -185,6 +185,13 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
     {
         stateStr << " (discontiguous, will restart)";
     }
+
+    size_t nQueuedToPublish = mApp.getHistoryManager().publishQueueLength();
+    if (nQueuedToPublish != 0)
+    {
+        stateStr << ", queued checkpoints: " << nQueuedToPublish;
+    }
+
     CLOG(INFO, "History") << stateStr.str();
     mApp.setExtraStateInfo(stateStr.str());
 }

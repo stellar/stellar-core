@@ -266,12 +266,41 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 }
 
 void
-HistoryManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
+HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
 {
     if (mCatchup)
     {
         mCatchup->logAndUpdateStatus(contiguous);
     }
+    else if (mPublish)
+    {
+        auto qlen = mPublish->publishQueueLength();
+        std::stringstream stateStr;
+        if (qlen > 0)
+        {
+            stateStr << "Publishing " << qlen << " queued checkpoints"
+                     << " ["
+                     << mPublish->minQueuedSnapshotLedger()
+                     << "-"
+                     << mPublish->maxQueuedSnapshotLedger()
+                     << "]";
+            CLOG(INFO, "History") << stateStr.str();
+        }
+        else
+        {
+            mApp.setExtraStateInfo(stateStr.str());
+        }
+    }
+}
+
+size_t
+HistoryManagerImpl::publishQueueLength() const
+{
+    if (mPublish)
+    {
+        return mPublish->publishQueueLength();
+    }
+    return 0;
 }
 
 string const&
