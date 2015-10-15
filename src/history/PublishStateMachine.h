@@ -117,6 +117,13 @@ class PublishStateMachine
     // If no ledgers are queued, returns 0.
     uint32_t maxQueuedSnapshotLedger() const;
 
+    // Returns the ledger number of the minimum currently-queued snapshot.
+    // If no ledgers are queued, returns 0.
+    uint32_t minQueuedSnapshotLedger() const;
+
+    // Returns the length of the current publishing queue.
+    size_t publishQueueLength() const;
+
     // Returns true if delayed, false if immediately dispatched.
     bool queueSnapshot(SnapshotPtr snap, PublishCallback handler);
 

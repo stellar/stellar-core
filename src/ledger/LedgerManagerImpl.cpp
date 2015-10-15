@@ -131,7 +131,7 @@ LedgerManagerImpl::setState(State s)
                              << getStateHuman();
         if(mState != LM_CATCHING_UP_STATE)
         { 
-            mApp.setExtraStateInfo(std::string());
+            mApp.getHistoryManager().logAndUpdateStatus(true);
         }
     }
 }
@@ -357,14 +357,10 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
         else
         {
             // Out of sync, buffer what we just heard and start catchup.
-            std::stringstream stateStr;
-            stateStr << "Lost sync, local LCL is "
+            CLOG(INFO, "Ledger") << "Lost sync, local LCL is "
                                  << mLastClosedLedger.header.ledgerSeq
                                  << ", network closed ledger "
                                  << ledgerData.mLedgerSeq;
-
-            CLOG(INFO, "Ledger") << stateStr.str();
-            mApp.setExtraStateInfo(stateStr.str());
 
             assert(mSyncingLedgers.size() == 0);
             mSyncingLedgers.push_back(ledgerData);
@@ -402,7 +398,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                 << "this round of catchup will fail and restart.";
         }
 
-        mApp.getHistoryManager().logAndUpdateCatchupStatus(contiguous);
+        mApp.getHistoryManager().logAndUpdateStatus(contiguous);
     }
     break;
 
@@ -738,6 +734,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 3
     hm.publishQueuedHistory([](asio::error_code const&){});
+    hm.logAndUpdateStatus(true);
 
     // step 4
     mApp.getBucketManager().forgetUnreferencedBuckets();

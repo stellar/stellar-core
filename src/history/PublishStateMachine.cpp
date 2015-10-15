@@ -368,6 +368,22 @@ PublishStateMachine::maxQueuedSnapshotLedger() const
     return mPendingSnaps.back().first->mLocalState.currentLedger;
 }
 
+uint32_t
+PublishStateMachine::minQueuedSnapshotLedger() const
+{
+    if (mPendingSnaps.empty())
+    {
+        return 0;
+    }
+    return mPendingSnaps.front().first->mLocalState.currentLedger;
+}
+
+size_t
+PublishStateMachine::publishQueueLength() const
+{
+    return mPendingSnaps.size();
+}
+
 bool
 PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
 {
