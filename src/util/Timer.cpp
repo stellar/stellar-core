@@ -233,15 +233,24 @@ VirtualClock::crank(bool block)
     nRealTimerCancelEvents = 0;
     size_t nWorkDone = 0;
 
-    nWorkDone += mIOService.poll();
-
     if (mMode == REAL_TIME)
     {
         // Fire all pending timers.
         nWorkDone += advanceToNow();
     }
 
-    nWorkDone += mIOService.poll();
+    // pick up some work off the IO queue
+    // calling mIOService.poll() here may introduce unbounded delays
+    // to trigger timers
+    const size_t WORK_BATCH_SIZE = 10;
+    size_t lastPoll;
+    size_t i = 0;
+    do
+    {
+        lastPoll = mIOService.poll_one();
+        nWorkDone += lastPoll;
+    } while (lastPoll != 0 && ++i < WORK_BATCH_SIZE);
+
     nWorkDone -= nRealTimerCancelEvents;
 
     if (mMode == VIRTUAL_TIME && nWorkDone == 0)
