@@ -1104,6 +1104,8 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
+    const uint32 NEW_PEER_WINDOW_SECONDS = 10;
+
     for (auto const& peer : msg.peers())
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
@@ -1118,13 +1120,18 @@ Peer::recvPeers(StellarMessage const& msg)
                                      << " (not yet supported)";
             continue;
         }
+        // randomize when we'll try to connect to this peer next if we don't
+        // know it
+        auto defaultNextAttempt = mApp.getClock().now() + std::chrono::seconds(
+            std::rand() % NEW_PEER_WINDOW_SECONDS);
+
         stringstream ip;
         ip << (int)peer.ip.ipv4()[0] << "." << (int)peer.ip.ipv4()[1] << "."
            << (int)peer.ip.ipv4()[2] << "." << (int)peer.ip.ipv4()[3];
         // don't use peer.numFailures here as we may have better luck
         // (and we don't want to poison our failure count)
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
-                      mApp.getClock().now(), 0 };
+                      defaultNextAttempt, 0 };
 
         if (pr.isPrivateAddress())
         {
@@ -1135,6 +1142,10 @@ Peer::recvPeers(StellarMessage const& msg)
         {
             CLOG(WARNING, "Overlay") << "ignoring received self-address "
                                      << pr.toString();
+        }
+        else if (pr.isLocalhost() && !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)
+        {
+            CLOG(WARNING, "Overlay") << "ignoring received localhost";
         }
         else
         {
