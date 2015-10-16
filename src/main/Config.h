@@ -87,6 +87,10 @@ class Config : public std::enable_shared_from_this<Config>
     // and should be false in all normal cases.
     bool ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
 
+    // A config to allow connections to localhost
+    // this should only be enabled when testing as it's a security issue
+    bool ALLOW_LOCALHOST_FOR_TESTING;
+
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.
     // If you don't have enough in your quorum set to tolerate the level you

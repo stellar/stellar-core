@@ -230,6 +230,12 @@ PeerRecord::isPrivateAddress() const
 }
 
 bool
+PeerRecord::isLocalhost() const
+{
+    return mIP == "127.0.0.1";
+}
+
+bool
 PeerRecord::isStored(Database& db)
 {
     return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
