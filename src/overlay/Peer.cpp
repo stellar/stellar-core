@@ -1121,8 +1121,10 @@ Peer::recvPeers(StellarMessage const& msg)
         stringstream ip;
         ip << (int)peer.ip.ipv4()[0] << "." << (int)peer.ip.ipv4()[1] << "."
            << (int)peer.ip.ipv4()[2] << "." << (int)peer.ip.ipv4()[3];
+        // don't use peer.numFailures here as we may have better luck
+        // (and we don't want to poison our failure count)
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
-                      mApp.getClock().now(), peer.numFailures};
+                      mApp.getClock().now(), 0 };
 
         if (pr.isPrivateAddress())
         {
