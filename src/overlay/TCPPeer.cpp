@@ -14,6 +14,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "main/Config.h"
+#include "util/GlobalChecks.h"
 
 #define MAX_UNAUTH_MESSAGE_SIZE 0x1000
 #define MAX_MESSAGE_SIZE 0x1000000
@@ -40,6 +41,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << ip << ":" << port;
+    assertThreadIsMain();
     auto socket =
         make_shared<SocketType>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
@@ -48,7 +50,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     result->startIdleTimer();
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->next_layer().async_connect(
-        endpoint, result->mStrand.wrap([result](asio::error_code const& error)
+        endpoint, [result](asio::error_code const& error)
                                        {
                                            asio::error_code ec;
                                            if (!error)
@@ -62,13 +64,14 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
                                            }
 
                                            result->connectHandler(ec);
-                                       }));
+                                       });
     return result;
 }
 
 TCPPeer::pointer
 TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
+    assertThreadIsMain();
     shared_ptr<TCPPeer> result;
     asio::error_code ec;
     auto ep = socket->next_layer().remote_endpoint(ec);
@@ -85,7 +88,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
         result->mIP = ep.address().to_string();
         result->startIdleTimer();
-        result->mStrand.dispatch([result]() { result->startRead(); });
+        result->startRead();
     }
     else
     {
@@ -99,6 +102,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
 TCPPeer::~TCPPeer()
 {
+    assertThreadIsMain();
     mIdleTimer.cancel();
     try
     {
@@ -129,36 +133,34 @@ void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
     CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
+    assertThreadIsMain();
 
     // places the buffer to write into the write queue
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-    mStrand.dispatch([self, buf]()
-    {
-        self->mWriteQueue.emplace(buf);
+    self->mWriteQueue.emplace(buf);
 
-        if (!self->mWriting)
-        {
-            self->mWriting = true;
-            // kick off the async write chain if we're the first one
-            self->messageSender();
-        }
-    });
+    if (!self->mWriting)
+    {
+        self->mWriting = true;
+        // kick off the async write chain if we're the first one
+        self->messageSender();
+    }
 }
 
 void
 TCPPeer::messageSender()
 {
-    assert(mStrand.running_in_this_thread());
+    assertThreadIsMain();
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     // if nothing to do, flush and return
     if (mWriteQueue.empty())
     {
-        mSocket->async_flush(mStrand.wrap([self](asio::error_code const& ec, std::size_t)
+        mSocket->async_flush([self](asio::error_code const& ec, std::size_t)
         {
             self->writeHandler(ec, 0);
             if (!ec)
@@ -172,7 +174,7 @@ TCPPeer::messageSender()
                     self->mWriting = false;
                 }
             }
-        }));
+        });
         return;
     }
 
@@ -183,7 +185,7 @@ TCPPeer::messageSender()
 
     asio::async_write(
         *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-        mStrand.wrap([self](asio::error_code const& ec, std::size_t length)
+        [self](asio::error_code const& ec, std::size_t length)
                      {
                          self->writeHandler(ec, length);
                          self->mWriteQueue.pop(); // done with front element
@@ -193,13 +195,14 @@ TCPPeer::messageSender()
                          {
                              self->messageSender();
                          }
-                     }));
+                     });
 }
 
 void
 TCPPeer::writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred)
 {
+    assertThreadIsMain();
     mLastWrite = mApp.getClock().now();
 
     if (error)
@@ -225,7 +228,7 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
-    assert(mStrand.running_in_this_thread());
+    assertThreadIsMain();
     if (shouldAbort())
     {
         return;
@@ -241,13 +244,13 @@ TCPPeer::startRead()
         self->mIncomingHeader.resize(4);
         asio::async_read(
             *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
-            self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+            [self](asio::error_code ec, std::size_t length)
                                {
                                    CLOG(TRACE, "Overlay")
                                        << "TCPPeer::startRead calledback " << ec
                                        << " length:" << length;
                                    self->readHeaderHandler(ec, length);
-                               }));
+                               });
     }
     catch (asio::system_error& e)
     {
@@ -291,8 +294,7 @@ void
 TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
-    assert(mStrand.running_in_this_thread());
-
+    assertThreadIsMain();
     // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
     //     << "@" << mApp.getConfig().PEER_PORT
     //     << " to " << mRemoteListeningPort
@@ -308,10 +310,10 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             auto self = static_pointer_cast<TCPPeer>(shared_from_this());
             asio::async_read(
                 *mSocket.get(), asio::buffer(mIncomingBody),
-                self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+                [self](asio::error_code ec, std::size_t length)
             {
                 self->readBodyHandler(ec, length);
-            }));
+            });
         }
     }
     else
@@ -333,6 +335,7 @@ void
 TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred)
 {
+    assertThreadIsMain();
     // LOG(DEBUG) << "TCPPeer::readBodyHandler "
     //     << "@" << mApp.getConfig().PEER_PORT
     //     << " to " << mRemoteListeningPort
@@ -363,6 +366,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
+    assertThreadIsMain();
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),
@@ -381,6 +385,7 @@ TCPPeer::recvMessage()
 void
 TCPPeer::drop()
 {
+    assertThreadIsMain();
     if (mState == CLOSING)
     {
         return;
@@ -397,7 +402,7 @@ TCPPeer::drop()
 
     // To shutdown, we first queue up our desire to shutdown in the strand,
     // behind any pending read/write calls. We'll let them issue first.
-    mStrand.post(
+    getApp().getClock().getIOService().post(
         [self]()
         {
             // Gracefully shut down connection: this pushes a FIN packet into
@@ -419,7 +424,7 @@ TCPPeer::drop()
                 CLOG(ERROR, "Overlay")
                     << "TCPPeer::drop shutdown socket failed: " << ec.message();
             }
-            self->mStrand.post(
+            self->getApp().getClock().getIOService().post(
                 [self]()
                 {
                     // Close fd associated with socket. Socket is already

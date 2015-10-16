@@ -55,7 +55,6 @@ Peer::Peer(Application& app, PeerRole role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayVersion(0)
     , mRemoteListeningPort(0)
-    , mStrand(app.getClock().getIOService())
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
@@ -240,10 +239,10 @@ Peer::startIdleTimer()
 
     auto self = shared_from_this();
     mIdleTimer.expires_from_now(std::chrono::seconds(getIOTimeoutSeconds()));
-    mIdleTimer.async_wait(mStrand.wrap([self](asio::error_code const& error)
+    mIdleTimer.async_wait([self](asio::error_code const& error)
                                        {
                                            self->idleTimerExpired(error);
-                                       }));
+                                       });
 }
 
 void

@@ -72,7 +72,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
 
-    asio::io_service::strand mStrand;
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
