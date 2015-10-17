@@ -224,7 +224,7 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()
-                .NewMeter({"overlay", "timeout", "read"}, "timeout")
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
                 .count() != 0);
 }
 

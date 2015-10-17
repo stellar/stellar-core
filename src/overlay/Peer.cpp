@@ -69,10 +69,8 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewMeter({"overlay", "error", "read"}, "error"))
     , mErrorWrite(
           app.getMetrics().NewMeter({"overlay", "error", "write"}, "error"))
-    , mTimeoutRead(
-          app.getMetrics().NewMeter({"overlay", "timeout", "read"}, "timeout"))
-    , mTimeoutWrite(
-          app.getMetrics().NewMeter({"overlay", "timeout", "write"}, "timeout"))
+    , mTimeoutIdle(
+          app.getMetrics().NewMeter({"overlay", "timeout", "idle"}, "timeout"))
 
     , mRecvErrorTimer(app.getMetrics().NewTimer({"overlay", "recv", "error"}))
     , mRecvHelloTimer(app.getMetrics().NewTimer({"overlay", "recv", "hello"}))
@@ -251,17 +249,12 @@ Peer::idleTimerExpired(asio::error_code const& error)
     if (!error)
     {
         auto now = mApp.getClock().now();
-        if ((now - mLastRead) >= std::chrono::seconds(getIOTimeoutSeconds()))
+        auto timeout = std::chrono::seconds(getIOTimeoutSeconds());
+        if (((now - mLastRead) >= timeout) &&
+            ((now - mLastWrite) >= timeout))
         {
-            CLOG(WARNING, "Overlay") << "read timeout";
-            mTimeoutRead.Mark();
-            drop();
-        }
-        else if ((now - mLastWrite) >=
-                 std::chrono::seconds(getIOTimeoutSeconds()))
-        {
-            CLOG(WARNING, "Overlay") << "write timeout";
-            mTimeoutWrite.Mark();
+            CLOG(WARNING, "Overlay") << "idle timeout";
+            mTimeoutIdle.Mark();
             drop();
         }
         else

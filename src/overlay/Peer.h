@@ -82,8 +82,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mByteWrite;
     medida::Meter& mErrorRead;
     medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutRead;
-    medida::Meter& mTimeoutWrite;
+    medida::Meter& mTimeoutIdle;
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
