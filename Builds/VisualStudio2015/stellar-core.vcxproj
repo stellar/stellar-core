@@ -60,7 +60,8 @@
       <DisableSpecificWarnings>4582;4583;4408;4512;4127;4324;4100;4510</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <BrowseInformation>false</BrowseInformation>
-      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <ControlFlowGuard>
+      </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
     </ClCompile>
@@ -112,7 +113,7 @@
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4582;4583;4408;4512;4127;4324;4100;4510</DisableSpecificWarnings>
-      <ControlFlowGuard>Guard</ControlFlowGuard>
+      <ControlFlowGuard>false</ControlFlowGuard>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
