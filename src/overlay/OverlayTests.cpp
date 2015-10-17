@@ -213,14 +213,14 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->setCorked(true);
     auto start = clock.now();
-    while (clock.now() < (start + std::chrono::seconds(3)) &&
+    while (clock.now() < (start + std::chrono::seconds(6)) &&
            conn.getInitiator()->isConnected() &&
            conn.getAcceptor()->isConnected())
     {
         LOG(INFO) << "clock.now() = " << clock.now().time_since_epoch().count();
         clock.crank(false);
     }
-    REQUIRE(clock.now() < (start + std::chrono::seconds(5)));
+    REQUIRE(clock.now() < (start + std::chrono::seconds(8)));
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()

@@ -213,7 +213,7 @@ Peer::getIOTimeoutSeconds() const
     {
         // We give peers much less timing leeway while
         // performing handshake.
-        return 2;
+        return 5;
     }
 }
 
