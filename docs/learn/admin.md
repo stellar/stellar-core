@@ -173,13 +173,12 @@ set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
 Optionally: Create an external database to use--e.g., by using 
 PostgreSQL's `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
+
 Run:
-
-`$ stellar-core --newdb`
-
-to initialize the database.  Run:
-
-`$ stellar-core`
+- `$ stellar-core --newdb`
+  - to initialize the database
+- `$ stellar-core`
+  - to start the node
 
 ## Starting a new network
 
@@ -189,24 +188,17 @@ Set the `QUORUM_SET` and `KNOWN_PEERS` of each node to refer to one another.
 Decide on a history archive and add a HISTORY config entry for it on each node.
 Optionally: Create databases for each to use--e.g., by using PostgreSQL's `createdb` command.
 Set the `DATABASE` config variables on each node to your choice of database.
+
 Run:
 
-`$ stellar-core --newhist <historyarchive>`
-
-to initialize every history archive you are putting to. 
-Run:
-
-`$ stellar-core --newdb`
-
-to initialize the database on each node. Run:
-
-`$ stellar-core --forcescp`
-
-to set a flag to force each node to start SCP rather than join. Run:
-
-`$ stellar-core` 
-
-on each node.
+1. `$ stellar-core --newhist <historyarchive>`
+  - to initialize every history archive you are putting to.
+2. `$ stellar-core --newdb`
+  - to initialize the database on each node. 
+3. `$ stellar-core --forcescp`
+  - to set a flag to force each node to start SCP rather than join. 
+4. `$ stellar-core` 
+  - on each node to start it
 
 
 # Notes
