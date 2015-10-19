@@ -450,6 +450,12 @@ HerderImpl::extractValidValue(uint64 slotIndex, Value const& value)
     return res;
 }
 
+std::string 
+HerderImpl::toShortString(PublicKey const& pk) const
+{
+    return mApp.getConfig().toShortString(pk);
+}
+
 std::string
 HerderImpl::getValueString(Value const& v) const
 {
@@ -953,7 +959,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << PubKeyUtils::toShortString(
+                          << " from: " << mApp.getConfig().toShortString(
                                               envelope.statement.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
@@ -1412,7 +1418,7 @@ HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = PubKeyUtils::toShortString(mSCP.getSecretKey().getPublicKey());
+    ret["you"] = mApp.getConfig().toShortString(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 

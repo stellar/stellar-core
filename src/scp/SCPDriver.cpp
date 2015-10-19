@@ -9,6 +9,7 @@
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
+#include "crypto/SecretKey.h"
 
 namespace stellar
 {
@@ -19,6 +20,12 @@ SCPDriver::getValueString(Value const& v) const
     uint256 valueHash = sha256(xdr::xdr_to_opaque(v));
 
     return hexAbbrev(valueHash);
+}
+
+std::string 
+SCPDriver::toShortString(PublicKey const& pk) const
+{
+    return PubKeyUtils::toShortString(pk);
 }
 
 // values used to switch hash function between priority and neighborhood checks

@@ -60,6 +60,7 @@ class HerderImpl : public Herder, public SCPDriver
 
     Value extractValidValue(uint64 slotIndex, Value const& value) override;
 
+    std::string toShortString(PublicKey const& pk) const override;
     std::string getValueString(Value const& v) const override;
 
     void ballotDidHearFromQuorum(uint64 slotIndex,

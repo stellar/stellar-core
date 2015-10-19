@@ -15,6 +15,7 @@
 #include "util/make_unique.h"
 #include "util/GlobalChecks.h"
 #include "Slot.h"
+#include "main/Config.h"
 
 namespace stellar
 {
@@ -222,7 +223,7 @@ NominationProtocol::updateRoundLeaders()
     CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
     for (auto const& rl : mRoundLeaders)
     {
-        CLOG(DEBUG, "SCP") << "    leader " << PubKeyUtils::toShortString(rl);
+        CLOG(DEBUG, "SCP") << "    leader " << mSlot.getSCPDriver().toShortString(rl);
     }
 }
 
@@ -531,7 +532,7 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     counter = 0;
     for (auto const& v : mLatestNominations)
     {
-        nomState["N"][counter]["id"] = PubKeyUtils::toShortString(v.first);
+        nomState["N"][counter]["id"] = mSlot.getSCPDriver().toShortString(v.first);
         nomState["N"][counter]["statement"] = mSlot.envToStr(v.second);
 
         counter++;

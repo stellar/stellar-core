@@ -67,6 +67,9 @@ class SCPDriver
     // default implementation is the hash of the value
     virtual std::string getValueString(Value const& v) const;
 
+    // `toShortString` converts to the common name of a key if found
+    virtual std::string toShortString(PublicKey const& pk) const;
+
     // `computeHashNode` is used by the nomination protocol to
     // randomize the order of messages between nodes.
     virtual uint64 computeHashNode(uint64 slotIndex, Value const& prev,

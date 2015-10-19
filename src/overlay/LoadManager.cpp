@@ -54,7 +54,7 @@ timeMag(uint64_t nanos)
 }
 
 void
-LoadManager::reportLoads(std::vector<Peer::pointer> const& peers)
+LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,Application& app)
 {
     CLOG(INFO, "Overlay") << "";
     CLOG(INFO, "Overlay")
@@ -70,7 +70,7 @@ LoadManager::reportLoads(std::vector<Peer::pointer> const& peers)
         CLOG(INFO, "Overlay") <<
             fmt::format(
                 "{:>10s} {:>10s} {:>10s} {:>10s} {:>10d}",
-                PubKeyUtils::toShortString(peer->getPeerID()),
+                app.getConfig().toShortString(peer->getPeerID()),
                 timeMag(static_cast<uint64_t>(cost->mTimeSpent.one_minute_rate())),
                 byteMag(static_cast<uint64_t>(cost->mBytesSend.one_minute_rate())),
                 byteMag(static_cast<uint64_t>(cost->mBytesRecv.one_minute_rate())),
@@ -100,7 +100,7 @@ LoadManager::maybeShedExcessLoad(Application& app)
         CLOG(WARNING, "Overlay") << "";
 
         auto peers = app.getOverlayManager().getPeers();
-        reportLoads(peers);
+        reportLoads(peers,app);
 
         // Look for the worst-behaved of the current peers and kick them out.
         std::shared_ptr<Peer> victim;
@@ -119,7 +119,7 @@ LoadManager::maybeShedExcessLoad(Application& app)
         {
             CLOG(WARNING, "Overlay")
                 << "Disconnecting suspected culprit "
-                << PubKeyUtils::toShortString(victim->getPeerID());
+                << app.getConfig().toShortString(victim->getPeerID());
 
             app.getMetrics().NewMeter(
                 {"overlay", "drop", "load-shed"}, "drop").Mark();
@@ -193,7 +193,7 @@ LoadManager::PeerContext::~PeerContext()
         auto query = (mApp.getDatabase().getQueryMeter().count() -
                       mSQLQueriesStart);
         CLOG(TRACE, "Overlay") << "Debiting peer "
-                               << PubKeyUtils::toShortString(mNode)
+                               << mApp.getConfig().toShortString(mNode)
                                << " time:" << timeMag(time.count())
                                << " send:" << byteMag(send)
                                << " recv:" << byteMag(recv)
