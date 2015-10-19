@@ -65,10 +65,7 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
     mTxSetCache.put(hash, txset);
-    mApp.getClock().getIOService().post([hash, this]()
-                                        {
-                                            mTxSetFetcher.recv(hash);
-                                        });
+    mTxSetFetcher.recv(hash);
 }
 
 // called from Peer and when an Item tracker completes
@@ -135,10 +132,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
 
-    mApp.getClock().getIOService().post([this]()
-                                        {
-                                            mHerder.processSCPQueue();
-                                        });
+    mHerder.processSCPQueue();
 }
 
 bool

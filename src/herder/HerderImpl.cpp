@@ -759,7 +759,12 @@ HerderImpl::combineCandidates(uint64 slotIndex,
     {
         CLOG(WARNING, "Herder") << "Candidate set had " << removed.size()
                                 << " invalid transactions";
-        mPendingEnvelopes.recvTxSet(comp.txSetHash, bestTxSet);
+
+        // post to avoid triggering SCP handling code recursively
+        mApp.getClock().getIOService().post([this, bestTxSet]()
+        {
+            mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(), bestTxSet);
+        });
     }
 
     return xdr::xdr_to_opaque(comp);
