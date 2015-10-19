@@ -40,16 +40,11 @@ PeerDoor::start()
 void
 PeerDoor::close()
 {
-    try
+    if (mAcceptor.is_open())
     {
-        if (mAcceptor.is_open())
-        {
-            mAcceptor.close();
-        }
-    }
-    catch (asio::system_error&)
-    {
-        // ignore errors like this
+        asio::error_code ec;
+        // ignore errors when closing
+        mAcceptor.close(ec);
     }
 }
 

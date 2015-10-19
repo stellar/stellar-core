@@ -104,22 +104,18 @@ TCPPeer::~TCPPeer()
 {
     assertThreadIsMain();
     mIdleTimer.cancel();
-    try
-    {
-        if (mSocket)
-        {
-#ifndef _WIN32
-            // This always fails on windows and ASIO won't
-            // even build it.
-            mSocket->next_layer().cancel();
-#endif
-            mSocket->close();
-        }
-    }
-    catch (asio::system_error&)
+    if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events
         // on a not-established socket.
+        asio::error_code ec;
+
+#ifndef _WIN32
+        // This always fails on windows and ASIO won't
+        // even build it.
+        mSocket->next_layer().cancel(ec);
+#endif
+        mSocket->close(ec);
     }
 }
 
@@ -234,29 +230,21 @@ TCPPeer::startRead()
         return;
     }
 
-    try
-    {
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-        assert(self->mIncomingHeader.size() == 0);
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
+    assert(self->mIncomingHeader.size() == 0);
+    CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
-        self->mIncomingHeader.resize(4);
-        asio::async_read(
-            *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
-            [self](asio::error_code ec, std::size_t length)
-                               {
-                                   CLOG(TRACE, "Overlay")
-                                       << "TCPPeer::startRead calledback " << ec
-                                       << " length:" << length;
-                                   self->readHeaderHandler(ec, length);
-                               });
-    }
-    catch (asio::system_error& e)
-    {
-        CLOG(ERROR, "Overlay") << "TCPPeer::startRead error " << e.what();
-        drop();
-    }
+    self->mIncomingHeader.resize(4);
+    asio::async_read(
+        *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
+        [self](asio::error_code ec, std::size_t length)
+                            {
+                                CLOG(TRACE, "Overlay")
+                                    << "TCPPeer::startRead calledback " << ec
+                                    << " length:" << length;
+                                self->readHeaderHandler(ec, length);
+                            });
 }
 
 int

@@ -74,24 +74,24 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
 
         asio::ip::tcp::resolver resolver(app.getWorkerIOService());
         asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
-        try
+
+        asio::error_code ec;
+        asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
+        if (ec)
         {
-            asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-            while (i != asio::ip::tcp::resolver::iterator())
-            {
-                asio::ip::tcp::endpoint end = *i;
-                if (end.address().is_v4())
-                {
-                    ip = end.address().to_v4().to_string();
-                    break;
-                }
-                i++;
-            }
-        }
-        catch (asio::system_error& e)
-        {
-            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << e.what();
+            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
             return false;
+        }
+
+        while (i != asio::ip::tcp::resolver::iterator())
+        {
+            asio::ip::tcp::endpoint end = *i;
+            if (end.address().is_v4())
+            {
+                ip = end.address().to_v4().to_string();
+                break;
+            }
+            i++;
         }
         if (ip.empty())
             return false;
