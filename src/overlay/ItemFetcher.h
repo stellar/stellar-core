@@ -52,6 +52,8 @@ class Tracker
     bool mIsStopped = false;
     std::vector<std::pair<Hash,SCPEnvelope>> mWaitingEnvelopes;
     uint256 mItemID;
+    medida::Meter& mTryNextPeerReset;
+    medida::Meter& mTryNextPeer;
 
     bool clearEnvelopesBelow(uint64 slotIndex);
 
@@ -63,10 +65,7 @@ class Tracker
     void tryNextPeer();
 
   public:
-    explicit Tracker(Application& app, uint256 const& id)
-        : mApp(app), mTimer(app), mItemID(id)
-    {
-    }
+    explicit Tracker(Application& app, uint256 const& id);
 
     virtual ~Tracker();
 };

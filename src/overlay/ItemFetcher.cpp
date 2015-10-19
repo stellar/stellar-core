@@ -35,6 +35,7 @@ ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
     { // not being tracked
         TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemID);
         mTrackers[itemID] = tracker;
+        mItemMapSize.inc();
 
         tracker->listen(envelope);
         tracker->tryNextPeer();
@@ -67,6 +68,7 @@ ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
         if (!iter->second->clearEnvelopesBelow(slotIndex))
         {
             iter = mTrackers.erase(iter);
+            mItemMapSize.dec();
         }
         else
         {
@@ -111,6 +113,18 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
         iter->second->mTimer.cancel();
     }
 }
+
+Tracker::Tracker(Application& app, uint256 const& id)
+    :
+    mApp(app)
+    ,mTimer(app)
+    ,mItemID(id)
+    , mTryNextPeerReset(
+        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "reset-fetcher" }, "item-fetcher"))
+    ,mTryNextPeer(
+        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "next-peer" }, "item-fetcher"))
+    {
+    }
 
 Tracker::~Tracker()
 {
@@ -193,6 +207,7 @@ Tracker::tryNextPeer()
 
         CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
             << " reset to #" << mPeersToAsk.size();
+        mTryNextPeerReset.Mark();
     }
 
     while (!peer && !mPeersToAsk.empty())
@@ -216,6 +231,7 @@ Tracker::tryNextPeer()
         mLastAskedPeer = peer;
         CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
                               << peer->toString();
+        mTryNextPeer.Mark();
         askPeer(peer);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
