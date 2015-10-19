@@ -43,18 +43,22 @@ VirtualClock::maybeSetRealtimer()
 {
     if (mMode == REAL_TIME)
     {
-        mRealTimer.expires_at(next());
-        mRealTimer.async_wait([this](asio::error_code const& ec)
-                              {
-                                  if (ec == asio::error::operation_aborted)
-                                  {
-                                      ++this->nRealTimerCancelEvents;
-                                  }
-                                  else
-                                  {
-                                      this->advanceToNow();
-                                  }
-                              });
+        auto nextp = next();
+        if (nextp != mRealTimer.expires_at())
+        {
+            mRealTimer.expires_at(nextp);
+            mRealTimer.async_wait([this](asio::error_code const& ec)
+            {
+                if (ec == asio::error::operation_aborted)
+                {
+                    ++this->nRealTimerCancelEvents;
+                }
+                else
+                {
+                    this->advanceToNow();
+                }
+            });
+        }
     }
 }
 
@@ -148,9 +152,10 @@ VirtualClock::enqueue(shared_ptr<VirtualClockEvent> ve)
     {
         return;
     }
+    assertThreadIsMain();
     // LOG(DEBUG) << "VirtualClock::enqueue";
     mEvents.emplace(ve);
-    assertThreadIsMain();
+    maybeSetRealtimer();
 }
 
 void
@@ -187,6 +192,7 @@ VirtualClock::flushCancelledEvents()
     }
     mFlushesIgnored = 0;
     mEvents = PrQueue(toKeep.begin(), toKeep.end());
+    maybeSetRealtimer();
 }
 
 bool
