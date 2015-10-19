@@ -17,6 +17,8 @@
 namespace stellar
 {
 
+static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+
 template <class TrackerT>
 ItemFetcher<TrackerT>::ItemFetcher(Application& app)
     : mApp(app)

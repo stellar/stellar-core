@@ -39,8 +39,6 @@ struct SCPQuorumSet;
 using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 
-static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{500};
-
 class Tracker
 {
   protected:
