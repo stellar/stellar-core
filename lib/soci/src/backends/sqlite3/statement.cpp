@@ -193,6 +193,7 @@ sqlite3_statement_backend::bind_and_execute(int number)
     statement_backend::exec_fetch_result retVal = ef_no_data;
 
     long long rowsAffectedBulkTemp = 0;
+    rowsAffectedBulk_ = -1;
 
     int const rows = static_cast<int>(useData_.size());
     for (int row = 0; row < rows; ++row)
