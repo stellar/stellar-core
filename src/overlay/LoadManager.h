@@ -35,8 +35,7 @@ class LoadManager
     // This is all very heuristic and speculative; if it turns out not to
     // work, or to do more harm than good, it ought to be disabled/removed.
 
-public:
-
+  public:
     LoadManager();
     ~LoadManager();
     void reportLoads(std::vector<Peer::pointer> const& peers, Application& app);
@@ -56,12 +55,10 @@ public:
 
     std::shared_ptr<PeerCosts> getPeerCosts(NodeID const& peer);
 
-private:
-
+  private:
     cache::lru_cache<NodeID, std::shared_ptr<PeerCosts>> mPeerCosts;
 
-public:
-
+  public:
     // Measure recent load on the system and, if the system appears
     // overloaded, shed one or more of the worst-behaved peers,
     // according to our local per-peer accounting.
@@ -79,10 +76,10 @@ public:
         std::uint64_t mBytesSendStart;
         std::uint64_t mBytesRecvStart;
         std::uint64_t mSQLQueriesStart;
-    public:
+
+      public:
         PeerContext(Application& app, NodeID const& node);
         ~PeerContext();
     };
 };
-
 }

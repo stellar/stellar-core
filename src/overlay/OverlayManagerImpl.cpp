@@ -177,7 +177,8 @@ OverlayManagerImpl::connectToMorePeers(int max)
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
             // see if we can get current information from the peer table
-            auto prFromDB = PeerRecord::loadPeerRecord(mApp.getDatabase(), pr.mIP, pr.mPort);
+            auto prFromDB = PeerRecord::loadPeerRecord(mApp.getDatabase(),
+                                                       pr.mIP, pr.mPort);
             if (prFromDB)
             {
                 pr = *prFromDB;
@@ -400,7 +401,6 @@ OverlayManagerImpl::getLoadManager()
 {
     return mLoad;
 }
-
 
 void
 OverlayManagerImpl::shutdown()

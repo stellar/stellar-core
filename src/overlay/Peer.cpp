@@ -92,7 +92,7 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecvSCPMessageTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
     , mRecvGetSCPStateTimer(
-        app.getMetrics().NewTimer({ "overlay", "recv", "get-scp-state" }))
+          app.getMetrics().NewTimer({"overlay", "recv", "get-scp-state"}))
 
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
@@ -238,9 +238,9 @@ Peer::startIdleTimer()
     auto self = shared_from_this();
     mIdleTimer.expires_from_now(std::chrono::seconds(getIOTimeoutSeconds()));
     mIdleTimer.async_wait([self](asio::error_code const& error)
-                                       {
-                                           self->idleTimerExpired(error);
-                                       });
+                          {
+                              self->idleTimerExpired(error);
+                          });
 }
 
 void
@@ -250,8 +250,7 @@ Peer::idleTimerExpired(asio::error_code const& error)
     {
         auto now = mApp.getClock().now();
         auto timeout = std::chrono::seconds(getIOTimeoutSeconds());
-        if (((now - mLastRead) >= timeout) &&
-            ((now - mLastWrite) >= timeout))
+        if (((now - mLastRead) >= timeout) && ((now - mLastWrite) >= timeout))
         {
             CLOG(WARNING, "Overlay") << "idle timeout";
             mTimeoutIdle.Mark();
@@ -407,8 +406,8 @@ Peer::sendMessage(StellarMessage const& msg)
     CLOG(TRACE, "Overlay") << "("
                            << mApp.getConfig().toShortString(
                                   mApp.getConfig().NODE_SEED.getPublicKey())
-                           << ") send: " << msg.type()
-                           << " to : " << mApp.getConfig().toShortString(mPeerID);
+                           << ") send: " << msg.type() << " to : "
+                           << mApp.getConfig().toShortString(mPeerID);
 
     switch (msg.type())
     {
@@ -531,8 +530,8 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
         }
 
         if (!hmacSha256Verify(
-            msg.v0().mac, mRecvMacKey,
-            xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
+                msg.v0().mac, mRecvMacKey,
+                xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
             CLOG(ERROR, "Overlay") << "Message-auth check failed";
             mDropInRecvMessageMacMeter.Mark();
@@ -556,8 +555,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     CLOG(TRACE, "Overlay") << "("
                            << mApp.getConfig().toShortString(
                                   mApp.getConfig().NODE_SEED.getPublicKey())
-                           << ") recv: " << stellarMsg.type()
-                           << " from:" << mApp.getConfig().toShortString(mPeerID);
+                           << ") recv: " << stellarMsg.type() << " from:"
+                           << mApp.getConfig().toShortString(mPeerID);
 
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
@@ -716,7 +715,8 @@ Peer::recvTransaction(StellarMessage const& msg)
         // and make sure it is valid
         auto recvRes = mApp.getHerder().recvTransaction(transaction);
 
-        if (recvRes == Herder::TX_STATUS_PENDING || recvRes == Herder::TX_STATUS_DUPLICATE)
+        if (recvRes == Herder::TX_STATUS_PENDING ||
+            recvRes == Herder::TX_STATUS_DUPLICATE)
         {
             // record that this peer sent us this transaction
             mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
@@ -852,9 +852,9 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    mRemoteListeningPort =
-        static_cast<unsigned short>(elo.listeningPort);
-    mRemoteOverlayMinVersion = elo.overlayVersion;   /// This is the only difference
+    mRemoteListeningPort = static_cast<unsigned short>(elo.listeningPort);
+    mRemoteOverlayMinVersion =
+        elo.overlayVersion; /// This is the only difference
     mRemoteOverlayVersion = elo.overlayVersion;
     mRemoteVersion = elo.versionStr;
     mPeerID = elo.peerID;
@@ -863,8 +863,8 @@ Peer::recvHello(Hello const& elo)
     mRecvMacSeq = 0;
     mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
                                             mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey,
-                                              mSendNonce, mRecvNonce, mRole);
+    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
+                                              mRecvNonce, mRole);
 
     mState = GOT_HELLO;
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
@@ -882,12 +882,13 @@ Peer::recvHello(Hello const& elo)
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
         mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
-        CLOG(ERROR, "Overlay")
-            << "connection from peer with incompatible overlay protocol version";
+        CLOG(ERROR, "Overlay") << "connection from peer with incompatible "
+                                  "overlay protocol version";
         CLOG(DEBUG, "Overlay")
-            << "Protocol = [" << mRemoteOverlayMinVersion << "," << mRemoteOverlayVersion
-            << "] expected: [" << mApp.getConfig().OVERLAY_PROTOCOL_VERSION
-            << "," << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
+            << "Protocol = [" << mRemoteOverlayMinVersion << ","
+            << mRemoteOverlayVersion << "] expected: ["
+            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
+            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
         mDropInRecvHelloVersionMeter.Mark();
         drop(ERR_CONF, "wrong protocol version");
         return;
@@ -930,8 +931,7 @@ Peer::recvHello(Hello const& elo)
         }
     }
 
-    if (elo.listeningPort <= 0 ||
-        elo.listeningPort > UINT16_MAX)
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX)
     {
         CLOG(WARNING, "Overlay") << "bad port in recvHello";
         mDropInRecvHelloPortMeter.Mark();
@@ -952,8 +952,7 @@ Peer::recvHello2(Hello2 const& elo)
 
     if (mState >= GOT_HELLO)
     {
-        CLOG(ERROR, "Overlay")
-            << "received unexpected HELLO";
+        CLOG(ERROR, "Overlay") << "received unexpected HELLO";
         mDropInRecvHelloUnexpectedMeter.Mark();
         drop();
         return;
@@ -968,8 +967,7 @@ Peer::recvHello2(Hello2 const& elo)
         return;
     }
 
-    mRemoteListeningPort =
-        static_cast<unsigned short>(elo.listeningPort);
+    mRemoteListeningPort = static_cast<unsigned short>(elo.listeningPort);
     mRemoteOverlayMinVersion = elo.overlayMinVersion;
     mRemoteOverlayVersion = elo.overlayVersion;
     mRemoteVersion = elo.versionStr;
@@ -979,8 +977,8 @@ Peer::recvHello2(Hello2 const& elo)
     mRecvMacSeq = 0;
     mSendMacKey = peerAuth.getSendingMacKey(elo.cert.pubkey, mSendNonce,
                                             mRecvNonce, mRole);
-    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey,
-                                              mSendNonce, mRecvNonce, mRole);
+    mRecvMacKey = peerAuth.getReceivingMacKey(elo.cert.pubkey, mSendNonce,
+                                              mRecvNonce, mRole);
 
     mState = GOT_HELLO;
     CLOG(DEBUG, "Overlay") << "recvHello from " << toString();
@@ -998,12 +996,13 @@ Peer::recvHello2(Hello2 const& elo)
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
         mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
-        CLOG(ERROR, "Overlay")
-            << "connection from peer with incompatible overlay protocol version";
+        CLOG(ERROR, "Overlay") << "connection from peer with incompatible "
+                                  "overlay protocol version";
         CLOG(DEBUG, "Overlay")
-            << "Protocol = [" << mRemoteOverlayMinVersion << "," << mRemoteOverlayVersion
-            << "] expected: [" << mApp.getConfig().OVERLAY_PROTOCOL_VERSION
-            << "," << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
+            << "Protocol = [" << mRemoteOverlayMinVersion << ","
+            << mRemoteOverlayVersion << "] expected: ["
+            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << ","
+            << mApp.getConfig().OVERLAY_PROTOCOL_VERSION << "]";
         mDropInRecvHelloVersionMeter.Mark();
         drop(ERR_CONF, "wrong protocol version");
         return;
@@ -1046,8 +1045,7 @@ Peer::recvHello2(Hello2 const& elo)
         }
     }
 
-    if (elo.listeningPort <= 0 ||
-        elo.listeningPort > UINT16_MAX)
+    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX)
     {
         CLOG(WARNING, "Overlay") << "bad port in recvHello";
         mDropInRecvHelloPortMeter.Mark();
@@ -1122,8 +1120,9 @@ Peer::recvPeers(StellarMessage const& msg)
         }
         // randomize when we'll try to connect to this peer next if we don't
         // know it
-        auto defaultNextAttempt = mApp.getClock().now() + std::chrono::seconds(
-            std::rand() % NEW_PEER_WINDOW_SECONDS);
+        auto defaultNextAttempt =
+            mApp.getClock().now() +
+            std::chrono::seconds(std::rand() % NEW_PEER_WINDOW_SECONDS);
 
         stringstream ip;
         ip << (int)peer.ip.ipv4()[0] << "." << (int)peer.ip.ipv4()[1] << "."
@@ -1131,7 +1130,7 @@ Peer::recvPeers(StellarMessage const& msg)
         // don't use peer.numFailures here as we may have better luck
         // (and we don't want to poison our failure count)
         PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
-                      defaultNextAttempt, 0 };
+                      defaultNextAttempt, 0};
 
         if (pr.isPrivateAddress())
         {
@@ -1143,7 +1142,8 @@ Peer::recvPeers(StellarMessage const& msg)
             CLOG(WARNING, "Overlay") << "ignoring received self-address "
                                      << pr.toString();
         }
-        else if (pr.isLocalhost() && !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)
+        else if (pr.isLocalhost() &&
+                 !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)
         {
             CLOG(WARNING, "Overlay") << "ignoring received localhost";
         }

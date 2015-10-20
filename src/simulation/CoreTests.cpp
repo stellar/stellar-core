@@ -138,7 +138,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 
 static void
 hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
-                 Hash const& networkID)
+                     Hash const& networkID)
 {
     auto tBegin = std::chrono::system_clock::now();
 
@@ -182,7 +182,7 @@ TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
         mode = Simulation::OVER_TCP;
         test();
     }
-    }
+}
 
 static void
 hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,

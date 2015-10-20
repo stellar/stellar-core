@@ -13,16 +13,21 @@ class Topologies
 {
   public:
     static Simulation::pointer pair(Simulation::Mode mode,
-                                    Hash const& networkID, std::function<Config()> confGen=nullptr);
-    static Simulation::pointer cycle4(Hash const& networkID, std::function<Config()> confGen = nullptr);
+                                    Hash const& networkID,
+                                    std::function<Config()> confGen = nullptr);
+    static Simulation::pointer
+    cycle4(Hash const& networkID, std::function<Config()> confGen = nullptr);
     static Simulation::pointer core(int nNodes, float quorumThresoldFraction,
                                     Simulation::Mode mode,
-                                    Hash const& networkID, std::function<Config()> confGen = nullptr);
-    static Simulation::pointer hierarchicalQuorum(int nBranches,
-                                                  Simulation::Mode mode,
-                                                  Hash const& networkID, std::function<Config()> confGen = nullptr);
+                                    Hash const& networkID,
+                                    std::function<Config()> confGen = nullptr);
+    static Simulation::pointer
+    hierarchicalQuorum(int nBranches, Simulation::Mode mode,
+                       Hash const& networkID,
+                       std::function<Config()> confGen = nullptr);
     static Simulation::pointer
     hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
-                                 Simulation::Mode mode, Hash const& networkID, std::function<Config()> confGen = nullptr);
+                                 Simulation::Mode mode, Hash const& networkID,
+                                 std::function<Config()> confGen = nullptr);
 };
 }

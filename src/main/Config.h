@@ -22,7 +22,7 @@ class Config : public std::enable_shared_from_this<Config>
     void loadQset(std::shared_ptr<cpptoml::toml_group> group,
                   SCPQuorumSet& qset, int level);
 
-    void parseNodeID(std::string configStr,PublicKey& retKey);
+    void parseNodeID(std::string configStr, PublicKey& retKey);
 
   public:
     typedef std::shared_ptr<Config> pointer;
@@ -171,6 +171,5 @@ class Config : public std::enable_shared_from_this<Config>
     void load(std::string const& filename);
 
     std::string toShortString(PublicKey const& pk) const;
-
 };
 }

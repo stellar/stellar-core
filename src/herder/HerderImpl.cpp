@@ -450,7 +450,7 @@ HerderImpl::extractValidValue(uint64 slotIndex, Value const& value)
     return res;
 }
 
-std::string 
+std::string
 HerderImpl::toShortString(PublicKey const& pk) const
 {
     return mApp.getConfig().toShortString(pk);
@@ -761,10 +761,12 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                                 << " invalid transactions";
 
         // post to avoid triggering SCP handling code recursively
-        mApp.getClock().getIOService().post([this, bestTxSet]()
-        {
-            mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(), bestTxSet);
-        });
+        mApp.getClock().getIOService().post(
+            [this, bestTxSet]()
+            {
+                mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
+                                            bestTxSet);
+            });
     }
 
     return xdr::xdr_to_opaque(comp);
@@ -967,8 +969,9 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     }
 
     CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: " << mApp.getConfig().toShortString(
-                                              envelope.statement.nodeID)
+                          << " from: "
+                          << mApp.getConfig().toShortString(
+                                 envelope.statement.nodeID)
                           << " s:" << envelope.statement.pledges.type()
                           << " i:" << envelope.statement.slotIndex
                           << " a:" << mApp.getStateHuman();
@@ -1025,8 +1028,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
     {
         auto const& envelopes = mSCP.getCurrentState(seq);
 
-        CLOG(DEBUG, "Herder") << "Send state " << envelopes.size() << " for ledger "
-            << seq;
+        CLOG(DEBUG, "Herder") << "Send state " << envelopes.size()
+                              << " for ledger " << seq;
 
         for (auto const& e : envelopes)
         {
@@ -1431,7 +1434,8 @@ HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] = mApp.getConfig().toShortString(mSCP.getSecretKey().getPublicKey());
+    ret["you"] =
+        mApp.getConfig().toShortString(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 
@@ -1478,10 +1482,10 @@ HerderImpl::persistSCPState()
         latestQSets.emplace_back(*it.second);
     }
 
-    auto latestSCPData = xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
+    auto latestSCPData =
+        xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
     std::string scpState;
     scpState = bn::encode_b64(latestSCPData);
-
 
     mApp.getPersistentState().setState(PersistentState::kLastSCPData, scpState);
 }
@@ -1489,7 +1493,8 @@ HerderImpl::persistSCPState()
 void
 HerderImpl::restoreSCPState()
 {
-    auto latest64 = mApp.getPersistentState().getState(PersistentState::kLastSCPData);
+    auto latest64 =
+        mApp.getPersistentState().getState(PersistentState::kLastSCPData);
 
     if (latest64.empty())
     {
@@ -1503,18 +1508,20 @@ HerderImpl::restoreSCPState()
     xdr::xvector<TransactionSet> latestTxSets;
     xdr::xvector<SCPQuorumSet> latestQSets;
 
-    // no exception guard here: we want to crash if we don't recognize old messages
-    // only way out of this situation is probably to reset the node and catchup to
+    // no exception guard here: we want to crash if we don't recognize old
+    // messages
+    // only way out of this situation is probably to reset the node and catchup
+    // to
     // the network's state (it's unsafe to participate with bad SCP messages)
     xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
 
-    for(auto const& txset : latestTxSets)
+    for (auto const& txset : latestTxSets)
     {
         TxSetFramePtr cur = make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
         Hash h = cur->getContentsHash();
         mPendingEnvelopes.recvTxSet(h, cur);
     }
-    for(auto const& qset : latestQSets)
+    for (auto const& qset : latestQSets)
     {
         Hash hash = sha256(xdr::xdr_to_opaque(qset));
         mPendingEnvelopes.recvSCPQuorumSet(hash, qset);

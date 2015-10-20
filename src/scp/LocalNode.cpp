@@ -42,8 +42,9 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
     return qSet;
 }
 
-std::pair<bool,bool>
-LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSet)
+std::pair<bool, bool>
+LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
+                                   SCPQuorumSet const& qSet)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
@@ -57,7 +58,7 @@ LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSe
     {
         found = true;
     }
-    for(auto const& iSet: i)
+    for (auto const& iSet : i)
     {
         auto r = isQuorumSetSaneInternal(nodeID, iSet);
         found = found || r.first;
@@ -71,8 +72,7 @@ LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
     auto res = isQuorumSetSaneInternal(nodeID, qSet);
     // it's OK for a non validating node to not have itself in its quorum set
-    return (res.first || (!mIsValidator && nodeID == mNodeID)) &&
-        res.second;
+    return (res.first || (!mIsValidator && nodeID == mNodeID)) && res.second;
 }
 
 void

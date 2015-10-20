@@ -204,9 +204,9 @@ class DBTimeExcluder : NonCopyable
     Application& mApp;
     std::chrono::nanoseconds mStartQueryTime;
     VirtualClock::time_point mStartTotalTime;
-public:
+
+  public:
     DBTimeExcluder(Application& mApp);
     ~DBTimeExcluder();
 };
-
 }

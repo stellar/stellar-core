@@ -326,9 +326,8 @@ class HistoryManager
     // Returns the number of publishes initiated, which is the same number
     // as the number of times the provided handler will be called (once for
     // each, as they complete).
-    virtual size_t
-    publishQueuedHistory(std::function<void(asio::error_code const&)>
-                         handler) = 0;
+    virtual size_t publishQueuedHistory(
+        std::function<void(asio::error_code const&)> handler) = 0;
 
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue that are not present in the BucketManager. These need to be

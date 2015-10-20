@@ -48,16 +48,16 @@ VirtualClock::maybeSetRealtimer()
         {
             mRealTimer.expires_at(nextp);
             mRealTimer.async_wait([this](asio::error_code const& ec)
-            {
-                if (ec == asio::error::operation_aborted)
-                {
-                    ++this->nRealTimerCancelEvents;
-                }
-                else
-                {
-                    this->advanceToNow();
-                }
-            });
+                                  {
+                                      if (ec == asio::error::operation_aborted)
+                                      {
+                                          ++this->nRealTimerCancelEvents;
+                                      }
+                                      else
+                                      {
+                                          this->advanceToNow();
+                                      }
+                                  });
         }
     }
 }
@@ -316,9 +316,8 @@ VirtualClock::recentIdleCrankPercent() const
         (100ULL * static_cast<uint64_t>(mRecentIdleCrankCount)) /
         static_cast<uint64_t>(mRecentCrankCount));
 
-    LOG(DEBUG) << "Estimated clock loop idle: " << v
-               << "% (" << mRecentIdleCrankCount
-               << "/" << mRecentCrankCount << ")";
+    LOG(DEBUG) << "Estimated clock loop idle: " << v << "% ("
+               << mRecentIdleCrankCount << "/" << mRecentCrankCount << ")";
 
     // This should _really_ never be >100, it's a bug in our code if so.
     assert(v <= 100);

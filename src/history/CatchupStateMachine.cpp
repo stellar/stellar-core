@@ -135,9 +135,7 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
                 ++nDownloaded;
             }
         }
-        stateStr << ", downloaded "
-                 << nDownloaded << "/" << nFiles
-                 << " files";
+        stateStr << ", downloaded " << nDownloaded << "/" << nFiles << " files";
     }
     break;
 
@@ -146,8 +144,8 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
         {
             // FIXME: give a progress count here, maybe? It usually
             // runs very quickly, even on huge history. Like disk-speed.
-            stateStr << ", verifying "
-                     << mHeaderInfos.size() << "-ledger history chain";
+            stateStr << ", verifying " << mHeaderInfos.size()
+                     << "-ledger history chain";
         }
         else
         {
@@ -159,17 +157,15 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
         if (mMode == HistoryManager::CATCHUP_COMPLETE)
         {
             assert(mApplyState);
-            stateStr << ", applying ledger "
-                     << mApplyState->mCheckpointNumber
+            stateStr << ", applying ledger " << mApplyState->mCheckpointNumber
                      << "/"
-                     << (mHeaderInfos.empty() ? 0 :
-                         mHeaderInfos.rbegin()->first);
+                     << (mHeaderInfos.empty() ? 0
+                                              : mHeaderInfos.rbegin()->first);
         }
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
             assert(mApplyState);
-            stateStr << ", appying bucket level "
-                     << mApplyState->mBucketLevel;
+            stateStr << ", appying bucket level " << mApplyState->mBucketLevel;
         }
         break;
 
@@ -195,7 +191,6 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
     CLOG(INFO, "History") << stateStr.str();
     mApp.setExtraStateInfo(stateStr.str());
 }
-
 
 /**
  * Select any readable history archive. If there are more than one,
@@ -565,10 +560,9 @@ CatchupStateMachine::enterAnchoredState(HistoryArchiveState const& has)
     {
         bucketsToFetch =
             mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
-        auto publishBuckets =
-            mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
-        bucketsToFetch.insert(bucketsToFetch.end(),
-                              publishBuckets.begin(),
+        auto publishBuckets = mApp.getHistoryManager()
+                                  .getMissingBucketsReferencedByPublishQueue();
+        bucketsToFetch.insert(bucketsToFetch.end(), publishBuckets.begin(),
                               publishBuckets.end());
     }
     else if (mMode == HistoryManager::CATCHUP_MINIMAL)
@@ -965,16 +959,15 @@ CatchupStateMachine::advanceApplyingState()
     if (keepGoing)
     {
         std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
-        mApp.getClock().getIOService().post(
-            [weak]()
-            {
-                auto self = weak.lock();
-                if (!self)
-                {
-                    return;
-                }
-                self->advanceApplyingState();
-            });
+        mApp.getClock().getIOService().post([weak]()
+                                            {
+                                                auto self = weak.lock();
+                                                if (!self)
+                                                {
+                                                    return;
+                                                }
+                                                self->advanceApplyingState();
+                                            });
     }
     else
     {
@@ -1019,8 +1012,8 @@ CatchupStateMachine::applySingleBucketLevel(bool& applying, size_t& n)
     auto& db = mApp.getDatabase();
     auto& bl = mApp.getBucketManager().getBucketList();
 
-    CLOG(DEBUG, "History") << "Applying buckets for level " << n << " at ledger "
-                           << mLastClosed.header.ledgerSeq;
+    CLOG(DEBUG, "History") << "Applying buckets for level " << n
+                           << " at ledger " << mLastClosed.header.ledgerSeq;
 
     // We've verified mLastClosed (in the "trusted part of history" sense) in
     // CATCHUP_VERIFY phase; we now need to check that the BucketListHash we're

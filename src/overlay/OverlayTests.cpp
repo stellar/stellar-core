@@ -188,8 +188,8 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
         REQUIRE(!conn.getInitiator()->isConnected());
         REQUIRE(!conn.getAcceptor()->isConnected());
         REQUIRE(app2->getMetrics()
-                .NewMeter({ "overlay", "drop", "recv-hello-version" }, "drop")
-                .count() != 0);
+                    .NewMeter({"overlay", "drop", "recv-hello-version"}, "drop")
+                    .count() != 0);
     };
     SECTION("cfg2 above")
     {
@@ -255,8 +255,7 @@ TEST_CASE("reject peers with the same nodeid", "[overlay]")
 }
 
 void
-injectSendPeersAndReschedule(VirtualClock::time_point& end,
-                             VirtualClock& clock,
+injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
                              VirtualTimer& timer,
                              std::shared_ptr<LoopbackPeer> const& sendPeer)
 {
@@ -264,14 +263,14 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end,
     if (clock.now() < end && sendPeer->isConnected())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
-        timer.async_wait(
-            [&](asio::error_code const& ec)
-            {
-                if (!ec)
-                {
-                    injectSendPeersAndReschedule(end, clock, timer, sendPeer);
-                }
-            });
+        timer.async_wait([&](asio::error_code const& ec)
+                         {
+                             if (!ec)
+                             {
+                                 injectSendPeersAndReschedule(end, clock, timer,
+                                                              sendPeer);
+                             }
+                         });
     }
 }
 
@@ -303,12 +302,10 @@ TEST_CASE("disconnect peers when overloaded", "[overlay]")
     auto end = start + std::chrono::seconds(10);
     VirtualTimer timer(clock);
 
-    injectSendPeersAndReschedule(end, clock, timer,
-                                 conn.getInitiator());
+    injectSendPeersAndReschedule(end, clock, timer, conn.getInitiator());
 
     for (size_t i = 0;
-         (i < 1000 && clock.now() < end &&
-          conn.getInitiator()->isConnected() &&
+         (i < 1000 && clock.now() < end && conn.getInitiator()->isConnected() &&
           clock.crank(false) > 0);
          ++i)
         ;
@@ -317,7 +314,7 @@ TEST_CASE("disconnect peers when overloaded", "[overlay]")
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(conn2.getInitiator()->isConnected());
     REQUIRE(conn2.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics().NewMeter(
-                {"overlay", "drop", "load-shed"},
-                "drop").count() != 0);
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "drop", "load-shed"}, "drop")
+                .count() != 0);
 }

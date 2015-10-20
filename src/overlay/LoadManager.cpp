@@ -16,21 +16,20 @@
 namespace stellar
 {
 
-LoadManager::LoadManager()
-    : mPeerCosts(128)
+LoadManager::LoadManager() : mPeerCosts(128)
 {
 }
 
 std::string
 byteMag(uint64_t bytes)
 {
-    static char const * sz[7] = {"B","KiB","MiB","GiB","TiB","PiB","EiB"};
+    static char const* sz[7] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"};
     for (int i = 6; i >= 0; --i)
     {
-        uint64_t mag = i*10;
+        uint64_t mag = i * 10;
         if (bytes >= (1ULL << mag))
         {
-            return fmt::format("{:>d}{:s}", bytes>>mag, sz[i]);
+            return fmt::format("{:>d}{:s}", bytes >> mag, sz[i]);
         }
     }
     return "0";
@@ -40,13 +39,13 @@ std::string
 timeMag(uint64_t nanos)
 {
 
-    static char const * sz[4] = {"ns","us","ms","s"};
+    static char const* sz[4] = {"ns", "us", "ms", "s"};
     uint64_t mag = 1000000000;
     for (int i = 3; i >= 0; --i)
     {
         if (nanos >= mag)
         {
-            return fmt::format("{:>d}{:s}", nanos/mag, sz[i]);
+            return fmt::format("{:>d}{:s}", nanos / mag, sz[i]);
         }
         mag /= 1000;
     }
@@ -54,27 +53,26 @@ timeMag(uint64_t nanos)
 }
 
 void
-LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,Application& app)
+LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,
+                         Application& app)
 {
     CLOG(INFO, "Overlay") << "";
-    CLOG(INFO, "Overlay")
-        << "Cumulative peer-load costs:";
+    CLOG(INFO, "Overlay") << "Cumulative peer-load costs:";
     CLOG(INFO, "Overlay")
         << "------------------------------------------------------";
-    CLOG(INFO, "Overlay")
-        << fmt::format("{:>10s} {:>10s} {:>10s} {:>10s} {:>10s}",
-                       "peer", "time", "send", "recv", "query");
+    CLOG(INFO, "Overlay") << fmt::format(
+        "{:>10s} {:>10s} {:>10s} {:>10s} {:>10s}", "peer", "time", "send",
+        "recv", "query");
     for (auto const& peer : peers)
     {
         auto cost = getPeerCosts(peer->getPeerID());
-        CLOG(INFO, "Overlay") <<
-            fmt::format(
-                "{:>10s} {:>10s} {:>10s} {:>10s} {:>10d}",
-                app.getConfig().toShortString(peer->getPeerID()),
-                timeMag(static_cast<uint64_t>(cost->mTimeSpent.one_minute_rate())),
-                byteMag(static_cast<uint64_t>(cost->mBytesSend.one_minute_rate())),
-                byteMag(static_cast<uint64_t>(cost->mBytesRecv.one_minute_rate())),
-                cost->mSQLQueries.count());
+        CLOG(INFO, "Overlay") << fmt::format(
+            "{:>10s} {:>10s} {:>10s} {:>10s} {:>10d}",
+            app.getConfig().toShortString(peer->getPeerID()),
+            timeMag(static_cast<uint64_t>(cost->mTimeSpent.one_minute_rate())),
+            byteMag(static_cast<uint64_t>(cost->mBytesSend.one_minute_rate())),
+            byteMag(static_cast<uint64_t>(cost->mBytesRecv.one_minute_rate())),
+            cost->mSQLQueries.count());
     }
     CLOG(INFO, "Overlay") << "";
 }
@@ -100,7 +98,7 @@ LoadManager::maybeShedExcessLoad(Application& app)
         CLOG(WARNING, "Overlay") << "";
 
         auto peers = app.getOverlayManager().getPeers();
-        reportLoads(peers,app);
+        reportLoads(peers, app);
 
         // Look for the worst-behaved of the current peers and kick them out.
         std::shared_ptr<Peer> victim;
@@ -121,13 +119,13 @@ LoadManager::maybeShedExcessLoad(Application& app)
                 << "Disconnecting suspected culprit "
                 << app.getConfig().toShortString(victim->getPeerID());
 
-            app.getMetrics().NewMeter(
-                {"overlay", "drop", "load-shed"}, "drop").Mark();
+            app.getMetrics()
+                .NewMeter({"overlay", "drop", "load-shed"}, "drop")
+                .Mark();
 
             victim->drop();
         }
     }
-
 }
 
 LoadManager::PeerCosts::PeerCosts()
@@ -143,19 +141,14 @@ LoadManager::PeerCosts::isLessThan(
     std::shared_ptr<LoadManager::PeerCosts> other)
 {
     double ownRates[4] = {
-        mTimeSpent.one_minute_rate(),
-        mBytesSend.one_minute_rate(),
-        mBytesRecv.one_minute_rate(),
-        mSQLQueries.one_minute_rate()
-    };
-    double otherRates[4] = {
-        other->mTimeSpent.one_minute_rate(),
-        other->mBytesSend.one_minute_rate(),
-        other->mBytesRecv.one_minute_rate(),
-        other->mSQLQueries.one_minute_rate()
-    };
-    return std::lexicographical_compare(ownRates, ownRates+4,
-                                        otherRates, otherRates+4);
+        mTimeSpent.one_minute_rate(), mBytesSend.one_minute_rate(),
+        mBytesRecv.one_minute_rate(), mSQLQueries.one_minute_rate()};
+    double otherRates[4] = {other->mTimeSpent.one_minute_rate(),
+                            other->mBytesSend.one_minute_rate(),
+                            other->mBytesRecv.one_minute_rate(),
+                            other->mSQLQueries.one_minute_rate()};
+    return std::lexicographical_compare(ownRates, ownRates + 4, otherRates,
+                                        otherRates + 4);
 }
 
 std::shared_ptr<LoadManager::PeerCosts>
@@ -170,8 +163,7 @@ LoadManager::getPeerCosts(NodeID const& node)
     return p;
 }
 
-LoadManager::PeerContext::PeerContext(Application& app,
-                                      NodeID const& node)
+LoadManager::PeerContext::PeerContext(Application& app, NodeID const& node)
     : mApp(app)
     , mNode(node)
     , mWorkStart(app.getClock().now())
@@ -190,19 +182,16 @@ LoadManager::PeerContext::~PeerContext()
             mApp.getClock().now() - mWorkStart);
         auto send = Peer::getByteWriteMeter(mApp).count() - mBytesSendStart;
         auto recv = Peer::getByteReadMeter(mApp).count() - mBytesRecvStart;
-        auto query = (mApp.getDatabase().getQueryMeter().count() -
-                      mSQLQueriesStart);
-        CLOG(TRACE, "Overlay") << "Debiting peer "
-                               << mApp.getConfig().toShortString(mNode)
-                               << " time:" << timeMag(time.count())
-                               << " send:" << byteMag(send)
-                               << " recv:" << byteMag(recv)
-                               << " query:" << query;
+        auto query =
+            (mApp.getDatabase().getQueryMeter().count() - mSQLQueriesStart);
+        CLOG(TRACE, "Overlay")
+            << "Debiting peer " << mApp.getConfig().toShortString(mNode)
+            << " time:" << timeMag(time.count()) << " send:" << byteMag(send)
+            << " recv:" << byteMag(recv) << " query:" << query;
         pc->mTimeSpent.Mark(time.count());
         pc->mBytesSend.Mark(send);
         pc->mBytesRecv.Mark(recv);
         pc->mSQLQueries.Mark(query);
     }
 }
-
 }

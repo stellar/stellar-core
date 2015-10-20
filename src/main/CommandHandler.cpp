@@ -418,7 +418,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     root["info"]["build"] = STELLAR_CORE_VERSION;
     root["info"]["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     root["info"]["state"] = mApp.getStateHuman();
-    if(mApp.getExtraStateInfo().size())
+    if (mApp.getExtraStateInfo().size())
         root["info"]["extra"] = mApp.getExtraStateInfo();
     root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
     root["info"]["ledger"]["hash"] =
