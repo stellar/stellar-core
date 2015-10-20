@@ -301,6 +301,15 @@ Config::load(std::string const& filename)
                 }
                 ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = (uint32_t)f;
             }
+            else if (item.first == "ALLOW_LOCALHOST_FOR_TESTING")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument(
+                        "invalid ALLOW_LOCALHOST_FOR_TESTING");
+                }
+                ALLOW_LOCALHOST_FOR_TESTING = item.second->as<bool>()->value();
+            }
             else if (item.first == "MANUAL_CLOSE")
             {
                 if (!item.second->as<bool>())
