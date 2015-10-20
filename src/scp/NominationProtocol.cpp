@@ -113,8 +113,9 @@ NominationProtocol::isSane(SCPStatement const& st)
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
 
-    res = res && mSlot.getLocalNode()->isQuorumSetSane(
-                     st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+    res = res &&
+          mSlot.getLocalNode()->isQuorumSetSane(
+              st.nodeID, *mSlot.getQuorumSetFromStatement(st));
 
     return res;
 }
@@ -223,7 +224,8 @@ NominationProtocol::updateRoundLeaders()
     CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
     for (auto const& rl : mRoundLeaders)
     {
-        CLOG(DEBUG, "SCP") << "    leader " << mSlot.getSCPDriver().toShortString(rl);
+        CLOG(DEBUG, "SCP") << "    leader "
+                           << mSlot.getSCPDriver().toShortString(rl);
     }
 }
 
@@ -532,7 +534,8 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     counter = 0;
     for (auto const& v : mLatestNominations)
     {
-        nomState["N"][counter]["id"] = mSlot.getSCPDriver().toShortString(v.first);
+        nomState["N"][counter]["id"] =
+            mSlot.getSCPDriver().toShortString(v.first);
         nomState["N"][counter]["statement"] = mSlot.envToStr(v.second);
 
         counter++;
@@ -546,11 +549,12 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
 {
     if (mNominationStarted)
     {
-        throw std::runtime_error("Cannot set state after nomination is started");
+        throw std::runtime_error(
+            "Cannot set state after nomination is started");
     }
     recordEnvelope(e);
     auto const& nom = e.statement.pledges.nominate();
-    for(auto const& a : nom.accepted)
+    for (auto const& a : nom.accepted)
     {
         mAccepted.emplace(a);
     }

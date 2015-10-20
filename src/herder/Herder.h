@@ -104,7 +104,8 @@ class Herder
     virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger) = 0;
 
     // returns if a nodeID's quorum set passes sanity checks
-    virtual bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet) = 0;
+    virtual bool isQuorumSetSane(NodeID const& nodeID,
+                                 SCPQuorumSet const& qSet) = 0;
 
     virtual ~Herder()
     {

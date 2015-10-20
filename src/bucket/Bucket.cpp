@@ -300,7 +300,8 @@ Bucket::apply(Database& db) const
         {
             db.clearPreparedStatementCache();
             db.getSession().commit();
-            CLOG(INFO, "Bucket") << "Bucket-apply: committed " << i << " entries";
+            CLOG(INFO, "Bucket") << "Bucket-apply: committed " << i
+                                 << " entries";
             db.getSession().begin();
         }
         if (entry.type() == LIVEENTRY)

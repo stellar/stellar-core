@@ -233,7 +233,7 @@ ApplicationImpl::start()
     }
     if (mConfig.NODE_IS_VALIDATOR &&
         !mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
-                                    mConfig.QUORUM_SET))
+                                  mConfig.QUORUM_SET))
     {
         throw std::invalid_argument(
             "Invalid QUORUM_SET: bad threshold or validator is not a member");
@@ -254,7 +254,9 @@ ApplicationImpl::start()
             mHerder->restoreSCPState();
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory(
-                [](asio::error_code const&){});
+                [](asio::error_code const&)
+                {
+                });
             if (npub != 0)
             {
                 CLOG(INFO, "Ledger") << "Restarted publishing " << npub
@@ -436,7 +438,7 @@ ApplicationImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
-std::string 
+std::string
 ApplicationImpl::getExtraStateInfo() const
 {
     return std::string(mExtraStateInfo);

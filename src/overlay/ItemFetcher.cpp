@@ -103,7 +103,8 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
         // calling recv on the same itemID
         auto& waiting = iter->second->mWaitingEnvelopes;
 
-        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : " << waiting.size();
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : "
+                               << waiting.size();
 
         while (!waiting.empty())
         {
@@ -117,16 +118,15 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
 }
 
 Tracker::Tracker(Application& app, uint256 const& id)
-    :
-    mApp(app)
-    ,mTimer(app)
-    ,mItemID(id)
-    , mTryNextPeerReset(
-        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "reset-fetcher" }, "item-fetcher"))
-    ,mTryNextPeer(
-        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "next-peer" }, "item-fetcher"))
-    {
-    }
+    : mApp(app)
+    , mTimer(app)
+    , mItemID(id)
+    , mTryNextPeerReset(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "reset-fetcher"}, "item-fetcher"))
+    , mTryNextPeer(app.getMetrics().NewMeter(
+          {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
+{
+}
 
 Tracker::~Tracker()
 {
@@ -179,8 +179,8 @@ Tracker::tryNextPeer()
     Peer::pointer peer;
 
     CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID) << " last: "
-                          << (mLastAskedPeer ? mLastAskedPeer->toString()
-                                             : "<none>");
+                           << (mLastAskedPeer ? mLastAskedPeer->toString()
+                                              : "<none>");
 
     if (mPeersToAsk.empty())
     {
@@ -195,7 +195,7 @@ Tracker::tryNextPeer()
 
         // move the peers that have the envelope to the back,
         // to be processed first
-        for(auto const& p: mApp.getOverlayManager().getRandomPeers())
+        for (auto const& p : mApp.getOverlayManager().getRandomPeers())
         {
             if (peersWithEnvelope.find(p) != peersWithEnvelope.end())
             {
@@ -208,7 +208,7 @@ Tracker::tryNextPeer()
         }
 
         CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
-            << " reset to #" << mPeersToAsk.size();
+                               << " reset to #" << mPeersToAsk.size();
         mTryNextPeerReset.Mark();
     }
 
@@ -232,7 +232,7 @@ Tracker::tryNextPeer()
     {
         mLastAskedPeer = peer;
         CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
-                              << peer->toString();
+                               << peer->toString();
         mTryNextPeer.Mark();
         askPeer(peer);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
@@ -253,7 +253,8 @@ Tracker::listen(const SCPEnvelope& env)
     StellarMessage m;
     m.type(SCP_MESSAGE);
     m.envelope() = env;
-    mWaitingEnvelopes.push_back(std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
+    mWaitingEnvelopes.push_back(
+        std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
 
 void

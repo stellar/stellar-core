@@ -10,9 +10,11 @@ namespace stellar
 using namespace std;
 
 Simulation::pointer
-Topologies::pair(Simulation::Mode mode, Hash const& networkID, std::function<Config()> confGen)
+Topologies::pair(Simulation::Mode mode, Hash const& networkID,
+                 std::function<Config()> confGen)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID, confGen);
+    Simulation::pointer simulation =
+        make_shared<Simulation>(mode, networkID, confGen);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
@@ -75,9 +77,11 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 
 Simulation::pointer
 Topologies::core(int nNodes, float quorumThresoldFraction,
-                 Simulation::Mode mode, Hash const& networkID, std::function<Config()> confGen)
+                 Simulation::Mode mode, Hash const& networkID,
+                 std::function<Config()> confGen)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID, confGen);
+    Simulation::pointer simulation =
+        make_shared<Simulation>(mode, networkID, confGen);
 
     vector<SecretKey> keys;
     for (int i = 0; i < nNodes; i++)
@@ -111,9 +115,9 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer
-Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
-                               Hash const& networkID, std::function<Config()> confGen) // Figure 3 from the paper
+Simulation::pointer Topologies::hierarchicalQuorum(
+    int nBranches, Simulation::Mode mode, Hash const& networkID,
+    std::function<Config()> confGen) // Figure 3 from the paper
 {
     auto sim = Topologies::core(4, 0.75, mode, networkID, confGen);
     vector<NodeID> coreNodeIDs;
@@ -178,7 +182,8 @@ Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
 Simulation::pointer
 Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
                                          Simulation::Mode mode,
-                                         Hash const& networkID, std::function<Config()> confGen)
+                                         Hash const& networkID,
+                                         std::function<Config()> confGen)
 {
     // outer nodes are independent validators that point to a [core network]
     auto sim = Topologies::core(coreSize, 0.75, mode, networkID, confGen);

@@ -575,7 +575,8 @@ TEST_CASE("SCP State", "[herder]")
     {
         nodeKeys[i] = SecretKey::random();
         nodeIDs[i] = nodeKeys[i].getPublicKey();
-        nodeCfgs[i] = getTestConfig(i+1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
+        nodeCfgs[i] =
+            getTestConfig(i + 1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
     }
 
     VirtualClock* clock = &sim->getClock();
@@ -599,14 +600,23 @@ TEST_CASE("SCP State", "[herder]")
         sim->startAllNodes();
         // wait to close exactly once
 
-        sim->crankUntil([&]() {
-            return sim->haveAllExternalized(2, 1);
-        }, std::chrono::seconds(1), true);
+        sim->crankUntil(
+            [&]()
+            {
+                return sim->haveAllExternalized(2, 1);
+            },
+            std::chrono::seconds(1), true);
 
-        REQUIRE(sim->getNode(nodeIDs[0])->getLedgerManager().getLastClosedLedgerNum() == 2);
-        REQUIRE(sim->getNode(nodeIDs[1])->getLedgerManager().getLastClosedLedgerNum() == 2);
+        REQUIRE(sim->getNode(nodeIDs[0])
+                    ->getLedgerManager()
+                    .getLastClosedLedgerNum() == 2);
+        REQUIRE(sim->getNode(nodeIDs[1])
+                    ->getLedgerManager()
+                    .getLastClosedLedgerNum() == 2);
 
-        lcl = sim->getNode(nodeIDs[0])->getLedgerManager().getLastClosedLedgerHeader();
+        lcl = sim->getNode(nodeIDs[0])
+                  ->getLedgerManager()
+                  .getLastClosedLedgerHeader();
 
         // adjust configs for a clean restart
         for (int i = 0; i < 2; i++)
@@ -619,7 +629,8 @@ TEST_CASE("SCP State", "[herder]")
         // restart simulation
         sim.reset();
 
-        sim = std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+        sim =
+            std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
         clock = &sim->getClock();
 
         // start a new node that will switch to whatever node0 & node1 says
@@ -632,10 +643,13 @@ TEST_CASE("SCP State", "[herder]")
         sim->addNode(nodeKeys[2], qSetAll, *clock, &nodeCfgs[2]);
         sim->getNode(nodeIDs[2])->start();
 
-        // crank a bit (nothing should happen, node 2 is waiting for SCP messages)
+        // crank a bit (nothing should happen, node 2 is waiting for SCP
+        // messages)
         sim->crankForAtLeast(std::chrono::seconds(1), false);
 
-        REQUIRE(sim->getNode(nodeIDs[2])->getLedgerManager().getLastClosedLedgerNum() == 1);
+        REQUIRE(sim->getNode(nodeIDs[2])
+                    ->getLedgerManager()
+                    .getLastClosedLedgerNum() == 1);
 
         // start up node 0 and 1 again
         // nodes 0 and 1 have lost their SCP state as they got restarted
@@ -656,15 +670,22 @@ TEST_CASE("SCP State", "[herder]")
     {
         doTest(true);
 
-        // then let the nodes run a bit more, they should all externalize the next ledger
-        sim->crankUntil([&]() {
-            return sim->haveAllExternalized(3, 2);
-        }, Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
+        // then let the nodes run a bit more, they should all externalize the
+        // next ledger
+        sim->crankUntil(
+            [&]()
+            {
+                return sim->haveAllExternalized(3, 2);
+            },
+            Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         // nodes are at least on ledger 3 (some may be on 4)
         for (int i = 0; i <= 2; i++)
         {
-            auto const& actual = sim->getNode(nodeIDs[i])->getLedgerManager().getLastClosedLedgerHeader().header;
+            auto const& actual = sim->getNode(nodeIDs[i])
+                                     ->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header;
             if (actual.ledgerSeq == 3)
             {
                 REQUIRE(actual.previousLedgerHash == lcl.hash);
@@ -678,13 +699,21 @@ TEST_CASE("SCP State", "[herder]")
         // to get stuck at ledger #2
         doTest(false);
 
-        sim->crankUntil([&]() {
-            return sim->getNode(nodeIDs[2])->getLedgerManager().getLastClosedLedgerNum() == 2;
-        }, std::chrono::seconds(1), false);
+        sim->crankUntil(
+            [&]()
+            {
+                return sim->getNode(nodeIDs[2])
+                           ->getLedgerManager()
+                           .getLastClosedLedgerNum() == 2;
+            },
+            std::chrono::seconds(1), false);
 
         for (int i = 0; i <= 2; i++)
         {
-            auto const& actual = sim->getNode(nodeIDs[i])->getLedgerManager().getLastClosedLedgerHeader().header;
+            auto const& actual = sim->getNode(nodeIDs[i])
+                                     ->getLedgerManager()
+                                     .getLastClosedLedgerHeader()
+                                     .header;
             REQUIRE(actual == lcl.header);
         }
     }

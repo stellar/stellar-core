@@ -48,7 +48,7 @@ class Tracker
     std::deque<Peer::pointer> mPeersToAsk;
     VirtualTimer mTimer;
     bool mIsStopped = false;
-    std::vector<std::pair<Hash,SCPEnvelope>> mWaitingEnvelopes;
+    std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
     uint256 mItemID;
     medida::Meter& mTryNextPeerReset;
     medida::Meter& mTryNextPeer;

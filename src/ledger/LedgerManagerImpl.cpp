@@ -129,8 +129,8 @@ LedgerManagerImpl::setState(State s)
         mApp.syncOwnMetrics();
         CLOG(INFO, "Ledger") << "Changing state " << oldState << " -> "
                              << getStateHuman();
-        if(mState != LM_CATCHING_UP_STATE)
-        { 
+        if (mState != LM_CATCHING_UP_STATE)
+        {
             mApp.getHistoryManager().logAndUpdateStatus(true);
         }
     }
@@ -232,8 +232,8 @@ LedgerManagerImpl::loadLastKnownLedger(
 
             auto missing =
                 mApp.getBucketManager().checkForMissingBucketsFiles(has);
-            auto pubmissing =
-                mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
+            auto pubmissing = mApp.getHistoryManager()
+                                  .getMissingBucketsReferencedByPublishQueue();
             missing.insert(missing.end(), pubmissing.begin(), pubmissing.end());
             if (!missing.empty())
             {
@@ -725,7 +725,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // 4. GC unreferenced buckets. Only do this once publishes are in progress.
 
     // step 1
-    auto &hm = mApp.getHistoryManager();
+    auto& hm = mApp.getHistoryManager();
     hm.maybeQueueHistoryCheckpoint();
 
     // step 2
@@ -733,7 +733,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     txscope.commit();
 
     // step 3
-    hm.publishQueuedHistory([](asio::error_code const&){});
+    hm.publishQueuedHistory([](asio::error_code const&)
+                            {
+                            });
     hm.logAndUpdateStatus(true);
 
     // step 4

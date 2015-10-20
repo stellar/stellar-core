@@ -28,7 +28,8 @@ Floodgate::Floodgate(Application& app)
     : mApp(app)
     , mFloodMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
-    , mSendFromBroadcast(app.getMetrics().NewMeter({ "overlay", "message", "send-from-broadcast" }, "message"))
+    , mSendFromBroadcast(app.getMetrics().NewMeter(
+          {"overlay", "message", "send-from-broadcast"}, "message"))
     , mShuttingDown(false)
 {
 }
@@ -102,15 +103,15 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
 
     for (auto peer : peers)
     {
-        if (peersTold.find(peer) ==
-            peersTold.end() && peer->isAuthenticated())
+        if (peersTold.find(peer) == peersTold.end() && peer->isAuthenticated())
         {
             mSendFromBroadcast.Mark();
             peer->sendMessage(msg);
             peersTold.insert(peer);
         }
     }
-    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << peersTold.size();
+    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told "
+                           << peersTold.size();
 }
 
 std::set<Peer::pointer>

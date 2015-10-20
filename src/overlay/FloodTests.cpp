@@ -38,11 +38,12 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
     std::vector<SecretKey> sources;
     std::vector<PublicKey> sourcesPub;
-    SequenceNumber expectedSeq =0 ;
+    SequenceNumber expectedSeq = 0;
 
     std::vector<std::shared_ptr<Application>> nodes;
 
-    auto test = [&](std::function<void(int)> inject, std::function<bool(std::shared_ptr<Application>)> acked)
+    auto test = [&](std::function<void(int)> inject,
+                    std::function<bool(std::shared_ptr<Application>)> acked)
     {
         simulation->startAllNodes();
 
@@ -122,7 +123,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
                     kv.second->Process(reporter);
                 }
             }
-            LOG(DEBUG) << " ~~~~~~ " << n->getConfig().PEER_PORT << " :\n" << out.str();
+            LOG(DEBUG) << " ~~~~~~ " << n->getConfig().PEER_PORT << " :\n"
+                       << out.str();
         }
         REQUIRE(checkSim());
     };
@@ -155,13 +157,16 @@ TEST_CASE("Flooding", "[flood][overlay]")
             size_t okCount = 0;
             for (auto const& s : sourcesPub)
             {
-                okCount += (app->getHerder().getMaxSeqInPendingTxs(s) ==
-                              expectedSeq) ? 1 : 0;
+                okCount +=
+                    (app->getHerder().getMaxSeqInPendingTxs(s) == expectedSeq)
+                        ? 1
+                        : 0;
             }
             bool res = okCount == sourcesPub.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
-                << (res ? " OK " : " BEHIND ") << okCount << " / " << sourcesPub.size()
-                << " peers: " << app->getOverlayManager().getPeers().size();
+                       << (res ? " OK " : " BEHIND ") << okCount << " / "
+                       << sourcesPub.size() << " peers: "
+                       << app->getOverlayManager().getPeers().size();
             return res;
         };
 
@@ -169,12 +174,14 @@ TEST_CASE("Flooding", "[flood][overlay]")
         {
             SECTION("loopback")
             {
-                simulation = Topologies::core(4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen);
+                simulation = Topologies::core(
+                    4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen);
                 test(injectTransaction, ackedTransactions);
             }
             SECTION("tcp")
             {
-                simulation = Topologies::core(4, .666f, Simulation::OVER_TCP, networkID, cfgGen);
+                simulation = Topologies::core(4, .666f, Simulation::OVER_TCP,
+                                              networkID, cfgGen);
                 test(injectTransaction, ackedTransactions);
             }
         }
@@ -188,13 +195,13 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 test(injectTransaction, ackedTransactions);
             }
             SECTION("tcp")
-                {
+            {
                 simulation = Topologies::hierarchicalQuorumSimplified(
                     5, 10, Simulation::OVER_TCP, networkID, cfgGen);
                 test(injectTransaction, ackedTransactions);
-                }
             }
         }
+    }
 
     SECTION("scp messages flooding")
     {
@@ -215,7 +222,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto inApp = nodes[i % nodes.size()];
 
             // create the transaction set containing this transaction
-            auto const& lcl = inApp->getLedgerManager().getLastClosedLedgerHeader();
+            auto const& lcl =
+                inApp->getLedgerManager().getLastClosedLedgerHeader();
             TxSetFrame txSet(lcl.hash);
             txSet.add(tx1);
             txSet.sortForHash();
@@ -228,14 +236,15 @@ TEST_CASE("Flooding", "[flood][overlay]")
             SCPQuorumSet qset;
             qset.threshold = 1;
             qset.validators.emplace_back(sourcesPub[i]);
-            
+
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
 
             herder.recvSCPQuorumSet(qSetHash, qset);
 
             // build an SCP nomination message for the next ledger
 
-            StellarValue sv(txSet.getContentsHash(), lcl.header.scpValue.closeTime + 1,
+            StellarValue sv(txSet.getContentsHash(),
+                            lcl.header.scpValue.closeTime + 1,
                             emptyUpgradeSteps, 0);
 
             SCPEnvelope envelope;
@@ -261,52 +270,61 @@ TEST_CASE("Flooding", "[flood][overlay]")
         {
             // checks if an app received and processed all SCP messages
             size_t okCount = 0;
-            auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+            auto const& lcl =
+                app->getLedgerManager().getLastClosedLedgerHeader();
 
             HerderImpl& herder = *static_cast<HerderImpl*>(&app->getHerder());
-            auto state = herder.getSCP().getCurrentState(lcl.header.ledgerSeq + 1);
+            auto state =
+                herder.getSCP().getCurrentState(lcl.header.ledgerSeq + 1);
             for (auto const& s : sourcesPub)
             {
-                if (std::find_if(state.begin(), state.end(), [&](SCPEnvelope const& e) { return e.statement.nodeID == s; }) != state.end())
+                if (std::find_if(state.begin(), state.end(),
+                                 [&](SCPEnvelope const& e)
+                                 {
+                                     return e.statement.nodeID == s;
+                                 }) != state.end())
                 {
                     okCount += 1;
                 }
             }
             bool res = okCount == sourcesPub.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
-                << (res ? " OK " : " BEHIND ") << okCount << " / " << sourcesPub.size()
-                << " peers: " << app->getOverlayManager().getPeers().size();
+                       << (res ? " OK " : " BEHIND ") << okCount << " / "
+                       << sourcesPub.size() << " peers: "
+                       << app->getOverlayManager().getPeers().size();
             return res;
-    };
+        };
 
-    SECTION("core")
-    {
-        SECTION("loopback")
+        SECTION("core")
         {
-                simulation = Topologies::core(4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen);
+            SECTION("loopback")
+            {
+                simulation = Topologies::core(
+                    4, .666f, Simulation::OVER_LOOPBACK, networkID, cfgGen);
                 test(injectSCP, ackedSCP);
-        }
-        SECTION("tcp")
-        {
-                simulation = Topologies::core(4, .666f, Simulation::OVER_TCP, networkID, cfgGen);
+            }
+            SECTION("tcp")
+            {
+                simulation = Topologies::core(4, .666f, Simulation::OVER_TCP,
+                                              networkID, cfgGen);
                 test(injectSCP, ackedSCP);
+            }
         }
-    }
 
-    SECTION("outer nodes")
-    {
-        SECTION("loopback")
+        SECTION("outer nodes")
         {
+            SECTION("loopback")
+            {
                 simulation = Topologies::hierarchicalQuorumSimplified(
                     5, 10, Simulation::OVER_LOOPBACK, networkID, cfgGen);
                 test(injectSCP, ackedSCP);
-        }
-        SECTION("tcp")
-        {
+            }
+            SECTION("tcp")
+            {
                 simulation = Topologies::hierarchicalQuorumSimplified(
                     5, 10, Simulation::OVER_TCP, networkID, cfgGen);
                 test(injectSCP, ackedSCP);
-        }
+            }
         }
     }
 }

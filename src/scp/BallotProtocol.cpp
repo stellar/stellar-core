@@ -248,7 +248,8 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 bool
 BallotProtocol::isStatementSane(SCPStatement const& st)
 {
-    bool res = mSlot.getLocalNode()->isQuorumSetSane(st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+    bool res = mSlot.getLocalNode()->isQuorumSetSane(
+        st.nodeID, *mSlot.getQuorumSetFromStatement(st));
     if (!res)
     {
         CLOG(DEBUG, "SCP") << "Invalid quorum set received";
@@ -1362,7 +1363,8 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
 {
     if (mCurrentBallot)
     {
-        throw std::runtime_error("Cannot set state after starting ballot protocol");
+        throw std::runtime_error(
+            "Cannot set state after starting ballot protocol");
     }
 
     recordEnvelope(e);
@@ -1373,52 +1375,52 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
 
     switch (pl.type())
     {
-        case SCPStatementType::SCP_ST_PREPARE:
+    case SCPStatementType::SCP_ST_PREPARE:
+    {
+        auto const& prep = pl.prepare();
+        auto const& b = prep.ballot;
+        bumpToBallot(b);
+        if (prep.prepared)
         {
-            auto const& prep = pl.prepare();
-            auto const& b = prep.ballot;
-            bumpToBallot(b);
-            if (prep.prepared)
-            {
-                mPrepared = make_unique<SCPBallot>(*prep.prepared);
-            }
-            if (prep.preparedPrime)
-            {
-                mPreparedPrime = make_unique<SCPBallot>(*prep.preparedPrime);
-            }
-            if (prep.nP)
-            {
-                mConfirmedPrepared = make_unique<SCPBallot>(prep.nP, b.value);
-            }
-            if (prep.nC)
-            {
-                mCommit = make_unique<SCPBallot>(prep.nC, b.value);
-            }
-            mPhase = SCP_PHASE_PREPARE;
+            mPrepared = make_unique<SCPBallot>(*prep.prepared);
         }
-        break;
-        case SCPStatementType::SCP_ST_CONFIRM:
+        if (prep.preparedPrime)
         {
-            auto const& c = pl.confirm();
-            auto const& v = c.commit.value;
-            bumpToBallot(SCPBallot(UINT32_MAX, v));
-            mPrepared = make_unique<SCPBallot>(c.nPrepared, v);
-            mConfirmedPrepared = make_unique<SCPBallot>(c.nP, v);
-            mCommit = make_unique<SCPBallot>(c.commit);
-            mPhase = SCP_PHASE_CONFIRM;
+            mPreparedPrime = make_unique<SCPBallot>(*prep.preparedPrime);
         }
-        break;
-        case SCPStatementType::SCP_ST_EXTERNALIZE:
+        if (prep.nP)
         {
-            auto const& ext = pl.externalize();
-            auto const& v = ext.commit.value;
-            bumpToBallot(SCPBallot(UINT32_MAX, v));
-            mPrepared = make_unique<SCPBallot>(UINT32_MAX, v);
-            mConfirmedPrepared = make_unique<SCPBallot>(ext.nP, v);
-            mCommit = make_unique<SCPBallot>(ext.commit);
-            mPhase = SCP_PHASE_EXTERNALIZE;
+            mConfirmedPrepared = make_unique<SCPBallot>(prep.nP, b.value);
         }
-        break;
+        if (prep.nC)
+        {
+            mCommit = make_unique<SCPBallot>(prep.nC, b.value);
+        }
+        mPhase = SCP_PHASE_PREPARE;
+    }
+    break;
+    case SCPStatementType::SCP_ST_CONFIRM:
+    {
+        auto const& c = pl.confirm();
+        auto const& v = c.commit.value;
+        bumpToBallot(SCPBallot(UINT32_MAX, v));
+        mPrepared = make_unique<SCPBallot>(c.nPrepared, v);
+        mConfirmedPrepared = make_unique<SCPBallot>(c.nP, v);
+        mCommit = make_unique<SCPBallot>(c.commit);
+        mPhase = SCP_PHASE_CONFIRM;
+    }
+    break;
+    case SCPStatementType::SCP_ST_EXTERNALIZE:
+    {
+        auto const& ext = pl.externalize();
+        auto const& v = ext.commit.value;
+        bumpToBallot(SCPBallot(UINT32_MAX, v));
+        mPrepared = make_unique<SCPBallot>(UINT32_MAX, v);
+        mConfirmedPrepared = make_unique<SCPBallot>(ext.nP, v);
+        mCommit = make_unique<SCPBallot>(ext.commit);
+        mPhase = SCP_PHASE_EXTERNALIZE;
+    }
+    break;
     }
 }
 

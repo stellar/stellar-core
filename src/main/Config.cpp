@@ -66,7 +66,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
 void
 Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
-         int level)
+                 int level)
 {
     if (!group)
     {
@@ -108,7 +108,7 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
                 {
                     throw std::invalid_argument("invalid VALIDATORS");
                 }
-                
+
                 PublicKey nodeID;
                 parseNodeID(v->as<std::string>()->value(), nodeID);
                 qset.validators.emplace_back(nodeID);
@@ -333,16 +333,15 @@ Config::load(std::string const& filename)
                 }
                 BUCKET_DIR_PATH = item.second->as<std::string>()->value();
             }
-            else if(item.first == "NODE_NAMES")
+            else if (item.first == "NODE_NAMES")
             {
-                if(!item.second->is_array())
+                if (!item.second->is_array())
                 {
-                    throw std::invalid_argument(
-                        "NODE_NAMES must be an array");
+                    throw std::invalid_argument("NODE_NAMES must be an array");
                 }
-                for(auto v : item.second->as_array()->array())
+                for (auto v : item.second->as_array()->array())
                 {
-                    if(!v->as<std::string>())
+                    if (!v->as<std::string>())
                     {
                         throw std::invalid_argument(
                             "invalid element of NODE_NAMES");
@@ -358,7 +357,7 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid NODE_SEED");
                 }
-                
+
                 std::string seed = item.second->as<std::string>()->value();
                 NODE_SEED = SecretKey::fromStrKeySeed(seed);
                 VALIDATOR_NAMES[NODE_SEED.getStrKeyPublic()] = "self";
@@ -423,7 +422,8 @@ Config::load(std::string const& filename)
 
                     PublicKey nodeID;
                     parseNodeID(v->as<std::string>()->value(), nodeID);
-                    PREFERRED_PEER_KEYS.push_back(PubKeyUtils::toStrKey(nodeID));
+                    PREFERRED_PEER_KEYS.push_back(
+                        PubKeyUtils::toStrKey(nodeID));
                 }
             }
             else if (item.first == "PREFERRED_PEERS_ONLY")
@@ -615,62 +615,64 @@ Config::validateConfig()
     }
 }
 
-void 
+void
 Config::parseNodeID(std::string configStr, PublicKey& retKey)
 {
-    if(configStr.size()<2) throw std::invalid_argument("invalid key");
+    if (configStr.size() < 2)
+        throw std::invalid_argument("invalid key");
 
-    //check if configStr is a PublicKey or a common name
-    if(configStr[0] == '$')
+    // check if configStr is a PublicKey or a common name
+    if (configStr[0] == '$')
     {
         std::string commonName = configStr.substr(1);
-        for(auto& v : VALIDATOR_NAMES)
+        for (auto& v : VALIDATOR_NAMES)
         {
-            if(v.second == commonName)
+            if (v.second == commonName)
             {
-                retKey= PubKeyUtils::fromStrKey(v.first);
+                retKey = PubKeyUtils::fromStrKey(v.first);
                 return;
             }
         }
         throw std::invalid_argument("unknown key in config");
-    } else
+    }
+    else
     {
         std::istringstream iss(configStr);
         std::string nodestr;
         iss >> nodestr;
         retKey = PubKeyUtils::fromStrKey(nodestr);
 
-        if(iss)
-        {  // get any common name they have added
+        if (iss)
+        { // get any common name they have added
             std::string commonName;
             iss >> commonName;
-            if(commonName.size())
+            if (commonName.size())
             {
-                for(auto& v : VALIDATOR_NAMES)
+                for (auto& v : VALIDATOR_NAMES)
                 {
-                    if(v.second == commonName)
+                    if (v.second == commonName)
                     {
                         throw std::invalid_argument("name already used");
                     }
                 }
 
                 auto it = VALIDATOR_NAMES.find(nodestr);
-                if(it == VALIDATOR_NAMES.end())
+                if (it == VALIDATOR_NAMES.end())
                     VALIDATOR_NAMES[nodestr] = commonName;
-                else throw std::invalid_argument("naming node twice");
+                else
+                    throw std::invalid_argument("naming node twice");
             }
         }
     }
-   
 }
 
-std::string 
+std::string
 Config::toShortString(PublicKey const& pk) const
 {
-    auto it=VALIDATOR_NAMES.find(PubKeyUtils::toStrKey(pk));
-    if(it == VALIDATOR_NAMES.end())
+    auto it = VALIDATOR_NAMES.find(PubKeyUtils::toStrKey(pk));
+    if (it == VALIDATOR_NAMES.end())
         return PubKeyUtils::toShortString(pk);
-    else return it->second;
+    else
+        return it->second;
 }
-
 }

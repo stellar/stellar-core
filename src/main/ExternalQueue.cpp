@@ -134,11 +134,8 @@ ExternalQueue::process()
     // publication and the requirements of our pubsub subscribers.
     uint32_t cmin = std::min(lmin, rmin);
 
-    LOG(INFO) << "Trimming history <= ledger " << cmin
-              << " (rmin=" << rmin
-              << ", qmin=" << qmin
-              << ", lmin=" << lmin
-              << ")";
+    LOG(INFO) << "Trimming history <= ledger " << cmin << " (rmin=" << rmin
+              << ", qmin=" << qmin << ", lmin=" << lmin << ")";
 
     mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), cmin);
 }

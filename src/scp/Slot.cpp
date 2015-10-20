@@ -59,8 +59,7 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
     if (e.statement.nodeID == getSCP().getLocalNodeID() &&
         e.statement.slotIndex == mSlotIndex)
     {
-        if (e.statement.pledges.type() ==
-            SCPStatementType::SCP_ST_NOMINATE)
+        if (e.statement.pledges.type() == SCPStatementType::SCP_ST_NOMINATE)
         {
             mNominationProtocol.setStateFromEnvelope(e);
         }
@@ -72,7 +71,7 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
     else
     {
         CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
-            << " i: " << getSlotIndex() << " " << envToStr(e);
+                           << " i: " << getSlotIndex() << " " << envToStr(e);
     }
 }
 

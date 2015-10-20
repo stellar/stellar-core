@@ -60,7 +60,6 @@ class OverlayManagerImpl : public OverlayManager
     Floodgate mFloodGate;
 
   public:
-
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 

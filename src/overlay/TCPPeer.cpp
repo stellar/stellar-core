@@ -42,8 +42,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << ip << ":" << port;
     assertThreadIsMain();
-    auto socket =
-        make_shared<SocketType>(app.getClock().getIOService());
+    auto socket = make_shared<SocketType>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
@@ -51,20 +50,20 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
     socket->next_layer().async_connect(
         endpoint, [result](asio::error_code const& error)
-                                       {
-                                           asio::error_code ec;
-                                           if (!error)
-                                           {
-                                               asio::ip::tcp::no_delay nodelay(true);
-                                               result->mSocket->next_layer().set_option(nodelay, ec);
-                                           }
-                                           else
-                                           {
-                                               ec = error;
-                                           }
+        {
+            asio::error_code ec;
+            if (!error)
+            {
+                asio::ip::tcp::no_delay nodelay(true);
+                result->mSocket->next_layer().set_option(nodelay, ec);
+            }
+            else
+            {
+                ec = error;
+            }
 
-                                           result->connectHandler(ec);
-                                       });
+            result->connectHandler(ec);
+        });
     return result;
 }
 
@@ -84,7 +83,7 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     if (!ec)
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-            << "@" << app.getConfig().PEER_PORT;
+                               << "@" << app.getConfig().PEER_PORT;
         result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
         result->mIP = ep.address().to_string();
         result->startIdleTimer();
@@ -93,8 +92,8 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     else
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-            << "@" << app.getConfig().PEER_PORT
-            << " error " << ec.message();
+                               << "@" << app.getConfig().PEER_PORT << " error "
+                               << ec.message();
     }
 
     return result;
@@ -157,20 +156,20 @@ TCPPeer::messageSender()
     if (mWriteQueue.empty())
     {
         mSocket->async_flush([self](asio::error_code const& ec, std::size_t)
-        {
-            self->writeHandler(ec, 0);
-            if (!ec)
-            {
-                if (!self->mWriteQueue.empty())
-                {
-                    self->messageSender();
-                }
-                else
-                {
-                    self->mWriting = false;
-                }
-            }
-        });
+                             {
+                                 self->writeHandler(ec, 0);
+                                 if (!ec)
+                                 {
+                                     if (!self->mWriteQueue.empty())
+                                     {
+                                         self->messageSender();
+                                     }
+                                     else
+                                     {
+                                         self->mWriting = false;
+                                     }
+                                 }
+                             });
         return;
     }
 
@@ -179,19 +178,19 @@ TCPPeer::messageSender()
     // write operation
     auto buf = mWriteQueue.front();
 
-    asio::async_write(
-        *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-        [self](asio::error_code const& ec, std::size_t length)
-                     {
-                         self->writeHandler(ec, length);
-                         self->mWriteQueue.pop(); // done with front element
+    asio::async_write(*(mSocket.get()),
+                      asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
+                      [self](asio::error_code const& ec, std::size_t length)
+                      {
+                          self->writeHandler(ec, length);
+                          self->mWriteQueue.pop(); // done with front element
 
-                         // continue processing the queue/flush
-                         if (!ec)
-                         {
-                             self->messageSender();
-                         }
-                     });
+                          // continue processing the queue/flush
+                          if (!ec)
+                          {
+                              self->messageSender();
+                          }
+                      });
 }
 
 void
@@ -236,15 +235,15 @@ TCPPeer::startRead()
     CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
     self->mIncomingHeader.resize(4);
-    asio::async_read(
-        *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
-        [self](asio::error_code ec, std::size_t length)
-                            {
-                                CLOG(TRACE, "Overlay")
-                                    << "TCPPeer::startRead calledback " << ec
-                                    << " length:" << length;
-                                self->readHeaderHandler(ec, length);
-                            });
+    asio::async_read(*(self->mSocket.get()),
+                     asio::buffer(self->mIncomingHeader),
+                     [self](asio::error_code ec, std::size_t length)
+                     {
+                         CLOG(TRACE, "Overlay")
+                             << "TCPPeer::startRead calledback " << ec
+                             << " length:" << length;
+                         self->readHeaderHandler(ec, length);
+                     });
 }
 
 int
@@ -296,12 +295,11 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
         {
             mIncomingBody.resize(length);
             auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-            asio::async_read(
-                *mSocket.get(), asio::buffer(mIncomingBody),
-                [self](asio::error_code ec, std::size_t length)
-            {
-                self->readBodyHandler(ec, length);
-            });
+            asio::async_read(*mSocket.get(), asio::buffer(mIncomingBody),
+                             [self](asio::error_code ec, std::size_t length)
+                             {
+                                 self->readBodyHandler(ec, length);
+                             });
         }
     }
     else
@@ -406,7 +404,8 @@ TCPPeer::drop()
             // be done with it, but we want to give some chance of telling
             // peers why we're disconnecting them.
             asio::error_code ec;
-            self->mSocket->next_layer().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+            self->mSocket->next_layer().shutdown(
+                asio::ip::tcp::socket::shutdown_both, ec);
             if (ec)
             {
                 CLOG(ERROR, "Overlay")

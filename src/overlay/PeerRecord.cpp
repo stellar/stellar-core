@@ -79,7 +79,8 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
         asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
         if (ec)
         {
-            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
+            LOG(DEBUG) << "Could not resolve '" << ipPort
+                       << "' : " << ec.message();
             return false;
         }
 
@@ -328,8 +329,8 @@ PeerRecord::computeBackoff(VirtualClock& clock)
     uint32 backoffCount = std::min<uint32>(MAX_BACKOFF_EXPONENT, mNumFailures);
 
     auto nsecs = std::chrono::seconds(
-        std::rand() % (static_cast<uint32>(std::pow(2, backoffCount) *
-                                           SECONDS_PER_BACKOFF)));
+        std::rand() %
+        (static_cast<uint32>(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF)));
     mNextAttempt = clock.now() + nsecs;
     return nsecs;
 }

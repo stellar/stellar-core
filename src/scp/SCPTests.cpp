@@ -34,7 +34,8 @@ class TestSCP : public SCPDriver
   public:
     SCP mSCP;
 
-    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal, bool isValidator=true)
+    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal,
+            bool isValidator = true)
         : mSCP(*this, secretKey, isValidator, qSetLocal)
     {
         mPriorityLookup = [&](NodeID const& n)
@@ -454,7 +455,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         verifyConfirm(scpNV.mEnvs[1], vNVSecretKey, qSetHash, 0, 1, b, 1);
         scpNV.receiveEnvelope(ext4);
         REQUIRE(scpNV.mEnvs.size() == 3);
-        verifyExternalize(scpNV.mEnvs[2], vNVSecretKey, qSetHash, 0, b, b.counter);
+        verifyExternalize(scpNV.mEnvs[2], vNVSecretKey, qSetHash, 0, b,
+                          b.counter);
     }
 
     SECTION("bumpState x")
@@ -1470,15 +1472,18 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         SCPBallot b(2, xValue);
         SECTION("prepare")
         {
-            scp2.mSCP.setStateFromEnvelope(0, makePrepare(v0SecretKey, qSetHash, 0, b));
+            scp2.mSCP.setStateFromEnvelope(
+                0, makePrepare(v0SecretKey, qSetHash, 0, b));
         }
         SECTION("confirm")
         {
-            scp2.mSCP.setStateFromEnvelope(0, makeConfirm(v0SecretKey, qSetHash, 0, 2, b, 3));
+            scp2.mSCP.setStateFromEnvelope(
+                0, makeConfirm(v0SecretKey, qSetHash, 0, 2, b, 3));
         }
         SECTION("externalize")
         {
-            scp2.mSCP.setStateFromEnvelope(0, makeExternalize(v0SecretKey, qSetHash, 0, b, 3));
+            scp2.mSCP.setStateFromEnvelope(
+                0, makeExternalize(v0SecretKey, qSetHash, 0, b, 3));
         }
     }
 }
@@ -1622,14 +1627,15 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 auto nominationRestore = [&]()
                 {
                     // restores from the previous state
-                    scp2.mSCP.setStateFromEnvelope(0, makeNominate(v0SecretKey, qSetHash, 0, votes,
-                                                                   accepted));
+                    scp2.mSCP.setStateFromEnvelope(
+                        0, makeNominate(v0SecretKey, qSetHash, 0, votes,
+                                        accepted));
                     // tries to start nomination with yValue
                     REQUIRE(scp2.nominate(0, yValue, false));
 
                     REQUIRE(scp2.mEnvs.size() == 1);
-                    verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash, 0, votes2,
-                                   accepted);
+                    verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash, 0,
+                                   votes2, accepted);
 
                     // other nodes only vote for 'x'
                     scp2.receiveEnvelope(nom1);
@@ -1663,7 +1669,9 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 }
                 SECTION("ballot protocol started (on value y)")
                 {
-                    scp2.mSCP.setStateFromEnvelope(0, makePrepare(v0SecretKey, qSetHash, 0, SCPBallot(1, yValue)));
+                    scp2.mSCP.setStateFromEnvelope(
+                        0, makePrepare(v0SecretKey, qSetHash, 0,
+                                       SCPBallot(1, yValue)));
                     nominationRestore();
                     // nomination didn't do anything (already working on y)
                     REQUIRE(scp2.mEnvs.size() == 1);

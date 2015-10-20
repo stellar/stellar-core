@@ -179,6 +179,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     // helper method to acknownledge that some bytes were received
     void receivedBytes(size_t byteCount, bool gotFullMessage);
+
   public:
     Peer(Application& app, PeerRole role);
 

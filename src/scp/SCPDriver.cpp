@@ -22,7 +22,7 @@ SCPDriver::getValueString(Value const& v) const
     return hexAbbrev(valueHash);
 }
 
-std::string 
+std::string
 SCPDriver::toShortString(PublicKey const& pk) const
 {
     return PubKeyUtils::toShortString(pk);

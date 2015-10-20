@@ -401,8 +401,7 @@ PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
     return delayed;
 }
 
-StateSnapshot::StateSnapshot(Application& app,
-                             HistoryArchiveState const& state)
+StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     : mApp(app)
     , mLocalState(state)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
@@ -583,7 +582,8 @@ StateSnapshot::writeHistoryBlocksWithRetry()
 }
 
 std::shared_ptr<StateSnapshot>
-PublishStateMachine::takeSnapshot(Application& app, HistoryArchiveState const& state)
+PublishStateMachine::takeSnapshot(Application& app,
+                                  HistoryArchiveState const& state)
 {
     // Capture local state and _all_ the local buckets at this instant; these
     // may be expired from the bucketlist while the subsequent put-callbacks are

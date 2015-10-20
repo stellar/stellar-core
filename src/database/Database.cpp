@@ -69,8 +69,8 @@ Database::registerDrivers()
 
 Database::Database(Application& app)
     : mApp(app)
-    , mQueryMeter(app.getMetrics().NewMeter({"database", "query", "exec"},
-                                            "query"))
+    , mQueryMeter(
+          app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
     , mEntryCache(4096)
@@ -112,18 +112,16 @@ Database::upgradeToCurrentSchema()
     auto vers = getDBSchemaVersion();
     if (vers > SCHEMA_VERSION)
     {
-        std::string s = ("DB schema version "
-                         + std::to_string(vers)
-                         + " is newer than application schema "
-                         + std::to_string(SCHEMA_VERSION));
+        std::string s = ("DB schema version " + std::to_string(vers) +
+                         " is newer than application schema " +
+                         std::to_string(SCHEMA_VERSION));
         throw std::runtime_error(s);
     }
     while (vers < SCHEMA_VERSION)
     {
         ++vers;
-        CLOG(INFO, "Database")
-            << "Applying DB schema upgrade to version "
-            << vers;
+        CLOG(INFO, "Database") << "Applying DB schema upgrade to version "
+                               << vers;
         applySchemaUpgrade(*this, vers);
     }
     assert(vers == SCHEMA_VERSION);
@@ -140,8 +138,8 @@ Database::putSchemaVersion(unsigned long vers)
 unsigned long
 Database::getDBSchemaVersion()
 {
-    auto vstr = mApp.getPersistentState().getState(
-        PersistentState::kDatabaseSchema);
+    auto vstr =
+        mApp.getPersistentState().getState(PersistentState::kDatabaseSchema);
     unsigned long vers = 0;
     try
     {
@@ -381,7 +379,8 @@ Database::totalQueryTime() const
         {
             auto& timer = mApp.getMetrics().NewTimer({"database", q, e});
             uint64_t sumns = static_cast<uint64_t>(
-                timer.sum() * static_cast<double>(timer.duration_unit().count()));
+                timer.sum() *
+                static_cast<double>(timer.duration_unit().count()));
             nsq += std::chrono::nanoseconds(sumns);
         }
     }
@@ -396,7 +395,6 @@ Database::excludeTime(std::chrono::nanoseconds const& queryTime,
     mExcludedTotalTime += totalTime;
 }
 
-
 uint32_t
 Database::recentIdleDbPercent()
 {
@@ -407,13 +405,13 @@ Database::recentIdleDbPercent()
     std::chrono::nanoseconds total = mApp.getClock().now() - mLastIdleTotalTime;
     total -= mExcludedTotalTime;
 
-    uint32_t queryPercent = static_cast<uint32_t>((100 * query.count()) / total.count());
+    uint32_t queryPercent =
+        static_cast<uint32_t>((100 * query.count()) / total.count());
     uint32_t idlePercent = 100 - queryPercent;
     if (idlePercent > 100)
     {
         // This should never happen, but clocks are not perfectly well behaved.
-        CLOG(WARNING, "Database") << "DB idle percent ("
-                                  << idlePercent
+        CLOG(WARNING, "Database") << "DB idle percent (" << idlePercent
                                   << ") over 100, limiting to 100";
         idlePercent = 100;
     }
@@ -429,8 +427,6 @@ Database::recentIdleDbPercent()
     return idlePercent;
 }
 
-
-
 DBTimeExcluder::DBTimeExcluder(Application& app)
     : mApp(app)
     , mStartQueryTime(app.getDatabase().totalQueryTime())
@@ -444,6 +440,4 @@ DBTimeExcluder::~DBTimeExcluder()
     auto deltaT = mApp.getClock().now() - mStartTotalTime;
     mApp.getDatabase().excludeTime(deltaQ, deltaT);
 }
-
-
 }

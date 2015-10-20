@@ -23,8 +23,7 @@ using namespace std;
 // LoopbackPeer
 ///////////////////////////////////////////////////////////////////////
 
-LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
-    : Peer(app, role)
+LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
 {
 }
 
@@ -80,9 +79,9 @@ LoopbackPeer::drop()
     if (remote)
     {
         remote->getApp().getClock().getIOService().post([remote]()
-                              {
-                                  remote->drop();
-                              });
+                                                        {
+                                                            remote->drop();
+                                                        });
     }
 }
 
@@ -130,7 +129,10 @@ LoopbackPeer::processInQueue()
         if (!mInQueue.empty())
         {
             auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
-            mApp.getClock().getIOService().post([self]() { self->processInQueue(); });
+            mApp.getClock().getIOService().post([self]()
+                                                {
+                                                    self->processInQueue();
+                                                });
         }
     }
 }
@@ -195,10 +197,11 @@ LoopbackPeer::deliverOne()
         {
             // move msg to remote's in queue
             remote->mInQueue.emplace(std::move(msg));
-            remote->getApp().getClock().getIOService().post([remote]()
-            {
-                remote->processInQueue();
-            });
+            remote->getApp().getClock().getIOService().post(
+                [remote]()
+                {
+                    remote->processInQueue();
+                });
         }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
@@ -373,10 +376,11 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->startIdleTimer();
 
     auto init = mInitiator;
-    mInitiator->getApp().getClock().getIOService().post([init]()
-                             {
-                                 init->connectHandler(asio::error_code());
-                             });
+    mInitiator->getApp().getClock().getIOService().post(
+        [init]()
+        {
+            init->connectHandler(asio::error_code());
+        });
 }
 
 LoopbackPeerConnection::~LoopbackPeerConnection()
