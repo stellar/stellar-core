@@ -183,7 +183,7 @@ SCP::getCurrentState(uint64 slotIndex)
     auto slot = getSlot(slotIndex, false);
     if (slot)
     {
-        return slot->getLatestMessagesSend();
+        return slot->getCurrentState();
     }
     else
     {

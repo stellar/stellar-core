@@ -7,7 +7,8 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "herder/Herder.h"
-
+#include "util/Logging.h"
+#include "crypto/Hex.h"
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "xdrpp/marshal.h"
@@ -20,13 +21,14 @@ Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
     : mLedgerSeq(ledger), mMessage(msg)
 {
     if (peer)
-        mPeersTold.push_back(peer);
+        mPeersTold.insert(peer);
 }
 
 Floodgate::Floodgate(Application& app)
     : mApp(app)
     , mFloodMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))
+    , mSendFromBroadcast(app.getMetrics().NewMeter({ "overlay", "message", "send-from-broadcast" }, "message"))
     , mShuttingDown(false)
 {
 }
@@ -68,7 +70,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     }
     else
     {
-        result->second->mPeersTold.push_back(peer);
+        result->second->mPeersTold.insert(peer);
         return false;
     }
 }
@@ -82,40 +84,45 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         return;
     }
     Hash index = sha256(xdr::xdr_to_opaque(msg));
+    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index);
+
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
-        record->mPeersTold = mApp.getOverlayManager().getPeers();
-
-        mFloodMap[index] = record;
+        result = mFloodMap.insert(std::make_pair(index, record)).first;
         mFloodMapSize.set_count(mFloodMap.size());
-        for (auto peer : mApp.getOverlayManager().getPeers())
+    }
+    // send it to people that haven't sent it to us
+    std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
+
+    // make a copy, in case peers gets modified
+    std::vector<Peer::pointer> peers(mApp.getOverlayManager().getPeers());
+
+    for (auto peer : peers)
+    {
+        if (peersTold.find(peer) ==
+            peersTold.end() && peer->isAuthenticated())
         {
-            if (peer->isAuthenticated())
-            {
-                peer->sendMessage(msg);
-                record->mPeersTold.push_back(peer);
-            }
+            mSendFromBroadcast.Mark();
+            peer->sendMessage(msg);
+            peersTold.insert(peer);
         }
     }
-    else
-    { // send it to people that haven't sent it to us
-        std::vector<Peer::pointer>& peersTold = result->second->mPeersTold;
-        for (auto peer : mApp.getOverlayManager().getPeers())
-        {
-            if (find(peersTold.begin(), peersTold.end(), peer) ==
-                peersTold.end())
-            {
-                if (peer->isAuthenticated())
-                {
-                    peer->sendMessage(msg);
-                    peersTold.push_back(peer);
-                }
-            }
-        }
+    CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told " << peersTold.size();
+}
+
+std::set<Peer::pointer>
+Floodgate::getPeersKnows(Hash const& h)
+{
+    std::set<Peer::pointer> res;
+    auto record = mFloodMap.find(h);
+    if (record != mFloodMap.end())
+    {
+        res = record->second->mPeersTold;
     }
+    return res;
 }
 
 void

@@ -54,6 +54,7 @@ PendingEnvelopes::peerDoesntHave(MessageType type, uint256 const& itemID,
 void
 PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
+    CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
     mQsetCache.put(hash, qset);
     mQuorumSetFetcher.recv(hash);
@@ -62,11 +63,9 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 void
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
+    CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
     mTxSetCache.put(hash, txset);
-    mApp.getClock().getIOService().post([hash, this]()
-                                        {
-                                            mTxSetFetcher.recv(hash);
-                                        });
+    mTxSetFetcher.recv(hash);
 }
 
 // called from Peer and when an Item tracker completes
@@ -80,36 +79,34 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     try
     {
         auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
+        auto& processedList = mProcessedEnvelopes[envelope.statement.slotIndex];
 
-        if (find(set.begin(), set.end(), envelope) == set.end())
-        { // we aren't fetching this envelop
+        auto fetching = find(set.begin(), set.end(), envelope);
 
-            auto& receivedList =
-                mReceivedEnvelopes[envelope.statement.slotIndex];
-            if (find(receivedList.begin(), receivedList.end(), envelope) ==
-                receivedList.end())
+        if (fetching == set.end())
+        { // we aren't fetching this envelope
+            if (find(processedList.begin(), processedList.end(), envelope) ==
+                processedList.end())
             { // we haven't seen this envelope before
-
-                receivedList.push_back(envelope);
-                if (startFetch(envelope))
-                { // fully fetched
-                    envelopeReady(envelope);
-                }
-                else
-                {
-                    mFetchingEnvelopes[envelope.statement.slotIndex].insert(
-                        envelope);
-                }
-
-                CLOG(DEBUG, "Herder") << "PendingEnvelopes::recvSCPEnvelope";
-
-            } // else we already have this one
+                // insert it into the fetching set
+                fetching = set.insert(envelope).first;
+                startFetch(envelope);
+            }
+            else
+            {
+                // we already have this one
+                fetching = set.end();
+            }
         }
-        else
+
+        if (fetching != set.end())
         { // we are fetching this envelope
             // check if we are done fetching it
             if (isFullyFetched(envelope))
             {
+                // move the item from fetching to processed
+                processedList.emplace_back(*fetching);
+                set.erase(fetching);
                 envelopeReady(envelope);
             } // else just keep waiting for it to come in
         }
@@ -132,10 +129,10 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 
     mPendingEnvelopes[envelope.statement.slotIndex].push_back(envelope);
 
-    mApp.getClock().getIOService().post([this]()
-                                        {
-                                            mHerder.processSCPQueue();
-                                        });
+    CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
+                          << " t:" << envelope.statement.pledges.type();
+
+    mHerder.processSCPQueue();
 }
 
 bool
@@ -185,6 +182,8 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         }
     }
 
+    CLOG(TRACE, "Herder") << "StartFetch i:" << envelope.statement.slotIndex
+                          << " t:" << envelope.statement.pledges.type();
     return ret;
 }
 
@@ -250,7 +249,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     mPendingEnvelopes.erase(slotIndex);
 
     // keep the last few ledgers worth of messages around to give to people
-    mReceivedEnvelopes.erase(slotIndex - 10);
+    mProcessedEnvelopes.erase(slotIndex - 10);
     mFetchingEnvelopes.erase(slotIndex);
 
     mTxSetFetcher.stopFetchingBelow(slotIndex + 1);

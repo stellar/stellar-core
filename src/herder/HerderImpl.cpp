@@ -759,7 +759,12 @@ HerderImpl::combineCandidates(uint64 slotIndex,
     {
         CLOG(WARNING, "Herder") << "Candidate set had " << removed.size()
                                 << " invalid transactions";
-        mPendingEnvelopes.recvTxSet(comp.txSetHash, bestTxSet);
+
+        // post to avoid triggering SCP handling code recursively
+        mApp.getClock().getIOService().post([this, bestTxSet]()
+        {
+            mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(), bestTxSet);
+        });
     }
 
     return xdr::xdr_to_opaque(comp);
@@ -943,6 +948,9 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TX_STATUS_ERROR;
     }
+
+    CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
+                          << PubKeyUtils::toShortString(acc);
 
     auto txmap = findOrAdd(mReceivedTransactions[0], acc);
     txmap->addTx(tx);
@@ -1129,6 +1137,11 @@ HerderImpl::ledgerClosed()
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
         seconds = std::chrono::seconds(1);
+    }
+    if (mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    {
+        seconds = std::chrono::seconds(
+            mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING);
     }
 
     auto now = mApp.getClock().now();

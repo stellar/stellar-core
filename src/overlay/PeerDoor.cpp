@@ -40,16 +40,11 @@ PeerDoor::start()
 void
 PeerDoor::close()
 {
-    try
+    if (mAcceptor.is_open())
     {
-        if (mAcceptor.is_open())
-        {
-            mAcceptor.close();
-        }
-    }
-    catch (asio::system_error&)
-    {
-        // ignore errors like this
+        asio::error_code ec;
+        // ignore errors when closing
+        mAcceptor.close(ec);
     }
 }
 
@@ -62,8 +57,8 @@ PeerDoor::acceptNextPeer()
     }
 
     CLOG(DEBUG, "Overlay") << "PeerDoor acceptNextPeer()";
-    auto sock = make_shared<tcp::socket>(mApp.getClock().getIOService());
-    mAcceptor.async_accept(*sock, [this, sock](asio::error_code const& ec)
+    auto sock = make_shared<TCPPeer::SocketType>(mApp.getClock().getIOService());
+    mAcceptor.async_accept(sock->next_layer(), [this, sock](asio::error_code const& ec)
                            {
                                if (ec)
                                    this->acceptNextPeer();
@@ -73,12 +68,15 @@ PeerDoor::acceptNextPeer()
 }
 
 void
-PeerDoor::handleKnock(shared_ptr<tcp::socket> socket)
+PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
     CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock() @"
                            << mApp.getConfig().PEER_PORT;
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
-    mApp.getOverlayManager().addConnectedPeer(peer);
+    if (peer)
+    {
+        mApp.getOverlayManager().addConnectedPeer(peer);
+    }
     acceptNextPeer();
 }
 }

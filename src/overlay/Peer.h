@@ -72,7 +72,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     uint32_t mRemoteOverlayVersion;
     unsigned short mRemoteListeningPort;
 
-    asio::io_service::strand mStrand;
     VirtualTimer mIdleTimer;
     VirtualClock::time_point mLastRead;
     VirtualClock::time_point mLastWrite;
@@ -83,8 +82,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mByteWrite;
     medida::Meter& mErrorRead;
     medida::Meter& mErrorWrite;
-    medida::Meter& mTimeoutRead;
-    medida::Meter& mTimeoutWrite;
+    medida::Meter& mTimeoutIdle;
 
     medida::Timer& mRecvErrorTimer;
     medida::Timer& mRecvHelloTimer;
@@ -107,11 +105,12 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mSendGetPeersMeter;
     medida::Meter& mSendPeersMeter;
     medida::Meter& mSendGetTxSetMeter;
-    medida::Meter& mSendTxSetMeter;
     medida::Meter& mSendTransactionMeter;
+    medida::Meter& mSendTxSetMeter;
     medida::Meter& mSendGetSCPQuorumSetMeter;
-    medida::Meter& mSendGetSCPStateMeter;
     medida::Meter& mSendSCPQuorumSetMeter;
+    medida::Meter& mSendSCPMessageSetMeter;
+    medida::Meter& mSendGetSCPStateMeter;
 
     medida::Meter& mDropInConnectHandlerMeter;
     medida::Meter& mDropInRecvMessageDecodeMeter;
@@ -178,6 +177,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void idleTimerExpired(asio::error_code const& error);
     size_t getIOTimeoutSeconds() const;
 
+    // helper method to acknownledge that some bytes were received
+    void receivedBytes(size_t byteCount, bool gotFullMessage);
   public:
     Peer(Application& app, PeerRole role);
 

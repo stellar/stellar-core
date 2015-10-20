@@ -10,9 +10,9 @@ namespace stellar
 using namespace std;
 
 Simulation::pointer
-Topologies::pair(Simulation::Mode mode, Hash const& networkID)
+Topologies::pair(Simulation::Mode mode, Hash const& networkID, std::function<Config()> confGen)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID);
+    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID, confGen);
 
     SIMULATION_CREATE_NODE(10);
     SIMULATION_CREATE_NODE(11);
@@ -30,10 +30,10 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID)
 }
 
 Simulation::pointer
-Topologies::cycle4(Hash const& networkID)
+Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 {
     Simulation::pointer simulation =
-        make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
+        make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID, confGen);
 
     SIMULATION_CREATE_NODE(0);
     SIMULATION_CREATE_NODE(1);
@@ -75,9 +75,9 @@ Topologies::cycle4(Hash const& networkID)
 
 Simulation::pointer
 Topologies::core(int nNodes, float quorumThresoldFraction,
-                 Simulation::Mode mode, Hash const& networkID)
+                 Simulation::Mode mode, Hash const& networkID, std::function<Config()> confGen)
 {
-    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID);
+    Simulation::pointer simulation = make_shared<Simulation>(mode, networkID, confGen);
 
     vector<SecretKey> keys;
     for (int i = 0; i < nNodes; i++)
@@ -113,9 +113,9 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 
 Simulation::pointer
 Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
-                               Hash const& networkID) // Figure 3 from the paper
+                               Hash const& networkID, std::function<Config()> confGen) // Figure 3 from the paper
 {
-    auto sim = Topologies::core(4, 0.75, mode, networkID);
+    auto sim = Topologies::core(4, 0.75, mode, networkID, confGen);
     vector<NodeID> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {
@@ -172,6 +172,41 @@ Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
             // middle.getPublicKey());
         }
     }
+    return sim;
+}
+
+Simulation::pointer
+Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
+                                         Simulation::Mode mode,
+                                         Hash const& networkID, std::function<Config()> confGen)
+{
+    // outer nodes are independent validators that point to a [core network]
+    auto sim = Topologies::core(coreSize, 0.75, mode, networkID, confGen);
+
+    // each additional node considers themselves as validator
+    // with a quorum set that also includes the core
+    int n = coreSize + 1;
+    SCPQuorumSet qSetBuilder;
+    qSetBuilder.threshold = n - (n - 1) / 3;
+    vector<NodeID> coreNodeIDs;
+    for (auto const& coreNodeID : sim->getNodeIDs())
+    {
+        qSetBuilder.validators.push_back(coreNodeID);
+        coreNodeIDs.emplace_back(coreNodeID);
+    }
+    qSetBuilder.validators.emplace_back();
+    for (int i = 0; i < nbOuterNodes; i++)
+    {
+        SecretKey sk =
+            SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));
+        auto const& pubKey = sk.getPublicKey();
+        qSetBuilder.validators.back() = pubKey;
+        sim->addNode(sk, qSetBuilder, sim->getClock());
+
+        // connect it to one of the core nodes
+        sim->addPendingConnection(pubKey, coreNodeIDs[i % coreSize]);
+    }
+
     return sim;
 }
 }

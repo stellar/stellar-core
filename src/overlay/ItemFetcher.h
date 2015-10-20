@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <map>
+#include <deque>
 #include <functional>
 #include "xdr/Stellar-SCP.h"
 #include "overlay/Peer.h"
@@ -38,19 +39,19 @@ struct SCPQuorumSet;
 using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 
-static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{500};
-
 class Tracker
 {
   protected:
     template <class T> friend class ItemFetcher;
     Application& mApp;
     Peer::pointer mLastAskedPeer;
-    std::vector<Peer::pointer> mPeersAsked;
+    std::deque<Peer::pointer> mPeersToAsk;
     VirtualTimer mTimer;
     bool mIsStopped = false;
-    std::vector<SCPEnvelope> mWaitingEnvelopes;
+    std::vector<std::pair<Hash,SCPEnvelope>> mWaitingEnvelopes;
     uint256 mItemID;
+    medida::Meter& mTryNextPeerReset;
+    medida::Meter& mTryNextPeer;
 
     bool clearEnvelopesBelow(uint64 slotIndex);
 
@@ -62,10 +63,7 @@ class Tracker
     void tryNextPeer();
 
   public:
-    explicit Tracker(Application& app, uint256 const& id)
-        : mApp(app), mTimer(app), mItemID(id)
-    {
-    }
+    explicit Tracker(Application& app, uint256 const& id);
 
     virtual ~Tracker();
 };

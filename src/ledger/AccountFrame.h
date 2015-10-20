@@ -37,7 +37,7 @@ class AccountFrame : public EntryFrame
 
     static std::vector<Signer> loadSigners(Database& db,
                                            std::string const& actIDStrKey);
-    void applySigners(Database& db);
+    void applySigners(Database& db, bool insert);
 
   public:
     typedef std::shared_ptr<AccountFrame> pointer;

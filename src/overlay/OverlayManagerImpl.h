@@ -57,8 +57,9 @@ class OverlayManagerImpl : public OverlayManager
 
     friend class OverlayManagerTests;
 
-  public:
     Floodgate mFloodGate;
+
+  public:
 
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
@@ -76,12 +77,13 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<Peer::pointer>& getPeers() override;
 
     // returns NULL if the passed peer isn't found
-    Peer::pointer getNextPeer(Peer::pointer peer) override;
     Peer::pointer getConnectedPeer(std::string const& ip,
                                    unsigned short port) override;
 
     void connectToMorePeers(int max);
-    Peer::pointer getRandomPeer() override;
+    std::vector<Peer::pointer> getRandomPeers() override;
+
+    std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
     PeerAuth& getPeerAuth() override;
 

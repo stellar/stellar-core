@@ -11,8 +11,10 @@
 #include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include <regex>
+#include <algorithm>
 
 #define SECONDS_PER_BACKOFF 10
+#define MAX_BACKOFF_EXPONENT 10
 
 namespace stellar
 {
@@ -72,24 +74,24 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app, PeerRecord& ret,
 
         asio::ip::tcp::resolver resolver(app.getWorkerIOService());
         asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
-        try
+
+        asio::error_code ec;
+        asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
+        if (ec)
         {
-            asio::ip::tcp::resolver::iterator i = resolver.resolve(query);
-            while (i != asio::ip::tcp::resolver::iterator())
-            {
-                asio::ip::tcp::endpoint end = *i;
-                if (end.address().is_v4())
-                {
-                    ip = end.address().to_v4().to_string();
-                    break;
-                }
-                i++;
-            }
-        }
-        catch (asio::system_error& e)
-        {
-            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << e.what();
+            LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
             return false;
+        }
+
+        while (i != asio::ip::tcp::resolver::iterator())
+        {
+            asio::ip::tcp::endpoint end = *i;
+            if (end.address().is_v4())
+            {
+                ip = end.address().to_v4().to_string();
+                break;
+            }
+            i++;
         }
         if (ip.empty())
             return false;
@@ -131,7 +133,8 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     st.exchange(into(tm));
     st.exchange(into(ret->mNumFailures));
     st.exchange(use(ip));
-    st.exchange(use(uint32_t(port)));
+    uint32_t port32(port);
+    st.exchange(use(port32));
     st.define_and_bind();
     {
         auto timer = db.getSelectTimer("peer");
@@ -154,8 +157,9 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
 {
     try
     {
-        tm tm = VirtualClock::pointToTm(nextAttemptCutoff);
+        tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
         PeerRecord pr;
+        tm nextAttempt;
         uint32_t lport;
         auto prep = db.getPreparedStatement(
             "SELECT ip, port, nextattempt, numfailures "
@@ -163,22 +167,23 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
             "WHERE nextattempt <= :nextattempt "
             "ORDER BY nextattempt ASC, numfailures ASC limit :max ");
         auto& st = prep.statement();
-        st.exchange(use(tm));
+        st.exchange(use(nextAttemptMax));
         st.exchange(use(max));
         st.exchange(into(pr.mIP));
         st.exchange(into(lport));
-        st.exchange(into(tm));
+        st.exchange(into(nextAttempt));
         st.exchange(into(pr.mNumFailures));
         st.define_and_bind();
         {
             auto timer = db.getSelectTimer("peer");
-            st.execute();
+            st.execute(true);
         }
-        while (st.fetch())
+        while (st.got_data())
         {
             pr.mPort = static_cast<unsigned short>(lport);
-            pr.mNextAttempt = VirtualClock::tmToPoint(tm);
+            pr.mNextAttempt = VirtualClock::tmToPoint(nextAttempt);
             retList.push_back(pr);
+            st.fetch();
         }
     }
     catch (soci_error& err)
@@ -222,6 +227,12 @@ PeerRecord::isPrivateAddress() const
         return true;
     }
     return false;
+}
+
+bool
+PeerRecord::isLocalhost() const
+{
+    return mIP == "127.0.0.1";
 }
 
 bool
@@ -271,7 +282,7 @@ PeerRecord::storePeerRecord(Database& db)
         auto prep = db.getPreparedStatement("UPDATE peers SET "
                                             "nextattempt = :v1, "
                                             "numfailures = :v2 "
-                                            "WHERE ip = :v4 AND port = :v5");
+                                            "WHERE ip = :v3 AND port = :v4");
         auto& st = prep.statement();
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
@@ -304,12 +315,23 @@ PeerRecord::backOff(VirtualClock& clock)
 {
     mNumFailures++;
 
-    auto nsecs = std::chrono::seconds(
-        static_cast<int64_t>(std::pow(2, mNumFailures) * SECONDS_PER_BACKOFF));
-    mNextAttempt = clock.now() + nsecs;
+    auto nsecs = computeBackoff(clock);
+
     CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString()
                            << " backoff, set nextAttempt at "
                            << "+" << nsecs.count() << " secs";
+}
+
+std::chrono::seconds
+PeerRecord::computeBackoff(VirtualClock& clock)
+{
+    uint32 backoffCount = std::min<uint32>(MAX_BACKOFF_EXPONENT, mNumFailures);
+
+    auto nsecs = std::chrono::seconds(
+        std::rand() % (static_cast<uint32>(std::pow(2, backoffCount) *
+                                           SECONDS_PER_BACKOFF)));
+    mNextAttempt = clock.now() + nsecs;
+    return nsecs;
 }
 
 string

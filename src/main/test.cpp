@@ -69,6 +69,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.TMP_DIR_PATH = rootDir + "tmp";
 
         thisConfig.PARANOID_MODE = true;
+        thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // Tests are run in standalone by default, meaning that no external
         // listening interfaces are opened (all sockets must be manually created

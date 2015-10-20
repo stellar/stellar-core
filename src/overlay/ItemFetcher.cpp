@@ -9,11 +9,15 @@
 #include "medida/metrics_registry.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/StellarXDR.h"
-#include <crypto/Hex.h>
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "herder/Herder.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
+
+static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 
 template <class TrackerT>
 ItemFetcher<TrackerT>::ItemFetcher(Application& app)
@@ -27,11 +31,13 @@ template <class TrackerT>
 void
 ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
 {
+    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemID);
     auto entryIt = mTrackers.find(itemID);
     if (entryIt == mTrackers.end())
     { // not being tracked
         TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemID);
         mTrackers[itemID] = tracker;
+        mItemMapSize.inc();
 
         tracker->listen(envelope);
         tracker->tryNextPeer();
@@ -64,6 +70,7 @@ ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
         if (!iter->second->clearEnvelopesBelow(slotIndex))
         {
             iter = mTrackers.erase(iter);
+            mItemMapSize.dec();
         }
         else
         {
@@ -87,6 +94,7 @@ template <class TrackerT>
 void
 ItemFetcher<TrackerT>::recv(uint256 itemID)
 {
+    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID);
     const auto& iter = mTrackers.find(itemID);
     using xdr::operator==;
     if (iter != mTrackers.end())
@@ -94,14 +102,31 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
         // this code can safely be called even if recvSCPEnvelope ends up
         // calling recv on the same itemID
         auto& waiting = iter->second->mWaitingEnvelopes;
+
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : " << waiting.size();
+
         while (!waiting.empty())
         {
-            SCPEnvelope env = waiting.back();
+            SCPEnvelope env = waiting.back().second;
             waiting.pop_back();
             mApp.getHerder().recvSCPEnvelope(env);
         }
+        // stop the timer, stop requesting the item as we have it
+        iter->second->mTimer.cancel();
     }
 }
+
+Tracker::Tracker(Application& app, uint256 const& id)
+    :
+    mApp(app)
+    ,mTimer(app)
+    ,mItemID(id)
+    , mTryNextPeerReset(
+        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "reset-fetcher" }, "item-fetcher"))
+    ,mTryNextPeer(
+        app.getMetrics().NewMeter({ "overlay", "item-fetcher", "next-peer" }, "item-fetcher"))
+    {
+    }
 
 Tracker::~Tracker()
 {
@@ -115,7 +140,7 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
     for (auto iter = mWaitingEnvelopes.begin();
          iter != mWaitingEnvelopes.end();)
     {
-        if (iter->statement.slotIndex < slotIndex)
+        if (iter->second.statement.slotIndex < slotIndex)
         {
             iter = mWaitingEnvelopes.erase(iter);
         }
@@ -129,7 +154,6 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
         return true;
     }
 
-    mPeersAsked.clear();
     mTimer.cancel();
     mLastAskedPeer = nullptr;
     mIsStopped = true;
@@ -142,6 +166,7 @@ Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
+        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemID);
         tryNextPeer();
     }
 }
@@ -153,38 +178,63 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    if (!mPeersAsked.empty())
+    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID) << " last: "
+                          << (mLastAskedPeer ? mLastAskedPeer->toString()
+                                             : "<none>");
+
+    if (mPeersToAsk.empty())
     {
-        while (!peer && !mPeersAsked.empty())
+        std::set<std::shared_ptr<Peer>> peersWithEnvelope;
+        for (auto const& e : mWaitingEnvelopes)
         {
-            peer = mApp.getOverlayManager().getNextPeer(mPeersAsked.back());
-            if (!peer)
+            auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
+            peersWithEnvelope.insert(s.begin(), s.end());
+        }
+
+        mPeersToAsk.clear();
+
+        // move the peers that have the envelope to the back,
+        // to be processed first
+        for(auto const& p: mApp.getOverlayManager().getRandomPeers())
+        {
+            if (peersWithEnvelope.find(p) != peersWithEnvelope.end())
             {
-                // no longer connected to this peer.
-                // try another.
-                mPeersAsked.pop_back();
+                mPeersToAsk.emplace_back(p);
+            }
+            else
+            {
+                mPeersToAsk.emplace_front(p);
             }
         }
+
+        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
+            << " reset to #" << mPeersToAsk.size();
+        mTryNextPeerReset.Mark();
     }
-    else
+
+    while (!peer && !mPeersToAsk.empty())
     {
-        peer = mApp.getOverlayManager().getRandomPeer();
+        peer = mPeersToAsk.back();
+        if (!peer->isAuthenticated())
+        {
+            peer.reset();
+        }
+        mPeersToAsk.pop_back();
     }
 
     std::chrono::milliseconds nextTry;
-    if (!peer ||
-        find(mPeersAsked.begin(), mPeersAsked.end(), peer) != mPeersAsked.end())
+    if (!peer)
     { // we have asked all our peers
         // clear list and try again in a bit
-        mPeersAsked.clear();
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
     }
     else
     {
-        askPeer(peer);
-
         mLastAskedPeer = peer;
-        mPeersAsked.push_back(peer);
+        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
+                              << peer->toString();
+        mTryNextPeer.Mark();
+        askPeer(peer);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 
@@ -200,7 +250,10 @@ Tracker::tryNextPeer()
 void
 Tracker::listen(const SCPEnvelope& env)
 {
-    mWaitingEnvelopes.push_back(env);
+    StellarMessage m;
+    m.type(SCP_MESSAGE);
+    m.envelope() = env;
+    mWaitingEnvelopes.push_back(std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
 
 void

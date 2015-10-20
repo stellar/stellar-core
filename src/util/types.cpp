@@ -9,6 +9,8 @@
 
 namespace stellar
 {
+static std::locale cLocale("C");
+
 using xdr::operator==;
 
 bool
@@ -58,10 +60,9 @@ makePublicKey(uint256 const& b)
 bool
 isString32Valid(std::string const& str)
 {
-    std::locale loc("C");
     for (auto c : str)
     {
-        if (c < 0 || std::iscntrl(c, loc))
+        if (c < 0 || std::iscntrl(c, cLocale))
         {
             return false;
         }
@@ -80,7 +81,6 @@ isAssetValid(Asset const& cur)
         auto const& code = cur.alphaNum4().assetCode;
         bool zeros = false;
         bool onechar = false; // at least one non zero character
-        std::locale loc("C");
         for (uint8_t b : code)
         {
             if (b == 0)
@@ -94,7 +94,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7F || !std::isalnum((char)b, cLocale))
                 {
                     return false;
                 }
@@ -109,7 +109,6 @@ isAssetValid(Asset const& cur)
         auto const& code = cur.alphaNum12().assetCode;
         bool zeros = false;
         int charcount = 0; // at least 5 non zero characters
-        std::locale loc("C");
         for (uint8_t b : code)
         {
             if (b == 0)
@@ -123,7 +122,7 @@ isAssetValid(Asset const& cur)
             }
             else
             {
-                if (b > 0x7F || !std::isalnum((char)b, loc))
+                if (b > 0x7F || !std::isalnum((char)b, cLocale))
                 {
                     return false;
                 }

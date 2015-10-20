@@ -59,7 +59,7 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mAuth(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
-          {"overlay", "message", "receive"}, "message"))
+          {"overlay", "message", "flood-receive"}, "message"))
     , mMessagesBroadcast(app.getMetrics().NewMeter(
           {"overlay", "message", "broadcast"}, "message"))
     , mConnectionsAttempted(app.getMetrics().NewMeter(
@@ -176,6 +176,12 @@ OverlayManagerImpl::connectToMorePeers(int max)
         PeerRecord pr;
         if (PeerRecord::parseIPPort(peerStr, mApp, pr))
         {
+            // see if we can get current information from the peer table
+            auto prFromDB = PeerRecord::loadPeerRecord(mApp.getDatabase(), pr.mIP, pr.mPort);
+            if (prFromDB)
+            {
+                pr = *prFromDB;
+            }
             peers.push_back(pr);
         }
     }
@@ -189,6 +195,10 @@ OverlayManagerImpl::connectToMorePeers(int max)
 
     for (auto& pr : peers)
     {
+        if (pr.mNextAttempt > mApp.getClock().now())
+        {
+            continue;
+        }
         if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
@@ -336,35 +346,20 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
     return false;
 }
 
-Peer::pointer
-OverlayManagerImpl::getRandomPeer()
+std::vector<Peer::pointer>
+OverlayManagerImpl::getRandomPeers()
 {
-    if (mPeers.size())
-    {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<size_t> dis(0, mPeers.size() - 1);
-        return mPeers[dis(gen)];
-    }
+    std::vector<std::shared_ptr<Peer>> goodPeers(mPeers.size());
+    auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),
+                           [](std::shared_ptr<Peer> const& p)
+                           {
+                               return p && p->isAuthenticated();
+                           });
+    goodPeers.resize(std::distance(goodPeers.begin(), it));
 
-    return Peer::pointer();
-}
+    std::random_shuffle(goodPeers.begin(), goodPeers.end());
 
-// returns NULL if the passed peer isn't found
-Peer::pointer
-OverlayManagerImpl::getNextPeer(Peer::pointer peer)
-{
-    auto index = std::find(mPeers.begin(), mPeers.end(), peer);
-    if (mPeers.empty() || index == mPeers.end())
-    {
-        return nullptr;
-    }
-    else if (index + 1 == mPeers.end())
-    {
-        return mPeers.front();
-    }
-    else
-        return *(index + 1);
+    return goodPeers;
 }
 
 void
@@ -386,6 +381,12 @@ void
 OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
+}
+
+std::set<Peer::pointer>
+OverlayManagerImpl::getPeersKnows(Hash const& h)
+{
+    return mFloodGate.getPeersKnows(h);
 }
 
 PeerAuth&

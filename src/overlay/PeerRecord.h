@@ -49,6 +49,7 @@ class PeerRecord
 
     bool isSelfAddressAndPort(std::string const& ip, unsigned short port) const;
     bool isPrivateAddress() const;
+    bool isLocalhost() const;
 
     // returns true if peerRecord is already in the database
     bool isStored(Database& db);
@@ -69,6 +70,7 @@ class PeerRecord
     std::string toString();
 
   private:
+    std::chrono::seconds computeBackoff(VirtualClock& clock);
     static void ipToXdr(std::string ip, xdr::opaque_array<4U>& ret);
     static const char* kSQLCreateStatement;
 };

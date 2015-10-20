@@ -24,7 +24,7 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 LoopbackPeer::LoopbackPeer(Application& app, PeerRole role)
-    : Peer(app, role), mRemote(nullptr)
+    : Peer(app, role)
 {
 }
 
@@ -50,9 +50,9 @@ LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
     }
 
     // CLOG(TRACE, "Overlay") << "LoopbackPeer queueing message";
-    mQueue.emplace_back(std::move(msg));
+    mOutQueue.emplace_back(std::move(msg));
     // Possibly flush some queued messages if queue's full.
-    while (mQueue.size() > mMaxQueueDepth && !mCorked)
+    while (mOutQueue.size() > mMaxQueueDepth && !mCorked)
     {
         deliverOne();
     }
@@ -74,14 +74,12 @@ LoopbackPeer::drop()
     mState = CLOSING;
     mIdleTimer.cancel();
     auto self = shared_from_this();
-    mStrand.post([self]()
-                 {
-                     self->getApp().getOverlayManager().dropPeer(self);
-                 });
-    if (mRemote)
+    getApp().getOverlayManager().dropPeer(self);
+
+    auto remote = mRemote.lock();
+    if (remote)
     {
-        auto remote = mRemote;
-        mRemote->mStrand.post([remote]()
+        remote->getApp().getClock().getIOService().post([remote]()
                               {
                                   remote->drop();
                               });
@@ -120,18 +118,36 @@ duplicateMessage(xdr::msg_ptr const& msg)
 }
 
 void
+LoopbackPeer::processInQueue()
+{
+    if (!mInQueue.empty() && mState != CLOSING)
+    {
+        auto const& m = mInQueue.front();
+        receivedBytes(m->size(), true);
+        recvMessage(m);
+        mInQueue.pop();
+
+        if (!mInQueue.empty())
+        {
+            auto self = static_pointer_cast<LoopbackPeer>(shared_from_this());
+            mApp.getClock().getIOService().post([self]() { self->processInQueue(); });
+        }
+    }
+}
+
+void
 LoopbackPeer::deliverOne()
 {
     // CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
-    if (!mRemote)
+    if (mRemote.expired())
     {
         throw std::runtime_error("LoopbackPeer missing target");
     }
 
-    if (!mQueue.empty() && !mCorked)
+    if (!mOutQueue.empty() && !mCorked)
     {
-        xdr::msg_ptr msg = std::move(mQueue.front());
-        mQueue.pop_front();
+        xdr::msg_ptr msg = std::move(mOutQueue.front());
+        mOutQueue.pop_front();
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer dequeued message";
 
@@ -139,16 +155,16 @@ LoopbackPeer::deliverOne()
         if (mDuplicateProb(mGenerator))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
-            mQueue.emplace_front(std::move(duplicateMessage(msg)));
+            mOutQueue.emplace_front(std::move(duplicateMessage(msg)));
             mStats.messagesDuplicated++;
         }
 
         // Possibly requeue it at the back and return, reordering.
-        if (mReorderProb(mGenerator) && mQueue.size() > 0)
+        if (mReorderProb(mGenerator) && mOutQueue.size() > 0)
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer reordered message";
             mStats.messagesReordered++;
-            mQueue.emplace_back(std::move(msg));
+            mOutQueue.emplace_back(std::move(msg));
             return;
         }
 
@@ -168,21 +184,26 @@ LoopbackPeer::deliverOne()
             return;
         }
 
-        mStats.bytesDelivered += msg->raw_size();
+        size_t nBytes = msg->raw_size();
+        mStats.bytesDelivered += nBytes;
 
         // Pass ownership of a serialized XDR message buffer to a recvMesage
         // callback event against the remote Peer, posted on the remote
         // Peer's io_service.
-        auto remote = mRemote;
-        auto m = std::make_shared<xdr::msg_ptr>(std::move(msg));
-        remote->mStrand.post([remote, m]()
-                             {
-                                 remote->recvMessage(std::move(*m));
-                             });
+        auto remote = mRemote.lock();
+        if (remote)
+        {
+            // move msg to remote's in queue
+            remote->mInQueue.emplace(std::move(msg));
+            remote->getApp().getClock().getIOService().post([remote]()
+            {
+                remote->processInQueue();
+            });
+        }
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
         mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
-        mByteWrite.Mark((*m)->raw_size());
+        mByteWrite.Mark(nBytes);
 
         // CLOG(TRACE, "Overlay") << "LoopbackPeer posted message to remote";
     }
@@ -191,7 +212,7 @@ LoopbackPeer::deliverOne()
 void
 LoopbackPeer::deliverAll()
 {
-    while (!mQueue.empty() && !mCorked)
+    while (!mOutQueue.empty() && !mCorked)
     {
         deliverOne();
     }
@@ -200,14 +221,14 @@ LoopbackPeer::deliverAll()
 void
 LoopbackPeer::dropAll()
 {
-    mQueue.clear();
+    mOutQueue.clear();
 }
 
 size_t
 LoopbackPeer::getBytesQueued() const
 {
     size_t t = 0;
-    for (auto const& m : mQueue)
+    for (auto const& m : mOutQueue)
     {
         t += m->raw_size();
     }
@@ -217,7 +238,7 @@ LoopbackPeer::getBytesQueued() const
 size_t
 LoopbackPeer::getMessagesQueued() const
 {
-    return mQueue.size();
+    return mOutQueue.size();
 }
 
 LoopbackPeer::Stats const&
@@ -352,7 +373,7 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->startIdleTimer();
 
     auto init = mInitiator;
-    mInitiator->mStrand.post([init]()
+    mInitiator->getApp().getClock().getIOService().post([init]()
                              {
                                  init->connectHandler(asio::error_code());
                              });

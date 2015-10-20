@@ -25,8 +25,8 @@ class PendingEnvelopes
     Application& mApp;
     HerderImpl& mHerder;
 
-    // ledger# and list of envelopes we have received if they are fetched or not
-    std::map<uint64, std::vector<SCPEnvelope>> mReceivedEnvelopes;
+    // ledger# and list of envelopes we have processed already
+    std::map<uint64, std::vector<SCPEnvelope>> mProcessedEnvelopes;
 
     // ledger# and list of envelopes we are fetching right now
     std::map<uint64, std::set<SCPEnvelope>> mFetchingEnvelopes;

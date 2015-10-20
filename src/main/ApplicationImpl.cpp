@@ -61,6 +61,8 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mStopSignals.add(SIGTERM);
 #endif
 
+    std::srand(static_cast<uint32>(clock.now().time_since_epoch().count()));
+
     mNetworkID = sha256(mConfig.NETWORK_PASSPHRASE);
 
     unsigned t = std::thread::hardware_concurrency();

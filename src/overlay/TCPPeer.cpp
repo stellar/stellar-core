@@ -14,6 +14,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "main/Config.h"
+#include "util/GlobalChecks.h"
 
 #define MAX_UNAUTH_MESSAGE_SIZE 0x1000
 #define MAX_MESSAGE_SIZE 0x1000000
@@ -30,7 +31,7 @@ using namespace std;
 ///////////////////////////////////////////////////////////////////////
 
 TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
-                 std::shared_ptr<asio::ip::tcp::socket> socket)
+                 std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role), mSocket(socket)
 {
 }
@@ -40,52 +41,81 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << ip << ":" << port;
+    assertThreadIsMain();
     auto socket =
-        make_shared<asio::ip::tcp::socket>(app.getClock().getIOService());
+        make_shared<SocketType>(app.getClock().getIOService());
     auto result = make_shared<TCPPeer>(app, WE_CALLED_REMOTE, socket);
     result->mIP = ip;
     result->mRemoteListeningPort = port;
     result->startIdleTimer();
     asio::ip::tcp::endpoint endpoint(asio::ip::address::from_string(ip), port);
-    socket->async_connect(
-        endpoint, result->mStrand.wrap([result](asio::error_code const& error)
+    socket->next_layer().async_connect(
+        endpoint, [result](asio::error_code const& error)
                                        {
-                                           result->connectHandler(error);
-                                       }));
+                                           asio::error_code ec;
+                                           if (!error)
+                                           {
+                                               asio::ip::tcp::no_delay nodelay(true);
+                                               result->mSocket->next_layer().set_option(nodelay, ec);
+                                           }
+                                           else
+                                           {
+                                               ec = error;
+                                           }
+
+                                           result->connectHandler(ec);
+                                       });
     return result;
 }
 
 TCPPeer::pointer
-TCPPeer::accept(Application& app, shared_ptr<asio::ip::tcp::socket> socket)
+TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 {
-    CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-                           << "@" << app.getConfig().PEER_PORT;
-    auto result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
-    result->mIP = socket->remote_endpoint().address().to_string();
-    result->startIdleTimer();
-    result->startRead();
+    assertThreadIsMain();
+    shared_ptr<TCPPeer> result;
+    asio::error_code ec;
+    auto ep = socket->next_layer().remote_endpoint(ec);
+    if (!ec)
+    {
+        asio::ip::tcp::no_delay nodelay(true);
+        socket->next_layer().set_option(nodelay, ec);
+    }
+
+    if (!ec)
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
+            << "@" << app.getConfig().PEER_PORT;
+        result = make_shared<TCPPeer>(app, REMOTE_CALLED_US, socket);
+        result->mIP = ep.address().to_string();
+        result->startIdleTimer();
+        result->startRead();
+    }
+    else
+    {
+        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
+            << "@" << app.getConfig().PEER_PORT
+            << " error " << ec.message();
+    }
+
     return result;
 }
 
 TCPPeer::~TCPPeer()
 {
+    assertThreadIsMain();
     mIdleTimer.cancel();
-    try
-    {
-        if (mSocket)
-        {
-#ifndef _WIN32
-            // This always fails on windows and ASIO won't
-            // even build it.
-            mSocket->cancel();
-#endif
-            mSocket->close();
-        }
-    }
-    catch (asio::system_error&)
+    if (mSocket)
     {
         // Ignore: this indicates an attempt to cancel events
         // on a not-established socket.
+        asio::error_code ec;
+
+#ifndef _WIN32
+        // This always fails on windows and ASIO won't
+        // even build it.
+        mSocket->next_layer().cancel(ec);
+#endif
+        mSocket->close(ec);
     }
 }
 
@@ -99,30 +129,50 @@ void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
     CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
-
-    bool wasEmpty = mWriteQueue.empty();
+    assertThreadIsMain();
 
     // places the buffer to write into the write queue
     auto buf = std::make_shared<xdr::msg_ptr>(std::move(xdrBytes));
-    mWriteQueue.emplace(buf);
 
-    if (wasEmpty)
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+
+    self->mWriteQueue.emplace(buf);
+
+    if (!self->mWriting)
     {
+        self->mWriting = true;
         // kick off the async write chain if we're the first one
-        messageSender();
+        self->messageSender();
     }
 }
 
 void
 TCPPeer::messageSender()
 {
-    // if nothing to do, return
-    if (mWriteQueue.empty())
-    {
-        return;
-    }
+    assertThreadIsMain();
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+
+    // if nothing to do, flush and return
+    if (mWriteQueue.empty())
+    {
+        mSocket->async_flush([self](asio::error_code const& ec, std::size_t)
+        {
+            self->writeHandler(ec, 0);
+            if (!ec)
+            {
+                if (!self->mWriteQueue.empty())
+                {
+                    self->messageSender();
+                }
+                else
+                {
+                    self->mWriting = false;
+                }
+            }
+        });
+        return;
+    }
 
     // peek the buffer from the queue
     // do not remove it yet as we need the buffer for the duration of the
@@ -131,18 +181,26 @@ TCPPeer::messageSender()
 
     asio::async_write(
         *(mSocket.get()), asio::buffer((*buf)->raw_data(), (*buf)->raw_size()),
-        mStrand.wrap([self](asio::error_code const& ec, std::size_t length)
+        [self](asio::error_code const& ec, std::size_t length)
                      {
                          self->writeHandler(ec, length);
                          self->mWriteQueue.pop(); // done with front element
-                         self->messageSender();   // send the next one
-                     }));
+
+                         // continue processing the queue/flush
+                         if (!ec)
+                         {
+                             self->messageSender();
+                         }
+                     });
 }
 
 void
 TCPPeer::writeHandler(asio::error_code const& error,
                       std::size_t bytes_transferred)
 {
+    assertThreadIsMain();
+    mLastWrite = mApp.getClock().now();
+
     if (error)
     {
         if (isConnected())
@@ -155,10 +213,9 @@ TCPPeer::writeHandler(asio::error_code const& error,
         }
         drop();
     }
-    else
+    else if (bytes_transferred != 0)
     {
         LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mLastWrite = mApp.getClock().now();
         mMessageWrite.Mark();
         mByteWrite.Mark(bytes_transferred);
     }
@@ -167,34 +224,27 @@ TCPPeer::writeHandler(asio::error_code const& error,
 void
 TCPPeer::startRead()
 {
+    assertThreadIsMain();
     if (shouldAbort())
     {
         return;
     }
 
-    try
-    {
-        auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
-        assert(self->mIncomingHeader.size() == 0);
-        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
+    assert(self->mIncomingHeader.size() == 0);
+    CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
-        self->mIncomingHeader.resize(4);
-        asio::async_read(
-            *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
-            self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
-                               {
-                                   CLOG(TRACE, "Overlay")
-                                       << "TCPPeer::startRead calledback " << ec
-                                       << " length:" << length;
-                                   self->readHeaderHandler(ec, length);
-                               }));
-    }
-    catch (asio::system_error& e)
-    {
-        CLOG(ERROR, "Overlay") << "TCPPeer::startRead error " << e.what();
-        drop();
-    }
+    self->mIncomingHeader.resize(4);
+    asio::async_read(
+        *(self->mSocket.get()), asio::buffer(self->mIncomingHeader),
+        [self](asio::error_code ec, std::size_t length)
+                            {
+                                CLOG(TRACE, "Overlay")
+                                    << "TCPPeer::startRead calledback " << ec
+                                    << " length:" << length;
+                                self->readHeaderHandler(ec, length);
+                            });
 }
 
 int
@@ -232,6 +282,7 @@ void
 TCPPeer::readHeaderHandler(asio::error_code const& error,
                            std::size_t bytes_transferred)
 {
+    assertThreadIsMain();
     // LOG(DEBUG) << "TCPPeer::readHeaderHandler "
     //     << "@" << mApp.getConfig().PEER_PORT
     //     << " to " << mRemoteListeningPort
@@ -239,8 +290,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
 
     if (!error)
     {
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mByteRead.Mark(bytes_transferred);
+        receivedBytes(bytes_transferred, false);
         int length = getIncomingMsgLength();
         if (length != 0)
         {
@@ -248,11 +298,10 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             auto self = static_pointer_cast<TCPPeer>(shared_from_this());
             asio::async_read(
                 *mSocket.get(), asio::buffer(mIncomingBody),
-                self->mStrand.wrap([self](asio::error_code ec, std::size_t length)
+                [self](asio::error_code ec, std::size_t length)
             {
-                self->mIncomingHeader.clear();
                 self->readBodyHandler(ec, length);
-            }));
+            });
         }
     }
     else
@@ -274,6 +323,7 @@ void
 TCPPeer::readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred)
 {
+    assertThreadIsMain();
     // LOG(DEBUG) << "TCPPeer::readBodyHandler "
     //     << "@" << mApp.getConfig().PEER_PORT
     //     << " to " << mRemoteListeningPort
@@ -281,9 +331,9 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 
     if (!error)
     {
-        LoadManager::PeerContext loadCtx(mApp, mPeerID);
-        mByteRead.Mark(bytes_transferred);
+        receivedBytes(bytes_transferred, true);
         recvMessage();
+        mIncomingHeader.clear();
         startRead();
     }
     else
@@ -304,9 +354,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
 void
 TCPPeer::recvMessage()
 {
-    mLastRead = mApp.getClock().now();
-    mMessageRead.Mark();
-
+    assertThreadIsMain();
     try
     {
         xdr::xdr_get g(mIncomingBody.data(),
@@ -325,6 +373,7 @@ TCPPeer::recvMessage()
 void
 TCPPeer::drop()
 {
+    assertThreadIsMain();
     if (mState == CLOSING)
     {
         return;
@@ -341,10 +390,10 @@ TCPPeer::drop()
 
     // To shutdown, we first queue up our desire to shutdown in the strand,
     // behind any pending read/write calls. We'll let them issue first.
-    mStrand.post(
+    getApp().getClock().getIOService().post(
         [self]()
         {
-            // Graecfully shut down connection: this pushes a FIN packet into
+            // Gracefully shut down connection: this pushes a FIN packet into
             // TCP which, if we wanted to be really polite about, we would wait
             // for an ACK from by doing repeated reads until we get a 0-read.
             //
@@ -357,13 +406,13 @@ TCPPeer::drop()
             // be done with it, but we want to give some chance of telling
             // peers why we're disconnecting them.
             asio::error_code ec;
-            self->mSocket->shutdown(asio::ip::tcp::socket::shutdown_both, ec);
+            self->mSocket->next_layer().shutdown(asio::ip::tcp::socket::shutdown_both, ec);
             if (ec)
             {
                 CLOG(ERROR, "Overlay")
                     << "TCPPeer::drop shutdown socket failed: " << ec.message();
             }
-            self->mStrand.post(
+            self->getApp().getClock().getIOService().post(
                 [self]()
                 {
                     // Close fd associated with socket. Socket is already
