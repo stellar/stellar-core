@@ -644,19 +644,21 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
         {  // get any common name they have added
             std::string commonName;
             iss >> commonName;
-
-            for(auto& v : VALIDATOR_NAMES)
+            if(commonName.size())
             {
-                if(v.second == commonName)
+                for(auto& v : VALIDATOR_NAMES)
                 {
-                    throw std::invalid_argument("name already used");
+                    if(v.second == commonName)
+                    {
+                        throw std::invalid_argument("name already used");
+                    }
                 }
-            }
 
-            auto it = VALIDATOR_NAMES.find(nodestr);
-            if(it == VALIDATOR_NAMES.end())
-                VALIDATOR_NAMES[nodestr] = commonName;
-            else throw std::invalid_argument("naming node twice");
+                auto it = VALIDATOR_NAMES.find(nodestr);
+                if(it == VALIDATOR_NAMES.end())
+                    VALIDATOR_NAMES[nodestr] = commonName;
+                else throw std::invalid_argument("naming node twice");
+            }
         }
     }
    
