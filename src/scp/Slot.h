@@ -69,7 +69,7 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     Value const& getLatestCompositeCandidate();
 
-    // returns the latest messages the slot emited
+    // returns the latest messages the slot emitted
     std::vector<SCPEnvelope> getLatestMessagesSend() const;
 
     // forces the state to match the one in the envelope

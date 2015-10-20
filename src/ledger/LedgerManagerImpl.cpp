@@ -860,7 +860,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
             CLOG(DEBUG, "Tx")
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
                 << " txseq=" << tx->getSeqNum() << " (@ "
-                << PubKeyUtils::toShortString(tx->getSourceID()) << ")";
+                << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
 
             if (tx->apply(delta, tm, mApp))
             {

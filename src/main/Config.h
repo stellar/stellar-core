@@ -8,6 +8,7 @@
 #include <memory>
 #include <map>
 #include "crypto/SecretKey.h"
+#include "lib/util/cpptoml.h"
 
 #define DEFAULT_PEER_PORT 11625
 
@@ -18,6 +19,10 @@ class HistoryArchive;
 class Config : public std::enable_shared_from_this<Config>
 {
     void validateConfig();
+    void loadQset(std::shared_ptr<cpptoml::toml_group> group,
+                  SCPQuorumSet& qset, int level);
+
+    void parseNodeID(std::string configStr,PublicKey& retKey);
 
   public:
     typedef std::shared_ptr<Config> pointer;
@@ -142,6 +147,8 @@ class Config : public std::enable_shared_from_this<Config>
     bool NODE_IS_VALIDATOR;
     stellar::SCPQuorumSet QUORUM_SET;
 
+    std::map<std::string, std::string> VALIDATOR_NAMES;
+
     // History config
     std::map<std::string, std::shared_ptr<HistoryArchive>> HISTORY;
 
@@ -154,5 +161,8 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
+
+    std::string toShortString(PublicKey const& pk) const;
+
 };
 }

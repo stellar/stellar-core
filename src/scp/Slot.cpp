@@ -298,7 +298,7 @@ Slot::envToStr(SCPStatement const& st) const
 
     Hash qSetHash = getCompanionQuorumSetHashFromStatement(st);
 
-    oss << "{ENV@" << PubKeyUtils::toShortString(st.nodeID) << " | "
+    oss << "{ENV@" << getSCPDriver().toShortString(st.nodeID) << " | "
         << " i: " << st.slotIndex;
     switch (st.pledges.type())
     {

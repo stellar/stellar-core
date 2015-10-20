@@ -413,10 +413,10 @@ void
 Peer::sendMessage(StellarMessage const& msg)
 {
     CLOG(TRACE, "Overlay") << "("
-                           << PubKeyUtils::toShortString(
+                           << mApp.getConfig().toShortString(
                                   mApp.getConfig().NODE_SEED.getPublicKey())
                            << ") send: " << msg.type()
-                           << " to : " << PubKeyUtils::toShortString(mPeerID);
+                           << " to : " << mApp.getConfig().toShortString(mPeerID);
 
     AuthenticatedMessage amsg;
     amsg.v0().message = msg;
@@ -507,10 +507,10 @@ void
 Peer::recvMessage(StellarMessage const& stellarMsg)
 {
     CLOG(TRACE, "Overlay") << "("
-                           << PubKeyUtils::toShortString(
+                           << mApp.getConfig().toShortString(
                                   mApp.getConfig().NODE_SEED.getPublicKey())
                            << ") recv: " << stellarMsg.type()
-                           << " from:" << PubKeyUtils::toShortString(mPeerID);
+                           << " from:" << mApp.getConfig().toShortString(mPeerID);
 
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
@@ -705,7 +705,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
 {
     SCPEnvelope const& envelope = msg.envelope();
     CLOG(TRACE, "Overlay") << "recvSCPMessage node: "
-                           << PubKeyUtils::toShortString(
+                           << mApp.getConfig().toShortString(
                                   msg.envelope().statement.nodeID);
 
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
@@ -765,8 +765,8 @@ Peer::noteHandshakeSuccessInPeerRecord()
         pr = make_optional<PeerRecord>(getIP(), mRemoteListeningPort,
                                        mApp.getClock().now());
     }
-    CLOG(INFO, "Overlay") << "sucessful handshake with "
-                          << PubKeyUtils::toShortString(mPeerID) << "@"
+    CLOG(INFO, "Overlay") << "successful handshake with "
+                          << mApp.getConfig().toShortString(mPeerID) << "@"
                           << pr->toString();
     pr->storePeerRecord(mApp.getDatabase());
 }
@@ -870,7 +870,7 @@ Peer::recvHello(Hello const& elo)
         {
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
-                << PubKeyUtils::toShortString(mPeerID);
+                << mApp.getConfig().toShortString(mPeerID);
             mDropInRecvHelloPeerIDMeter.Mark();
             drop(ERR_CONF, "connecting already-connected peer");
             return;
@@ -986,7 +986,7 @@ Peer::recvHello2(Hello2 const& elo)
         {
             CLOG(WARNING, "Overlay")
                 << "connection from already-connected peerID "
-                << PubKeyUtils::toShortString(mPeerID);
+                << mApp.getConfig().toShortString(mPeerID);
             mDropInRecvHelloPeerIDMeter.Mark();
             drop(ERR_CONF, "connecting already-connected peer");
             return;

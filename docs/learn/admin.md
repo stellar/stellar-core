@@ -175,9 +175,9 @@ PostgreSQL's `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
 
 Run:
-- `$ stellar-core --newdb`
+1. `$ stellar-core --newdb`
   - to initialize the database
-- `$ stellar-core`
+2. `$ stellar-core`
   - to start the node
 
 ## Starting a new network
@@ -196,9 +196,9 @@ Run:
 2. `$ stellar-core --newdb`
   - to initialize the database on each node. 
 3. `$ stellar-core --forcescp`
-  - to set a flag to force each node to start SCP rather than join. 
+  - to set a flag to force each node to start SCP immediatly rather than wait to hear from the network. 
 4. `$ stellar-core` 
-  - on each node to start it
+  - on each node to start it.
 
 
 # Notes
