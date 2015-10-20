@@ -112,9 +112,9 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
 
     case CATCHUP_RETRYING:
     {
-        auto retry = VirtualClock::to_time_t(mRetryTimer.expiry_time());
-        auto now = mApp.timeNow();
-        auto eta = now > retry ? 0 : retry - now;
+        uint64 retry = VirtualClock::to_time_t(mRetryTimer.expiry_time());
+        uint64 now = mApp.timeNow();
+        uint64 eta = now > retry ? 0 : retry - now;
         stateStr << " awaiting checkpoint"
                  << " (ETA: " << eta << " seconds)";
     }
