@@ -350,6 +350,61 @@ TEST_CASE("vblocking and quorum", "[scp]")
     REQUIRE(LocalNode::isVBlocking(qSet, nodeSet) == true);
 }
 
+TEST_CASE("sane quorum set", "[scp]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+
+    auto check = [&](SCPQuorumSet const& qSetCheck, bool expected)
+    {
+        TestSCP scp(v0SecretKey, qSetCheck);
+
+        return (expected ==
+                scp.mSCP.getLocalNode()->isQuorumSetSane(v0NodeID, qSetCheck));
+    };
+
+    SCPQuorumSet qSet;
+
+    qSet.threshold = 0;
+    qSet.validators.push_back(v0NodeID);
+    REQUIRE(check(qSet, false));
+
+    qSet.threshold = 2;
+    REQUIRE(check(qSet, false));
+
+    qSet.threshold = 1;
+    REQUIRE(check(qSet, true));
+
+    SCPQuorumSet qSet2;
+    qSet2.threshold = 1;
+    qSet2.validators.push_back(v1NodeID);
+    REQUIRE(check(qSet2, false));
+
+    qSet2.innerSets.emplace_back(qSet);
+    REQUIRE(check(qSet2, true));
+
+    SCPQuorumSet qSet3;
+    qSet3.threshold = 1;
+    qSet3.validators.push_back(v2NodeID);
+    qSet3.validators.push_back(v3NodeID);
+
+    qSet3.innerSets.emplace_back(qSet2);
+    REQUIRE(check(qSet3, true));
+
+    qSet3.validators.push_back(v3NodeID);
+    REQUIRE(check(qSet3, false));
+    qSet3.validators.pop_back();
+
+    qSet3.validators.push_back(v1NodeID);
+    REQUIRE(check(qSet3, false));
+    qSet3.validators.pop_back();
+
+    qSet3.validators.push_back(v0NodeID);
+    REQUIRE(check(qSet3, false));
+}
+
 TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 {
     SIMULATION_CREATE_NODE(0);

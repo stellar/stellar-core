@@ -235,8 +235,9 @@ ApplicationImpl::start()
         !mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
                                   mConfig.QUORUM_SET))
     {
-        throw std::invalid_argument(
-            "Invalid QUORUM_SET: bad threshold or validator is not a member");
+        throw std::invalid_argument("Invalid QUORUM_SET: bad threshold, "
+                                    "validator is not a member or duplicate "
+                                    "entry");
     }
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=

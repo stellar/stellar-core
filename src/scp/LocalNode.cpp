@@ -42,37 +42,53 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
     return qSet;
 }
 
-std::pair<bool, bool>
+bool
 LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
-                                   SCPQuorumSet const& qSet)
+                                   SCPQuorumSet const& qSet,
+                                   std::set<NodeID>& knownNodes)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
     size_t totEntries = v.size() + i.size();
-    // threshold is within the proper range
-    bool wellFormed = (qSet.threshold >= 1 && qSet.threshold <= totEntries);
-    bool found = false;
 
-    if (std::find(v.begin(), v.end(), nodeID) != v.end())
+    // threshold is within the proper range
+    if (qSet.threshold >= 1 && qSet.threshold <= totEntries)
     {
-        found = true;
+        for (auto const& n : v)
+        {
+            auto r = knownNodes.insert(n);
+            if (!r.second)
+            {
+                // n was already present
+                return false;
+            }
+        }
+
+        for (auto const& iSet : i)
+        {
+            if (!isQuorumSetSaneInternal(nodeID, iSet, knownNodes))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
-    for (auto const& iSet : i)
+    else
     {
-        auto r = isQuorumSetSaneInternal(nodeID, iSet);
-        found = found || r.first;
-        wellFormed = wellFormed && r.second;
+        return false;
     }
-    return std::make_pair(found, wellFormed);
 }
 
 bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
-    auto res = isQuorumSetSaneInternal(nodeID, qSet);
+    std::set<NodeID> allValidators;
+    bool wellFormed = isQuorumSetSaneInternal(nodeID, qSet, allValidators);
     // it's OK for a non validating node to not have itself in its quorum set
-    return (res.first || (!mIsValidator && nodeID == mNodeID)) && res.second;
+    return wellFormed && ((allValidators.find(nodeID) != allValidators.end()) ||
+                          (!mIsValidator && nodeID == mNodeID));
 }
 
 void
