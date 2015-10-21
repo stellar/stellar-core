@@ -123,9 +123,9 @@ Database::upgradeToCurrentSchema()
         CLOG(INFO, "Database") << "Applying DB schema upgrade to version "
                                << vers;
         applySchemaUpgrade(*this, vers);
+        putSchemaVersion(vers);
     }
     assert(vers == SCHEMA_VERSION);
-    putSchemaVersion(SCHEMA_VERSION);
 }
 
 void
