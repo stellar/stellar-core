@@ -45,7 +45,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     BUCKET_DIR_PATH = "buckets";
 
     DESIRED_BASE_FEE = 100;
-    DESIRED_MAX_TX_PER_LEDGER = 500;
+    DESIRED_MAX_TX_PER_LEDGER = 50;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
@@ -681,6 +681,17 @@ Config::toShortString(PublicKey const& pk) const
     auto it = VALIDATOR_NAMES.find(PubKeyUtils::toStrKey(pk));
     if (it == VALIDATOR_NAMES.end())
         return PubKeyUtils::toShortString(pk);
+    else
+        return it->second;
+}
+
+std::string 
+Config::toStrKey(PublicKey const& pk) const
+{
+    std::string ret = PubKeyUtils::toStrKey(pk);
+    auto it = VALIDATOR_NAMES.find(ret);
+    if(it == VALIDATOR_NAMES.end())
+        return ret;
     else
         return it->second;
 }
