@@ -398,7 +398,8 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
         root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] = PubKeyUtils::toStrKey(peer->getPeerID());
+        root["peers"][counter]["id"] = 
+            mApp.getConfig().toStrKey(peer->getPeerID());
 
         counter++;
     }

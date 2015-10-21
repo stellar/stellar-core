@@ -684,4 +684,15 @@ Config::toShortString(PublicKey const& pk) const
     else
         return it->second;
 }
+
+std::string 
+Config::toStrKey(PublicKey const& pk) const
+{
+    std::string ret = PubKeyUtils::toStrKey(pk);
+    auto it = VALIDATOR_NAMES.find(ret);
+    if(it == VALIDATOR_NAMES.end())
+        return ret;
+    else
+        return it->second;
+}
 }
