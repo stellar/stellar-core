@@ -354,6 +354,13 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                 throw std::runtime_error("Network consensus inconsistency");
             }
         }
+        else if (ledgerData.mLedgerSeq <= mLastClosedLedger.header.ledgerSeq)
+        {
+            CLOG(INFO, "Ledger") << "Skipping close ledger: local state is "
+                                 << mLastClosedLedger.header.ledgerSeq
+                                 << ", more recent than "
+                                 << ledgerData.mLedgerSeq;
+        }
         else
         {
             // Out of sync, buffer what we just heard and start catchup.
@@ -380,11 +387,21 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
             (mSyncingLedgers.empty() ||
              mSyncingLedgers.back().mLedgerSeq + 1 == ledgerData.mLedgerSeq);
 
+        bool skipLogging = false;
+
         if (contiguous)
         {
             // Normal close while catching up
             mSyncingLedgers.push_back(ledgerData);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+        }
+        else if (ledgerData.mLedgerSeq <= mSyncingLedgers.back().mLedgerSeq)
+        {
+            CLOG(INFO, "Ledger") << "Skipping close ledger: latest known is "
+                                 << mSyncingLedgers.back().mLedgerSeq
+                                 << ", more recent than "
+                                 << ledgerData.mLedgerSeq;
+            skipLogging = true;
         }
         else
         {
@@ -398,7 +415,10 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                 << "this round of catchup will fail and restart.";
         }
 
-        mApp.getHistoryManager().logAndUpdateStatus(contiguous);
+        if (!skipLogging)
+        {
+            mApp.getHistoryManager().logAndUpdateStatus(contiguous);
+        }
     }
     break;
 
