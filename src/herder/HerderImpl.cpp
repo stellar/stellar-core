@@ -976,6 +976,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
                           << " i:" << envelope.statement.slotIndex
                           << " a:" << mApp.getStateHuman();
 
+    if (envelope.statement.nodeID == mSCP.getLocalNode()->getNodeID())
+    {
+        CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
+        return;
+    }
+
     mSCPMetrics.mEnvelopeReceive.Mark();
 
     if (mTrackingSCP)
