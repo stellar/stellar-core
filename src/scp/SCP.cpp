@@ -124,6 +124,15 @@ SCP::dumpInfo(Json::Value& ret)
     }
 }
 
+void
+SCP::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+{
+    for (auto& item : mKnownSlots)
+    {
+        item.second->dumpQuorumInfo(ret, id);
+    }
+}
+
 SecretKey const&
 SCP::getSecretKey()
 {

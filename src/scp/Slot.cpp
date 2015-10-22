@@ -254,6 +254,13 @@ Slot::dumpInfo(Json::Value& ret)
     ret["slot"].append(slotValue);
 }
 
+void
+Slot::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+{
+    std::string i = std::to_string(static_cast<uint32>(mSlotIndex));
+    mBallotProtocol.dumpQuorumInfo(ret[i], id);
+}
+
 std::string
 Slot::getValueString(Value const& v) const
 {

@@ -112,5 +112,6 @@ class Herder
     }
 
     virtual void dumpInfo(Json::Value& ret) = 0;
+    virtual void dumpQuorumInfo(Json::Value& ret, NodeID const& id) = 0;
 };
 }

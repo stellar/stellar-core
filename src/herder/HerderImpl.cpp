@@ -1449,6 +1449,14 @@ HerderImpl::dumpInfo(Json::Value& ret)
 }
 
 void
+HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+{
+    ret["node"] = mApp.getConfig().toShortString(id);
+
+    mSCP.dumpQuorumInfo(ret["slots"], id);
+}
+
+void
 HerderImpl::persistSCPState()
 {
     // saves SCP messages and related data (transaction sets, quorum sets)

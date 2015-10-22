@@ -119,6 +119,7 @@ class HerderImpl : public Herder, public SCPDriver
                          SCPQuorumSet const& qSet) override;
 
     void dumpInfo(Json::Value& ret) override;
+    void dumpQuorumInfo(Json::Value& ret, NodeID const& id) override;
 
     struct TxMap
     {

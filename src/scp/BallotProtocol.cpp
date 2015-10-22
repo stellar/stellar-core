@@ -1539,6 +1539,67 @@ BallotProtocol::dumpInfo(Json::Value& ret)
     ret["ballotProtocol"].append(state);
 }
 
+void
+BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+{
+    auto& phase = ret["phase"];
+    // find the state of the node `id`
+    auto stateit = mLatestEnvelopes.find(id);
+    if (stateit == mLatestEnvelopes.end())
+    {
+        phase = "unknown";
+    }
+    else
+    {
+        auto const& st = stateit->second.statement;
+        SCPBallot b;
+
+        switch (st.pledges.type())
+        {
+        case SCPStatementType::SCP_ST_PREPARE:
+            phase = "PREPARE";
+            b = st.pledges.prepare().ballot;
+            break;
+        case SCPStatementType::SCP_ST_CONFIRM:
+            phase = "CONFIRM";
+            b = st.pledges.confirm().commit;
+            break;
+        case SCPStatementType::SCP_ST_EXTERNALIZE:
+            phase = "EXTERNALIZE";
+            b = st.pledges.externalize().commit;
+            break;
+        }
+
+        Json::Value& disagree = ret["disagree"];
+        Json::Value& missing = ret["missing"];
+
+        size_t agree = 0;
+        // use the companion set here even for externalize to capture
+        // the view of the quorum set during consensus
+        Hash qSetHash = mSlot.getCompanionQuorumSetHashFromStatement(st);
+        auto qSet = mSlot.getSCPDriver().getQSet(qSetHash);
+        LocalNode::forAllNodes(
+            *qSet, [&](NodeID const& n)
+            {
+                auto it = mLatestEnvelopes.find(n);
+                if (it == mLatestEnvelopes.end())
+                {
+                    missing.append(mSlot.getSCPDriver().toShortString(n));
+                }
+                else if (areBallotsCompatible(
+                             getWorkingBallot(it->second.statement), b))
+                {
+                    agree++;
+                }
+                else
+                {
+                    disagree.append(mSlot.getSCPDriver().toShortString(n));
+                }
+            });
+        ret["agree"] = agree;
+    }
+}
+
 std::string
 BallotProtocol::getLocalState() const
 {
