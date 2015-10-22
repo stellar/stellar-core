@@ -45,17 +45,17 @@ Logging::init()
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
 
-    el::Loggers::getLogger("Fs");
-    el::Loggers::getLogger("SCP");
-    el::Loggers::getLogger("Bucket");
-    el::Loggers::getLogger("Database");
-    el::Loggers::getLogger("History");
-    el::Loggers::getLogger("Process");
+    el::Loggers::getLogger("fs");
+    el::Loggers::getLogger("scp");
+    el::Loggers::getLogger("bucket");
+    el::Loggers::getLogger("database");
+    el::Loggers::getLogger("history");
+    el::Loggers::getLogger("process");
     el::Loggers::getLogger("Ledger");
-    el::Loggers::getLogger("Overlay");
-    el::Loggers::getLogger("Herder");
-    el::Loggers::getLogger("Tx");
-    el::Loggers::getLogger("LoadGen");
+    el::Loggers::getLogger("overlay");
+    el::Loggers::getLogger("herder");
+    el::Loggers::getLogger("tx");
+    el::Loggers::getLogger("loadgen");
 
     gDefaultConf.setToDefault();
     gDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
@@ -135,7 +135,11 @@ Logging::setLogLevel(el::Level level, const char* partition)
     }
 
     if (partition)
-        el::Loggers::reconfigureLogger(partition, config);
+    {
+        std::string partionStr = partition;
+        std::transform(partionStr.begin(), partionStr.end(), partionStr.begin(), ::tolower);
+        el::Loggers::reconfigureLogger(partionStr, config);
+    }
     else
         el::Loggers::reconfigureAllLoggers(config);
 }

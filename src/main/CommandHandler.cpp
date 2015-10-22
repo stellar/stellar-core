@@ -593,23 +593,23 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     std::string partition = retMap["partition"];
     if (!levelStr.size())
     {
-        root["Fs"] = Logging::getStringFromLL(Logging::getLogLevel("Fs"));
-        root["SCP"] = Logging::getStringFromLL(Logging::getLogLevel("SCP"));
-        root["Bucket"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Bucket"));
-        root["Database"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Database"));
-        root["History"] =
-            Logging::getStringFromLL(Logging::getLogLevel("History"));
-        root["Process"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Process"));
-        root["Ledger"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Ledger"));
-        root["Overlay"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Overlay"));
-        root["Herder"] =
-            Logging::getStringFromLL(Logging::getLogLevel("Herder"));
-        root["Tx"] = Logging::getStringFromLL(Logging::getLogLevel("Tx"));
+        root["fs"] = Logging::getStringFromLL(Logging::getLogLevel("fs"));
+        root["scp"] = Logging::getStringFromLL(Logging::getLogLevel("scp"));
+        root["bucket"] =
+            Logging::getStringFromLL(Logging::getLogLevel("bucket"));
+        root["database"] =
+            Logging::getStringFromLL(Logging::getLogLevel("database"));
+        root["history"] =
+            Logging::getStringFromLL(Logging::getLogLevel("history"));
+        root["process"] =
+            Logging::getStringFromLL(Logging::getLogLevel("process"));
+        root["ledger"] =
+            Logging::getStringFromLL(Logging::getLogLevel("ledger"));
+        root["overlay"] =
+            Logging::getStringFromLL(Logging::getLogLevel("overlay"));
+        root["herder"] =
+            Logging::getStringFromLL(Logging::getLogLevel("herder"));
+        root["tx"] = Logging::getStringFromLL(Logging::getLogLevel("tx"));
     }
     else
     {
