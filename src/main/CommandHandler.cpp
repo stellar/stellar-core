@@ -82,6 +82,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("metrics",
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
+    mServer->addRoute("quorum",
+                      std::bind(&CommandHandler::quorum, this, _1, _2));
     mServer->addRoute("setcursor",
                       std::bind(&CommandHandler::setcursor, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
@@ -274,6 +276,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "debugging purpose)"
         "</p><p><h1> /peers</h1>"
         "returns the list of known peers in JSON format"
+        "</p><p><h1> /quorum[?node=NODE_ID]</h1>"
+        "returns information about the quorum for node NODE_ID (this node by"
+        " default)"
         "</p><p><h1> /scp</h1>"
         "returns a JSON object with the internal state of the SCP engine"
         "</p><p><h1> /tx?blob=HEX</h1>"
@@ -567,6 +572,42 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
     else
     {
         retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
+    }
+}
+
+void
+CommandHandler::quorum(std::string const& params, std::string& retStr)
+{
+    Json::Value root;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    NodeID n;
+
+    try
+    {
+        std::string nID = retMap["node"];
+
+        if (nID.empty())
+        {
+            n = mApp.getConfig().NODE_SEED.getPublicKey();
+        }
+        else
+        {
+            n = PubKeyUtils::fromStrKey(nID);
+        }
+        mApp.getHerder().dumpQuorumInfo(root, n);
+
+        retStr = root.toStyledString();
+    }
+    catch (std::exception& e)
+    {
+        retStr = (fmt::MemoryWriter() << "{\"exception\": \"" << e.what()
+                                      << "\"}").str();
+    }
+    catch (...)
+    {
+        retStr = "{\"exception\": \"generic\"}";
     }
 }
 
