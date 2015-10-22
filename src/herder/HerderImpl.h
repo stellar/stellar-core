@@ -132,6 +132,7 @@ class HerderImpl : public Herder, public SCPDriver
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
   private:
+    void logQuorumInformation(uint64 index);
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
 

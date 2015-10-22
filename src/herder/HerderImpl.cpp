@@ -520,6 +520,25 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 }
 
 void
+HerderImpl::logQuorumInformation(uint64 index)
+{
+    Json::Value v;
+    dumpQuorumInfo(v, mSCP.getLocalNodeID());
+    auto slots = v.get("slots", "");
+    if (!slots.empty())
+    {
+        std::string indexs = std::to_string(static_cast<uint32>(index));
+        auto i = slots.get(indexs, "");
+        if (!i.empty())
+        {
+            Json::FastWriter fw;
+            CLOG(INFO, "Herder") << "Quorum information for " << index << " : "
+                                 << fw.write(i);
+        }
+    }
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
@@ -544,6 +563,10 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 
     CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
                           << " txSet: " << hexAbbrev(txSetHash);
+
+    // log information from older ledger to increase the chances that
+    // all messages made it
+    logQuorumInformation(slotIndex - 2);
 
     // current value is not valid anymore
     mCurrentValue.clear();
