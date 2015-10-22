@@ -239,8 +239,9 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st)
 void
 Slot::dumpInfo(Json::Value& ret)
 {
-    Json::Value slotValue;
-    slotValue["index"] = static_cast<int>(mSlotIndex);
+    auto& slots = ret["slots"];
+
+    Json::Value& slotValue = slots[std::to_string(mSlotIndex)];
 
     int count = 0;
     for (auto& item : mStatementsHistory)
@@ -250,8 +251,6 @@ Slot::dumpInfo(Json::Value& ret)
 
     mNominationProtocol.dumpInfo(slotValue);
     mBallotProtocol.dumpInfo(slotValue);
-
-    ret["slot"].append(slotValue);
 }
 
 void
