@@ -99,6 +99,18 @@ class LocalNode
                  return true;
              });
 
+    // computes the distance to the set of v-blocking sets given a set of nodes
+    static std::vector<NodeID>
+    findClosestVBlocking(SCPQuorumSet const& qset,
+                         std::set<NodeID> const& nodes);
+    static std::vector<NodeID> findClosestVBlocking(
+        SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
+        std::function<bool(SCPStatement const&)> const& filter =
+            [](SCPStatement const&)
+        {
+            return true;
+        });
+
   protected:
     // returns a quorum set {{ nodeID }}
     static SCPQuorumSet buildSingletonQSet(NodeID const& nodeID);

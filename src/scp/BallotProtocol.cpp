@@ -1596,6 +1596,19 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
                     disagree.append(mSlot.getSCPDriver().toShortString(n));
                 }
             });
+        auto f = LocalNode::findClosestVBlocking(
+            *qSet, mLatestEnvelopes, [&](SCPStatement const& st)
+            {
+                return areBallotsCompatible(getWorkingBallot(st), b);
+            });
+        ret["fail_at"] = f.size();
+
+        auto& f_ex = ret["fail_with"];
+        for (auto const& n : f)
+        {
+            f_ex.append(mSlot.getSCPDriver().toShortString(n));
+        }
+
         ret["agree"] = agree;
     }
 }

@@ -405,6 +405,97 @@ TEST_CASE("sane quorum set", "[scp]")
     REQUIRE(check(qSet3, false));
 }
 
+TEST_CASE("v-blocking distance", "[scp]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+    SIMULATION_CREATE_NODE(3);
+    SIMULATION_CREATE_NODE(4);
+    SIMULATION_CREATE_NODE(5);
+    SIMULATION_CREATE_NODE(6);
+    SIMULATION_CREATE_NODE(7);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    auto check = [&](SCPQuorumSet const& qSetCheck, std::set<NodeID> const& s,
+                     int expected)
+    {
+        auto r = LocalNode::findClosestVBlocking(qSetCheck, s);
+        REQUIRE(expected == r.size());
+    };
+
+    std::set<NodeID> good;
+    good.insert(v0NodeID);
+
+    // already v-blocking
+    check(qSet, good, 0);
+
+    good.insert(v1NodeID);
+    // either v0 or v1
+    check(qSet, good, 1);
+
+    good.insert(v2NodeID);
+    // any 2 of v0..v2
+    check(qSet, good, 2);
+
+    SCPQuorumSet qSubSet1;
+    qSubSet1.threshold = 1;
+    qSubSet1.validators.push_back(v3NodeID);
+    qSubSet1.validators.push_back(v4NodeID);
+    qSubSet1.validators.push_back(v5NodeID);
+    qSet.innerSets.push_back(qSubSet1);
+
+    good.insert(v3NodeID);
+    // any 3 of v0..v3
+    check(qSet, good, 3);
+
+    good.insert(v4NodeID);
+    // v0..v2
+    check(qSet, good, 3);
+
+    qSet.threshold = 1;
+    // v0..v4
+    check(qSet, good, 5);
+
+    good.insert(v5NodeID);
+    // v0..v5
+    check(qSet, good, 6);
+
+    SCPQuorumSet qSubSet2;
+    qSubSet2.threshold = 2;
+    qSubSet2.validators.push_back(v6NodeID);
+    qSubSet2.validators.push_back(v7NodeID);
+
+    qSet.innerSets.push_back(qSubSet2);
+    // v0..v5
+    check(qSet, good, 6);
+
+    good.insert(v6NodeID);
+    // v0..v5
+    check(qSet, good, 6);
+
+    good.insert(v7NodeID);
+    // v0..v5 and one of 6,7
+    check(qSet, good, 7);
+
+    qSet.threshold = 4;
+    // v6, v7
+    check(qSet, good, 2);
+
+    qSet.threshold = 3;
+    // v0..v2
+    check(qSet, good, 3);
+
+    qSet.threshold = 2;
+    // v0..v2 and one of v6,v7
+    check(qSet, good, 4);
+}
+
 TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 {
     SIMULATION_CREATE_NODE(0);

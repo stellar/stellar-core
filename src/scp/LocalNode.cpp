@@ -327,6 +327,99 @@ LocalNode::isQuorum(
     return isQuorumSlice(qSet, pNodes);
 }
 
+std::vector<NodeID>
+LocalNode::findClosestVBlocking(
+    SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
+    std::function<bool(SCPStatement const&)> const& filter)
+{
+    std::set<NodeID> s;
+    for (auto const& n : map)
+    {
+        if (filter(n.second.statement))
+        {
+            s.emplace(n.first);
+        }
+    }
+    return findClosestVBlocking(qset, s);
+}
+
+std::vector<NodeID>
+LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
+                                std::set<NodeID> const& nodes)
+{
+    size_t leftTillBlock =
+        ((1 + qset.validators.size() + qset.innerSets.size()) - qset.threshold);
+
+    std::vector<NodeID> res;
+
+    // first, compute how many top level items need to be blocked
+    for (auto const& validator : qset.validators)
+    {
+        auto it = nodes.find(validator);
+        if (it == nodes.end())
+        {
+            leftTillBlock--;
+            if (leftTillBlock == 0)
+            {
+                // already blocked
+                return std::vector<NodeID>();
+            }
+        }
+        else
+        {
+            // save this for later
+            res.emplace_back(validator);
+        }
+    }
+
+    struct orderBySize
+    {
+        bool operator()(std::vector<NodeID> const& v1,
+                        std::vector<NodeID> const& v2)
+        {
+            return v1.size() < v2.size();
+        }
+    };
+
+    std::multiset<std::vector<NodeID>, orderBySize> resInternals;
+
+    for (auto const& inner : qset.innerSets)
+    {
+        auto v = findClosestVBlocking(inner, nodes);
+        if (v.size() == 0)
+        {
+            leftTillBlock--;
+            if (leftTillBlock == 0)
+            {
+                // already blocked
+                return std::vector<NodeID>();
+            }
+        }
+        else
+        {
+            resInternals.emplace(v);
+        }
+    }
+
+    // use the top level validators to get closer
+    if (res.size() > leftTillBlock)
+    {
+        res.resize(leftTillBlock);
+    }
+    leftTillBlock -= res.size();
+
+    // use subsets to get closer, using the smallest ones first
+    auto it = resInternals.begin();
+    while (leftTillBlock != 0 && it != resInternals.end())
+    {
+        res.insert(res.end(), it->begin(), it->end());
+        leftTillBlock--;
+        it++;
+    }
+
+    return res;
+}
+
 NodeID const&
 LocalNode::getNodeID()
 {
