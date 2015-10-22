@@ -278,7 +278,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "returns the list of known peers in JSON format"
         "</p><p><h1> /quorum[?node=NODE_ID]</h1>"
         "returns information about the quorum for node NODE_ID (this node by"
-        " default)"
+        " default). NODE_ID is either a full key (`GABCD...`) or an alias "
+        "(`$name)`"
         "</p><p><h1> /scp</h1>"
         "returns a JSON object with the internal state of the SCP engine"
         "</p><p><h1> /tx?blob=HEX</h1>"
@@ -594,8 +595,12 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
         else
         {
-            n = PubKeyUtils::fromStrKey(nID);
+            if (!mApp.getConfig().resolveNodeID(nID, n))
+            {
+                throw std::invalid_argument("unknown name");
+            }
         }
+
         mApp.getHerder().dumpQuorumInfo(root, n);
 
         retStr = root.toStyledString();

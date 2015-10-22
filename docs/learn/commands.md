@@ -84,7 +84,8 @@ debugging purpose).
 
 * **quorum**
   `/quorum[&node=NODE_ID]`<br>
-  returns information about the quorum for node NODE_ID (this node by default)
+  returns information about the quorum for node NODE_ID (this node by default).
+  NODE_ID is either a full key (`GABCD...`) or an alias (`$name`)
 
 * **setcursor**
  `/setcursor?id=ID&cursor=N`<br>
