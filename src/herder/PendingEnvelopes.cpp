@@ -190,19 +190,20 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
 {
-    if (mPendingEnvelopes.find(slotIndex) == mPendingEnvelopes.end())
+    auto it = mPendingEnvelopes.begin();
+    while (it != mPendingEnvelopes.end() && slotIndex >= it->first)
     {
-        return false;
-    }
-    else
-    {
-        if (!mPendingEnvelopes[slotIndex].size())
-            return false;
-        ret = mPendingEnvelopes[slotIndex].back();
-        mPendingEnvelopes[slotIndex].pop_back();
+        auto& v = it->second;
+        if (v.size() != 0)
+        {
+            ret = v.back();
+            v.pop_back();
 
-        return true;
+            return true;
+        }
+        it++;
     }
+    return false;
 }
 
 vector<uint64>
@@ -246,14 +247,20 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 void
 PendingEnvelopes::slotClosed(uint64 slotIndex)
 {
-    mPendingEnvelopes.erase(slotIndex);
+    // stop processing envelopes & downloads for the slot falling off the
+    // window
+    if (slotIndex > Herder::MAX_SLOTS_TO_REMEMBER)
+    {
+        slotIndex -= Herder::MAX_SLOTS_TO_REMEMBER;
 
-    // keep the last few ledgers worth of messages around to give to people
-    mProcessedEnvelopes.erase(slotIndex - 10);
-    mFetchingEnvelopes.erase(slotIndex);
+        mPendingEnvelopes.erase(slotIndex);
 
-    mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
-    mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
+        mProcessedEnvelopes.erase(slotIndex);
+        mFetchingEnvelopes.erase(slotIndex);
+
+        mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
+        mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
+    }
 }
 
 TxSetFramePtr

@@ -1016,6 +1016,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // when tracking, we can filter messages based on the information we got
         // from consensus
         uint32_t minLedgerSeq = nextConsensusLedgerIndex();
+        if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
+        {
+            minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
+        }
         uint32_t maxLedgerSeq =
             nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
 
@@ -1082,10 +1086,13 @@ HerderImpl::processSCPQueue()
     if (mTrackingSCP)
     {
         // drop obsolete slots
-        mPendingEnvelopes.eraseBelow(nextConsensusLedgerIndex());
+        if (nextConsensusLedgerIndex() > MAX_SLOTS_TO_REMEMBER)
+        {
+            mPendingEnvelopes.eraseBelow(nextConsensusLedgerIndex() -
+                                         MAX_SLOTS_TO_REMEMBER);
+        }
 
-        // process current slot only
-        processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        processSCPQueueUpToIndex(nextConsensusLedgerIndex());
     }
     else
     {
@@ -1094,7 +1101,7 @@ HerderImpl::processSCPQueue()
         // starting from the smallest slot
         for (auto& slot : mPendingEnvelopes.readySlots())
         {
-            processSCPQueueAtIndex(slot);
+            processSCPQueueUpToIndex(slot);
             if (mTrackingSCP)
             {
                 // one of the slots externalized
@@ -1106,7 +1113,7 @@ HerderImpl::processSCPQueue()
 }
 
 void
-HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
+HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     while (true)
     {
@@ -1143,8 +1150,8 @@ HerderImpl::ledgerClosed()
 
     uint64_t nextIndex = nextConsensusLedgerIndex();
 
-    // process any statements for this slot (this may trigger externalize)
-    processSCPQueueAtIndex(nextIndex);
+    // process any statements up to this slot (this may trigger externalize)
+    processSCPQueueUpToIndex(nextIndex);
 
     // if externalize got called for a future slot, we don't
     // need to trigger (the now obsolete) next round

@@ -148,7 +148,7 @@ class HerderImpl : public Herder, public SCPDriver
 
     void updateSCPCounters();
 
-    void processSCPQueueAtIndex(uint64 slotIndex);
+    void processSCPQueueUpToIndex(uint64 slotIndex);
 
     // returns true if the local instance is in a state compatible with
     // this slot
