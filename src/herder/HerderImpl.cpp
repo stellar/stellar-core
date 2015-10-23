@@ -27,8 +27,6 @@
 
 #include <ctime>
 
-#define MAX_SLOTS_TO_REMEMBER 4
-
 using namespace std;
 
 namespace stellar
@@ -520,6 +518,26 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 }
 
 void
+HerderImpl::logQuorumInformation(uint64 index)
+{
+    std::string res;
+    Json::Value v;
+    dumpQuorumInfo(v, mSCP.getLocalNodeID(), true, index);
+    auto slots = v.get("slots", "");
+    if (!slots.empty())
+    {
+        std::string indexs = std::to_string(static_cast<uint32>(index));
+        auto i = slots.get(indexs, "");
+        if (!i.empty())
+        {
+            Json::FastWriter fw;
+            CLOG(INFO, "Herder") << "Quorum information for " << index << " : "
+                                 << fw.write(i);
+        }
+    }
+}
+
+void
 HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
@@ -545,6 +563,13 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
                           << " txSet: " << hexAbbrev(txSetHash);
 
+    // log information from older ledger to increase the chances that
+    // all messages made it
+    if (slotIndex > 2)
+    {
+        logQuorumInformation(slotIndex - 2);
+    }
+
     // current value is not valid anymore
     mCurrentValue.clear();
 
@@ -552,6 +577,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     {
         stateChanged();
     }
+    else if (slotIndex <= mTrackingSCP->mConsensusIndex)
+    {
+        // don't do anything for older slots
+        return;
+    }
+
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
@@ -989,6 +1020,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // when tracking, we can filter messages based on the information we got
         // from consensus
         uint32_t minLedgerSeq = nextConsensusLedgerIndex();
+        if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
+        {
+            minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
+        }
         uint32_t maxLedgerSeq =
             nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
 
@@ -1055,10 +1090,13 @@ HerderImpl::processSCPQueue()
     if (mTrackingSCP)
     {
         // drop obsolete slots
-        mPendingEnvelopes.eraseBelow(nextConsensusLedgerIndex());
+        if (nextConsensusLedgerIndex() > MAX_SLOTS_TO_REMEMBER)
+        {
+            mPendingEnvelopes.eraseBelow(nextConsensusLedgerIndex() -
+                                         MAX_SLOTS_TO_REMEMBER);
+        }
 
-        // process current slot only
-        processSCPQueueAtIndex(nextConsensusLedgerIndex());
+        processSCPQueueUpToIndex(nextConsensusLedgerIndex());
     }
     else
     {
@@ -1067,7 +1105,7 @@ HerderImpl::processSCPQueue()
         // starting from the smallest slot
         for (auto& slot : mPendingEnvelopes.readySlots())
         {
-            processSCPQueueAtIndex(slot);
+            processSCPQueueUpToIndex(slot);
             if (mTrackingSCP)
             {
                 // one of the slots externalized
@@ -1079,7 +1117,7 @@ HerderImpl::processSCPQueue()
 }
 
 void
-HerderImpl::processSCPQueueAtIndex(uint64 slotIndex)
+HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
 {
     while (true)
     {
@@ -1116,8 +1154,8 @@ HerderImpl::ledgerClosed()
 
     uint64_t nextIndex = nextConsensusLedgerIndex();
 
-    // process any statements for this slot (this may trigger externalize)
-    processSCPQueueAtIndex(nextIndex);
+    // process any statements up to this slot (this may trigger externalize)
+    processSCPQueueUpToIndex(nextIndex);
 
     // if externalize got called for a future slot, we don't
     // need to trigger (the now obsolete) next round
@@ -1446,6 +1484,15 @@ HerderImpl::dumpInfo(Json::Value& ret)
     mSCP.dumpInfo(ret);
 
     mPendingEnvelopes.dumpInfo(ret);
+}
+
+void
+HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
+                           uint64 index)
+{
+    ret["node"] = mApp.getConfig().toShortString(id);
+
+    mSCP.dumpQuorumInfo(ret["slots"], id, summary, index);
 }
 
 void

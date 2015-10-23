@@ -1421,6 +1421,8 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
         mPhase = SCP_PHASE_EXTERNALIZE;
     }
     break;
+    default:
+        dbgAbort();
     }
 }
 
@@ -1537,6 +1539,101 @@ BallotProtocol::dumpInfo(Json::Value& ret)
     state["state"] = getLocalState();
 
     ret["ballotProtocol"].append(state);
+}
+
+void
+BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
+{
+    auto& phase = ret["phase"];
+    // find the state of the node `id`
+    auto stateit = mLatestEnvelopes.find(id);
+    if (stateit == mLatestEnvelopes.end())
+    {
+        phase = "unknown";
+    }
+    else
+    {
+        auto const& st = stateit->second.statement;
+        SCPBallot b;
+
+        switch (st.pledges.type())
+        {
+        case SCPStatementType::SCP_ST_PREPARE:
+            phase = "PREPARE";
+            b = st.pledges.prepare().ballot;
+            break;
+        case SCPStatementType::SCP_ST_CONFIRM:
+            phase = "CONFIRM";
+            b = st.pledges.confirm().commit;
+            break;
+        case SCPStatementType::SCP_ST_EXTERNALIZE:
+            phase = "EXTERNALIZE";
+            b = st.pledges.externalize().commit;
+            break;
+        default:
+            dbgAbort();
+        }
+
+        Json::Value& disagree = ret["disagree"];
+        Json::Value& missing = ret["missing"];
+
+        int n_missing = 0, n_disagree = 0;
+
+        int agree = 0;
+        // use the companion set here even for externalize to capture
+        // the view of the quorum set during consensus
+        Hash qSetHash = mSlot.getCompanionQuorumSetHashFromStatement(st);
+        auto qSet = mSlot.getSCPDriver().getQSet(qSetHash);
+        LocalNode::forAllNodes(
+            *qSet, [&](NodeID const& n)
+            {
+                auto it = mLatestEnvelopes.find(n);
+                if (it == mLatestEnvelopes.end())
+                {
+                    if (!summary)
+                    {
+                        missing.append(mSlot.getSCPDriver().toShortString(n));
+                    }
+                    n_missing++;
+                }
+                else if (areBallotsCompatible(
+                             getWorkingBallot(it->second.statement), b))
+                {
+                    agree++;
+                }
+                else
+                {
+                    if (!summary)
+                    {
+                        disagree.append(mSlot.getSCPDriver().toShortString(n));
+                    }
+                    n_disagree++;
+                }
+            });
+        if (summary)
+        {
+            missing = n_missing;
+            disagree = n_disagree;
+        }
+
+        auto f = LocalNode::findClosestVBlocking(
+            *qSet, mLatestEnvelopes, [&](SCPStatement const& st)
+            {
+                return areBallotsCompatible(getWorkingBallot(st), b);
+            });
+        ret["fail_at"] = static_cast<int>(f.size());
+
+        if (!summary)
+        {
+            auto& f_ex = ret["fail_with"];
+            for (auto const& n : f)
+            {
+                f_ex.append(mSlot.getSCPDriver().toShortString(n));
+            }
+        }
+
+        ret["agree"] = agree;
+    }
 }
 
 std::string

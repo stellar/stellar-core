@@ -112,6 +112,9 @@ class Slot : public std::enable_shared_from_this<Slot>
     // including historical statements if available
     void dumpInfo(Json::Value& ret);
 
+    // returns information about the quorum for a given node
+    void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary);
+
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.
     // note: the companion hash for an EXTERNALIZE statement does

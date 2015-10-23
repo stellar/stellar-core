@@ -308,7 +308,7 @@ PubKeyUtils::fromStrKey(std::string const& s)
         (k.size() != crypto_sign_PUBLICKEYBYTES) ||
         (s.size() != strKey::getStrKeySize(crypto_sign_PUBLICKEYBYTES)))
     {
-        throw std::runtime_error("bad public key");
+        throw std::invalid_argument("bad public key");
     }
     std::copy(k.begin(), k.end(), pk.ed25519().begin());
     return pk;

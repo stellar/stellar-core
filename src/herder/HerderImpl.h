@@ -119,6 +119,8 @@ class HerderImpl : public Herder, public SCPDriver
                          SCPQuorumSet const& qSet) override;
 
     void dumpInfo(Json::Value& ret) override;
+    void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
+                        uint64 index) override;
 
     struct TxMap
     {
@@ -131,6 +133,7 @@ class HerderImpl : public Herder, public SCPDriver
     typedef std::unordered_map<AccountID, std::shared_ptr<TxMap>> AccountTxMap;
 
   private:
+    void logQuorumInformation(uint64 index);
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
 
@@ -146,7 +149,7 @@ class HerderImpl : public Herder, public SCPDriver
 
     void updateSCPCounters();
 
-    void processSCPQueueAtIndex(uint64 slotIndex);
+    void processSCPQueueUpToIndex(uint64 slotIndex);
 
     // returns true if the local instance is in a state compatible with
     // this slot

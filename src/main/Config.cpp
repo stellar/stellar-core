@@ -633,16 +633,10 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
     // check if configStr is a PublicKey or a common name
     if (configStr[0] == '$')
     {
-        std::string commonName = configStr.substr(1);
-        for (auto& v : VALIDATOR_NAMES)
+        if (!resolveNodeID(configStr, retKey))
         {
-            if (v.second == commonName)
-            {
-                retKey = PubKeyUtils::fromStrKey(v.first);
-                return;
-            }
+            throw std::invalid_argument("unknown key in config");
         }
-        throw std::invalid_argument("unknown key in config");
     }
     else
     {
@@ -657,19 +651,18 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
             iss >> commonName;
             if (commonName.size())
             {
-                for (auto& v : VALIDATOR_NAMES)
+                std::string cName = "$";
+                cName += commonName;
+                if (resolveNodeID(cName, retKey))
                 {
-                    if (v.second == commonName)
-                    {
-                        throw std::invalid_argument("name already used");
-                    }
+                    throw std::invalid_argument("name already used");
                 }
 
-                auto it = VALIDATOR_NAMES.find(nodestr);
-                if (it == VALIDATOR_NAMES.end())
-                    VALIDATOR_NAMES[nodestr] = commonName;
-                else
+                if (!VALIDATOR_NAMES.emplace(std::make_pair(nodestr,
+                                                            commonName)).second)
+                {
                     throw std::invalid_argument("naming node twice");
+                }
             }
         }
     }
@@ -685,14 +678,43 @@ Config::toShortString(PublicKey const& pk) const
         return it->second;
 }
 
-std::string 
+std::string
 Config::toStrKey(PublicKey const& pk) const
 {
     std::string ret = PubKeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
-    if(it == VALIDATOR_NAMES.end())
+    if (it == VALIDATOR_NAMES.end())
         return ret;
     else
         return it->second;
+}
+
+bool
+Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
+{
+    if (s.size() > 1 && s[0] == '$')
+    {
+        std::string commonName = s.substr(1);
+
+        auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                               [&](std::pair<std::string, std::string> const& p)
+                               {
+                                   return p.second == commonName;
+                               });
+
+        if (it == VALIDATOR_NAMES.end())
+        {
+            return false;
+        }
+        else
+        {
+            retKey = PubKeyUtils::fromStrKey(it->first);
+        }
+    }
+    else
+    {
+        retKey = PubKeyUtils::fromStrKey(s);
+    }
+    return true;
 }
 }

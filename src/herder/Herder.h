@@ -46,8 +46,11 @@ class Herder
     // How many seconds of inactivity before evicting a node.
     static std::chrono::seconds const NODE_EXPIRATION_SECONDS;
 
-    // How many ledger in past/future we consider an envelope viable.
+    // How many ledger in the future we consider an envelope viable.
     static uint32 const LEDGER_VALIDITY_BRACKET;
+
+    // How many ledgers in the past we keep track of
+    static uint32 const MAX_SLOTS_TO_REMEMBER;
 
     static std::unique_ptr<Herder> create(Application& app);
 
@@ -112,5 +115,7 @@ class Herder
     }
 
     virtual void dumpInfo(Json::Value& ret) = 0;
+    virtual void dumpQuorumInfo(Json::Value& ret, NodeID const& id,
+                                bool summary, uint64 index = 0) = 0;
 };
 }

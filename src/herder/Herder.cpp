@@ -10,4 +10,5 @@ std::chrono::seconds const Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS(35);
 std::chrono::seconds const Herder::MAX_TIME_SLIP_SECONDS(60);
 std::chrono::seconds const Herder::NODE_EXPIRATION_SECONDS(240);
 uint32 const Herder::LEDGER_VALIDITY_BRACKET = 1000;
+uint32 const Herder::MAX_SLOTS_TO_REMEMBER = 4;
 }

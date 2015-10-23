@@ -73,6 +73,11 @@ class SCP
 
     void dumpInfo(Json::Value& ret);
 
+    // summary: only return object counts
+    // index = 0 for returning information for all slots
+    void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
+                        uint64 index = 0);
+
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
     void purgeSlots(uint64 maxSlotIndex);

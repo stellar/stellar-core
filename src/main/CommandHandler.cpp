@@ -82,6 +82,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("metrics",
                       std::bind(&CommandHandler::metrics, this, _1, _2));
     mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
+    mServer->addRoute("quorum",
+                      std::bind(&CommandHandler::quorum, this, _1, _2));
     mServer->addRoute("setcursor",
                       std::bind(&CommandHandler::setcursor, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
@@ -274,6 +276,10 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "debugging purpose)"
         "</p><p><h1> /peers</h1>"
         "returns the list of known peers in JSON format"
+        "</p><p><h1> /quorum[?node=NODE_ID]</h1>"
+        "returns information about the quorum for node NODE_ID (this node by"
+        " default). NODE_ID is either a full key (`GABCD...`) or an alias "
+        "(`$name)`"
         "</p><p><h1> /scp</h1>"
         "returns a JSON object with the internal state of the SCP engine"
         "</p><p><h1> /tx?blob=HEX</h1>"
@@ -398,7 +404,7 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
         root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
         root["peers"][counter]["ver"] = peer->getRemoteVersion();
         root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] = 
+        root["peers"][counter]["id"] =
             mApp.getConfig().toStrKey(peer->getPeerID());
 
         counter++;
@@ -414,21 +420,31 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 
     LedgerManager& lm = mApp.getLedgerManager();
 
+    auto& info = root["info"];
+
     if (mApp.getConfig().UNSAFE_QUORUM)
-        root["info"]["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
-    root["info"]["build"] = STELLAR_CORE_VERSION;
-    root["info"]["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    root["info"]["state"] = mApp.getStateHuman();
+        info["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
+    info["build"] = STELLAR_CORE_VERSION;
+    info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    info["state"] = mApp.getStateHuman();
     if (mApp.getExtraStateInfo().size())
-        root["info"]["extra"] = mApp.getExtraStateInfo();
-    root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
-    root["info"]["ledger"]["hash"] =
-        binToHex(lm.getLastClosedLedgerHeader().hash);
-    root["info"]["ledger"]["closeTime"] =
+        info["extra"] = mApp.getExtraStateInfo();
+    info["ledger"]["num"] = (int)lm.getLedgerNum();
+    info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
+    info["ledger"]["closeTime"] =
         (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
-    root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    root["info"]["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
-    root["info"]["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
+    info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
+    info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
+    info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
+
+    auto& herder = mApp.getHerder();
+    Json::Value q;
+    herder.dumpQuorumInfo(q, mApp.getConfig().NODE_SEED.getPublicKey(), true,
+                          herder.getCurrentLedgerSeq());
+    if (q["slots"].size() != 0)
+    {
+        info["quorum"] = q["slots"];
+    }
 
     retStr = root.toStyledString();
 }
@@ -567,6 +583,46 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
     else
     {
         retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
+    }
+}
+
+void
+CommandHandler::quorum(std::string const& params, std::string& retStr)
+{
+    Json::Value root;
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    NodeID n;
+
+    try
+    {
+        std::string nID = retMap["node"];
+
+        if (nID.empty())
+        {
+            n = mApp.getConfig().NODE_SEED.getPublicKey();
+        }
+        else
+        {
+            if (!mApp.getConfig().resolveNodeID(nID, n))
+            {
+                throw std::invalid_argument("unknown name");
+            }
+        }
+
+        mApp.getHerder().dumpQuorumInfo(root, n, false);
+
+        retStr = root.toStyledString();
+    }
+    catch (std::exception& e)
+    {
+        retStr = (fmt::MemoryWriter() << "{\"exception\": \"" << e.what()
+                                      << "\"}").str();
+    }
+    catch (...)
+    {
+        retStr = "{\"exception\": \"generic\"}";
     }
 }
 

@@ -41,6 +41,7 @@ class CommandHandler
     void manualClose(std::string const& params, std::string& retStr);
     void metrics(std::string const& params, std::string& retStr);
     void peers(std::string const& params, std::string& retStr);
+    void quorum(std::string const& params, std::string& retStr);
     void setcursor(std::string const& params, std::string& retStr);
     void scpInfo(std::string const& params, std::string& retStr);
     void tx(std::string const& params, std::string& retStr);

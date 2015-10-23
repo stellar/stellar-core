@@ -42,37 +42,53 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
     return qSet;
 }
 
-std::pair<bool, bool>
+bool
 LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
-                                   SCPQuorumSet const& qSet)
+                                   SCPQuorumSet const& qSet,
+                                   std::set<NodeID>& knownNodes)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
     size_t totEntries = v.size() + i.size();
-    // threshold is within the proper range
-    bool wellFormed = (qSet.threshold >= 1 && qSet.threshold <= totEntries);
-    bool found = false;
 
-    if (std::find(v.begin(), v.end(), nodeID) != v.end())
+    // threshold is within the proper range
+    if (qSet.threshold >= 1 && qSet.threshold <= totEntries)
     {
-        found = true;
+        for (auto const& n : v)
+        {
+            auto r = knownNodes.insert(n);
+            if (!r.second)
+            {
+                // n was already present
+                return false;
+            }
+        }
+
+        for (auto const& iSet : i)
+        {
+            if (!isQuorumSetSaneInternal(nodeID, iSet, knownNodes))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
-    for (auto const& iSet : i)
+    else
     {
-        auto r = isQuorumSetSaneInternal(nodeID, iSet);
-        found = found || r.first;
-        wellFormed = wellFormed && r.second;
+        return false;
     }
-    return std::make_pair(found, wellFormed);
 }
 
 bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
-    auto res = isQuorumSetSaneInternal(nodeID, qSet);
+    std::set<NodeID> allValidators;
+    bool wellFormed = isQuorumSetSaneInternal(nodeID, qSet, allValidators);
     // it's OK for a non validating node to not have itself in its quorum set
-    return (res.first || (!mIsValidator && nodeID == mNodeID)) && res.second;
+    return wellFormed && ((allValidators.find(nodeID) != allValidators.end()) ||
+                          (!mIsValidator && nodeID == mNodeID));
 }
 
 void
@@ -309,6 +325,99 @@ LocalNode::isQuorum(
     } while (count != pNodes.size());
 
     return isQuorumSlice(qSet, pNodes);
+}
+
+std::vector<NodeID>
+LocalNode::findClosestVBlocking(
+    SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
+    std::function<bool(SCPStatement const&)> const& filter)
+{
+    std::set<NodeID> s;
+    for (auto const& n : map)
+    {
+        if (filter(n.second.statement))
+        {
+            s.emplace(n.first);
+        }
+    }
+    return findClosestVBlocking(qset, s);
+}
+
+std::vector<NodeID>
+LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
+                                std::set<NodeID> const& nodes)
+{
+    size_t leftTillBlock =
+        ((1 + qset.validators.size() + qset.innerSets.size()) - qset.threshold);
+
+    std::vector<NodeID> res;
+
+    // first, compute how many top level items need to be blocked
+    for (auto const& validator : qset.validators)
+    {
+        auto it = nodes.find(validator);
+        if (it == nodes.end())
+        {
+            leftTillBlock--;
+            if (leftTillBlock == 0)
+            {
+                // already blocked
+                return std::vector<NodeID>();
+            }
+        }
+        else
+        {
+            // save this for later
+            res.emplace_back(validator);
+        }
+    }
+
+    struct orderBySize
+    {
+        bool operator()(std::vector<NodeID> const& v1,
+                        std::vector<NodeID> const& v2)
+        {
+            return v1.size() < v2.size();
+        }
+    };
+
+    std::multiset<std::vector<NodeID>, orderBySize> resInternals;
+
+    for (auto const& inner : qset.innerSets)
+    {
+        auto v = findClosestVBlocking(inner, nodes);
+        if (v.size() == 0)
+        {
+            leftTillBlock--;
+            if (leftTillBlock == 0)
+            {
+                // already blocked
+                return std::vector<NodeID>();
+            }
+        }
+        else
+        {
+            resInternals.emplace(v);
+        }
+    }
+
+    // use the top level validators to get closer
+    if (res.size() > leftTillBlock)
+    {
+        res.resize(leftTillBlock);
+    }
+    leftTillBlock -= res.size();
+
+    // use subsets to get closer, using the smallest ones first
+    auto it = resInternals.begin();
+    while (leftTillBlock != 0 && it != resInternals.end())
+    {
+        res.insert(res.end(), it->begin(), it->end());
+        leftTillBlock--;
+        it++;
+    }
+
+    return res;
 }
 
 NodeID const&

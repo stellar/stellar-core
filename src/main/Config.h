@@ -172,5 +172,6 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::string toShortString(PublicKey const& pk) const;
     std::string toStrKey(PublicKey const& pk) const;
+    bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
 };
 }
