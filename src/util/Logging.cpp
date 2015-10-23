@@ -29,7 +29,7 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
         datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
     }
     std::string shortFmt =
-        datetime + " " + peerID + " [%thread] [%logger] %level %msg";
+        datetime + " " + peerID + " [%logger %level] %msg";
     std::string longFmt = shortFmt + " [%fbase:%line]";
 
     gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
