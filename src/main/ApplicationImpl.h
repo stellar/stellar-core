@@ -61,6 +61,7 @@ class ApplicationImpl : public Application
 
     virtual asio::io_service& getWorkerIOService() override;
 
+    void newDB() override;
     virtual void start() override;
 
     // Stops the worker io_service, which should cause the threads to exit once

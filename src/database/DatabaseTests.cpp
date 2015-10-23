@@ -194,7 +194,6 @@ TEST_CASE("postgres smoketest", "[db]")
     try
     {
         Application::pointer app = Application::create(clock, cfg);
-
         int a = 10, b = 0;
 
         auto& session = app->getDatabase().getSession();

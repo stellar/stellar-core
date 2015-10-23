@@ -164,12 +164,12 @@ TEST_CASE("ledger performance test", "[performance][hide]")
     qSet0.threshold = 1;
     qSet0.validators.push_back(v10NodeID);
 
-    cfg.REBUILD_DB = false;
+   
     cfg.DATABASE = "postgresql://host=localhost dbname=performance_test "
                    "user=test password=test";
     cfg.BUCKET_DIR_PATH = "performance-test.db.buckets";
     cfg.MANUAL_CLOSE = true;
-    sim.addNode(v10SecretKey, qSet0, sim.getClock(), &cfg);
+    sim.addNode(v10SecretKey, qSet0, sim.getClock(), &cfg,false);
     sim.mApp = sim.getNodes().front();
     if (sim.mApp->getPersistentState().getState(
             PersistentState::kDatabaseInitialized) != "true")

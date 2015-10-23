@@ -33,7 +33,6 @@ TEST_CASE("set options", "[tx][setoptions]")
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
-
     app.start();
 
     // set up world

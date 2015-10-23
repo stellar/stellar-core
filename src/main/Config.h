@@ -50,10 +50,6 @@ class Config : public std::enable_shared_from_this<Config>
     // participate in consensus. DO NOT INCLUDE THIS IN A CONFIG FILE
     bool FORCE_SCP;
 
-    // reset the database to the genesis ledger. DO NOT INCLUDE THIS IN
-    // A CONFIG FILE
-    bool REBUILD_DB;
-
     // This is a mode for testing. It prevents you from trying to connect to
     // other peers
     bool RUN_STANDALONE;

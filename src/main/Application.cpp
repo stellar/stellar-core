@@ -10,8 +10,11 @@ namespace stellar
 using namespace std;
 
 Application::pointer
-Application::create(VirtualClock& clock, Config const& cfg)
+Application::create(VirtualClock& clock, Config const& cfg, bool newDB)
 {
-    return make_shared<ApplicationImpl>(clock, cfg);
+    Application::pointer ret = make_shared<ApplicationImpl>(clock, cfg);
+    if(newDB || cfg.DATABASE == "sqlite3://:memory:") ret->newDB();
+
+    return ret;
 }
 }

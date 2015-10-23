@@ -54,7 +54,7 @@ Simulation::getClock()
 
 NodeID
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                    Config const* cfg2)
+                    Config const* cfg2, bool newDB )
 {
     std::shared_ptr<Config> cfg;
     if (!cfg2)
@@ -69,7 +69,7 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     cfg->QUORUM_SET = qSet;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    Application::pointer result = Application::create(clock, *cfg);
+    Application::pointer result = Application::create(clock, *cfg, newDB);
 
     NodeID nodeID = nodeKey.getPublicKey();
     mConfigs[nodeID] = cfg;

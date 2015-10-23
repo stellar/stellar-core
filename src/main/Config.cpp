@@ -19,7 +19,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     FORCE_SCP = false;
-    REBUILD_DB = false;
     LEDGER_PROTOCOL_VERSION = 1;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 4;
@@ -671,9 +670,10 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
 std::string
 Config::toShortString(PublicKey const& pk) const
 {
-    auto it = VALIDATOR_NAMES.find(PubKeyUtils::toStrKey(pk));
+    std::string ret = PubKeyUtils::toStrKey(pk);
+    auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
-        return PubKeyUtils::toShortString(pk);
+        return ret.substr(0,5);
     else
         return it->second;
 }

@@ -42,7 +42,6 @@ TEST_CASE("standalone", "[herder]")
     Application::pointer app = Application::create(clock, cfg);
 
     Hash const& networkID = app->getNetworkID();
-
     app->start();
 
     // set up world
@@ -167,7 +166,6 @@ TEST_CASE("txset", "[herder]")
     Application::pointer app = Application::create(clock, cfg);
 
     Hash const& networkID = app->getNetworkID();
-
     app->start();
 
     // set up world
@@ -330,7 +328,6 @@ TEST_CASE("surge", "[herder]")
     Application::pointer app = Application::create(clock, cfg);
 
     Hash const& networkID = app->getNetworkID();
-
     app->start();
 
     auto& lm = app->getLedgerManager();
@@ -493,7 +490,6 @@ TEST_CASE("SCP Driver", "[herder]")
     Application::pointer app = Application::create(clock, cfg);
 
     Hash const& networkID = app->getNetworkID();
-
     app->start();
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
@@ -622,7 +618,6 @@ TEST_CASE("SCP State", "[herder]")
         for (int i = 0; i < 2; i++)
         {
             nodeCfgs[i] = sim->getNode(nodeIDs[i])->getConfig();
-            nodeCfgs[i].REBUILD_DB = false;
             nodeCfgs[i].FORCE_SCP = forceSCP;
         }
 
@@ -657,8 +652,8 @@ TEST_CASE("SCP State", "[herder]")
         // forwarded to node 2 when they connect to it
         // causing node 2 to externalize ledger #2
 
-        sim->addNode(nodeKeys[0], qSetAll, *clock, &nodeCfgs[0]);
-        sim->addNode(nodeKeys[1], qSetAll, *clock, &nodeCfgs[1]);
+        sim->addNode(nodeKeys[0], qSetAll, *clock, &nodeCfgs[0],false);
+        sim->addNode(nodeKeys[1], qSetAll, *clock, &nodeCfgs[1],false);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
 
