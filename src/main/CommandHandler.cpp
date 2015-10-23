@@ -420,21 +420,31 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 
     LedgerManager& lm = mApp.getLedgerManager();
 
+    auto& info = root["info"];
+
     if (mApp.getConfig().UNSAFE_QUORUM)
-        root["info"]["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
-    root["info"]["build"] = STELLAR_CORE_VERSION;
-    root["info"]["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    root["info"]["state"] = mApp.getStateHuman();
+        info["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
+    info["build"] = STELLAR_CORE_VERSION;
+    info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+    info["state"] = mApp.getStateHuman();
     if (mApp.getExtraStateInfo().size())
-        root["info"]["extra"] = mApp.getExtraStateInfo();
-    root["info"]["ledger"]["num"] = (int)lm.getLedgerNum();
-    root["info"]["ledger"]["hash"] =
-        binToHex(lm.getLastClosedLedgerHeader().hash);
-    root["info"]["ledger"]["closeTime"] =
+        info["extra"] = mApp.getExtraStateInfo();
+    info["ledger"]["num"] = (int)lm.getLedgerNum();
+    info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
+    info["ledger"]["closeTime"] =
         (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
-    root["info"]["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    root["info"]["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
-    root["info"]["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
+    info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
+    info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
+    info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
+
+    auto& herder = mApp.getHerder();
+    Json::Value q;
+    herder.dumpQuorumInfo(q, mApp.getConfig().NODE_SEED.getPublicKey(), true,
+                          herder.getCurrentLedgerSeq());
+    if (q["slots"].size() != 0)
+    {
+        info["quorum"] = q["slots"];
+    }
 
     retStr = root.toStyledString();
 }
@@ -601,7 +611,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
             }
         }
 
-        mApp.getHerder().dumpQuorumInfo(root, n);
+        mApp.getHerder().dumpQuorumInfo(root, n, false);
 
         retStr = root.toStyledString();
     }
