@@ -27,8 +27,6 @@
 
 #include <ctime>
 
-#define MAX_SLOTS_TO_REMEMBER 4
-
 using namespace std;
 
 namespace stellar
