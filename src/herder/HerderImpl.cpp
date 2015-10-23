@@ -573,6 +573,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     {
         stateChanged();
     }
+    else if (slotIndex <= mTrackingSCP->mConsensusIndex)
+    {
+        // don't do anything for older slots
+        return;
+    }
+
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
     trackingHeartBeat();
 
