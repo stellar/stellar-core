@@ -80,7 +80,7 @@ class BallotProtocol
     void dumpInfo(Json::Value& ret);
 
     // returns information about the quorum for a given node
-    void dumpQuorumInfo(Json::Value& ret, NodeID const& id);
+    void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary);
 
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.

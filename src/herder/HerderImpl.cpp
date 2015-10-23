@@ -520,8 +520,9 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 void
 HerderImpl::logQuorumInformation(uint64 index)
 {
+    std::string res;
     Json::Value v;
-    dumpQuorumInfo(v, mSCP.getLocalNodeID());
+    dumpQuorumInfo(v, mSCP.getLocalNodeID(), true, index);
     auto slots = v.get("slots", "");
     if (!slots.empty())
     {
@@ -564,7 +565,10 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 
     // log information from older ledger to increase the chances that
     // all messages made it
-    logQuorumInformation(slotIndex - 2);
+    if (slotIndex > 2)
+    {
+        logQuorumInformation(slotIndex - 2);
+    }
 
     // current value is not valid anymore
     mCurrentValue.clear();
@@ -1483,11 +1487,12 @@ HerderImpl::dumpInfo(Json::Value& ret)
 }
 
 void
-HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
+                           uint64 index)
 {
     ret["node"] = mApp.getConfig().toShortString(id);
 
-    mSCP.dumpQuorumInfo(ret["slots"], id);
+    mSCP.dumpQuorumInfo(ret["slots"], id, summary, index);
 }
 
 void

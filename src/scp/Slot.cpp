@@ -254,10 +254,10 @@ Slot::dumpInfo(Json::Value& ret)
 }
 
 void
-Slot::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+Slot::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
 {
     std::string i = std::to_string(static_cast<uint32>(mSlotIndex));
-    mBallotProtocol.dumpQuorumInfo(ret[i], id);
+    mBallotProtocol.dumpQuorumInfo(ret[i], id, summary);
 }
 
 std::string

@@ -125,11 +125,23 @@ SCP::dumpInfo(Json::Value& ret)
 }
 
 void
-SCP::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+SCP::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
+                    uint64 index)
 {
-    for (auto& item : mKnownSlots)
+    if (index == 0)
     {
-        item.second->dumpQuorumInfo(ret, id);
+        for (auto& item : mKnownSlots)
+        {
+            item.second->dumpQuorumInfo(ret, id, summary);
+        }
+    }
+    else
+    {
+        auto s = getSlot(index, false);
+        if (s)
+        {
+            s->dumpQuorumInfo(ret, id, summary);
+        }
     }
 }
 

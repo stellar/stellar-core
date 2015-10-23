@@ -1421,6 +1421,8 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
         mPhase = SCP_PHASE_EXTERNALIZE;
     }
     break;
+    default:
+        dbgAbort();
     }
 }
 
@@ -1540,7 +1542,7 @@ BallotProtocol::dumpInfo(Json::Value& ret)
 }
 
 void
-BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
+BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
 {
     auto& phase = ret["phase"];
     // find the state of the node `id`
@@ -1568,12 +1570,16 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
             phase = "EXTERNALIZE";
             b = st.pledges.externalize().commit;
             break;
+        default:
+            dbgAbort();
         }
 
         Json::Value& disagree = ret["disagree"];
         Json::Value& missing = ret["missing"];
 
-        size_t agree = 0;
+        int n_missing = 0, n_disagree = 0;
+
+        int agree = 0;
         // use the companion set here even for externalize to capture
         // the view of the quorum set during consensus
         Hash qSetHash = mSlot.getCompanionQuorumSetHashFromStatement(st);
@@ -1584,7 +1590,11 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
                 auto it = mLatestEnvelopes.find(n);
                 if (it == mLatestEnvelopes.end())
                 {
-                    missing.append(mSlot.getSCPDriver().toShortString(n));
+                    if (!summary)
+                    {
+                        missing.append(mSlot.getSCPDriver().toShortString(n));
+                    }
+                    n_missing++;
                 }
                 else if (areBallotsCompatible(
                              getWorkingBallot(it->second.statement), b))
@@ -1593,20 +1603,33 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id)
                 }
                 else
                 {
-                    disagree.append(mSlot.getSCPDriver().toShortString(n));
+                    if (!summary)
+                    {
+                        disagree.append(mSlot.getSCPDriver().toShortString(n));
+                    }
+                    n_disagree++;
                 }
             });
+        if (summary)
+        {
+            missing = n_missing;
+            disagree = n_disagree;
+        }
+
         auto f = LocalNode::findClosestVBlocking(
             *qSet, mLatestEnvelopes, [&](SCPStatement const& st)
             {
                 return areBallotsCompatible(getWorkingBallot(st), b);
             });
-        ret["fail_at"] = f.size();
+        ret["fail_at"] = static_cast<int>(f.size());
 
-        auto& f_ex = ret["fail_with"];
-        for (auto const& n : f)
+        if (!summary)
         {
-            f_ex.append(mSlot.getSCPDriver().toShortString(n));
+            auto& f_ex = ret["fail_with"];
+            for (auto const& n : f)
+            {
+                f_ex.append(mSlot.getSCPDriver().toShortString(n));
+            }
         }
 
         ret["agree"] = agree;
