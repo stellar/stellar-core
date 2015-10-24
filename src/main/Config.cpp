@@ -39,7 +39,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ALLOW_LOCALHOST_FOR_TESTING = false;
-    FAILURE_SAFETY = 1;
+    FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
 
     LOG_FILE_PATH = "stellar-core.log";
@@ -238,11 +238,11 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
                 int64_t f = item.second->as<int64_t>()->value();
-                if (f < 0 || f >= UINT32_MAX)
+                if (f < -1 || f >= INT32_MAX)
                 {
                     throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
-                FAILURE_SAFETY = (uint32_t)f;
+                FAILURE_SAFETY = (int32_t)f;
             }
             else if (item.first == "UNSAFE_QUORUM")
             {
@@ -611,6 +611,13 @@ Config::validateConfig()
 
     // calculates nodes that would break quorum
     auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes);
+
+    if (FAILURE_SAFETY == -1)
+    {
+        // calculates default value for safety assuming flat quorum
+        // n = 3f+1
+        FAILURE_SAFETY = (static_cast<uint32>(nodes.size()) - 1) / 3;
+    }
 
     if (UNSAFE_QUORUM == false)
     {
