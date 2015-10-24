@@ -23,7 +23,6 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
     Config cfg(getTestConfig());
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
-
     app->start();
     LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
                       app->getDatabase());

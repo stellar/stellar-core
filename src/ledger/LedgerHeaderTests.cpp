@@ -45,10 +45,9 @@ TEST_CASE("ledgerheader", "[ledger]")
     SECTION("load existing ledger")
     {
         Config cfg2(cfg);
-        cfg2.REBUILD_DB = false;
         cfg2.FORCE_SCP = false;
         VirtualClock clock2;
-        Application::pointer app2 = Application::create(clock2, cfg2);
+        Application::pointer app2 = Application::create(clock2, cfg2,false);
         app2->start();
 
         REQUIRE(saved ==

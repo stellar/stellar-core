@@ -24,7 +24,7 @@ string PersistentState::kSQLCreateStatement =
 
 PersistentState::PersistentState(Application& app) : mApp(app)
 {
-    mApp.getDatabase().getSession() << kSQLCreateStatement;
+    
 }
 
 void

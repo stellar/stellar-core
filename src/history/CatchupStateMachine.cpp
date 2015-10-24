@@ -165,7 +165,7 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
         else if (mMode == HistoryManager::CATCHUP_MINIMAL)
         {
             assert(mApplyState);
-            stateStr << ", appying bucket level " << mApplyState->mBucketLevel;
+            stateStr << ", applying bucket level " << mApplyState->mBucketLevel;
         }
         break;
 

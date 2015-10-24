@@ -77,7 +77,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // attempted.
         thisConfig.RUN_STANDALONE = true;
         thisConfig.FORCE_SCP = true;
-        thisConfig.REBUILD_DB = true;
 
         thisConfig.PEER_PORT =
             static_cast<unsigned short>(DEFAULT_PEER_PORT + instanceNumber * 2);

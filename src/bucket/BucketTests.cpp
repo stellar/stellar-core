@@ -188,6 +188,7 @@ TEST_CASE("bucket list", "[bucket]")
     try
     {
         Application::pointer app = Application::create(clock, cfg);
+
         BucketList bl;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket") << "Adding batches to bucket list";
@@ -811,10 +812,9 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
 
     // Finally *restart* an app on the same config, and see if it can
     // pick up the bucket list correctly.
-    cfg1.REBUILD_DB = false;
     cfg1.FORCE_SCP = false;
     {
-        Application::pointer app = Application::create(clock, cfg1);
+        Application::pointer app = Application::create(clock, cfg1,false);
         app->start();
         BucketList& bl = app->getBucketManager().getBucketList();
 
