@@ -9,10 +9,13 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "crypto/Hex.h"
+#include "scp/LocalNode.h"
 #include <sstream>
 
 namespace stellar
 {
+using xdr::operator<;
+
 Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
@@ -595,31 +598,61 @@ Config::load(std::string const& filename)
 void
 Config::validateConfig()
 {
-    if (FAILURE_SAFETY == 0 && UNSAFE_QUORUM == false)
+    std::set<NodeID> nodes;
+    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n)
+                           {
+                               nodes.insert(n);
+                           });
+
+    if (nodes.size() == 0)
     {
-        LOG(ERROR) << "Can't have FAILURE_SAFETY=0 unless you also set "
-                      "UNSAFE_QUORUM=true. Be sure you know what you are "
-                      "doing!";
-        throw std::invalid_argument("SCP unsafe");
+        throw std::invalid_argument("QUORUM_SET not configured");
     }
 
-    unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
-                                          QUORUM_SET.innerSets.size());
+    // calculates nodes that would break quorum
+    auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes);
 
-    if (topSize < 3 * FAILURE_SAFETY + 1)
+    if (UNSAFE_QUORUM == false)
     {
-        LOG(ERROR) << "Not enough nodes in your Quorum set to ensure your "
-                      "desired level of FAILURE_SAFETY.";
-        throw std::invalid_argument("SCP unsafe");
-    }
+        try
+        {
+            if (FAILURE_SAFETY == 0)
+            {
+                LOG(ERROR)
+                    << "Can't have FAILURE_SAFETY=0 unless you also set "
+                       "UNSAFE_QUORUM=true. Be sure you know what you are "
+                       "doing!";
+                throw std::invalid_argument("SCP unsafe");
+            }
 
-    unsigned int minSize = 1 + (topSize * 67 - 1) / 100;
-    if (QUORUM_SET.threshold < minSize && UNSAFE_QUORUM == false)
-    {
-        LOG(ERROR) << "Your THESHOLD_PERCENTAGE is too low. If you really want "
-                      "this set UNSAFE_QUORUM=true. Be sure you know what you "
-                      "are doing!";
-        throw std::invalid_argument("SCP unsafe");
+            if (FAILURE_SAFETY >= r.size())
+            {
+                LOG(ERROR)
+                    << "Not enough nodes / thresholds too strict in your "
+                    "Quorum set to ensure your  desired level of "
+                    "FAILURE_SAFETY.";
+                throw std::invalid_argument("SCP unsafe");
+            }
+
+            unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
+                                                  QUORUM_SET.innerSets.size());
+            unsigned int minSize = 1 + (topSize * 2 - 1) / 3;
+            if (QUORUM_SET.threshold < minSize)
+            {
+                LOG(ERROR)
+                    << "Your THESHOLD_PERCENTAGE is too low. If you really "
+                       "want "
+                       "this set UNSAFE_QUORUM=true. Be sure you know what you "
+                       "are doing!";
+                throw std::invalid_argument("SCP unsafe");
+            }
+        }
+        catch (...)
+        {
+            LOG(INFO) << " Current QUORUM_SET breaks with " << r.size()
+                      << " failures";
+            throw;
+        }
     }
 }
 
