@@ -223,13 +223,12 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    if (mConfig.NODE_IS_VALIDATOR &&
-        !mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
+    if (!mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
                                   mConfig.QUORUM_SET))
     {
-        throw std::invalid_argument("Invalid QUORUM_SET: bad threshold, "
-                                    "validator is not a member or duplicate "
-                                    "entry");
+        throw std::invalid_argument(
+            "Invalid QUORUM_SET: bad threshold, "
+            "duplicate entry or self is not a member (validator)");
     }
 
     if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=

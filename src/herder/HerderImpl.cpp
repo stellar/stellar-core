@@ -1479,7 +1479,7 @@ void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
     ret["you"] =
-        mApp.getConfig().toShortString(mSCP.getSecretKey().getPublicKey());
+        mApp.getConfig().toStrKey(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 
@@ -1490,7 +1490,7 @@ void
 HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
                            uint64 index)
 {
-    ret["node"] = mApp.getConfig().toShortString(id);
+    ret["node"] = mApp.getConfig().toStrKey(id);
 
     mSCP.dumpQuorumInfo(ret["slots"], id, summary, index);
 }

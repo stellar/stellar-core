@@ -10,6 +10,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include <algorithm>
+#include "lib/json/json.h"
 
 namespace stellar
 {
@@ -418,6 +419,32 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
     }
 
     return res;
+}
+
+void
+LocalNode::toJson(SCPQuorumSet const& qSet, Json::Value& value) const
+{
+    value["t"] = qSet.threshold;
+    auto& entries = value["v"];
+    for (auto const& v : qSet.validators)
+    {
+        entries.append(mSCP->getDriver().toShortString(v));
+    }
+    for (auto const& s : qSet.innerSets)
+    {
+        Json::Value iV;
+        toJson(s, iV);
+        entries.append(iV);
+    }
+}
+
+std::string
+LocalNode::to_string(SCPQuorumSet const& qSet) const
+{
+    Json::Value v;
+    toJson(qSet, v);
+    Json::FastWriter fw;
+    return fw.write(v);
 }
 
 NodeID const&

@@ -276,10 +276,11 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "debugging purpose)"
         "</p><p><h1> /peers</h1>"
         "returns the list of known peers in JSON format"
-        "</p><p><h1> /quorum[?node=NODE_ID]</h1>"
+        "</p><p><h1> /quorum?[node=NODE_ID][&compact=true]</h1>"
         "returns information about the quorum for node NODE_ID (this node by"
-        " default). NODE_ID is either a full key (`GABCD...`) or an alias "
-        "(`$name)`"
+        " default). NODE_ID is either a full key (`GABCD...`), an alias "
+        "(`$name`) or an abbreviated ID(`@GABCD`)."
+        "If compact is set, only returns a summary version."
         "</p><p><h1> /scp</h1>"
         "returns a JSON object with the internal state of the SCP engine"
         "</p><p><h1> /tx?blob=HEX</h1>"
@@ -611,7 +612,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
             }
         }
 
-        mApp.getHerder().dumpQuorumInfo(root, n, false);
+        mApp.getHerder().dumpQuorumInfo(root, n, retMap["compact"] == "true");
 
         retStr = root.toStyledString();
     }

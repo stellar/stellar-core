@@ -1584,6 +1584,11 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
         // the view of the quorum set during consensus
         Hash qSetHash = mSlot.getCompanionQuorumSetHashFromStatement(st);
         auto qSet = mSlot.getSCPDriver().getQSet(qSetHash);
+        if (!qSet)
+        {
+            phase = "expired";
+            return;
+        }
         LocalNode::forAllNodes(
             *qSet, [&](NodeID const& n)
             {
@@ -1630,8 +1635,10 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
             {
                 f_ex.append(mSlot.getSCPDriver().toShortString(n));
             }
+            getLocalNode()->toJson(*qSet, ret["value"]);
         }
 
+        ret["hash"] = hexAbbrev(qSetHash);
         ret["agree"] = agree;
     }
 }

@@ -9,10 +9,13 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "crypto/Hex.h"
+#include "scp/LocalNode.h"
 #include <sstream>
 
 namespace stellar
 {
+using xdr::operator<;
+
 Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
@@ -36,7 +39,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ALLOW_LOCALHOST_FOR_TESTING = false;
-    FAILURE_SAFETY = 1;
+    FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
 
     LOG_FILE_PATH = "stellar-core.log";
@@ -235,11 +238,11 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
                 int64_t f = item.second->as<int64_t>()->value();
-                if (f < 0 || f >= UINT32_MAX)
+                if (f < -1 || f >= INT32_MAX)
                 {
                     throw std::invalid_argument("invalid FAILURE_SAFETY");
                 }
-                FAILURE_SAFETY = (uint32_t)f;
+                FAILURE_SAFETY = (int32_t)f;
             }
             else if (item.first == "UNSAFE_QUORUM")
             {
@@ -595,31 +598,68 @@ Config::load(std::string const& filename)
 void
 Config::validateConfig()
 {
-    if (FAILURE_SAFETY == 0 && UNSAFE_QUORUM == false)
+    std::set<NodeID> nodes;
+    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n)
+                           {
+                               nodes.insert(n);
+                           });
+
+    if (nodes.size() == 0)
     {
-        LOG(ERROR) << "Can't have FAILURE_SAFETY=0 unless you also set "
-                      "UNSAFE_QUORUM=true. Be sure you know what you are "
-                      "doing!";
-        throw std::invalid_argument("SCP unsafe");
+        throw std::invalid_argument("QUORUM_SET not configured");
     }
 
-    unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
-                                          QUORUM_SET.innerSets.size());
+    // calculates nodes that would break quorum
+    auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes);
 
-    if (topSize < 3 * FAILURE_SAFETY + 1)
+    if (FAILURE_SAFETY == -1)
     {
-        LOG(ERROR) << "Not enough nodes in your Quorum set to ensure your "
-                      "desired level of FAILURE_SAFETY.";
-        throw std::invalid_argument("SCP unsafe");
+        // calculates default value for safety assuming flat quorum
+        // n = 3f+1
+        FAILURE_SAFETY = (static_cast<uint32>(nodes.size()) - 1) / 3;
     }
 
-    unsigned int minSize = 1 + (topSize * 67 - 1) / 100;
-    if (QUORUM_SET.threshold < minSize && UNSAFE_QUORUM == false)
+    if (UNSAFE_QUORUM == false)
     {
-        LOG(ERROR) << "Your THESHOLD_PERCENTAGE is too low. If you really want "
-                      "this set UNSAFE_QUORUM=true. Be sure you know what you "
-                      "are doing!";
-        throw std::invalid_argument("SCP unsafe");
+        try
+        {
+            if (FAILURE_SAFETY == 0)
+            {
+                LOG(ERROR)
+                    << "Can't have FAILURE_SAFETY=0 unless you also set "
+                       "UNSAFE_QUORUM=true. Be sure you know what you are "
+                       "doing!";
+                throw std::invalid_argument("SCP unsafe");
+            }
+
+            if (FAILURE_SAFETY >= r.size())
+            {
+                LOG(ERROR)
+                    << "Not enough nodes / thresholds too strict in your "
+                    "Quorum set to ensure your  desired level of "
+                    "FAILURE_SAFETY.";
+                throw std::invalid_argument("SCP unsafe");
+            }
+
+            unsigned int topSize = (unsigned int)(QUORUM_SET.validators.size() +
+                                                  QUORUM_SET.innerSets.size());
+            unsigned int minSize = 1 + (topSize * 2 - 1) / 3;
+            if (QUORUM_SET.threshold < minSize)
+            {
+                LOG(ERROR)
+                    << "Your THESHOLD_PERCENTAGE is too low. If you really "
+                       "want "
+                       "this set UNSAFE_QUORUM=true. Be sure you know what you "
+                       "are doing!";
+                throw std::invalid_argument("SCP unsafe");
+            }
+        }
+        catch (...)
+        {
+            LOG(INFO) << " Current QUORUM_SET breaks with " << r.size()
+                      << " failures";
+            throw;
+        }
     }
 }
 
@@ -692,15 +732,26 @@ Config::toStrKey(PublicKey const& pk) const
 bool
 Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 {
-    if (s.size() > 1 && s[0] == '$')
+    if (s.size() > 1)
     {
-        std::string commonName = s.substr(1);
-
-        auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
-                               [&](std::pair<std::string, std::string> const& p)
-                               {
-                                   return p.second == commonName;
-                               });
+        std::string arg = s.substr(1);
+        auto it = VALIDATOR_NAMES.end();
+        if (s[0] == '$')
+        {
+            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                                   [&](std::pair<std::string, std::string> const& p)
+            {
+                return p.second == arg;
+            });
+        }
+        else if (s[0] == '@')
+        {
+            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                              [&](std::pair<std::string, std::string> const& p)
+            {
+                return p.first.compare(0, arg.size(), arg) == 0;
+            });
+        }
 
         if (it == VALIDATOR_NAMES.end())
         {

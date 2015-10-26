@@ -91,7 +91,7 @@ class Config : public std::enable_shared_from_this<Config>
     // You will need at least 3f+1 nodes in your quorum set.
     // If you don't have enough in your quorum set to tolerate the level you
     //  set here stellar-core won't run.
-    uint32_t FAILURE_SAFETY;
+    int32_t FAILURE_SAFETY;
 
     // If set to true allows you to specify an unsafe quorum set.
     // Otherwise it won't start if you have your threshold % set too low.
