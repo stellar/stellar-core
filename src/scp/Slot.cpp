@@ -26,6 +26,7 @@ Slot::Slot(uint64 slotIndex, SCP& scp)
     , mSCP(scp)
     , mBallotProtocol(*this)
     , mNominationProtocol(*this)
+    , mFullyValidated(scp.getLocalNode()->isValidator())
 {
 }
 
@@ -148,6 +149,18 @@ Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
     return mNominationProtocol.nominate(value, previousValue, timedout);
 }
 
+bool
+Slot::isFullyValidated() const
+{
+    return mFullyValidated;
+}
+
+void
+Slot::setFullyValidated(bool fullyValidated)
+{
+    mFullyValidated = fullyValidated;
+}
+
 SCPEnvelope
 Slot::createEnvelope(SCPStatement const& statement)
 {
@@ -249,6 +262,7 @@ Slot::dumpInfo(Json::Value& ret)
         slotValue["statements"][count++] = envToStr(item);
     }
 
+    slotValue["validated"] = mFullyValidated;
     mNominationProtocol.dumpInfo(slotValue);
     mBallotProtocol.dumpInfo(slotValue);
 }

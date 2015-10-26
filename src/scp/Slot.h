@@ -34,6 +34,9 @@ class Slot : public std::enable_shared_from_this<Slot>
     // it is used for debugging purpose
     std::vector<SCPStatement> mStatementsHistory;
 
+    // true if the Slot was fully validated
+    bool mFullyValidated;
+
   public:
     Slot(uint64 slotIndex, SCP& SCP);
 
@@ -99,6 +102,9 @@ class Slot : public std::enable_shared_from_this<Slot>
     // attempts to nominate a value for consensus
     bool nominate(Value const& value, Value const& previousValue,
                   bool timedout);
+
+    bool isFullyValidated() const;
+    void setFullyValidated(bool fullyValidated);
 
     // ** status methods
 
