@@ -288,7 +288,7 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
 std::string
 PubKeyUtils::toShortString(PublicKey const& pk)
 {
-    return hexAbbrev(pk.ed25519());
+    return toStrKey(pk).substr(0, 5);
 }
 
 std::string
