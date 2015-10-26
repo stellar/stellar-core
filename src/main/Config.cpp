@@ -732,15 +732,26 @@ Config::toStrKey(PublicKey const& pk) const
 bool
 Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 {
-    if (s.size() > 1 && s[0] == '$')
+    if (s.size() > 1)
     {
-        std::string commonName = s.substr(1);
-
-        auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
-                               [&](std::pair<std::string, std::string> const& p)
-                               {
-                                   return p.second == commonName;
-                               });
+        std::string arg = s.substr(1);
+        auto it = VALIDATOR_NAMES.end();
+        if (s[0] == '$')
+        {
+            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                                   [&](std::pair<std::string, std::string> const& p)
+            {
+                return p.second == arg;
+            });
+        }
+        else if (s[0] == '@')
+        {
+            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                              [&](std::pair<std::string, std::string> const& p)
+            {
+                return p.first.compare(0, arg.size(), arg) == 0;
+            });
+        }
 
         if (it == VALIDATOR_NAMES.end())
         {
