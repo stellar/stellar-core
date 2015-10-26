@@ -588,7 +588,10 @@ BallotProtocol::emitCurrentStateStatement()
             isNewerStatement(mLastEnvelope->statement, envelope.statement))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            mSlot.getSCPDriver().emitEnvelope(envelope);
+            if (mSlot.isFullyValidated())
+            {
+                mSlot.getSCPDriver().emitEnvelope(envelope);
+            }
         }
     }
     else

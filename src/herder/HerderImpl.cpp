@@ -868,22 +868,7 @@ HerderImpl::startRebroadcastTimer()
 void
 HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
-    // this should not happen: if we're just watching consensus
-    // don't send out SCP messages
-    if (!mSCP.isValidator())
-    {
-        return;
-    }
-
     uint64 slotIndex = envelope.statement.slotIndex;
-
-    // SCP may emit envelopes as our instance changes state
-    // yet, we do not want to send those out when we don't do full validation
-    if (!isSlotCompatibleWithCurrentState(slotIndex) &&
-        (!mTrackingSCP || !mLedgerManager.isSynced()))
-    {
-        return;
-    }
 
     CLOG(DEBUG, "Herder") << "emitEnvelope"
                           << " s:" << envelope.statement.pledges.type()

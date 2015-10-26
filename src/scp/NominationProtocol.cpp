@@ -166,7 +166,10 @@ NominationProtocol::emitNomination()
                              st.pledges.nominate()))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            mSlot.getSCPDriver().emitEnvelope(envelope);
+            if (mSlot.isFullyValidated())
+            {
+                mSlot.getSCPDriver().emitEnvelope(envelope);
+            }
         }
     }
     else

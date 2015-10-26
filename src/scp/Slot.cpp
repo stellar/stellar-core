@@ -418,4 +418,15 @@ Slot::getLocalNode()
 {
     return mSCP.getLocalNode();
 }
+
+std::vector<SCPEnvelope>
+Slot::getEntireCurrentState()
+{
+    bool old = mFullyValidated;
+    // fake fully validated to force returning all envelopes
+    mFullyValidated = true;
+    auto r = getCurrentState();
+    mFullyValidated = old;
+    return r;
+}
 }

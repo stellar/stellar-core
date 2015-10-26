@@ -184,6 +184,34 @@ class TestSCP : public SCPDriver
     {
         mSCP.receiveEnvelope(envelope);
     }
+
+    Slot&
+    getSlot(uint64 index)
+    {
+        return *mSCP.getSlot(index, false);
+    }
+
+    std::vector<SCPEnvelope>
+    getEntireState(uint64 index)
+    {
+        auto v = mSCP.getSlot(index, false)->getEntireCurrentState();
+        return v;
+    }
+
+    SCPEnvelope
+    getCurrentEnvelope(uint64 index, NodeID const& id)
+    {
+        auto r = getEntireState(index);
+        auto it = std::find_if(r.begin(), r.end(), [&](SCPEnvelope const& e)
+                               {
+                                   return e.statement.nodeID == id;
+                               });
+        if (it != r.end())
+        {
+            return *it;
+        }
+        throw std::runtime_error("not found");
+    }
 };
 
 static SCPEnvelope
@@ -588,8 +616,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         SCPBallot b(1, xValue);
         REQUIRE(scpNV.bumpState(0, xValue));
-        REQUIRE(scpNV.mEnvs.size() == 1);
-        verifyPrepare(scpNV.mEnvs[0], vNVSecretKey, qSetHash, 0, b);
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyPrepare(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                      qSetHash, 0, b);
         auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
         auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
         auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
@@ -597,12 +626,13 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scpNV.receiveEnvelope(ext1);
         scpNV.receiveEnvelope(ext2);
         scpNV.receiveEnvelope(ext3);
-        REQUIRE(scpNV.mEnvs.size() == 2);
-        verifyConfirm(scpNV.mEnvs[1], vNVSecretKey, qSetHash, 0, 1, b, 1);
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                      qSetHash, 0, 1, b, 1);
         scpNV.receiveEnvelope(ext4);
-        REQUIRE(scpNV.mEnvs.size() == 3);
-        verifyExternalize(scpNV.mEnvs[2], vNVSecretKey, qSetHash, 0, b,
-                          b.counter);
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                          qSetHash, 0, b, b.counter);
     }
 
     SECTION("bumpState x")

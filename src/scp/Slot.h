@@ -162,5 +162,9 @@ class Slot : public std::enable_shared_from_this<Slot>
         NOMINATION_TIMER = 0,
         BALLOT_PROTOCOL_TIMER = 1
     };
+
+  protected:
+    std::vector<SCPEnvelope> getEntireCurrentState();
+    friend class TestSCP;
 };
 }
