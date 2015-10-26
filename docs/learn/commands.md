@@ -83,9 +83,10 @@ debugging purpose).
   Returns the list of known peers in JSON format.
 
 * **quorum**
-  `/quorum[&node=NODE_ID]`<br>
+  `/quorum?[node=NODE_ID][&compact=true]`<br>
   returns information about the quorum for node NODE_ID (this node by default).
-  NODE_ID is either a full key (`GABCD...`) or an alias (`$name`)
+  NODE_ID is either a full key (`GABCD...`) or an alias (`$name`).
+  If compact is set, only returns a summary version.
 
 * **setcursor**
  `/setcursor?id=ID&cursor=N`<br>
