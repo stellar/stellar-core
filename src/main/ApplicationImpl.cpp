@@ -231,13 +231,6 @@ ApplicationImpl::start()
             "duplicate entry or self is not a member (validator)");
     }
 
-    if (mPersistentState->getState(PersistentState::kDatabaseInitialized) !=
-        "true")
-    {
-        throw std::runtime_error(
-            "Database not initialized.");
-    }
-
     bool done = false;
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)

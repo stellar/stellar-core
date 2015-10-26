@@ -14,7 +14,7 @@ using namespace std;
 
 string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger",    "historyarchivestate", "forcescponnextlaunch",
-    "databaseinitialized", "lastscpdata",         "databaseschema"};
+     "lastscpdata",         "databaseschema"};
 
 string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
@@ -34,11 +34,6 @@ PersistentState::dropAll(Database& db)
 
     soci::statement st = db.getSession().prepare << kSQLCreateStatement;
     st.execute(true);
-
-    soci::statement st2 =
-        db.getSession().prepare
-        << "INSERT INTO storestate (statename, state) VALUES ('" + mapping[kDatabaseInitialized] + "', 'true');";
-    st2.execute(true);
 }
 
 string

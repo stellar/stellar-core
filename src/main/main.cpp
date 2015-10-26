@@ -135,8 +135,12 @@ sendCommand(std::string const& command, const std::vector<char*>& rest,
 bool
 checkInitialized(Application::pointer app)
 {
-    if (app->getPersistentState().getState(
-            PersistentState::kDatabaseInitialized) != "true")
+    try
+    {
+        // check to see if the state table exists
+        app->getPersistentState().getState(PersistentState::kDatabaseSchema);
+    }
+    catch (...)
     {
         LOG(INFO) << "* ";
         LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
@@ -150,7 +154,7 @@ void
 setForceSCPFlag(Config const& cfg, bool isOn)
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg, false);
 
     if (checkInitialized(app))
     {
@@ -183,7 +187,7 @@ showInfo(Config const& cfg)
 {
     // needs real time to display proper stats
     VirtualClock clock(VirtualClock::REAL_TIME);
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg, false);
     if (checkInitialized(app))
     {
         app->reportInfo();
@@ -198,7 +202,7 @@ void
 loadXdr(Config const& cfg, std::string const& bucketFile)
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg,false);
     if (checkInitialized(app))
     {
         uint256 zero;
@@ -227,7 +231,7 @@ int
 initializeHistories(Config& cfg, vector<string> newHistories)
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg, false);
 
     for (auto const& arch : newHistories)
     {

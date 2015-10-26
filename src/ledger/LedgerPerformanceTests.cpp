@@ -169,14 +169,9 @@ TEST_CASE("ledger performance test", "[performance][hide]")
                    "user=test password=test";
     cfg.BUCKET_DIR_PATH = "performance-test.db.buckets";
     cfg.MANUAL_CLOSE = true;
-    sim.addNode(v10SecretKey, qSet0, sim.getClock(), &cfg,false);
+    sim.addNode(v10SecretKey, qSet0, sim.getClock(), &cfg);
     sim.mApp = sim.getNodes().front();
-    if (sim.mApp->getPersistentState().getState(
-            PersistentState::kDatabaseInitialized) != "true")
-    {
-        sim.mApp->getDatabase().initialize();
-    }
-
+    
     sim.startAllNodes();
 
     Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer(

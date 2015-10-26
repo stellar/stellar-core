@@ -20,7 +20,6 @@ class PersistentState
         kLastClosedLedger = 0,
         kHistoryArchiveState,
         kForceSCPOnNextLaunch,
-        kDatabaseInitialized,
         kLastSCPData,
         kDatabaseSchema,
         kLastEntry,
