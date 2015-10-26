@@ -89,7 +89,7 @@ Slot::getCurrentState() const
 void
 Slot::recordStatement(SCPStatement const& st)
 {
-    mStatementsHistory.emplace_back(st);
+    mStatementsHistory.emplace_back(std::make_pair(st, mFullyValidated));
 }
 
 SCP::EnvelopeState
@@ -257,9 +257,11 @@ Slot::dumpInfo(Json::Value& ret)
     Json::Value& slotValue = slots[std::to_string(mSlotIndex)];
 
     int count = 0;
-    for (auto& item : mStatementsHistory)
+    for (auto const& item : mStatementsHistory)
     {
-        slotValue["statements"][count++] = envToStr(item);
+        Json::Value& v = slotValue["statements"][count++];
+        v.append(envToStr(item.first));
+        v.append(item.second);
     }
 
     slotValue["validated"] = mFullyValidated;
