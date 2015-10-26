@@ -111,6 +111,9 @@ class LocalNode
             return true;
         });
 
+    void toJson(SCPQuorumSet const& qSet, Json::Value& value) const;
+    std::string to_string(SCPQuorumSet const& qSet) const;
+
   protected:
     // returns a quorum set {{ nodeID }}
     static SCPQuorumSet buildSingletonQSet(NodeID const& nodeID);
