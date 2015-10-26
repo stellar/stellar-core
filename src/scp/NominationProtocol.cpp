@@ -570,9 +570,15 @@ std::vector<SCPEnvelope>
 NominationProtocol::getCurrentState() const
 {
     std::vector<SCPEnvelope> res;
-    for (auto it : mLatestNominations)
+    res.reserve(mLatestNominations.size());
+    for (auto const& n : mLatestNominations)
     {
-        res.emplace_back(it.second);
+        // only return messages for self if the slot is fully validated
+        if (!(n.first == mSlot.getSCP().getLocalNodeID()) ||
+            mSlot.isFullyValidated())
+        {
+            res.emplace_back(n.second);
+        }
     }
     return res;
 }
