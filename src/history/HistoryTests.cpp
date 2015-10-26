@@ -405,7 +405,7 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
     Application::pointer app2 = Application::create(
         clock, mConfigurator->configure(mCfgs.back(), false));
-    
+
     app2->start();
     CHECK(catchupApplication(initLedger, resumeMode, app2) == true);
     return app2;
@@ -818,7 +818,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
         Application::create(clock, mConfigurator->configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
-   
+
     app2->start();
 
     auto hash1 = appPtr->getBucketManager().getBucketList().getHash();

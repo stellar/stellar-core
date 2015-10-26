@@ -47,7 +47,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         Config cfg2(cfg);
         cfg2.FORCE_SCP = false;
         VirtualClock clock2;
-        Application::pointer app2 = Application::create(clock2, cfg2,false);
+        Application::pointer app2 = Application::create(clock2, cfg2, false);
         app2->start();
 
         REQUIRE(saved ==

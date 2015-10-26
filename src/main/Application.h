@@ -239,7 +239,8 @@ class Application
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.
-    static pointer create(VirtualClock& clock, Config const& cfg,bool newDB=true);
+    static pointer create(VirtualClock& clock, Config const& cfg,
+                          bool newDB = true);
 
   protected:
     Application()

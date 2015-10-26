@@ -67,7 +67,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     unsigned t = std::thread::hardware_concurrency();
     LOG(DEBUG) << "Application constructing "
-              << "(worker threads: " << t << ")";
+               << "(worker threads: " << t << ")";
     mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
                             {
                                 if (!ec)
@@ -82,7 +82,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     // into App.getFoo() to get information / start up.
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
-   
+
     mTmpDirManager = make_unique<TmpDirManager>(cfg.TMP_DIR_PATH);
     mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
@@ -103,7 +103,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     LOG(DEBUG) << "Application constructed";
 }
 
-void 
+void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
@@ -209,8 +209,8 @@ ApplicationImpl::start()
 {
     mDatabase->upgradeToCurrentSchema();
 
-    if(mPersistentState->getState(
-        PersistentState::kForceSCPOnNextLaunch) == "true")
+    if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
+        "true")
     {
         mConfig.FORCE_SCP = true;
     }

@@ -108,7 +108,6 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app.getOverlayManager();
 
-
         pm.storePeerList(fourPeers);
 
         rowset<row> rs = app.getDatabase().getSession().prepare

@@ -1478,8 +1478,7 @@ HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 void
 HerderImpl::dumpInfo(Json::Value& ret)
 {
-    ret["you"] =
-        mApp.getConfig().toStrKey(mSCP.getSecretKey().getPublicKey());
+    ret["you"] = mApp.getConfig().toStrKey(mSCP.getSecretKey().getPublicKey());
 
     mSCP.dumpInfo(ret);
 

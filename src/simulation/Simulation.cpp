@@ -54,7 +54,7 @@ Simulation::getClock()
 
 NodeID
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                    Config const* cfg2, bool newDB )
+                    Config const* cfg2, bool newDB)
 {
     std::shared_ptr<Config> cfg;
     if (!cfg2)
