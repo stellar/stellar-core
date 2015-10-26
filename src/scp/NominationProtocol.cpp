@@ -71,7 +71,7 @@ NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
     return res;
 }
 
-bool
+SCPDriver::ValidationLevel
 NominationProtocol::validateValue(Value const& v)
 {
     return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v);
@@ -274,7 +274,8 @@ NominationProtocol::getNewValueFromNomination(SCPNomination const& nom)
     applyAll(nom, [&](Value const& value)
              {
                  Value valueToNominate;
-                 if (validateValue(value))
+                 auto vl = validateValue(value);
+                 if (vl == SCPDriver::kFullyValidatedValue)
                  {
                      valueToNominate = value;
                  }
@@ -340,7 +341,8 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                                       _1),
                             mLatestNominations))
                     {
-                        if (validateValue(v))
+                        auto vl = validateValue(v);
+                        if (vl == SCPDriver::kFullyValidatedValue)
                         {
                             mAccepted.emplace(v);
                             mVotes.emplace(v);

@@ -61,7 +61,8 @@ class HerderImpl : public Herder, public SCPDriver
     void signEnvelope(SCPEnvelope& envelope) override;
     bool verifyEnvelope(SCPEnvelope const& envelope) override;
 
-    bool validateValue(uint64 slotIndex, Value const& value) override;
+    SCPDriver::ValidationLevel validateValue(uint64 slotIndex,
+                                             Value const& value) override;
 
     Value extractValidValue(uint64 slotIndex, Value const& value) override;
 
@@ -141,7 +142,8 @@ class HerderImpl : public Herder, public SCPDriver
     // in which case it also sets upgradeType
     bool validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
                              LedgerUpgradeType& upgradeType);
-    bool validateValueHelper(uint64 slotIndex, StellarValue const& sv);
+    SCPDriver::ValidationLevel validateValueHelper(uint64 slotIndex,
+                                                   StellarValue const& sv);
 
     void startRebroadcastTimer();
     void rebroadcast();

@@ -164,13 +164,20 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 
     SCPBallot wb = getWorkingBallot(statement);
 
-    if (mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value))
+    auto validationRes =
+        mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value);
+    if (validationRes != SCPDriver::kInvalidValue)
     {
         bool processed = false;
         SCPBallot tickBallot = getWorkingBallot(statement);
 
         if (mPhase != SCP_PHASE_EXTERNALIZE)
         {
+            if (validationRes == SCPDriver::kMaybeValidValue)
+            {
+                mSlot.setFullyValidated(false);
+            }
+
             switch (statement.pledges.type())
             {
             case SCPStatementType::SCP_ST_PREPARE:

@@ -188,7 +188,7 @@ HerderImpl::isSlotCompatibleWithCurrentState(uint64 slotIndex)
     return res;
 }
 
-bool
+SCPDriver::ValidationLevel
 HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
 {
     uint64 lastCloseTime;
@@ -206,7 +206,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
         {
             // if we're not tracking, there is not much more we can do to
             // validate
-            return true;
+            return SCPDriver::kMaybeValidValue;
         }
 
         // Check slotIndex.
@@ -214,7 +214,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
         {
             // we already moved on from this slot
             // still send it through for emitting the final messages
-            return true;
+            return SCPDriver::kMaybeValidValue;
         }
         if (nextConsensusLedgerIndex() < slotIndex)
         {
@@ -226,7 +226,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
                 << " i: " << slotIndex
                 << " processing a future message while tracking";
 
-            return false;
+            return SCPDriver::kInvalidValue;
         }
         lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
     }
@@ -234,20 +234,20 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
     // Check closeTime (not too old)
     if (b.closeTime <= lastCloseTime)
     {
-        return false;
+        return SCPDriver::kInvalidValue;
     }
 
     // Check closeTime (not too far in future)
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
     {
-        return false;
+        return SCPDriver::kInvalidValue;
     }
 
     if (!compat)
     {
         // this is as far as we can go if we don't have the state
-        return true;
+        return SCPDriver::kMaybeValidValue;
     }
 
     Hash txSetHash = b.txSetHash;
@@ -256,21 +256,21 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
 
     TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
 
-    bool res;
+    SCPDriver::ValidationLevel res;
 
     if (!txSet)
     {
         CLOG(ERROR, "Herder") << "HerderImpl::validateValue"
                               << " i: " << slotIndex << " txSet not found?";
 
-        res = false;
+        res = SCPDriver::kInvalidValue;
     }
     else if (!txSet->checkValid(mApp))
     {
         CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
                               << " i: " << slotIndex << " Invalid txSet:"
                               << " " << hexAbbrev(txSet->getContentsHash());
-        res = false;
+        res = SCPDriver::kInvalidValue;
     }
     else
     {
@@ -278,7 +278,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
             << "HerderImpl::validateValue"
             << " i: " << slotIndex
             << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
-        res = true;
+        res = SCPDriver::kFullyValidatedValue;
     }
     return res;
 }
@@ -361,7 +361,7 @@ HerderImpl::verifyEnvelope(SCPEnvelope const& envelope)
     return b;
 }
 
-bool
+SCPDriver::ValidationLevel
 HerderImpl::validateValue(uint64 slotIndex, Value const& value)
 {
     StellarValue b;
@@ -372,11 +372,11 @@ HerderImpl::validateValue(uint64 slotIndex, Value const& value)
     catch (...)
     {
         mSCPMetrics.mValueInvalid.Mark();
-        return false;
+        return SCPDriver::kInvalidValue;
     }
 
-    bool res = validateValueHelper(slotIndex, b);
-    if (res)
+    SCPDriver::ValidationLevel res = validateValueHelper(slotIndex, b);
+    if (res != SCPDriver::kInvalidValue)
     {
         LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
         // check upgrades
@@ -387,13 +387,13 @@ HerderImpl::validateValue(uint64 slotIndex, Value const& value)
             {
                 CLOG(TRACE, "Herder")
                     << "HerderImpl::validateValue invalid step at index " << i;
-                res = false;
+                res = SCPDriver::kInvalidValue;
             }
             if (i != 0 && (lastUpgradeType >= thisUpgradeType))
             {
                 CLOG(TRACE, "Herder") << "HerderImpl::validateValue out of "
                                          "order upgrade step at index " << i;
-                res = false;
+                res = SCPDriver::kInvalidValue;
             }
 
             lastUpgradeType = thisUpgradeType;
@@ -424,10 +424,9 @@ HerderImpl::extractValidValue(uint64 slotIndex, Value const& value)
         return Value();
     }
     Value res;
-    if (validateValueHelper(slotIndex, b))
+    if (validateValueHelper(slotIndex, b) == SCPDriver::kFullyValidatedValue)
     {
-        // value was not valid because of one of the upgrade steps,
-        // remove the ones we don't like
+        // remove the upgrade steps we don't like
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {

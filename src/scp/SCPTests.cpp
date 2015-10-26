@@ -67,10 +67,10 @@ class TestSCP : public SCPDriver
         mQuorumSets[qSetHash] = qSet;
     }
 
-    bool
+    SCPDriver::ValidationLevel
     validateValue(uint64 slotIndex, Value const& value) override
     {
-        return true;
+        return SCPDriver::kFullyValidatedValue;
     }
 
     void
