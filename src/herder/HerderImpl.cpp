@@ -104,6 +104,7 @@ HerderImpl::HerderImpl(Application& app)
            app.getConfig().QUORUM_SET)
     , mReceivedTransactions(4)
     , mPendingEnvelopes(app, *this)
+    , mLastSlotSaved(0)
     , mLastStateChange(app.getClock().now())
     , mTrackingTimer(app)
     , mLastTrigger(app.getClock().now())
@@ -875,7 +876,7 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
                           << " i:" << slotIndex
                           << " a:" << mApp.getStateHuman();
 
-    persistSCPState();
+    persistSCPState(slotIndex);
 
     broadcast(envelope);
 
@@ -1479,15 +1480,21 @@ HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
 }
 
 void
-HerderImpl::persistSCPState()
+HerderImpl::persistSCPState(uint64 slot)
 {
+    if (slot < mLastSlotSaved)
+    {
+        return;
+    }
+
+    mLastSlotSaved = slot;
+
     // saves SCP messages and related data (transaction sets, quorum sets)
     xdr::xvector<SCPEnvelope> latestEnvs;
     std::map<Hash, TxSetFramePtr> txSets;
     std::map<Hash, SCPQuorumSetPtr> quorumSets;
 
-    for (auto const& e :
-         mSCP.getLatestMessagesSend(mLedgerManager.getLedgerNum()))
+    for (auto const& e : mSCP.getLatestMessagesSend(slot))
     {
         latestEnvs.emplace_back(e);
 
@@ -1569,6 +1576,7 @@ HerderImpl::restoreSCPState()
 
     if (latestEnvs.size() != 0)
     {
+        mLastSlotSaved = latestEnvs.back().statement.slotIndex;
         startRebroadcastTimer();
     }
 }

@@ -186,6 +186,10 @@ class HerderImpl : public Herder, public SCPDriver
     // reached consensus it can
     std::unique_ptr<ConsensusData> mTrackingSCP;
 
+    // last slot that was persisted into the database
+    // only keep track of the most recent slot
+    uint64 mLastSlotSaved;
+
     // Mark changes to mTrackingSCP in metrics.
     void stateChanged();
     VirtualClock::time_point mLastStateChange;
@@ -209,7 +213,7 @@ class HerderImpl : public Herder, public SCPDriver
     VirtualTimer mTrackingTimer;
 
     // saves the SCP messages that the instance sent out last
-    void persistSCPState();
+    void persistSCPState(uint64 slot);
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
