@@ -1010,28 +1010,30 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 
     mSCPMetrics.mEnvelopeReceive.Mark();
 
+    uint32_t minLedgerSeq = getCurrentLedgerSeq();
+    if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
+    {
+        minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
+    }
+
+    uint32_t maxLedgerSeq = std::numeric_limits<uint32>::max();
+
     if (mTrackingSCP)
     {
         // when tracking, we can filter messages based on the information we got
-        // from consensus
-        uint32_t minLedgerSeq = nextConsensusLedgerIndex();
-        if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
-        {
-            minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
-        }
-        uint32_t maxLedgerSeq =
-            nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
+        // from consensus for the max ledger
 
-        // If we are fully synced and the envelopes are out of our validity
-        // brackets, we just ignore them.
-        if (envelope.statement.slotIndex > maxLedgerSeq ||
-            envelope.statement.slotIndex < minLedgerSeq)
-        {
-            CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
-                                  << envelope.statement.slotIndex << "( "
-                                  << minLedgerSeq << "," << maxLedgerSeq << ")";
-            return;
-        }
+        maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
+    }
+
+    // If envelopes are out of our validity brackets, we just ignore them.
+    if (envelope.statement.slotIndex > maxLedgerSeq ||
+        envelope.statement.slotIndex < minLedgerSeq)
+    {
+        CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+                              << envelope.statement.slotIndex << "( "
+                              << minLedgerSeq << "," << maxLedgerSeq << ")";
+        return;
     }
 
     mPendingEnvelopes.recvSCPEnvelope(envelope);
