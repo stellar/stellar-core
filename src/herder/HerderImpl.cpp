@@ -1051,14 +1051,18 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
     if (ledgerSeq == 0)
     {
         const uint32 nbLedgers = 3;
-        maxSeq = getCurrentLedgerSeq();
-        if (maxSeq >= 2 + nbLedgers)
+        const uint32 minLedger = 2;
+
+        // include the most recent slot
+        maxSeq = getCurrentLedgerSeq() + 1;
+
+        if (maxSeq >= minLedger + nbLedgers)
         {
             minSeq = maxSeq - nbLedgers;
         }
         else
         {
-            minSeq = 2;
+            minSeq = minLedger;
         }
     }
     else
@@ -1070,17 +1074,18 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
     {
         auto const& envelopes = mSCP.getCurrentState(seq);
 
-        CLOG(DEBUG, "Herder") << "Send state " << envelopes.size()
-                              << " for ledger " << seq;
-
-        for (auto const& e : envelopes)
+        if (envelopes.size() != 0)
         {
-            StellarMessage m;
-            m.type(SCP_MESSAGE);
-            m.envelope() = e;
+            CLOG(DEBUG, "Herder") << "Send state " << envelopes.size()
+                                  << " for ledger " << seq;
 
-            mSCPMetrics.mEnvelopeEmit.Mark();
-            peer->sendMessage(m);
+            for (auto const& e : envelopes)
+            {
+                StellarMessage m;
+                m.type(SCP_MESSAGE);
+                m.envelope() = e;
+                peer->sendMessage(m);
+            }
         }
     }
 }
@@ -1403,11 +1408,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
             mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
     }
 
-    UpgradeType ut; // only used for max size check
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
-        if (v.size() >= ut.max_size())
+        if (v.size() >= UpgradeType::max_size())
         {
             CLOG(ERROR, "Herder") << "HerderImpl::triggerNextLedger"
                                   << " exceeded size for upgrade step (got "
