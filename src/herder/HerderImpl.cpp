@@ -1023,6 +1023,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // when tracking, we can filter messages based on the information we got
         // from consensus for the max ledger
 
+        // note that this filtering will cause a node started with force scp
+        // to potentially drop messages outside of the bracket
+        // (so in general, nodes should not be started with force scp if
+        // their state is very old)
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
 
