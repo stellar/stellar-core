@@ -40,16 +40,19 @@ std::vector<SCPEnvelope>
 Slot::getLatestMessagesSend() const
 {
     std::vector<SCPEnvelope> res;
-    SCPEnvelope* e;
-    e = mNominationProtocol.getLastMessageSend();
-    if (e)
+    if (mFullyValidated)
     {
-        res.emplace_back(*e);
-    }
-    e = mBallotProtocol.getLastMessageSend();
-    if (e)
-    {
-        res.emplace_back(*e);
+        SCPEnvelope* e;
+        e = mNominationProtocol.getLastMessageSend();
+        if (e)
+        {
+            res.emplace_back(*e);
+        }
+        e = mBallotProtocol.getLastMessageSend();
+        if (e)
+        {
+            res.emplace_back(*e);
+        }
     }
     return res;
 }
