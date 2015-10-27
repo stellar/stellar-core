@@ -164,10 +164,6 @@ class HerderImpl : public Herder, public SCPDriver
 
     PendingEnvelopes mPendingEnvelopes;
 
-    std::map<SCPBallot,
-             std::map<NodeID, std::vector<std::shared_ptr<VirtualTimer>>>>
-        mBallotValidationTimers;
-
     void herderOutOfSync();
 
     struct ConsensusData
@@ -257,8 +253,6 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Meter& mEnvelopeSign;
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
-
-        medida::Counter& mBallotValidationTimersSize;
 
         // Counters for stuff in parent class (SCP)
         // that we monitor on a best-effort basis from

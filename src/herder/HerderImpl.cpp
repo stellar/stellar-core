@@ -75,9 +75,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
     , mEnvelopeInvalidSig(app.getMetrics().NewMeter(
           {"scp", "envelope", "invalidsig"}, "envelope"))
 
-    , mBallotValidationTimersSize(app.getMetrics().NewCounter(
-          {"scp", "memory", "ballot-validation-timers"}))
-
     , mKnownSlotsSize(
           app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
     , mCumulativeStatements(app.getMetrics().NewCounter(
@@ -630,14 +627,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     }
 
     assert(mReceivedTransactions.size() >= 4);
-    mSCPMetrics.mHerderPendingTxs0.set_count(
-        countTxs(mReceivedTransactions[0]));
-    mSCPMetrics.mHerderPendingTxs1.set_count(
-        countTxs(mReceivedTransactions[1]));
-    mSCPMetrics.mHerderPendingTxs2.set_count(
-        countTxs(mReceivedTransactions[2]));
-    mSCPMetrics.mHerderPendingTxs3.set_count(
-        countTxs(mReceivedTransactions[3]));
 
     // Move all the remaining to the next highest level don't move the
     // largest array.
@@ -657,6 +646,15 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
         }
         prev.clear();
     }
+
+    mSCPMetrics.mHerderPendingTxs0.set_count(
+        countTxs(mReceivedTransactions[0]));
+    mSCPMetrics.mHerderPendingTxs1.set_count(
+        countTxs(mReceivedTransactions[1]));
+    mSCPMetrics.mHerderPendingTxs2.set_count(
+        countTxs(mReceivedTransactions[2]));
+    mSCPMetrics.mHerderPendingTxs3.set_count(
+        countTxs(mReceivedTransactions[3]));
 
     ledgerClosed();
 }
@@ -1129,13 +1127,6 @@ HerderImpl::ledgerClosed()
     mPendingEnvelopes.slotClosed(lastConsensusLedgerIndex());
 
     mApp.getOverlayManager().ledgerClosed(lastConsensusLedgerIndex());
-
-    // As the current slotIndex changes we cancel all pending validation
-    // timers. Since the value externalized, the messages that this generates
-    // wont' have any impact.
-    mBallotValidationTimers.clear();
-    mSCPMetrics.mBallotValidationTimersSize.set_count(
-        mBallotValidationTimers.size());
 
     uint64_t nextIndex = nextConsensusLedgerIndex();
 
