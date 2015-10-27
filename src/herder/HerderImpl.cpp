@@ -247,7 +247,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
         return SCPDriver::kMaybeValidValue;
     }
 
-    Hash txSetHash = b.txSetHash;
+    Hash const& txSetHash = b.txSetHash;
 
     // we are fully synced up
 
@@ -1251,13 +1251,13 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 }
 
 void
-HerderImpl::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset)
+HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
     mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
 void
-HerderImpl::recvTxSet(Hash hash, const TxSetFrame& t)
+HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
 {
     TxSetFramePtr txset(new TxSetFrame(t));
     mPendingEnvelopes.recvTxSet(hash, txset);
@@ -1271,13 +1271,13 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
 }
 
 TxSetFramePtr
-HerderImpl::getTxSet(Hash hash)
+HerderImpl::getTxSet(Hash const& hash)
 {
     return mPendingEnvelopes.getTxSet(hash);
 }
 
 SCPQuorumSetPtr
-HerderImpl::getQSet(const Hash& qSetHash)
+HerderImpl::getQSet(Hash const& qSetHash)
 {
     return mPendingEnvelopes.getQSet(qSetHash);
 }

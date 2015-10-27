@@ -81,13 +81,14 @@ class Herder
     // restores SCP state based on the last messages saved on disk
     virtual void restoreSCPState() = 0;
 
-    virtual void recvSCPQuorumSet(Hash hash, SCPQuorumSet const& qset) = 0;
-    virtual void recvTxSet(Hash hash, TxSetFrame const& txset) = 0;
+    virtual void recvSCPQuorumSet(Hash const& hash,
+                                  SCPQuorumSet const& qset) = 0;
+    virtual void recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, PeerPtr peer) = 0;
-    virtual TxSetFramePtr getTxSet(Hash hash) = 0;
+    virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
