@@ -540,6 +540,18 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     updateSCPCounters();
     mSCPMetrics.mValueExternalize.Mark();
     mSCPTimers.erase(slotIndex); // cancels all timers for this slot
+    if (slotIndex <= getCurrentLedgerSeq())
+    {
+        // externalize may trigger on older slots:
+        //  * when the current instance starts up
+        //  * when getting back in sync (a gap potentially opened)
+        // in both cases it's safe to just ignore those as we're already
+        // tracking a more recent state
+        CLOG(DEBUG, "Herder") << "Ignoring old ledger externalize "
+                              << slotIndex;
+        return;
+    }
+
     StellarValue b;
     try
     {
@@ -573,11 +585,6 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     if (!mTrackingSCP)
     {
         stateChanged();
-    }
-    else if (slotIndex <= mTrackingSCP->mConsensusIndex)
-    {
-        // don't do anything for older slots
-        return;
     }
 
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
@@ -1262,14 +1269,17 @@ HerderImpl::getQSet(const Hash& qSetHash)
 uint32_t
 HerderImpl::getCurrentLedgerSeq() const
 {
-    if (mTrackingSCP)
+    uint32_t res = mLedgerManager.getLastClosedLedgerNum();
+
+    if (mTrackingSCP && res < mTrackingSCP->mConsensusIndex)
     {
-        return static_cast<uint32_t>(mTrackingSCP->mConsensusIndex);
+        res = static_cast<uint32_t>(mTrackingSCP->mConsensusIndex);
     }
-    else
+    if (mLastTrackingSCP && res < mLastTrackingSCP->mConsensusIndex)
     {
-        return mLedgerManager.getLastClosedLedgerNum();
+        res = static_cast<uint32_t>(mLastTrackingSCP->mConsensusIndex);
     }
+    return res;
 }
 
 SequenceNumber
@@ -1593,7 +1603,10 @@ HerderImpl::herderOutOfSync()
     CLOG(INFO, "Herder") << "Lost track of consensus";
     mSCPMetrics.mLostSync.Mark();
     stateChanged();
-    mTrackingSCP.reset();
+
+    // transfer ownership to mLastTrackingSCP
+    mLastTrackingSCP.reset(mTrackingSCP.release());
+
     processSCPQueue();
 }
 }

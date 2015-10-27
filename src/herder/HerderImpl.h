@@ -179,8 +179,12 @@ class HerderImpl : public Herder, public SCPDriver
     // if the local instance is tracking the current state of SCP
     // herder keeps track of the consensus index and ballot
     // when not set, it just means that herder will try to snap to any slot that
-    // reached consensus it can
+    // reached consensus
     std::unique_ptr<ConsensusData> mTrackingSCP;
+
+    // when losing track of consensus, records where we left off so that we
+    // ignore older ledgers (as we potentially receive old messages)
+    std::unique_ptr<ConsensusData> mLastTrackingSCP;
 
     // last slot that was persisted into the database
     // only keep track of the most recent slot
