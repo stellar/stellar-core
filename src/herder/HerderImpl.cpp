@@ -217,8 +217,7 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
         if (nextConsensusLedgerIndex() < slotIndex)
         {
             // this is probably a bug as "tracking" means we're processing
-            // messages
-            // only for the right slot
+            // messages only for smaller slots
             CLOG(ERROR, "Herder")
                 << "HerderImpl::validateValue"
                 << " i: " << slotIndex
@@ -539,7 +538,13 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 {
     updateSCPCounters();
     mSCPMetrics.mValueExternalize.Mark();
-    mSCPTimers.erase(slotIndex); // cancels all timers for this slot
+
+    auto it = mSCPTimers.begin(); // cancel all timers below this slot
+    while (it != mSCPTimers.end() && it->first <= slotIndex)
+    {
+        it = mSCPTimers.erase(it);
+    }
+
     if (slotIndex <= getCurrentLedgerSeq())
     {
         // externalize may trigger on older slots:
@@ -814,7 +819,7 @@ HerderImpl::setupTimer(uint64 slotIndex, int timerID,
                        std::function<void()> cb)
 {
     // don't setup timers for old slots
-    if (mTrackingSCP && slotIndex < mTrackingSCP->mConsensusIndex)
+    if (slotIndex <= getCurrentLedgerSeq())
     {
         mSCPTimers.erase(slotIndex);
         return;
