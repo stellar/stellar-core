@@ -764,24 +764,30 @@ HerderImpl::combineCandidates(uint64 slotIndex,
 
     // take the txSet with the highest number of transactions,
     // highest xored hash that we have
-    Hash highest;
     TxSetFramePtr bestTxSet;
-    for (auto const& sv : candidateValues)
     {
-        TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
-
-        if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
+        Hash highest;
+        TxSetFramePtr highestTxSet;
+        for (auto const& sv : candidateValues)
         {
-            if (!bestTxSet || (cTxSet->mTransactions.size() >
-                               bestTxSet->mTransactions.size()) ||
-                ((cTxSet->mTransactions.size() ==
-                  bestTxSet->mTransactions.size()) &&
-                 lessThanXored(highest, sv.txSetHash, candidatesHash)))
+            TxSetFramePtr cTxSet = getTxSet(sv.txSetHash);
+
+            if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
-                bestTxSet = cTxSet;
-                highest = sv.txSetHash;
+                if (!highestTxSet || (cTxSet->mTransactions.size() >
+                                      highestTxSet->mTransactions.size()) ||
+                    ((cTxSet->mTransactions.size() ==
+                      highestTxSet->mTransactions.size()) &&
+                     lessThanXored(highest, sv.txSetHash, candidatesHash)))
+                {
+                    highestTxSet = cTxSet;
+                    highest = sv.txSetHash;
+                }
             }
         }
+        // make a copy as we're about to modify it and we don't want to mess
+        // with the txSet cache
+        bestTxSet = std::make_shared<TxSetFrame>(*highestTxSet);
     }
 
     for (auto const& upgrade : upgrades)
