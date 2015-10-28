@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "lib/util/format.h"
 #include <regex>
+#include <map>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -25,6 +26,43 @@ namespace fs
 #include <Windows.h>
 #include <Shellapi.h>
 #include <psapi.h>
+
+static std::map<std::string, HANDLE> lockMap;
+
+bool
+lockFile(std::string const& path)
+{
+    if (lockMap.find(path) != lockMap.end())
+    {
+        throw std::runtime_error("file is already locked by this process");
+    }
+    HANDLE h = ::CreateFile(path.c_str(), GENERIC_WRITE,
+                            0, // don't allow sharing
+                            NULL, CREATE_ALWAYS,
+                            FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY |
+                                FILE_FLAG_DELETE_ON_CLOSE,
+                            NULL);
+    if (h != INVALID_HANDLE_VALUE)
+    {
+        lockMap.insert(std::make_pair(path, h));
+    }
+    return h != INVALID_HANDLE_VALUE;
+}
+
+void
+unlockFile(std::string const& path)
+{
+    auto it = lockMap.find(path);
+    if (it != lockMap.end())
+    {
+        ::CloseHandle(it->second);
+        lockMap.erase(it);
+    }
+    else
+    {
+        throw std::runtime_error("file was not locked");
+    }
+}
 
 bool
 exists(std::string const& name)
@@ -104,7 +142,53 @@ processExists(long pid)
 #include <ftw.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/file.h>
+#include <sys/types.h>
+#include <fcntl.h>
 #include <cerrno>
+
+static std::map<std::string, int> lockMap;
+
+bool
+lockFile(std::string const& path)
+{
+    if (lockMap.find(path) != lockMap.end())
+    {
+        throw std::runtime_error("file is already locked by this process");
+    }
+    int fd = open(path.c_str(), O_RDWR | O_CREAT, S_IRWXU);
+
+    if (fd != -1)
+    {
+        int r = flock(fd, LOCK_EX | LOCK_NB);
+        if (r == 0)
+        {
+            lockMap.insert(std::make_pair(path, fd));
+        }
+        else
+        {
+            close(fd);
+            fd = -1;
+        }
+    }
+    return fd != -1;
+}
+
+void
+unlockFile(std::string const& path)
+{
+    auto it = lockMap.find(path);
+    if (it != lockMap.end())
+    {
+        // cannot unlink to avoid potential race
+        close(it->second);
+        lockMap.erase(it);
+    }
+    else
+    {
+        throw std::runtime_error("file was not locked");
+    }
+}
 
 bool
 exists(std::string const& name)
