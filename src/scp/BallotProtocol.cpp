@@ -164,13 +164,20 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 
     SCPBallot wb = getWorkingBallot(statement);
 
-    if (mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value))
+    auto validationRes =
+        mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value);
+    if (validationRes != SCPDriver::kInvalidValue)
     {
         bool processed = false;
         SCPBallot tickBallot = getWorkingBallot(statement);
 
         if (mPhase != SCP_PHASE_EXTERNALIZE)
         {
+            if (validationRes == SCPDriver::kMaybeValidValue)
+            {
+                mSlot.setFullyValidated(false);
+            }
+
             switch (statement.pledges.type())
             {
             case SCPStatementType::SCP_ST_PREPARE:
@@ -581,7 +588,10 @@ BallotProtocol::emitCurrentStateStatement()
             isNewerStatement(mLastEnvelope->statement, envelope.statement))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            mSlot.getSCPDriver().emitEnvelope(envelope);
+            if (mSlot.isFullyValidated())
+            {
+                mSlot.getSCPDriver().emitEnvelope(envelope);
+            }
         }
     }
     else
@@ -1430,9 +1440,15 @@ std::vector<SCPEnvelope>
 BallotProtocol::getCurrentState() const
 {
     std::vector<SCPEnvelope> res;
-    for (auto it : mLatestEnvelopes)
+    res.reserve(mLatestEnvelopes.size());
+    for (auto const& n : mLatestEnvelopes)
     {
-        res.emplace_back(it.second);
+        // only return messages for self if the slot is fully validated
+        if (!(n.first == mSlot.getSCP().getLocalNodeID()) ||
+            mSlot.isFullyValidated())
+        {
+            res.emplace_back(n.second);
+        }
     }
     return res;
 }

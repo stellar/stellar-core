@@ -636,8 +636,8 @@ Config::validateConfig()
             {
                 LOG(ERROR)
                     << "Not enough nodes / thresholds too strict in your "
-                    "Quorum set to ensure your  desired level of "
-                    "FAILURE_SAFETY.";
+                       "Quorum set to ensure your  desired level of "
+                       "FAILURE_SAFETY.";
                 throw std::invalid_argument("SCP unsafe");
             }
 
@@ -713,7 +713,7 @@ Config::toShortString(PublicKey const& pk) const
     std::string ret = PubKeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
-        return ret.substr(0,5);
+        return ret.substr(0, 5);
     else
         return it->second;
 }
@@ -739,18 +739,19 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
         if (s[0] == '$')
         {
             it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
-                                   [&](std::pair<std::string, std::string> const& p)
-            {
-                return p.second == arg;
-            });
+                              [&](std::pair<std::string, std::string> const& p)
+                              {
+                                  return p.second == arg;
+                              });
         }
         else if (s[0] == '@')
         {
             it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
                               [&](std::pair<std::string, std::string> const& p)
-            {
-                return p.first.compare(0, arg.size(), arg) == 0;
-            });
+                              {
+                                  return p.first.compare(0, arg.size(), arg) ==
+                                         0;
+                              });
         }
 
         if (it == VALIDATOR_NAMES.end())

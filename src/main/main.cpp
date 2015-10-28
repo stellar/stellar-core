@@ -202,7 +202,7 @@ void
 loadXdr(Config const& cfg, std::string const& bucketFile)
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg,false);
+    Application::pointer app = Application::create(clock, cfg, false);
     if (checkInitialized(app))
     {
         uint256 zero;
@@ -235,8 +235,8 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 
     for (auto const& arch : newHistories)
     {
-        if(!HistoryManager::initializeHistoryArchive(*app, arch))
-                    return 1;           
+        if (!HistoryManager::initializeHistoryArchive(*app, arch))
+            return 1;
     }
     return 0;
 }
@@ -394,7 +394,8 @@ main(int argc, char* const* argv)
             s += cfgFile + " found";
             throw std::invalid_argument(s);
         }
-        Logging::setFmt(PubKeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
+        Logging::setFmt(
+            PubKeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())
@@ -408,7 +409,6 @@ main(int argc, char* const* argv)
             Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         Logging::setLogLevel(logLevel, nullptr);
 
-        
         cfg.REPORT_METRICS = metrics;
 
         if (forceSCP || newDB || getInfo || !loadXdrBucket.empty())

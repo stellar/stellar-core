@@ -814,7 +814,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     // pick up the bucket list correctly.
     cfg1.FORCE_SCP = false;
     {
-        Application::pointer app = Application::create(clock, cfg1,false);
+        Application::pointer app = Application::create(clock, cfg1, false);
         app->start();
         BucketList& bl = app->getBucketManager().getBucketList();
 

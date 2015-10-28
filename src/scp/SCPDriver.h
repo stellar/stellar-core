@@ -46,16 +46,27 @@ class SCPDriver
     // is done. It should be used to filter out values that are not compatible
     // with the current state of that node. Unvalidated values can never
     // externalize.
-    virtual bool
+    // If the value cannot be validated (node is missing some context) but
+    // passes
+    // the validity checks, kMaybeValidValue can be returned. This will cause
+    // the current slot to be marked as a non validating slot: the local node
+    // will abstain from emiting its position.
+    enum ValidationLevel
+    {
+        kInvalidValue,        // value is invalid for sure
+        kFullyValidatedValue, // value is valid for sure
+        kMaybeValidValue      // value may be valid
+    };
+    virtual ValidationLevel
     validateValue(uint64 slotIndex, Value const& value)
     {
-        return true;
+        return kMaybeValidValue;
     }
 
     // `extractValidValue` transforms the value, if possible to a different
-    // value that the local node would agree to.
+    // value that the local node would agree to (fully validated).
     // This is used during nomination when encountering an invalid value (ie
-    // validateValue returned `false` for this value).
+    // validateValue did not return `kFullyValidatedValue` for this value).
     // returning Value() means no valid value could be extracted
     virtual Value
     extractValidValue(uint64 slotIndex, Value const& value)

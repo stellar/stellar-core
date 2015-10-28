@@ -70,11 +70,9 @@ class PendingEnvelopes
 
     std::vector<uint64> readySlots();
 
-    bool isFutureCommitted(uint64 slotIndex);
-
     void dumpInfo(Json::Value& ret);
 
-    TxSetFramePtr getTxSet(Hash hash);
-    SCPQuorumSetPtr getQSet(Hash hash);
+    TxSetFramePtr getTxSet(Hash const& hash);
+    SCPQuorumSetPtr getQSet(Hash const& hash);
 };
 }

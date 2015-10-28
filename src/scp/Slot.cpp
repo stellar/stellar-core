@@ -26,6 +26,7 @@ Slot::Slot(uint64 slotIndex, SCP& scp)
     , mSCP(scp)
     , mBallotProtocol(*this)
     , mNominationProtocol(*this)
+    , mFullyValidated(scp.getLocalNode()->isValidator())
 {
 }
 
@@ -39,16 +40,19 @@ std::vector<SCPEnvelope>
 Slot::getLatestMessagesSend() const
 {
     std::vector<SCPEnvelope> res;
-    SCPEnvelope* e;
-    e = mNominationProtocol.getLastMessageSend();
-    if (e)
+    if (mFullyValidated)
     {
-        res.emplace_back(*e);
-    }
-    e = mBallotProtocol.getLastMessageSend();
-    if (e)
-    {
-        res.emplace_back(*e);
+        SCPEnvelope* e;
+        e = mNominationProtocol.getLastMessageSend();
+        if (e)
+        {
+            res.emplace_back(*e);
+        }
+        e = mBallotProtocol.getLastMessageSend();
+        if (e)
+        {
+            res.emplace_back(*e);
+        }
     }
     return res;
 }
@@ -88,7 +92,7 @@ Slot::getCurrentState() const
 void
 Slot::recordStatement(SCPStatement const& st)
 {
-    mStatementsHistory.emplace_back(st);
+    mStatementsHistory.emplace_back(std::make_pair(st, mFullyValidated));
 }
 
 SCP::EnvelopeState
@@ -146,6 +150,18 @@ bool
 Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
 {
     return mNominationProtocol.nominate(value, previousValue, timedout);
+}
+
+bool
+Slot::isFullyValidated() const
+{
+    return mFullyValidated;
+}
+
+void
+Slot::setFullyValidated(bool fullyValidated)
+{
+    mFullyValidated = fullyValidated;
 }
 
 SCPEnvelope
@@ -244,11 +260,14 @@ Slot::dumpInfo(Json::Value& ret)
     Json::Value& slotValue = slots[std::to_string(mSlotIndex)];
 
     int count = 0;
-    for (auto& item : mStatementsHistory)
+    for (auto const& item : mStatementsHistory)
     {
-        slotValue["statements"][count++] = envToStr(item);
+        Json::Value& v = slotValue["statements"][count++];
+        v.append(envToStr(item.first));
+        v.append(item.second);
     }
 
+    slotValue["validated"] = mFullyValidated;
     mNominationProtocol.dumpInfo(slotValue);
     mBallotProtocol.dumpInfo(slotValue);
 }
@@ -403,5 +422,16 @@ std::shared_ptr<LocalNode>
 Slot::getLocalNode()
 {
     return mSCP.getLocalNode();
+}
+
+std::vector<SCPEnvelope>
+Slot::getEntireCurrentState()
+{
+    bool old = mFullyValidated;
+    // fake fully validated to force returning all envelopes
+    mFullyValidated = true;
+    auto r = getCurrentState();
+    mFullyValidated = old;
+    return r;
 }
 }

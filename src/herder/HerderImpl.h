@@ -61,7 +61,8 @@ class HerderImpl : public Herder, public SCPDriver
     void signEnvelope(SCPEnvelope& envelope) override;
     bool verifyEnvelope(SCPEnvelope const& envelope) override;
 
-    bool validateValue(uint64 slotIndex, Value const& value) override;
+    SCPDriver::ValidationLevel validateValue(uint64 slotIndex,
+                                             Value const& value) override;
 
     Value extractValidValue(uint64 slotIndex, Value const& value) override;
 
@@ -100,12 +101,12 @@ class HerderImpl : public Herder, public SCPDriver
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
-    void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset) override;
-    void recvTxSet(Hash hash, const TxSetFrame& txset) override;
+    void recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
+    void recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         PeerPtr peer) override;
-    TxSetFramePtr getTxSet(Hash hash) override;
-    SCPQuorumSetPtr getQSet(const Hash& qSetHash) override;
+    TxSetFramePtr getTxSet(Hash const& hash) override;
+    SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();
 
@@ -141,7 +142,8 @@ class HerderImpl : public Herder, public SCPDriver
     // in which case it also sets upgradeType
     bool validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,
                              LedgerUpgradeType& upgradeType);
-    bool validateValueHelper(uint64 slotIndex, StellarValue const& sv);
+    SCPDriver::ValidationLevel validateValueHelper(uint64 slotIndex,
+                                                   StellarValue const& sv);
 
     void startRebroadcastTimer();
     void rebroadcast();
@@ -162,10 +164,6 @@ class HerderImpl : public Herder, public SCPDriver
 
     PendingEnvelopes mPendingEnvelopes;
 
-    std::map<SCPBallot,
-             std::map<NodeID, std::vector<std::shared_ptr<VirtualTimer>>>>
-        mBallotValidationTimers;
-
     void herderOutOfSync();
 
     struct ConsensusData
@@ -181,8 +179,16 @@ class HerderImpl : public Herder, public SCPDriver
     // if the local instance is tracking the current state of SCP
     // herder keeps track of the consensus index and ballot
     // when not set, it just means that herder will try to snap to any slot that
-    // reached consensus it can
+    // reached consensus
     std::unique_ptr<ConsensusData> mTrackingSCP;
+
+    // when losing track of consensus, records where we left off so that we
+    // ignore older ledgers (as we potentially receive old messages)
+    std::unique_ptr<ConsensusData> mLastTrackingSCP;
+
+    // last slot that was persisted into the database
+    // only keep track of the most recent slot
+    uint64 mLastSlotSaved;
 
     // Mark changes to mTrackingSCP in metrics.
     void stateChanged();
@@ -207,7 +213,7 @@ class HerderImpl : public Herder, public SCPDriver
     VirtualTimer mTrackingTimer;
 
     // saves the SCP messages that the instance sent out last
-    void persistSCPState();
+    void persistSCPState(uint64 slot);
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
@@ -251,8 +257,6 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Meter& mEnvelopeSign;
         medida::Meter& mEnvelopeValidSig;
         medida::Meter& mEnvelopeInvalidSig;
-
-        medida::Counter& mBallotValidationTimersSize;
 
         // Counters for stuff in parent class (SCP)
         // that we monitor on a best-effort basis from

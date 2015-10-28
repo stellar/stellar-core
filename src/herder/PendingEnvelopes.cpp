@@ -264,7 +264,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 }
 
 TxSetFramePtr
-PendingEnvelopes::getTxSet(Hash hash)
+PendingEnvelopes::getTxSet(Hash const& hash)
 {
     if (mTxSetCache.exists(hash))
     {
@@ -275,7 +275,7 @@ PendingEnvelopes::getTxSet(Hash hash)
 }
 
 SCPQuorumSetPtr
-PendingEnvelopes::getQSet(Hash hash)
+PendingEnvelopes::getQSet(Hash const& hash)
 {
     if (mQsetCache.exists(hash))
     {
