@@ -96,41 +96,12 @@ BucketManagerImpl::getBucketDir()
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
 
         std::string lock = d + "/" + kLockFilename;
-        auto self = fs::getCurrentPid();
 
-        if (fs::exists(lock))
+        if (!fs::lockFile(lock))
         {
-            std::ifstream lockfile(lock);
-            std::string pidStr;
-            lockfile >> pidStr;
-            auto pid = stol(pidStr);
-            if (pid == self)
-            {
-                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock
-                                        << "', process " << pid << " is self.";
-            }
-            else if (fs::processExists(pid))
-            {
-                std::string msg("Found existing lockfile '" + lock +
-                                "' and process " + std::to_string(pid) +
-                                " is still running.");
-                throw std::runtime_error(msg);
-            }
-            else
-            {
-                CLOG(WARNING, "Bucket") << "Ignoring stale lockfile '" << lock
-                                        << "', process " << pid << " is gone.";
-            }
-        }
-
-        {
-            std::ofstream lockfile(lock, std::ios::trunc);
-            lockfile << std::to_string(self) << std::endl;
-        }
-        if (!fs::exists(lock))
-        {
-            throw std::runtime_error("Invalid database state (bucket folder "
-                                     "missing/corrupted) ; newdb required");
+            std::string msg("Found existing lockfile '" + lock +
+                            "' that is already locked.");
+            throw std::runtime_error(msg);
         }
         mLockedBucketDir = make_unique<std::string>(d);
     }
@@ -144,8 +115,7 @@ BucketManagerImpl::~BucketManagerImpl()
         std::string d = mApp.getConfig().BUCKET_DIR_PATH;
         std::string lock = d + "/" + kLockFilename;
         assert(fs::exists(lock));
-        std::remove(lock.c_str());
-        assert(!fs::exists(lock));
+        fs::unlockFile(lock);
     }
 }
 
