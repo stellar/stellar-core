@@ -104,6 +104,8 @@ class Slot : public std::enable_shared_from_this<Slot>
     bool nominate(Value const& value, Value const& previousValue,
                   bool timedout);
 
+    void stopNomination();
+
     bool isFullyValidated() const;
     void setFullyValidated(bool fullyValidated);
 

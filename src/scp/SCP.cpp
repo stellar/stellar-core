@@ -55,6 +55,16 @@ SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 }
 
 void
+SCP::stopNomination(uint64 slotIndex)
+{
+    auto s = getSlot(slotIndex, false);
+    if (s)
+    {
+        s->stopNomination();
+    }
+}
+
+void
 SCP::updateLocalQuorumSet(SCPQuorumSet const& qSet)
 {
     mLocalNode->updateQuorumSet(qSet);

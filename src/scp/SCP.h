@@ -61,6 +61,9 @@ class SCP
     bool nominate(uint64 slotIndex, Value const& value,
                   Value const& previousValue);
 
+    // stops nomination for a slot
+    void stopNomination(uint64 slotIndex);
+
     // Local QuorumSet interface (can be dynamically updated)
     void updateLocalQuorumSet(SCPQuorumSet const& qSet);
     SCPQuorumSet const& getLocalQuorumSet();

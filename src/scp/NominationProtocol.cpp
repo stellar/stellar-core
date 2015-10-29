@@ -446,6 +446,12 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
 
     bool updated = false;
 
+    if (timedout && !mNominationStarted)
+    {
+        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (TIMED OUT)";
+        return false;
+    }
+
     mNominationStarted = true;
 
     mPreviousValue = previousValue;
@@ -506,6 +512,12 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
     }
 
     return updated;
+}
+
+void
+NominationProtocol::stopNomination()
+{
+    mNominationStarted = false;
 }
 
 void

@@ -169,7 +169,8 @@ Config::load(std::string const& filename)
         {
             g = cpptoml::parse_file(filename);
         }
-
+        // cpptoml returns the items in non-deterministic order
+        // so we need to process items that are potential dependencies first
         for (auto& item : g)
         {
             LOG(DEBUG) << "Config item: " << item.first;
@@ -371,7 +372,13 @@ Config::load(std::string const& filename)
 
                 std::string seed = item.second->as<std::string>()->value();
                 NODE_SEED = SecretKey::fromStrKeySeed(seed);
-                VALIDATOR_NAMES[NODE_SEED.getStrKeyPublic()] = "self";
+                if (!VALIDATOR_NAMES.insert(std::make_pair(
+                                                NODE_SEED.getStrKeyPublic(),
+                                                "self")).second)
+                {
+                    throw std::invalid_argument(
+                        "`self` is a reserved name for NODE_NAMES");
+                }
             }
             else if (item.first == "NODE_IS_VALIDATOR")
             {
@@ -463,7 +470,7 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "QUORUM_SET")
             {
-                loadQset(item.second->as_group(), QUORUM_SET, 0);
+                // processing performed after this loop
             }
             else if (item.first == "COMMANDS")
             {
@@ -583,6 +590,13 @@ Config::load(std::string const& filename)
                 throw std::invalid_argument(err);
             }
         }
+        // process elements that potentially depend on others
+        auto qset = g.get("QUORUM_SET");
+        if (qset)
+        {
+            loadQset(qset->as_group(), QUORUM_SET, 0);
+        }
+
         validateConfig();
     }
     catch (cpptoml::toml_parse_exception& ex)
