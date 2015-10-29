@@ -93,6 +93,9 @@ class NominationProtocol
     bool nominate(Value const& value, Value const& previousValue,
                   bool timedout);
 
+    // stops the nomination protocol
+    void stopNomination();
+
     Value const&
     getLatestCompositeCandidate() const
     {

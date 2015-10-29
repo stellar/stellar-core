@@ -152,6 +152,12 @@ Slot::nominate(Value const& value, Value const& previousValue, bool timedout)
     return mNominationProtocol.nominate(value, previousValue, timedout);
 }
 
+void
+Slot::stopNomination()
+{
+    mNominationProtocol.stopNomination();
+}
+
 bool
 Slot::isFullyValidated() const
 {

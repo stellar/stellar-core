@@ -224,6 +224,8 @@ class HerderImpl : public Herder, public SCPDriver
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mRebroadcastTimer;
+
+    uint32_t mLedgerSeqNominating;
     Value mCurrentValue;
 
     // timers used by SCP

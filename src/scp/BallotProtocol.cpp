@@ -162,14 +162,13 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
         return SCP::EnvelopeState::INVALID;
     }
 
-    SCPBallot wb = getWorkingBallot(statement);
+    SCPBallot tickBallot = getWorkingBallot(statement);
 
-    auto validationRes =
-        mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), wb.value);
+    auto validationRes = mSlot.getSCPDriver().validateValue(
+        mSlot.getSlotIndex(), tickBallot.value);
     if (validationRes != SCPDriver::kInvalidValue)
     {
         bool processed = false;
-        SCPBallot tickBallot = getWorkingBallot(statement);
 
         if (mPhase != SCP_PHASE_EXTERNALIZE)
         {
@@ -184,7 +183,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
             {
                 recordEnvelope(envelope);
                 processed = true;
-                advanceSlot(statement.pledges.prepare().ballot);
+                advanceSlot(tickBallot);
                 res = SCP::EnvelopeState::VALID;
             }
             break;
@@ -1188,6 +1187,8 @@ BallotProtocol::attemptConfirmCommit(SCPBallot const& acceptCommitLow,
     mPhase = SCP_PHASE_EXTERNALIZE;
 
     emitCurrentStateStatement();
+
+    mSlot.stopNomination();
 
     mSlot.getSCPDriver().valueExternalized(mSlot.getSlotIndex(),
                                            mCurrentBallot->value);

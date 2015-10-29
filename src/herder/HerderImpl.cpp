@@ -584,8 +584,16 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
         logQuorumInformation(slotIndex - 2);
     }
 
-    // current value is not valid anymore
-    mCurrentValue.clear();
+    if (!mCurrentValue.empty())
+    {
+        // stop nomination
+        // this may or may not be the ledger that is currently externalizing
+        // in both cases, we want to stop nomination as:
+        // either we're closing the current ledger (typical case)
+        // or we're going to trigger catchup from history
+        mSCP.stopNomination(mLedgerSeqNominating);
+        mCurrentValue.clear();
+    }
 
     if (!mTrackingSCP)
     {
@@ -1431,6 +1439,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     }
 
     mCurrentValue = xdr::xdr_to_opaque(newProposedValue);
+    mLedgerSeqNominating = slotIndex;
 
     uint256 valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
     CLOG(DEBUG, "Herder") << "HerderImpl::triggerNextLedger"
