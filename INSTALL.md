@@ -1,6 +1,23 @@
 Installation Instructions
 ==================
 
+## Picking a version to run
+
+Branches are organized in the following way:
+
+| branch name | description | quality bar |
+| ----------- | ----------- | ----------- |
+| master      | development branch | all unit tests passing |
+| testnet     | version deployed to testnet | acceptance tests passing |
+| prod        | version currently deployed on the live network | no recall class issue found in testnet and staging |
+
+For convenience, we also keep a record in the form of release tags of the
+ versions that make it to production:
+ * pre-releases are versions that get deployed to testnet
+ * releases are versions that made it all the way in prod
+
+When running a node, the best bet is to go with the latest release.
+
 ## Build Dependencies
 
 - `clang` >= 3.5 or `g++` >= 4.9
@@ -38,6 +55,6 @@ See [INSTALL-Windows.txt](INSTALL-Windows.txt)
 - `git submodule update`
 - Type `./autogen.sh`.
 - Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-3.5 ./configure` or `CXX=g++-4.9 ./configure` or similar, depending on your compiler.)*
-- Type `make`.
+- Type `make` or `make -j` (for aggressive parallel build)
 - Type `make check` to run tests.
 - Type `make install` to install.
