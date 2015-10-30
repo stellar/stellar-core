@@ -370,15 +370,9 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid NODE_SEED");
                 }
 
-                std::string seed = item.second->as<std::string>()->value();
-                NODE_SEED = SecretKey::fromStrKeySeed(seed);
-                if (!VALIDATOR_NAMES.insert(std::make_pair(
-                                                NODE_SEED.getStrKeyPublic(),
-                                                "self")).second)
-                {
-                    throw std::invalid_argument(
-                        "`self` is a reserved name for NODE_NAMES");
-                }
+                PublicKey nodeID;
+                parseNodeID(item.second->as<std::string>()->value(), nodeID,
+                            NODE_SEED, true);
             }
             else if (item.first == "NODE_IS_VALIDATOR")
             {
@@ -425,24 +419,7 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "PREFERRED_PEER_KEYS")
             {
-                if (!item.second->is_array())
-                {
-                    throw std::invalid_argument(
-                        "PREFERRED_PEER_KEYS must be an array");
-                }
-                for (auto v : item.second->as_array()->array())
-                {
-                    if (!v->as<std::string>())
-                    {
-                        throw std::invalid_argument(
-                            "invalid element of PREFERRED_PEER_KEYS");
-                    }
-
-                    PublicKey nodeID;
-                    parseNodeID(v->as<std::string>()->value(), nodeID);
-                    PREFERRED_PEER_KEYS.push_back(
-                        PubKeyUtils::toStrKey(nodeID));
-                }
+                // handled below
             }
             else if (item.first == "PREFERRED_PEERS_ONLY")
             {
@@ -591,10 +568,37 @@ Config::load(std::string const& filename)
             }
         }
         // process elements that potentially depend on others
-        auto qset = g.get("QUORUM_SET");
-        if (qset)
+        if (g.contains("PREFERRED_PEER_KEYS"))
         {
-            loadQset(qset->as_group(), QUORUM_SET, 0);
+            auto pkeys = g.get("PREFERRED_PEER_KEYS");
+            if (pkeys)
+            {
+                if (!pkeys->is_array())
+                {
+                    throw std::invalid_argument(
+                        "PREFERRED_PEER_KEYS must be an array");
+                }
+                for (auto v : pkeys->as_array()->array())
+                {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument(
+                            "invalid element of PREFERRED_PEER_KEYS");
+                    }
+                    PublicKey nodeID;
+                    parseNodeID(v->as<std::string>()->value(), nodeID);
+                    PREFERRED_PEER_KEYS.push_back(
+                        PubKeyUtils::toStrKey(nodeID));
+                }
+            }
+        }
+        if (g.contains("QUORUM_SET"))
+        {
+            auto qset = g.get("QUORUM_SET");
+            if (qset)
+            {
+                loadQset(qset->as_group(), QUORUM_SET, 0);
+            }
         }
 
         validateConfig();
@@ -680,12 +684,24 @@ Config::validateConfig()
 void
 Config::parseNodeID(std::string configStr, PublicKey& retKey)
 {
+    SecretKey k;
+    parseNodeID(configStr, retKey, k, false);
+}
+
+void
+Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
+                    bool isSeed)
+{
     if (configStr.size() < 2)
         throw std::invalid_argument("invalid key");
 
     // check if configStr is a PublicKey or a common name
     if (configStr[0] == '$')
     {
+        if (isSeed)
+        {
+            throw std::invalid_argument("aliases only store public keys");
+        }
         if (!resolveNodeID(configStr, retKey))
         {
             throw std::invalid_argument("unknown key in config");
@@ -696,7 +712,16 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey)
         std::istringstream iss(configStr);
         std::string nodestr;
         iss >> nodestr;
-        retKey = PubKeyUtils::fromStrKey(nodestr);
+        if (isSeed)
+        {
+            sKey = SecretKey::fromStrKeySeed(nodestr);
+            retKey = sKey.getPublicKey();
+            nodestr = sKey.getStrKeyPublic();
+        }
+        else
+        {
+            retKey = PubKeyUtils::fromStrKey(nodestr);
+        }
 
         if (iss)
         { // get any common name they have added

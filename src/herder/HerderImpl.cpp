@@ -99,7 +99,7 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 HerderImpl::HerderImpl(Application& app)
     : mSCP(*this, app.getConfig().NODE_SEED, app.getConfig().NODE_IS_VALIDATOR,
            app.getConfig().QUORUM_SET)
-    , mReceivedTransactions(4)
+    , mPendingTransactions(4)
     , mPendingEnvelopes(app, *this)
     , mLastSlotSaved(0)
     , mLastStateChange(app.getClock().now())
@@ -617,64 +617,13 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     mLedgerManager.externalizeValue(ledgerData);
 
     // perform cleanups
-
-    // remove all these tx from mReceivedTransactions
-    removeReceivedTxs(externalizedSet->mTransactions);
-
-    // rebroadcast those left in set 1, sorted in an apply-order.
-    {
-        Hash h;
-        TxSetFrame broadcast(h);
-        assert(mReceivedTransactions.size() >= 2);
-        for (auto const& pair : mReceivedTransactions[1])
-        {
-            for (auto const& tx : pair.second->mTransactions)
-            {
-                broadcast.add(tx.second);
-            }
-        }
-        for (auto tx : broadcast.sortForApply())
-        {
-            auto msg = tx->toStellarMessage();
-            mApp.getOverlayManager().broadcastMessage(msg);
-        }
-    }
+    updatePendingTransactions(externalizedSet->mTransactions);
 
     // Evict slots that are outside of our ledger validity bracket
     if (slotIndex > MAX_SLOTS_TO_REMEMBER)
     {
         mSCP.purgeSlots(slotIndex - MAX_SLOTS_TO_REMEMBER);
     }
-
-    assert(mReceivedTransactions.size() >= 4);
-
-    // Move all the remaining to the next highest level don't move the
-    // largest array.
-    for (size_t n = mReceivedTransactions.size() - 1; n > 0; n--)
-    {
-        auto& curr = mReceivedTransactions[n];
-        auto& prev = mReceivedTransactions[n - 1];
-        for (auto const& pair : prev)
-        {
-            auto const& acc = pair.first;
-            auto const& srcmap = pair.second;
-            auto dstmap = findOrAdd(curr, acc);
-            for (auto tx : srcmap->mTransactions)
-            {
-                dstmap->addTx(tx.second);
-            }
-        }
-        prev.clear();
-    }
-
-    mSCPMetrics.mHerderPendingTxs0.set_count(
-        countTxs(mReceivedTransactions[0]));
-    mSCPMetrics.mHerderPendingTxs1.set_count(
-        countTxs(mReceivedTransactions[1]));
-    mSCPMetrics.mHerderPendingTxs2.set_count(
-        countTxs(mReceivedTransactions[2]));
-    mSCPMetrics.mHerderPendingTxs3.set_count(
-        countTxs(mReceivedTransactions[3]));
 
     ledgerClosed();
 }
@@ -964,7 +913,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     int64_t totFee = tx->getFee();
     SequenceNumber highSeq = 0;
 
-    for (auto& map : mReceivedTransactions)
+    for (auto& map : mPendingTransactions)
     {
         auto i = map.find(acc);
         if (i != map.end())
@@ -994,7 +943,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
                           << PubKeyUtils::toShortString(acc);
 
-    auto txmap = findOrAdd(mReceivedTransactions[0], acc);
+    auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);
 
     return TX_STATUS_PENDING;
@@ -1224,7 +1173,7 @@ HerderImpl::ledgerClosed()
 void
 HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 {
-    for (auto& m : mReceivedTransactions)
+    for (auto& m : mPendingTransactions)
     {
         if (m.empty())
         {
@@ -1316,7 +1265,7 @@ SequenceNumber
 HerderImpl::getMaxSeqInPendingTxs(AccountID const& acc)
 {
     SequenceNumber highSeq = 0;
-    for (auto const& m : mReceivedTransactions)
+    for (auto const& m : mPendingTransactions)
     {
         auto i = m.find(acc);
         if (i == m.end())
@@ -1346,7 +1295,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
     TxSetFramePtr proposedSet = std::make_shared<TxSetFrame>(lcl.hash);
 
-    for (auto const& m : mReceivedTransactions)
+    for (auto const& m : mPendingTransactions)
     {
         for (auto const& pair : m)
         {
@@ -1625,6 +1574,47 @@ HerderImpl::trackingHeartBeat()
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
     mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
                               &VirtualTimer::onFailureNoop);
+}
+
+void
+HerderImpl::updatePendingTransactions(
+    std::vector<TransactionFramePtr> const& applied)
+{
+    // remove all these tx from mPendingTransactions
+    removeReceivedTxs(applied);
+
+    // drop the highest level
+    mPendingTransactions.erase(--mPendingTransactions.end());
+
+    // shift entries up
+    mPendingTransactions.emplace_front();
+
+    // rebroadcast entries, sorted in apply-order to maximize chances of
+    // propagation
+    {
+        Hash h;
+        TxSetFrame toBroadcast(h);
+        for (auto const& l : mPendingTransactions)
+        {
+            for (auto const& pair : l)
+            {
+                for (auto const& tx : pair.second->mTransactions)
+                {
+                    toBroadcast.add(tx.second);
+                }
+            }
+        }
+        for (auto tx : toBroadcast.sortForApply())
+        {
+            auto msg = tx->toStellarMessage();
+            mApp.getOverlayManager().broadcastMessage(msg);
+        }
+    }
+
+    mSCPMetrics.mHerderPendingTxs0.set_count(countTxs(mPendingTransactions[0]));
+    mSCPMetrics.mHerderPendingTxs1.set_count(countTxs(mPendingTransactions[1]));
+    mSCPMetrics.mHerderPendingTxs2.set_count(countTxs(mPendingTransactions[2]));
+    mSCPMetrics.mHerderPendingTxs3.set_count(countTxs(mPendingTransactions[3]));
 }
 
 void

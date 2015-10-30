@@ -23,6 +23,8 @@ class Config : public std::enable_shared_from_this<Config>
                   SCPQuorumSet& qset, int level);
 
     void parseNodeID(std::string configStr, PublicKey& retKey);
+    void parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
+                     bool isSeed);
 
   public:
     typedef std::shared_ptr<Config> pointer;

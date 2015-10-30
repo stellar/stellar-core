@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <vector>
+#include <deque>
 #include <unordered_map>
 #include <memory>
 #include "herder/Herder.h"
@@ -159,8 +160,12 @@ class HerderImpl : public Herder, public SCPDriver
 
     // 0- tx we got during ledger close
     // 1- one ledger ago. rebroadcast
-    // 2- two ledgers ago.
-    std::vector<AccountTxMap> mReceivedTransactions;
+    // 2- two ledgers ago. rebroadcast
+    // ...
+    std::deque<AccountTxMap> mPendingTransactions;
+
+    void
+    updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
 
     PendingEnvelopes mPendingEnvelopes;
 
