@@ -425,24 +425,7 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "PREFERRED_PEER_KEYS")
             {
-                if (!item.second->is_array())
-                {
-                    throw std::invalid_argument(
-                        "PREFERRED_PEER_KEYS must be an array");
-                }
-                for (auto v : item.second->as_array()->array())
-                {
-                    if (!v->as<std::string>())
-                    {
-                        throw std::invalid_argument(
-                            "invalid element of PREFERRED_PEER_KEYS");
-                    }
-
-                    PublicKey nodeID;
-                    parseNodeID(v->as<std::string>()->value(), nodeID);
-                    PREFERRED_PEER_KEYS.push_back(
-                        PubKeyUtils::toStrKey(nodeID));
-                }
+                // handled below
             }
             else if (item.first == "PREFERRED_PEERS_ONLY")
             {
@@ -591,10 +574,37 @@ Config::load(std::string const& filename)
             }
         }
         // process elements that potentially depend on others
-        auto qset = g.get("QUORUM_SET");
-        if (qset)
+        if (g.contains("PREFERRED_PEER_KEYS"))
         {
-            loadQset(qset->as_group(), QUORUM_SET, 0);
+            auto pkeys = g.get("PREFERRED_PEER_KEYS");
+            if (pkeys)
+            {
+                if (!pkeys->is_array())
+                {
+                    throw std::invalid_argument(
+                        "PREFERRED_PEER_KEYS must be an array");
+                }
+                for (auto v : pkeys->as_array()->array())
+                {
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument(
+                            "invalid element of PREFERRED_PEER_KEYS");
+                    }
+                    PublicKey nodeID;
+                    parseNodeID(v->as<std::string>()->value(), nodeID);
+                    PREFERRED_PEER_KEYS.push_back(
+                        PubKeyUtils::toStrKey(nodeID));
+                }
+            }
+        }
+        if (g.contains("QUORUM_SET"))
+        {
+            auto qset = g.get("QUORUM_SET");
+            if (qset)
+            {
+                loadQset(qset->as_group(), QUORUM_SET, 0);
+            }
         }
 
         validateConfig();
