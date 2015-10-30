@@ -31,6 +31,8 @@ stellar-core loads
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
 configuration options.  
 
+The examples in this file don't specify `--conf betterfile.cfg` for brevity.
+
 ## Running
 Stellar-core can be run directly from the command line, or through a supervision 
 system such as `init`, `upstart`, or `systemd`.
@@ -67,6 +69,9 @@ Stellar-core can also be packaged in a container system such as Docker, so long
 as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
 volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core).
 
+Note: `BUCKET_DIR_PATH` and `TMP_DIR_PATH` *must* reside on the same volume
+as stellar-core needs to rename files between the two.
+
 ## Administrative commands
 While running, interaction with stellar-core is done via an administrative 
 HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
@@ -85,30 +90,52 @@ on an AWS micro instance, for example.
 
 # Configuration Choices
 
+## Level of participation to the network
+
+As a node operator you can participate to the network in multiple ways.
+
+|              | watcher | archiver | basic validator | full validator |
+| ------------ | ------  | ---------| --------------  | -------------- |
+| description  | non-validator "leech" | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
+| submits transactions | yes | yes | yes | yes |
+| supports horizon | yes | yes | yes | yes |
+| participates in consensus | no | no | yes | yes |
+| helps other nodes to catch up and join the network | no | yes | no | yes |
+
+From an operational point of view "watchers" and "basic validators" are about the
+ same (they both compute an up to date version of the ledger).
+"Archivers" or "Full validators" publish into an history archive which
+ has additional cost.
+
 ## Validating
 Nodes are considered **validating** if they take part in SCP and sign messages 
 pledging that the network agreed to a particular transaction set. It isn't 
 necessary to be a validator. Only set your node to validate if other nodes 
-care about your validation. 
+care about your validation.
 
 If you want to validate, you must generate a public/private key for your node.
- Nodes shouldn't share keys. You should carefully secure your private key. 
+ Nodes shouldn't share keys. You should carefully *secure your private key*. 
 If it is compromised, someone can send false messages to the network and those 
-messages will look like they came from you. 
+messages will look like they came from you.
 
 Generate a key pair like this:
 
 `$ stellar-core --genseed`
+the output will look like
+```
+Secret seed: SBAAOHEU4WSWX6GBZ3VOXEGQGWRBJ72ZN3B3MFAJZWXRYGDIWHQO37SY
+Public: GDMTUTQRCP6L3JQKX3OOKYIGZC6LG2O6K2BSUCI6WNGLL4XXCIB3OK2P
+```
 
 Place the seed in your config:
 
-`NODE_SEED="SBI3CZU7XZEWVXU7OZLW5MMUQAP334JFOPXSLTPOH43IRTEQ2QYXU5RG"`
+`NODE_SEED="SBAAOHEU4WSWX6GBZ3VOXEGQGWRBJ72ZN3B3MFAJZWXRYGDIWHQO37SY"`
 
 and set the following value in your config:
 
 `NODE_IS_VALIDATOR=true`
 
-Advertise the public key so people can add it to their `QUORUM_SET` in their config.
+Tell other people your public key (GDMTUTQ... ) so people can add it to their `QUORUM_SET` in their config.
 If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
 
@@ -157,11 +184,104 @@ least, if you are joining an existing network in a read-only capacity, you
 will still need to configure a `get` command to access that network's history 
 archives.
 
-If you configure a history archive to **put** to, then you must run:
+## Configuring to publish to an archive
+Archive sections can also be configured with `put` and `mkdir` commands to
+ cause the instance to publish to that archive.
 
+The very first time you want to use your archive, you need to initialize it with:
 `$ stellar-core --newhist <historyarchive>`
 
-to initialize that archive before you start.
+before starting your node.
+
+IMPORTANT:
+ * make sure that you configure both `put` and `mkdir` if `put` doesn't
+ automatically create sub-folders
+ * writing to the same archive from different nodes is not supported and
+ will result in undefined behavior, *potentially data loss*.
+ * do not run `newhist` on an existing archive unless you want to erase it
+
+
+# Quorum
+
+## A brief explanation
+An important distinction in Stellar compared to traditional quorum based
+networks is that validators that form the network do not necessarily share
+ the same configuration of what a quorum is.
+Quorum set represents the configuration of a specific node, where as quorum
+is derived from the set of all quorum sets from the participants.
+
+Here is a way to think about the distinction:
+Imagine a game where people are put in a room and the goal is to get as many
+ people to match hat color.
+The rules are:
+ * each person in the room can only see the people in front of them.
+ * each person can pick their location in the room for the duration of the
+exercise (this basically defines the player's quorum set).
+ * when the game starts, light is turned on every minute for 1 second.
+
+ SCP is the protocol (gestures, when to switch hat color, etc) that causes
+ people in the room to converge to the same hat color.
+The quorum here is the set of players that end up with the winning hat color.
+
+A traditional quorum has people see everybody else (placed on a circle, at
+the right distance).
+Here, each player can decide to look wherever they want. Even look at only one
+other player, which is a risk if this other player decides to quit the game.
+
+## Quorum set
+
+Configuring your QUORUM_SET properly is one of the most important thing you should be doing.
+
+The simplest way to configure it is by using a flat QUORUM_SET, something that looks like this:
+```
+[QUORUM_SET]
+THRESHOLD_PERCENT=70
+VALIDATORS=[
+"GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y sdf1",
+"GCUCJTIYXSOXKBSNFGNFWW5MUQ54HKRPGJUTQFJ5RQXZXNOLNXYDHRAP sdf2",
+"GC2V2EFSXN6SQTWVYA5EPJPBWWIMSD2XQNKUOHGEKB535AQE2I6IXV2Z sdf3",
+...
+]
+```
+THRESHOLD_PERCENT is simply the threshold of nodes that should agree with each other
+for your node to be convinced of something.
+
+### Balancing safety and liveness
+When configuring it, you want to balance safety and liveness:
+a threshold of 100% will obviously guarantee that your node will agree with all
+nodes in your quorum set at all time but if any of those nodes fails your
+node will be stuck until all nodes come back and agree.
+On the other hand, a threshold too low may cause the node to follow a broken minority.
+
+### Picking validators
+You want to pick validators that are reliable:
+ * they are available (not crashed/down often)
+ * they follow the protocol (configured properly, not buggy, not malicious)
+
+You do not need to put a lot of nodes there, just the ones that you think
+ are the most representative of the network. Of course, as you increase the
+ number of validators in your quorum set (at constant threshold), your node
+ will be more resilient to validator failures.
+
+ A good starting point is to pick all validators from the network and
+ remove over time the ones that are causing you problems.
+
+Other node operator may or may not chose the same validators than you, it's
+up to them! All you need is to have a good overlap across the population of
+ validators.
+
+A more advanced way to configure your QUORUM_SET is to group validators by
+ entity type or organization.
+For example, you can imagine a QUORUM_SET that looks like
+```
+[t: 100,
+    [ t: 30, bank1, bank2, bank3 ], # banks
+    [ t: 50, sdf1, sd2 ], # nonprofits
+    [ t: 30, univ1, univ2, univ3 ], # universities
+    [ t: 50, friend1, friend2 ] # friends
+]
+```
+This will configure the node to require one node of each category to reach consensus.
 
 # Recipes
 
@@ -200,6 +320,98 @@ Run:
 4. `$ stellar-core` 
   - on each node to start it.
 
+# Understanding the availability and health of your instance
+## General info
+Run `$ stellar-core --c 'quorum'`
+The output will look something like
+```
+   "info" : {
+      "build" : "v0.2.3-9-g73147b7",
+      "ledger" : {
+         "age" : 6,
+         "closeTime" : 1446178539,
+         "hash" : "f3c3424b85c004ebea1ae25991cf2ff902b46a5fea3bce1850c032118cd4567c",
+         "num" : 474367
+      },
+      "network" : "Public Global Stellar Network ; September 2015",
+      "numPeers" : 12,
+      "protocol_version" : 1,
+      "quorum" : {
+         "474366" : {
+            "agree" : 5,
+            "disagree" : 0,
+            "fail_at" : 2,
+            "hash" : "ac8c66",
+            "missing" : 0,
+            "phase" : "EXTERNALIZE"
+         }
+      },
+      "state" : "Synced!"
+```
+Key fields to watch for:
+ * `state` : should be "Synced!"
+ * `ledger age`: when was the last ledger closed, should be less than 10 seconds
+ * `numPeers` : number of peers connected
+ * `quorum` : summary of the quorum information for this node (see below)
+
+## Quorum Health
+Run `$ stellar-core --c 'quorum'`
+The output looks something like
+```
+"474313" : {
+         "agree" : 6,
+         "disagree" : null,
+         "fail_at" : 2,
+         "fail_with" : [ "lab1", "lab2" ],
+         "hash" : "d1dacb",
+         "missing" : [ "donovan" ],
+         "phase" : "EXTERNALIZE",
+         "value" : {
+            "t" : 5,
+            "v" : [ "lab1", "lab2", "lab3", "donovan", "GDVFV", "nelisky1", "nelisky2" ]
+         }
+```
+The key entries to watch are:
+  * `value` : the quorum set used by this node.
+  * `agree` : the number of nodes in the quorum set that agree with this instance.
+  * `disagree`: the nodes that were participating but disagreed with this instance.
+  * `missing` : the nodes that were missing during this consensus round.
+  * `fail_at` : the number of failed nodes that would cause this instance to halt.
+  * `fail_with`: an example of such failure.
+In the example above, 6 nodes are functioning properly, one is down (`donovan`), and
+ the instance will fail if any two nodes out of the ones still working fail as well.
+
+Note that the node not being able to reach consensus does not mean that the network
+as a whole will not be able to reach consensus (and the opposite is true, the network
+may fail because of a different set of validators failing).
+
+You can get a sense of the quorum set health of a different node by doing
+`$ stellar-core --c 'quorum?node=$sdf1` or `$ stellar-core --c 'quorum?node=@GABCDE` 
+
+You can get a sense of the general health of the network by looking at the quorum set
+health of all nodes.
+
+# Validator maintenance
+
+Maintenance here refers to anything involving taking your validator temporarily out of
+the network (to apply security patches, system upgrade, etc).
+
+As an administrator of a validator, you must ensure that the maintenance you are
+about to take on a validator is safe for the overall network.
+Safe means that the other validators that depend on yours will not be affected
+too much when you turn off your validator for maintenance.
+
+We recommend performing the following steps in order (once per machine if you
+ run multiple nodes).
+
+1. Advertise your intention to others that may depend on you. Some coordination
+ is required to avoid situations where too many nodes go down at the same time.
+2. Dependencies should assess the health of their quorum, refer to the section
+ "Understanding quorum and reliability".
+3. If there is no objection, take your instance down
+4. When done, start your instance that should rejoin the network
+5. The instance will be completely caught up when it's both `Synced` and there
+ is no backlog in uploading history.
 
 # Notes
 
