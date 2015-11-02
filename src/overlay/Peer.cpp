@@ -1070,7 +1070,6 @@ Peer::recvAuth(StellarMessage const& msg)
         return;
     }
 
-    noteHandshakeSuccessInPeerRecord();
     mState = GOT_AUTH;
 
     auto self = shared_from_this();
@@ -1082,6 +1081,8 @@ Peer::recvAuth(StellarMessage const& msg)
         drop(ERR_LOAD, "peer rejected");
         return;
     }
+
+    noteHandshakeSuccessInPeerRecord();
 
     if (mRole == REMOTE_CALLED_US)
     {

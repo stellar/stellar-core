@@ -12,6 +12,7 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/Floodgate.h"
 #include <vector>
+#include <set>
 #include "overlay/StellarXDR.h"
 #include "overlay/OverlayManager.h"
 #include "util/Timer.h"
@@ -33,6 +34,8 @@ class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
+    std::set<std::string> mPreferredPeers;
+
     // peers we are connected to
     std::vector<Peer::pointer> mPeers;
     PeerDoor mDoor;
@@ -51,7 +54,8 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list);
+    void storePeerList(std::vector<std::string> const& list,
+                       bool resetBackOff = false);
     void storeConfigPeers();
     bool isPeerPreferred(Peer::pointer peer);
 

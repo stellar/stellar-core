@@ -94,7 +94,7 @@ class OverlayManager
     // Returns true if there is room for the provided peer in the in-memory set
     // of connected peers without evicting an existing peer, or if the provided
     // peer is a "preferred" peer (as specified in the config file's
-    // PREFERRED_PEERS
+    // PREFERRED_PEERS/PREFERRED_PEER_KEYS
     // setting). Otherwise returns false.
     virtual bool isPeerAccepted(Peer::pointer peer) = 0;
 
