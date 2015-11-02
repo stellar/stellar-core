@@ -178,29 +178,13 @@ OverlayManagerImpl::connectToMorePeers(int max)
 {
     vector<PeerRecord> peers;
 
-    // Always retry the preferred peers before anything else.
-    for (auto const& peerStr : mApp.getConfig().PREFERRED_PEERS)
-    {
-        PeerRecord pr;
-        if (PeerRecord::parseIPPort(peerStr, mApp, pr))
-        {
-            // see if we can get current information from the peer table
-            auto prFromDB = PeerRecord::loadPeerRecord(mApp.getDatabase(),
-                                                       pr.mIP, pr.mPort);
-            if (prFromDB)
-            {
-                pr = *prFromDB;
-            }
-            peers.push_back(pr);
-        }
-    }
-
-    // Load additional peers from the DB if we're not in whitelist mode.
-    if (!mApp.getConfig().PREFERRED_PEERS_ONLY)
-    {
-        PeerRecord::loadPeerRecords(mApp.getDatabase(), max,
-                                    mApp.getClock().now(), peers);
-    }
+    // load best candidates from the database,
+    // when PREFERRED_PEER_ONLY is set and we connect to a non
+    // preferred_peer we just end up dropping & backing off
+    // it during handshake (this allows for preferred_peers
+    // to work for both ip based and key based preferred mode).
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
+                                peers);
 
     for (auto& pr : peers)
     {
