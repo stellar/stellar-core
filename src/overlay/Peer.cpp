@@ -455,7 +455,7 @@ Peer::sendMessage(StellarMessage const& msg)
 
     AuthenticatedMessage amsg;
     amsg.v0().message = msg;
-    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
+    if (msg.type() != HELLO && msg.type() != HELLO2 && msg.type() != ERROR_MSG)
     {
         amsg.v0().sequence = mSendMacSeq;
         amsg.v0().mac =
@@ -559,7 +559,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            << mApp.getConfig().toShortString(mPeerID);
 
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
-        (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
+        (stellarMsg.type() != HELLO2) && (stellarMsg.type() != AUTH) &&
+        (stellarMsg.type() != ERROR_MSG))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
                                  << " before completed handshake";
@@ -569,7 +570,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
 
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
-           stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
+           stellarMsg.type() == HELLO2 || stellarMsg.type() == AUTH ||
+           stellarMsg.type() == ERROR_MSG);
 
     switch (stellarMsg.type())
     {
