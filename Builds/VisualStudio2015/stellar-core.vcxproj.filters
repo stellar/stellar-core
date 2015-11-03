@@ -249,9 +249,6 @@
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\Base58.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\crypto\Hex.cpp">
       <Filter>crypto</Filter>
     </ClCompile>
@@ -625,9 +622,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h">
       <Filter>transactions</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\crypto\Base58.h">
-      <Filter>crypto</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\ByteSlice.h">
       <Filter>crypto</Filter>

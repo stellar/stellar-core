@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "crypto/Base58.h"
 #include "crypto/StrKey.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -107,20 +106,6 @@ SecretKey::getStrKeyPublic() const
     return PubKeyUtils::toStrKey(getPublicKey());
 }
 
-std::string
-SecretKey::getBase58Seed() const
-{
-    assert(mKeyType == KEY_TYPE_ED25519);
-
-    return toBase58Check(B58_SEED_ED25519, getSeed().mSeed);
-}
-
-std::string
-SecretKey::getBase58Public() const
-{
-    return PubKeyUtils::toBase58(getPublicKey());
-}
-
 bool
 SecretKey::isZero() const
 {
@@ -198,33 +183,6 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
     assert(sk.mKeyType == KEY_TYPE_ED25519);
     if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
                                  seed.data()) != 0)
-    {
-        throw std::runtime_error("error generating secret key from seed");
-    }
-    return sk;
-}
-
-SecretKey
-SecretKey::fromBase58Seed(std::string const& base58Seed)
-{
-    auto pair = fromBase58Check(base58Seed);
-    if (pair.first != B58_SEED_ED25519)
-    {
-        throw std::runtime_error(
-            "unexpected version byte on secret key base58 seed");
-    }
-
-    if (pair.second.size() != crypto_sign_SEEDBYTES)
-    {
-        throw std::runtime_error(
-            "unexpected base58 seed length for secret key");
-    }
-
-    PublicKey pk;
-    SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPE_ED25519);
-    if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
-                                 pair.second.data()) != 0)
     {
         throw std::runtime_error("error generating secret key from seed");
     }
@@ -314,21 +272,6 @@ PubKeyUtils::fromStrKey(std::string const& s)
     return pk;
 }
 
-std::string
-PubKeyUtils::toBase58(PublicKey const& pk)
-{
-    // uses B58_PUBKEY_ED25519 prefix for ed25519
-    return toBase58Check(B58_PUBKEY_ED25519, pk.ed25519());
-}
-
-PublicKey
-PubKeyUtils::fromBase58(std::string const& s)
-{
-    PublicKey pk;
-    pk.ed25519() = fromBase58Check256(B58_PUBKEY_ED25519, s);
-    return pk;
-}
-
 SignatureHint
 PubKeyUtils::getHint(PublicKey const& pk)
 {
@@ -359,7 +302,6 @@ logPublicKey(std::ostream& s, PublicKey const& pk)
 {
     s << "PublicKey:" << std::endl
       << "  strKey: " << PubKeyUtils::toStrKey(pk) << std::endl
-      << "  base58: " << PubKeyUtils::toBase58(pk) << std::endl
       << "  hex: " << binToHex(pk.ed25519()) << std::endl;
 }
 
@@ -367,8 +309,7 @@ static void
 logSecretKey(std::ostream& s, SecretKey const& sk)
 {
     s << "Seed:" << std::endl
-      << "  strKey: " << sk.getStrKeySeed() << std::endl
-      << "  base58: " << sk.getBase58Seed() << std::endl;
+      << "  strKey: " << sk.getStrKeySeed() << std::endl;
     logPublicKey(s, sk.getPublicKey());
 }
 
@@ -402,29 +343,11 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
     catch (...)
     {
     }
-    try
-    {
-        PublicKey pk = PubKeyUtils::fromBase58(key);
-        logPublicKey(s, pk);
-        return;
-    }
-    catch (...)
-    {
-    }
 
     // see if it's a seed
     try
     {
         SecretKey sk = SecretKey::fromStrKeySeed(key);
-        logSecretKey(s, sk);
-        return;
-    }
-    catch (...)
-    {
-    }
-    try
-    {
-        SecretKey sk = SecretKey::fromBase58Seed(key);
         logSecretKey(s, sk);
         return;
     }

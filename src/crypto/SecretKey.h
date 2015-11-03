@@ -37,17 +37,11 @@ class SecretKey
     // Get the seed portion of this secret key.
     Seed getSeed() const;
 
-    // Get the seed portion of this secret key as as Base58Check string.
+    // Get the seed portion of this secret key as a StrKey string.
     std::string getStrKeySeed() const;
 
-    // Get the public key portion of this secret key as as Base58Check string.
+    // Get the public key portion of this secret key as a StrKey string.
     std::string getStrKeyPublic() const;
-
-    // Get the seed portion of this secret key as as Base58Check string.
-    std::string getBase58Seed() const;
-
-    // Get the public key portion of this secret key as as Base58Check string.
-    std::string getBase58Public() const;
 
     // Return true iff this key is all-zero.
     bool isZero() const;
@@ -60,9 +54,6 @@ class SecretKey
 
     // Decode a secret key from a provided StrKey seed value.
     static SecretKey fromStrKeySeed(std::string const& strKeySeed);
-
-    // Decode a secret key from a provided Base58Check seed value.
-    static SecretKey fromBase58Seed(std::string const& base58Seed);
 
     // Decode a secret key from a binary seed value.
     static SecretKey fromSeed(ByteSlice const& seed);
@@ -89,10 +80,6 @@ std::string toShortString(PublicKey const& pk);
 std::string toStrKey(PublicKey const& pk);
 
 PublicKey fromStrKey(std::string const& s);
-
-std::string toBase58(PublicKey const& pk);
-
-PublicKey fromBase58(std::string const& s);
 
 // returns hint from key
 SignatureHint getHint(PublicKey const& pk);
