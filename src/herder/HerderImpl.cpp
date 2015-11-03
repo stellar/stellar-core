@@ -111,8 +111,9 @@ HerderImpl::HerderImpl(Application& app)
     , mLedgerManager(app.getLedgerManager())
     , mSCPMetrics(app)
 {
-    Hash hash = sha256(xdr::xdr_to_opaque(app.getConfig().QUORUM_SET));
-    mPendingEnvelopes.recvSCPQuorumSet(hash, app.getConfig().QUORUM_SET);
+    Hash hash = mSCP.getLocalNode()->getQuorumSetHash();
+    mPendingEnvelopes.recvSCPQuorumSet(hash,
+                                       mSCP.getLocalNode()->getQuorumSet());
 }
 
 HerderImpl::~HerderImpl()
