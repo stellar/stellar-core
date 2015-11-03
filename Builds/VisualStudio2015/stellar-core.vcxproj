@@ -151,7 +151,6 @@
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketTests.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
-    <ClCompile Include="..\..\src\crypto\Base58.cpp" />
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
@@ -313,7 +312,6 @@
     <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h" />
     <ClInclude Include="..\..\src\bucket\FutureBucket.h" />
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
-    <ClInclude Include="..\..\src\crypto\Base58.h" />
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\ECDH.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
