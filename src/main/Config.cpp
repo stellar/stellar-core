@@ -704,7 +704,9 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
         }
         if (!resolveNodeID(configStr, retKey))
         {
-            throw std::invalid_argument("unknown key in config");
+            std::stringstream msg;
+            msg << "unknown key in config: " << configStr;
+            throw std::invalid_argument(msg.str());
         }
     }
     else
@@ -739,7 +741,9 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                 if (!VALIDATOR_NAMES.emplace(std::make_pair(nodestr,
                                                             commonName)).second)
                 {
-                    throw std::invalid_argument("naming node twice");
+                    std::stringstream msg;
+                    msg  << "naming node twice: "<< commonName;
+                    throw std::invalid_argument(msg.str());
                 }
             }
         }
