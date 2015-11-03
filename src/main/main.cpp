@@ -21,6 +21,7 @@
 #include "database/Database.h"
 #include "bucket/Bucket.h"
 #include "util/optional.h"
+#include <locale>
 
 _INITIALIZE_EASYLOGGINGPP
 
@@ -118,7 +119,35 @@ sendCommand(std::string const& command, const std::vector<char*>& rest,
 {
     std::string ret;
     std::ostringstream path;
-    path << "/" << command;
+
+    path << "/";
+    bool gotCommand = false;
+
+    std::locale loc("C");
+
+    for (auto const& c : command)
+    {
+        if (gotCommand)
+        {
+            if (std::isalnum(c, loc))
+            {
+                path << c;
+            }
+            else
+            {
+                path << '%' << std::hex << std::setw(2) << std::setfill('0')
+                     << (unsigned int)c;
+            }
+        }
+        else
+        {
+            path << c;
+            if (c == '?')
+            {
+                gotCommand = true;
+            }
+        }
+    }
 
     int code = http_request("127.0.0.1", path.str(), port, ret);
     if (code == 200)
