@@ -606,7 +606,7 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
         else
         {
-            if (!mApp.getConfig().resolveNodeID(nID, n))
+            if (!mApp.getHerder().resolveNodeID(nID, n))
             {
                 throw std::invalid_argument("unknown name");
             }
