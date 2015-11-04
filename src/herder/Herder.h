@@ -111,6 +111,9 @@ class Herder
     virtual bool isQuorumSetSane(NodeID const& nodeID,
                                  SCPQuorumSet const& qSet) = 0;
 
+    // lookup a nodeID in config and in SCP messages
+    virtual bool resolveNodeID(std::string const& s, PublicKey& retKey) = 0;
+
     virtual ~Herder()
     {
     }

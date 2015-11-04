@@ -120,6 +120,8 @@ class HerderImpl : public Herder, public SCPDriver
     bool isQuorumSetSane(NodeID const& nodeID,
                          SCPQuorumSet const& qSet) override;
 
+    bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
+
     void dumpInfo(Json::Value& ret) override;
     void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
                         uint64 index) override;

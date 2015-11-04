@@ -742,7 +742,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                                                             commonName)).second)
                 {
                     std::stringstream msg;
-                    msg  << "naming node twice: "<< commonName;
+                    msg << "naming node twice: " << commonName;
                     throw std::invalid_argument(msg.str());
                 }
             }

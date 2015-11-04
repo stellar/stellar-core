@@ -1410,6 +1410,38 @@ HerderImpl::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
     return mSCP.getLocalNode()->isQuorumSetSane(nodeID, qSet);
 }
 
+bool
+HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
+{
+    bool r = mApp.getConfig().resolveNodeID(s, retKey);
+    if (!r)
+    {
+        if (s.size() > 1 && s[0] == '@')
+        {
+            std::string arg = s.substr(1);
+            // go through SCP messages of the previous ledger
+            // (to increase the chances of finding the node)
+            uint32 seq = getCurrentLedgerSeq();
+            if (seq > 2)
+            {
+                seq--;
+            }
+            auto const& envelopes = mSCP.getCurrentState(seq);
+            for (auto const& e : envelopes)
+            {
+                std::string curK = PubKeyUtils::toStrKey(e.statement.nodeID);
+                if (curK.compare(0, arg.size(), arg) == 0)
+                {
+                    retKey = e.statement.nodeID;
+                    r = true;
+                    break;
+                }
+            }
+        }
+    }
+    return r;
+}
+
 // Extra SCP methods overridden solely to increment metrics.
 void
 HerderImpl::updatedCandidateValue(uint64 slotIndex, Value const& value)
