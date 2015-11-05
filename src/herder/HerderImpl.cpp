@@ -28,6 +28,7 @@
 #include <ctime>
 
 using namespace std;
+using namespace soci;
 
 namespace stellar
 {
@@ -610,6 +611,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // we do not want it to trigger while downloading the current set
     // and there is no point in taking a position after the round is over
     mTriggerTimer.cancel();
+
+    // save the SCP messages in the database
+    saveSCPHistory(slotIndex);
 
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
@@ -1667,6 +1671,114 @@ HerderImpl::herderOutOfSync()
     mLastTrackingSCP.reset(mTrackingSCP.release());
 
     processSCPQueue();
+}
+
+void
+HerderImpl::saveSCPHistory(uint64 index)
+{
+    uint32 seq = static_cast<uint32>(index);
+
+    auto envs = mSCP.getExternalizingState(seq);
+    if (!envs.empty())
+    {
+        std::unordered_map<Hash, SCPQuorumSetPtr> usedQSets;
+
+        auto& db = mApp.getDatabase();
+
+        soci::transaction txscope(db.getSession());
+
+        {
+            auto prepClean = db.getPreparedStatement(
+                "DELETE FROM scphistory WHERE ledgerseq =:l");
+
+            auto& st = prepClean.statement();
+            st.exchange(use(seq));
+            st.define_and_bind();
+            {
+                auto timer = db.getDeleteTimer("scphistory");
+                st.execute(true);
+            }
+        }
+        for (auto const& e : envs)
+        {
+            auto const& qHash =
+                Slot::getCompanionQuorumSetHashFromStatement(e.statement);
+            usedQSets.insert(std::make_pair(qHash, getQSet(qHash)));
+
+            std::string nodeIDStrKey =
+                PubKeyUtils::toStrKey(e.statement.nodeID);
+
+            auto envelopeBytes(xdr::xdr_to_opaque(e));
+
+            std::string envelopeEncoded;
+            envelopeEncoded = bn::encode_b64(envelopeBytes);
+
+            auto prepEnv =
+                db.getPreparedStatement("INSERT INTO scphistory "
+                                        "(nodeid, ledgerseq, envelope) VALUES "
+                                        "(:n, :l, :e)");
+
+            auto& st = prepEnv.statement();
+            st.exchange(use(nodeIDStrKey));
+            st.exchange(use(seq));
+            st.exchange(use(envelopeEncoded));
+            st.define_and_bind();
+            {
+                auto timer = db.getInsertTimer("scphistory");
+                st.execute(true);
+            }
+            if (st.get_affected_rows() != 1)
+            {
+                throw std::runtime_error("Could not update data in SQL");
+            }
+        }
+
+        for (auto const& p : usedQSets)
+        {
+            std::string qSetH = binToHex(p.first);
+
+            auto prepUpQSet = db.getPreparedStatement(
+                "UPDATE scpquorums SET "
+                "lastledgerseq = :l WHERE qsethash = :h");
+
+            auto& stUp = prepUpQSet.statement();
+            stUp.exchange(use(seq));
+            stUp.exchange(use(qSetH));
+            stUp.define_and_bind();
+            {
+                auto timer = db.getInsertTimer("scpquorums");
+                stUp.execute(true);
+            }
+            if (stUp.get_affected_rows() != 1)
+            {
+                auto qSetBytes(xdr::xdr_to_opaque(*p.second));
+
+                std::string qSetEncoded;
+                qSetEncoded = bn::encode_b64(qSetBytes);
+
+                auto prepInsQSet = db.getPreparedStatement(
+                    "INSERT INTO scpquorums "
+                    "(qsethash, lastledgerseq, qset) VALUES "
+                    "(:h, :l, :v);");
+
+                auto& stIns = prepInsQSet.statement();
+                stIns.exchange(use(qSetH));
+                stIns.exchange(use(seq));
+                stIns.exchange(use(qSetEncoded));
+                stIns.define_and_bind();
+                {
+                    auto timer = db.getInsertTimer("scpquorums");
+                    stIns.execute(true);
+                }
+                if (stIns.get_affected_rows() != 1)
+                {
+                    throw std::runtime_error("Could not update data in SQL");
+                }
+            }
+        }
+
+        txscope.commit();
+    }
 }
 
 void
