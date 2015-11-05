@@ -118,6 +118,21 @@ ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this transaction got ap
 txindex | INT NOT NULL | Apply order (per ledger, 1)
 txchanges | TEXT NOT NULL | LedgerEntryChanges (XDR)
 
+## scphistory
+Field | Type | Description
+------|------|---------------
+nodeid | CHARACTER(56) NOT NULL | (STRKEY)
+ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this transaction got applied
+envelope | TEXT NOT NULL | (XDR)
+
+## scpquorums
+Field | Type | Description
+------|------|---------------
+qsethash | CHARACTER(64) NOT NULL | hash of quorum set (HEX)
+lastledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this quorum set was last seen
+qset | TEXT NOT NULL | (XDR)
+
+
 ## storestate
 
 Defined in [`src/main/PersistantState.cpp`](/src/main/PersistantState.cpp)

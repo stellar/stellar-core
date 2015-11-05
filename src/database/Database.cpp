@@ -22,6 +22,7 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "bucket/BucketManager.h"
+#include "herder/Herder.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -49,7 +50,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 1;
+static unsigned long const SCHEMA_VERSION = 2;
 
 static void
 setSerializable(soci::session& sess)
@@ -96,12 +97,13 @@ Database::Database(Application& app)
     }
 }
 
-static void
-applySchemaUpgrade(Database& db, unsigned long vers)
+void
+Database::applySchemaUpgrade(unsigned long vers)
 {
     switch (vers)
     {
-    case SCHEMA_VERSION:
+    case 2:
+        Herder::dropAll(*this);
         break;
 
     default:
@@ -126,7 +128,7 @@ Database::upgradeToCurrentSchema()
         ++vers;
         CLOG(INFO, "Database") << "Applying DB schema upgrade to version "
                                << vers;
-        applySchemaUpgrade(*this, vers);
+        applySchemaUpgrade(vers);
         putSchemaVersion(vers);
     }
     assert(vers == SCHEMA_VERSION);
@@ -246,6 +248,11 @@ void
 Database::initialize()
 {
     clearPreparedStatementCache();
+    // normally you do not want to touch this section as
+    // schema updates are done in applySchemaUpgrade
+
+    // only time this section should be modified is when
+    // consolidating changes found in applySchemaUpgrade here
     AccountFrame::dropAll(*this);
     OfferFrame::dropAll(*this);
     TrustFrame::dropAll(*this);
@@ -256,7 +263,7 @@ Database::initialize()
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     BucketManager::dropAll(mApp);
-    putSchemaVersion(SCHEMA_VERSION);
+    putSchemaVersion(1);
 }
 
 soci::session&

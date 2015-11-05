@@ -332,6 +332,8 @@ TEST_CASE("schema test", "[db]")
 
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
+    app->start();
+
     auto& db = app->getDatabase();
     auto dbv = db.getDBSchemaVersion();
     auto av = db.getAppSchemaVersion();

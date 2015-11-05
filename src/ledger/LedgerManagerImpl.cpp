@@ -769,6 +769,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
     TransactionFrame::deleteOldEntries(db, ledgerSeq);
+    Herder::deleteOldEntries(db, ledgerSeq);
 }
 
 void

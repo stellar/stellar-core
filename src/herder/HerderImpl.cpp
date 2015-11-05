@@ -1668,4 +1668,36 @@ HerderImpl::herderOutOfSync()
 
     processSCPQueue();
 }
+
+void
+Herder::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS scphistory";
+
+    db.getSession() << "DROP TABLE IF EXISTS scpquorums";
+
+    db.getSession() << "CREATE TABLE scphistory ("
+                       "nodeid      CHARACTER(56) NOT NULL,"
+                       "ledgerseq   INT NOT NULL CHECK (ledgerseq >= 0),"
+                       "envelope    TEXT NOT NULL"
+                       ")";
+
+    db.getSession() << "CREATE INDEX scpenvsbyseq ON scphistory(ledgerseq)";
+
+    db.getSession() << "CREATE TABLE scpquorums ("
+                       "qsethash      CHARACTER(64) NOT NULL,"
+                       "lastledgerseq INT NOT NULL CHECK (lastledgerseq >= 0),"
+                       "qset          TEXT NOT NULL,"
+                       "PRIMARY KEY (qsethash)"
+                       ")";
+}
+
+void
+Herder::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+{
+    db.getSession() << "DELETE FROM scphistory WHERE ledgerseq <= "
+                    << ledgerSeq;
+    db.getSession() << "DELETE FROM scpquorums WHERE lastledgerseq <= "
+                    << ledgerSeq;
+}
 }
