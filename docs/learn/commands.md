@@ -97,7 +97,8 @@ debugging purpose).
   The actual deletion is performed by invoking the `maintenance` endpoint.
 
 * **scp**
-  Returns a JSON object with the internal state of the SCP engine.
+  `/scp?[limit=n]
+  Returns a JSON object with the internal state of the SCP engine for the last n (default 2) ledgers.
 
 * **tx**
   `/tx?blob=Base64`<br>

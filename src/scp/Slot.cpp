@@ -265,12 +265,26 @@ Slot::dumpInfo(Json::Value& ret)
 
     Json::Value& slotValue = slots[std::to_string(mSlotIndex)];
 
+    std::map<Hash, SCPQuorumSetPtr> qSetsUsed;
+
     int count = 0;
     for (auto const& item : mStatementsHistory)
     {
         Json::Value& v = slotValue["statements"][count++];
         v.append(envToStr(item.first));
         v.append(item.second);
+
+        Hash const& qSetHash =
+            getCompanionQuorumSetHashFromStatement(item.first);
+        auto qSet = getSCPDriver().getQSet(qSetHash);
+        qSetsUsed.insert(std::make_pair(qSetHash, qSet));
+    }
+
+    auto& qSets = slotValue["quorum_sets"];
+    for (auto const& q : qSetsUsed)
+    {
+        auto& qs = qSets[hexAbbrev(q.first)];
+        getLocalNode()->toJson(*q.second, qs);
     }
 
     slotValue["validated"] = mFullyValidated;
@@ -326,7 +340,7 @@ Slot::envToStr(SCPStatement const& st) const
 {
     std::ostringstream oss;
 
-    Hash qSetHash = getCompanionQuorumSetHashFromStatement(st);
+    Hash const& qSetHash = getCompanionQuorumSetHashFromStatement(st);
 
     oss << "{ENV@" << getSCPDriver().toShortString(st.nodeID) << " | "
         << " i: " << st.slotIndex;

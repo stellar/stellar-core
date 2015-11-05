@@ -122,7 +122,7 @@ class HerderImpl : public Herder, public SCPDriver
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
-    void dumpInfo(Json::Value& ret) override;
+    void dumpInfo(Json::Value& ret, size_t limit) override;
     void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
                         uint64 index) override;
 
