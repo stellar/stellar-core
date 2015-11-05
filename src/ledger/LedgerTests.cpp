@@ -11,6 +11,7 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/EntryFrame.h"
+#include "ledger/AccountFrame.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include <xdrpp/autocheck.h>
