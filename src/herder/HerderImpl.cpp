@@ -1474,11 +1474,11 @@ HerderImpl::acceptedCommit(uint64 slotIndex, SCPBallot const& ballot)
 }
 
 void
-HerderImpl::dumpInfo(Json::Value& ret)
+HerderImpl::dumpInfo(Json::Value& ret, size_t limit)
 {
     ret["you"] = mApp.getConfig().toStrKey(mSCP.getSecretKey().getPublicKey());
 
-    mSCP.dumpInfo(ret);
+    mSCP.dumpInfo(ret, limit);
 
     mPendingEnvelopes.dumpInfo(ret);
 }

@@ -74,7 +74,7 @@ class SCP
     // returns the local node descriptor
     std::shared_ptr<LocalNode> getLocalNode();
 
-    void dumpInfo(Json::Value& ret);
+    void dumpInfo(Json::Value& ret, size_t limit);
 
     // summary: only return object counts
     // index = 0 for returning information for all slots
