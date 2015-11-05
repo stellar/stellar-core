@@ -1724,6 +1724,36 @@ BallotProtocol::getCurrentState() const
     return res;
 }
 
+std::vector<SCPEnvelope>
+BallotProtocol::getExternalizingState() const
+{
+    std::vector<SCPEnvelope> res;
+    if (mPhase == SCP_PHASE_EXTERNALIZE)
+    {
+        res.reserve(mLatestEnvelopes.size());
+        for (auto const& n : mLatestEnvelopes)
+        {
+            if (!(n.first == mSlot.getSCP().getLocalNodeID()))
+            {
+                // good approximation: statements with the value that
+                // externalized
+                // we could filter more using mConfirmedPrepared as well
+                if (areBallotsCompatible(getWorkingBallot(n.second.statement),
+                                         *mCommit))
+                {
+                    res.emplace_back(n.second);
+                }
+            }
+            else if (mSlot.isFullyValidated())
+            {
+                // only return messages for self if the slot is fully validated
+                res.emplace_back(n.second);
+            }
+        }
+    }
+    return res;
+}
+
 void
 BallotProtocol::advanceSlot(SCPStatement const& hint)
 {

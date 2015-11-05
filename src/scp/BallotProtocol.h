@@ -109,6 +109,8 @@ class BallotProtocol
 
     std::vector<SCPEnvelope> getCurrentState() const;
 
+    std::vector<SCPEnvelope> getExternalizingState() const;
+
   private:
     // attempts to make progress using the latest statement as a hint
     // calls into the various attempt* methods, emits message
