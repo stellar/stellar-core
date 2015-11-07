@@ -44,7 +44,7 @@ class BallotProtocol
     std::unique_ptr<SCPBallot> mCurrentBallot;      // b
     std::unique_ptr<SCPBallot> mPrepared;           // p
     std::unique_ptr<SCPBallot> mPreparedPrime;      // p'
-    std::unique_ptr<SCPBallot> mConfirmedPrepared;  // P
+    std::unique_ptr<SCPBallot> mHighBallot;         // h
     std::unique_ptr<SCPBallot> mCommit;             // c
     std::map<NodeID, SCPEnvelope> mLatestEnvelopes; // M
     SCPPhase mPhase;                                // Phi
@@ -120,7 +120,7 @@ class BallotProtocol
     // reached or not. They are called by `advanceSlot` and drive the call of
     // the `attempt*` methods.
 
-    // step 1 and 4 from the SCP paper
+    // step 1 and 6 from the SCP paper
     // ballot is the candidate to record as 'prepared'
     bool isPreparedAccept(SCPBallot const& ballot);
     bool attemptPreparedAccept(SCPBallot const& ballot);
@@ -130,19 +130,28 @@ class BallotProtocol
     bool isPreparedConfirmed(SCPBallot const& ballot);
     bool attemptPreparedConfirmed(SCPBallot const& ballot);
 
-    // step 3 and 5 from the SCP paper
+    // step 3 from the SCP paper
+    // XXX
+
+    // step 4 from the SCP paper
+    // XXX
+
+    // step 5 and 7 from the SCP paper
     // ballot is used as a hint to find compatible ballots that the instance
     // should accept commit
-    // on success, sets (outLow, outHigh) to the new values for (c, P)
+    // on success, sets (outLow, outHigh) to the new values for (c, h)
     bool isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
                         SCPBallot& outHigh);
     bool attemptAcceptCommit(SCPBallot const& acceptCommitLow,
                              SCPBallot const& acceptCommitHigh);
 
-    // step 6 from the SCP paper
+    // step 8 from the SCP paper
+    // XXX
+
+    // step 9 from the SCP paper
     // ballot is used as a hint to find compatible ballots that can be
     // ratified commit.
-    // on success, sets (outLow, outHigh) to the new values for (c, P)
+    // on success, sets (outLow, outHigh) to the new values for (c, h)
     bool isConfirmCommit(SCPBallot const& ballot, SCPBallot& outLow,
                          SCPBallot& outHigh);
     bool attemptConfirmCommit(SCPBallot const& acceptCommitLow,

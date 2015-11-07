@@ -234,13 +234,13 @@ makeEnvelope(SecretKey const& secretKey, uint64 slotIndex,
 
 static SCPEnvelope
 makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
-                uint64 slotIndex, SCPBallot const& commitBallot, uint32 nP)
+                uint64 slotIndex, SCPBallot const& commitBallot, uint32 nH)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_EXTERNALIZE);
     auto& ext = st.pledges.externalize();
     ext.commit = commitBallot;
-    ext.nP = nP;
+    ext.nH = nH;
     ext.commitQuorumSetHash = qSetHash;
 
     return makeEnvelope(secretKey, slotIndex, st);
@@ -248,14 +248,15 @@ makeExternalize(SecretKey const& secretKey, Hash const& qSetHash,
 
 static SCPEnvelope
 makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
-            uint32 prepareCounter, SCPBallot const& commitBallot, uint32 nP)
+            uint32 prepareCounter, SCPBallot const& b, uint32 nC, uint32 nH)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_CONFIRM);
     auto& con = st.pledges.confirm();
-    con.commit = commitBallot;
+    con.ballot = b;
     con.nPrepared = prepareCounter;
-    con.nP = nP;
+    con.nCommit = nC;
+    con.nH = nH;
     con.quorumSetHash = qSetHash;
 
     return makeEnvelope(secretKey, slotIndex, st);
@@ -264,7 +265,7 @@ makeConfirm(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
 static SCPEnvelope
 makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
             SCPBallot const& ballot, SCPBallot* prepared = nullptr,
-            uint32 nC = 0, uint32 nP = 0, SCPBallot* preparedPrime = nullptr)
+            uint32 nC = 0, uint32 nH = 0, SCPBallot* preparedPrime = nullptr)
 {
     SCPStatement st;
     st.pledges.type(SCP_ST_PREPARE);
@@ -277,7 +278,7 @@ makePrepare(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
     }
 
     p.nC = nC;
-    p.nP = nP;
+    p.nH = nH;
 
     if (preparedPrime)
     {
@@ -312,30 +313,30 @@ makeNominate(SecretKey const& secretKey, Hash const& qSetHash, uint64 slotIndex,
 void
 verifyPrepare(SCPEnvelope const& actual, SecretKey const& secretKey,
               Hash const& qSetHash, uint64 slotIndex, SCPBallot const& ballot,
-              SCPBallot* prepared = nullptr, uint32 nC = 0, uint32 nP = 0,
+              SCPBallot* prepared = nullptr, uint32 nC = 0, uint32 nH = 0,
               SCPBallot* preparedPrime = nullptr)
 {
     auto exp = makePrepare(secretKey, qSetHash, slotIndex, ballot, prepared, nC,
-                           nP, preparedPrime);
+                           nH, preparedPrime);
     REQUIRE(exp.statement == actual.statement);
 }
 
 void
 verifyConfirm(SCPEnvelope const& actual, SecretKey const& secretKey,
               Hash const& qSetHash, uint64 slotIndex, uint32 nPrepared,
-              SCPBallot const& commit, uint32 nP)
+              SCPBallot const& b, uint32 nC, uint32 nH)
 {
     auto exp =
-        makeConfirm(secretKey, qSetHash, slotIndex, nPrepared, commit, nP);
+        makeConfirm(secretKey, qSetHash, slotIndex, nPrepared, b, nC, nH);
     REQUIRE(exp.statement == actual.statement);
 }
 
 void
 verifyExternalize(SCPEnvelope const& actual, SecretKey const& secretKey,
                   Hash const& qSetHash, uint64 slotIndex,
-                  SCPBallot const& commit, uint32 nP)
+                  SCPBallot const& commit, uint32 nH)
 {
-    auto exp = makeExternalize(secretKey, qSetHash, slotIndex, commit, nP);
+    auto exp = makeExternalize(secretKey, qSetHash, slotIndex, commit, nH);
     REQUIRE(exp.statement == actual.statement);
 }
 
@@ -688,7 +689,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scpNV.receiveEnvelope(ext3);
         REQUIRE(scpNV.mEnvs.size() == 0);
         verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                      qSetHashNV, 0, 1, b, 1);
+                      qSetHashNV, 0, 1, b, 1, 1);
         scpNV.receiveEnvelope(ext4);
         REQUIRE(scpNV.mEnvs.size() == 0);
         verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
@@ -732,17 +733,18 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(preparedC3);
         REQUIRE(scp.mEnvs.size() == 4);
 
-        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter);
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter,
+                      b.counter);
 
         // bunch of confirm messages
-        SCPEnvelope confirm1 =
-            makeConfirm(v1SecretKey, qSetHash, 0, b.counter, b, b.counter);
-        SCPEnvelope confirm2 =
-            makeConfirm(v2SecretKey, qSetHash, 0, b.counter, b, b.counter);
-        SCPEnvelope confirm3 =
-            makeConfirm(v3SecretKey, qSetHash, 0, b.counter, b, b.counter);
-        SCPEnvelope confirm4 =
-            makeConfirm(v3SecretKey, qSetHash, 0, b.counter, b, b.counter);
+        SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, b.counter,
+                                           b, b.counter, b.counter);
+        SCPEnvelope confirm2 = makeConfirm(v2SecretKey, qSetHash, 0, b.counter,
+                                           b, b.counter, b.counter);
+        SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, b.counter,
+                                           b, b.counter, b.counter);
+        SCPEnvelope confirm4 = makeConfirm(v3SecretKey, qSetHash, 0, b.counter,
+                                           b, b.counter, b.counter);
 
         // those should not trigger anything just yet
         scp.receiveEnvelope(confirm1);
@@ -790,13 +792,13 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
             SCPEnvelope confirm1b2, confirm2b2, confirm3b2, confirm4b2;
             confirm1b2 = makeConfirm(v1SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter);
+                                     b2.counter, b2.counter);
             confirm2b2 = makeConfirm(v2SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter);
+                                     b2.counter, b2.counter);
             confirm3b2 = makeConfirm(v3SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter);
+                                     b2.counter, b2.counter);
             confirm4b2 = makeConfirm(v4SecretKey, qSetHash, 0, b2.counter, b2,
-                                     b2.counter);
+                                     b2.counter, b2.counter);
 
             scp.receiveEnvelope(confirm1b2);
             scp.receiveEnvelope(confirm2b2);
@@ -834,18 +836,19 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(preparedC3);
         REQUIRE(scp.mEnvs.size() == 4);
 
-        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter);
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, b, b.counter,
+                      b.counter);
 
         // bunch of confirm messages with different ranges
         SCPBallot b5(5, xValue);
-        SCPEnvelope confirm1 =
-            makeConfirm(v1SecretKey, qSetHash, 0, 4, SCPBallot(2, xValue), 4);
-        SCPEnvelope confirm2 =
-            makeConfirm(v2SecretKey, qSetHash, 0, 6, SCPBallot(2, xValue), 6);
-        SCPEnvelope confirm3 =
-            makeConfirm(v3SecretKey, qSetHash, 0, 5, SCPBallot(3, xValue), 5);
-        SCPEnvelope confirm4 =
-            makeConfirm(v4SecretKey, qSetHash, 0, 6, SCPBallot(3, xValue), 6);
+        SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, 4,
+                                           SCPBallot(4, xValue), 2, 4);
+        SCPEnvelope confirm2 = makeConfirm(v2SecretKey, qSetHash, 0, 6,
+                                           SCPBallot(6, xValue), 2, 6);
+        SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, 5,
+                                           SCPBallot(5, xValue), 3, 5);
+        SCPEnvelope confirm4 = makeConfirm(v4SecretKey, qSetHash, 0, 6,
+                                           SCPBallot(6, xValue), 3, 6);
 
         // this should not trigger anything just yet
         scp.receiveEnvelope(confirm1);
@@ -857,7 +860,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         // as all nodes are commiting xValue
         scp.receiveEnvelope(confirm3);
         REQUIRE(scp.mEnvs.size() == 5);
-        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 5, b, 2);
+        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 5, b, 5,
+                      b.counter);
 
         // this causes to externalize
         // range is [3,4]
@@ -1192,7 +1196,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash0, 0,
                       expectedBallot.counter, expectedBallot,
-                      expectedBallot.counter);
+                      expectedBallot.counter, expectedBallot.counter);
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 1);
     }
@@ -1238,9 +1242,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                       &sourceBallot);
 
         // actual test
-        SCPEnvelope confirm1 =
-            makeConfirm(v1SecretKey, qSetHash, 0, expectedBallot.counter,
-                        expectedBallot, expectedBallot.counter);
+        SCPEnvelope confirm1 = makeConfirm(
+            v1SecretKey, qSetHash, 0, expectedBallot.counter, expectedBallot,
+            expectedBallot.counter, expectedBallot.counter);
 
         scp.receiveEnvelope(confirm1);
 
@@ -1249,9 +1253,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
-        SCPEnvelope confirm2 =
-            makeConfirm(v2SecretKey, qSetHash, 0, expectedBallot.counter,
-                        expectedBallot, expectedBallot.counter);
+        SCPEnvelope confirm2 = makeConfirm(
+            v2SecretKey, qSetHash, 0, expectedBallot.counter, expectedBallot,
+            expectedBallot.counter, expectedBallot.counter);
 
         // this causes the node to:
         // accept commit B (v-blocking criteria of accept)
@@ -1260,7 +1264,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash0, 0,
                       expectedBallot.counter, expectedBallot,
-                      expectedBallot.counter);
+                      expectedBallot.counter, expectedBallot.counter);
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
     }
@@ -1323,9 +1327,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                       &sourceBallot);
 
         // actual test
-        SCPEnvelope confirm1 =
-            makeConfirm(v1SecretKey, qSetHash, 0, expectedBallot.counter,
-                        expectedBallot, expectedBallot.counter);
+        SCPEnvelope confirm1 = makeConfirm(
+            v1SecretKey, qSetHash, 0, expectedBallot.counter, expectedBallot,
+            expectedBallot.counter, expectedBallot.counter);
 
         scp.receiveEnvelope(confirm1);
 
@@ -1334,9 +1338,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
-        SCPEnvelope confirm2 =
-            makeConfirm(v2SecretKey, qSetHash, 0, expectedBallot.counter,
-                        expectedBallot, expectedBallot.counter);
+        SCPEnvelope confirm2 = makeConfirm(
+            v2SecretKey, qSetHash, 0, expectedBallot.counter, expectedBallot,
+            expectedBallot.counter, expectedBallot.counter);
 
         // this causes the node to :
         // prepared B (v-blocking criteria of accept)
@@ -1347,7 +1351,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash0, 0,
                       expectedBallot.counter, expectedBallot,
-                      expectedBallot.counter);
+                      expectedBallot.counter, expectedBallot.counter);
 
         i++;
 
@@ -1362,15 +1366,17 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
             expectedP = acceptExtraCommit ? prepared : expectedBallot.counter;
 
-            SCPEnvelope pconfirm1 = makeConfirm(
-                v1SecretKey, qSetHash, 0, prepared, expectedBallot, expectedP);
+            SCPEnvelope pconfirm1 =
+                makeConfirm(v1SecretKey, qSetHash, 0, prepared, expectedBallot,
+                            expectedBallot.counter, expectedP);
 
             scp.receiveEnvelope(pconfirm1);
 
             REQUIRE(scp.mEnvs.size() == i);
 
-            SCPEnvelope pconfirm2 = makeConfirm(
-                v2SecretKey, qSetHash, 0, prepared, expectedBallot, expectedP);
+            SCPEnvelope pconfirm2 =
+                makeConfirm(v2SecretKey, qSetHash, 0, prepared, expectedBallot,
+                            expectedBallot.counter, expectedP);
 
             scp.receiveEnvelope(pconfirm2);
 
@@ -1379,15 +1385,16 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             // bumps 'p' (v-blocking) and
             // if acceptExtraCommit: P (v-blocking)
             verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash0, 0, prepared,
-                          expectedBallot, expectedP);
+                          expectedBallot, expectedBallot.counter, expectedP);
 
             i++;
         }
 
         REQUIRE(scp.mHeardFromQuorums[0].size() == 0);
 
-        SCPEnvelope confirm3 = makeConfirm(v3SecretKey, qSetHash, 0, prepared,
-                                           expectedBallot, expectedP);
+        SCPEnvelope confirm3 =
+            makeConfirm(v3SecretKey, qSetHash, 0, prepared, expectedBallot,
+                        expectedP, expectedP);
 
         // this causes:
         // confirm commit c -> EXTERNALIZE
@@ -1444,8 +1451,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         // quorum accepts commit (1,x)
         // -> we confirm commit (1,x)
         REQUIRE(scp.mEnvs.size() == 4);
-        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1,
-                      expectedBallot, 1);
+        verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 1, expectedBallot,
+                      1, 1);
     }
     SECTION("single prepared(1,y) on pristine slot should not bump")
     {
@@ -1459,8 +1466,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     {
         SCPBallot b(1, yValue);
 
-        SCPEnvelope confirm1 =
-            makeConfirm(v1SecretKey, qSetHash, 0, b.counter, b, b.counter);
+        SCPEnvelope confirm1 = makeConfirm(v1SecretKey, qSetHash, 0, b.counter,
+                                           b, b.counter, b.counter);
 
         scp.receiveEnvelope(confirm1);
         REQUIRE(scp.mEnvs.size() == 0);
@@ -1621,7 +1628,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(makePrepare(v2SecretKey, qSetHash, 0, x1, &x1));
         scp.receiveEnvelope(makePrepare(v3SecretKey, qSetHash, 0, x1, &x1));
         scp.receiveEnvelope(makePrepare(v4SecretKey, qSetHash, 0, x1, &x1));
-        // quorum -> set nP=1
+        // quorum -> set nH=1
         REQUIRE(scp.mEnvs.size() == 4);
         verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x2, &x1, 0, 1);
 
@@ -1650,11 +1657,11 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(scp.mEnvs.size() == 6);
         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x2, &x2, 2, 2);
 
-        scp.receiveEnvelope(makeConfirm(v2SecretKey, qSetHash, 0, 2, x1, 1));
-        scp.receiveEnvelope(makeConfirm(v3SecretKey, qSetHash, 0, 2, x1, 1));
+        scp.receiveEnvelope(makeConfirm(v2SecretKey, qSetHash, 0, 2, x2, 1, 1));
+        scp.receiveEnvelope(makeConfirm(v3SecretKey, qSetHash, 0, 2, x2, 1, 1));
         // v-blocking commit (1,x) -> accept (1,x)
         REQUIRE(scp.mEnvs.size() == 7);
-        verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0, 0, 2, x1, 1);
+        verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0, 0, 2, x1, 1, 1);
     }
 
     SECTION("timeout after prepare, receive old messages to prepare")
@@ -1699,7 +1706,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         scp.receiveEnvelope(
             makePrepare(v3SecretKey, qSetHash, 0, x2, &x2, 1, 2));
-        // quorum -> set nP=2
+        // quorum -> set nH=2
         REQUIRE(scp.mEnvs.size() == 6);
         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x3, &x2, 0, 2);
     }
@@ -1716,12 +1723,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         SECTION("confirm")
         {
             scp2.mSCP.setStateFromEnvelope(
-                0, makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 3));
+                0, makeConfirm(v0SecretKey, qSetHash0, 0, 2, b, 1, 2));
         }
         SECTION("externalize")
         {
             scp2.mSCP.setStateFromEnvelope(
-                0, makeExternalize(v0SecretKey, qSetHash0, 0, b, 3));
+                0, makeExternalize(v0SecretKey, qSetHash0, 0, b, 2));
         }
     }
 }

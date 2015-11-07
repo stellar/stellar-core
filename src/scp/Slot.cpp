@@ -353,23 +353,24 @@ Slot::envToStr(SCPStatement const& st) const
             << " | D: " << hexAbbrev(qSetHash)
             << " | b: " << ballotToStr(p.ballot)
             << " | p: " << ballotToStr(p.prepared)
-            << " | p': " << ballotToStr(p.preparedPrime) << " | nc: " << p.nC
-            << " | nP: " << p.nP;
+            << " | p': " << ballotToStr(p.preparedPrime) << " | c.n: " << p.nC
+            << " | h.n: " << p.nH;
     }
     break;
     case SCPStatementType::SCP_ST_CONFIRM:
     {
         auto const& c = st.pledges.confirm();
         oss << " | CONFIRM"
-            << " | D: " << hexAbbrev(qSetHash) << " | np: " << c.nPrepared
-            << " | c: " << ballotToStr(c.commit) << " | nP: " << c.nP;
+            << " | D: " << hexAbbrev(qSetHash)
+            << " | b: " << ballotToStr(c.ballot) << " | p.n: " << c.nPrepared
+            << " | c.n: " << c.nCommit << " | h.n: " << c.nH;
     }
     break;
     case SCPStatementType::SCP_ST_EXTERNALIZE:
     {
         auto const& ex = st.pledges.externalize();
         oss << " | EXTERNALIZE"
-            << " | c: " << ballotToStr(ex.commit) << " | nP: " << ex.nP
+            << " | c: " << ballotToStr(ex.commit) << " | h.n: " << ex.nH
             << " | (lastD): " << hexAbbrev(qSetHash);
     }
     break;
