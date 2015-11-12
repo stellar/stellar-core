@@ -149,7 +149,7 @@ BallotProtocol::recordEnvelope(SCPEnvelope const& env)
 }
 
 SCP::EnvelopeState
-BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
+BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
 {
     SCP::EnvelopeState res = SCP::EnvelopeState::INVALID;
     dbgAssert(envelope.statement.slotIndex == mSlot.getSlotIndex());
@@ -157,7 +157,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
     SCPStatement const& statement = envelope.statement;
     NodeID const& nodeID = statement.nodeID;
 
-    if (!isStatementSane(statement))
+    if (!isStatementSane(statement, self))
     {
         return SCP::EnvelopeState::INVALID;
     }
@@ -219,7 +219,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope)
 }
 
 bool
-BallotProtocol::isStatementSane(SCPStatement const& st)
+BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 {
     bool res = mSlot.getLocalNode()->isQuorumSetSane(
         st.nodeID, *mSlot.getQuorumSetFromStatement(st));
@@ -234,7 +234,8 @@ BallotProtocol::isStatementSane(SCPStatement const& st)
     case SCPStatementType::SCP_ST_PREPARE:
     {
         auto const& p = st.pledges.prepare();
-        bool isOK = p.ballot.counter > 0;
+        // self is allowed to have b = 0 (as long as it never gets emitted)
+        bool isOK = self || p.ballot.counter > 0;
 
         isOK = isOK &&
                ((!p.preparedPrime || !p.prepared) ||
@@ -495,7 +496,10 @@ BallotProtocol::createStatement(SCPStatementType const& type)
     {
         auto& p = statement.pledges.prepare();
         p.quorumSetHash = getLocalNode()->getQuorumSetHash();
-        p.ballot = *mCurrentBallot;
+        if (mCurrentBallot)
+        {
+            p.ballot = *mCurrentBallot;
+        }
         if (mCommit)
         {
             p.nC = mCommit->counter;
@@ -564,10 +568,13 @@ BallotProtocol::emitCurrentStateStatement()
     SCPStatement statement = createStatement(t);
     SCPEnvelope envelope = mSlot.createEnvelope(statement);
 
-    if (mSlot.processEnvelope(envelope) == SCP::EnvelopeState::VALID)
+    bool canEmit = (mCurrentBallot != nullptr);
+
+    if (mSlot.processEnvelope(envelope, true) == SCP::EnvelopeState::VALID)
     {
-        if (!mLastEnvelope ||
-            isNewerStatement(mLastEnvelope->statement, envelope.statement))
+        if (canEmit &&
+            (!mLastEnvelope ||
+             isNewerStatement(mLastEnvelope->statement, envelope.statement)))
         {
             mLastEnvelope = make_unique<SCPEnvelope>(envelope);
             // this will no-op if invoked from advanceSlot
@@ -596,6 +603,7 @@ BallotProtocol::checkInvariants()
     }
     if (mCommit)
     {
+        dbgAssert(mCurrentBallot);
         dbgAssert(areBallotsLessAndCompatible(*mCommit, *mHighBallot));
         dbgAssert(areBallotsLessAndCompatible(*mHighBallot, *mCurrentBallot));
     }
@@ -797,34 +805,7 @@ BallotProtocol::setPreparedAccept(SCPBallot const& ballot)
                        << " b: " << mSlot.ballotToStr(ballot);
 
     // update our state
-    bool didWork = false;
-
-    // as a new ballot prepared, we also see if we can bump b
-    // as there is no point in waiting to trigger the logic in attemptPrepare
-    if (!mCurrentBallot)
-    {
-        bumpToBallot(ballot);
-        didWork = true;
-    }
-    else if (mPhase == SCP_PHASE_PREPARE)
-    {
-        int comp = compareBallots(*mCurrentBallot, ballot);
-        if (comp < 0)
-        {
-            bumpToBallot(ballot);
-            didWork = true;
-        }
-        else if (comp > 0)
-        {
-            // we received an old message that allows to update p
-            // after bumping b (receive some messages after timing out
-            // most likely)
-            CLOG(DEBUG, "SCP") << "BallotProtocol::attemptPreparedAccept "
-                                  "updating p/p' after bumping b";
-        }
-    }
-
-    didWork = setPrepared(ballot) || didWork;
+    bool didWork = setPrepared(ballot);
 
     // check if we also need to clear 'c'
     if (mCommit && mHighBallot)

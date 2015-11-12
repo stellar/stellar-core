@@ -37,7 +37,7 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope)
     }
 
     uint64 slotIndex = envelope.statement.slotIndex;
-    return getSlot(slotIndex, true)->processEnvelope(envelope);
+    return getSlot(slotIndex, true)->processEnvelope(envelope, false);
 }
 
 bool

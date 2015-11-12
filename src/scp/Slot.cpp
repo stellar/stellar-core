@@ -96,7 +96,7 @@ Slot::recordStatement(SCPStatement const& st)
 }
 
 SCP::EnvelopeState
-Slot::processEnvelope(SCPEnvelope const& envelope)
+Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
 {
     dbgAssert(envelope.statement.slotIndex == mSlotIndex);
 
@@ -115,7 +115,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
         }
         else
         {
-            res = mBallotProtocol.processEnvelope(envelope);
+            res = mBallotProtocol.processEnvelope(envelope, self);
         }
     }
     catch (...)

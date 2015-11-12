@@ -88,8 +88,9 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // Process a newly received envelope for this slot and update the state of
     // the slot accordingly.
-    // Must exclusively receive envelopes whose payload type is STATEMENT
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+    // self: set to true when node wants to record its own messages (potentially
+    // triggering more transitions)
+    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope, bool self);
 
     bool abandonBallot();
 

@@ -58,10 +58,10 @@ class BallotProtocol
     BallotProtocol(Slot& slot);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. `cb` asynchronously returns whether the envelope
-    // was validated or not. Must exclusively receive envelopes whose payload
-    // type is STATEMENT
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+    // the slot accordingly.
+    // self: set to true when node feeds its own statements in order to
+    // trigger more potential state changes
+    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope, bool self);
 
     void ballotProtocolTimerExpired();
     // abandon's current ballot, move to a new ballot
@@ -214,7 +214,7 @@ class BallotProtocol
                                  SCPStatement const& st);
 
     // basic sanity check on statement
-    bool isStatementSane(SCPStatement const& st);
+    bool isStatementSane(SCPStatement const& st, bool self);
 
     // records the statement in the state machine
     void recordEnvelope(SCPEnvelope const& env);
