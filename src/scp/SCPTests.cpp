@@ -668,34 +668,6 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(scp.mEnvs.size() == 3);
     };
 
-    SECTION("non validator watching the network")
-    {
-        SIMULATION_CREATE_NODE(NV);
-        TestSCP scpNV(vNVSecretKey, qSet, false);
-        scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
-        uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
-
-        SCPBallot b(1, xValue);
-        REQUIRE(scpNV.bumpState(0, xValue));
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyPrepare(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                      qSetHashNV, 0, b);
-        auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
-        auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
-        auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
-        auto ext4 = makeExternalize(v4SecretKey, qSetHash, 0, b, 1);
-        scpNV.receiveEnvelope(ext1);
-        scpNV.receiveEnvelope(ext2);
-        scpNV.receiveEnvelope(ext3);
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                      qSetHashNV, 0, 1, b, 1, 1);
-        scpNV.receiveEnvelope(ext4);
-        REQUIRE(scpNV.mEnvs.size() == 0);
-        verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
-                          qSetHashNV, 0, b, b.counter);
-    }
-
     SECTION("bumpState x")
     {
         REQUIRE(scp.bumpState(0, xValue));
@@ -852,16 +824,14 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         // this should not trigger anything just yet
         scp.receiveEnvelope(confirm1);
-        scp.receiveEnvelope(confirm2);
-        REQUIRE(scp.mEnvs.size() == 4);
 
-        // this should allow to raise p to 5
-        // and raise P to 2
-        // as all nodes are commiting xValue
-        scp.receiveEnvelope(confirm3);
+        // v-blocking
+        //   * b gets bumped to (4,x)
+        //   * (c,h) gets bumped to (2,4)
+        scp.receiveEnvelope(confirm2);
         REQUIRE(scp.mEnvs.size() == 5);
-        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 5, b, 5,
-                      b.counter);
+        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 1, SCPBallot(4, xValue), 2,
+                      4);
 
         // this causes to externalize
         // range is [3,4]
@@ -1258,7 +1228,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             expectedBallot.counter, expectedBallot.counter);
 
         // this causes the node to:
-        // accept commit B (v-blocking criteria of accept)
+        // (1) accept as prepared (2,y) (v-blocking)
+        // (4) accept commit B (v-blocking criteria of accept)
         scp.receiveEnvelope(confirm2);
         REQUIRE(scp.mEnvs.size() == i + 1);
 
@@ -1357,18 +1328,18 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         uint32 prepared = expectedBallot.counter;
 
-        uint32 expectedP = expectedBallot.counter;
+        uint32 expectedH = expectedBallot.counter;
 
         if (extraPrepared)
         {
             // verify that we can accept new ballots as prepared
             prepared++;
 
-            expectedP = acceptExtraCommit ? prepared : expectedBallot.counter;
+            expectedH = acceptExtraCommit ? prepared : expectedBallot.counter;
 
             SCPEnvelope pconfirm1 =
                 makeConfirm(v1SecretKey, qSetHash, 0, prepared, expectedBallot,
-                            expectedBallot.counter, expectedP);
+                            expectedBallot.counter, expectedH);
 
             scp.receiveEnvelope(pconfirm1);
 
@@ -1376,16 +1347,16 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
             SCPEnvelope pconfirm2 =
                 makeConfirm(v2SecretKey, qSetHash, 0, prepared, expectedBallot,
-                            expectedBallot.counter, expectedP);
+                            expectedBallot.counter, expectedH);
 
             scp.receiveEnvelope(pconfirm2);
 
             REQUIRE(scp.mEnvs.size() == i + 1);
 
             // bumps 'p' (v-blocking) and
-            // if acceptExtraCommit: P (v-blocking)
+            // if acceptExtraCommit: h (v-blocking)
             verifyConfirm(scp.mEnvs[i], v0SecretKey, qSetHash0, 0, prepared,
-                          expectedBallot, expectedBallot.counter, expectedP);
+                          expectedBallot, expectedBallot.counter, expectedH);
 
             i++;
         }
@@ -1394,7 +1365,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         SCPEnvelope confirm3 =
             makeConfirm(v3SecretKey, qSetHash, 0, prepared, expectedBallot,
-                        expectedP, expectedP);
+                        expectedH, expectedH);
 
         // this causes:
         // confirm commit c -> EXTERNALIZE
@@ -1404,7 +1375,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(scp.mEnvs.size() == 1 + i);
 
         verifyExternalize(scp.mEnvs[i], v0SecretKey, qSetHash0, 0,
-                          expectedBallot, expectedP);
+                          expectedBallot, expectedH);
 
         // The slot should have externalized the value
         REQUIRE(scp.mExternalizedValues.size() == 1);
@@ -1710,6 +1681,35 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         REQUIRE(scp.mEnvs.size() == 6);
         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x3, &x2, 0, 2);
     }
+
+    SECTION("non validator watching the network")
+    {
+        SIMULATION_CREATE_NODE(NV);
+        TestSCP scpNV(vNVSecretKey, qSet, false);
+        scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+        uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
+
+        SCPBallot b(1, xValue);
+        REQUIRE(scpNV.bumpState(0, xValue));
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyPrepare(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                      qSetHashNV, 0, b);
+        auto ext1 = makeExternalize(v1SecretKey, qSetHash, 0, b, 1);
+        auto ext2 = makeExternalize(v2SecretKey, qSetHash, 0, b, 1);
+        auto ext3 = makeExternalize(v3SecretKey, qSetHash, 0, b, 1);
+        auto ext4 = makeExternalize(v4SecretKey, qSetHash, 0, b, 1);
+        scpNV.receiveEnvelope(ext1);
+        scpNV.receiveEnvelope(ext2);
+        scpNV.receiveEnvelope(ext3);
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyConfirm(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                      qSetHashNV, 0, 1, b, 1, 1);
+        scpNV.receiveEnvelope(ext4);
+        REQUIRE(scpNV.mEnvs.size() == 0);
+        verifyExternalize(scpNV.getCurrentEnvelope(0, vNVNodeID), vNVSecretKey,
+                          qSetHashNV, 0, b, b.counter);
+    }
+
     SECTION("restore ballot protocol")
     {
         TestSCP scp2(v0SecretKey, qSet);

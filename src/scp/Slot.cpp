@@ -136,7 +136,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope)
 bool
 Slot::abandonBallot()
 {
-    return mBallotProtocol.abandonBallot();
+    return mBallotProtocol.abandonBallot(0);
 }
 
 bool
