@@ -112,6 +112,9 @@ class BallotProtocol
     // to make progress
     void advanceSlot(SCPStatement const& hint);
 
+    // returns true if all values in statement are valid
+    SCPDriver::ValidationLevel validateValues(SCPStatement const& st);
+
     // send latest envelope if needed
     void sendLatestEnvelope();
 

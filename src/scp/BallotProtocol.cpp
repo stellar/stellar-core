@@ -170,10 +170,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
         return SCP::EnvelopeState::INVALID;
     }
 
-    SCPBallot tickBallot = getWorkingBallot(statement);
-
-    auto validationRes = mSlot.getSCPDriver().validateValue(
-        mSlot.getSlotIndex(), tickBallot.value);
+    auto validationRes = validateValues(statement);
     if (validationRes != SCPDriver::kInvalidValue)
     {
         bool processed = false;
@@ -196,7 +193,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
             // note: this handles also our own messages
             // in particular our final EXTERNALIZE message
             if (mPhase == SCP_PHASE_EXTERNALIZE &&
-                mCommit->value == tickBallot.value)
+                mCommit->value == getWorkingBallot(statement).value)
             {
                 recordEnvelope(envelope);
                 res = SCP::EnvelopeState::VALID;
@@ -1767,6 +1764,52 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     {
         sendLatestEnvelope();
     }
+}
+
+SCPDriver::ValidationLevel
+BallotProtocol::validateValues(SCPStatement const& st)
+{
+    std::set<Value> values;
+    switch (st.pledges.type())
+    {
+    case SCPStatementType::SCP_ST_PREPARE:
+    {
+        auto const& prep = st.pledges.prepare();
+        auto const& b = prep.ballot;
+        if (b.counter != 0)
+        {
+            values.insert(prep.ballot.value);
+        }
+        if (prep.prepared)
+        {
+            values.insert(prep.prepared->value);
+        }
+    }
+    break;
+    case SCPStatementType::SCP_ST_CONFIRM:
+        values.insert(st.pledges.confirm().ballot.value);
+        break;
+    case SCPStatementType::SCP_ST_EXTERNALIZE:
+        values.insert(st.pledges.externalize().commit.value);
+        break;
+    }
+    SCPDriver::ValidationLevel res = SCPDriver::kFullyValidatedValue;
+    for (auto const& v : values)
+    {
+        auto tr = mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v);
+        if (tr != SCPDriver::kFullyValidatedValue)
+        {
+            if (tr == SCPDriver::kInvalidValue)
+            {
+                res = SCPDriver::kInvalidValue;
+            }
+            else
+            {
+                res = SCPDriver::kMaybeValidValue;
+            }
+        }
+    }
+    return res;
 }
 
 void
