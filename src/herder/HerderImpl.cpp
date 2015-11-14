@@ -1564,33 +1564,39 @@ HerderImpl::restoreSCPState()
     xdr::xvector<TransactionSet> latestTxSets;
     xdr::xvector<SCPQuorumSet> latestQSets;
 
-    // no exception guard here: we want to crash if we don't recognize old
-    // messages
-    // only way out of this situation is probably to reset the node and catchup
-    // to
-    // the network's state (it's unsafe to participate with bad SCP messages)
-    xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
+    try
+    {
+        xdr::xdr_from_opaque(buffer, latestEnvs, latestTxSets, latestQSets);
 
-    for (auto const& txset : latestTxSets)
-    {
-        TxSetFramePtr cur = make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
-        Hash h = cur->getContentsHash();
-        mPendingEnvelopes.recvTxSet(h, cur);
-    }
-    for (auto const& qset : latestQSets)
-    {
-        Hash hash = sha256(xdr::xdr_to_opaque(qset));
-        mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
-    }
-    for (auto const& e : latestEnvs)
-    {
-        mSCP.setStateFromEnvelope(e.statement.slotIndex, e);
-    }
+        for (auto const& txset : latestTxSets)
+        {
+            TxSetFramePtr cur =
+                make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
+            Hash h = cur->getContentsHash();
+            mPendingEnvelopes.recvTxSet(h, cur);
+        }
+        for (auto const& qset : latestQSets)
+        {
+            Hash hash = sha256(xdr::xdr_to_opaque(qset));
+            mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+        }
+        for (auto const& e : latestEnvs)
+        {
+            mSCP.setStateFromEnvelope(e.statement.slotIndex, e);
+        }
 
-    if (latestEnvs.size() != 0)
+        if (latestEnvs.size() != 0)
+        {
+            mLastSlotSaved = latestEnvs.back().statement.slotIndex;
+            startRebroadcastTimer();
+        }
+    }
+    catch (std::exception& e)
     {
-        mLastSlotSaved = latestEnvs.back().statement.slotIndex;
-        startRebroadcastTimer();
+        // we may have exceptions when upgrading the protocol
+        // this should be the only time we get exceptions decoding old messages.
+        CLOG(INFO, "Herder") << "Error while restoring old scp messages, "
+                                "proceeding without them : " << e.what();
     }
 }
 
