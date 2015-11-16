@@ -45,6 +45,7 @@ class Tracker
     template <class T> friend class ItemFetcher;
     Application& mApp;
     Peer::pointer mLastAskedPeer;
+    int mNumListRebuild;
     std::deque<Peer::pointer> mPeersToAsk;
     VirtualTimer mTimer;
     bool mIsStopped = false;
