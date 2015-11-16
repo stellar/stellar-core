@@ -36,6 +36,10 @@ class LocalNode
     bool isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSet,
                                  std::set<NodeID>& knownNodes);
 
+    void adjustQSetHelper(SCPQuorumSet& qSet);
+    // adjust qset such that self is a member of all slices
+    void adjustQSet(SCPQuorumSet& qSet);
+
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
               SCPQuorumSet const& qSet, SCP* scp);

@@ -155,26 +155,6 @@ Peer::Peer(Application& app, PeerRole role)
     std::copy(bytes.begin(), bytes.end(), mSendNonce.begin());
 }
 
-// copy/pasted from sendHello2
-// (to be removed when HELLO is not used)
-void
-Peer::sendHello()
-{
-    CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
-    StellarMessage msg;
-    msg.type(HELLO);
-    Hello& elo = msg.hello();
-    elo.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    elo.overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
-    elo.versionStr = mApp.getConfig().VERSION_STR;
-    elo.networkID = mApp.getNetworkID();
-    elo.listeningPort = mApp.getConfig().PEER_PORT;
-    elo.peerID = mApp.getConfig().NODE_SEED.getPublicKey();
-    elo.cert = this->getAuthCert();
-    elo.nonce = mSendNonce;
-    sendMessage(msg);
-}
-
 void
 Peer::sendHello2()
 {
@@ -308,7 +288,7 @@ Peer::connectHandler(asio::error_code const& error)
         CLOG(DEBUG, "Overlay") << "connected " << toString();
         connected();
         mState = CONNECTED;
-        sendHello();
+        sendHello2();
     }
 }
 
@@ -877,7 +857,7 @@ Peer::recvHello(Hello const& elo)
         // immediately by ERROR, because ERROR is an authenticated
         // message type and the caller won't decode it right if
         // still waiting for an unauthenticated HELLO.
-        sendHello();
+        sendHello2();
     }
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||

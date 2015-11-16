@@ -23,9 +23,11 @@ LocalNode::LocalNode(SecretKey const& secretKey, bool isValidator,
     , mSecretKey(secretKey)
     , mIsValidator(isValidator)
     , mQSet(qSet)
-    , mQSetHash(sha256(xdr::xdr_to_opaque(qSet)))
     , mSCP(scp)
 {
+    adjustQSet(mQSet);
+    mQSetHash = sha256(xdr::xdr_to_opaque(mQSet));
+
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
                       << "@" << PubKeyUtils::toShortString(mNodeID)
                       << " qSet: " << hexAbbrev(mQSetHash);
@@ -79,6 +81,87 @@ LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
     else
     {
         return false;
+    }
+}
+
+// helper function that:
+//  * removes occurences of 'self'
+//  * removes redundant inner sets (threshold = 0)
+//     * empty {}
+//     * reached because of self was { t: 1, self, other }
+//  * simplifies singleton innersets
+//      { t:1, { innerSet } } into innerSet
+
+void
+LocalNode::adjustQSetHelper(SCPQuorumSet& qSet)
+{
+    auto& v = qSet.validators;
+    auto& i = qSet.innerSets;
+    auto it = i.begin();
+    while (it != i.end())
+    {
+        adjustQSetHelper(*it);
+        // remove redundant sets
+        // note: they may not be empty (threshold reached because of self)
+        if (it->threshold == 0)
+        {
+            it = i.erase(it);
+            if (qSet.threshold)
+            {
+                qSet.threshold--;
+            }
+        }
+        else
+        {
+            it++;
+        }
+    }
+
+    // removes self from validators
+    auto itv = v.begin();
+    while (itv != v.end())
+    {
+        if (*itv == mNodeID)
+        {
+            if (qSet.threshold)
+            {
+                qSet.threshold--;
+            }
+            itv = v.erase(itv);
+        }
+        else
+        {
+            itv++;
+        }
+    }
+
+    // simplify quorum set if needed
+    if (qSet.threshold == 1 && v.size() == 0 && i.size() == 1)
+    {
+        auto t = qSet.innerSets.back();
+        qSet = t;
+    }
+}
+
+void
+LocalNode::adjustQSet(SCPQuorumSet& qSet)
+{
+    // transforms the qSet passed in into
+    // { t: 2, self, { aQSet } }
+    // where, newQset is the qSet obtained by deleting self
+
+    auto aQSet = qSet;
+    adjustQSetHelper(aQSet);
+
+    qSet.threshold = 1;
+    qSet.validators.clear();
+    qSet.innerSets.clear();
+    qSet.validators.emplace_back(mNodeID);
+
+    if (aQSet.threshold != 0)
+    {
+        qSet.threshold++;
+        qSet.innerSets.emplace_back(aQSet);
     }
 }
 

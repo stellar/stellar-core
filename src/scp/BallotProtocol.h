@@ -44,7 +44,7 @@ class BallotProtocol
     std::unique_ptr<SCPBallot> mCurrentBallot;      // b
     std::unique_ptr<SCPBallot> mPrepared;           // p
     std::unique_ptr<SCPBallot> mPreparedPrime;      // p'
-    std::unique_ptr<SCPBallot> mConfirmedPrepared;  // P
+    std::unique_ptr<SCPBallot> mHighBallot;         // h
     std::unique_ptr<SCPBallot> mCommit;             // c
     std::map<NodeID, SCPEnvelope> mLatestEnvelopes; // M
     SCPPhase mPhase;                                // Phi
@@ -58,13 +58,15 @@ class BallotProtocol
     BallotProtocol(Slot& slot);
 
     // Process a newly received envelope for this slot and update the state of
-    // the slot accordingly. `cb` asynchronously returns whether the envelope
-    // was validated or not. Must exclusively receive envelopes whose payload
-    // type is STATEMENT
-    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope);
+    // the slot accordingly.
+    // self: set to true when node feeds its own statements in order to
+    // trigger more potential state changes
+    SCP::EnvelopeState processEnvelope(SCPEnvelope const& envelope, bool self);
 
     void ballotProtocolTimerExpired();
-    bool abandonBallot();
+    // abandon's current ballot, move to a new ballot
+    // at counter `n` (or, if n == 0, increment current counter)
+    bool abandonBallot(uint32 n);
 
     // bumps the ballot based on the local state and the value passed in:
     // in prepare phase, attempts to take value
@@ -72,6 +74,8 @@ class BallotProtocol
     // force: when true, always bumps the value, otherwise only bumps
     // the state if no value was prepared
     bool bumpState(Value const& value, bool force);
+    // flavor that takes the actual desired counter value
+    bool bumpState(Value const& value, uint32 n);
 
     // ** status methods
 
@@ -103,65 +107,73 @@ class BallotProtocol
     std::vector<SCPEnvelope> getCurrentState() const;
 
   private:
-    // attempts to make progress using `ballot` as a hint
-    void advanceSlot(SCPBallot const& ballot);
+    // attempts to make progress using the latest statement as a hint
+    // calls into the various attempt* methods, emits message
+    // to make progress
+    void advanceSlot(SCPStatement const& hint);
 
-    bool attemptPrepare(SCPBallot const& ballot);
+    // returns true if all values in statement are valid
+    SCPDriver::ValidationLevel validateValues(SCPStatement const& st);
 
-    // `attempt*` methods progress the slot to the specified state if it was
-    // not already reached previously:
-    //   * They are in charge of emitting events and envelopes.
-    //   * Their parameter "ballot" may be different than the local state,
-    //     in which case they will switch to it if needed
-    //   * They are idempotent.
-    //   * returns true if the state was updated.
+    // send latest envelope if needed
+    void sendLatestEnvelope();
 
-    // `is*` methods check if the specified state for the current slot has been
-    // reached or not. They are called by `advanceSlot` and drive the call of
-    // the `attempt*` methods.
+    // `attempt*` methods are called by `advanceSlot` internally call the
+    //  the `set*` methods.
+    //   * check if the specified state for the current slot has been
+    //     reached or not.
+    //   * idempotent
+    //  input: latest statement received (used as a hint to reduce the
+    //  space to explore)
+    //  output: returns true if the state was updated
 
-    // step 1 and 4 from the SCP paper
-    // ballot is the candidate to record as 'prepared'
-    bool isPreparedAccept(SCPBallot const& ballot);
-    bool attemptPreparedAccept(SCPBallot const& ballot);
+    // `set*` methods progress the slot to the specified state
+    //  input: state specific
+    //  output: returns true if the state was updated.
 
-    // step 2 from the SCP paper
+    // step 1 and 5 from the SCP paper
+    bool attemptPreparedAccept(SCPStatement const& hint);
+    // prepared: ballot that should be prepared
+    bool setPreparedAccept(SCPBallot const& prepared);
+
+    // step 2+3+8 from the SCP paper
     // ballot is the candidate to record as 'confirmed prepared'
-    bool isPreparedConfirmed(SCPBallot const& ballot);
-    bool attemptPreparedConfirmed(SCPBallot const& ballot);
+    bool attemptPreparedConfirmed(SCPStatement const& hint);
+    // newC, newH : low/high bounds prepared confirmed
+    bool setPreparedConfirmed(SCPBallot const& newC, SCPBallot const& newH);
 
-    // step 3 and 5 from the SCP paper
-    // ballot is used as a hint to find compatible ballots that the instance
-    // should accept commit
-    // on success, sets (outLow, outHigh) to the new values for (c, P)
-    bool isAcceptCommit(SCPBallot const& ballot, SCPBallot& outLow,
-                        SCPBallot& outHigh);
-    bool attemptAcceptCommit(SCPBallot const& acceptCommitLow,
-                             SCPBallot const& acceptCommitHigh);
+    // step (4 and 6)+8 from the SCP paper
+    bool attemptAcceptCommit(SCPStatement const& hint);
+    // new values for c and h
+    bool setAcceptCommit(SCPBallot const& c, SCPBallot const& h);
 
-    // step 6 from the SCP paper
-    // ballot is used as a hint to find compatible ballots that can be
-    // ratified commit.
-    // on success, sets (outLow, outHigh) to the new values for (c, P)
-    bool isConfirmCommit(SCPBallot const& ballot, SCPBallot& outLow,
-                         SCPBallot& outHigh);
-    bool attemptConfirmCommit(SCPBallot const& acceptCommitLow,
-                              SCPBallot const& acceptCommitHigh);
+    // step 7+8 from the SCP paper
+    bool attemptConfirmCommit(SCPStatement const& hint);
+    bool setConfirmCommit(SCPBallot const& acceptCommitLow,
+                          SCPBallot const& acceptCommitHigh);
+
+    // step 9 from the SCP paper
+    bool attemptBump();
+
+    // computes a list of candidate values that may have been prepared
+    std::set<SCPBallot> getPrepareCandidates(SCPStatement const& hint);
+
+    // helper to perform step (8) from the paper
+    void updateCurrentIfNeeded();
 
     // An interval is [low,high] represented as a pair
     using Interval = std::pair<uint32, uint32>;
 
     // helper function to find a contiguous range 'candidate' that satisfies the
     // predicate.
-    // 'candidate' can have an initial value to extend or be set to (0,0)
     // updates 'candidate' (or leave it unchanged)
     static void findExtendedInterval(Interval& candidate,
-                                     std::set<Interval> const& boundaries,
+                                     std::set<uint32> const& boundaries,
                                      std::function<bool(Interval const&)> pred);
 
-    // constructs the set boundaries compatible with the ballot
-    std::set<Interval>
-    getCommitBoundariesFromStatements(SCPBallot const& ballot);
+    // constructs the set of counters representing the
+    // commit ballots compatible with the ballot
+    std::set<uint32> getCommitBoundariesFromStatements(SCPBallot const& ballot);
 
     // ** helper predicates that evaluate if a statement satisfies
     // a certain property
@@ -205,7 +217,7 @@ class BallotProtocol
                                  SCPStatement const& st);
 
     // basic sanity check on statement
-    bool isStatementSane(SCPStatement const& st);
+    bool isStatementSane(SCPStatement const& st, bool self);
 
     // records the statement in the state machine
     void recordEnvelope(SCPEnvelope const& env);

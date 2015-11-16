@@ -44,24 +44,23 @@ struct SCPStatement
             SCPBallot ballot;         // b
             SCPBallot* prepared;      // p
             SCPBallot* preparedPrime; // p'
-            uint32 nC;                // n_c
-            uint32 nP;                // n_P
+            uint32 nC;                // c.n
+            uint32 nH;                // h.n
         } prepare;
     case SCP_ST_CONFIRM:
         struct
         {
+            SCPBallot ballot;   // b
+            uint32 nPrepared;   // p.n
+            uint32 nCommit;     // c.n
+            uint32 nH;          // h.n
             Hash quorumSetHash; // D
-            uint32 nPrepared;   // n_p
-            SCPBallot commit;   // c
-            uint32 nP;          // n_P
         } confirm;
     case SCP_ST_EXTERNALIZE:
         struct
         {
-            SCPBallot commit; // c
-            uint32 nP;        // n_P
-            // not from the paper, but useful to build tooling to
-            // traverse the graph based off only the latest statement
+            SCPBallot commit;         // c
+            uint32 nH;                // h.n
             Hash commitQuorumSetHash; // D used before EXTERNALIZE
         } externalize;
     case SCP_ST_NOMINATE:

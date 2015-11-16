@@ -159,7 +159,7 @@ NominationProtocol::emitNomination()
 
     SCPEnvelope envelope = mSlot.createEnvelope(st);
 
-    if (mSlot.processEnvelope(envelope) == SCP::EnvelopeState::VALID)
+    if (mSlot.processEnvelope(envelope, true) == SCP::EnvelopeState::VALID)
     {
         if (!mLastEnvelope ||
             isNewerStatement(mLastEnvelope->statement.pledges.nominate(),
