@@ -18,6 +18,7 @@ namespace stellar
 {
 
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
+static int const MAX_REBUILD_FETCH_LIST = 1000;
 
 template <class TrackerT>
 ItemFetcher<TrackerT>::ItemFetcher(Application& app)
@@ -119,6 +120,7 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
 
 Tracker::Tracker(Application& app, uint256 const& id)
     : mApp(app)
+    , mNumListRebuild(0)
     , mTimer(app)
     , mItemID(id)
     , mTryNextPeerReset(app.getMetrics().NewMeter(
@@ -182,7 +184,9 @@ Tracker::tryNextPeer()
                            << (mLastAskedPeer ? mLastAskedPeer->toString()
                                               : "<none>");
 
-    if (mPeersToAsk.empty())
+    // if we don't have a list of peers to ask and we're not
+    // currently asking peers, build a new list
+    if (mPeersToAsk.empty() && !mLastAskedPeer)
     {
         std::set<std::shared_ptr<Peer>> peersWithEnvelope;
         for (auto const& e : mWaitingEnvelopes)
@@ -207,7 +211,10 @@ Tracker::tryNextPeer()
             }
         }
 
+        mNumListRebuild++;
+
         CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
+                               << " attempt " << mNumListRebuild
                                << " reset to #" << mPeersToAsk.size();
         mTryNextPeerReset.Mark();
     }
@@ -225,8 +232,16 @@ Tracker::tryNextPeer()
     std::chrono::milliseconds nextTry;
     if (!peer)
     { // we have asked all our peers
-        // clear list and try again in a bit
-        nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * 2;
+        // clear mLastAskedPeer so that we rebuild a new list
+        mLastAskedPeer.reset();
+        if (mNumListRebuild > MAX_REBUILD_FETCH_LIST)
+        {
+            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * MAX_REBUILD_FETCH_LIST;
+        }
+        else
+        {
+            nextTry = MS_TO_WAIT_FOR_FETCH_REPLY * mNumListRebuild;
+        }
     }
     else
     {
