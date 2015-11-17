@@ -69,7 +69,13 @@ void
 ArchivePublisher::enterRetryingState()
 {
     assert(mState == PUBLISH_BEGIN || mState == PUBLISH_SENDING ||
-           mState == PUBLISH_COMMITTING);
+           mState == PUBLISH_COMMITTING || mState == PUBLISH_RETRYING);
+
+    if (mState == PUBLISH_RETRYING)
+    {
+        return;
+    }
+
     mState = PUBLISH_RETRYING;
     mRetryTimer.expires_from_now(std::chrono::seconds(2));
     std::weak_ptr<ArchivePublisher> weak(shared_from_this());
