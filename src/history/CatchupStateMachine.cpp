@@ -618,7 +618,13 @@ CatchupStateMachine::enterRetryingState(uint64_t nseconds)
 {
     assert(mState == CATCHUP_BEGIN || mState == CATCHUP_ANCHORED ||
            mState == CATCHUP_FETCHING || mState == CATCHUP_APPLYING ||
-           mState == CATCHUP_VERIFYING);
+           mState == CATCHUP_VERIFYING || mState == CATCHUP_RETRYING);
+
+    if (mState == CATCHUP_RETRYING)
+    {
+        return;
+    }
+
     bool anchored = mState >= CATCHUP_ANCHORED;
     bool verifying = mState >= CATCHUP_VERIFYING;
     mState = CATCHUP_RETRYING;
