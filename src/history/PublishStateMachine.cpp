@@ -213,7 +213,7 @@ ArchivePublisher::enterSendingState()
     assert(mState == PUBLISH_OBSERVED || mState == PUBLISH_SENDING);
     mState = PUBLISH_SENDING;
 
-    FilePublishState minimumState = FILE_PUBLISH_UPLOADED;
+    FilePublishState minimumState = FILE_PUBLISH_COMPLETE;
     auto& hm = mApp.getHistoryManager();
     std::weak_ptr<ArchivePublisher> weak(shared_from_this());
 
@@ -226,6 +226,14 @@ ArchivePublisher::enterSendingState()
         {
         case FILE_PUBLISH_FAILED:
             break;
+
+        case FILE_PUBLISH_MAYBE_NEEDED:
+            if (!fs::exists(fi->localPath_nogz()))
+            {
+                fi->setState(FILE_PUBLISH_COMPLETE);
+                break;
+            }
+        // otherwise, fall through
 
         case FILE_PUBLISH_NEEDED:
             fi->setState(FILE_PUBLISH_COMPRESSING);
@@ -287,6 +295,10 @@ ArchivePublisher::enterSendingState()
 
         case FILE_PUBLISH_UPLOADED:
             std::remove(fi->localPath_gz().c_str());
+            fi->setState(FILE_PUBLISH_COMPLETE);
+        // fall through
+
+        case FILE_PUBLISH_COMPLETE:
             break;
         }
 
@@ -298,7 +310,7 @@ ArchivePublisher::enterSendingState()
         CLOG(WARNING, "History") << "Some file-puts failed, retrying";
         enterRetryingState();
     }
-    else if (minimumState == FILE_PUBLISH_UPLOADED)
+    else if (minimumState == FILE_PUBLISH_COMPLETE)
     {
         CLOG(INFO, "History") << "All file-puts succeeded";
         enterCommittingState();
