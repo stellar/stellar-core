@@ -568,23 +568,31 @@ BallotProtocol::emitCurrentStateStatement()
 
     bool canEmit = (mCurrentBallot != nullptr);
 
-    if (mSlot.processEnvelope(envelope, true) == SCP::EnvelopeState::VALID)
+    // if we generate the same envelope, don't process it again
+    // this can occur when updating h in PREPARE phase
+    // as statements only keep track of h.n (but h.x could be different)
+    auto lastEnv = mLatestEnvelopes.find(mSlot.getSCP().getLocalNodeID());
+
+    if (lastEnv == mLatestEnvelopes.end() || !(lastEnv->second == envelope))
     {
-        if (canEmit &&
-            (!mLastEnvelope ||
-             isNewerStatement(mLastEnvelope->statement, envelope.statement)))
+        if (mSlot.processEnvelope(envelope, true) == SCP::EnvelopeState::VALID)
         {
-            mLastEnvelope = make_unique<SCPEnvelope>(envelope);
-            // this will no-op if invoked from advanceSlot
-            // as advanceSlot consolidates all messages
-            sendLatestEnvelope();
+            if (canEmit &&
+                (!mLastEnvelope || isNewerStatement(mLastEnvelope->statement,
+                                                    envelope.statement)))
+            {
+                mLastEnvelope = std::make_shared<SCPEnvelope>(envelope);
+                // this will no-op if invoked from advanceSlot
+                // as advanceSlot consolidates all messages sent
+                sendLatestEnvelope();
+            }
         }
-    }
-    else
-    {
-        // there is a bug in the application if it queued up
-        // a statement for itself that it considers invalid
-        throw std::runtime_error("moved to a bad state (ballot protocol)");
+        else
+        {
+            // there is a bug in the application if it queued up
+            // a statement for itself that it considers invalid
+            throw std::runtime_error("moved to a bad state (ballot protocol)");
+        }
     }
 }
 
@@ -1641,7 +1649,8 @@ BallotProtocol::setStateFromEnvelope(SCPEnvelope const& e)
 
     recordEnvelope(e);
 
-    mLastEnvelope = make_unique<SCPEnvelope>(e);
+    mLastEnvelope = std::make_shared<SCPEnvelope>(e);
+    mLastEnvelopeEmit = mLastEnvelope;
 
     auto const& pl = e.statement.pledges;
 
@@ -1850,7 +1859,11 @@ BallotProtocol::sendLatestEnvelope()
     // emit current envelope if needed
     if (mCurrentMessageLevel == 0 && mLastEnvelope && mSlot.isFullyValidated())
     {
-        mSlot.getSCPDriver().emitEnvelope(*mLastEnvelope);
+        if (!mLastEnvelopeEmit || mLastEnvelope != mLastEnvelopeEmit)
+        {
+            mLastEnvelopeEmit = mLastEnvelope;
+            mSlot.getSCPDriver().emitEnvelope(*mLastEnvelopeEmit);
+        }
     }
 }
 
