@@ -227,7 +227,8 @@ class BallotProtocol
     // helper function that updates the current ballot
     // this is the lowest level method to update the current ballot and as
     // such doesn't do any validation
-    void bumpToBallot(SCPBallot const& ballot);
+    // check: verifies that ballot is greater than old one
+    void bumpToBallot(SCPBallot const& ballot, bool check);
 
     // switch the local node to the given ballot's value
     // with the assumption that the ballot is more recent than the one
