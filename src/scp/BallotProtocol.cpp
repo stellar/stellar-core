@@ -637,6 +637,10 @@ BallotProtocol::getPrepareCandidates(SCPStatement const& hint)
         {
             hintBallots.insert(*prep.prepared);
         }
+        if (prep.preparedPrime)
+        {
+            hintBallots.insert(*prep.preparedPrime);
+        }
     }
     break;
     case SCP_ST_CONFIRM:
@@ -681,6 +685,11 @@ BallotProtocol::getPrepareCandidates(SCPStatement const& hint)
                     areBallotsLessAndCompatible(*prep.prepared, topVote))
                 {
                     candidates.insert(*prep.prepared);
+                }
+                if (prep.preparedPrime &&
+                    areBallotsLessAndCompatible(*prep.preparedPrime, topVote))
+                {
+                    candidates.insert(*prep.preparedPrime);
                 }
             }
             break;
@@ -747,9 +756,21 @@ BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
         }
 
         // if we already prepared this ballot, don't bother checking again
-        if (mPrepared && compareBallots(ballot, *mPrepared) <= 0)
+
+        // if ballot <= p' ballot is neither a candidate for p nor p'
+        if (mPreparedPrime && compareBallots(ballot, *mPreparedPrime) <= 0)
         {
             continue;
+        }
+
+        if (mPrepared)
+        {
+            // if ballot is already covered by p, skip
+            if (areBallotsLessAndCompatible(ballot, *mPrepared))
+            {
+                continue;
+            }
+            // otherwise, there is a chance it increases p'
         }
 
         bool accepted = federatedAccept(
@@ -1432,7 +1453,10 @@ BallotProtocol::hasPreparedBallot(SCPBallot const& ballot,
     case SCP_ST_PREPARE:
     {
         auto const& p = st.pledges.prepare();
-        res = p.prepared && areBallotsLessAndCompatible(ballot, *p.prepared);
+        res =
+            (p.prepared && areBallotsLessAndCompatible(ballot, *p.prepared)) ||
+            (p.preparedPrime &&
+             areBallotsLessAndCompatible(ballot, *p.preparedPrime));
     }
     break;
     case SCP_ST_CONFIRM:
@@ -1508,7 +1532,8 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
 
     if (mPrepared)
     {
-        if (compareBallots(*mPrepared, ballot) < 0)
+        int comp = compareBallots(*mPrepared, ballot);
+        if (comp < 0)
         {
             if (!areBallotsCompatible(*mPrepared, ballot))
             {
@@ -1516,6 +1541,15 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
             }
             mPrepared = make_unique<SCPBallot>(ballot);
             didWork = true;
+        }
+        else if (comp > 0)
+        {
+            // check if we should update only p'
+            if (!mPreparedPrime || compareBallots(*mPreparedPrime, ballot) < 0)
+            {
+                mPreparedPrime = make_unique<SCPBallot>(ballot);
+                didWork = true;
+            }
         }
     }
     else
