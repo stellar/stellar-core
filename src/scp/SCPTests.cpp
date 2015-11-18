@@ -911,6 +911,14 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                 verifyConfirm(scp.mEnvs[6], v0SecretKey,
                                               qSetHash0, 0, 3, A3, 2, 2);
                             }
+                            SECTION("v-blocking prepared A3+B3")
+                            {
+                                recvVBlocking(makePrepareGen(qSetHash, A3, &B3,
+                                                             2, 2, &A3));
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, 3, A3, 2, 2);
+                            }
                             SECTION("v-blocking confirm A3")
                             {
                                 recvVBlocking(
@@ -1027,12 +1035,66 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                             }
                         }
                     }
-                    SECTION("get conflicting prepared B2")
+                    SECTION("get conflicting prepared B")
                     {
-                        recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
+                        SECTION("same counter")
+                        {
+                            recvVBlocking(makePrepareGen(qSetHash, B2, &B2));
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
+                                          0, A2, &B2, 0, 2, &A2);
+                        }
+                        SECTION("higher counter")
+                        {
+                            recvVBlocking(
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2));
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
+                                          0, A3, &B2, 0, 2, &A2);
+
+                            recvQuorumChecks(makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
+                            REQUIRE(scp.mEnvs.size() == 6);
+                        }
+                    }
+                }
+                SECTION("Confirm prepared mixed")
+                {
+                    // a few nodes prepared B2
+                    recvVBlocking(makePrepareGen(qSetHash, B2, &B2, 0, 0, &A2));
+                    REQUIRE(scp.mEnvs.size() == 5);
+                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
+                                  &B2, 0, 0, &A2);
+
+                    SECTION("mixed A2")
+                    {
+                        // causes h=A2
+                        // but c = 0, as p >!~ h
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
                         REQUIRE(scp.mEnvs.size() == 6);
                         verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
                                       A2, &B2, 0, 2, &A2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
+                    }
+                    SECTION("mixed B2")
+                    {
+                        // causes h=B2, c=B2
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      B2, &B2, 2, 2, &A2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
                     }
                 }
             }
@@ -1212,6 +1274,14 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                 verifyConfirm(scp.mEnvs[6], v0SecretKey,
                                               qSetHash0, 0, 3, A3, 2, 2);
                             }
+                            SECTION("v-blocking prepared A3+B3")
+                            {
+                                recvVBlocking(makePrepareGen(qSetHash, A3, &A3,
+                                                             2, 2, &B3));
+                                REQUIRE(scp.mEnvs.size() == 7);
+                                verifyConfirm(scp.mEnvs[6], v0SecretKey,
+                                              qSetHash0, 0, 3, A3, 2, 2);
+                            }
                             SECTION("v-blocking confirm A3")
                             {
                                 recvVBlocking(
@@ -1298,10 +1368,11 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                 }
                                 SECTION("CONFIRM B2")
                                 {
-                                    recvVBlockingChecks(
-                                        makeConfirmGen(qSetHash, 2, B2, 2, 2),
-                                        false);
-                                    REQUIRE(scp.mEnvs.size() == 5);
+                                    recvVBlocking(
+                                        makeConfirmGen(qSetHash, 2, B2, 2, 2));
+                                    REQUIRE(scp.mEnvs.size() == 6);
+                                    verifyConfirm(scp.mEnvs[5], v0SecretKey,
+                                                  qSetHash0, 0, 2, B2, 2, 2);
                                 }
                             }
                             SECTION("EXTERNALIZE")
@@ -1329,12 +1400,78 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                             }
                         }
                     }
-                    SECTION("get conflicting prepared B2")
+                    SECTION("get conflicting prepared B")
                     {
-                        // can't switch to B2
-                        recvQuorumChecks(makePrepareGen(qSetHash, B2, &B2),
-                                         false);
-                        REQUIRE(scp.mEnvs.size() == 5);
+                        SECTION("same counter")
+                        {
+                            // messages are ignored as B2 < A2
+                            recvQuorumChecks(makePrepareGen(qSetHash, B2, &B2),
+                                             false);
+                            REQUIRE(scp.mEnvs.size() == 5);
+                        }
+                        SECTION("higher counter")
+                        {
+                            recvVBlocking(
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2));
+                            REQUIRE(scp.mEnvs.size() == 6);
+                            // A2 > B2 -> p = A2, p'=B2
+                            verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
+                                          0, A3, &A2, 2, 2, &B2);
+
+                            // node is stuck as it's trying to
+                            // commit A2=<2,y> but rest of its quorum is
+                            // trying to commit B2
+                            recvQuorumChecks(
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
+                            REQUIRE(scp.mEnvs.size() == 6);
+
+                            // accept c=B2 ; also bumps counter to 3
+                            recvVBlocking(
+                                makeConfirmGen(qSetHash, 2, B3, 2, 2));
+                            REQUIRE(scp.mEnvs.size() == 7);
+                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
+                                          0, 2, B3, 2, 2);
+                        }
+                    }
+                }
+                SECTION("Confirm prepared mixed")
+                {
+                    // a few nodes prepared B2
+                    recvVBlocking(makePrepareGen(qSetHash, A2, &A2, 0, 0, &B2));
+                    REQUIRE(scp.mEnvs.size() == 5);
+                    verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, A2,
+                                  &A2, 0, 0, &B2);
+
+                    SECTION("mixed A2")
+                    {
+                        // causes h=A2, c=A2
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      A2, &A2, 2, 2, &B2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
+                    }
+                    SECTION("mixed B2")
+                    {
+                        // causes h=B2
+                        // but c = 0, as p >!~ h
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, A2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
+                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
+                                      A2, &A2, 0, 2, &B2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 6);
                     }
                 }
             }
@@ -1485,6 +1622,52 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                 }
                             }
                         }
+                    }
+                }
+                SECTION("Confirm prepared mixed")
+                {
+                    // a few nodes prepared A2
+                    // causes p=A2
+                    recvVBlockingChecks(makePrepareGen(qSetHash, A2, &A2),
+                                        false);
+                    REQUIRE(scp.mEnvs.size() == 0);
+
+                    // a few nodes prepared B2
+                    // causes p=B2, p'=A2
+                    recvVBlockingChecks(
+                        makePrepareGen(qSetHash, A2, &B2, 0, 0, &A2), false);
+                    REQUIRE(scp.mEnvs.size() == 0);
+
+                    SECTION("mixed A2")
+                    {
+                        // causes h=A2
+                        // but c = 0, as p >!~ h
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, A2, &A2));
+
+                        REQUIRE(scp.mEnvs.size() == 1);
+                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                      A2, &B2, 0, 2, &A2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, A2, &A2));
+
+                        REQUIRE(scp.mEnvs.size() == 1);
+                    }
+                    SECTION("mixed B2")
+                    {
+                        // causes h=B2, c=B2
+                        scp.receiveEnvelope(
+                            makePrepare(v3SecretKey, qSetHash, 0, B2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 1);
+                        verifyPrepare(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                                      B2, &B2, 2, 2, &A2);
+
+                        scp.receiveEnvelope(
+                            makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
+
+                        REQUIRE(scp.mEnvs.size() == 1);
                     }
                 }
             }
