@@ -18,6 +18,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/XDRStream.h"
+#include "herder/Herder.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/counter.h"
@@ -40,6 +41,7 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
     std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionResultSnapFile;
+    std::shared_ptr<FilePublishInfo> mSCPHistorySnapFile;
 
     VirtualTimer mRetryTimer;
     size_t mRetryCount{0};
@@ -150,7 +152,7 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
 
     std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos = {
         mSnap->mLedgerSnapFile, mSnap->mTransactionSnapFile,
-        mSnap->mTransactionResultSnapFile};
+        mSnap->mTransactionResultSnapFile, mSnap->mSCPHistorySnapFile};
 
     for (auto const& hash : bucketsToSend)
     {
@@ -434,6 +436,11 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
           FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
           mLocalState.currentLedger))
+
+    , mSCPHistorySnapFile(std::make_shared<FilePublishInfo>(
+          FILE_PUBLISH_MAYBE_NEEDED, mSnapDir, HISTORY_FILE_TYPE_SCP,
+          mLocalState.currentLedger))
+
     , mRetryTimer(app)
 {
     makeLiveAndRetainBuckets();
@@ -476,36 +483,58 @@ StateSnapshot::writeHistoryBlocks() const
     soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
     soci::transaction tx(sess);
 
-    // The current "history block" is stored in _three_ files, one just ledger
-    // headers, one TransactionHistoryEntry (which contain txSets) and
-    // one TransactionHistoryResultEntry containing transaction set results.
+    // The current "history block" is stored in _four_ files, one just ledger
+    // headers, one TransactionHistoryEntry (which contain txSets),
+    // one TransactionHistoryResultEntry containing transaction set results and
+    // one (optional) SCPHistoryEntry containing the SCP messages used to close.
     // All files are streamed out of the database, entry-by-entry.
-    XDROutputFileStream ledgerOut, txOut, txResultOut;
-    ledgerOut.open(mLedgerSnapFile->localPath_nogz());
-    txOut.open(mTransactionSnapFile->localPath_nogz());
-    txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
+    size_t nbSCPMessages;
+    uint32_t begin, count;
+    size_t nHeaders;
+    {
+        XDROutputFileStream ledgerOut, txOut, txResultOut, scpHistory;
+        ledgerOut.open(mLedgerSnapFile->localPath_nogz());
+        txOut.open(mTransactionSnapFile->localPath_nogz());
+        txResultOut.open(mTransactionResultSnapFile->localPath_nogz());
+        scpHistory.open(mSCPHistorySnapFile->localPath_nogz());
 
-    // 'mLocalState' describes the LCL, so its currentLedger will usually be 63,
-    // 127, 191, etc. We want to start our snapshot at 64-before the _next_
-    // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed
-    // early, we still want to round-down to the previous checkpoint ledger.
-    uint32_t begin = mApp.getHistoryManager().prevCheckpointLedger(
-        mLocalState.currentLedger);
+        // 'mLocalState' describes the LCL, so its currentLedger will usually be
+        // 63,
+        // 127, 191, etc. We want to start our snapshot at 64-before the _next_
+        // ledger: 0, 64, 128, etc. In cases where we're forcibly checkpointed
+        // early, we still want to round-down to the previous checkpoint ledger.
+        begin = mApp.getHistoryManager().prevCheckpointLedger(
+            mLocalState.currentLedger);
 
-    uint32_t count = (mLocalState.currentLedger - begin) + 1;
-    CLOG(DEBUG, "History") << "Streaming " << count
-                           << " ledgers worth of history, from " << begin;
+        count = (mLocalState.currentLedger - begin) + 1;
+        CLOG(DEBUG, "History") << "Streaming " << count
+                               << " ledgers worth of history, from " << begin;
 
-    size_t nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(
-        mApp.getDatabase(), sess, begin, count, ledgerOut);
-    size_t nTxs = TransactionFrame::copyTransactionsToStream(
-        mApp.getNetworkID(), mApp.getDatabase(), sess, begin, count, txOut,
-        txResultOut);
-    CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
-                           << mLedgerSnapFile->localPath_nogz();
-    CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to "
-                           << mTransactionSnapFile->localPath_nogz() << " and "
-                           << mTransactionResultSnapFile->localPath_nogz();
+        nHeaders = LedgerHeaderFrame::copyLedgerHeadersToStream(
+            mApp.getDatabase(), sess, begin, count, ledgerOut);
+        size_t nTxs = TransactionFrame::copyTransactionsToStream(
+            mApp.getNetworkID(), mApp.getDatabase(), sess, begin, count, txOut,
+            txResultOut);
+        CLOG(DEBUG, "History") << "Wrote " << nHeaders << " ledger headers to "
+                               << mLedgerSnapFile->localPath_nogz();
+        CLOG(DEBUG, "History") << "Wrote " << nTxs << " transactions to "
+                               << mTransactionSnapFile->localPath_nogz()
+                               << " and "
+                               << mTransactionResultSnapFile->localPath_nogz();
+
+        nbSCPMessages = Herder::copySCPHistoryToStream(
+            mApp.getDatabase(), sess, begin, count, scpHistory);
+
+        CLOG(DEBUG, "History") << "Wrote " << nbSCPMessages
+                               << " SCP messages to "
+                               << mSCPHistorySnapFile->localPath_nogz();
+    }
+
+    if (nbSCPMessages == 0)
+    {
+        // don't upload empty files
+        std::remove(mSCPHistorySnapFile->localPath_nogz().c_str());
+    }
 
     // When writing checkpoint 0x3f (63) we will have written 63 headers because
     // header 0 doesn't exist, ledger 1 is the first. For all later checkpoints
