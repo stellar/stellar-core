@@ -1052,7 +1052,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                             verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
                                           0, A3, &B2, 0, 2, &A2);
 
-                            recvQuorumChecks(makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
+                            recvQuorumChecks(
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
                             REQUIRE(scp.mEnvs.size() == 6);
                         }
                     }
