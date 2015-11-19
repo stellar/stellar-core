@@ -100,6 +100,8 @@ Database::Database(Application& app)
 void
 Database::applySchemaUpgrade(unsigned long vers)
 {
+    clearPreparedStatementCache();
+
     switch (vers)
     {
     case 2:
