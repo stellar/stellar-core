@@ -24,6 +24,7 @@
 #include "medida/metrics_registry.h"
 #include "xdrpp/marshal.h"
 #include "util/basen.h"
+#include "util/XDRStream.h"
 
 #include <ctime>
 
@@ -1779,6 +1780,109 @@ HerderImpl::saveSCPHistory(uint64 index)
 
         txscope.commit();
     }
+}
+
+size_t
+Herder::copySCPHistoryToStream(Database& db, soci::session& sess,
+                               uint32_t ledgerSeq, uint32_t ledgerCount,
+                               XDROutputFileStream& scpHistory)
+{
+    uint32_t begin = ledgerSeq, end = ledgerSeq + ledgerCount;
+    size_t n = 0;
+
+    // all known quorum sets
+    std::unordered_map<Hash, SCPQuorumSet> qSets;
+
+    for (uint32_t curLedgerSeq = begin; curLedgerSeq < end; curLedgerSeq++)
+    {
+        // SCP envelopes for this ledger
+        // quorum sets missing in this batch of envelopes
+        std::set<Hash> missingQSets;
+
+        SCPHistoryEntry hEntryV;
+        hEntryV.v(0);
+        auto& hEntry = hEntryV.v0();
+        auto& lm = hEntry.ledgerMessages;
+        lm.ledgerSeq = curLedgerSeq;
+
+        auto& curEnvs = lm.messages;
+
+        // fetch SCP messages from history
+        {
+            std::string envB64;
+
+            auto timer = db.getSelectTimer("scphistory");
+
+            soci::statement st =
+                (sess.prepare << "SELECT envelope FROM scphistory "
+                                 "WHERE ledgerseq = :cur ORDER BY nodeid",
+                 into(envB64), use(curLedgerSeq));
+
+            st.execute(true);
+
+            while (st.got_data())
+            {
+                curEnvs.emplace_back();
+                auto& env = curEnvs.back();
+
+                std::vector<uint8_t> envBytes;
+                bn::decode_b64(envB64, envBytes);
+
+                xdr::xdr_get g1(&envBytes.front(), &envBytes.back() + 1);
+                xdr_argpack_archive(g1, env);
+
+                // record new quorum sets encountered
+                Hash const& qSetHash =
+                    Slot::getCompanionQuorumSetHashFromStatement(env.statement);
+                if (qSets.find(qSetHash) == qSets.end())
+                {
+                    missingQSets.insert(qSetHash);
+                }
+
+                n++;
+
+                st.fetch();
+            }
+        }
+
+        // fetch the quorum sets from the db
+        for (auto const& q : missingQSets)
+        {
+            std::string qset64, qSetHashHex;
+
+            hEntry.quorumSets.emplace_back();
+            auto& qset = hEntry.quorumSets.back();
+
+            qSetHashHex = binToHex(q);
+
+            auto timer = db.getSelectTimer("scpquorums");
+
+            soci::statement st = (sess.prepare << "SELECT qset FROM scpquorums "
+                                                  "WHERE qsethash = :h",
+                                  into(qset64), use(qSetHashHex));
+
+            st.execute(true);
+
+            if (!st.got_data())
+            {
+                throw std::runtime_error(
+                    "corrupt database state: missing quorum set");
+            }
+
+            std::vector<uint8_t> qSetBytes;
+            bn::decode_b64(qset64, qSetBytes);
+
+            xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
+            xdr_argpack_archive(g1, qset);
+        }
+
+        if (curEnvs.size() != 0)
+        {
+            scpHistory.writeOne(hEntryV);
+        }
+    }
+
+    return n;
 }
 
 void

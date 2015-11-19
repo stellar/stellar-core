@@ -200,6 +200,29 @@ struct LedgerHeaderHistoryEntry
     ext;
 };
 
+// historical SCP messages
+
+struct LedgerSCPMessages
+{
+    uint32 ledgerSeq;
+    SCPEnvelope messages<>;
+};
+
+// note: ledgerMessages may refer to any quorumSets encountered
+// in the file so far, not just the one from this entry
+struct SCPHistoryEntryV0
+{
+    SCPQuorumSet quorumSets<>; // additional quorum sets used by ledgerMessages
+    LedgerSCPMessages ledgerMessages;
+};
+
+// SCP history file is an array of these
+union SCPHistoryEntry switch (int v)
+{
+case 0:
+    SCPHistoryEntryV0 v0;
+};
+
 // represents the meta in the transaction table history
 
 enum LedgerEntryChangeType
