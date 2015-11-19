@@ -90,6 +90,9 @@ Database::Database(Application& app)
     if (isSqlite())
     {
         mSession << "PRAGMA journal_mode = WAL";
+        // busy_timeout gives room for external processes
+        // that may lock the database for some time
+        mSession << "PRAGMA busy_timeout = 10000";
     }
     else
     {
