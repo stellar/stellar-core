@@ -676,6 +676,8 @@ BallotProtocol::getPrepareCandidates(SCPStatement const& hint)
         SCPBallot topVote = *last;
         hintBallots.erase(last);
 
+        auto const& val = topVote.value;
+
         // find candidates that may have been prepared
         for (auto const& e : mLatestEnvelopes)
         {
@@ -707,6 +709,10 @@ BallotProtocol::getPrepareCandidates(SCPStatement const& hint)
                 if (areBallotsCompatible(topVote, con.ballot))
                 {
                     candidates.insert(topVote);
+                    if (con.nPrepared < topVote.counter)
+                    {
+                        candidates.insert(SCPBallot(con.nPrepared, val));
+                    }
                 }
             }
             break;

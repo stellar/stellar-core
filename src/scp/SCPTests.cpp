@@ -1112,6 +1112,29 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             REQUIRE(scp.mEnvs.size() == 2);
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
         }
+        SECTION("confirm (v-blocking)")
+        {
+            SECTION("via CONFIRM")
+            {
+                scp.receiveEnvelope(
+                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                scp.receiveEnvelope(
+                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
+                              0, 3, A3, 3, 3);
+            }
+            SECTION("via EXTERNALIZE")
+            {
+                scp.receiveEnvelope(
+                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                scp.receiveEnvelope(
+                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
+                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+            }
+        }
     }
 
     // this is the same test suite than "start <1,x>" with the exception that
@@ -1488,6 +1511,29 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             REQUIRE(scp.mEnvs.size() == 2);
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
         }
+        SECTION("confirm (v-blocking)")
+        {
+            SECTION("via CONFIRM")
+            {
+                scp.receiveEnvelope(
+                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                scp.receiveEnvelope(
+                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
+                              0, 3, A3, 3, 3);
+            }
+            SECTION("via EXTERNALIZE")
+            {
+                scp.receiveEnvelope(
+                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                scp.receiveEnvelope(
+                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                REQUIRE(scp.mEnvs.size() == 2);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
+                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+            }
+        }
     }
 
     // this is the same test suite than "start <1,x>" but only keeping
@@ -1682,6 +1728,29 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             recvVBlockingChecks(makePrepareGen(qSetHash, B1, &B1), false);
             REQUIRE(scp.mEnvs.size() == 0);
         }
+        SECTION("confirm (v-blocking)")
+        {
+            SECTION("via CONFIRM")
+            {
+                scp.receiveEnvelope(
+                    makeConfirm(v1SecretKey, qSetHash, 0, 3, A3, 3, 3));
+                scp.receiveEnvelope(
+                    makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                              0, 3, A3, 3, 3);
+            }
+            SECTION("via EXTERNALIZE")
+            {
+                scp.receiveEnvelope(
+                    makeExternalize(v1SecretKey, qSetHash, 0, A2, 4));
+                scp.receiveEnvelope(
+                    makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
+                REQUIRE(scp.mEnvs.size() == 1);
+                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
+                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+            }
+        }
     }
 
     SECTION("normal round (1,x)")
@@ -1833,10 +1902,11 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         // v-blocking
         //   * b gets bumped to (4,x)
+        //   * p gets bumped to (4,x)
         //   * (c,h) gets bumped to (2,4)
         scp.receiveEnvelope(confirm2);
         REQUIRE(scp.mEnvs.size() == 5);
-        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 1,
+        verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 4,
                       SCPBallot(4, xValue), 2, 4);
 
         // this causes to externalize
