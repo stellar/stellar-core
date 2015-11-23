@@ -18,6 +18,7 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
+#include "work/WorkManager.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
@@ -91,6 +92,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHistoryManager = HistoryManager::create(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
+    mWorkManager = WorkManager::create(*this);
 
     while (t--)
     {
@@ -540,6 +542,12 @@ CommandHandler&
 ApplicationImpl::getCommandHandler()
 {
     return *mCommandHandler;
+}
+
+WorkManager&
+ApplicationImpl::getWorkManager()
+{
+    return *mWorkManager;
 }
 
 asio::io_service&

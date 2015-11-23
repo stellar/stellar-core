@@ -55,6 +55,7 @@ Logging::init()
     el::Loggers::getLogger("Herder");
     el::Loggers::getLogger("Tx");
     el::Loggers::getLogger("LoadGen");
+    el::Loggers::getLogger("Work");
 
     gDefaultConf.setToDefault();
     gDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
