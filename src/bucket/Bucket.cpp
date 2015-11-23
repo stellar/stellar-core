@@ -7,6 +7,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
+#include "bucket/BucketApplicator.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketList.h"
 #include "bucket/LedgerCmp.h"
@@ -285,41 +286,11 @@ Bucket::countLiveAndDeadEntries() const
 void
 Bucket::apply(Database& db) const
 {
-    if (getFilename().empty())
+    BucketApplicator applicator(db, shared_from_this());
+    while (applicator)
     {
-        return;
+        applicator.advance();
     }
-    BucketEntry entry;
-    XDRInputFileStream in;
-    in.open(getFilename());
-    size_t i = 0;
-    db.getSession().begin();
-    while (in && in.readOne(entry))
-    {
-        LedgerHeader
-            lh; // buckets, by definition are independent from the header
-        LedgerDelta delta(lh, db, false);
-        if ((i++ & 0xfff) == 0xfff)
-        {
-            db.clearPreparedStatementCache();
-            db.getSession().commit();
-            CLOG(INFO, "Bucket") << "Bucket-apply: committed " << i
-                                 << " entries";
-            db.getSession().begin();
-        }
-        if (entry.type() == LIVEENTRY)
-        {
-            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-            ep->storeAddOrChange(delta, db);
-        }
-        else
-        {
-            EntryFrame::storeDelete(delta, db, entry.deadEntry());
-        }
-        // No-op, just to avoid needless rollback.
-        delta.commit();
-    }
-    db.getSession().commit();
 }
 
 std::shared_ptr<Bucket>
