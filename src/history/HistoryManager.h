@@ -223,6 +223,10 @@ class HistoryManager
         VERIFY_HASH_UNKNOWN
     };
 
+    // Select any readable history archive. If there are more than one,
+    // select one at random.
+    virtual std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() = 0;
+
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
     static bool initializeHistoryArchive(Application& app, std::string arch);

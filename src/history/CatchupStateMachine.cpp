@@ -21,7 +21,6 @@
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "xdrpp/printer.h"
-#include "util/Math.h"
 
 #include <random>
 #include <memory>
@@ -193,60 +192,6 @@ CatchupStateMachine::logAndUpdateStatus(bool contiguous)
 }
 
 /**
- * Select any readable history archive. If there are more than one,
- * select one at random.
- */
-std::shared_ptr<HistoryArchive>
-CatchupStateMachine::selectRandomReadableHistoryArchive()
-{
-    std::vector<std::pair<std::string, std::shared_ptr<HistoryArchive>>>
-        archives;
-
-    // First try for archives that _only_ have a get command; they're
-    // archives we're explicitly not publishing to, so likely ones we want.
-    for (auto const& pair : mApp.getConfig().HISTORY)
-    {
-        if (pair.second->hasGetCmd() && !pair.second->hasPutCmd())
-        {
-            archives.push_back(pair);
-        }
-    }
-
-    // If we have none of those, accept those with get+put
-    if (archives.size() == 0)
-    {
-        for (auto const& pair : mApp.getConfig().HISTORY)
-        {
-            if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
-            {
-                archives.push_back(pair);
-            }
-        }
-    }
-
-    if (archives.size() == 0)
-    {
-        throw std::runtime_error(
-            "No GET-enabled history archive in config, can't start catchup.");
-    }
-    else if (archives.size() == 1)
-    {
-        CLOG(DEBUG, "History")
-            << "Catching up via sole readable history archive '"
-            << archives[0].first << "'";
-        return archives[0].second;
-    }
-    else
-    {
-        std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
-        size_t i = dist(gRandomEngine);
-        CLOG(DEBUG, "History") << "Catching up via readable history archive #"
-                               << i << ", '" << archives[i].first << "'";
-        return archives[i].second;
-    }
-}
-
-/**
  * Select a random history archive and read its state, passing the
  * state to enterAnchoredState() when it's retrieved, restarting
  * (potentially with a new archive) if there's any failure.
@@ -268,7 +213,7 @@ CatchupStateMachine::enterBeginState()
     uint64_t sleepSeconds =
         mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
 
-    mArchive = selectRandomReadableHistoryArchive();
+    mArchive = mApp.getHistoryManager().selectRandomReadableHistoryArchive();
     std::weak_ptr<CatchupStateMachine> weak(shared_from_this());
     mArchive->getSnapState(mApp, checkpoint, [weak, checkpoint, sleepSeconds](
                                                  asio::error_code const& ec,

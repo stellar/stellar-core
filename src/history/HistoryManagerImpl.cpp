@@ -29,6 +29,7 @@
 #include "medida/metrics_registry.h"
 #include "medida/meter.h"
 #include "xdrpp/marshal.h"
+#include "util/Math.h"
 
 #include <fstream>
 #include <system_error>
@@ -460,7 +461,6 @@ HistoryManagerImpl::putFile(
     auto exit = this->mApp.getProcessManager().runProcess(cmd);
     exit.async_wait(handler);
 }
-
 void
 HistoryManagerImpl::getFile(
     std::shared_ptr<HistoryArchive const> archive, string const& remote,
@@ -510,6 +510,56 @@ HistoryManagerImpl::hasAnyWritableHistoryArchive()
             return true;
     }
     return false;
+}
+
+std::shared_ptr<HistoryArchive>
+HistoryManagerImpl::selectRandomReadableHistoryArchive()
+{
+    std::vector<std::pair<std::string, std::shared_ptr<HistoryArchive>>>
+        archives;
+
+    // First try for archives that _only_ have a get command; they're
+    // archives we're explicitly not publishing to, so likely ones we want.
+    for (auto const& pair : mApp.getConfig().HISTORY)
+    {
+        if (pair.second->hasGetCmd() && !pair.second->hasPutCmd())
+        {
+            archives.push_back(pair);
+        }
+    }
+
+    // If we have none of those, accept those with get+put
+    if (archives.size() == 0)
+    {
+        for (auto const& pair : mApp.getConfig().HISTORY)
+        {
+            if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
+            {
+                archives.push_back(pair);
+            }
+        }
+    }
+
+    if (archives.size() == 0)
+    {
+        throw std::runtime_error(
+            "No GET-enabled history archive in config");
+    }
+    else if (archives.size() == 1)
+    {
+        CLOG(DEBUG, "History")
+            << "Fetching from sole readable history archive '"
+            << archives[0].first << "'";
+        return archives[0].second;
+    }
+    else
+    {
+        std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
+        size_t i = dist(gRandomEngine);
+        CLOG(DEBUG, "History") << "Fetching from readable history archive #"
+                               << i << ", '" << archives[i].first << "'";
+        return archives[i].second;
+    }
 }
 
 uint32_t

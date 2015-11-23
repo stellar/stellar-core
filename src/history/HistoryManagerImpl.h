@@ -42,6 +42,8 @@ class HistoryManagerImpl : public HistoryManager
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
+    std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() override;
+
     uint32_t getCheckpointFrequency() override;
     uint32_t prevCheckpointLedger(uint32_t ledger) override;
     uint32_t nextCheckpointLedger(uint32_t ledger) override;
