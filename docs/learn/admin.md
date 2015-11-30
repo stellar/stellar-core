@@ -96,7 +96,7 @@ As a node operator you can participate to the network in multiple ways.
 
 |              | watcher | archiver | basic validator | full validator |
 | ------------ | ------  | ---------| --------------  | -------------- |
-| description  | non-validator "leech" | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
+| description  | non-validator | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
 | submits transactions | yes | yes | yes | yes |
 | supports horizon | yes | yes | yes | yes |
 | participates in consensus | no | no | yes | yes |
