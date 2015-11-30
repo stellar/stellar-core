@@ -83,6 +83,9 @@ class Slot : public std::enable_shared_from_this<Slot>
     // returns the latest messages known for this slot
     std::vector<SCPEnvelope> getCurrentState() const;
 
+    // returns messages that helped this slot externalize
+    std::vector<SCPEnvelope> getExternalizingState() const;
+
     // records the statement in the historical record for this slot
     void recordStatement(SCPStatement const& st);
 

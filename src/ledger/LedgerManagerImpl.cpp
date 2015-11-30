@@ -14,6 +14,8 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManagerImpl.h"
+#include "TrustFrame.h"
+#include "OfferFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -767,6 +769,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
     TransactionFrame::deleteOldEntries(db, ledgerSeq);
+    Herder::deleteOldEntries(db, ledgerSeq);
 }
 
 void

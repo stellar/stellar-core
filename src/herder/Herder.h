@@ -17,6 +17,9 @@ namespace stellar
 {
 class Application;
 class Peer;
+class Database;
+class XDROutputFileStream;
+
 typedef std::shared_ptr<Peer> PeerPtr;
 
 /*
@@ -121,5 +124,12 @@ class Herder
     virtual void dumpInfo(Json::Value& ret, size_t limit) = 0;
     virtual void dumpQuorumInfo(Json::Value& ret, NodeID const& id,
                                 bool summary, uint64 index = 0) = 0;
+
+    static size_t copySCPHistoryToStream(Database& db, soci::session& sess,
+                                         uint32_t ledgerSeq,
+                                         uint32_t ledgerCount,
+                                         XDROutputFileStream& scpHistory);
+    static void dropAll(Database& db);
+    static void deleteOldEntries(Database& db, uint32_t ledgerSeq);
 };
 }

@@ -141,6 +141,8 @@ class HerderImpl : public Herder, public SCPDriver
     void ledgerClosed();
     void removeReceivedTxs(std::vector<TransactionFramePtr> const& txs);
 
+    void saveSCPHistory(uint64 index);
+
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool validateUpgradeStep(uint64 slotIndex, UpgradeType const& upgrade,

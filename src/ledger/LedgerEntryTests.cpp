@@ -9,6 +9,8 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "AccountFrame.h"
+#include "TrustFrame.h"
+#include "OfferFrame.h"
 #include "LedgerDelta.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/autocheck.h"

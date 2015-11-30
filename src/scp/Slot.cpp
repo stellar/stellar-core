@@ -89,6 +89,12 @@ Slot::getCurrentState() const
     return res;
 }
 
+std::vector<SCPEnvelope>
+Slot::getExternalizingState() const
+{
+    return mBallotProtocol.getExternalizingState();
+}
+
 void
 Slot::recordStatement(SCPStatement const& st)
 {

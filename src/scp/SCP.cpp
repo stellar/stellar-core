@@ -223,4 +223,18 @@ SCP::getCurrentState(uint64 slotIndex)
         return std::vector<SCPEnvelope>();
     }
 }
+
+std::vector<SCPEnvelope>
+SCP::getExternalizingState(uint64 slotIndex)
+{
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->getExternalizingState();
+    }
+    else
+    {
+        return std::vector<SCPEnvelope>();
+    }
+}
 }
