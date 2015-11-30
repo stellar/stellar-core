@@ -322,7 +322,7 @@ Run:
 
 # Understanding the availability and health of your instance
 ## General info
-Run `$ stellar-core --c 'quorum'`
+Run `$ stellar-core --c 'info'`
 The output will look something like
 ```
    "info" : {
