@@ -156,12 +156,12 @@ Peer::Peer(Application& app, PeerRole role)
 }
 
 void
-Peer::sendHello2()
+Peer::sendHello()
 {
     CLOG(DEBUG, "Overlay") << "Peer::sendHello to " << toString();
     StellarMessage msg;
-    msg.type(HELLO2);
-    Hello2& elo = msg.hello2();
+    msg.type(HELLO);
+    Hello& elo = msg.hello();
     elo.ledgerVersion = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     elo.overlayMinVersion = mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION;
     elo.overlayVersion = mApp.getConfig().OVERLAY_PROTOCOL_VERSION;
@@ -288,7 +288,7 @@ Peer::connectHandler(asio::error_code const& error)
         CLOG(DEBUG, "Overlay") << "connected " << toString();
         connected();
         mState = CONNECTED;
-        sendHello2();
+        sendHello();
     }
 }
 
@@ -394,7 +394,7 @@ Peer::sendMessage(StellarMessage const& msg)
     case ERROR_MSG:
         mSendErrorMeter.Mark();
         break;
-    case HELLO2:
+    case HELLO:
         mSendHelloMeter.Mark();
         break;
     case AUTH:
@@ -434,7 +434,7 @@ Peer::sendMessage(StellarMessage const& msg)
 
     AuthenticatedMessage amsg;
     amsg.v0().message = msg;
-    if (msg.type() != HELLO2 && msg.type() != ERROR_MSG)
+    if (msg.type() != HELLO && msg.type() != ERROR_MSG)
     {
         amsg.v0().sequence = mSendMacSeq;
         amsg.v0().mac =
@@ -537,7 +537,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
                            << ") recv: " << stellarMsg.type() << " from:"
                            << mApp.getConfig().toShortString(mPeerID);
 
-    if (!isAuthenticated() && (stellarMsg.type() != HELLO2) &&
+    if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {
         CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
@@ -547,7 +547,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
         return;
     }
 
-    assert(isAuthenticated() || stellarMsg.type() == HELLO2 ||
+    assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
 
     switch (stellarMsg.type())
@@ -559,10 +559,10 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     }
     break;
 
-    case HELLO2:
+    case HELLO:
     {
         auto t = mRecvHelloTimer.TimeScope();
-        this->recvHello2(stellarMsg.hello2());
+        this->recvHello(stellarMsg.hello());
     }
     break;
 
@@ -799,7 +799,7 @@ Peer::noteHandshakeSuccessInPeerRecord()
 }
 
 void
-Peer::recvHello2(Hello2 const& elo)
+Peer::recvHello(Hello const& elo)
 {
     using xdr::operator==;
 
@@ -838,11 +838,11 @@ Peer::recvHello2(Hello2 const& elo)
 
     if (mRole == REMOTE_CALLED_US)
     {
-        // Send a HELLO2 back, even if it's going to be followed
+        // Send a HELLO back, even if it's going to be followed
         // immediately by ERROR, because ERROR is an authenticated
         // message type and the caller won't decode it right if
-        // still waiting for an unauthenticated HELLO2.
-        sendHello2();
+        // still waiting for an unauthenticated HELLO.
+        sendHello();
     }
 
     if (mRemoteOverlayMinVersion > mRemoteOverlayVersion ||

@@ -29,7 +29,7 @@ struct AuthCert
     Signature sig;
 };
 
-struct Hello2
+struct Hello
 {
     uint32 ledgerVersion;
     uint32 overlayVersion;
@@ -90,7 +90,7 @@ enum MessageType
     GET_SCP_STATE = 12,
 
     // new messages
-    HELLO2 = 13
+    HELLO = 13
 };
 
 struct DontHave
@@ -103,8 +103,8 @@ union StellarMessage switch (MessageType type)
 {
 case ERROR_MSG:
     Error error;
-case HELLO2:
-    Hello2 hello2;
+case HELLO:
+    Hello hello;
 case AUTH:
     Auth auth;
 case DONT_HAVE:
