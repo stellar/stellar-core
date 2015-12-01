@@ -83,7 +83,7 @@ tryRead(XDRInputFileStream& in, StellarMessage& m)
     {
         LOG(INFO) << "Caught XDR error '" << e.what()
                   << "' on input substituting HELLO";
-        m.type(HELLO);
+        m.type(HELLO2);
         return true;
     }
 }
