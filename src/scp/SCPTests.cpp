@@ -1122,8 +1122,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
                 REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
-                              0, 3, A3, 3, 3);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3, A3, 3,
+                              3);
             }
             SECTION("via EXTERNALIZE")
             {
@@ -1132,8 +1132,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
                 REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
-                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                              UINT32_MAX, AInf, 3, UINT32_MAX);
             }
         }
     }
@@ -1521,8 +1521,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
                 REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
-                              0, 3, A3, 3, 3);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, 3, A3, 3,
+                              3);
             }
             SECTION("via EXTERNALIZE")
             {
@@ -1531,8 +1531,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
                 REQUIRE(scp.mEnvs.size() == 2);
-                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0,
-                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+                verifyConfirm(scp.mEnvs[1], v0SecretKey, qSetHash0, 0,
+                              UINT32_MAX, AInf, 3, UINT32_MAX);
             }
         }
     }
@@ -1738,8 +1738,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeConfirm(v2SecretKey, qSetHash, 0, 4, A4, 2, 4));
                 REQUIRE(scp.mEnvs.size() == 1);
-                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
-                              0, 3, A3, 3, 3);
+                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0, 3, A3, 3,
+                              3);
             }
             SECTION("via EXTERNALIZE")
             {
@@ -1748,8 +1748,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                 scp.receiveEnvelope(
                     makeExternalize(v2SecretKey, qSetHash, 0, A3, 5));
                 REQUIRE(scp.mEnvs.size() == 1);
-                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0,
-                              0, UINT32_MAX, AInf, 3, UINT32_MAX);
+                verifyConfirm(scp.mEnvs[0], v0SecretKey, qSetHash0, 0,
+                              UINT32_MAX, AInf, 3, UINT32_MAX);
             }
         }
     }

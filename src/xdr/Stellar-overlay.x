@@ -33,18 +33,6 @@ struct Hello
 {
     uint32 ledgerVersion;
     uint32 overlayVersion;
-    Hash networkID;
-    string versionStr<100>;
-    int listeningPort;
-    NodeID peerID;
-    AuthCert cert;
-    uint256 nonce;
-};
-
-struct Hello2
-{
-    uint32 ledgerVersion;
-    uint32 overlayVersion;
     uint32 overlayMinVersion;
     Hash networkID;
     string versionStr<100>;
@@ -84,7 +72,6 @@ struct PeerAddress
 enum MessageType
 {
     ERROR_MSG = 0,
-    HELLO = 1,
     AUTH = 2,
     DONT_HAVE = 3,
 
@@ -103,7 +90,7 @@ enum MessageType
     GET_SCP_STATE = 12,
 
     // new messages
-    HELLO2 = 13
+    HELLO = 13
 };
 
 struct DontHave
@@ -118,8 +105,6 @@ case ERROR_MSG:
     Error error;
 case HELLO:
     Hello hello;
-case HELLO2:
-    Hello2 hello2;
 case AUTH:
     Auth auth;
 case DONT_HAVE:
