@@ -25,7 +25,7 @@ forcescp doesn't change the requirements for quorum so although this node will e
 * **--fuzz FILE**: Run a single fuzz input and exit.
 * **--genfuzz FILE**:  Generate a random fuzzer input file.
 * **--genseed**: Generate and print a random public/private key and then exit.
-* **--info**: Shortcut for `--c info`
+* **--offlineinfo**: Returns an output similar to `--c info` for an offline instance
 * **--ll LEVEL**: Set the log level. It is redundant with `--c ll` but we need this form if you want to change the log level during test runs.
 * **--metric METRIC**: Report metric METRIC on exit. Used for gathering a metric cumulatively during a test run.
 * **--newdb**: Clears the local database and resets it to the genesis ledger. If you connect to the network after that it will catch up from scratch. 
