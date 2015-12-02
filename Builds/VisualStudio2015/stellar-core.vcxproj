@@ -175,6 +175,7 @@
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
     <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerEntryTests.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp" />
