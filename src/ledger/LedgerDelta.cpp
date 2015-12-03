@@ -90,6 +90,12 @@ LedgerDelta::modEntry(EntryFrame const& entry)
 }
 
 void
+LedgerDelta::recordEntry(EntryFrame const& entry)
+{
+    recordEntry(entry.copy());
+}
+
+void
 LedgerDelta::addEntry(EntryFrame::pointer entry)
 {
     checkState();
@@ -163,12 +169,27 @@ LedgerDelta::modEntry(EntryFrame::pointer entry)
 }
 
 void
+LedgerDelta::recordEntry(EntryFrame::pointer entry)
+{
+    checkState();
+    // keeps the old one around
+    mPrevious.insert(std::make_pair(entry->getKey(), entry));
+}
+
+void
 LedgerDelta::mergeEntries(LedgerDelta& other)
 {
     checkState();
+
+    // propagates mPrevious for deleted & modified entries
     for (auto& d : other.mDelete)
     {
         deleteEntry(d);
+        auto it = other.mPrevious.find(d);
+        if (it != other.mPrevious.end())
+        {
+            recordEntry(*it->second);
+        }
     }
     for (auto& n : other.mNew)
     {
@@ -177,6 +198,11 @@ LedgerDelta::mergeEntries(LedgerDelta& other)
     for (auto& m : other.mMod)
     {
         modEntry(m.second);
+        auto it = other.mPrevious.find(m.first);
+        if (it != other.mPrevious.end())
+        {
+            recordEntry(*it->second);
+        }
     }
 }
 
@@ -220,6 +246,24 @@ LedgerDelta::rollback()
     }
 }
 
+void
+LedgerDelta::addCurrentMeta(LedgerEntryChanges& changes,
+                            LedgerKey const& key) const
+{
+    auto it = mPrevious.find(key);
+    if (it != mPrevious.end())
+    {
+        // if the old value is from a previous ledger
+        // we emit it
+        auto const& e = it->second->mEntry;
+        if (e.lastModifiedLedgerSeq != mCurrentHeader.mHeader.ledgerSeq)
+        {
+            changes.emplace_back(LEDGER_ENTRY_STATE);
+            changes.back().state() = e;
+        }
+    }
+}
+
 LedgerEntryChanges
 LedgerDelta::getChanges() const
 {
@@ -232,12 +276,14 @@ LedgerDelta::getChanges() const
     }
     for (auto const& k : mMod)
     {
+        addCurrentMeta(changes, k.first);
         changes.emplace_back(LEDGER_ENTRY_UPDATED);
         changes.back().updated() = k.second->mEntry;
     }
 
     for (auto const& k : mDelete)
     {
+        addCurrentMeta(changes, k);
         changes.emplace_back(LEDGER_ENTRY_REMOVED);
         changes.back().removed() = k;
     }

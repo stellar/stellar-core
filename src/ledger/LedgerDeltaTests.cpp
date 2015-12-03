@@ -76,11 +76,16 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
 
     SECTION("delta object operations")
     {
-        size_t const nbAccounts = 50;
-        size_t const nbAccountsGroupSize = 10;
+        size_t const nbAccounts = 36;
+        size_t const nbAccountsGroupSize = 9;
 
+        using MapAccounts =
+            std::map<LedgerKey, AccountFrame::pointer, LedgerEntryIdCmp>;
+
+        MapAccounts orgAccounts;
         std::vector<AccountFrame::pointer> accounts;
         {
+            uint32 s = delta.getHeader().ledgerSeq;
             auto aEntries =
                 LedgerTestUtils::generateValidAccountEntries(nbAccounts);
             accounts.reserve(nbAccounts);
@@ -89,12 +94,12 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                 LedgerEntry le;
                 le.data.type(ACCOUNT);
                 le.data.account() = a;
-                accounts.emplace_back(std::make_shared<AccountFrame>(le));
+                le.lastModifiedLedgerSeq = s;
+                auto newA = std::make_shared<AccountFrame>(le);
+                accounts.emplace_back(newA);
+                orgAccounts.emplace(std::make_pair(newA->getKey(), newA));
             }
         }
-
-        using MapAccounts =
-            std::map<LedgerKey, AccountFrame::pointer, LedgerEntryIdCmp>;
 
         MapAccounts accountsByKey;
 
@@ -103,138 +108,229 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
         {
             for (size_t i = start; i < end; i++)
             {
-                auto a = accounts[i];
+                auto a = accounts.at(i);
+                a->mEntry.lastModifiedLedgerSeq = d.getHeader().ledgerSeq;
                 d.addEntry(*a);
                 aKeys.insert(std::make_pair(a->getKey(), a));
             }
         };
 
-        addEntries(0, nbAccountsGroupSize, delta, accountsByKey);
-
-        auto checkChanges = [&]()
+        auto modEntries =
+            [&](size_t start, size_t end, LedgerDelta& d, MapAccounts& aKeys)
         {
-            auto changes = delta.getChanges();
-            for (auto const& c : changes)
+            for (size_t i = start; i < end; i++)
             {
-                REQUIRE(c.type() == LEDGER_ENTRY_CREATED);
-                auto const& createdEntry = c.created();
-                auto key = LedgerEntryKey(createdEntry);
-                REQUIRE(createdEntry == (accountsByKey[key]->mEntry));
+                auto a = accounts.at(i);
+                auto key = a->getKey();
+                auto it = aKeys.find(key);
+                if (it != aKeys.end())
+                {
+                    a = it->second;
+                }
+                d.recordEntry(*a);
+                SequenceNumber s = a->getSeqNum() + 1;
+                auto newA = std::make_shared<AccountFrame>(a->mEntry);
+                newA->setSeqNum(s);
+                newA->mEntry.lastModifiedLedgerSeq = d.getHeader().ledgerSeq;
+                d.modEntry(*newA);
+                aKeys[key] = newA;
             }
         };
 
-        checkChanges();
+        auto delEntries =
+            [&](size_t start, size_t end, LedgerDelta& d, MapAccounts& aKeys)
+        {
+            for (size_t i = start; i < end; i++)
+            {
+                auto a = accounts.at(i);
+                auto key = a->getKey();
+                auto it = aKeys.find(key);
+                if (it != aKeys.end())
+                {
+                    a = it->second;
+                }
+                d.recordEntry(*a);
+                d.deleteEntry(key);
+                aKeys[key] = nullptr;
+            }
+        };
+
+        delta.getHeader().ledgerSeq++;
+
+        // builds a delta containing
+        // [adds N][mods N][dels N]
+
+        // add entries to the top level delta
+        addEntries(0, nbAccountsGroupSize, delta, accountsByKey);
+        // modify entries
+        modEntries(nbAccountsGroupSize, nbAccountsGroupSize * 2, delta,
+                   accountsByKey);
+        // delete entries
+        delEntries(nbAccountsGroupSize * 2, nbAccountsGroupSize * 3, delta,
+                   accountsByKey);
+
+        auto checkChanges =
+            [&](LedgerDelta& d, size_t nbAdds, size_t nbMods, size_t nbDels,
+                size_t nbStates, MapAccounts const& orgData)
+        {
+            auto changes = d.getChanges();
+            size_t expectedChanges = nbAdds + nbMods + nbDels + nbStates;
+            size_t adds = 0, mods = 0, dels = 0, states = 0;
+
+            bool gotState = false;
+            LedgerKey stateKey;
+            for (auto const& c : changes)
+            {
+                switch (c.type())
+                {
+                case LEDGER_ENTRY_CREATED:
+                {
+                    REQUIRE(!gotState);
+                    auto const& createdEntry = c.created();
+                    auto key = LedgerEntryKey(createdEntry);
+                    REQUIRE(createdEntry == accountsByKey.at(key)->mEntry);
+                    adds++;
+                }
+                break;
+                case LEDGER_ENTRY_REMOVED:
+                {
+                    auto const& removedEntry = c.removed();
+                    if (gotState)
+                    {
+                        REQUIRE(stateKey == removedEntry);
+                        gotState = false;
+                    }
+                    REQUIRE(accountsByKey[removedEntry] == nullptr);
+                    dels++;
+                }
+                break;
+                case LEDGER_ENTRY_UPDATED:
+                {
+                    auto const& updatedEntry = c.updated();
+                    auto key = LedgerEntryKey(updatedEntry);
+                    if (gotState)
+                    {
+                        REQUIRE(key == stateKey);
+                        gotState = false;
+                    }
+                    REQUIRE(updatedEntry == accountsByKey.at(key)->mEntry);
+                    mods++;
+                }
+                break;
+                case LEDGER_ENTRY_STATE:
+                {
+                    REQUIRE(!gotState);
+                    gotState = true;
+                    auto const& state = c.state();
+                    auto key = LedgerEntryKey(state);
+                    stateKey = key;
+                    REQUIRE(state == orgData.at(key)->mEntry);
+                    states++;
+                }
+                break;
+                }
+            }
+            REQUIRE(changes.size() == expectedChanges);
+            REQUIRE(!gotState);
+            REQUIRE(adds == nbAdds);
+            REQUIRE(mods == nbMods);
+            REQUIRE(dels == nbDels);
+            REQUIRE(states == nbStates);
+        };
+
+        checkChanges(delta, nbAccountsGroupSize, nbAccountsGroupSize,
+                     nbAccountsGroupSize, nbAccountsGroupSize * 2, orgAccounts);
+
+        MapAccounts orgAccountsBeforeD2 = accountsByKey;
+        orgAccountsBeforeD2.insert(orgAccounts.begin(), orgAccounts.end());
 
         SECTION("add more entries")
         {
             SECTION("commit")
             {
                 LedgerDelta delta2(delta);
-                addEntries(nbAccountsGroupSize, nbAccountsGroupSize * 2, delta2,
-                           accountsByKey);
+                addEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
+                           delta2, accountsByKey);
                 delta2.commit();
-                REQUIRE(accountsByKey.size() == (nbAccountsGroupSize * 2));
+                checkChanges(delta, nbAccountsGroupSize * 2,
+                             nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 2, orgAccounts);
             }
             SECTION("rollback")
             {
                 LedgerDelta delta2(delta);
                 MapAccounts accountsByKey2;
-                addEntries(nbAccountsGroupSize,
-                           nbAccountsGroupSize + nbAccountsGroupSize, delta2,
-                           accountsByKey2);
+                addEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
+                           delta2, accountsByKey2);
                 delta2.rollback();
-                REQUIRE(accountsByKey.size() == nbAccountsGroupSize);
+                checkChanges(delta, nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize * 2,
+                             orgAccounts);
             }
-            checkChanges();
         }
         SECTION("modified entries")
         {
-            auto modEntries = [&](size_t start, size_t end, LedgerDelta& d,
-                                  MapAccounts& aKeys)
-            {
-                for (size_t i = start; i < end; i++)
-                {
-                    auto a = accounts[i];
-                    SequenceNumber s = a->getSeqNum() + 1;
-                    auto newA = std::make_shared<AccountFrame>(a->mEntry);
-                    newA->setSeqNum(s);
-                    d.modEntry(*newA);
-                    aKeys[newA->getKey()] = newA;
-                }
-            };
+            LedgerDelta delta2(delta);
+            MapAccounts modAccounts = accountsByKey;
+
+            // modify entries that were added and modified
+            size_t start = nbAccountsGroupSize * 2 / 3;
+            modEntries(start, start + nbAccountsGroupSize, delta2, modAccounts);
+            // add modified entries that were not tracked so far
+            modEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4, delta2,
+                       modAccounts);
+
             SECTION("commit")
             {
-                LedgerDelta delta2(delta);
-                MapAccounts modAccounts;
-                modEntries(0, nbAccountsGroupSize / 2, delta2, modAccounts);
-
-                auto changes = delta2.getChanges();
-                REQUIRE(changes.size() == modAccounts.size());
-                for (auto const& c : changes)
-                {
-                    REQUIRE(c.type() == LEDGER_ENTRY_UPDATED);
-                    auto const& updatedEntry = c.updated();
-                    auto key = LedgerEntryKey(updatedEntry);
-                    REQUIRE(updatedEntry == (modAccounts[key]->mEntry));
-                    // update accountsByKey so that we can check that everything
-                    // is committed to the outer delta
-                    accountsByKey[key] = modAccounts[key];
-                }
+                accountsByKey = modAccounts;
+                checkChanges(delta2, 0, nbAccountsGroupSize * 2, 0,
+                             nbAccountsGroupSize, orgAccountsBeforeD2);
                 delta2.commit();
-                REQUIRE(accountsByKey.size() == nbAccountsGroupSize);
+                checkChanges(delta, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 2, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 3, orgAccounts);
             }
             SECTION("rollback")
             {
-                LedgerDelta delta2(delta);
-                MapAccounts modAccounts;
-                modEntries(0, nbAccountsGroupSize / 2, delta2, modAccounts);
                 delta2.rollback();
-                REQUIRE(accountsByKey.size() == nbAccountsGroupSize);
+                checkChanges(delta, nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize * 2,
+                             orgAccounts);
             }
-            checkChanges();
         }
         SECTION("deleted entries")
         {
-            auto delEntries = [&](size_t start, size_t end, LedgerDelta& d,
-                                  MapAccounts& aKeys)
-            {
-                for (size_t i = start; i < end; i++)
-                {
-                    auto a = accounts[i];
-                    auto const& key = a->getKey();
-                    d.deleteEntry(key);
-                    aKeys[key] = nullptr;
-                }
-            };
+            LedgerDelta delta2(delta);
+            MapAccounts delAccounts = accountsByKey;
+
+            // delete entries that were added and modified
+            size_t start = nbAccountsGroupSize * 2 / 3;
+            delEntries(start, start + nbAccountsGroupSize, delta2, delAccounts);
+            // add deleted entries that were not tracked so far
+            delEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4, delta2,
+                       delAccounts);
+
             SECTION("commit")
             {
-                LedgerDelta delta2(delta);
-                MapAccounts delAccounts;
-                delEntries(0, nbAccountsGroupSize / 2, delta2, delAccounts);
-
-                auto changes = delta2.getChanges();
-                REQUIRE(changes.size() == delAccounts.size());
-                for (auto const& c : changes)
-                {
-                    REQUIRE(c.type() == LEDGER_ENTRY_REMOVED);
-                    auto const& removedEntry = c.removed();
-                    REQUIRE(delAccounts[removedEntry] == nullptr);
-                    // update accountsByKey so that we can check that everything
-                    // is committed to the outer delta
-                    accountsByKey.erase(removedEntry);
-                }
+                accountsByKey = delAccounts;
+                checkChanges(delta2, 0, 0, nbAccountsGroupSize * 2,
+                             nbAccountsGroupSize, orgAccountsBeforeD2);
                 delta2.commit();
-                REQUIRE(accountsByKey.size() == (nbAccountsGroupSize / 2));
+                // adds/mods were replaced by a delete
+                // adds+del result in no-op
+                size_t adds2del = nbAccountsGroupSize / 3;
+                checkChanges(delta, nbAccountsGroupSize - adds2del,
+                             nbAccountsGroupSize - start,
+                             nbAccountsGroupSize * 3 - adds2del,
+                             nbAccountsGroupSize * 3, orgAccounts);
             }
             SECTION("rollback")
             {
-                LedgerDelta delta2(delta);
-                MapAccounts delAccounts;
-                delEntries(0, nbAccountsGroupSize / 2, delta2, delAccounts);
                 delta2.rollback();
-                REQUIRE(accountsByKey.size() == nbAccountsGroupSize);
+                checkChanges(delta, nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize * 2,
+                             orgAccounts);
             }
-            checkChanges();
         }
     }
 }

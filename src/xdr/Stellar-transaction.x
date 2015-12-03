@@ -315,7 +315,7 @@ struct TransactionEnvelope
 /* This result is used when offers are taken during an operation */
 struct ClaimOfferAtom
 {
-    // emited to identify the offer
+    // emitted to identify the offer
     AccountID sellerID; // Account that owns the offer
     uint64 offerID;
 
