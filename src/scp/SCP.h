@@ -110,6 +110,13 @@ class SCP
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);
 
+    // ** helper methods to stringify ballot for logging
+    std::string getValueString(Value const& v) const;
+    std::string ballotToStr(SCPBallot const& ballot) const;
+    std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
+    std::string envToStr(SCPEnvelope const& envelope) const;
+    std::string envToStr(SCPStatement const& st) const;
+
   protected:
     std::shared_ptr<LocalNode> mLocalNode;
     std::map<uint64, std::shared_ptr<Slot>> mKnownSlots;
