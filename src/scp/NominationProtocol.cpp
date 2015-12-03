@@ -548,16 +548,6 @@ NominationProtocol::dumpInfo(Json::Value& ret)
         counter++;
     }
 
-    counter = 0;
-    for (auto const& v : mLatestNominations)
-    {
-        nomState["N"][counter]["id"] =
-            mSlot.getSCPDriver().toShortString(v.first);
-        nomState["N"][counter]["statement"] = mSlot.getSCP().envToStr(v.second);
-
-        counter++;
-    }
-
     ret["nomination"].append(nomState);
 }
 
