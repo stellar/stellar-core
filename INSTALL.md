@@ -43,6 +43,7 @@ When building on OSX, here's some dependencies you'll need:
 - brew install libtool
 - brew install automake
 - brew install pkg-config
+- brew install libpqxx
 
 ### Windows 
 See [INSTALL-Windows.txt](INSTALL-Windows.txt)
