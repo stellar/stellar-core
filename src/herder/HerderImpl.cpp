@@ -1485,7 +1485,7 @@ HerderImpl::dumpInfo(Json::Value& ret, size_t limit)
 
     mSCP.dumpInfo(ret, limit);
 
-    mPendingEnvelopes.dumpInfo(ret);
+    mPendingEnvelopes.dumpInfo(ret, limit);
 }
 
 void

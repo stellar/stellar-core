@@ -286,22 +286,41 @@ PendingEnvelopes::getQSet(Hash const& hash)
 }
 
 void
-PendingEnvelopes::dumpInfo(Json::Value& ret)
+PendingEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
 {
-    /* TODO.1
-    int count = 0;
-    for(auto& entry : mFetching)
-    {
-        for(auto& fRecord : entry.second)
-        {
-            auto & envelope = fRecord->env;
-            ostringstream output;
-            output << "i:" << entry.first
-                << " n:" << binToHex(envelope->nodeID).substr(0, 6);
+    Json::Value& q = ret["queue"];
 
-            ret["pending"][count++] = output.str();
+    {
+        auto it = mFetchingEnvelopes.rbegin();
+        size_t l = limit;
+        while (it != mFetchingEnvelopes.rend() && l-- != 0)
+        {
+            if (it->second.size() != 0)
+            {
+                Json::Value& slot = q[std::to_string(it->first)]["fetching"];
+                for (auto const& e : it->second)
+                {
+                    slot.append(mHerder.getSCP().envToStr(e));
+                }
+            }
+            it++;
         }
     }
-    */
+    {
+        auto it = mPendingEnvelopes.rbegin();
+        size_t l = limit;
+        while (it != mPendingEnvelopes.rend() && l-- != 0)
+        {
+            if (it->second.size() != 0)
+            {
+                Json::Value& slot = q[std::to_string(it->first)]["pending"];
+                for (auto const& e : it->second)
+                {
+                    slot.append(mHerder.getSCP().envToStr(e));
+                }
+            }
+            it++;
+        }
+    }
 }
 }
