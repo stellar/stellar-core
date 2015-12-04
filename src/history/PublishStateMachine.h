@@ -7,6 +7,7 @@
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "history/HistoryArchive.h"
+#include "history/StateSnapshot.h"
 
 #include <map>
 #include <memory>
@@ -40,23 +41,6 @@ enum PublishState
     PUBLISH_COMMITTING = 4,
     PUBLISH_END = 5
 };
-
-enum FilePublishState
-{
-    FILE_PUBLISH_FAILED = -1,
-    FILE_PUBLISH_NEEDED = 0,
-    FILE_PUBLISH_MAYBE_NEEDED = 1, // optional publish
-    FILE_PUBLISH_COMPRESSING = 3,
-    FILE_PUBLISH_COMPRESSED = 4,
-    FILE_PUBLISH_MAKING_DIR = 5,
-    FILE_PUBLISH_MADE_DIR = 6,
-    FILE_PUBLISH_UPLOADING = 7,
-    FILE_PUBLISH_UPLOADED = 8,
-    FILE_PUBLISH_COMPLETE = 9
-};
-
-struct StateSnapshot;
-template <typename T> class FileTransferInfo;
 
 class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 {
