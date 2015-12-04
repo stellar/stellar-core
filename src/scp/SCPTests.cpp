@@ -509,7 +509,7 @@ TEST_CASE("v-blocking distance", "[scp]")
     auto check = [&](SCPQuorumSet const& qSetCheck, std::set<NodeID> const& s,
                      int expected)
     {
-        auto r = LocalNode::findClosestVBlocking(qSetCheck, s);
+        auto r = LocalNode::findClosestVBlocking(qSetCheck, s, nullptr);
         REQUIRE(expected == r.size());
     };
 

@@ -414,7 +414,8 @@ LocalNode::isQuorum(
 std::vector<NodeID>
 LocalNode::findClosestVBlocking(
     SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
-    std::function<bool(SCPStatement const&)> const& filter)
+    std::function<bool(SCPStatement const&)> const& filter,
+    NodeID const* excluded)
 {
     std::set<NodeID> s;
     for (auto const& n : map)
@@ -424,12 +425,13 @@ LocalNode::findClosestVBlocking(
             s.emplace(n.first);
         }
     }
-    return findClosestVBlocking(qset, s);
+    return findClosestVBlocking(qset, s, excluded);
 }
 
 std::vector<NodeID>
 LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
-                                std::set<NodeID> const& nodes)
+                                std::set<NodeID> const& nodes,
+                                NodeID const* excluded)
 {
     size_t leftTillBlock =
         ((1 + qset.validators.size() + qset.innerSets.size()) - qset.threshold);
@@ -439,20 +441,23 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
     // first, compute how many top level items need to be blocked
     for (auto const& validator : qset.validators)
     {
-        auto it = nodes.find(validator);
-        if (it == nodes.end())
+        if (!excluded || !(validator == *excluded))
         {
-            leftTillBlock--;
-            if (leftTillBlock == 0)
+            auto it = nodes.find(validator);
+            if (it == nodes.end())
             {
-                // already blocked
-                return std::vector<NodeID>();
+                leftTillBlock--;
+                if (leftTillBlock == 0)
+                {
+                    // already blocked
+                    return std::vector<NodeID>();
+                }
             }
-        }
-        else
-        {
-            // save this for later
-            res.emplace_back(validator);
+            else
+            {
+                // save this for later
+                res.emplace_back(validator);
+            }
         }
     }
 
@@ -469,7 +474,7 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
 
     for (auto const& inner : qset.innerSets)
     {
-        auto v = findClosestVBlocking(inner, nodes);
+        auto v = findClosestVBlocking(inner, nodes, excluded);
         if (v.size() == 0)
         {
             leftTillBlock--;

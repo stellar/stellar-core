@@ -2000,10 +2000,12 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
         }
 
         auto f = LocalNode::findClosestVBlocking(
-            *qSet, mLatestEnvelopes, [&](SCPStatement const& st)
+            *qSet, mLatestEnvelopes,
+            [&](SCPStatement const& st)
             {
                 return areBallotsCompatible(getWorkingBallot(st), b);
-            });
+            },
+            &id);
         ret["fail_at"] = static_cast<int>(f.size());
 
         if (!summary)
