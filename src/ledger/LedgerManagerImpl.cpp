@@ -495,6 +495,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     {
         CLOG(ERROR, "Ledger") << "Error catching up: " << ec.message();
         CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+        setState(LM_BOOTING_STATE);
     }
     else
     {
@@ -589,16 +590,15 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             }
         }
 
-        // we're done processing the ledgers backlog
-        mSyncingLedgers.clear();
-
         CLOG(INFO, "Ledger")
             << "Caught up to LCL including recent network activity: "
             << ledgerAbbrev(mLastClosedLedger);
-
-        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
         setState(LM_SYNCED_STATE);
     }
+
+    // Either way, we're done processing the ledgers backlog
+    mSyncingLedgers.clear();
+    mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 
 uint64_t
