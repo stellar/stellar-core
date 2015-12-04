@@ -135,7 +135,8 @@ class HistoryTests
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
                             Application::pointer app2, bool doStart = true,
-                            uint32_t maxCranks = 0xffffffff);
+                            uint32_t maxCranks = 0xffffffff,
+                            uint32_t gap=0);
 
     bool
     flip()
@@ -415,7 +416,8 @@ bool
 HistoryTests::catchupApplication(uint32_t initLedger,
                                  HistoryManager::CatchupMode resumeMode,
                                  Application::pointer app2, bool doStart,
-                                 uint32_t maxCranks)
+                                 uint32_t maxCranks,
+                                 uint32_t gap)
 {
 
     auto& lm = app2->getLedgerManager();
@@ -460,16 +462,25 @@ HistoryTests::catchupApplication(uint32_t initLedger,
         app.getHistoryManager().nextCheckpointLedger(initLedger);
     for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
     {
+        // Remember the vectors count from 2, not 0.
         if (n - 2 >= mLedgerCloseDatas.size())
         {
             break;
         }
-        // Remember the vectors count from 2, not 0.
-        auto const& lcd = mLedgerCloseDatas.at(n - 2);
-        CLOG(INFO, "History")
-            << "force-externalizing LedgerCloseData for " << n
-            << " has txhash:" << hexAbbrev(lcd.mTxSet->getContentsHash());
-        lm.externalizeValue(lcd);
+        if (n == gap)
+        {
+            CLOG(INFO, "History")
+                << "simulating LedgerClose transmit gap at ledger " << n;
+        }
+        else
+        {
+            // Remember the vectors count from 2, not 0.
+            auto const& lcd = mLedgerCloseDatas.at(n - 2);
+            CLOG(INFO, "History")
+                << "force-externalizing LedgerCloseData for " << n
+                << " has txhash:" << hexAbbrev(lcd.mTxSet->getContentsHash());
+            lm.externalizeValue(lcd);
+        }
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
@@ -480,7 +491,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
             LedgerManager::LM_SYNCED_STATE) &&
            !app2->getClock().getIOService().stopped() && (--maxCranks != 0))
     {
-        app2->getClock().crank(true);
+        app2->getClock().crank(false);
     }
 
     if (maxCranks == 0)
@@ -936,4 +947,47 @@ TEST_CASE("persist publish queue", "[history]")
         }
         LOG(INFO) << app1->isStopping();
     }
+}
+
+
+// The idea with this test is that we join a network and somehow get a gap
+// in the SCP voting sequence while we're trying to catchup.  This should
+// cause catchup to fail, but that failure should itself just flush the
+// ledgermanager's buffer and get kicked back into catchup mode when the
+// network moves further ahead.
+//
+// (Both the hard-failure and the clear/reset weren't working when this
+// test was written)
+
+TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
+                 "[history][catchupstall]")
+{
+    generateAndPublishInitialHistory(1);
+
+    // Catch up successfully the first time
+    auto app2 = catchupNewApplication(
+        app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
+        Config::TESTDB_IN_MEMORY_SQLITE, HistoryManager::CATCHUP_COMPLETE,
+        "app2");
+
+    // Now generate a little more history
+    generateAndPublishHistory(1);
+
+    bool caughtup = false;
+    auto init = app2->getLedgerManager().getLastClosedLedgerNum() + 2;
+
+    // Now start a catchup on that _fails_ due to a gap
+    LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
+    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE,
+                                  app2, true, 10000, init + 10);
+
+    assert(!caughtup);
+
+    // Now generate a little more history
+    generateAndPublishHistory(1);
+
+    // And catchup successfully
+    init = app.getLedgerManager().getLastClosedLedgerNum();
+    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2);
+    assert(caughtup);
 }

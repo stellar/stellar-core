@@ -653,8 +653,9 @@ CatchupStateMachine::enterRetryingState(uint64_t nseconds)
             if (self->mRetryCount++ > kRetryLimit)
             {
                 CLOG(WARNING, "History") << "Retry count " << kRetryLimit
-                                         << " exceeded, restarting catchup";
-                self->enterBeginState();
+                                         << " exceeded, failing catchup";
+                self->mError = std::make_error_code(std::errc::timed_out);
+                self->enterEndState();
             }
             else if (!anchored)
             {
@@ -1235,7 +1236,7 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
 void
 CatchupStateMachine::enterEndState()
 {
-    assert(mState == CATCHUP_APPLYING);
+    assert(mState == CATCHUP_APPLYING || (mState == CATCHUP_RETRYING && (!!mError)));
     mApplyState.reset();
     mState = CATCHUP_END;
     CLOG(DEBUG, "History") << "Completed catchup from '" << mArchive->getName()
