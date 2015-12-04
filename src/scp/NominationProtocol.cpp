@@ -442,7 +442,7 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
                              bool timedout)
 {
     CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
-                       << mSlot.getValueString(value);
+                       << mSlot.getSCP().getValueString(value);
 
     bool updated = false;
 
@@ -530,31 +530,21 @@ NominationProtocol::dumpInfo(Json::Value& ret)
     int counter = 0;
     for (auto const& v : mVotes)
     {
-        nomState["X"][counter] = mSlot.getValueString(v);
+        nomState["X"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
 
     counter = 0;
     for (auto const& v : mAccepted)
     {
-        nomState["Y"][counter] = mSlot.getValueString(v);
+        nomState["Y"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
 
     counter = 0;
     for (auto const& v : mCandidates)
     {
-        nomState["Z"][counter] = mSlot.getValueString(v);
-        counter++;
-    }
-
-    counter = 0;
-    for (auto const& v : mLatestNominations)
-    {
-        nomState["N"][counter]["id"] =
-            mSlot.getSCPDriver().toShortString(v.first);
-        nomState["N"][counter]["statement"] = mSlot.envToStr(v.second);
-
+        nomState["Z"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
 

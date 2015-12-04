@@ -103,17 +103,21 @@ class LocalNode
                  return true;
              });
 
-    // computes the distance to the set of v-blocking sets given a set of nodes
+    // computes the distance to the set of v-blocking sets given
+    // a set of nodes that agree (but can fail)
+    // excluded, if set will be skipped altogether
     static std::vector<NodeID>
     findClosestVBlocking(SCPQuorumSet const& qset,
-                         std::set<NodeID> const& nodes);
+                         std::set<NodeID> const& nodes, NodeID const* excluded);
+
     static std::vector<NodeID> findClosestVBlocking(
         SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
         std::function<bool(SCPStatement const&)> const& filter =
             [](SCPStatement const&)
         {
             return true;
-        });
+        },
+        NodeID const* excluded = nullptr);
 
     void toJson(SCPQuorumSet const& qSet, Json::Value& value) const;
     std::string to_string(SCPQuorumSet const& qSet) const;

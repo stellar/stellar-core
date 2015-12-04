@@ -1485,7 +1485,7 @@ HerderImpl::dumpInfo(Json::Value& ret, size_t limit)
 
     mSCP.dumpInfo(ret, limit);
 
-    mPendingEnvelopes.dumpInfo(ret);
+    mPendingEnvelopes.dumpInfo(ret, limit);
 }
 
 void
@@ -1665,6 +1665,12 @@ void
 HerderImpl::herderOutOfSync()
 {
     CLOG(INFO, "Herder") << "Lost track of consensus";
+
+    Json::Value v;
+    dumpInfo(v, 20);
+    std::string s = v.toStyledString();
+    CLOG(INFO, "Herder") << "Out of sync context: " << s;
+
     mSCPMetrics.mLostSync.Mark();
     stateChanged();
 

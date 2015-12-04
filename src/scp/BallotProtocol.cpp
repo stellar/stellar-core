@@ -352,7 +352,7 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
 
     CLOG(DEBUG, "SCP") << "BallotProtocol::bumpState"
                        << " i: " << mSlot.getSlotIndex()
-                       << " v: " << mSlot.ballotToStr(newb);
+                       << " v: " << mSlot.getSCP().ballotToStr(newb);
 
     bool updated = updateCurrentValue(newb);
 
@@ -429,7 +429,7 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::bumpToBallot"
                        << " i: " << mSlot.getSlotIndex()
-                       << " b: " << mSlot.ballotToStr(ballot);
+                       << " b: " << mSlot.getSCP().ballotToStr(ballot);
 
     // `bumpToBallot` should be never called once we committed.
     dbgAssert(mPhase != SCP_PHASE_EXTERNALIZE);
@@ -835,7 +835,7 @@ BallotProtocol::setPreparedAccept(SCPBallot const& ballot)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedAccept"
                        << " i: " << mSlot.getSlotIndex()
-                       << " b: " << mSlot.ballotToStr(ballot);
+                       << " b: " << mSlot.getSCP().ballotToStr(ballot);
 
     // update our state
     bool didWork = setPrepared(ballot);
@@ -982,7 +982,7 @@ BallotProtocol::setPreparedConfirmed(SCPBallot const& newC,
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedConfirmed"
                        << " i: " << mSlot.getSlotIndex()
-                       << " h: " << mSlot.ballotToStr(newH);
+                       << " h: " << mSlot.getSCP().ballotToStr(newH);
 
     bool didWork = false;
 
@@ -1231,8 +1231,8 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::setAcceptCommit"
                        << " i: " << mSlot.getSlotIndex()
-                       << " new c: " << mSlot.ballotToStr(c)
-                       << " new h: " << mSlot.ballotToStr(h);
+                       << " new c: " << mSlot.getSCP().ballotToStr(c)
+                       << " new h: " << mSlot.getSCP().ballotToStr(h);
 
     bool didWork = false;
 
@@ -1437,8 +1437,8 @@ BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
 {
     CLOG(DEBUG, "SCP") << "BallotProtocol::setConfirmCommit"
                        << " i: " << mSlot.getSlotIndex()
-                       << " new c: " << mSlot.ballotToStr(c)
-                       << " new h: " << mSlot.ballotToStr(h);
+                       << " new c: " << mSlot.getSCP().ballotToStr(c)
+                       << " new h: " << mSlot.getSCP().ballotToStr(h);
 
     mCommit = make_unique<SCPBallot>(c);
     mHighBallot = make_unique<SCPBallot>(h);
@@ -1911,7 +1911,7 @@ BallotProtocol::dumpInfo(Json::Value& ret)
 {
     Json::Value state;
     state["heard"] = mHeardFromQuorum;
-    state["ballot"] = mSlot.ballotToStr(mCurrentBallot);
+    state["ballot"] = mSlot.getSCP().ballotToStr(mCurrentBallot);
     state["phase"] = phaseNames[mPhase];
 
     state["state"] = getLocalState();
@@ -2000,10 +2000,12 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
         }
 
         auto f = LocalNode::findClosestVBlocking(
-            *qSet, mLatestEnvelopes, [&](SCPStatement const& st)
+            *qSet, mLatestEnvelopes,
+            [&](SCPStatement const& st)
             {
                 return areBallotsCompatible(getWorkingBallot(st), b);
-            });
+            },
+            &id);
         ret["fail_at"] = static_cast<int>(f.size());
 
         if (!summary)
@@ -2027,11 +2029,11 @@ BallotProtocol::getLocalState() const
     std::ostringstream oss;
 
     oss << "i: " << mSlot.getSlotIndex() << " | " << phaseNames[mPhase]
-        << " | b: " << mSlot.ballotToStr(mCurrentBallot)
-        << " | p: " << mSlot.ballotToStr(mPrepared)
-        << " | p': " << mSlot.ballotToStr(mPreparedPrime)
-        << " | h: " << mSlot.ballotToStr(mHighBallot)
-        << " | c: " << mSlot.ballotToStr(mCommit)
+        << " | b: " << mSlot.getSCP().ballotToStr(mCurrentBallot)
+        << " | p: " << mSlot.getSCP().ballotToStr(mPrepared)
+        << " | p': " << mSlot.getSCP().ballotToStr(mPreparedPrime)
+        << " | h: " << mSlot.getSCP().ballotToStr(mHighBallot)
+        << " | c: " << mSlot.getSCP().ballotToStr(mCommit)
         << " | M: " << mLatestEnvelopes.size();
     return oss.str();
 }

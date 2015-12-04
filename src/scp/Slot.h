@@ -144,13 +144,6 @@ class Slot : public std::enable_shared_from_this<Slot>
     // wraps a statement in an envelope (sign it, etc)
     SCPEnvelope createEnvelope(SCPStatement const& statement);
 
-    // ** helper methods to stringify ballot for logging
-    std::string getValueString(Value const& v) const;
-    std::string ballotToStr(SCPBallot const& ballot) const;
-    std::string ballotToStr(std::unique_ptr<SCPBallot> const& ballot) const;
-    std::string envToStr(SCPEnvelope const& envelope) const;
-    std::string envToStr(SCPStatement const& st) const;
-
     // ** federated agreement helper functions
 
     // returns true if the statement defined by voted and accepted
