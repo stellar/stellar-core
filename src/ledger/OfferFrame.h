@@ -86,7 +86,7 @@ class OfferFrame : public EntryFrame
 
     // database utilities
     static pointer loadOffer(AccountID const& accountID, uint64_t offerID,
-                             Database& db);
+                             Database& db, LedgerDelta* delta = nullptr);
 
     static void loadBestOffers(size_t numOffers, size_t offset,
                                Asset const& pays, Asset const& gets,

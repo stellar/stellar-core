@@ -135,7 +135,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (offerID)
     { // modifying an old offer
-        mSellSheepOffer = OfferFrame::loadOffer(getSourceID(), offerID, db);
+        mSellSheepOffer =
+            OfferFrame::loadOffer(getSourceID(), offerID, db, &delta);
 
         if (!mSellSheepOffer)
         {

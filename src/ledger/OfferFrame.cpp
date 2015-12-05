@@ -128,7 +128,8 @@ OfferFrame::isValid() const
 }
 
 OfferFrame::pointer
-OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db)
+OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db,
+                      LedgerDelta* delta)
 {
     OfferFrame::pointer retOffer;
 
@@ -146,6 +147,11 @@ OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db)
                {
                    retOffer = make_shared<OfferFrame>(offer);
                });
+
+    if (delta && retOffer)
+    {
+        delta->recordEntry(*retOffer);
+    }
 
     return retOffer;
 }

@@ -7,6 +7,7 @@
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 #include "util/Logging.h"
+#include "ledger/LedgerDelta.h"
 
 namespace stellar
 {
@@ -21,6 +22,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
                           int64_t maxWheatReceived, int64_t& numWheatReceived,
                           int64_t maxSheepSend, int64_t& numSheepSend)
 {
+    // we're about to make changes to the offer
+    mDelta.recordEntry(sellingWheatOffer);
+
     Asset& sheep = sellingWheatOffer.getOffer().buying;
     Asset& wheat = sellingWheatOffer.getOffer().selling;
     AccountID& accountBID = sellingWheatOffer.getOffer().sellerID;
