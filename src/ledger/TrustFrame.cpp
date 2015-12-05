@@ -338,7 +338,7 @@ TrustFrame::createIssuerFrame(Asset const& issuer)
 
 TrustFrame::pointer
 TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
-                          Database& db)
+                          Database& db, LedgerDelta* delta)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -401,17 +401,22 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
     {
         putCachedEntry(key, nullptr, db);
     }
+
+    if (delta && retLine)
+    {
+        delta->recordEntry(*retLine);
+    }
     return retLine;
 }
 
 std::pair<TrustFrame::pointer, AccountFrame::pointer>
 TrustFrame::loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
-                                Database& db)
+                                Database& db, LedgerDelta& delta)
 {
     std::pair<TrustFrame::pointer, AccountFrame::pointer> res;
 
-    res.first = loadTrustLine(accountID, asset, db);
-    res.second = AccountFrame::loadAccount(getIssuer(asset), db);
+    res.first = loadTrustLine(accountID, asset, db, &delta);
+    res.second = AccountFrame::loadAccount(delta, getIssuer(asset), db);
     return res;
 }
 

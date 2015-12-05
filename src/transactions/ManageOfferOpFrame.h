@@ -17,7 +17,8 @@ class ManageOfferOpFrame : public OperationFrame
 
     OfferFrame::pointer mSellSheepOffer;
 
-    bool checkOfferValid(medida::MetricsRegistry& metrics, Database& db);
+    bool checkOfferValid(medida::MetricsRegistry& metrics, Database& db,
+                         LedgerDelta& delta);
 
     ManageOfferResult&
     innerResult()

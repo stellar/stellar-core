@@ -42,7 +42,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     TrustFrame::pointer wheatLineAccountB;
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        wheatLineAccountB = TrustFrame::loadTrustLine(accountBID, wheat, db);
+        wheatLineAccountB =
+            TrustFrame::loadTrustLine(accountBID, wheat, db, &mDelta);
     }
 
     TrustFrame::pointer sheepLineAccountB;
@@ -53,7 +54,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        sheepLineAccountB = TrustFrame::loadTrustLine(accountBID, sheep, db);
+        sheepLineAccountB =
+            TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
 
         // compute numWheatReceived based on what the account can receive
         int64_t sellerMaxSheep =
