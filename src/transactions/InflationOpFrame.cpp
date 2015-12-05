@@ -96,7 +96,8 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         if (toDoleThisWinner == 0)
             continue;
 
-        winner = AccountFrame::loadAccount(w.mInflationDest, db);
+        winner =
+            AccountFrame::loadAccount(inflationDelta, w.mInflationDest, db);
 
         if (winner)
         {

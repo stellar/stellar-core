@@ -37,7 +37,8 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     Database& db = ledgerManager.getDatabase();
 
-    destAccount = AccountFrame::loadAccount(mCreateAccount.destination, db);
+    destAccount =
+        AccountFrame::loadAccount(delta, mCreateAccount.destination, db);
     if (!destAccount)
     {
         if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))

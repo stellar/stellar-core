@@ -196,6 +196,18 @@ AccountFrame::getLowThreshold() const
 }
 
 AccountFrame::pointer
+AccountFrame::loadAccount(LedgerDelta& delta, AccountID const& accountID,
+                          Database& db)
+{
+    auto a = loadAccount(accountID, db);
+    if (a)
+    {
+        delta.recordEntry(*a);
+    }
+    return a;
+}
+
+AccountFrame::pointer
 AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 {
     LedgerKey key;

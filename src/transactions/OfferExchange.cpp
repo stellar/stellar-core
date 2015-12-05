@@ -28,7 +28,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     Database& db = mLedgerManager.getDatabase();
 
     AccountFrame::pointer accountB;
-    accountB = AccountFrame::loadAccount(accountBID, db);
+    accountB = AccountFrame::loadAccount(mDelta, accountBID, db);
     if (!accountB)
     {
         throw std::runtime_error(

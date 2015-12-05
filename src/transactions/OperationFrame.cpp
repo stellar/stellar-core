@@ -76,7 +76,7 @@ bool
 OperationFrame::apply(LedgerDelta& delta, Application& app)
 {
     bool res;
-    res = checkValid(app, true);
+    res = checkValid(app, &delta);
     if (res)
     {
         res = doApply(app.getMetrics(), delta, app.getLedgerManager());
@@ -105,9 +105,9 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(Database& db)
+OperationFrame::loadAccount(LedgerDelta* delta, Database& db)
 {
-    mSourceAccount = mParentTx.loadAccount(db, getSourceID());
+    mSourceAccount = mParentTx.loadAccount(delta, db, getSourceID());
     return !!mSourceAccount;
 }
 
@@ -122,9 +122,10 @@ OperationFrame::getResultCode() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(Application& app, bool forApply)
+OperationFrame::checkValid(Application& app, LedgerDelta* delta)
 {
-    if (!loadAccount(app.getDatabase()))
+    bool forApply = (delta != nullptr);
+    if (!loadAccount(delta, app.getDatabase()))
     {
         if (forApply || !mOperation.sourceAccount)
         {

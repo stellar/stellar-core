@@ -64,7 +64,8 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (!bypassIssuerCheck)
     {
-        destination = AccountFrame::loadAccount(mPathPayment.destination, db);
+        destination =
+            AccountFrame::loadAccount(delta, mPathPayment.destination, db);
 
         if (!destination)
         {
@@ -148,7 +149,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (curA.type() != ASSET_TYPE_NATIVE)
         {
-            if (!AccountFrame::loadAccount(getIssuer(curA), db))
+            if (!AccountFrame::loadAccount(delta, getIssuer(curA), db))
             {
                 metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
