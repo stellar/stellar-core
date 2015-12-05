@@ -236,10 +236,7 @@ ApplicationImpl::start()
             // restores the SCP state before starting overlay
             mHerder->restoreSCPState();
             mOverlayManager->start();
-            auto npub = mHistoryManager->publishQueuedHistory(
-                [](asio::error_code const&)
-                {
-                });
+            auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
             {
                 CLOG(INFO, "Ledger") << "Restarted publishing " << npub

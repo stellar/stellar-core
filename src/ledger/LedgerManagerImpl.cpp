@@ -755,9 +755,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     txscope.commit();
 
     // step 3
-    hm.publishQueuedHistory([](asio::error_code const&)
-                            {
-                            });
+    hm.publishQueuedHistory();
     hm.logAndUpdateStatus(true);
 
     // step 4

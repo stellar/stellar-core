@@ -32,11 +32,12 @@ namespace stellar
 const size_t ArchivePublisher::kRetryLimit = 16;
 
 ArchivePublisher::ArchivePublisher(
-    Application& app, std::function<void(asio::error_code const&)> handler,
+    Application& app,
+    PublishStateMachine& pub,
     std::shared_ptr<HistoryArchive> archive,
     std::shared_ptr<StateSnapshot> snap)
     : mApp(app)
-    , mEndHandler(handler)
+    , mPublish(pub)
     , mState(PUBLISH_RETRYING)
     , mRetryCount(0)
     , mRetryTimer(app)
@@ -337,13 +338,19 @@ ArchivePublisher::enterEndState()
     CLOG(DEBUG, "History") << "Finished publishing to archive '"
                            << this->mArchive->getName() << "'";
     mState = PUBLISH_END;
-    mEndHandler(mError);
+    mPublish.snapshotPublished();
 }
 
 bool
 ArchivePublisher::isDone() const
 {
     return mState == PUBLISH_END;
+}
+
+bool
+ArchivePublisher::failed() const
+{
+    return !!mError;
 }
 
 PublishStateMachine::PublishStateMachine(Application& app)
@@ -363,7 +370,7 @@ PublishStateMachine::maxQueuedSnapshotLedger() const
     {
         return 0;
     }
-    return mPendingSnaps.back().first->mLocalState.currentLedger;
+    return mPendingSnaps.back()->mLocalState.currentLedger;
 }
 
 uint32_t
@@ -373,7 +380,7 @@ PublishStateMachine::minQueuedSnapshotLedger() const
     {
         return 0;
     }
-    return mPendingSnaps.front().first->mLocalState.currentLedger;
+    return mPendingSnaps.front()->mLocalState.currentLedger;
 }
 
 size_t
@@ -383,10 +390,10 @@ PublishStateMachine::publishQueueLength() const
 }
 
 bool
-PublishStateMachine::queueSnapshot(SnapshotPtr snap, PublishCallback handler)
+PublishStateMachine::queueSnapshot(SnapshotPtr snap)
 {
     bool delayed = !mPendingSnaps.empty();
-    mPendingSnaps.push_back(std::make_pair(snap, handler));
+    mPendingSnaps.push_back(snap);
     mPendingSnapsSize.set_count(mPendingSnaps.size());
     if (delayed)
     {
@@ -424,7 +431,7 @@ PublishStateMachine::writeNextSnapshot()
     if (mPendingSnaps.empty())
         return;
 
-    auto snap = mPendingSnaps.front().first;
+    auto snap = mPendingSnaps.front();
 
     snap->mLocalState.resolveAnyReadyFutures();
     snap->makeLiveAndRetainBuckets();
@@ -464,13 +471,12 @@ PublishStateMachine::writeNextSnapshot()
 void
 PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
-    auto snap = mPendingSnaps.front().first;
+    auto snap = mPendingSnaps.front();
 
     if (ec)
     {
-        CLOG(WARNING, "History")
-            << "Failed to snapshot state, abandoning publication";
-        finishOne(ec);
+        CLOG(WARNING, "History") << "Failed to snapshot state";
+        finishOne(false);
         return;
     }
     CLOG(DEBUG, "History") << "Publishing snapshot of ledger "
@@ -486,12 +492,7 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
         if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
         {
             auto p = std::make_shared<ArchivePublisher>(
-                mApp,
-                [this](asio::error_code const& ec)
-                {
-                    this->snapshotPublished(ec);
-                },
-                pair.second, snap);
+                mApp, *this, pair.second, snap);
             mPublishers.push_back(p);
             mPublishersSize.set_count(mPublishers.size());
             p->enterBeginState();
@@ -500,29 +501,41 @@ PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 }
 
 void
-PublishStateMachine::snapshotPublished(asio::error_code const& ec)
+PublishStateMachine::snapshotPublished()
 {
-    asio::error_code ecSaved(
-        ec); // make a copy of ec as it could be deleted by following statement
-    mPublishers.erase(std::remove_if(mPublishers.begin(), mPublishers.end(),
-                                     [](std::shared_ptr<ArchivePublisher> p)
-                                     {
-                                         return p->isDone();
-                                     }));
-    mPublishersSize.set_count(mPublishers.size());
-    CLOG(DEBUG, "History") << "Completed publish to archive, "
-                           << mPublishers.size() << " remain";
-    if (mPublishers.empty())
+    size_t nDone = 0, nFail = 0;
+    for (auto const& p : mPublishers)
     {
-        finishOne(ecSaved);
+        if (p->isDone())
+        {
+            ++nDone;
+            if (p->failed())
+            {
+                ++nFail;
+            }
+        }
+    }
+
+    CLOG(DEBUG, "History") << "Completed publish to archive, "
+                           << (mPublishers.size() - nDone) << " remain";
+
+    if (nDone == mPublishers.size())
+    {
+        if (nFail != 0)
+        {
+            CLOG(WARNING, "History") << "Failed to publish " << nFail
+                                     << "archives, will retry later.";
+        }
+        finishOne(nFail == 0);
     }
 }
 
 void
-PublishStateMachine::finishOne(asio::error_code const& ec)
+PublishStateMachine::finishOne(bool success)
 {
     assert(!mPendingSnaps.empty());
-    mPendingSnaps.front().second(ec);
+    auto seq = mPendingSnaps.front()->mLocalState.currentLedger;
+    mApp.getHistoryManager().historyPublished(seq, success);
     mPendingSnaps.pop_front();
     mPendingSnapsSize.set_count(mPendingSnaps.size());
     writeNextSnapshot();

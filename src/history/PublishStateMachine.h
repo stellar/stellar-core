@@ -42,10 +42,12 @@ enum PublishState
     PUBLISH_END = 5
 };
 
+class PublishStateMachine;
+
 class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
 {
     Application& mApp;
-    std::function<void(asio::error_code const&)> mEndHandler;
+    PublishStateMachine& mPublish;
     asio::error_code mError;
     PublishState mState;
     size_t mRetryCount;
@@ -65,7 +67,7 @@ class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
   public:
     static const size_t kRetryLimit;
     ArchivePublisher(Application& app,
-                     std::function<void(asio::error_code const&)> handler,
+                     PublishStateMachine& mPublish,
                      std::shared_ptr<HistoryArchive> archive,
                      std::shared_ptr<StateSnapshot> snap);
 
@@ -77,22 +79,22 @@ class ArchivePublisher : public std::enable_shared_from_this<ArchivePublisher>
     void enterEndState();
 
     bool isDone() const;
+    bool failed() const;
 };
 
-typedef std::function<void(asio::error_code const&)> PublishCallback;
 typedef std::shared_ptr<StateSnapshot> SnapshotPtr;
 
 class PublishStateMachine
 {
     Application& mApp;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
-    std::deque<std::pair<SnapshotPtr, PublishCallback>> mPendingSnaps;
+    std::deque<SnapshotPtr> mPendingSnaps;
     medida::Counter& mPublishersSize;
     medida::Counter& mPendingSnapsSize;
     VirtualTimer mRecheckRunningMergeTimer;
 
     void writeNextSnapshot();
-    void finishOne(asio::error_code const&);
+    void finishOne(bool success);
 
   public:
     PublishStateMachine(Application& app);
@@ -111,9 +113,9 @@ class PublishStateMachine
     size_t publishQueueLength() const;
 
     // Returns true if delayed, false if immediately dispatched.
-    bool queueSnapshot(SnapshotPtr snap, PublishCallback handler);
+    bool queueSnapshot(SnapshotPtr snap);
 
     void snapshotWritten(asio::error_code const&);
-    void snapshotPublished(asio::error_code const&);
+    void snapshotPublished();
 };
 }

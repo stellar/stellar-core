@@ -327,17 +327,21 @@ class HistoryManager
     virtual uint32_t getMinLedgerQueuedToPublish() = 0;
 
     // Publish any checkpoints queued (in the database) for publication.
-    // Returns the number of publishes initiated, which is the same number
-    // as the number of times the provided handler will be called (once for
-    // each, as they complete).
-    virtual size_t publishQueuedHistory(
-        std::function<void(asio::error_code const&)> handler) = 0;
+    // Returns the number of publishes initiated.
+    virtual size_t publishQueuedHistory() = 0;
 
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue that are not present in the BucketManager. These need to be
     // fetched from somewhere before publishing can begin again.
     virtual std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() = 0;
+
+    // Callback from Publication, indicates that a given snapshot was
+    // published. The `success` parameter indicates whether _all_ the
+    // configured archives published correctly; if so the snapshot
+    // can be dequeued, otherwise it should remain and be tried again
+    // later.
+    virtual void historyPublished(uint32_t ledgerSeq, bool success) = 0;
 
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,

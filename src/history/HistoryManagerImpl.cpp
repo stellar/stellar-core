@@ -626,15 +626,12 @@ HistoryManagerImpl::queueCurrentHistory()
     // into the in-memory publish queue in order to preserve those
     // merges-in-progress, avoid restarting them.
 
-    takeSnapshotAndQueue(has, [](asio::error_code const&)
-                         {
-                         });
+    takeSnapshotAndQueue(has);
 }
 
 void
 HistoryManagerImpl::takeSnapshotAndQueue(
-    HistoryArchiveState const& has,
-    std::function<void(asio::error_code const&)> handler)
+    HistoryArchiveState const& has)
 {
     mPublishQueue.Mark();
     auto ledgerSeq = has.currentLedger;
@@ -642,20 +639,7 @@ HistoryManagerImpl::takeSnapshotAndQueue(
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
 
     auto snap = PublishStateMachine::takeSnapshot(mApp, has);
-    if (mPublish->queueSnapshot(
-            snap, [this, ledgerSeq, handler](asio::error_code const& ec)
-            {
-                if (ec)
-                {
-                    this->mPublishFailure.Mark();
-                }
-                else
-                {
-                    this->mPublishSuccess.Mark();
-                    this->historyPublished(ledgerSeq);
-                }
-                handler(ec);
-            }))
+    if (mPublish->queueSnapshot(snap))
     {
         // Only bump this counter if there's a delay building up.
         mPublishDelay.Mark();
@@ -663,8 +647,7 @@ HistoryManagerImpl::takeSnapshotAndQueue(
 }
 
 size_t
-HistoryManagerImpl::publishQueuedHistory(
-    std::function<void(asio::error_code const&)> handler)
+HistoryManagerImpl::publishQueuedHistory()
 {
     if (!mPublish)
     {
@@ -691,7 +674,7 @@ HistoryManagerImpl::publishQueuedHistory(
         ++count;
         HistoryArchiveState has;
         has.fromString(state);
-        takeSnapshotAndQueue(has, handler);
+        takeSnapshotAndQueue(has);
         st.fetch();
     }
     return count;
@@ -721,15 +704,23 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
 }
 
 void
-HistoryManagerImpl::historyPublished(uint32_t ledgerSeq)
+HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
 {
-    auto timer = mApp.getDatabase().getDeleteTimer("publishqueue");
-    auto prep = mApp.getDatabase().getPreparedStatement(
-        "DELETE FROM publishqueue WHERE ledger = :lg;");
-    auto& st = prep.statement();
-    st.exchange(soci::use(ledgerSeq));
-    st.define_and_bind();
-    st.execute(true);
+    if (success)
+    {
+        this->mPublishSuccess.Mark();
+        auto timer = mApp.getDatabase().getDeleteTimer("publishqueue");
+        auto prep = mApp.getDatabase().getPreparedStatement(
+            "DELETE FROM publishqueue WHERE ledger = :lg;");
+        auto& st = prep.statement();
+        st.exchange(soci::use(ledgerSeq));
+        st.define_and_bind();
+        st.execute(true);
+    }
+    else
+    {
+        this->mPublishFailure.Mark();
+    }
 }
 
 void
