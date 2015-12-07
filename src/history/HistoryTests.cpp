@@ -656,8 +656,9 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     std::vector<HistoryManager::CatchupMode> resumeModes = {
         HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE};
 
-    std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
-                                               Config::TESTDB_ON_DISK_SQLITE};
+    std::vector<Config::TestDbMode> dbModes = { Config::TESTDB_IN_MEMORY_SQLITE,
+                                                Config::TESTDB_ON_DISK_SQLITE
+    };
 #ifdef USE_POSTGRES
     if (!force_sqlite)
         dbModes.push_back(Config::TESTDB_POSTGRESQL);

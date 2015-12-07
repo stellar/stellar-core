@@ -1,0 +1,411 @@
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#include "main/Application.h"
+#include "work/WorkManager.h"
+#include "herder/TxSetFrame.h"
+#include "history/HistoryArchive.h"
+#include "history/HistoryManager.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketApplicator.h"
+#include "util/TmpDir.h"
+
+#include <memory>
+#include <map>
+#include <string>
+
+
+/*
+ * This file contains a variety of Work subclasses for the History subsystem.
+ */
+
+namespace stellar
+{
+
+class GetRemoteFileWork : public Work
+{
+    std::string mRemote;
+    std::string mLocal;
+    std::shared_ptr<HistoryArchive const> mArchive;
+public:
+
+    // Passing `nullptr` for the archive argument will cause the work to
+    // select a new readable history archive at random each time it runs /
+    // retries.
+    GetRemoteFileWork(Application& app,
+                      WorkParent& parent,
+                      std::string const& remote,
+                      std::string const& local,
+                      std::shared_ptr<HistoryArchive const> archive = nullptr);
+    void onRun() override;
+};
+
+class PutRemoteFileWork : public Work
+{
+    std::string mRemote;
+    std::string mLocal;
+    std::shared_ptr<HistoryArchive const> mArchive;
+public:
+    PutRemoteFileWork(Application& app,
+                      WorkParent& parent,
+                      std::string const& remote,
+                      std::string const& local,
+                      std::shared_ptr<HistoryArchive const> archive);
+    void onRun() override;
+};
+
+class MakeRemoteDirWork : public Work
+{
+    std::string mDir;
+    std::shared_ptr<HistoryArchive const> mArchive;
+public:
+    MakeRemoteDirWork(Application& app,
+                      WorkParent& parent,
+                      std::string const& dir,
+                      std::shared_ptr<HistoryArchive const> archive);
+    void onRun() override;
+};
+
+class GzipFileWork : public Work
+{
+    std::string mFilenameNoGz;
+    bool mKeepExisting;
+public:
+    GzipFileWork(Application& app,
+                 WorkParent& parent,
+                 std::string const& filenameNoGz,
+                 bool keepExisting = false);
+    void onRun() override;
+    void onFailureRaise() override;
+    void onFailureRetry() override;
+};
+
+class GunzipFileWork : public Work
+{
+    std::string mFilenameGz;
+    bool mKeepExisting;
+public:
+    GunzipFileWork(Application& app,
+                   WorkParent& parent,
+                   std::string const& filenameGz,
+                   bool keepExisting = false);
+    void onRun() override;
+    void onFailureRaise() override;
+    void onFailureRetry() override;
+};
+
+class VerifyBucketWork : public Work
+{
+    std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
+    std::string mBucketFile;
+    uint256 mHash;
+public:
+    VerifyBucketWork(Application& app,
+                     WorkParent& parent,
+                     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+                     std::string const& bucketFile,
+                     uint256 const& hash);
+    void onRun() override;
+    Work::State onSuccess() override;
+};
+
+class ApplyBucketsWork : public Work
+{
+    std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
+    HistoryArchiveState& mApplyState;
+    LedgerHeaderHistoryEntry& mLastVerified;
+
+    bool mApplying;
+    size_t mLevel;
+    std::shared_ptr<Bucket> mSnapBucket;
+    std::shared_ptr<Bucket> mCurrBucket;
+    std::unique_ptr<BucketApplicator> mSnapApplicator;
+    std::unique_ptr<BucketApplicator> mCurrApplicator;
+
+    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
+    BucketLevel& getBucketLevel(size_t level);
+    BucketList& getBucketList();
+
+public:
+    ApplyBucketsWork(Application& app,
+                     WorkParent& parent,
+                     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+                     HistoryArchiveState& applyState,
+                     LedgerHeaderHistoryEntry& lastVerified);
+
+    void onReset() override;
+    void onStart() override;
+    void onRun() override;
+    Work::State onSuccess() override;
+};
+
+class GetHistoryArchiveStateWork : public Work
+{
+    HistoryArchiveState& mState;
+    uint32_t mSeq;
+    std::shared_ptr<HistoryArchive const> mArchive;
+    std::string mLocalFilename;
+public:
+    GetHistoryArchiveStateWork(
+        Application& app,
+        WorkParent& parent,
+        HistoryArchiveState& state,
+        uint32_t seq=0,
+        std::shared_ptr<HistoryArchive const> archive = nullptr);
+    VirtualClock::duration getRetryDelay() const override;
+    void onReset() override;
+    void onRun() override;
+};
+
+class PutHistoryArchiveStateWork : public Work
+{
+    HistoryArchiveState const& mState;
+    std::shared_ptr<HistoryArchive const> mArchive;
+    std::string mLocalFilename;
+    std::shared_ptr<Work> mPutRemoteFileWork;
+public:
+    PutHistoryArchiveStateWork(
+        Application& app,
+        WorkParent& parent,
+        HistoryArchiveState const& state,
+        std::shared_ptr<HistoryArchive const> archive);
+    void onReset() override;
+    void onRun() override;
+    Work::State onSuccess() override;
+};
+
+class BucketDownloadWork : public Work
+{
+protected:
+    HistoryArchiveState mLocalState;
+    std::unique_ptr<TmpDir> mDownloadDir;
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+public:
+    BucketDownloadWork(Application& app,
+                       WorkParent& parent,
+                       std::string const& uniqueName,
+                       HistoryArchiveState const& localState);
+    void onReset() override;
+};
+
+class CatchupWork : public BucketDownloadWork
+{
+protected:
+    HistoryArchiveState mRemoteState;
+    LedgerHeaderHistoryEntry mLastVerified;
+    LedgerHeaderHistoryEntry mLastApplied;
+    uint32_t mNextLedger;
+    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+
+public:
+    CatchupWork(Application& app,
+                WorkParent& parent,
+                uint32_t initLedger);
+    virtual void onReset() override;
+};
+
+class CatchupMinimalWork : public CatchupWork
+{
+
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& lastClosed)> handler;
+
+
+    std::shared_ptr<Work> mDownloadWork;
+    std::shared_ptr<Work> mApplyWork;
+    handler mEndHandler;
+
+public:
+    CatchupMinimalWork(Application& app,
+                       WorkParent& parent,
+                       uint32_t initLedger,
+                       handler endHandler);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+    void onFailureRaise() override;
+};
+
+class BatchDownloadWork : public Work
+{
+    // Specialized class for downloading _lots_ of files (thousands to
+    // millions). Sets up N (small number) of parallel download-decompress
+    // worker chains to nibble away at a set of files-to-download, stored
+    // as an integer deque. N is the subprocess-concurrency limit by default
+    // (though it's still enforced globally at the ProcessManager level,
+    // so you don't have to worry about making a few extra BatchDownloadWork
+    // classes -- they won't override the global limit, just schedule a small
+    // backlog in the ProcessManager).
+    std::deque<uint32_t> mFinished;
+    std::map<std::string, uint32_t> mRunning;
+    std::deque<uint32_t> mPending;
+    std::string mFileType;
+    TmpDir const& mDownloadDir;
+public:
+    BatchDownloadWork(Application& app,
+                      WorkParent& parent,
+                      uint32_t first,
+                      uint32_t last,
+                      std::string const& type,
+                      TmpDir const& downloadDir);
+    std::string getStatus() const override;
+    void addChild();
+    void onReset() override;
+    Work::State onSuccess() override;
+};
+
+class CatchupCompleteWork : public CatchupWork
+{
+
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& lastClosed)> handler;
+
+    std::shared_ptr<Work> mDownloadLedgersWork;
+    std::shared_ptr<Work> mDownloadTransactionsWork;
+    std::shared_ptr<Work> mVerifyWork;
+    std::shared_ptr<Work> mApplyWork;
+    handler mEndHandler;
+
+public:
+    CatchupCompleteWork(Application& app,
+                        WorkParent& parent,
+                        uint32_t initLedger,
+                        handler endHandler);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+    void onFailureRaise() override;
+};
+
+class VerifyLedgerChainWork : public Work
+{
+    TmpDir const& mDownloadDir;
+    uint32_t mFirstSeq;
+    uint32_t mCurrSeq;
+    uint32_t mLastSeq;
+    LedgerHeaderHistoryEntry& mLastVerified;
+
+    HistoryManager::VerifyHashStatus
+    verifyHistoryOfSingleCheckpoint();
+
+public:
+    VerifyLedgerChainWork(
+        Application& app,
+        WorkParent& parent,
+        TmpDir const& downloadDir,
+        uint32_t firstSeq,
+        uint32_t lastSeq,
+        LedgerHeaderHistoryEntry& lastVerified);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+};
+
+class ApplyLedgerChainWork : public Work
+{
+    TmpDir const& mDownloadDir;
+    uint32_t mFirstSeq;
+    uint32_t mCurrSeq;
+    uint32_t mLastSeq;
+    XDRInputFileStream mHdrIn;
+    XDRInputFileStream mTxIn;
+    TransactionHistoryEntry mTxHistoryEntry;
+
+    TxSetFramePtr getCurrentTxSet();
+    void openCurrentInputFiles();
+    bool applyHistoryOfSingleLedger();
+
+public:
+    ApplyLedgerChainWork(Application& app,
+                         WorkParent& parent,
+                         TmpDir const& downloadDir,
+                         uint32_t first,
+                         uint32_t last);
+    std::string getStatus() const override;
+    void onReset() override;
+    void onStart() override;
+    void onRun() override;
+    Work::State onSuccess() override;
+};
+
+class ResolveSnapshotWork : public Work
+{
+    std::shared_ptr<StateSnapshot> mSnapshot;
+public:
+    ResolveSnapshotWork(Application& app,
+                        WorkParent& parent,
+                        std::shared_ptr<StateSnapshot> snapshot);
+    void onRun() override;
+};
+
+class WriteSnapshotWork : public Work
+{
+    std::shared_ptr<StateSnapshot> mSnapshot;
+public:
+    WriteSnapshotWork(Application& app,
+                      WorkParent& parent,
+                      std::shared_ptr<StateSnapshot> snapshot);
+    void onRun() override;
+};
+
+class PutSnapshotFilesWork : public Work
+{
+    std::shared_ptr<HistoryArchive const> mArchive;
+    std::shared_ptr<StateSnapshot> mSnapshot;
+    HistoryArchiveState mRemoteState;
+
+    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+    std::shared_ptr<Work> mPutFilesWork;
+    std::shared_ptr<Work> mPutHistoryArchiveStateWork;
+
+public:
+    PutSnapshotFilesWork(Application& app,
+                         WorkParent& parent,
+                         std::shared_ptr<HistoryArchive const> archive,
+                         std::shared_ptr<StateSnapshot> snapshot);
+    void onReset() override;
+    Work::State onSuccess() override;
+};
+
+class PublishWork : public Work
+{
+    std::shared_ptr<StateSnapshot> mSnapshot;
+
+    std::shared_ptr<Work> mResolveSnapshotWork;
+    std::shared_ptr<Work> mWriteSnapshotWork;
+    std::shared_ptr<Work> mUpdateArchivesWork;
+
+public:
+    PublishWork(Application& app,
+                WorkParent& parent,
+                std::shared_ptr<StateSnapshot> snapshot);
+    std::string getStatus() const override;
+    void onReset() override;
+    void onFailureRaise() override;
+    Work::State onSuccess() override;
+};
+
+
+class RepairMissingBucketsWork : public BucketDownloadWork
+{
+
+    typedef std::function<void(asio::error_code const& ec)> handler;
+    handler mEndHandler;
+
+public:
+    RepairMissingBucketsWork(Application& app,
+                             WorkParent& parent,
+                             HistoryArchiveState const& localState,
+                             handler endHandler);
+    void onReset() override;
+    void onFailureRaise() override;
+    Work::State onSuccess() override;
+};
+
+
+
+}

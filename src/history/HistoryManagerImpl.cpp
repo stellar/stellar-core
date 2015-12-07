@@ -15,6 +15,7 @@
 #include "overlay/StellarXDR.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
+#include "history/HistoryWork.h"
 #include "history/PublishStateMachine.h"
 #include "history/CatchupStateMachine.h"
 #include "herder/HerderImpl.h"
@@ -805,6 +806,21 @@ HistoryManagerImpl::catchupHistory(
     }
     mCatchupStart.Mark();
     mManualCatchup = manualCatchup;
+
+    if (mode == CATCHUP_MINIMAL)
+    {
+        CLOG(INFO, "History") << "Starting CatchupMinimalWork";
+        mApp.getWorkManager().addWork<CatchupMinimalWork>(initLedger, handler);
+        mApp.getWorkManager().advanceChildren();
+        return;
+    }
+    if (mode == CATCHUP_COMPLETE)
+    {
+        CLOG(INFO, "History") << "Starting CatchupCompleteWork";
+        mApp.getWorkManager().addWork<CatchupCompleteWork>(initLedger, handler);
+        mApp.getWorkManager().advanceChildren();
+        return;
+    }
 
     mCatchup = make_shared<CatchupStateMachine>(
         mApp, initLedger, mode, getLastClosedHistoryArchiveState(),
