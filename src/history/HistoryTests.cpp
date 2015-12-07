@@ -23,6 +23,8 @@
 #include "process/ProcessManager.h"
 #include "util/NonCopyable.h"
 #include "herder/LedgerCloseData.h"
+#include "work/WorkManager.h"
+#include "work/WorkParent.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -136,7 +138,7 @@ class HistoryTests
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
                             Application::pointer app2, bool doStart = true,
-                            uint32_t maxCranks = 0xffffffff, uint32_t gap = 0);
+                            uint32_t gap = 0);
 
     bool
     flip()
@@ -395,7 +397,7 @@ bool
 HistoryTests::catchupApplication(uint32_t initLedger,
                                  HistoryManager::CatchupMode resumeMode,
                                  Application::pointer app2, bool doStart,
-                                 uint32_t maxCranks, uint32_t gap)
+                                 uint32_t gap)
 {
 
     auto& lm = app2->getLedgerManager();
@@ -467,12 +469,14 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     while ((app2->getLedgerManager().getState() !=
             LedgerManager::LM_SYNCED_STATE) &&
-           !app2->getClock().getIOService().stopped() && (--maxCranks != 0))
+           !app2->getClock().getIOService().stopped() &&
+           !app2->getWorkManager().allChildrenDone())
     {
         app2->getClock().crank(false);
     }
 
-    if (maxCranks == 0)
+    if (app2->getLedgerManager().getState() !=
+        LedgerManager::LM_SYNCED_STATE)
     {
         return false;
     }
@@ -767,10 +771,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     initLedger = lm.getLastClosedLedgerNum();
 
     caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
-                                  app2, true, 30);
+                                  app2, true);
     CHECK(!caughtup);
     caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
-                                  app3, true, 30);
+                                  app3, true);
     CHECK(!caughtup);
 
     // Now complete this publish cycle and confirm that the stalled apps
@@ -953,9 +957,11 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
     caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2,
-                                  true, 10000, init + 10);
+                                  true, init + 10);
 
     assert(!caughtup);
+
+    app2->getWorkManager().clearChildren();
 
     // Now generate a little more history
     generateAndPublishHistory(1);
