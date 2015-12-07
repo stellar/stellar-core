@@ -66,7 +66,7 @@ class OperationFrame
 
     // load account if needed
     // returns true on success
-    bool loadAccount(Database& db);
+    bool loadAccount(LedgerDelta* delta, Database& db);
 
     OperationResult&
     getResult() const
@@ -75,7 +75,7 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(Application& app, bool forApply = false);
+    bool checkValid(Application& app, LedgerDelta* delta = nullptr);
 
     bool apply(LedgerDelta& delta, Application& app);
 

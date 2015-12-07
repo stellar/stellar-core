@@ -26,8 +26,8 @@ ChangeTrustOpFrame::doApply(medida::MetricsRegistry& metrics,
 {
     Database& db = ledgerManager.getDatabase();
 
-    auto tlI =
-        TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line, db);
+    auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line,
+                                               db, delta);
 
     auto& trustLine = tlI.first;
     auto& issuer = tlI.second;

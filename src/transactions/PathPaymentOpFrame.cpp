@@ -64,7 +64,8 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (!bypassIssuerCheck)
     {
-        destination = AccountFrame::loadAccount(mPathPayment.destination, db);
+        destination =
+            AccountFrame::loadAccount(delta, mPathPayment.destination, db);
 
         if (!destination)
         {
@@ -87,13 +88,13 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (bypassIssuerCheck)
         {
-            destLine =
-                TrustFrame::loadTrustLine(mPathPayment.destination, curB, db);
+            destLine = TrustFrame::loadTrustLine(mPathPayment.destination, curB,
+                                                 db, &delta);
         }
         else
         {
             auto tlI = TrustFrame::loadTrustLineIssuer(mPathPayment.destination,
-                                                       curB, db);
+                                                       curB, db, delta);
             if (!tlI.second)
             {
                 metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
@@ -148,7 +149,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (curA.type() != ASSET_TYPE_NATIVE)
         {
-            if (!AccountFrame::loadAccount(getIssuer(curA), db))
+            if (!AccountFrame::loadAccount(delta, getIssuer(curA), db))
             {
                 metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
@@ -240,11 +241,12 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         if (bypassIssuerCheck)
         {
             sourceLineFrame =
-                TrustFrame::loadTrustLine(getSourceID(), curB, db);
+                TrustFrame::loadTrustLine(getSourceID(), curB, db, &delta);
         }
         else
         {
-            auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db);
+            auto tlI =
+                TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db, delta);
 
             if (!tlI.second)
             {

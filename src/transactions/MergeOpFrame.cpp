@@ -39,7 +39,8 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
 
-    otherAccount = AccountFrame::loadAccount(mOperation.body.destination(), db);
+    otherAccount =
+        AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
 
     if (!otherAccount)
     {

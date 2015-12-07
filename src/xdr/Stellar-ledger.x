@@ -225,11 +225,15 @@ case 0:
 
 // represents the meta in the transaction table history
 
+// STATE is emitted every time a ledger entry is modified/deleted
+// and the entry was not already modified in the current ledger
+
 enum LedgerEntryChangeType
 {
     LEDGER_ENTRY_CREATED = 0, // entry was added to the ledger
     LEDGER_ENTRY_UPDATED = 1, // entry was modified in the ledger
-    LEDGER_ENTRY_REMOVED = 2  // entry was removed from the ledger
+    LEDGER_ENTRY_REMOVED = 2, // entry was removed from the ledger
+    LEDGER_ENTRY_STATE = 3    // value of the entry
 };
 
 union LedgerEntryChange switch (LedgerEntryChangeType type)
@@ -240,6 +244,8 @@ case LEDGER_ENTRY_UPDATED:
     LedgerEntry updated;
 case LEDGER_ENTRY_REMOVED:
     LedgerKey removed;
+case LEDGER_ENTRY_STATE:
+    LedgerEntry state;
 };
 
 typedef LedgerEntryChange LedgerEntryChanges<>;

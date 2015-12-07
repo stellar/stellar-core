@@ -135,8 +135,7 @@ class HistoryTests
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
                             Application::pointer app2, bool doStart = true,
-                            uint32_t maxCranks = 0xffffffff,
-                            uint32_t gap=0);
+                            uint32_t maxCranks = 0xffffffff, uint32_t gap = 0);
 
     bool
     flip()
@@ -416,8 +415,7 @@ bool
 HistoryTests::catchupApplication(uint32_t initLedger,
                                  HistoryManager::CatchupMode resumeMode,
                                  Application::pointer app2, bool doStart,
-                                 uint32_t maxCranks,
-                                 uint32_t gap)
+                                 uint32_t maxCranks, uint32_t gap)
 {
 
     auto& lm = app2->getLedgerManager();
@@ -949,7 +947,6 @@ TEST_CASE("persist publish queue", "[history]")
     }
 }
 
-
 // The idea with this test is that we join a network and somehow get a gap
 // in the SCP voting sequence while we're trying to catchup.  This should
 // cause catchup to fail, but that failure should itself just flush the
@@ -978,8 +975,8 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE,
-                                  app2, true, 10000, init + 10);
+    caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2,
+                                  true, 10000, init + 10);
 
     assert(!caughtup);
 

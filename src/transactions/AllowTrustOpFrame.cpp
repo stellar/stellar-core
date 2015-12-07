@@ -61,7 +61,7 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     Database& db = ledgerManager.getDatabase();
     TrustFrame::pointer trustLine;
-    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db);
+    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
 
     if (!trustLine)
     {

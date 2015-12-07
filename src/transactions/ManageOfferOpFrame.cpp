@@ -35,7 +35,7 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 // make sure these issuers exist and you can hold the ask asset
 bool
 ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
-                                    Database& db)
+                                    Database& db, LedgerDelta& delta)
 {
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
@@ -48,7 +48,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
-        auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), sheep, db);
+        auto tlI =
+            TrustFrame::loadTrustLineIssuer(getSourceID(), sheep, db, delta);
         mSheepLineA = tlI.first;
         if (!tlI.second)
         {
@@ -84,7 +85,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), wheat, db);
+        auto tlI =
+            TrustFrame::loadTrustLineIssuer(getSourceID(), wheat, db, delta);
         mWheatLineA = tlI.first;
         if (!tlI.second)
         {
@@ -122,7 +124,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 {
     Database& db = ledgerManager.getDatabase();
 
-    if (!checkOfferValid(metrics, db))
+    if (!checkOfferValid(metrics, db, delta))
     {
         return false;
     }
@@ -135,7 +137,8 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (offerID)
     { // modifying an old offer
-        mSellSheepOffer = OfferFrame::loadOffer(getSourceID(), offerID, db);
+        mSellSheepOffer =
+            OfferFrame::loadOffer(getSourceID(), offerID, db, &delta);
 
         if (!mSellSheepOffer)
         {

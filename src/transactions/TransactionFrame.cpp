@@ -167,13 +167,18 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(Database& db, AccountID const& accountID)
+TransactionFrame::loadAccount(LedgerDelta* delta, Database& db,
+                              AccountID const& accountID)
 {
     AccountFrame::pointer res;
 
     if (mSigningAccount && mSigningAccount->getID() == accountID)
     {
         res = mSigningAccount;
+    }
+    else if (delta)
+    {
+        res = AccountFrame::loadAccount(*delta, accountID, db);
     }
     else
     {
@@ -183,9 +188,9 @@ TransactionFrame::loadAccount(Database& db, AccountID const& accountID)
 }
 
 bool
-TransactionFrame::loadAccount(Database& db)
+TransactionFrame::loadAccount(LedgerDelta* delta, Database& db)
 {
-    mSigningAccount = loadAccount(db, getSourceID());
+    mSigningAccount = loadAccount(delta, db, getSourceID());
     return !!mSigningAccount;
 }
 
@@ -213,9 +218,11 @@ TransactionFrame::resetResults()
 }
 
 bool
-TransactionFrame::commonValid(Application& app, bool applying,
+TransactionFrame::commonValid(Application& app, LedgerDelta* delta,
                               SequenceNumber current)
 {
+    bool applying = (delta != nullptr);
+
     if (mOperations.size() == 0)
     {
         app.getMetrics()
@@ -260,7 +267,7 @@ TransactionFrame::commonValid(Application& app, bool applying,
         return false;
     }
 
-    if (!loadAccount(app.getDatabase()))
+    if (!loadAccount(delta, app.getDatabase()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
@@ -318,7 +325,7 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
     resetSignatureTracker();
     resetResults();
 
-    if (!loadAccount(ledgerManager.getDatabase()))
+    if (!loadAccount(&delta, ledgerManager.getDatabase()))
     {
         throw std::runtime_error("Unexpected database state");
     }
@@ -386,7 +393,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetSignatureTracker();
     resetResults();
-    bool res = commonValid(app, false, current);
+    bool res = commonValid(app, nullptr, current);
     if (res)
     {
         for (auto& op : mOperations)
@@ -441,7 +448,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
     resetSignatureTracker();
-    if (!commonValid(app, true, 0))
+    if (!commonValid(app, &delta, 0))
     {
         return false;
     }

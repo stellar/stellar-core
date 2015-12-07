@@ -33,6 +33,7 @@ class LedgerDelta
     KeyEntryMap mNew;
     KeyEntryMap mMod;
     std::set<LedgerKey, LedgerEntryIdCmp> mDelete;
+    KeyEntryMap mPrevious;
 
     Database& mDb; // Used strictly for rollback of db entry cache.
 
@@ -42,9 +43,15 @@ class LedgerDelta
     void addEntry(EntryFrame::pointer entry);
     void deleteEntry(EntryFrame::pointer entry);
     void modEntry(EntryFrame::pointer entry);
+    void recordEntry(EntryFrame::pointer entry);
 
     // merge "other" into current ledgerDelta
     void mergeEntries(LedgerDelta& other);
+
+    // helper method that adds a meta entry to "changes"
+    // with the previous value of an entry if needed
+    void addCurrentMeta(LedgerEntryChanges& changes,
+                        LedgerKey const& key) const;
 
   public:
     // keeps an internal reference to the outerDelta,
@@ -69,6 +76,7 @@ class LedgerDelta
     void deleteEntry(EntryFrame const& entry);
     void deleteEntry(LedgerKey const& key);
     void modEntry(EntryFrame const& entry);
+    void recordEntry(EntryFrame const& entry);
 
     // commits this delta into outer delta
     void commit();

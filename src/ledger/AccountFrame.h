@@ -121,6 +121,8 @@ class AccountFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess);
 
     // database utilities
+    static AccountFrame::pointer
+    loadAccount(LedgerDelta& delta, AccountID const& accountID, Database& db);
     static AccountFrame::pointer loadAccount(AccountID const& accountID,
                                              Database& db);
 

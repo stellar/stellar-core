@@ -1236,7 +1236,8 @@ CatchupStateMachine::applyHistoryOfSingleCheckpoint(uint32_t checkpoint)
 void
 CatchupStateMachine::enterEndState()
 {
-    assert(mState == CATCHUP_APPLYING || (mState == CATCHUP_RETRYING && (!!mError)));
+    assert(mState == CATCHUP_APPLYING ||
+           (mState == CATCHUP_RETRYING && (!!mError)));
     mApplyState.reset();
     mState = CATCHUP_END;
     CLOG(DEBUG, "History") << "Completed catchup from '" << mArchive->getName()

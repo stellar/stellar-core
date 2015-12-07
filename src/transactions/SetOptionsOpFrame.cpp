@@ -48,7 +48,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     {
         AccountFrame::pointer inflationAccount;
         AccountID inflationID = *mSetOptions.inflationDest;
-        inflationAccount = AccountFrame::loadAccount(inflationID, db);
+        inflationAccount = AccountFrame::loadAccount(delta, inflationID, db);
         if (!inflationAccount)
         {
             metrics.NewMeter({"op-set-options", "failure", "invalid-inflation"},

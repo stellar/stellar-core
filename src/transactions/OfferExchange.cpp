@@ -7,6 +7,7 @@
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
 #include "util/Logging.h"
+#include "ledger/LedgerDelta.h"
 
 namespace stellar
 {
@@ -21,6 +22,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
                           int64_t maxWheatReceived, int64_t& numWheatReceived,
                           int64_t maxSheepSend, int64_t& numSheepSend)
 {
+    // we're about to make changes to the offer
+    mDelta.recordEntry(sellingWheatOffer);
+
     Asset& sheep = sellingWheatOffer.getOffer().buying;
     Asset& wheat = sellingWheatOffer.getOffer().selling;
     AccountID& accountBID = sellingWheatOffer.getOffer().sellerID;
@@ -28,7 +32,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     Database& db = mLedgerManager.getDatabase();
 
     AccountFrame::pointer accountB;
-    accountB = AccountFrame::loadAccount(accountBID, db);
+    accountB = AccountFrame::loadAccount(mDelta, accountBID, db);
     if (!accountB)
     {
         throw std::runtime_error(
@@ -38,7 +42,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     TrustFrame::pointer wheatLineAccountB;
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        wheatLineAccountB = TrustFrame::loadTrustLine(accountBID, wheat, db);
+        wheatLineAccountB =
+            TrustFrame::loadTrustLine(accountBID, wheat, db, &mDelta);
     }
 
     TrustFrame::pointer sheepLineAccountB;
@@ -49,7 +54,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
     else
     {
-        sheepLineAccountB = TrustFrame::loadTrustLine(accountBID, sheep, db);
+        sheepLineAccountB =
+            TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
 
         // compute numWheatReceived based on what the account can receive
         int64_t sellerMaxSheep =
