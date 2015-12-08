@@ -33,8 +33,8 @@ class LocalNode
 
     // returns true if quorum set is well formed
     // updates knownNodes as it encounters new ones
-    bool isQuorumSetSaneInternal(NodeID const& nodeID, SCPQuorumSet const& qSet,
-                                 std::set<NodeID>& knownNodes);
+    static bool isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
+                                        std::set<NodeID>& knownNodes);
 
     void adjustQSetHelper(SCPQuorumSet& qSet);
     // adjust qset such that self is a member of all slices
@@ -48,6 +48,8 @@ class LocalNode
 
     // returns if a nodeID's quorum set passes sanity checks
     bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
+    // simplified sanity check (for configuration validation)
+    static bool isQuorumSetSaneSimplified(SCPQuorumSet const& qSet);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 

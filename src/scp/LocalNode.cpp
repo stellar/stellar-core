@@ -46,8 +46,7 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
 }
 
 bool
-LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
-                                   SCPQuorumSet const& qSet,
+LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
                                    std::set<NodeID>& knownNodes)
 {
     auto& v = qSet.validators;
@@ -70,7 +69,7 @@ LocalNode::isQuorumSetSaneInternal(NodeID const& nodeID,
 
         for (auto const& iSet : i)
         {
-            if (!isQuorumSetSaneInternal(nodeID, iSet, knownNodes))
+            if (!isQuorumSetSaneInternal(iSet, knownNodes))
             {
                 return false;
             }
@@ -148,7 +147,7 @@ LocalNode::adjustQSet(SCPQuorumSet& qSet)
 {
     // transforms the qSet passed in into
     // { t: 2, self, { aQSet } }
-    // where, newQset is the qSet obtained by deleting self
+    // where, aQset is the quorum set obtained by deleting self
 
     auto aQSet = qSet;
     adjustQSetHelper(aQSet);
@@ -166,13 +165,19 @@ LocalNode::adjustQSet(SCPQuorumSet& qSet)
 }
 
 bool
+LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet)
+{
+    std::set<NodeID> allValidators;
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    return wellFormed;
+}
+
+bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
     std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(nodeID, qSet, allValidators);
-    // it's OK for a non validating node to not have itself in its quorum set
-    return wellFormed && ((allValidators.find(nodeID) != allValidators.end()) ||
-                          (!mIsValidator && nodeID == mNodeID));
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    return wellFormed && (allValidators.find(nodeID) != allValidators.end());
 }
 
 void

@@ -1411,9 +1411,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 }
 
 bool
-HerderImpl::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
+HerderImpl::isQuorumSetSane(SCPQuorumSet const& qSet)
 {
-    return mSCP.getLocalNode()->isQuorumSetSane(nodeID, qSet);
+    return LocalNode::isQuorumSetSaneSimplified(qSet);
 }
 
 bool
