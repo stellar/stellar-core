@@ -64,6 +64,9 @@ class Config : public std::enable_shared_from_this<Config>
     // meaning catchup "minimally", using deltas to the most recent snapshot.
     bool CATCHUP_COMPLETE;
 
+    // Enables or disables automatic maintenance on startup
+    bool MAINTENANCE_ON_STARTUP;
+
     // A config parameter that enables synthetic load generation on demand,
     // using the `generateload` runtime command (see CommandHandler.cpp). This
     // option only exists for stress-testing and should not be enabled in
