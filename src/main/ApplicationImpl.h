@@ -83,6 +83,8 @@ class ApplicationImpl : public Application
 
     virtual void checkDB() override;
 
+    virtual void maintenance() override;
+
     virtual void applyCfgCommands() override;
 
     virtual void reportCfgMetrics() override;

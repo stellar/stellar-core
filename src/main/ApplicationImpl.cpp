@@ -23,6 +23,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
+#include "main/ExternalQueue.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -362,6 +363,14 @@ ApplicationImpl::checkDB()
                                   this->getDatabase(),
                                   this->getBucketManager().getBucketList());
         });
+}
+
+void
+ApplicationImpl::maintenance()
+{
+    LOG(INFO) << "Performing maintenance";
+    ExternalQueue ps(*this);
+    ps.process();
 }
 
 void
