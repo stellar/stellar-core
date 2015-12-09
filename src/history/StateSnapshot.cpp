@@ -50,34 +50,19 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
 
     , mRetryTimer(app)
 {
-    makeLiveAndRetainBuckets();
+    makeLive();
 }
 
 void
-StateSnapshot::makeLiveAndRetainBuckets()
+StateSnapshot::makeLive()
 {
-    std::vector<std::shared_ptr<Bucket>> retain;
-    auto& bm = mApp.getBucketManager();
     for (auto& hb : mLocalState.currentBuckets)
     {
-        auto curr = bm.getBucketByHash(hexToBin256(hb.curr));
-        auto snap = bm.getBucketByHash(hexToBin256(hb.snap));
-        assert(curr);
-        assert(snap);
-        retain.push_back(curr);
-        retain.push_back(snap);
-
         if (hb.next.hasHashes() && !hb.next.isLive())
         {
             hb.next.makeLive(mApp);
         }
-
-        if (hb.next.isLive())
-        {
-            retain.push_back(hb.next.resolve());
-        }
     }
-    mLocalBuckets = retain;
 }
 
 bool

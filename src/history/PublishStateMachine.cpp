@@ -123,11 +123,6 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
     mArchiveState = has;
     std::vector<std::string> bucketsToSend =
         mSnap->mLocalState.differingBuckets(mArchiveState);
-    std::map<std::string, std::shared_ptr<Bucket>> bucketsByHash;
-    for (auto b : mSnap->mLocalBuckets)
-    {
-        bucketsByHash[binToHex(b->getHash())] = b;
-    }
 
     std::vector<std::shared_ptr<FilePublishInfo>> filePublishInfos = {
         mSnap->mLedgerSnapFile, mSnap->mTransactionSnapFile,
@@ -135,7 +130,13 @@ ArchivePublisher::enterObservedState(HistoryArchiveState const& has)
 
     for (auto const& hash : bucketsToSend)
     {
-        auto b = bucketsByHash[hash];
+        CLOG(DEBUG, "History") << "Preparing to send bucket '"
+                               << hash << "'";
+        auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
+        if (!b)
+        {
+            CLOG(ERROR, "History") << "Missing bucket '" << hash << "'";
+        }
         assert(b);
         filePublishInfos.push_back(
             std::make_shared<FilePublishInfo>(FILE_PUBLISH_NEEDED, *b));
@@ -357,53 +358,16 @@ PublishStateMachine::PublishStateMachine(Application& app)
     : mApp(app)
     , mPublishersSize(
           app.getMetrics().NewCounter({"history", "memory", "publishers"}))
-    , mPendingSnapsSize(
-          app.getMetrics().NewCounter({"history", "memory", "pending-snaps"}))
     , mRecheckRunningMergeTimer(app)
 {
 }
 
-uint32_t
-PublishStateMachine::maxQueuedSnapshotLedger() const
+void
+PublishStateMachine::publishSnapshot(SnapshotPtr snap)
 {
-    if (mPendingSnaps.empty())
-    {
-        return 0;
-    }
-    return mPendingSnaps.back()->mLocalState.currentLedger;
-}
-
-uint32_t
-PublishStateMachine::minQueuedSnapshotLedger() const
-{
-    if (mPendingSnaps.empty())
-    {
-        return 0;
-    }
-    return mPendingSnaps.front()->mLocalState.currentLedger;
-}
-
-size_t
-PublishStateMachine::publishQueueLength() const
-{
-    return mPendingSnaps.size();
-}
-
-bool
-PublishStateMachine::queueSnapshot(SnapshotPtr snap)
-{
-    bool delayed = !mPendingSnaps.empty();
-    mPendingSnaps.push_back(snap);
-    mPendingSnapsSize.set_count(mPendingSnaps.size());
-    if (delayed)
-    {
-        CLOG(WARNING, "History") << "Snapshot queued while already publishing";
-    }
-    else
-    {
-        writeNextSnapshot();
-    }
-    return delayed;
+    assert(!mPendingSnap);
+    mPendingSnap = snap;
+    writePendingSnapshot();
 }
 
 std::shared_ptr<StateSnapshot>
@@ -418,7 +382,7 @@ PublishStateMachine::takeSnapshot(Application& app,
 }
 
 void
-PublishStateMachine::writeNextSnapshot()
+PublishStateMachine::writePendingSnapshot()
 {
     // Once we've taken a (synchronous) snapshot of the buckets and db, we then
     // run writeHistoryBlocks() to get the tx and ledger history files written
@@ -428,13 +392,13 @@ PublishStateMachine::writeNextSnapshot()
     // to snapshotWritten(), at which point we can begin the actual publishing
     // work.
 
-    if (mPendingSnaps.empty())
+    if (!mPendingSnap)
         return;
 
-    auto snap = mPendingSnaps.front();
+    auto snap = mPendingSnap;
 
     snap->mLocalState.resolveAnyReadyFutures();
-    snap->makeLiveAndRetainBuckets();
+    snap->makeLive();
 
     bool readyToWrite = true;
 
@@ -459,7 +423,7 @@ PublishStateMachine::writeNextSnapshot()
                                              {
                                                  if (!ec)
                                                  {
-                                                     this->writeNextSnapshot();
+                                                     this->writePendingSnapshot();
                                                  }
                                              });
         return;
@@ -471,7 +435,7 @@ PublishStateMachine::writeNextSnapshot()
 void
 PublishStateMachine::snapshotWritten(asio::error_code const& ec)
 {
-    auto snap = mPendingSnaps.front();
+    auto snap = mPendingSnap;
 
     if (ec)
     {
@@ -533,11 +497,9 @@ PublishStateMachine::snapshotPublished()
 void
 PublishStateMachine::finishOne(bool success)
 {
-    assert(!mPendingSnaps.empty());
-    auto seq = mPendingSnaps.front()->mLocalState.currentLedger;
+    assert(mPendingSnap);
+    auto seq = mPendingSnap->mLocalState.currentLedger;
+    mPendingSnap.reset();
     mApp.getHistoryManager().historyPublished(seq, success);
-    mPendingSnaps.pop_front();
-    mPendingSnapsSize.set_count(mPendingSnaps.size());
-    writeNextSnapshot();
 }
 }

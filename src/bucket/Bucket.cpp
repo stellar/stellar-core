@@ -51,7 +51,7 @@ randomBucketName(std::string const& tmpDir)
     }
 }
 
-Bucket::Bucket(std::string const& filename, uint256 const& hash)
+Bucket::Bucket(std::string const& filename, Hash const& hash)
     : mFilename(filename), mHash(hash)
 {
     assert(filename.empty() || fs::exists(filename));
@@ -75,7 +75,7 @@ Bucket::Bucket()
 {
 }
 
-uint256 const&
+Hash const&
 Bucket::getHash() const
 {
     return mHash;

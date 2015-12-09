@@ -82,6 +82,9 @@ struct HistoryArchiveState
     std::vector<std::string>
     differingBuckets(HistoryArchiveState const& other) const;
 
+    // Return vector of all buckets referenced by this state.
+    std::vector<std::string> allBuckets() const;
+
     template <class Archive>
     void
     serialize(Archive& ar)

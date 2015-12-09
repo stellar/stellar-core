@@ -84,16 +84,23 @@ class HistoryManagerImpl : public HistoryManager
     void queueCurrentHistory() override;
 
     void
-    takeSnapshotAndQueue(HistoryArchiveState const& has);
+    takeSnapshotAndPublish(HistoryArchiveState const& has);
 
     bool hasAnyWritableHistoryArchive() override;
 
     uint32_t getMinLedgerQueuedToPublish() override;
 
+    uint32_t getMaxLedgerQueuedToPublish() override;
+
     size_t publishQueuedHistory() override;
 
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;
+
+    std::vector<std::string>
+    getBucketsReferencedByPublishQueue() override;
+
+    std::vector<HistoryArchiveState> getPublishQueueStates();
 
     void historyPublished(uint32_t ledgerSeq, bool success) override;
 

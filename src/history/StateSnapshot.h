@@ -37,7 +37,6 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
 {
     Application& mApp;
     HistoryArchiveState mLocalState;
-    std::vector<std::shared_ptr<Bucket>> mLocalBuckets;
     TmpDir mSnapDir;
     std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
     std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
@@ -48,7 +47,7 @@ struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
     size_t mRetryCount{0};
 
     StateSnapshot(Application& app, HistoryArchiveState const& state);
-    void makeLiveAndRetainBuckets();
+    void makeLive();
     bool writeHistoryBlocks() const;
     void writeHistoryBlocksWithRetry();
     void retryHistoryBlockWriteOrFail(asio::error_code const& ec);

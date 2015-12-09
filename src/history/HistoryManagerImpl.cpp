@@ -274,13 +274,13 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
     }
     else if (mPublish)
     {
-        auto qlen = mPublish->publishQueueLength();
+        auto qlen = publishQueueLength();
         std::stringstream stateStr;
         if (qlen > 0)
         {
             stateStr << "Publishing " << qlen << " queued checkpoints"
-                     << " [" << mPublish->minQueuedSnapshotLedger() << "-"
-                     << mPublish->maxQueuedSnapshotLedger() << "]";
+                     << " [" << getMinLedgerQueuedToPublish() << "-"
+                     << getMaxLedgerQueuedToPublish() << "]";
             CLOG(INFO, "History") << stateStr.str();
         }
         else
@@ -293,11 +293,14 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
 size_t
 HistoryManagerImpl::publishQueueLength() const
 {
-    if (mPublish)
-    {
-        return mPublish->publishQueueLength();
-    }
-    return 0;
+    uint32_t count;
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT count(ledger) FROM publishqueue;");
+    auto& st = prep.statement();
+    st.exchange(soci::into(count));
+    st.define_and_bind();
+    st.execute(true);
+    return count;
 }
 
 string const&
@@ -580,6 +583,24 @@ HistoryManagerImpl::getMinLedgerQueuedToPublish()
     return 0;
 }
 
+uint32_t
+HistoryManagerImpl::getMaxLedgerQueuedToPublish()
+{
+    uint32_t seq;
+    soci::indicator maxIndicator;
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT max(ledger) FROM publishqueue;");
+    auto& st = prep.statement();
+    st.exchange(soci::into(seq, maxIndicator));
+    st.define_and_bind();
+    st.execute(true);
+    if (maxIndicator == soci::indicator::i_ok)
+    {
+        return seq;
+    }
+    return 0;
+}
+
 bool
 HistoryManagerImpl::maybeQueueHistoryCheckpoint()
 {
@@ -626,24 +647,24 @@ HistoryManagerImpl::queueCurrentHistory()
     // into the in-memory publish queue in order to preserve those
     // merges-in-progress, avoid restarting them.
 
-    takeSnapshotAndQueue(has);
+    mPublishQueue.Mark();
+    takeSnapshotAndPublish(has);
 }
 
 void
-HistoryManagerImpl::takeSnapshotAndQueue(
+HistoryManagerImpl::takeSnapshotAndPublish(
     HistoryArchiveState const& has)
 {
-    mPublishQueue.Mark();
-    auto ledgerSeq = has.currentLedger;
-
-    CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
-
-    auto snap = PublishStateMachine::takeSnapshot(mApp, has);
-    if (mPublish->queueSnapshot(snap))
+    if (mPublish->currentlyPublishing())
     {
-        // Only bump this counter if there's a delay building up.
         mPublishDelay.Mark();
+        return;
     }
+
+    auto ledgerSeq = has.currentLedger;
+    CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
+    auto snap = PublishStateMachine::takeSnapshot(mApp, has);
+    mPublish->publishSnapshot(snap);
 }
 
 size_t
@@ -654,36 +675,31 @@ HistoryManagerImpl::publishQueuedHistory()
         mPublish = make_unique<PublishStateMachine>(mApp);
     }
 
-    // Don't re-queue anything already queued.
-    uint32_t maxLedger = mPublish->maxQueuedSnapshotLedger();
     std::string state;
-
-    CLOG(TRACE, "History") << "Max active publish " << maxLedger;
 
     auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT state FROM publishqueue"
-        " WHERE ledger > :maxLedger ORDER BY ledger ASC;");
+        " ORDER BY ledger ASC LIMIT 1;");
     auto& st = prep.statement();
-    st.exchange(soci::use(maxLedger));
-    st.exchange(soci::into(state));
+    soci::indicator stateIndicator;
+    st.exchange(soci::into(state, stateIndicator));
     st.define_and_bind();
     st.execute(true);
-    size_t count = 0;
-    while (st.got_data())
+    if (st.got_data() &&
+        stateIndicator == soci::indicator::i_ok)
     {
-        ++count;
         HistoryArchiveState has;
         has.fromString(state);
-        takeSnapshotAndQueue(has);
-        st.fetch();
+        takeSnapshotAndPublish(has);
+        return 1;
     }
-    return count;
+    return 0;
 }
 
-std::vector<std::string>
-HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
+std::vector<HistoryArchiveState>
+HistoryManagerImpl::getPublishQueueStates()
 {
-    std::vector<std::string> buckets;
+    std::vector<HistoryArchiveState> states;
     std::string state;
     auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT state FROM publishqueue;");
@@ -691,16 +707,39 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
     st.exchange(soci::into(state));
     st.define_and_bind();
     st.execute(true);
-    auto& bm = mApp.getBucketManager();
     while (st.got_data())
     {
-        HistoryArchiveState has;
-        has.fromString(state);
-        auto bs = bm.checkForMissingBucketsFiles(has);
-        buckets.insert(buckets.end(), bs.begin(), bs.end());
+        states.emplace_back();
+        states.back().fromString(state);
         st.fetch();
     }
-    return buckets;
+    return states;
+}
+
+std::vector<std::string>
+HistoryManagerImpl::getBucketsReferencedByPublishQueue()
+{
+    auto states = getPublishQueueStates();
+    std::set<std::string> buckets;
+    for (auto const& s : states)
+    {
+        auto sb = s.allBuckets();
+        buckets.insert(sb.begin(), sb.end());
+    }
+    return std::vector<std::string>(buckets.begin(), buckets.end());
+}
+
+std::vector<std::string>
+HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
+{
+    auto states = getPublishQueueStates();
+    std::set<std::string> buckets;
+    for (auto const& s : states)
+    {
+        auto sb = mApp.getBucketManager().checkForMissingBucketsFiles(s);
+        buckets.insert(sb.begin(), sb.end());
+    }
+    return std::vector<std::string>(buckets.begin(), buckets.end());
 }
 
 void
@@ -721,6 +760,7 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
     {
         this->mPublishFailure.Mark();
     }
+    publishQueuedHistory();
 }
 
 void

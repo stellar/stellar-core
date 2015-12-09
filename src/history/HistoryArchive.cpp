@@ -236,6 +236,20 @@ HistoryArchiveState::differingBuckets(HistoryArchiveState const& other) const
     return ret;
 }
 
+std::vector<std::string>
+HistoryArchiveState::allBuckets() const
+{
+    std::set<std::string> buckets;
+    for (auto const& level : currentBuckets)
+    {
+        buckets.insert(level.curr);
+        buckets.insert(level.snap);
+        auto nh = level.next.getHashes();
+        buckets.insert(nh.begin(), nh.end());
+    }
+    return std::vector<std::string>(buckets.begin(), buckets.end());
+}
+
 HistoryArchiveState::HistoryArchiveState() : server(STELLAR_CORE_VERSION)
 {
     uint256 u;

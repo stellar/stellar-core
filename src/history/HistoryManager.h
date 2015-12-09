@@ -326,6 +326,10 @@ class HistoryManager
     // returns 0 if the publish queue has nothing in it.
     virtual uint32_t getMinLedgerQueuedToPublish() = 0;
 
+    // Return the oldest ledger still in the outgoing publish queue;
+    // returns 0 if the publish queue has nothing in it.
+    virtual uint32_t getMaxLedgerQueuedToPublish() = 0;
+
     // Publish any checkpoints queued (in the database) for publication.
     // Returns the number of publishes initiated.
     virtual size_t publishQueuedHistory() = 0;
@@ -335,6 +339,11 @@ class HistoryManager
     // fetched from somewhere before publishing can begin again.
     virtual std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() = 0;
+
+    // Return the set of buckets referenced by the persistent (DB) publish
+    // queue.
+    virtual std::vector<std::string>
+    getBucketsReferencedByPublishQueue() = 0;
 
     // Callback from Publication, indicates that a given snapshot was
     // published. The `success` parameter indicates whether _all_ the

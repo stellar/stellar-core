@@ -682,7 +682,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 
     auto& hm = app.getHistoryManager();
 
-    while (hm.getPublishDelayCount() < 2)
+    while (hm.getPublishQueueCount() < 4)
     {
         generateRandomLedger();
     }
@@ -694,10 +694,6 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
         CHECK(hm.getPublishFailureCount() == 0);
         app.getClock().crank(true);
     }
-
-    // We should have 1 inital publish, 1 subsequent publish, and
-    // 2 delayed publishes, making 4 total.
-    CHECK(hm.getPublishSuccessCount() == 4);
 
     auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
     auto app2 =
@@ -941,7 +937,7 @@ TEST_CASE("persist publish queue", "[history]")
         while (clock.cancelAllEvents() ||
                app1->getProcessManager().getNumRunningProcesses() > 0)
         {
-            clock.crank(true);
+            clock.crank(false);
         }
         LOG(INFO) << app1->isStopping();
     }

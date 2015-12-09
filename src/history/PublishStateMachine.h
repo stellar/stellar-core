@@ -88,12 +88,11 @@ class PublishStateMachine
 {
     Application& mApp;
     std::vector<std::shared_ptr<ArchivePublisher>> mPublishers;
-    std::deque<SnapshotPtr> mPendingSnaps;
+    SnapshotPtr mPendingSnap;
     medida::Counter& mPublishersSize;
-    medida::Counter& mPendingSnapsSize;
     VirtualTimer mRecheckRunningMergeTimer;
 
-    void writeNextSnapshot();
+    void writePendingSnapshot();
     void finishOne(bool success);
 
   public:
@@ -101,19 +100,8 @@ class PublishStateMachine
     static SnapshotPtr takeSnapshot(Application& app,
                                     HistoryArchiveState const& state);
 
-    // Returns the ledger number of the maximum currently-queued snapshot.
-    // If no ledgers are queued, returns 0.
-    uint32_t maxQueuedSnapshotLedger() const;
-
-    // Returns the ledger number of the minimum currently-queued snapshot.
-    // If no ledgers are queued, returns 0.
-    uint32_t minQueuedSnapshotLedger() const;
-
-    // Returns the length of the current publishing queue.
-    size_t publishQueueLength() const;
-
-    // Returns true if delayed, false if immediately dispatched.
-    bool queueSnapshot(SnapshotPtr snap);
+    bool currentlyPublishing() const { return !!mPendingSnap; };
+    void publishSnapshot(SnapshotPtr snap);
 
     void snapshotWritten(asio::error_code const&);
     void snapshotPublished();
