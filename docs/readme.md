@@ -19,6 +19,7 @@ guarantee see [`src/scp/readme.md`](/src/scp/readme.md).
 - [Stellar-core administration] (learn/admin.md)
 - [Architecture] (architecture.md)
 - [Key Concepts] (https://www.stellar.org/developers/learn/)
+- [Integration with other services] (integration.md)
 - [Major Components] (#major-components)
 - [Supporting Code Directories] (#supporting-code-directories)
 - [Contributing] (/CONTRIBUTING.md)
