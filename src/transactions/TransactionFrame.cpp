@@ -434,6 +434,15 @@ TransactionFrame::markResultFailed()
     xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
     getResult().result.code(txFAILED);
     getResult().result.results() = std::move(t);
+
+    // sanity check in case some implementations decide
+    // to not implement std::move properly
+    auto const& allResults = getResult().result.results();
+    assert(allResults.size() == mOperations.size());
+    for (size_t i = 0; i < mOperations.size(); i++)
+    {
+        assert(&mOperations[i]->getResult() == &allResults[i]);
+    }
 }
 
 bool

@@ -304,6 +304,16 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
             }
         }
+        SECTION("negative tests (manipulation)")
+        {
+            SECTION("Delete non existant offer")
+            {
+                auto bogusOfferID = offer.offerID + 1;
+                auto r = applyCreateOfferWithResult(
+                    app, delta, bogusOfferID, a1, idrCur, usdCur, oneone, 0,
+                    a1_seq++, MANAGE_OFFER_NOT_FOUND);
+            }
+        }
         SECTION("Update price")
         {
             const Price onetwo(1, 2);
