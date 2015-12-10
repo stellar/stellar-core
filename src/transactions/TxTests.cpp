@@ -174,8 +174,8 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
     app.getLedgerManager().closeLedger(ledgerData);
 
-    auto z1 = TransactionFrame::getTransactionHistoryMeta(app.getDatabase(),
-                                                          ledgerSeq);
+    auto z1 = TransactionFrame::getTransactionHistoryResults(app.getDatabase(),
+                                                             ledgerSeq);
     auto z2 =
         TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 

@@ -161,8 +161,8 @@ class TransactionFrame
                              int txindex) const;
 
     // access to history tables
-    static TransactionResultSet getTransactionHistoryMeta(Database& db,
-                                                          uint32 ledgerSeq);
+    static TransactionResultSet getTransactionHistoryResults(Database& db,
+                                                             uint32 ledgerSeq);
     static std::vector<LedgerEntryChanges>
     getTransactionFeeMeta(Database& db, uint32 ledgerSeq);
 

@@ -617,7 +617,7 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
 }
 
 TransactionResultSet
-TransactionFrame::getTransactionHistoryMeta(Database& db, uint32 ledgerSeq)
+TransactionFrame::getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
 {
     TransactionResultSet res;
     std::string txresult64;
