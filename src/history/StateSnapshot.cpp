@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "history/PublishStateMachine.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
@@ -11,6 +10,7 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
+#include "history/StateSnapshot.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "database/Database.h"
@@ -32,23 +32,22 @@ StateSnapshot::StateSnapshot(Application& app, HistoryArchiveState const& state)
     : mApp(app)
     , mLocalState(state)
     , mSnapDir(app.getTmpDirManager().tmpDir("snapshot"))
-    , mLedgerSnapFile(std::make_shared<FilePublishInfo>(
-          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_LEDGER,
+    , mLedgerSnapFile(std::make_shared<FileTransferInfo>(
+          mSnapDir, HISTORY_FILE_TYPE_LEDGER,
           mLocalState.currentLedger))
 
-    , mTransactionSnapFile(std::make_shared<FilePublishInfo>(
-          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
+    , mTransactionSnapFile(std::make_shared<FileTransferInfo>(
+          mSnapDir, HISTORY_FILE_TYPE_TRANSACTIONS,
           mLocalState.currentLedger))
 
-    , mTransactionResultSnapFile(std::make_shared<FilePublishInfo>(
-          FILE_PUBLISH_NEEDED, mSnapDir, HISTORY_FILE_TYPE_RESULTS,
+    , mTransactionResultSnapFile(std::make_shared<FileTransferInfo>(
+          mSnapDir, HISTORY_FILE_TYPE_RESULTS,
           mLocalState.currentLedger))
 
-    , mSCPHistorySnapFile(std::make_shared<FilePublishInfo>(
-          FILE_PUBLISH_MAYBE_NEEDED, mSnapDir, HISTORY_FILE_TYPE_SCP,
+    , mSCPHistorySnapFile(std::make_shared<FileTransferInfo>(
+          mSnapDir, HISTORY_FILE_TYPE_SCP,
           mLocalState.currentLedger))
 
-    , mRetryTimer(app)
 {
     makeLive();
 }
@@ -147,77 +146,6 @@ StateSnapshot::writeHistoryBlocks() const
     }
 
     return true;
-}
-
-void
-StateSnapshot::retryHistoryBlockWriteOrFail(asio::error_code const& ec)
-{
-    if (ec && mRetryCount++ < ArchivePublisher::kRetryLimit)
-    {
-        CLOG(INFO, "History") << "Retrying history-block write";
-        std::weak_ptr<StateSnapshot> weak(shared_from_this());
-        mRetryTimer.expires_from_now(std::chrono::seconds(2));
-        mRetryTimer.async_wait([weak](asio::error_code const& ec2)
-                               {
-                                   auto snap = weak.lock();
-                                   if (!snap)
-                                   {
-                                       return;
-                                   }
-                                   if (!ec2)
-                                   {
-                                       snap->writeHistoryBlocksWithRetry();
-                                   }
-                               });
-    }
-    else
-    {
-        mApp.getHistoryManager().snapshotWritten(ec);
-    }
-}
-
-void
-StateSnapshot::writeHistoryBlocksWithRetry()
-{
-    std::weak_ptr<StateSnapshot> weak(shared_from_this());
-
-    if (mApp.getDatabase().canUsePool())
-    {
-        mApp.getWorkerIOService().post(
-            [weak]()
-            {
-                auto snap = weak.lock();
-                if (!snap)
-                {
-                    return;
-                }
-
-                asio::error_code ec;
-                if (!snap->writeHistoryBlocks())
-                {
-                    ec = std::make_error_code(std::errc::io_error);
-                }
-                snap->mApp.getClock().getIOService().post(
-                    [weak, ec]()
-                    {
-                        auto snap = weak.lock();
-                        if (!snap)
-                        {
-                            return;
-                        }
-                        snap->retryHistoryBlockWriteOrFail(ec);
-                    });
-            });
-    }
-    else
-    {
-        asio::error_code ec;
-        if (!writeHistoryBlocks())
-        {
-            ec = std::make_error_code(std::errc::io_error);
-        }
-        retryHistoryBlockWriteOrFail(ec);
-    }
 }
 
 }

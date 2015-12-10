@@ -5,6 +5,7 @@
 #include "main/Application.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryArchive.h"
+#include "history/HistoryWork.h"
 #include "main/test.h"
 #include "main/ExternalQueue.h"
 #include "main/Config.h"
@@ -122,7 +123,7 @@ class HistoryTests
         CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
     }
 
-    void crankTillDone(bool& done);
+    void crankTillDone();
     void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
@@ -145,9 +146,10 @@ class HistoryTests
 };
 
 void
-HistoryTests::crankTillDone(bool& done)
+HistoryTests::crankTillDone()
 {
-    while (!done && !app.getClock().getIOService().stopped())
+    while (!app.getWorkManager().allChildrenDone() &&
+           !app.getClock().getIOService().stopped())
     {
         app.getClock().crank(true);
     }
@@ -194,69 +196,47 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
         std::ofstream out(fname, std::ofstream::binary);
         out.write(s.data(), s.size());
     }
+    std::string compressed = fname + ".gz";
     bool done = false;
-    hm.compress(fname, [&done, &fname, &hm](asio::error_code const& ec)
-                {
-                    std::string compressed = fname + ".gz";
-                    CHECK(!fs::exists(fname));
-                    CHECK(fs::exists(compressed));
-                    hm.decompress(compressed, [&done, &fname, compressed](
-                                                  asio::error_code const& ec)
-                                  {
-                                      CHECK(fs::exists(fname));
-                                      CHECK(!fs::exists(compressed));
-                                      done = true;
-                                  });
-                });
-    crankTillDone(done);
-}
+    auto& wm = app.getWorkManager();
+    auto g = wm.addWork<GzipFileWork>(fname);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(g->getState() == Work::WORK_SUCCESS);
+    REQUIRE(!fs::exists(fname));
+    REQUIRE(fs::exists(compressed));
 
-TEST_CASE_METHOD(HistoryTests, "HistoryManager::verifyHash", "[history]")
-{
-    std::string s = "hello there";
-    HistoryManager& hm = app.getHistoryManager();
-    std::string fname = hm.localFilename("hashme");
-    {
-        std::ofstream out(fname, std::ofstream::binary);
-        out.write(s.data(), s.size());
-    }
-    bool done = false;
-    uint256 hash = hexToBin256(
-        "12998c017066eb0d2a70b94e6ed3192985855ce390f321bbdb832022888bd251");
-    hm.verifyHash(fname, hash, [&done](asio::error_code const& ec)
-                  {
-                      CHECK(!ec);
-                      done = true;
-                  });
-    crankTillDone(done);
+    auto u = wm.addWork<GunzipFileWork>(compressed);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(u->getState() == Work::WORK_SUCCESS);
+    REQUIRE(fs::exists(fname));
+    REQUIRE(!fs::exists(compressed));
 }
 
 TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 {
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
-    bool done = false;
 
     auto i = app.getConfig().HISTORY.find("test");
-    CHECK(i != app.getConfig().HISTORY.end());
+    REQUIRE(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
 
-    auto& theApp = this->app; // need a local scope reference
     has.resolveAllFutures();
-    archive->putState(app, has,
-                      [&done, &theApp, archive](asio::error_code const& ec)
-                      {
-                          CHECK(!ec);
-                          archive->getMostRecentState(
-                              theApp, [&done](asio::error_code const& ec,
-                                              HistoryArchiveState const& has2)
-                              {
-                                  CHECK(!ec);
-                                  CHECK(has2.currentLedger == 0x1234);
-                                  done = true;
-                              });
-                      });
-    crankTillDone(done);
+
+    auto& wm = app.getWorkManager();
+    auto put = wm.addWork<PutHistoryArchiveStateWork>(has, archive);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(put->getState() == Work::WORK_SUCCESS);
+
+    HistoryArchiveState has2;
+    auto get = wm.addWork<GetHistoryArchiveStateWork>(has2, 0, archive);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(get->getState() == Work::WORK_SUCCESS);
+    REQUIRE(has2.currentLedger == 0x1234);
 }
 
 extern LedgerEntry generateValidLedgerEntry();

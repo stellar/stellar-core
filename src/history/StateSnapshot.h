@@ -15,42 +15,21 @@
 namespace stellar
 {
 
-enum FilePublishState
-{
-    FILE_PUBLISH_FAILED = -1,
-    FILE_PUBLISH_NEEDED = 0,
-    FILE_PUBLISH_MAYBE_NEEDED = 1, // optional publish
-    FILE_PUBLISH_COMPRESSING = 3,
-    FILE_PUBLISH_COMPRESSED = 4,
-    FILE_PUBLISH_MAKING_DIR = 5,
-    FILE_PUBLISH_MADE_DIR = 6,
-    FILE_PUBLISH_UPLOADING = 7,
-    FILE_PUBLISH_UPLOADED = 8,
-    FILE_PUBLISH_COMPLETE = 9
-};
-
-template <typename T> class FileTransferInfo;
-
-typedef FileTransferInfo<FilePublishState> FilePublishInfo;
+class FileTransferInfo;
 
 struct StateSnapshot : public std::enable_shared_from_this<StateSnapshot>
 {
     Application& mApp;
     HistoryArchiveState mLocalState;
     TmpDir mSnapDir;
-    std::shared_ptr<FilePublishInfo> mLedgerSnapFile;
-    std::shared_ptr<FilePublishInfo> mTransactionSnapFile;
-    std::shared_ptr<FilePublishInfo> mTransactionResultSnapFile;
-    std::shared_ptr<FilePublishInfo> mSCPHistorySnapFile;
-
-    VirtualTimer mRetryTimer;
-    size_t mRetryCount{0};
+    std::shared_ptr<FileTransferInfo> mLedgerSnapFile;
+    std::shared_ptr<FileTransferInfo> mTransactionSnapFile;
+    std::shared_ptr<FileTransferInfo> mTransactionResultSnapFile;
+    std::shared_ptr<FileTransferInfo> mSCPHistorySnapFile;
 
     StateSnapshot(Application& app, HistoryArchiveState const& state);
     void makeLive();
     bool writeHistoryBlocks() const;
-    void writeHistoryBlocksWithRetry();
-    void retryHistoryBlockWriteOrFail(asio::error_code const& ec);
 };
 
 }

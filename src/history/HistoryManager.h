@@ -273,39 +273,6 @@ class HistoryManager
     // Return the length of the current publishing queue.
     virtual size_t publishQueueLength() const = 0;
 
-    // Verify that a file has a given hash.
-    virtual void
-    verifyHash(std::string const& filename, uint256 const& hash,
-               std::function<void(asio::error_code const&)> handler) const = 0;
-
-    // Gunzip a file.
-    virtual void
-    decompress(std::string const& filename_gz,
-               std::function<void(asio::error_code const&)> handler,
-               bool keepExisting = false) const = 0;
-
-    // Gzip a file.
-    virtual void compress(std::string const& filename_nogz,
-                          std::function<void(asio::error_code const&)> handler,
-                          bool keepExisting = false) const = 0;
-
-    // Put a file to a specific archive using it's `put` command.
-    virtual void
-    putFile(std::shared_ptr<HistoryArchive const> archive,
-            std::string const& local, std::string const& remote,
-            std::function<void(asio::error_code const&)> handler) const = 0;
-
-    // Get a file from a specific archive using it's `get` command.
-    virtual void
-    getFile(std::shared_ptr<HistoryArchive const> archive,
-            std::string const& remote, std::string const& local,
-            std::function<void(asio::error_code const&)> handler) const = 0;
-
-    // Make a directory on a specific archive using its `mkdir` command.
-    virtual void
-    mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
-          std::function<void(asio::error_code const&)> handler) const = 0;
-
     // Calls queueCurrentHistory() if the current ledger is a multiple of
     // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than
     // a multiple of getCheckpointFrequency(). Returns true if checkpoint
@@ -352,6 +319,9 @@ class HistoryManager
     // later.
     virtual void historyPublished(uint32_t ledgerSeq, bool success) = 0;
 
+    // Callback from catchup, indicates that any catchup work is done.
+    virtual void historyCaughtup() = 0;
+
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,
         std::function<void(asio::error_code const& ec)> handler) = 0;
@@ -371,10 +341,6 @@ class HistoryManager
         std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)> handler,
         bool manualCatchup = false) = 0;
-
-    // Call posted after a worker thread has finished taking a snapshot; calls
-    // PublishStateMachine::snapshotWritten after bumping counter.
-    virtual void snapshotWritten(asio::error_code const&) = 0;
 
     // Return the HistoryArchiveState of the LedgerManager's LCL
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;

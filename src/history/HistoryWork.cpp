@@ -360,7 +360,7 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 HistoryManager::VerifyHashStatus
 VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 {
-    FileTransferInfo<bool> ft(true, mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
+    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
     XDRInputFileStream hdrIn;
     hdrIn.open(ft.localPath_nogz());
 
@@ -652,7 +652,7 @@ BatchDownloadWork::addChild()
     CLOG(INFO, "History") << "Downloading " << mFileType
                           << " for checkpoint " << seq;
 
-    FileTransferInfo<bool> ft(true, mDownloadDir, mFileType, seq);
+    FileTransferInfo ft(mDownloadDir, mFileType, seq);
     auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
     gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
     mRunning.insert(std::make_pair(gunzip->getUniqueName(), seq));
@@ -896,8 +896,8 @@ ApplyLedgerChainWork::openCurrentInputFiles()
     {
         return;
     }
-    FileTransferInfo<bool> hi(true, mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
-    FileTransferInfo<bool> ti(true, mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
+    FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
+    FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
     CLOG(INFO, "History") << "Replaying ledger headers from "
                           << hi.localPath_nogz();
     CLOG(INFO, "History") << "Replaying transactions from "
@@ -1168,7 +1168,7 @@ CatchupMinimalWork::onSuccess()
         std::vector<std::string> buckets = mRemoteState.differingBuckets(mLocalState);
         for (auto const& hash : buckets)
         {
-            FileTransferInfo<bool> ft(true, *mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
+            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
             // Each bucket gets its own work-chain of download->gunzip->verify
 
             auto verify = mDownloadWork->addWork<VerifyBucketWork>(mBuckets,
@@ -1179,8 +1179,8 @@ CatchupMinimalWork::onSuccess()
         }
         // ... as well as the last ledger-history file (for its final state).
         {
-            FileTransferInfo<bool> ft(true, *mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
-                                      mRemoteState.currentLedger);
+            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
+                                mRemoteState.currentLedger);
             auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(*mDownloadDir,
                                                                         mNextLedger-1,
                                                                         mNextLedger-1,
@@ -1202,6 +1202,7 @@ CatchupMinimalWork::onSuccess()
     }
 
     CLOG(INFO, "History") << "Completed catchup MINIMAL at nextLedger=" << mNextLedger;
+    mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
 
@@ -1211,6 +1212,7 @@ CatchupMinimalWork::onSuccess()
 void
 CatchupMinimalWork::onFailureRaise()
 {
+    mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
 }
@@ -1319,6 +1321,7 @@ CatchupCompleteWork::onSuccess()
     }
 
     CLOG(INFO, "History") << "Completed catchup COMPLETE at nextLedger=" << mNextLedger;
+    mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
 
@@ -1328,6 +1331,7 @@ CatchupCompleteWork::onSuccess()
 void
 CatchupCompleteWork::onFailureRaise()
 {
+    mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
 }
@@ -1441,7 +1445,7 @@ PutSnapshotFilesWork::onSuccess()
     {
         mPutFilesWork = addWork<Work>("put-files");
 
-        std::vector<std::shared_ptr<FilePublishInfo>> files =
+        std::vector<std::shared_ptr<FileTransferInfo>> files =
             {
                 mSnapshot->mLedgerSnapFile,
                 mSnapshot->mTransactionSnapFile,
@@ -1456,8 +1460,7 @@ PutSnapshotFilesWork::onSuccess()
         {
             auto b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
             assert(b);
-            files.push_back(
-                std::make_shared<FilePublishInfo>(FILE_PUBLISH_NEEDED, *b));
+            files.push_back(std::make_shared<FileTransferInfo>(*b));
         }
         for (auto f : files)
         {
@@ -1601,7 +1604,7 @@ RepairMissingBucketsWork::onReset()
 
     for (auto const& hash : bucketsToFetch)
     {
-        FileTransferInfo<bool> ft(true, *mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
+        FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
         // Each bucket gets its own work-chain of download->gunzip->verify
         auto verify = addWork<VerifyBucketWork>(mBuckets,
                                                 ft.localPath_nogz(),

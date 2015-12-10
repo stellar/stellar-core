@@ -16,8 +16,7 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
 #include "history/HistoryWork.h"
-#include "history/PublishStateMachine.h"
-#include "history/CatchupStateMachine.h"
+#include "history/StateSnapshot.h"
 #include "herder/HerderImpl.h"
 #include "history/FileTransferInfo.h"
 #include "process/ProcessManager.h"
@@ -66,32 +65,29 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     HistoryArchiveState has;
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
-    bool ok = true;
-    bool done = false;
     has.resolveAllFutures();
-    i->second->putState(app, has, [arch, &done, &ok](asio::error_code const& ec)
-                        {
-                            if (ec)
-                            {
-                                ok = false;
-                                CLOG(FATAL, "History")
-                                    << "Failed to initialize history archive '"
-                                    << arch << "'";
-                            }
-                            else
-                            {
-                                CLOG(INFO, "History")
-                                    << "Initialized history archive '" << arch
-                                    << "'";
-                            }
-                            done = true;
-                        });
 
-    while (!done && !app.getClock().getIOService().stopped())
+    auto& wm = app.getWorkManager();
+    auto w = wm.addWork<PutHistoryArchiveStateWork>(has, i->second);
+    wm.advanceChildren();
+    while (!wm.allChildrenDone())
     {
-        app.getClock().crank(true);
+        app.getClock().crank(false);
     }
-    return ok;
+    if (w->getState() == Work::WORK_SUCCESS)
+    {
+        CLOG(INFO, "History")
+            << "Initialized history archive '" << arch
+            << "'";
+        return true;
+    }
+    else
+    {
+        CLOG(FATAL, "History")
+            << "Failed to initialize history archive '"
+            << arch << "'";
+        return false;
+    }
 }
 
 std::unique_ptr<HistoryManager>
@@ -191,8 +187,8 @@ HistoryManager::checkSensibleConfig(Config const& cfg)
 HistoryManagerImpl::HistoryManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
-    , mPublish(nullptr)
-    , mCatchup(nullptr)
+    , mPublishWork(nullptr)
+    , mCatchupWork(nullptr)
 
     , mPublishSkip(
           app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
@@ -257,7 +253,10 @@ uint64_t
 HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 {
     uint32_t next = this->nextCheckpointLedger(ledger);
-    auto ledger_duration = CatchupStateMachine::SLEEP_SECONDS_PER_LEDGER;
+
+    auto ledger_duration = Herder::EXP_LEDGER_TIMESPAN_SECONDS
+        + std::chrono::seconds(1);
+
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
         ledger_duration = std::chrono::seconds(1);
@@ -269,26 +268,27 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 void
 HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
 {
-    if (mCatchup)
+    std::stringstream stateStr;
+    if (mCatchupWork)
     {
-        mCatchup->logAndUpdateStatus(contiguous);
+            stateStr << "Catching up"
+                     << (contiguous ? "" :
+                         " (discontiguous; will fail and restart)")
+                     << ": " << mCatchupWork->getStatus();
     }
-    else if (mPublish)
+    else if (mPublishWork)
     {
         auto qlen = publishQueueLength();
-        std::stringstream stateStr;
-        if (qlen > 0)
-        {
-            stateStr << "Publishing " << qlen << " queued checkpoints"
-                     << " [" << getMinLedgerQueuedToPublish() << "-"
-                     << getMaxLedgerQueuedToPublish() << "]";
-            CLOG(INFO, "History") << stateStr.str();
-        }
-        else
-        {
-            mApp.setExtraStateInfo(stateStr.str());
-        }
+        stateStr << "Publishing " << qlen << " queued checkpoints"
+                 << " [" << getMinLedgerQueuedToPublish() << "-"
+                 << getMaxLedgerQueuedToPublish() << "]"
+                 << ": " << mPublishWork->getStatus();
     }
+    if (mCatchupWork || mPublishWork)
+    {
+        CLOG(INFO, "History") << stateStr.str();
+    }
+    mApp.setExtraStateInfo(stateStr.str());
 }
 
 size_t
@@ -319,180 +319,6 @@ std::string
 HistoryManagerImpl::localFilename(std::string const& basename)
 {
     return this->getTmpDir() + "/" + basename;
-}
-
-static void
-checkGzipSuffix(string const& filename)
-{
-    string suf(".gz");
-    if (!(filename.size() >= suf.size() &&
-          equal(suf.rbegin(), suf.rend(), filename.rbegin())))
-    {
-        throw runtime_error("filename does not end in .gz");
-    }
-}
-
-static void
-checkNoGzipSuffix(string const& filename)
-{
-    string suf(".gz");
-    if (filename.size() >= suf.size() &&
-        equal(suf.rbegin(), suf.rend(), filename.rbegin()))
-    {
-        throw runtime_error("filename ends in .gz");
-    }
-}
-
-void
-HistoryManagerImpl::verifyHash(
-    std::string const& filename, uint256 const& hash,
-    std::function<void(asio::error_code const&)> handler) const
-{
-    checkNoGzipSuffix(filename);
-    Application& app = this->mApp;
-    app.getWorkerIOService().post(
-        [&app, filename, handler, hash]()
-        {
-            auto hasher = SHA256::create();
-            asio::error_code ec;
-            char buf[4096];
-            {
-                // ensure that the stream gets its own scope to avoid race with
-                // main thread
-                ifstream in(filename, ofstream::binary);
-                while (in)
-                {
-                    in.read(buf, sizeof(buf));
-                    hasher->add(ByteSlice(buf, in.gcount()));
-                }
-                uint256 vHash = hasher->finish();
-                if (vHash == hash)
-                {
-                    LOG(DEBUG) << "Verified hash (" << hexAbbrev(hash)
-                               << ") for " << filename;
-                }
-                else
-                {
-                    LOG(WARNING) << "FAILED verifying hash for " << filename;
-                    LOG(WARNING) << "expected hash: " << binToHex(hash);
-                    LOG(WARNING) << "computed hash: " << binToHex(vHash);
-                    ec = std::make_error_code(std::errc::io_error);
-                }
-            }
-            app.getClock().getIOService().post([ec, handler]()
-                                               {
-                                                   handler(ec);
-                                               });
-        });
-}
-
-void
-HistoryManagerImpl::decompress(
-    std::string const& filename_gz,
-    std::function<void(asio::error_code const&)> handler,
-    bool keepExisting) const
-{
-    checkGzipSuffix(filename_gz);
-    std::string filename = filename_gz.substr(0, filename_gz.size() - 3);
-    Application& app = this->mApp;
-    std::string commandLine("gzip -d ");
-    std::string outputFile;
-    if (keepExisting)
-    {
-        // Leave input intact, write output to stdout.
-        commandLine += "-c ";
-        outputFile = filename;
-    }
-    commandLine += filename_gz;
-    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
-    exit.async_wait(
-        [&app, filename_gz, filename, handler](asio::error_code const& ec)
-        {
-            if (ec)
-            {
-                LOG(WARNING) << "'gzip -d " << filename_gz << "' failed,"
-                             << " removing " << filename_gz << " and "
-                             << filename;
-                std::remove(filename_gz.c_str());
-                std::remove(filename.c_str());
-            }
-            handler(ec);
-        });
-}
-
-void
-HistoryManagerImpl::compress(
-    std::string const& filename_nogz,
-    std::function<void(asio::error_code const&)> handler,
-    bool keepExisting) const
-{
-    checkNoGzipSuffix(filename_nogz);
-    std::string filename = filename_nogz + ".gz";
-    Application& app = this->mApp;
-    std::string commandLine("gzip ");
-    std::string outputFile;
-    if (keepExisting)
-    {
-        // Leave input intact, write output to stdout.
-        commandLine += "-c ";
-        outputFile = filename;
-    }
-    commandLine += filename_nogz;
-    auto exit = app.getProcessManager().runProcess(commandLine, outputFile);
-    exit.async_wait(
-        [&app, filename_nogz, filename, handler](asio::error_code const& ec)
-        {
-            if (ec)
-            {
-                LOG(WARNING) << "'gzip " << filename_nogz << "' failed,"
-                             << " removing " << filename_nogz << " and "
-                             << filename;
-                std::remove(filename_nogz.c_str());
-                std::remove(filename.c_str());
-            }
-            handler(ec);
-        });
-}
-
-void
-HistoryManagerImpl::putFile(
-    std::shared_ptr<HistoryArchive const> archive, string const& local,
-    string const& remote,
-    function<void(asio::error_code const& ec)> handler) const
-{
-    assert(archive->hasPutCmd());
-    auto cmd = archive->putFileCmd(local, remote);
-    auto exit = this->mApp.getProcessManager().runProcess(cmd);
-    exit.async_wait(handler);
-}
-void
-HistoryManagerImpl::getFile(
-    std::shared_ptr<HistoryArchive const> archive, string const& remote,
-    string const& local,
-    function<void(asio::error_code const& ec)> handler) const
-{
-    assert(archive->hasGetCmd());
-    auto cmd = archive->getFileCmd(remote, local);
-    auto exit = this->mApp.getProcessManager().runProcess(cmd);
-    exit.async_wait(handler);
-}
-
-void
-HistoryManagerImpl::mkdir(
-    std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
-    std::function<void(asio::error_code const&)> handler) const
-{
-    if (archive->hasMkdirCmd())
-    {
-        auto cmd = archive->mkdirCmd(dir);
-        auto exit = this->mApp.getProcessManager().runProcess(cmd);
-        exit.async_wait(handler);
-    }
-    else
-    {
-        asio::error_code ec;
-        handler(ec);
-    }
 }
 
 HistoryArchiveState
@@ -656,26 +482,22 @@ void
 HistoryManagerImpl::takeSnapshotAndPublish(
     HistoryArchiveState const& has)
 {
-    if (mPublish->currentlyPublishing())
+    if (mPublishWork)
     {
         mPublishDelay.Mark();
         return;
     }
-
     auto ledgerSeq = has.currentLedger;
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
-    auto snap = PublishStateMachine::takeSnapshot(mApp, has);
-    mPublish->publishSnapshot(snap);
+    auto snap = std::make_shared<StateSnapshot>(mApp, has);
+
+    mPublishWork = mApp.getWorkManager().addWork<PublishWork>(snap);
+    mApp.getWorkManager().advanceChildren();
 }
 
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
-    if (!mPublish)
-    {
-        mPublish = make_unique<PublishStateMachine>(mApp);
-    }
-
     std::string state;
 
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -761,15 +583,18 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
     {
         this->mPublishFailure.Mark();
     }
-    publishQueuedHistory();
+    mPublishWork.reset();
+    mApp.getClock().getIOService().post(
+        [this]()
+        {
+            this->publishQueuedHistory();
+        });
 }
 
 void
-HistoryManagerImpl::snapshotWritten(asio::error_code const& ec)
+HistoryManagerImpl::historyCaughtup()
 {
-    assert(mPublish);
-    mPublishStart.Mark();
-    mPublish->snapshotWritten(ec);
+    mCatchupWork.reset();
 }
 
 void
@@ -777,17 +602,10 @@ HistoryManagerImpl::downloadMissingBuckets(
     HistoryArchiveState desiredState,
     std::function<void(asio::error_code const& ec)> handler)
 {
-    mCatchup = make_shared<CatchupStateMachine>(
-        mApp, 0, CATCHUP_BUCKET_REPAIR, desiredState,
-        [this, handler](asio::error_code const& ec, CatchupMode mode,
-                        LedgerHeaderHistoryEntry const& lastClosed)
-        {
-            // Destroy this machine at the end of the call to `handler`
-            auto m = this->mCatchup;
-            this->mCatchup.reset();
-            handler(ec);
-        });
-    mCatchup->begin();
+    CLOG(INFO, "History") << "Starting RepairMissingBucketsWork";
+    mApp.getWorkManager().addWork<RepairMissingBucketsWork>(desiredState,
+                                                            handler);
+    mApp.getWorkManager().advanceChildren();
 }
 
 void
@@ -800,50 +618,28 @@ HistoryManagerImpl::catchupHistory(
     // To repair buckets, call `downloadMissingBuckets()` instead.
     assert(mode != CATCHUP_BUCKET_REPAIR);
 
-    if (mCatchup)
+    if (mCatchupWork)
     {
         throw std::runtime_error("Catchup already in progress");
     }
+
     mCatchupStart.Mark();
     mManualCatchup = manualCatchup;
 
     if (mode == CATCHUP_MINIMAL)
     {
         CLOG(INFO, "History") << "Starting CatchupMinimalWork";
-        mApp.getWorkManager().addWork<CatchupMinimalWork>(initLedger, handler);
-        mApp.getWorkManager().advanceChildren();
-        return;
+        mCatchupWork =
+            mApp.getWorkManager().addWork<CatchupMinimalWork>(initLedger, handler);
     }
-    if (mode == CATCHUP_COMPLETE)
+    else
     {
+        assert(mode == CATCHUP_COMPLETE);
         CLOG(INFO, "History") << "Starting CatchupCompleteWork";
-        mApp.getWorkManager().addWork<CatchupCompleteWork>(initLedger, handler);
-        mApp.getWorkManager().advanceChildren();
-        return;
+        mCatchupWork =
+            mApp.getWorkManager().addWork<CatchupCompleteWork>(initLedger, handler);
     }
-
-    mCatchup = make_shared<CatchupStateMachine>(
-        mApp, initLedger, mode, getLastClosedHistoryArchiveState(),
-        [this, handler](asio::error_code const& ec, CatchupMode mode,
-                        LedgerHeaderHistoryEntry const& lastClosed)
-        {
-            if (ec)
-            {
-                this->mCatchupFailure.Mark();
-            }
-            else
-            {
-                this->mCatchupSuccess.Mark();
-            }
-            // Tear down the catchup state machine when complete then call our
-            // caller's handler. Must keep the state machine alive long enough
-            // for the callback, though, to avoid killing things living in
-            // lambdas.
-            auto m = this->mCatchup;
-            this->mCatchup.reset();
-            handler(ec, mode, lastClosed);
-        });
-    mCatchup->begin();
+    mApp.getWorkManager().advanceChildren();
 }
 
 uint64_t
