@@ -223,12 +223,10 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    if (!mHerder->isQuorumSetSane(mConfig.NODE_SEED.getPublicKey(),
-                                  mConfig.QUORUM_SET))
+    if (!mHerder->isQuorumSetSane(mConfig.QUORUM_SET))
     {
-        throw std::invalid_argument(
-            "Invalid QUORUM_SET: bad threshold, "
-            "duplicate entry or self is not a member (validator)");
+        throw std::invalid_argument("Invalid QUORUM_SET: bad threshold or "
+                                    "duplicate entry");
     }
 
     bool done = false;

@@ -125,7 +125,8 @@ HerderImpl::~HerderImpl()
 Herder::State
 HerderImpl::getState() const
 {
-    return mTrackingSCP ? HERDER_TRACKING_STATE : HERDER_SYNCING_STATE;
+    return (mTrackingSCP && mLastTrackingSCP) ? HERDER_TRACKING_STATE
+                                              : HERDER_SYNCING_STATE;
 }
 
 void
@@ -164,14 +165,9 @@ HerderImpl::bootstrap()
     assert(mSCP.isValidator());
     assert(mApp.getConfig().FORCE_SCP);
 
-    // setup a sufficient state that we can participate in consensus
-    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
-    mTrackingSCP =
-        make_unique<ConsensusData>(lcl.header.ledgerSeq, lcl.header.scpValue);
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
     stateChanged();
 
-    trackingHeartBeat();
     mLastTrigger = mApp.getClock().now() - Herder::EXP_LEDGER_TIMESPAN_SECONDS;
     ledgerClosed();
 }
@@ -604,6 +600,12 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     }
 
     mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
+
+    if (!mLastTrackingSCP)
+    {
+        mLastTrackingSCP = make_unique<ConsensusData>(*mTrackingSCP);
+    }
+
     trackingHeartBeat();
 
     TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(txSetHash);
@@ -992,10 +994,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         // when tracking, we can filter messages based on the information we got
         // from consensus for the max ledger
 
-        // note that this filtering will cause a node started with force scp
+        // note that this filtering will cause a node on startup
         // to potentially drop messages outside of the bracket
-        // (so in general, nodes should not be started with force scp if
-        // their state is very old)
+        // causing it to discard CONSENSUS_STUCK_TIMEOUT_SECONDS worth of
+        // ledger closing
         maxLedgerSeq = nextConsensusLedgerIndex() + LEDGER_VALIDITY_BRACKET;
     }
 
@@ -1411,9 +1413,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 }
 
 bool
-HerderImpl::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
+HerderImpl::isQuorumSetSane(SCPQuorumSet const& qSet)
 {
-    return mSCP.getLocalNode()->isQuorumSetSane(nodeID, qSet);
+    return LocalNode::isQuorumSetSaneSimplified(qSet);
 }
 
 bool
@@ -1554,6 +1556,14 @@ HerderImpl::persistSCPState(uint64 slot)
 void
 HerderImpl::restoreSCPState()
 {
+    // setup a sufficient state that we can participate in consensus
+    auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+    mTrackingSCP =
+        make_unique<ConsensusData>(lcl.header.ledgerSeq, lcl.header.scpValue);
+
+    trackingHeartBeat();
+
+    // load saved state from database
     auto latest64 =
         mApp.getPersistentState().getState(PersistentState::kLastSCPData);
 
