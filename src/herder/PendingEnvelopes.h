@@ -9,6 +9,7 @@
 #include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
+#include "crypto/SecretKey.h"
 
 /*
 SCP messages that you have received but are waiting to get the info of
@@ -35,15 +36,21 @@ class PendingEnvelopes
     std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
 
     // all the quorum sets we have learned about
-    cache::lru_cache<uint256, SCPQuorumSetPtr> mQsetCache;
+    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
 
     ItemFetcher<TxSetTracker> mTxSetFetcher;
     ItemFetcher<QuorumSetTracker> mQuorumSetFetcher;
 
     // all the txsets we have learned about per ledger#
-    cache::lru_cache<uint256, TxSetFramePtr> mTxSetCache;
+    cache::lru_cache<Hash, TxSetFramePtr> mTxSetCache;
+
+    // NodeIDs that are in quorum
+    cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
     medida::Counter& mPendingEnvelopesSize;
+
+    // returns true if we think that the node is in quorum
+    bool isNodeInQuorum(NodeID const& node);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
@@ -53,7 +60,7 @@ class PendingEnvelopes
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
     void recvTxSet(Hash hash, TxSetFramePtr txset);
 
-    void peerDoesntHave(MessageType type, uint256 const& itemID,
+    void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
     bool isFullyFetched(SCPEnvelope const& envelope);
