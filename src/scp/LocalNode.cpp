@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include <algorithm>
 #include "lib/json/json.h"
+#include <unordered_set>
 
 namespace stellar
 {
@@ -550,5 +551,59 @@ bool
 LocalNode::isValidator()
 {
     return mIsValidator;
+}
+
+SCP::TriBool
+LocalNode::isNodeInQuorum(
+    NodeID const& node,
+    std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
+    std::map<NodeID, std::vector<SCPStatement const*>> const& map) const
+{
+    // perform a transitive search, starting with the local node
+    // the order is not important, so we can use sets to keep track of the work
+    std::unordered_set<NodeID> backlog;
+    std::unordered_set<NodeID> visited;
+    backlog.insert(mNodeID);
+
+    SCP::TriBool res = SCP::TB_FALSE;
+
+    while (backlog.size() != 0)
+    {
+        auto it = backlog.begin();
+        auto c = *it;
+        if (c == node)
+        {
+            return SCP::TB_TRUE;
+        }
+        backlog.erase(it);
+        visited.insert(c);
+
+        auto ite = map.find(c);
+        if (ite == map.end())
+        {
+            // can't lookup information on this node
+            res = SCP::TB_MAYBE;
+            continue;
+        }
+        for (auto st : ite->second)
+        {
+            auto qset = qfun(*st);
+            if (!qset)
+            {
+                // can't find the quorum set
+                res = SCP::TB_MAYBE;
+                continue;
+            }
+            // see if we need to explore further
+            forAllNodes(*qset, [&](NodeID const& n)
+                        {
+                            if (visited.find(n) == visited.end())
+                            {
+                                backlog.insert(n);
+                            }
+                        });
+        }
+    }
+    return res;
 }
 }

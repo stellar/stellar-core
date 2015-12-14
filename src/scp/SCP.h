@@ -47,6 +47,13 @@ class SCP
         VALID    // the envelope is valid
     };
 
+    enum TriBool
+    {
+        TB_TRUE,
+        TB_FALSE,
+        TB_MAYBE
+    };
+
     // this is the main entry point of the SCP library
     // it processes the envelope, updates the internal state and
     // invokes the appropriate methods
@@ -109,6 +116,13 @@ class SCP
     // returns messages that contributed to externalizing the slot
     // (or empty if the slot didn't externalize)
     std::vector<SCPEnvelope> getExternalizingState(uint64 slotIndex);
+
+    // returns if a node is in the (transitive) quorum originating at
+    // the local node, scanning the known slots.
+    // TB_TRUE iff n is in the quorum
+    // TB_FALSE iff n is not in the quorum
+    // TB_MAYBE iff the quorum cannot be computed
+    TriBool isNodeInQuorum(NodeID const& node);
 
     // ** helper methods to stringify ballot for logging
     std::string getValueString(Value const& v) const;

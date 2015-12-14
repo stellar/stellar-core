@@ -179,6 +179,22 @@ Slot::setFullyValidated(bool fullyValidated)
     mFullyValidated = fullyValidated;
 }
 
+SCP::TriBool
+Slot::isNodeInQuorum(NodeID const& node)
+{
+    // build the mapping between nodes and envelopes
+    std::map<NodeID, std::vector<SCPStatement const*>> m;
+    // this may be reduced to the pair (at most) of the latest
+    // statements for each protocol
+    for (auto const& e : mStatementsHistory)
+    {
+        auto& n = m[e.first.nodeID];
+        n.emplace_back(&e.first);
+    }
+    return mSCP.getLocalNode()->isNodeInQuorum(
+        node, std::bind(&Slot::getQuorumSetFromStatement, this, _1), m);
+}
+
 SCPEnvelope
 Slot::createEnvelope(SCPStatement const& statement)
 {
