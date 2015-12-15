@@ -24,7 +24,8 @@ class WorkManager : public WorkParent,
 {
 public:
     WorkManager(Application& app);
-    static std::unique_ptr<WorkManager> create(Application& app);
+    virtual ~WorkManager();
+    static std::shared_ptr<WorkManager> create(Application& app);
     virtual void notify(std::string const& changed) = 0;
 };
 

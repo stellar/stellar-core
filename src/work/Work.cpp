@@ -23,9 +23,13 @@ Work::Work(Application& app,
            std::string uniqueName,
            size_t maxRetries)
     : WorkParent(app)
-    , mParent(parent)
+    , mParent(parent.shared_from_this())
     , mUniqueName(uniqueName)
     , mMaxRetries(maxRetries)
+{
+}
+
+Work::~Work()
 {
 }
 
@@ -65,7 +69,7 @@ Work::getStatus() const
             VirtualClock::to_time_t(mRetryTimer->expiry_time()) :
             0;
         uint64 eta = now > retry ? 0 : retry - now;
-        return fmt::format("Retrying in {:d} sec: {:s}", eta);
+        return fmt::format("Retrying in {:d} sec: {:s}", eta, getUniqueName());
     }
     case WORK_FAILURE_RAISE:
         return fmt::format("Failed: {:s}", getUniqueName());
@@ -78,7 +82,8 @@ Work::getStatus() const
 VirtualClock::duration
 Work::getRetryDelay() const
 {
-    uint64_t m = 2 << std::min(uint64_t(62), uint64_t(mRetries));
+    // Cap to 4096sec == a little over an hour.
+    uint64_t m = 2 << std::min(uint64_t(12), uint64_t(mRetries));
     return std::chrono::seconds(rand_uniform<uint64_t>(1ULL, m));
 }
 
@@ -111,7 +116,8 @@ Work::stateName(State st)
 std::function<void(asio::error_code const& ec)>
 Work::callComplete()
 {
-    std::weak_ptr<Work> weak(shared_from_this());
+    std::weak_ptr<Work> weak(
+        std::static_pointer_cast<Work>(shared_from_this()));
     return [weak](asio::error_code const& ec)
     {
         auto self = weak.lock();
@@ -124,37 +130,10 @@ Work::callComplete()
 }
 
 void
-Work::scheduleAdvance()
-{
-    if (mCallbackPending)
-    {
-        return;
-    }
-    mCallbackPending = true;
-    std::weak_ptr<Work> weak(shared_from_this());
-    CLOG(DEBUG, "Work") << "scheduling advance of " << getUniqueName();
-    mApp.getClock().getIOService().post(
-        [weak]()
-        {
-            auto self = weak.lock();
-            if (!self)
-            {
-                return;
-            }
-            self->mCallbackPending = false;
-            self->advance();
-        });
-}
-
-void
 Work::scheduleRun()
 {
-    if (mCallbackPending)
-    {
-        return;
-    }
-    mCallbackPending = true;
-    std::weak_ptr<Work> weak(shared_from_this());
+    std::weak_ptr<Work> weak(
+        std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
     mApp.getClock().getIOService().post(
         [weak]()
@@ -164,7 +143,6 @@ Work::scheduleRun()
             {
                 return;
             }
-            self->mCallbackPending = false;
             self->run();
         });
 }
@@ -172,12 +150,8 @@ Work::scheduleRun()
 void
 Work::scheduleComplete(asio::error_code ec)
 {
-    if (mCallbackPending)
-    {
-        return;
-    }
-    mCallbackPending = true;
-    std::weak_ptr<Work> weak(shared_from_this());
+    std::weak_ptr<Work> weak(
+        std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
     mApp.getClock().getIOService().post(
         [weak, ec]()
@@ -187,7 +161,6 @@ Work::scheduleComplete(asio::error_code ec)
         {
             return;
         }
-        self->mCallbackPending = false;
         self->complete(ec);
     });
 }
@@ -204,21 +177,15 @@ Work::scheduleRetry()
         throw std::runtime_error(msg);
     }
 
-    if (mCallbackPending)
-    {
-        return;
-    }
-
-    mCallbackPending = true;
-
     if (!mRetryTimer)
     {
         mRetryTimer = make_unique<VirtualTimer>(mApp.getClock());
     }
 
-    std::weak_ptr<Work> weak(shared_from_this());
+    std::weak_ptr<Work> weak(
+        std::static_pointer_cast<Work>(shared_from_this()));
     auto t = getRetryDelay();
-    mRetryTimer->expires_from_now(getRetryDelay());
+    mRetryTimer->expires_from_now(t);
     CLOG(WARNING, "Work")
         << "Scheduling retry #" << (mRetries + 1)
         << "/" << mMaxRetries << " in "
@@ -231,10 +198,9 @@ Work::scheduleRetry()
         {
             return;
         }
-        self->mCallbackPending = false;
         self->reset();
         self->mRetries++;
-        self->scheduleAdvance();
+        self->advance();
     }, VirtualTimer::onFailureNoop);
 }
 
@@ -244,16 +210,20 @@ Work::reset()
 {
     CLOG(DEBUG, "Work") << "resetting " << getUniqueName();
     setState(WORK_PENDING);
-    this->onReset();
+    onReset();
 }
 
 void
 Work::advance()
 {
+    if (getState() != WORK_PENDING)
+    {
+        return;
+    }
+
     CLOG(DEBUG, "Work") << "advancing " << getUniqueName();
     advanceChildren();
-    if (getState() == WORK_PENDING
-        && allChildrenSuccessful())
+    if (allChildrenSuccessful())
     {
         scheduleRun();
     }
@@ -270,12 +240,12 @@ Work::run()
     {
         CLOG(DEBUG, "Work") << "starting " << getUniqueName();
         mApp.getMetrics().NewMeter({"work", "unit", "start"}, "unit").Mark();
-        this->onStart();
+        onStart();
     }
     CLOG(DEBUG, "Work") << "running " << getUniqueName();
     mApp.getMetrics().NewMeter({"work", "unit", "run"}, "unit").Mark();
     setState(WORK_RUNNING);
-    this->onRun();
+    onRun();
 }
 
 void
@@ -291,7 +261,7 @@ Work::complete(asio::error_code const& ec)
     }
     else
     {
-        setState(this->onSuccess());
+        setState(onSuccess());
     }
 
     switch (getState())
@@ -303,19 +273,19 @@ Work::complete(asio::error_code const& ec)
 
     case WORK_FAILURE_RETRY:
         fail.Mark();
-        this->onFailureRetry();
+        onFailureRetry();
         scheduleRetry();
         break;
 
     case WORK_FAILURE_RAISE:
         fail.Mark();
-        this->onFailureRaise();
+        onFailureRaise();
         notifyParent();
         break;
 
     case WORK_PENDING:
         succ.Mark();
-        scheduleAdvance();
+        advance();
         break;
 
     case WORK_RUNNING:
@@ -377,7 +347,7 @@ Work::getState() const
 void
 Work::setState(Work::State st)
 {
-    auto maxR = this->getMaxRetries();
+    auto maxR = getMaxRetries();
     if (st == WORK_FAILURE_RETRY && (mRetries >= maxR))
     {
         CLOG(WARNING, "Work")
@@ -400,7 +370,11 @@ Work::setState(Work::State st)
 void
 Work::notifyParent()
 {
-    mParent.notify(getUniqueName());
+    auto parent = mParent.lock();
+    if (parent)
+    {
+        parent->notify(getUniqueName());
+    }
 }
 
 void
@@ -416,7 +390,7 @@ Work::notify(std::string const& child)
     CLOG(DEBUG, "Work") << "notified " << getUniqueName()
                         << " of completed child "
                         << child;
-    scheduleAdvance();
+    advance();
 }
 
 }

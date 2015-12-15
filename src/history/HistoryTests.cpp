@@ -466,10 +466,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     assert(!app2->getClock().getIOService().stopped());
 
-    while ((app2->getLedgerManager().getState() !=
-            LedgerManager::LM_SYNCED_STATE) &&
-           !app2->getClock().getIOService().stopped() &&
-           !app2->getWorkManager().allChildrenDone())
+    while (!app2->getWorkManager().allChildrenDone())
     {
         app2->getClock().crank(false);
     }
@@ -918,10 +915,11 @@ TEST_CASE("persist publish queue", "[history]")
         LOG(INFO) << "minLedger " << minLedger;
         bool okQueue = minLedger == 0 || minLedger >= 35;
         CHECK(okQueue);
+        clock.cancelAllEvents();
         while (clock.cancelAllEvents() ||
                app1->getProcessManager().getNumRunningProcesses() > 0)
         {
-            clock.crank(false);
+            clock.crank(true);
         }
         LOG(INFO) << app1->isStopping();
     }

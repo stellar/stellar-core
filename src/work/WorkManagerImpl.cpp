@@ -22,8 +22,16 @@ WorkManager::WorkManager(Application& app)
 {
 }
 
+WorkManager::~WorkManager()
+{
+}
+
 WorkManagerImpl::WorkManagerImpl(Application& app)
     : WorkManager(app)
+{
+}
+
+WorkManagerImpl::~WorkManagerImpl()
 {
 }
 
@@ -54,10 +62,10 @@ WorkManagerImpl::notify(std::string const& child)
     advanceChildren();
 }
 
-std::unique_ptr<WorkManager>
+std::shared_ptr<WorkManager>
 WorkManager::create(Application& app)
 {
-    return make_unique<WorkManagerImpl>(app);
+    return std::make_shared<WorkManagerImpl>(app);
 }
 
 }

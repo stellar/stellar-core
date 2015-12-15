@@ -118,7 +118,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
-    std::unique_ptr<WorkManager> mWorkManager;
+    std::shared_ptr<WorkManager> mWorkManager;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<LoadGenerator> mLoadGenerator;
 

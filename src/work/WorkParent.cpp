@@ -17,6 +17,11 @@ WorkParent::WorkParent(Application& app)
 {
 }
 
+WorkParent::~WorkParent()
+{
+}
+
+
 void
 WorkParent::addChild(std::shared_ptr<Work> child)
 {

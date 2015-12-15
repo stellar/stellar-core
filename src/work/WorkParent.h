@@ -8,6 +8,7 @@
 #include <map>
 #include <deque>
 #include <string>
+#include "util/NonCopyable.h"
 
 namespace stellar
 {
@@ -25,7 +26,8 @@ class Work;
  * these are constructed with appropriate application and parent links and
  * automatically added to the child list.
  */
-class WorkParent
+class WorkParent : public std::enable_shared_from_this<WorkParent>,
+                   private NonMovableOrCopyable
 {
 protected:
     Application& mApp;
@@ -33,6 +35,7 @@ protected:
 
 public:
     WorkParent(Application& app);
+    virtual ~WorkParent();
     virtual void notify(std::string const& childChanged) = 0;
     void addChild(std::shared_ptr<Work> child);
     void clearChildren();

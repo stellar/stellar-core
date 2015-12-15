@@ -11,6 +11,7 @@ class WorkManagerImpl : public WorkManager
 {
 public:
     WorkManagerImpl(Application& app);
+    virtual ~WorkManagerImpl();
     virtual void notify(std::string const&) override;
 };
 

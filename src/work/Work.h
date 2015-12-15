@@ -30,9 +30,7 @@ class WorkParent;
  * logic of each piece of work.
  */
 
-class Work : public std::enable_shared_from_this<Work>,
-             public WorkParent,
-             private NonMovableOrCopyable
+class Work : public WorkParent
 {
 
 public:
@@ -54,6 +52,8 @@ public:
          WorkParent& parent,
          std::string uniqueName,
          size_t maxRetries = RETRY_A_FEW);
+
+    virtual ~Work();
 
     virtual std::string getUniqueName() const;
     virtual std::string getStatus() const;
@@ -85,17 +85,15 @@ public:
     State getState() const;
     bool isDone() const;
     void advance();
-    void scheduleAdvance();
     void reset();
 
 protected:
 
-    WorkParent& mParent;
+    std::weak_ptr<WorkParent> mParent;
     std::string mUniqueName;
     size_t mMaxRetries { RETRY_A_FEW };
     size_t mRetries { 0 };
     State mState { WORK_PENDING };
-    bool mCallbackPending { false };
 
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
