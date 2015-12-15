@@ -199,7 +199,6 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";
-    bool done = false;
     auto& wm = app.getWorkManager();
     auto g = wm.addWork<GzipFileWork>(fname);
     wm.advanceChildren();

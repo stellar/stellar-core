@@ -78,7 +78,7 @@ Work::getStatus() const
 VirtualClock::duration
 Work::getRetryDelay() const
 {
-    uint64_t m = 2 << std::min(62UL, mRetries);
+    uint64_t m = 2 << std::min(uint64_t(62), uint64_t(mRetries));
     return std::chrono::seconds(rand_uniform<uint64_t>(1ULL, m));
 }
 
