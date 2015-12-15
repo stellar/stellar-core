@@ -777,8 +777,8 @@ ApplyBucketsWork::onStart()
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
                                                         mSnapBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting snap["
-                               << mLevel << "] = "
+        CLOG(INFO, "History") << "ApplyBuckets : starting level["
+                               << mLevel << "].snap = "
                                << i.snap;
         mApplying = true;
     }
@@ -787,8 +787,8 @@ ApplyBucketsWork::onStart()
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
                                                         mCurrBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting curr["
-                               << mLevel << "] = "
+        CLOG(INFO, "History") << "ApplyBuckets : starting level["
+                               << mLevel << "].curr = "
                                << i.curr;
         mApplying = true;
     }
@@ -837,6 +837,7 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
+        CLOG(INFO, "History") << "ApplyBuckets : starting next level: " << mLevel;
         return WORK_PENDING;
     }
 

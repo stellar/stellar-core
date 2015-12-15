@@ -54,8 +54,9 @@ Work::getStatus() const
                 ++i;
             }
         }
+        auto total = mChildren.size();
         return fmt::format("Awaiting {:d}/{:d} prerequisites of: {:s}",
-                           i, mChildren.size(), getUniqueName());
+                           total-i, total, getUniqueName());
     }
     case WORK_RUNNING:
         return fmt::format("Running: {:s}", getUniqueName());
