@@ -15,7 +15,10 @@ BucketApplicator::BucketApplicator(Database& db,
     : mDb(db)
     , mBucket(bucket)
 {
-    mIn.open(bucket->getFilename());
+    if (!bucket->getFilename().empty())
+    {
+        mIn.open(bucket->getFilename());
+    }
 }
 
 BucketApplicator::operator bool() const
@@ -28,11 +31,8 @@ BucketApplicator::advance()
 {
     soci::transaction sqlTx(mDb.getSession());
     BucketEntry entry;
-    while ((mSize & 0xff) != 0xff &&
-           mIn &&
-           mIn.readOne(entry))
+    while (mIn && mIn.readOne(entry))
     {
-        ++mSize;
         LedgerHeader lh;
         LedgerDelta delta(lh, mDb, false);
         if (entry.type() == LIVEENTRY)
@@ -46,6 +46,10 @@ BucketApplicator::advance()
         }
         // No-op, just to avoid needless rollback.
         delta.commit();
+        if ((++mSize & 0xff) == 0xff)
+        {
+            break;
+        }
     }
     sqlTx.commit();
     mDb.clearPreparedStatementCache();
