@@ -334,15 +334,27 @@ SCP::envToStr(SCPStatement const& st) const
         auto const& nom = st.pledges.nominate();
         oss << " | NOMINATE"
             << " | D: " << hexAbbrev(qSetHash) << " | X: {";
+        bool first = true;
         for (auto const& v : nom.votes)
         {
-            oss << " '" << getValueString(v) << "',";
+            if (!first)
+            {
+                oss << " ,";
+            }
+            oss << "'" << getValueString(v) << "'";
+            first = false;
         }
         oss << "}"
             << " | Y: {";
+        first = true;
         for (auto const& a : nom.accepted)
         {
-            oss << " '" << getValueString(a) << "',";
+            if (!first)
+            {
+                oss << " ,";
+            }
+            oss << "'" << getValueString(a) << "'";
+            first = false;
         }
         oss << "}";
     }

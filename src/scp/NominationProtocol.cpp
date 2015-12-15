@@ -523,7 +523,7 @@ NominationProtocol::stopNomination()
 void
 NominationProtocol::dumpInfo(Json::Value& ret)
 {
-    Json::Value nomState;
+    Json::Value& nomState = ret["nomination"];
     nomState["roundnumber"] = mRoundNumber;
     nomState["started"] = mNominationStarted;
 
@@ -547,8 +547,6 @@ NominationProtocol::dumpInfo(Json::Value& ret)
         nomState["Z"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
-
-    ret["nomination"].append(nomState);
 }
 
 void
