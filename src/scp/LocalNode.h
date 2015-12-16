@@ -37,9 +37,8 @@ class LocalNode
                                         std::set<NodeID>& knownNodes,
                                         bool extraChecks);
 
-    void adjustQSetHelper(SCPQuorumSet& qSet);
-    // adjust qset such that self is a member of all slices
-    void adjustQSet(SCPQuorumSet& qSet);
+    // normalize quorum set
+    void normalizeQSet(SCPQuorumSet& qSet);
 
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
@@ -47,11 +46,8 @@ class LocalNode
 
     NodeID const& getNodeID();
 
-    // returns if a nodeID's quorum set passes sanity checks
-    bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
-    // simplified sanity check (for configuration validation)
-    static bool isQuorumSetSaneSimplified(SCPQuorumSet const& qSet,
-                                          bool extraChecks);
+    // returns if a quorum set passes sanity checks
+    static bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 

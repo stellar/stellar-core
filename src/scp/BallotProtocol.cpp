@@ -219,7 +219,7 @@ bool
 BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 {
     bool res = mSlot.getLocalNode()->isQuorumSetSane(
-        st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+        *mSlot.getQuorumSetFromStatement(st), false);
     if (!res)
     {
         CLOG(DEBUG, "SCP") << "Invalid quorum set received";
@@ -1252,6 +1252,7 @@ BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
         {
             bumpToBallot(h, false);
         }
+        mPreparedPrime.reset();
 
         didWork = true;
     }
@@ -1411,11 +1412,6 @@ BallotProtocol::attemptConfirmCommit(SCPStatement const& hint)
 
     auto pred = [&ballot, this](Interval const& cur) -> bool
     {
-        // only look for (c,h) such that c <= h <= b
-        if (cur.second > mCurrentBallot->counter)
-        {
-            return false;
-        }
         return federatedRatify(
             std::bind(&BallotProtocol::commitPredicate, ballot, cur, _1));
     };

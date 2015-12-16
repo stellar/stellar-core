@@ -1415,7 +1415,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 bool
 HerderImpl::isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
 {
-    return LocalNode::isQuorumSetSaneSimplified(qSet, extraChecks);
+    return LocalNode::isQuorumSetSane(qSet, extraChecks);
 }
 
 bool
