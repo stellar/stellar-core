@@ -28,6 +28,19 @@
 namespace stellar
 {
 
+
+static std::string
+fmtProgress(Application& app,
+            std::string const& task,
+            uint32_t first, uint32_t last, uint32_t curr)
+{
+    auto step = app.getHistoryManager().getCheckpointFrequency();
+    auto done = (curr - first) / step;
+    auto total = (last - first) / step;
+    auto pct = (100 * done) / total;
+    return fmt::format("{:s} {:d}/{:d} ({:d}%)",
+                       task, done, total, pct);
+}
 GetRemoteFileWork::GetRemoteFileWork(Application& app,
                                      WorkParent& parent,
                                      std::string const& remote,
@@ -307,8 +320,8 @@ VerifyLedgerChainWork::getStatus() const
 {
     if (mState == WORK_RUNNING)
     {
-        return fmt::format("verifying ledger {:08x} of [{:08x}-{:08x}]",
-                           mCurrSeq, mFirstSeq, mLastSeq);
+        std::string task = "verifying checkpoint";
+        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -391,9 +404,9 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
     else
     {
-        CLOG(INFO, "History") << "Verifying ledger headers from "
-                              << ft.localPath_nogz() << " starting from ledger "
-                              << LedgerManager::ledgerAbbrev(prev);
+        CLOG(DEBUG, "History") << "Verifying ledger headers from "
+                               << ft.localPath_nogz() << " starting from ledger "
+                               << LedgerManager::ledgerAbbrev(prev);
 
         while (hdrIn && hdrIn.readOne(curr))
         {
@@ -446,6 +459,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 Work::State
 VerifyLedgerChainWork::onSuccess()
 {
+    mApp.getHistoryManager().logAndUpdateStatus(true);
+
     if (mCurrSeq > mLastSeq)
     {
         return WORK_SUCCESS;
@@ -625,12 +640,10 @@ BatchDownloadWork::BatchDownloadWork(Application& app,
 std::string
 BatchDownloadWork::getStatus() const
 {
-    if (mState == WORK_RUNNING)
+    if (mState == WORK_RUNNING || mState == WORK_PENDING)
     {
-        return fmt::format("downloaded {:d}/{:d} {:s} files",
-                           mFinished.size(),
-                           mFinished.size() + mPending.size() + mChildren.size(),
-                           mFileType);
+        auto task = fmt::format("downloading {:s} files", mFileType);
+        return fmtProgress(mApp, task, mFirst, mLast, mNext);
     }
     return Work::getStatus();
 }
@@ -686,8 +699,8 @@ BatchDownloadWork::notify(std::string const& childChanged)
         auto i = mRunning.find(d);
         assert(i != mRunning.end());
 
-        CLOG(INFO, "History") << "Finished download of " << mFileType
-                              << " for checkpoint " << i->second;
+        CLOG(DEBUG, "History") << "Finished download of " << mFileType
+                               << " for checkpoint " << i->second;
 
         mFinished.push_back(i->second);
         mRunning.erase(i);
@@ -772,7 +785,7 @@ ApplyBucketsWork::onStart()
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
                                                         mSnapBucket);
-        CLOG(INFO, "History") << "ApplyBuckets : starting level["
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level["
                                << mLevel << "].snap = "
                                << i.snap;
         mApplying = true;
@@ -782,7 +795,7 @@ ApplyBucketsWork::onStart()
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
                                                         mCurrBucket);
-        CLOG(INFO, "History") << "ApplyBuckets : starting level["
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level["
                                << mLevel << "].curr = "
                                << i.curr;
         mApplying = true;
@@ -832,7 +845,7 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
-        CLOG(INFO, "History") << "ApplyBuckets : starting next level: " << mLevel;
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting next level: " << mLevel;
         return WORK_PENDING;
     }
 
@@ -863,8 +876,8 @@ ApplyLedgerChainWork::getStatus() const
 {
     if (mState == WORK_RUNNING)
     {
-        return fmt::format("applying ledger {:08x} of [{:08x}-{:08x}]",
-                           mCurrSeq, mFirstSeq, mLastSeq);
+        std::string task = "applying checkpoint";
+        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -894,10 +907,10 @@ ApplyLedgerChainWork::openCurrentInputFiles()
     }
     FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
     FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
-    CLOG(INFO, "History") << "Replaying ledger headers from "
-                          << hi.localPath_nogz();
-    CLOG(INFO, "History") << "Replaying transactions from "
-                          << ti.localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying ledger headers from "
+                           << hi.localPath_nogz();
+    CLOG(DEBUG, "History") << "Replaying transactions from "
+                           << ti.localPath_nogz();
     mHdrIn.open(hi.localPath_nogz());
     mTxIn.open(ti.localPath_nogz());
     mTxHistoryEntry = TransactionHistoryEntry();
@@ -1160,7 +1173,7 @@ CatchupMinimalWork::onSuccess()
     if (!mDownloadWork)
     {
         CLOG(INFO, "History") << "Catchup MINIMAL downloading buckets";
-        mDownloadWork = addWork<Work>("download");
+        mDownloadWork = addWork<Work>("download buckets");
         std::vector<std::string> buckets = mRemoteState.differingBuckets(mLocalState);
         for (auto const& hash : buckets)
         {
