@@ -24,11 +24,32 @@
 namespace stellar
 {
 
-class GetRemoteFileWork : public Work
+// This subclass exists for two reasons: first, to factor out a little code
+// around running commands, and second to ensure that command-running
+// happens from onStart rather than onRun, and that onRun is an empty
+// method; this way we only run a command _once_ (when it's first
+// scheduled) rather than repeatedly (racing with other copies of itself)
+// when rescheduled.
+class RunCommandWork : public Work
+{
+    virtual void getCommand(std::string& cmdLine,
+                            std::string& outFile) = 0;
+public:
+    RunCommandWork(Application& app,
+                   WorkParent& parent,
+                   std::string const& uniqueName);
+    void onStart() override;
+    void onRun() override;
+};
+
+class GetRemoteFileWork : public RunCommandWork
 {
     std::string mRemote;
     std::string mLocal;
     std::shared_ptr<HistoryArchive const> mArchive;
+    void getCommand(std::string& cmdLine,
+                    std::string& outFile);
+
 public:
 
     // Passing `nullptr` for the archive argument will cause the work to
@@ -39,61 +60,63 @@ public:
                       std::string const& remote,
                       std::string const& local,
                       std::shared_ptr<HistoryArchive const> archive = nullptr);
-    void onRun() override;
+    void onReset() override;
 };
 
-class PutRemoteFileWork : public Work
+class PutRemoteFileWork : public RunCommandWork
 {
     std::string mRemote;
     std::string mLocal;
     std::shared_ptr<HistoryArchive const> mArchive;
+    void getCommand(std::string& cmdLine,
+                    std::string& outFile);
 public:
     PutRemoteFileWork(Application& app,
                       WorkParent& parent,
                       std::string const& remote,
                       std::string const& local,
                       std::shared_ptr<HistoryArchive const> archive);
-    void onRun() override;
 };
 
-class MakeRemoteDirWork : public Work
+class MakeRemoteDirWork : public RunCommandWork
 {
     std::string mDir;
     std::shared_ptr<HistoryArchive const> mArchive;
+    void getCommand(std::string& cmdLine,
+                    std::string& outFile);
 public:
     MakeRemoteDirWork(Application& app,
                       WorkParent& parent,
                       std::string const& dir,
                       std::shared_ptr<HistoryArchive const> archive);
-    void onRun() override;
 };
 
-class GzipFileWork : public Work
+class GzipFileWork : public RunCommandWork
 {
     std::string mFilenameNoGz;
     bool mKeepExisting;
+    void getCommand(std::string& cmdLine,
+                    std::string& outFile);
 public:
     GzipFileWork(Application& app,
                  WorkParent& parent,
                  std::string const& filenameNoGz,
                  bool keepExisting = false);
-    void onRun() override;
-    void onFailureRaise() override;
-    void onFailureRetry() override;
+    void onReset() override;
 };
 
-class GunzipFileWork : public Work
+class GunzipFileWork : public RunCommandWork
 {
     std::string mFilenameGz;
     bool mKeepExisting;
+    void getCommand(std::string& cmdLine,
+                    std::string& outFile);
 public:
     GunzipFileWork(Application& app,
                    WorkParent& parent,
                    std::string const& filenameGz,
                    bool keepExisting = false);
-    void onRun() override;
-    void onFailureRaise() override;
-    void onFailureRetry() override;
+    void onReset() override;
 };
 
 class VerifyBucketWork : public Work

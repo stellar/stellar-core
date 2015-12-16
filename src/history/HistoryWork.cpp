@@ -41,12 +41,43 @@ fmtProgress(Application& app,
     return fmt::format("{:s} {:d}/{:d} ({:d}%)",
                        task, done, total, pct);
 }
+
+RunCommandWork::RunCommandWork(Application& app,
+                               WorkParent& parent,
+                               std::string const& uniqueName)
+    : Work(app, parent, uniqueName)
+{
+}
+
+void
+RunCommandWork::onStart()
+{
+    std::string cmd, outfile;
+    getCommand(cmd, outfile);
+    if (!cmd.empty())
+    {
+        auto exit = mApp.getProcessManager().runProcess(cmd, outfile);
+        exit.async_wait(callComplete());
+    }
+    else
+    {
+        scheduleSuccess();
+    }
+}
+
+void
+RunCommandWork::onRun()
+{
+    // Do nothing: we ran the command in onStart().
+}
+
+
 GetRemoteFileWork::GetRemoteFileWork(Application& app,
                                      WorkParent& parent,
                                      std::string const& remote,
                                      std::string const& local,
                                      std::shared_ptr<HistoryArchive const> archive)
-    : Work(app, parent, std::string("get-remote-file ") + remote)
+    : RunCommandWork(app, parent, std::string("get-remote-file ") + remote)
     , mRemote(remote)
     , mLocal(local)
     , mArchive(archive)
@@ -54,7 +85,8 @@ GetRemoteFileWork::GetRemoteFileWork(Application& app,
 }
 
 void
-GetRemoteFileWork::onRun()
+GetRemoteFileWork::getCommand(std::string& cmdLine,
+                              std::string& outFile)
 {
     auto archive = mArchive;
     if (!archive)
@@ -63,9 +95,13 @@ GetRemoteFileWork::onRun()
     }
     assert(archive);
     assert(archive->hasGetCmd());
-    auto cmd = archive->getFileCmd(mRemote, mLocal);
-    auto exit = mApp.getProcessManager().runProcess(cmd);
-    exit.async_wait(callComplete());
+    cmdLine = archive->getFileCmd(mRemote, mLocal);
+}
+
+void
+GetRemoteFileWork::onReset()
+{
+    std::remove(mLocal.c_str());
 }
 
 PutRemoteFileWork::PutRemoteFileWork(Application& app,
@@ -73,7 +109,7 @@ PutRemoteFileWork::PutRemoteFileWork(Application& app,
                                      std::string const& local,
                                      std::string const& remote,
                                      std::shared_ptr<HistoryArchive const> archive)
-    : Work(app, parent, std::string("put-remote-file ") + remote)
+    : RunCommandWork(app, parent, std::string("put-remote-file ") + remote)
     , mRemote(remote)
     , mLocal(local)
     , mArchive(archive)
@@ -83,18 +119,17 @@ PutRemoteFileWork::PutRemoteFileWork(Application& app,
 }
 
 void
-PutRemoteFileWork::onRun()
+PutRemoteFileWork::getCommand(std::string& cmdLine,
+                              std::string& outFile)
 {
-    auto cmd = mArchive->putFileCmd(mLocal, mRemote);
-    auto exit = mApp.getProcessManager().runProcess(cmd);
-    exit.async_wait(callComplete());
+    cmdLine = mArchive->putFileCmd(mLocal, mRemote);
 }
 
 MakeRemoteDirWork::MakeRemoteDirWork(Application& app,
                                      WorkParent& parent,
                                      std::string const& dir,
                                      std::shared_ptr<HistoryArchive const> archive)
-    : Work(app, parent, std::string("make-remote-dir ") + dir)
+    : RunCommandWork(app, parent, std::string("make-remote-dir ") + dir)
     , mDir(dir)
     , mArchive(archive)
 {
@@ -102,17 +137,12 @@ MakeRemoteDirWork::MakeRemoteDirWork(Application& app,
 }
 
 void
-MakeRemoteDirWork::onRun()
+MakeRemoteDirWork::getCommand(std::string& cmdLine,
+                              std::string& outFile)
 {
     if (mArchive->hasMkdirCmd())
     {
-        auto cmd = mArchive->mkdirCmd(mDir);
-        auto exit = mApp.getProcessManager().runProcess(cmd);
-        exit.async_wait(callComplete());
-    }
-    else
-    {
-        scheduleComplete();
+        cmdLine = mArchive->mkdirCmd(mDir);
     }
 }
 
@@ -146,7 +176,7 @@ GzipFileWork::GzipFileWork(Application& app,
                            WorkParent& parent,
                            std::string const& filenameNoGz,
                            bool keepExisting)
-    : Work(app, parent, std::string("gzip-file ") + filenameNoGz)
+    : RunCommandWork(app, parent, std::string("gzip-file ") + filenameNoGz)
     , mFilenameNoGz(filenameNoGz)
     , mKeepExisting(keepExisting)
 {
@@ -154,43 +184,30 @@ GzipFileWork::GzipFileWork(Application& app,
 }
 
 void
-GzipFileWork::onRun()
+GzipFileWork::onReset()
 {
     std::string filenameGz = mFilenameNoGz + ".gz";
-    std::string commandLine("gzip ");
-    std::string outputFile;
+    std::remove(filenameGz.c_str());
+}
+
+void
+GzipFileWork::getCommand(std::string& cmdLine,
+                         std::string& outFile)
+{
+    cmdLine = "gzip ";
     if (mKeepExisting)
     {
-        // Leave input intact, write output to stdout.
-        commandLine += "-c ";
-        outputFile = filenameGz;
+        cmdLine += "-c ";
+        outFile = mFilenameNoGz + ".gz";
     }
-    commandLine += mFilenameNoGz;
-    auto exit = mApp.getProcessManager().runProcess(commandLine, outputFile);
-    exit.async_wait(callComplete());
-}
-
-void
-GzipFileWork::onFailureRaise()
-{
-    onFailureRetry();
-    CLOG(WARNING, "History") << " removing " << mFilenameNoGz;
-    std::remove(mFilenameNoGz.c_str());
-}
-
-void
-GzipFileWork::onFailureRetry()
-{
-    std::string filenameGz = mFilenameNoGz + ".gz";
-    CLOG(WARNING, "History") << " removing " << filenameGz;
-    std::remove(filenameGz.c_str());
+    cmdLine += mFilenameNoGz;
 }
 
 GunzipFileWork::GunzipFileWork(Application& app,
                                WorkParent& parent,
                                std::string const& filenameGz,
                                bool keepExisting)
-    : Work(app, parent, std::string("gunzip-file ") + filenameGz)
+    : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
 {
@@ -198,35 +215,22 @@ GunzipFileWork::GunzipFileWork(Application& app,
 }
 
 void
-GunzipFileWork::onRun()
+GunzipFileWork::getCommand(std::string& cmdLine,
+                           std::string& outFile)
 {
-    std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
-    std::string commandLine("gzip -d ");
-    std::string outputFile;
+    cmdLine = "gzip -d ";
     if (mKeepExisting)
     {
-        // Leave input intact, write output to stdout.
-        commandLine += "-c ";
-        outputFile = filenameNoGz;
+        cmdLine += "-c ";
+        outFile = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     }
-    commandLine += mFilenameGz;
-    auto exit = mApp.getProcessManager().runProcess(commandLine, outputFile);
-    exit.async_wait(callComplete());
+    cmdLine += mFilenameGz;
 }
 
 void
-GunzipFileWork::onFailureRaise()
-{
-    onFailureRetry();
-    CLOG(WARNING, "History") << " removing " << mFilenameGz;
-    std::remove(mFilenameGz.c_str());
-}
-
-void
-GunzipFileWork::onFailureRetry()
+GunzipFileWork::onReset()
 {
     std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
-    CLOG(WARNING, "History") << " removing " << filenameNoGz;
     std::remove(filenameNoGz.c_str());
 }
 
