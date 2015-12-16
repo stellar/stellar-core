@@ -614,16 +614,12 @@ BatchDownloadWork::BatchDownloadWork(Application& app,
                                      TmpDir const& downloadDir)
     : Work(app, parent, fmt::format("batch-download-{:s}-{:08x}-{:08x}",
                                     type, first, last))
+    , mFirst(first)
+    , mLast(last)
+    , mNext(first)
     , mFileType(type)
     , mDownloadDir(downloadDir)
 {
-    uint32_t step = app.getHistoryManager().getCheckpointFrequency();
-    for (uint32_t n = first; n <= last; n += step)
-    {
-        mPending.push_back(n);
-    }
-    CLOG(INFO, "History") << "Built queue of " << mPending.size()
-                          << " downloads of type " << type;
 }
 
 std::string
@@ -642,34 +638,39 @@ BatchDownloadWork::getStatus() const
 void
 BatchDownloadWork::addChild()
 {
-    if (mPending.empty())
+    if (mNext > mLast)
     {
         return;
     }
-    uint32_t seq = mPending.front();
-    mPending.pop_front();
 
-    CLOG(INFO, "History") << "Downloading " << mFileType
-                          << " for checkpoint " << seq;
-
-    FileTransferInfo ft(mDownloadDir, mFileType, seq);
-    auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
-    gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
-    mRunning.insert(std::make_pair(gunzip->getUniqueName(), seq));
+    FileTransferInfo ft(mDownloadDir, mFileType, mNext);
+    if (!fs::exists(ft.localPath_gz()) &&
+        !fs::exists(ft.localPath_nogz()))
+    {
+        CLOG(DEBUG, "History") << "Downloading " << mFileType
+                               << " for checkpoint " << mNext;
+        auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
+        gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
+        mRunning.insert(std::make_pair(gunzip->getUniqueName(), mNext));
+    }
+    mNext += mApp.getHistoryManager().getCheckpointFrequency();
 }
 
 void
 BatchDownloadWork::onReset()
 {
+    mNext = mFirst;
+    mRunning.clear();
+    mFinished.clear();
     size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
-    for (size_t i = 0; i < nChildren; ++i)
+    while (mChildren.size() < nChildren && mNext <= mLast)
     {
         addChild();
     }
 }
 
-Work::State
-BatchDownloadWork::onSuccess()
+void
+BatchDownloadWork::notify(std::string const& childChanged)
 {
     std::vector<std::string> done;
     for (auto const& c : mChildren)
@@ -692,14 +693,8 @@ BatchDownloadWork::onSuccess()
         mRunning.erase(i);
         addChild();
     }
-    if (mChildren.empty())
-    {
-        return WORK_SUCCESS;
-    }
-    else
-    {
-        return WORK_PENDING;
-    }
+    mApp.getHistoryManager().logAndUpdateStatus(true);
+    advance();
 }
 
 ///////////////////////////////////////////////////////////////////////////

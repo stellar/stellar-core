@@ -241,7 +241,9 @@ class BatchDownloadWork : public Work
     // backlog in the ProcessManager).
     std::deque<uint32_t> mFinished;
     std::map<std::string, uint32_t> mRunning;
-    std::deque<uint32_t> mPending;
+    uint32_t mFirst;
+    uint32_t mLast;
+    uint32_t mNext;
     std::string mFileType;
     TmpDir const& mDownloadDir;
 public:
@@ -254,7 +256,7 @@ public:
     std::string getStatus() const override;
     void addChild();
     void onReset() override;
-    Work::State onSuccess() override;
+    void notify(std::string const& childChanged) override;
 };
 
 class CatchupCompleteWork : public CatchupWork
