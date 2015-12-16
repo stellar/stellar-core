@@ -286,9 +286,14 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
     }
     if (mCatchupWork || mPublishWork)
     {
-        CLOG(INFO, "History") << stateStr.str();
+        auto current = stateStr.str();
+        auto existing = mApp.getExtraStateInfo();
+        if (existing != current)
+        {
+            CLOG(INFO, "History") << current;
+            mApp.setExtraStateInfo(current);
+        }
     }
-    mApp.setExtraStateInfo(stateStr.str());
 }
 
 size_t
