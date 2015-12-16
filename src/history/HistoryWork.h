@@ -220,12 +220,14 @@ protected:
     LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
     uint32_t mNextLedger;
+    bool mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
 
 public:
     CatchupWork(Application& app,
                 WorkParent& parent,
-                uint32_t initLedger);
+                uint32_t initLedger,
+                bool manualCatchup);
     virtual void onReset() override;
 };
 
@@ -245,6 +247,7 @@ public:
     CatchupMinimalWork(Application& app,
                        WorkParent& parent,
                        uint32_t initLedger,
+                       bool manualCatchup,
                        handler endHandler);
     std::string getStatus() const override;
     void onReset() override;
@@ -299,6 +302,7 @@ public:
     CatchupCompleteWork(Application& app,
                         WorkParent& parent,
                         uint32_t initLedger,
+                        bool manualCatchup,
                         handler endHandler);
     std::string getStatus() const override;
     void onReset() override;
@@ -312,6 +316,7 @@ class VerifyLedgerChainWork : public Work
     uint32_t mFirstSeq;
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
+    bool mManualCatchup;
     LedgerHeaderHistoryEntry& mLastVerified;
 
     HistoryManager::VerifyHashStatus
@@ -324,6 +329,7 @@ public:
         TmpDir const& downloadDir,
         uint32_t firstSeq,
         uint32_t lastSeq,
+        bool manualCatchup,
         LedgerHeaderHistoryEntry& lastVerified);
     std::string getStatus() const override;
     void onReset() override;

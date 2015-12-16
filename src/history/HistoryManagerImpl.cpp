@@ -238,11 +238,6 @@ HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger)
 uint32_t
 HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
 {
-    if (mManualCatchup)
-    {
-        return ledger;
-    }
-
     uint32_t freq = getCheckpointFrequency();
     if (ledger == 0)
         return freq;
@@ -629,20 +624,21 @@ HistoryManagerImpl::catchupHistory(
     }
 
     mCatchupStart.Mark();
-    mManualCatchup = manualCatchup;
 
     if (mode == CATCHUP_MINIMAL)
     {
         CLOG(INFO, "History") << "Starting CatchupMinimalWork";
         mCatchupWork =
-            mApp.getWorkManager().addWork<CatchupMinimalWork>(initLedger, handler);
+            mApp.getWorkManager().addWork<CatchupMinimalWork>(
+                initLedger, manualCatchup, handler);
     }
     else
     {
         assert(mode == CATCHUP_COMPLETE);
         CLOG(INFO, "History") << "Starting CatchupCompleteWork";
         mCatchupWork =
-            mApp.getWorkManager().addWork<CatchupCompleteWork>(initLedger, handler);
+            mApp.getWorkManager().addWork<CatchupCompleteWork>(
+                initLedger, manualCatchup, handler);
     }
     mApp.getWorkManager().advanceChildren();
 }

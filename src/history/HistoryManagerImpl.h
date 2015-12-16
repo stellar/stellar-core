@@ -25,7 +25,6 @@ class HistoryManagerImpl : public HistoryManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<Work> mPublishWork;
     std::shared_ptr<Work> mCatchupWork;
-    bool mManualCatchup{false};
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;

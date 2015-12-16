@@ -35,8 +35,16 @@ fmtProgress(Application& app,
             uint32_t first, uint32_t last, uint32_t curr)
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();
+    if (step == 0)
+    {
+        step = 1;
+    }
     auto done = (curr - first) / step;
     auto total = (last - first) / step;
+    if (total == 0)
+    {
+        total = 1;
+    }
     auto pct = (100 * done) / total;
     return fmt::format("{:s} {:d}/{:d} ({:d}%)",
                        task, done, total, pct);
@@ -309,12 +317,14 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     TmpDir const& downloadDir,
     uint32_t first,
     uint32_t last,
+    bool manualCatchup,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
     , mCurrSeq(first)
     , mLastSeq(last)
+    , mManualCatchup(manualCatchup)
     , mLastVerified(lastVerified)
 {
 }
@@ -444,17 +454,23 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     auto status = HistoryManager::VERIFY_HASH_OK;
-    if (mCurrSeq >= mLastSeq)
+    if (mCurrSeq == mLastSeq)
     {
         CLOG(INFO, "History")
             << "Verifying catchup candidate " << mCurrSeq << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
+        if (status == HistoryManager::VERIFY_HASH_UNKNOWN &&
+            mManualCatchup)
+        {
+            CLOG(WARNING, "History")
+                << "Accepting unknown-hash ledger due to manual catchup";
+            status = HistoryManager::VERIFY_HASH_OK;
+        }
     }
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
         mLastVerified = curr;
-        mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
     }
 
     return status;
@@ -467,19 +483,22 @@ VerifyLedgerChainWork::onSuccess()
 
     if (mCurrSeq > mLastSeq)
     {
-        return WORK_SUCCESS;
+        throw std::runtime_error("Verification overshot target ledger");
     }
 
+    // This is in onSuccess rather than onRun, so we can force a FAILURE_RAISE.
     switch (verifyHistoryOfSingleCheckpoint())
     {
     case HistoryManager::VERIFY_HASH_OK:
-        if (mCurrSeq > mLastSeq)
+        if (mCurrSeq == mLastSeq)
         {
             CLOG(INFO, "History") << "History chain ["
                                   << mFirstSeq << ","
                                   << mLastSeq << "] verified";
             return WORK_SUCCESS;
         }
+
+        mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
     case HistoryManager::VERIFY_HASH_UNKNOWN:
         CLOG(WARNING, "History")
@@ -1105,11 +1124,14 @@ BucketDownloadWork::onReset()
 
 CatchupWork::CatchupWork(Application& app,
                          WorkParent& parent,
-                         uint32_t initLedger)
+                         uint32_t initLedger,
+                         bool manualCatchup)
     : BucketDownloadWork(
-        app, parent, "catchup",
+        app, parent, fmt::format("catchup-{:08x}", initLedger),
         app.getHistoryManager().getLastClosedHistoryArchiveState())
-    , mNextLedger(app.getHistoryManager().nextCheckpointLedger(initLedger))
+    , mNextLedger(manualCatchup ? initLedger :
+                  app.getHistoryManager().nextCheckpointLedger(initLedger))
+    , mManualCatchup(manualCatchup)
 {
 }
 
@@ -1130,8 +1152,9 @@ CatchupWork::onReset()
 CatchupMinimalWork::CatchupMinimalWork(Application& app,
                                        WorkParent& parent,
                                        uint32_t initLedger,
+                                       bool manualCatchup,
                                        handler endHandler)
-    : CatchupWork(app, parent, initLedger)
+    : CatchupWork(app, parent, initLedger, manualCatchup)
     , mEndHandler(endHandler)
 {
 }
@@ -1197,6 +1220,7 @@ CatchupMinimalWork::onSuccess()
             auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(*mDownloadDir,
                                                                         mNextLedger-1,
                                                                         mNextLedger-1,
+                                                                        mManualCatchup,
                                                                         mLastVerified);
             auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
             gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
@@ -1237,8 +1261,9 @@ CatchupMinimalWork::onFailureRaise()
 CatchupCompleteWork::CatchupCompleteWork(Application& app,
                                          WorkParent& parent,
                                          uint32_t initLedger,
+                                         bool manualCatchup,
                                          handler endHandler)
-    : CatchupWork(app, parent, initLedger)
+    : CatchupWork(app, parent, initLedger, manualCatchup)
     , mEndHandler(endHandler)
 {
 }
@@ -1292,7 +1317,7 @@ CatchupCompleteWork::onSuccess()
 
     auto& hm = mApp.getHistoryManager();
     uint32_t firstSeq = hm.nextCheckpointLedger(mLocalState.currentLedger) - 1;
-    uint32_t lastSeq = hm.nextCheckpointLedger(mRemoteState.currentLedger) - 1;
+    uint32_t lastSeq = mRemoteState.currentLedger;
 
     // Phase 2: download and decompress the ledgers.
     if (!mDownloadLedgersWork)
@@ -1320,7 +1345,8 @@ CatchupCompleteWork::onSuccess()
         CLOG(INFO, "History") << "Catchup COMPLETE verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
         mVerifyWork =
-            addWork<VerifyLedgerChainWork>(*mDownloadDir, firstSeq, lastSeq, mLastVerified);
+            addWork<VerifyLedgerChainWork>(*mDownloadDir, firstSeq, lastSeq,
+                                           mManualCatchup, mLastVerified);
         return WORK_PENDING;
     }
 
