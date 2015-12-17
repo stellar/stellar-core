@@ -639,7 +639,7 @@ Config::validateConfig()
         FAILURE_SAFETY = (static_cast<uint32>(nodes.size()) - 1) / 3;
     }
 
-    if (UNSAFE_QUORUM == false)
+    if (!UNSAFE_QUORUM)
     {
         try
         {

@@ -48,15 +48,19 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
 
 bool
 LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
-                                   std::set<NodeID>& knownNodes)
+                                   std::set<NodeID>& knownNodes,
+                                   bool extraChecks)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
     size_t totEntries = v.size() + i.size();
 
+    size_t vBlockingSize = totEntries - qSet.threshold + 1;
+
     // threshold is within the proper range
-    if (qSet.threshold >= 1 && qSet.threshold <= totEntries)
+    if (qSet.threshold >= 1 && qSet.threshold <= totEntries &&
+        (!extraChecks || qSet.threshold >= vBlockingSize))
     {
         for (auto const& n : v)
         {
@@ -70,7 +74,7 @@ LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
 
         for (auto const& iSet : i)
         {
-            if (!isQuorumSetSaneInternal(iSet, knownNodes))
+            if (!isQuorumSetSaneInternal(iSet, knownNodes, extraChecks))
             {
                 return false;
             }
@@ -166,10 +170,10 @@ LocalNode::adjustQSet(SCPQuorumSet& qSet)
 }
 
 bool
-LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet)
+LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet, bool extraChecks)
 {
     std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, extraChecks);
     return wellFormed;
 }
 
@@ -177,7 +181,7 @@ bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
     std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, false);
     return wellFormed && (allValidators.find(nodeID) != allValidators.end());
 }
 

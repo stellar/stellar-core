@@ -253,6 +253,41 @@ nodes in your quorum set at all time but if any of those nodes fails your
 node will be stuck until all nodes come back and agree.
 On the other hand, a threshold too low may cause the node to follow a broken minority.
 
+### Quorum intersection
+As each quorum set refers to other nodes (that themselves have a quorum set
+ configured), the overall network will reach consensus using this graph of
+ nodes.
+Particular attention has to be made to ensure that the overall network has
+what is called "quorum intersection":
+no two distinct sets of nodes should not be allowed to agree to something
+ different.
+The easiest way to ensure that is that all nodes should have a large overlap
+in how they configured their quorum set. Just like having redundant paths
+between machines in a network increases the reliability of the network.
+Overlap here means that any two nodes that reference a set of nodes:
+ * have a large overlap of the nodes
+ * the threshold is such that there will be some overlap between nodes
+   regardless
+
+For example, consider two nodes that respectively reference the sets Set1 and
+ Set2 composed of some common nodes and some other nodes.
+Set1 = Common + extra1
+Set2 = Common + extra2
+Then if you want to ensure that when reaching consensus, each node has
+at least "safety" nodes in common.
+threshold1 >= (size(extra1) + safety)/size(Set1)
+threshold2 >= (size(extra2) + safety)/size(Set2)
+
+This can be expressed in percentage:
+ * safetyP = safety/common * 100
+ * commonP = common/sizeof(SetN) * 100
+threshold then should be greater or equal to
+ 100 - commonP + (safetyP*commonP)/100
+ 100 + (1 - safetyP)*commonP
+
+ so if 80% of the nodes in the set are common, and you consider that seeing 60% of those is enough
+ threshold should be set to 100 - 80 + 60*80/100 = 68
+
 ### Picking validators
 You want to pick validators that are reliable:
  * they are available (not crashed/down often)

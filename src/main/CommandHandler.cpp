@@ -425,7 +425,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     auto& info = root["info"];
 
     if (mApp.getConfig().UNSAFE_QUORUM)
-        info["UNSAFE_QUORUM"] = "ALERT!!! QUORUM UNSAFE";
+        info["UNSAFE_QUORUM"] = "UNSAFE QUORUM ALLOWED";
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = mApp.getStateHuman();
