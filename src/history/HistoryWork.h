@@ -168,6 +168,7 @@ class GetHistoryArchiveStateWork : public Work
 {
     HistoryArchiveState& mState;
     uint32_t mSeq;
+    VirtualClock::duration mInitialDelay;
     std::shared_ptr<HistoryArchive const> mArchive;
     std::string mLocalFilename;
 public:
@@ -176,7 +177,9 @@ public:
         WorkParent& parent,
         HistoryArchiveState& state,
         uint32_t seq=0,
+        VirtualClock::duration const& intitialDelay=std::chrono::seconds(0),
         std::shared_ptr<HistoryArchive const> archive = nullptr);
+    std::string getStatus() const override;
     VirtualClock::duration getRetryDelay() const override;
     void onReset() override;
     void onRun() override;
@@ -219,6 +222,7 @@ protected:
     HistoryArchiveState mRemoteState;
     LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
+    uint32_t mInitLedger;
     uint32_t mNextLedger;
     bool mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;

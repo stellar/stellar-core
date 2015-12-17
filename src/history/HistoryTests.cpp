@@ -233,7 +233,9 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     REQUIRE(put->getState() == Work::WORK_SUCCESS);
 
     HistoryArchiveState has2;
-    auto get = wm.addWork<GetHistoryArchiveStateWork>(has2, 0, archive);
+    auto get = wm.addWork<GetHistoryArchiveStateWork>(has2,
+                                                      0, std::chrono::seconds(0),
+                                                      archive);
     wm.advanceChildren();
     crankTillDone();
     REQUIRE(get->getState() == Work::WORK_SUCCESS);

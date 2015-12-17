@@ -59,6 +59,7 @@ public:
     virtual std::string getStatus() const;
     virtual VirtualClock::duration getRetryDelay() const;
     virtual size_t getMaxRetries() const;
+    uint64_t getRetryETA() const;
 
     // Customize work behavior via these callbacks. onReset is called
     // before any work starts (on addition, or retry). onStart is called

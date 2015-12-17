@@ -521,10 +521,12 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     WorkParent& parent,
     HistoryArchiveState& state,
     uint32_t seq,
+    VirtualClock::duration const& initialDelay,
     std::shared_ptr<HistoryArchive const> archive)
     : Work(app, parent, "get-history-archive-state")
     , mState(state)
     , mSeq(seq)
+    , mInitialDelay(initialDelay)
     , mArchive(archive)
     , mLocalFilename(
         archive ?
@@ -534,17 +536,25 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 {
 }
 
+std::string
+GetHistoryArchiveStateWork::getStatus() const
+{
+    if (getState() == WORK_FAILURE_RETRY)
+    {
+        auto eta = getRetryETA();
+        return fmt::format("Awaiting checkpoint (ETA: {:d} seconds)", eta);
+    }
+    return Work::getStatus();
+}
+
 VirtualClock::duration
 GetHistoryArchiveStateWork::getRetryDelay() const
 {
-    if (mSeq == 0)
+    if (mInitialDelay.count() != 0 && mRetries == 0)
     {
-        return Work::getRetryDelay();
+        return mInitialDelay;
     }
-    uint32_t curr = mApp.getLedgerManager().getLastClosedLedgerNum();
-    uint64_t sleepSeconds =
-        mApp.getHistoryManager().nextCheckpointCatchupProbe(curr);
-    return std::chrono::seconds(sleepSeconds);
+    return Work::getRetryDelay();
 }
 
 void
@@ -557,6 +567,15 @@ GetHistoryArchiveStateWork::onReset()
                                HistoryArchiveState::remoteName(mSeq),
                                mLocalFilename,
                                mArchive);
+
+    if (mSeq != 0 && mRetries == 0 && mInitialDelay.count() != 0)
+    {
+        // If this is our first reset (on addition) and we're fetching a
+        // known snapshot, immediately initiate a timed retry, to avoid
+        // cluttering the console with the initial-probe failure.
+        setState(WORK_FAILURE_RETRY);
+        scheduleRetry();
+    }
 }
 
 void
@@ -1129,6 +1148,7 @@ CatchupWork::CatchupWork(Application& app,
     : BucketDownloadWork(
         app, parent, fmt::format("catchup-{:08x}", initLedger),
         app.getHistoryManager().getLastClosedHistoryArchiveState())
+    , mInitLedger(initLedger)
     , mNextLedger(manualCatchup ? initLedger :
                   app.getHistoryManager().nextCheckpointLedger(initLedger))
     , mManualCatchup(manualCatchup)
@@ -1139,9 +1159,12 @@ void
 CatchupWork::onReset()
 {
     BucketDownloadWork::onReset();
+    uint64_t sleepSeconds = mManualCatchup ? 0 :
+        mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
     mGetHistoryArchiveStateWork =
         addWork<GetHistoryArchiveStateWork>(mRemoteState,
-                                            mNextLedger-1);
+                                            mNextLedger-1,
+                                            std::chrono::seconds(sleepSeconds));
 }
 
 
@@ -1475,6 +1498,7 @@ PutSnapshotFilesWork::onSuccess()
     {
         mGetHistoryArchiveStateWork =
             addWork<GetHistoryArchiveStateWork>(mRemoteState, 0,
+                                                std::chrono::seconds(0),
                                                 mArchive);
         return WORK_PENDING;
     }

@@ -64,12 +64,7 @@ Work::getStatus() const
         return fmt::format("Succeded: {:s}", getUniqueName());
     case WORK_FAILURE_RETRY:
     {
-        uint64 now = mApp.timeNow();
-        uint64 retry =
-            mRetryTimer ?
-            VirtualClock::to_time_t(mRetryTimer->expiry_time()) :
-            0;
-        uint64 eta = now > retry ? 0 : retry - now;
+        auto eta = getRetryETA();
         return fmt::format("Retrying in {:d} sec: {:s}", eta, getUniqueName());
     }
     case WORK_FAILURE_RAISE:
@@ -78,6 +73,17 @@ Work::getStatus() const
         assert(false);
         return "";
     }
+}
+
+uint64_t
+Work::getRetryETA() const
+{
+    uint64_t now = mApp.timeNow();
+    uint64_t retry =
+        mRetryTimer ?
+        VirtualClock::to_time_t(mRetryTimer->expiry_time()) :
+        0;
+    return now > retry ? 0 : retry - now;
 }
 
 VirtualClock::duration
@@ -199,8 +205,8 @@ Work::scheduleRetry()
         {
             return;
         }
-        self->reset();
         self->mRetries++;
+        self->reset();
         self->advance();
     }, VirtualTimer::onFailureNoop);
 }
