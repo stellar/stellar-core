@@ -255,12 +255,13 @@ class BatchDownloadWork : public Work
     std::string mFileType;
     TmpDir const& mDownloadDir;
 
+    void addNextDownloadWorker();
+
   public:
     BatchDownloadWork(Application& app, WorkParent& parent, uint32_t first,
                       uint32_t last, std::string const& type,
                       TmpDir const& downloadDir);
     std::string getStatus() const override;
-    void addChild();
     void onReset() override;
     void notify(std::string const& childChanged) override;
 };

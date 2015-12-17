@@ -659,7 +659,7 @@ BatchDownloadWork::getStatus() const
 }
 
 void
-BatchDownloadWork::addChild()
+BatchDownloadWork::addNextDownloadWorker()
 {
     if (mNext > mLast)
     {
@@ -673,6 +673,7 @@ BatchDownloadWork::addChild()
                                << " for checkpoint " << mNext;
         auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
         gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
+        assert(mRunning.find(gunzip->getUniqueName()) == mRunning.end());
         mRunning.insert(std::make_pair(gunzip->getUniqueName(), mNext));
     }
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
@@ -687,7 +688,7 @@ BatchDownloadWork::onReset()
     size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
     while (mChildren.size() < nChildren && mNext <= mLast)
     {
-        addChild();
+        addNextDownloadWorker();
     }
 }
 
@@ -713,7 +714,7 @@ BatchDownloadWork::notify(std::string const& childChanged)
 
         mFinished.push_back(i->second);
         mRunning.erase(i);
-        addChild();
+        addNextDownloadWorker();
     }
     mApp.getHistoryManager().logAndUpdateStatus(true);
     advance();
