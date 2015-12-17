@@ -9,10 +9,9 @@ namespace stellar
 
 class WorkManagerImpl : public WorkManager
 {
-public:
+  public:
     WorkManagerImpl(Application& app);
     virtual ~WorkManagerImpl();
     virtual void notify(std::string const&) override;
 };
-
 }

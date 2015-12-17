@@ -76,16 +76,13 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     if (w->getState() == Work::WORK_SUCCESS)
     {
-        CLOG(INFO, "History")
-            << "Initialized history archive '" << arch
-            << "'";
+        CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
         return true;
     }
     else
     {
-        CLOG(FATAL, "History")
-            << "Failed to initialize history archive '"
-            << arch << "'";
+        CLOG(FATAL, "History") << "Failed to initialize history archive '"
+                               << arch << "'";
         return false;
     }
 }
@@ -249,8 +246,8 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
 {
     uint32_t next = this->nextCheckpointLedger(ledger);
 
-    auto ledger_duration = Herder::EXP_LEDGER_TIMESPAN_SECONDS
-        + std::chrono::seconds(1);
+    auto ledger_duration =
+        Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1);
 
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
@@ -266,10 +263,10 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
     std::stringstream stateStr;
     if (mCatchupWork)
     {
-            stateStr << "Catching up"
-                     << (contiguous ? "" :
-                         " (discontiguous; will fail and restart)")
-                     << ": " << mCatchupWork->getStatus();
+        stateStr << "Catching up"
+                 << (contiguous ? ""
+                                : " (discontiguous; will fail and restart)")
+                 << ": " << mCatchupWork->getStatus();
     }
     else if (mPublishWork)
     {
@@ -372,8 +369,7 @@ HistoryManagerImpl::selectRandomReadableHistoryArchive()
 
     if (archives.size() == 0)
     {
-        throw std::runtime_error(
-            "No GET-enabled history archive in config");
+        throw std::runtime_error("No GET-enabled history archive in config");
     }
     else if (archives.size() == 1)
     {
@@ -479,8 +475,7 @@ HistoryManagerImpl::queueCurrentHistory()
 }
 
 void
-HistoryManagerImpl::takeSnapshotAndPublish(
-    HistoryArchiveState const& has)
+HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 {
     if (mPublishWork)
     {
@@ -508,8 +503,7 @@ HistoryManagerImpl::publishQueuedHistory()
     st.exchange(soci::into(state, stateIndicator));
     st.define_and_bind();
     st.execute(true);
-    if (st.got_data() &&
-        stateIndicator == soci::indicator::i_ok)
+    if (st.got_data() && stateIndicator == soci::indicator::i_ok)
     {
         HistoryArchiveState has;
         has.fromString(state);
@@ -584,11 +578,10 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
         this->mPublishFailure.Mark();
     }
     mPublishWork.reset();
-    mApp.getClock().getIOService().post(
-        [this]()
-        {
-            this->publishQueuedHistory();
-        });
+    mApp.getClock().getIOService().post([this]()
+                                        {
+                                            this->publishQueuedHistory();
+                                        });
 }
 
 void
@@ -628,17 +621,15 @@ HistoryManagerImpl::catchupHistory(
     if (mode == CATCHUP_MINIMAL)
     {
         CLOG(INFO, "History") << "Starting CatchupMinimalWork";
-        mCatchupWork =
-            mApp.getWorkManager().addWork<CatchupMinimalWork>(
-                initLedger, manualCatchup, handler);
+        mCatchupWork = mApp.getWorkManager().addWork<CatchupMinimalWork>(
+            initLedger, manualCatchup, handler);
     }
     else
     {
         assert(mode == CATCHUP_COMPLETE);
         CLOG(INFO, "History") << "Starting CatchupCompleteWork";
-        mCatchupWork =
-            mApp.getWorkManager().addWork<CatchupCompleteWork>(
-                initLedger, manualCatchup, handler);
+        mCatchupWork = mApp.getWorkManager().addWork<CatchupCompleteWork>(
+            initLedger, manualCatchup, handler);
     }
     mApp.getWorkManager().advanceChildren();
 }

@@ -13,7 +13,6 @@
 namespace stellar
 {
 
-
 class Application;
 class Work;
 
@@ -29,11 +28,11 @@ class Work;
 class WorkParent : public std::enable_shared_from_this<WorkParent>,
                    private NonMovableOrCopyable
 {
-protected:
+  protected:
     Application& mApp;
     std::map<std::string, std::shared_ptr<Work>> mChildren;
 
-public:
+  public:
     WorkParent(Application& app);
     virtual ~WorkParent();
     virtual void notify(std::string const& childChanged) = 0;
@@ -45,12 +44,12 @@ public:
     bool allChildrenDone() const;
 
     template <typename T, typename... Args>
-    std::shared_ptr<T> addWork(Args&&... args)
+    std::shared_ptr<T>
+    addWork(Args&&... args)
     {
         auto w = std::make_shared<T>(mApp, *this, std::forward<Args>(args)...);
         addChild(w);
         return w;
     }
 };
-
 }

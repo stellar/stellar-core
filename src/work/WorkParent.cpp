@@ -12,8 +12,7 @@
 namespace stellar
 {
 
-WorkParent::WorkParent(Application& app)
-    : mApp(app)
+WorkParent::WorkParent(Application& app) : mApp(app)
 {
 }
 
@@ -21,15 +20,13 @@ WorkParent::~WorkParent()
 {
 }
 
-
 void
 WorkParent::addChild(std::shared_ptr<Work> child)
 {
     auto name = child->getUniqueName();
     if (mChildren.find(name) != mChildren.end())
     {
-        std::string msg = fmt::format(
-            "duplicate child work: {} ", name);
+        std::string msg = fmt::format("duplicate child work: {} ", name);
         CLOG(ERROR, "Work") << msg;
         throw std::runtime_error(msg);
     }
@@ -91,5 +88,4 @@ WorkParent::allChildrenDone() const
     }
     return true;
 }
-
 }

@@ -233,9 +233,11 @@ BucketManagerImpl::forgetUnreferencedBuckets()
     // the publish queue.
     auto pub = mApp.getHistoryManager().getBucketsReferencedByPublishQueue();
     {
-        for (auto const& h : pub) {
-            CLOG(DEBUG, "Bucket") << "BucketManager::forgetUnreferencedBuckets: "
-                                  << h << " referenced by publish queue";
+        for (auto const& h : pub)
+        {
+            CLOG(DEBUG, "Bucket")
+                << "BucketManager::forgetUnreferencedBuckets: " << h
+                << " referenced by publish queue";
             referenced.insert(hexToBin256(h));
         }
     }

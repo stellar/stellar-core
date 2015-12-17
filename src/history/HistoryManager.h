@@ -225,7 +225,8 @@ class HistoryManager
 
     // Select any readable history archive. If there are more than one,
     // select one at random.
-    virtual std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() = 0;
+    virtual std::shared_ptr<HistoryArchive>
+    selectRandomReadableHistoryArchive() = 0;
 
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
@@ -309,8 +310,7 @@ class HistoryManager
 
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue.
-    virtual std::vector<std::string>
-    getBucketsReferencedByPublishQueue() = 0;
+    virtual std::vector<std::string> getBucketsReferencedByPublishQueue() = 0;
 
     // Callback from Publication, indicates that a given snapshot was
     // published. The `success` parameter indicates whether _all_ the

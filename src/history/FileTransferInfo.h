@@ -35,16 +35,16 @@ class FileTransferInfo
     {
     }
 
-    FileTransferInfo(TmpDir const& snapDir,
-                     std::string const& snapType, uint32_t checkpointLedger)
+    FileTransferInfo(TmpDir const& snapDir, std::string const& snapType,
+                     uint32_t checkpointLedger)
         : mType(snapType)
         , mHexDigits(fs::hexStr(checkpointLedger))
         , mLocalPath(snapDir.getName() + "/" + baseName_nogz())
     {
     }
 
-    FileTransferInfo(TmpDir const& snapDir,
-                     std::string const& snapType, std::string const& hexDigits)
+    FileTransferInfo(TmpDir const& snapDir, std::string const& snapType,
+                     std::string const& hexDigits)
         : mType(snapType)
         , mHexDigits(hexDigits)
         , mLocalPath(snapDir.getName() + "/" + baseName_nogz())

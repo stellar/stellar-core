@@ -20,15 +20,14 @@ using namespace stellar;
 class CallCmdWork : public Work
 {
     std::string mCommand;
-public:
-    CallCmdWork(Application& app,
-                WorkParent& parent,
-                std::string command)
-        : Work(app, parent, std::string("call-") + command)
-        , mCommand(command)
+
+  public:
+    CallCmdWork(Application& app, WorkParent& parent, std::string command)
+        : Work(app, parent, std::string("call-") + command), mCommand(command)
     {
     }
-    virtual void onRun() override
+    virtual void
+    onRun() override
     {
         auto evt = mApp.getProcessManager().runProcess(mCommand);
         evt.async_wait(callComplete());
@@ -55,22 +54,23 @@ TEST_CASE("work manager", "[work]")
 class CountDownWork : public Work
 {
     size_t mCount;
-public:
-    CountDownWork(Application& app,
-                  WorkParent& parent,
-                  size_t count)
+
+  public:
+    CountDownWork(Application& app, WorkParent& parent, size_t count)
         : Work(app, parent, std::string("countdown-") + std::to_string(count))
         , mCount(count)
     {
     }
 
-    virtual void onRun() override
+    virtual void
+    onRun() override
     {
         LOG(INFO) << "CountDown " << getUniqueName() << " : " << mCount;
         scheduleComplete();
     }
 
-    virtual Work::State onSuccess() override
+    virtual Work::State
+    onSuccess() override
     {
         if (mCount > 0)
         {
@@ -80,7 +80,6 @@ public:
         return WORK_SUCCESS;
     }
 };
-
 
 TEST_CASE("work steps", "[work]")
 {

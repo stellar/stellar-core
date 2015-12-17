@@ -18,9 +18,7 @@
 namespace stellar
 {
 
-Work::Work(Application& app,
-           WorkParent& parent,
-           std::string uniqueName,
+Work::Work(Application& app, WorkParent& parent, std::string uniqueName,
            size_t maxRetries)
     : WorkParent(app)
     , mParent(parent.shared_from_this())
@@ -56,7 +54,7 @@ Work::getStatus() const
         }
         auto total = mChildren.size();
         return fmt::format("Awaiting {:d}/{:d} prerequisites of: {:s}",
-                           total-i, total, getUniqueName());
+                           total - i, total, getUniqueName());
     }
     case WORK_RUNNING:
         return fmt::format("Running: {:s}", getUniqueName());
@@ -80,9 +78,7 @@ Work::getRetryETA() const
 {
     uint64_t now = mApp.timeNow();
     uint64_t retry =
-        mRetryTimer ?
-        VirtualClock::to_time_t(mRetryTimer->expiry_time()) :
-        0;
+        mRetryTimer ? VirtualClock::to_time_t(mRetryTimer->expiry_time()) : 0;
     return now > retry ? 0 : retry - now;
 }
 
@@ -142,16 +138,15 @@ Work::scheduleRun()
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
-    mApp.getClock().getIOService().post(
-        [weak]()
-        {
-            auto self = weak.lock();
-            if (!self)
-            {
-                return;
-            }
-            self->run();
-        });
+    mApp.getClock().getIOService().post([weak]()
+                                        {
+                                            auto self = weak.lock();
+                                            if (!self)
+                                            {
+                                                return;
+                                            }
+                                            self->run();
+                                        });
 }
 
 void
@@ -160,16 +155,15 @@ Work::scheduleComplete(asio::error_code ec)
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
-    mApp.getClock().getIOService().post(
-        [weak, ec]()
-    {
-        auto self = weak.lock();
-        if (!self)
-        {
-            return;
-        }
-        self->complete(ec);
-    });
+    mApp.getClock().getIOService().post([weak, ec]()
+                                        {
+                                            auto self = weak.lock();
+                                            if (!self)
+                                            {
+                                                return;
+                                            }
+                                            self->complete(ec);
+                                        });
 }
 
 void
@@ -177,9 +171,8 @@ Work::scheduleRetry()
 {
     if (getState() != WORK_FAILURE_RETRY)
     {
-        std::string msg = fmt::format(
-            "retrying {} in state {}",
-            getUniqueName(), stateName(getState()));
+        std::string msg = fmt::format("retrying {} in state {}",
+                                      getUniqueName(), stateName(getState()));
         CLOG(ERROR, "Work") << msg;
         throw std::runtime_error(msg);
     }
@@ -193,24 +186,24 @@ Work::scheduleRetry()
         std::static_pointer_cast<Work>(shared_from_this()));
     auto t = getRetryDelay();
     mRetryTimer->expires_from_now(t);
-    CLOG(WARNING, "Work")
-        << "Scheduling retry #" << (mRetries + 1)
-        << "/" << mMaxRetries << " in "
-        << std::chrono::duration_cast<std::chrono::seconds>(t).count()
-        << " sec, for " << getUniqueName();
-    mRetryTimer->async_wait([weak]()
-    {
-        auto self = weak.lock();
-        if (!self)
+    CLOG(WARNING, "Work") << "Scheduling retry #" << (mRetries + 1) << "/"
+                          << mMaxRetries << " in "
+                          << std::chrono::duration_cast<std::chrono::seconds>(t)
+                                 .count() << " sec, for " << getUniqueName();
+    mRetryTimer->async_wait(
+        [weak]()
         {
-            return;
-        }
-        self->mRetries++;
-        self->reset();
-        self->advance();
-    }, VirtualTimer::onFailureNoop);
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
+            self->mRetries++;
+            self->reset();
+            self->advance();
+        },
+        VirtualTimer::onFailureNoop);
 }
-
 
 void
 Work::reset()
@@ -259,8 +252,10 @@ void
 Work::complete(asio::error_code const& ec)
 {
     CLOG(DEBUG, "Work") << "completed " << getUniqueName();
-    auto& succ = mApp.getMetrics().NewMeter({"work", "unit", "success"}, "unit");
-    auto& fail = mApp.getMetrics().NewMeter({"work", "unit", "failure"}, "unit");
+    auto& succ =
+        mApp.getMetrics().NewMeter({"work", "unit", "success"}, "unit");
+    auto& fail =
+        mApp.getMetrics().NewMeter({"work", "unit", "failure"}, "unit");
 
     if (ec)
     {
@@ -344,12 +339,11 @@ Work::getState() const
     return mState;
 }
 
- bool
- Work::isDone() const
+bool
+Work::isDone() const
 {
-     return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE;
- }
-
+    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE;
+}
 
 void
 Work::setState(Work::State st)
@@ -357,19 +351,15 @@ Work::setState(Work::State st)
     auto maxR = getMaxRetries();
     if (st == WORK_FAILURE_RETRY && (mRetries >= maxR))
     {
-        CLOG(WARNING, "Work")
-            << "Reached retry limit " << maxR
-            << " for " << getUniqueName();
+        CLOG(WARNING, "Work") << "Reached retry limit " << maxR << " for "
+                              << getUniqueName();
         st = WORK_FAILURE_RAISE;
     }
 
     if (st != mState)
     {
-        CLOG(DEBUG, "Work")
-            << "work " << getUniqueName() << " : "
-            << stateName(mState)
-            << " -> "
-            << stateName(st);
+        CLOG(DEBUG, "Work") << "work " << getUniqueName() << " : "
+                            << stateName(mState) << " -> " << stateName(st);
         mState = st;
     }
 }
@@ -391,13 +381,10 @@ Work::notify(std::string const& child)
     if (i == mChildren.end())
     {
         CLOG(ERROR, "Work") << "work " << getUniqueName()
-                              << " notified by unknown child "
-                              << child;
+                            << " notified by unknown child " << child;
     }
     CLOG(DEBUG, "Work") << "notified " << getUniqueName()
-                        << " of completed child "
-                        << child;
+                        << " of completed child " << child;
     advance();
 }
-
 }

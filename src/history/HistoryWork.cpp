@@ -28,11 +28,9 @@
 namespace stellar
 {
 
-
 static std::string
-fmtProgress(Application& app,
-            std::string const& task,
-            uint32_t first, uint32_t last, uint32_t curr)
+fmtProgress(Application& app, std::string const& task, uint32_t first,
+            uint32_t last, uint32_t curr)
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();
     if (step == 0)
@@ -46,12 +44,10 @@ fmtProgress(Application& app,
         total = 1;
     }
     auto pct = (100 * done) / total;
-    return fmt::format("{:s} {:d}/{:d} ({:d}%)",
-                       task, done, total, pct);
+    return fmt::format("{:s} {:d}/{:d} ({:d}%)", task, done, total, pct);
 }
 
-RunCommandWork::RunCommandWork(Application& app,
-                               WorkParent& parent,
+RunCommandWork::RunCommandWork(Application& app, WorkParent& parent,
                                std::string const& uniqueName)
     : Work(app, parent, uniqueName)
 {
@@ -79,12 +75,9 @@ RunCommandWork::onRun()
     // Do nothing: we ran the command in onStart().
 }
 
-
-GetRemoteFileWork::GetRemoteFileWork(Application& app,
-                                     WorkParent& parent,
-                                     std::string const& remote,
-                                     std::string const& local,
-                                     std::shared_ptr<HistoryArchive const> archive)
+GetRemoteFileWork::GetRemoteFileWork(
+    Application& app, WorkParent& parent, std::string const& remote,
+    std::string const& local, std::shared_ptr<HistoryArchive const> archive)
     : RunCommandWork(app, parent, std::string("get-remote-file ") + remote)
     , mRemote(remote)
     , mLocal(local)
@@ -93,8 +86,7 @@ GetRemoteFileWork::GetRemoteFileWork(Application& app,
 }
 
 void
-GetRemoteFileWork::getCommand(std::string& cmdLine,
-                              std::string& outFile)
+GetRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     auto archive = mArchive;
     if (!archive)
@@ -112,11 +104,9 @@ GetRemoteFileWork::onReset()
     std::remove(mLocal.c_str());
 }
 
-PutRemoteFileWork::PutRemoteFileWork(Application& app,
-                                     WorkParent& parent,
-                                     std::string const& local,
-                                     std::string const& remote,
-                                     std::shared_ptr<HistoryArchive const> archive)
+PutRemoteFileWork::PutRemoteFileWork(
+    Application& app, WorkParent& parent, std::string const& local,
+    std::string const& remote, std::shared_ptr<HistoryArchive const> archive)
     : RunCommandWork(app, parent, std::string("put-remote-file ") + remote)
     , mRemote(remote)
     , mLocal(local)
@@ -127,16 +117,14 @@ PutRemoteFileWork::PutRemoteFileWork(Application& app,
 }
 
 void
-PutRemoteFileWork::getCommand(std::string& cmdLine,
-                              std::string& outFile)
+PutRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     cmdLine = mArchive->putFileCmd(mLocal, mRemote);
 }
 
-MakeRemoteDirWork::MakeRemoteDirWork(Application& app,
-                                     WorkParent& parent,
-                                     std::string const& dir,
-                                     std::shared_ptr<HistoryArchive const> archive)
+MakeRemoteDirWork::MakeRemoteDirWork(
+    Application& app, WorkParent& parent, std::string const& dir,
+    std::shared_ptr<HistoryArchive const> archive)
     : RunCommandWork(app, parent, std::string("make-remote-dir ") + dir)
     , mDir(dir)
     , mArchive(archive)
@@ -145,8 +133,7 @@ MakeRemoteDirWork::MakeRemoteDirWork(Application& app,
 }
 
 void
-MakeRemoteDirWork::getCommand(std::string& cmdLine,
-                              std::string& outFile)
+MakeRemoteDirWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     if (mArchive->hasMkdirCmd())
     {
@@ -180,10 +167,8 @@ checkNoGzipSuffix(std::string const& filename)
     }
 }
 
-GzipFileWork::GzipFileWork(Application& app,
-                           WorkParent& parent,
-                           std::string const& filenameNoGz,
-                           bool keepExisting)
+GzipFileWork::GzipFileWork(Application& app, WorkParent& parent,
+                           std::string const& filenameNoGz, bool keepExisting)
     : RunCommandWork(app, parent, std::string("gzip-file ") + filenameNoGz)
     , mFilenameNoGz(filenameNoGz)
     , mKeepExisting(keepExisting)
@@ -199,8 +184,7 @@ GzipFileWork::onReset()
 }
 
 void
-GzipFileWork::getCommand(std::string& cmdLine,
-                         std::string& outFile)
+GzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     cmdLine = "gzip ";
     if (mKeepExisting)
@@ -211,10 +195,8 @@ GzipFileWork::getCommand(std::string& cmdLine,
     cmdLine += mFilenameNoGz;
 }
 
-GunzipFileWork::GunzipFileWork(Application& app,
-                               WorkParent& parent,
-                               std::string const& filenameGz,
-                               bool keepExisting)
+GunzipFileWork::GunzipFileWork(Application& app, WorkParent& parent,
+                               std::string const& filenameGz, bool keepExisting)
     : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
@@ -223,8 +205,7 @@ GunzipFileWork::GunzipFileWork(Application& app,
 }
 
 void
-GunzipFileWork::getCommand(std::string& cmdLine,
-                           std::string& outFile)
+GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     cmdLine = "gzip -d ";
     if (mKeepExisting)
@@ -242,16 +223,14 @@ GunzipFileWork::onReset()
     std::remove(filenameNoGz.c_str());
 }
 
-
 ///////////////////////////////////////////////////////////////////////////
 // Verify Buckets and Ledger Chains
 ///////////////////////////////////////////////////////////////////////////
 
-VerifyBucketWork::VerifyBucketWork(Application& app,
-                                   WorkParent& parent,
-                                   std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                                   std::string const& bucketFile,
-                                   uint256 const& hash)
+VerifyBucketWork::VerifyBucketWork(
+    Application& app, WorkParent& parent,
+    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+    std::string const& bucketFile, uint256 const& hash)
     : Work(app, parent, std::string("verify-bucket-hash ") + bucketFile)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
@@ -285,14 +264,18 @@ VerifyBucketWork::onRun()
                 uint256 vHash = hasher->finish();
                 if (vHash == hash)
                 {
-                    CLOG(DEBUG, "History") << "Verified hash (" << hexAbbrev(hash)
-                                           << ") for " << filename;
+                    CLOG(DEBUG, "History") << "Verified hash ("
+                                           << hexAbbrev(hash) << ") for "
+                                           << filename;
                 }
                 else
                 {
-                    CLOG(WARNING, "History") << "FAILED verifying hash for " << filename;
-                    CLOG(WARNING, "History") << "expected hash: " << binToHex(hash);
-                    CLOG(WARNING, "History") << "computed hash: " << binToHex(vHash);
+                    CLOG(WARNING, "History") << "FAILED verifying hash for "
+                                             << filename;
+                    CLOG(WARNING, "History")
+                        << "expected hash: " << binToHex(hash);
+                    CLOG(WARNING, "History")
+                        << "computed hash: " << binToHex(vHash);
                     ec = std::make_error_code(std::errc::io_error);
                 }
             }
@@ -312,12 +295,8 @@ VerifyBucketWork::onSuccess()
 }
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
-    Application& app,
-    WorkParent& parent,
-    TmpDir const& downloadDir,
-    uint32_t first,
-    uint32_t last,
-    bool manualCatchup,
+    Application& app, WorkParent& parent, TmpDir const& downloadDir,
+    uint32_t first, uint32_t last, bool manualCatchup,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
@@ -411,16 +390,16 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         }
         if (!readOne)
         {
-            CLOG(ERROR, "History")
-                << "Empty ledger history file " << ft.localPath_nogz();
+            CLOG(ERROR, "History") << "Empty ledger history file "
+                                   << ft.localPath_nogz();
             return HistoryManager::VERIFY_HASH_BAD;
         }
     }
     else
     {
-        CLOG(DEBUG, "History") << "Verifying ledger headers from "
-                               << ft.localPath_nogz() << " starting from ledger "
-                               << LedgerManager::ledgerAbbrev(prev);
+        CLOG(DEBUG, "History")
+            << "Verifying ledger headers from " << ft.localPath_nogz()
+            << " starting from ledger " << LedgerManager::ledgerAbbrev(prev);
 
         while (hdrIn && hdrIn.readOne(curr))
         {
@@ -433,8 +412,9 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             else if (curr.header.ledgerSeq > expectedSeq)
             {
                 CLOG(ERROR, "History")
-                    << "History chain overshot expected ledger seq " << expectedSeq
-                    << ", got " << curr.header.ledgerSeq << " instead";
+                    << "History chain overshot expected ledger seq "
+                    << expectedSeq << ", got " << curr.header.ledgerSeq
+                    << " instead";
                 return HistoryManager::VERIFY_HASH_BAD;
             }
             if (verifyLedgerHistoryLink(prev.hash, curr) !=
@@ -448,19 +428,17 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     if (curr.header.ledgerSeq != mCurrSeq)
     {
-        CLOG(ERROR, "History")
-            << "History chain did not end with " << mCurrSeq;
+        CLOG(ERROR, "History") << "History chain did not end with " << mCurrSeq;
         return HistoryManager::VERIFY_HASH_BAD;
     }
 
     auto status = HistoryManager::VERIFY_HASH_OK;
     if (mCurrSeq == mLastSeq)
     {
-        CLOG(INFO, "History")
-            << "Verifying catchup candidate " << mCurrSeq << " with LedgerManager";
+        CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
+                              << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
-        if (status == HistoryManager::VERIFY_HASH_UNKNOWN &&
-            mManualCatchup)
+        if (status == HistoryManager::VERIFY_HASH_UNKNOWN && mManualCatchup)
         {
             CLOG(WARNING, "History")
                 << "Accepting unknown-hash ledger due to manual catchup";
@@ -492,8 +470,7 @@ VerifyLedgerChainWork::onSuccess()
     case HistoryManager::VERIFY_HASH_OK:
         if (mCurrSeq == mLastSeq)
         {
-            CLOG(INFO, "History") << "History chain ["
-                                  << mFirstSeq << ","
+            CLOG(INFO, "History") << "History chain [" << mFirstSeq << ","
                                   << mLastSeq << "] verified";
             return WORK_SUCCESS;
         }
@@ -511,17 +488,13 @@ VerifyLedgerChainWork::onSuccess()
     }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////
 // Get / Put HistoryArchiveStates
 ///////////////////////////////////////////////////////////////////////////
 
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app,
-    WorkParent& parent,
-    HistoryArchiveState& state,
-    uint32_t seq,
-    VirtualClock::duration const& initialDelay,
+    Application& app, WorkParent& parent, HistoryArchiveState& state,
+    uint32_t seq, VirtualClock::duration const& initialDelay,
     std::shared_ptr<HistoryArchive const> archive)
     : Work(app, parent, "get-history-archive-state")
     , mState(state)
@@ -529,10 +502,9 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     , mInitialDelay(initialDelay)
     , mArchive(archive)
     , mLocalFilename(
-        archive ?
-        HistoryArchiveState::localName(app, archive->getName()) :
-        app.getHistoryManager().localFilename(
-            HistoryArchiveState::baseName()))
+          archive ? HistoryArchiveState::localName(app, archive->getName())
+                  : app.getHistoryManager().localFilename(
+                        HistoryArchiveState::baseName()))
 {
 }
 
@@ -562,11 +534,10 @@ GetHistoryArchiveStateWork::onReset()
 {
     clearChildren();
     std::remove(mLocalFilename.c_str());
-    addWork<GetRemoteFileWork>(mSeq == 0 ?
-                               HistoryArchiveState::wellKnownRemoteName() :
-                               HistoryArchiveState::remoteName(mSeq),
-                               mLocalFilename,
-                               mArchive);
+    addWork<GetRemoteFileWork>(mSeq == 0
+                                   ? HistoryArchiveState::wellKnownRemoteName()
+                                   : HistoryArchiveState::remoteName(mSeq),
+                               mLocalFilename, mArchive);
 
     if (mSeq != 0 && mRetries == 0 && mInitialDelay.count() != 0)
     {
@@ -594,15 +565,12 @@ GetHistoryArchiveStateWork::onRun()
 }
 
 PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
-    Application& app,
-    WorkParent& parent,
-    HistoryArchiveState const& state,
+    Application& app, WorkParent& parent, HistoryArchiveState const& state,
     std::shared_ptr<HistoryArchive const> archive)
     : Work(app, parent, "put-history-archive-state")
     , mState(state)
     , mArchive(archive)
-    , mLocalFilename(
-        HistoryArchiveState::localName(app, archive->getName()))
+    , mLocalFilename(HistoryArchiveState::localName(app, archive->getName()))
 {
 }
 
@@ -626,7 +594,8 @@ PutHistoryArchiveStateWork::onRun()
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "History") << "error loading history state: " << e.what();
+            CLOG(ERROR, "History")
+                << "error loading history state: " << e.what();
             scheduleFailure();
         }
     }
@@ -651,7 +620,8 @@ PutHistoryArchiveStateWork::onSuccess()
         // Also put it in the .well-known/stellar-history.json file
         auto wkName = HistoryArchiveState::wellKnownRemoteName();
         auto wkDir = HistoryArchiveState::wellKnownRemoteDir();
-        auto wkWork = addWork<PutRemoteFileWork>(mLocalFilename, wkName, mArchive);
+        auto wkWork =
+            addWork<PutRemoteFileWork>(mLocalFilename, wkName, mArchive);
         wkWork->addWork<MakeRemoteDirWork>(wkDir, mArchive);
 
         return WORK_PENDING;
@@ -663,14 +633,12 @@ PutHistoryArchiveStateWork::onSuccess()
 // Batch download-and-decompress
 ///////////////////////////////////////////////////////////////////////////
 
-BatchDownloadWork::BatchDownloadWork(Application& app,
-                                     WorkParent& parent,
-                                     uint32_t first,
-                                     uint32_t last,
+BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
+                                     uint32_t first, uint32_t last,
                                      std::string const& type,
                                      TmpDir const& downloadDir)
-    : Work(app, parent, fmt::format("batch-download-{:s}-{:08x}-{:08x}",
-                                    type, first, last))
+    : Work(app, parent,
+           fmt::format("batch-download-{:s}-{:08x}-{:08x}", type, first, last))
     , mFirst(first)
     , mLast(last)
     , mNext(first)
@@ -699,8 +667,7 @@ BatchDownloadWork::addChild()
     }
 
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
-    if (!fs::exists(ft.localPath_gz()) &&
-        !fs::exists(ft.localPath_nogz()))
+    if (!fs::exists(ft.localPath_gz()) && !fs::exists(ft.localPath_nogz()))
     {
         CLOG(DEBUG, "History") << "Downloading " << mFileType
                                << " for checkpoint " << mNext;
@@ -756,11 +723,10 @@ BatchDownloadWork::notify(std::string const& childChanged)
 // Apply Buckets
 ///////////////////////////////////////////////////////////////////////////
 
-ApplyBucketsWork::ApplyBucketsWork(Application& app,
-                                   WorkParent& parent,
-                                   std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                                   HistoryArchiveState& applyState,
-                                   LedgerHeaderHistoryEntry& lastVerified)
+ApplyBucketsWork::ApplyBucketsWork(
+    Application& app, WorkParent& parent,
+    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+    HistoryArchiveState& applyState, LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -825,21 +791,19 @@ ApplyBucketsWork::onStart()
     if (mApplying || i.snap != binToHex(level.getSnap()->getHash()))
     {
         mSnapBucket = getBucket(i.snap);
-        mSnapApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
-                                                        mSnapBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting level["
-                               << mLevel << "].snap = "
-                               << i.snap;
+        mSnapApplicator =
+            make_unique<BucketApplicator>(mApp.getDatabase(), mSnapBucket);
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
+                               << "].snap = " << i.snap;
         mApplying = true;
     }
     if (mApplying || i.curr != binToHex(level.getCurr()->getHash()))
     {
         mCurrBucket = getBucket(i.curr);
-        mCurrApplicator = make_unique<BucketApplicator>(mApp.getDatabase(),
-                                                        mCurrBucket);
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting level["
-                               << mLevel << "].curr = "
-                               << i.curr;
+        mCurrApplicator =
+            make_unique<BucketApplicator>(mApp.getDatabase(), mCurrBucket);
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
+                               << "].curr = " << i.curr;
         mApplying = true;
     }
 }
@@ -887,7 +851,8 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting next level: " << mLevel;
+        CLOG(DEBUG, "History")
+            << "ApplyBuckets : starting next level: " << mLevel;
         return WORK_PENDING;
     }
 
@@ -900,11 +865,9 @@ ApplyBucketsWork::onSuccess()
 // Apply Ledger Chain
 ///////////////////////////////////////////////////////////////////////////
 
-ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app,
-                                           WorkParent& parent,
+ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
                                            TmpDir const& downloadDir,
-                                           uint32_t first,
-                                           uint32_t last)
+                                           uint32_t first, uint32_t last)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
@@ -929,10 +892,11 @@ ApplyLedgerChainWork::onReset()
 {
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
-    CLOG(INFO, "History")
-        << "Replaying contents of " << ((mLastSeq - mFirstSeq) / step)
-        << " transaction-history files from LCL "
-        << LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader());
+    CLOG(INFO, "History") << "Replaying contents of "
+                          << ((mLastSeq - mFirstSeq) / step)
+                          << " transaction-history files from LCL "
+                          << LedgerManager::ledgerAbbrev(
+                                 lm.getLastClosedLedgerHeader());
     mCurrSeq = mFirstSeq;
     mHdrIn.close();
     mTxIn.close();
@@ -1001,8 +965,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
 
     auto& lm = mApp.getLedgerManager();
 
-    LedgerHeader const& previousHeader =
-        lm.getLastClosedLedgerHeader().header;
+    LedgerHeader const& previousHeader = lm.getLastClosedLedgerHeader().header;
 
     // If we are >1 before LCL, skip
     if (header.ledgerSeq + 1 < previousHeader.ledgerSeq)
@@ -1067,18 +1030,16 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
     lm.closeLedger(closeData);
 
-    CLOG(DEBUG, "History")
-        << "LedgerManager LCL:\n"
-        << xdr::xdr_to_string(lm.getLastClosedLedgerHeader());
-    CLOG(DEBUG, "History") << "Replay header:\n"
-                           << xdr::xdr_to_string(hHeader);
+    CLOG(DEBUG, "History") << "LedgerManager LCL:\n"
+                           << xdr::xdr_to_string(
+                                  lm.getLastClosedLedgerHeader());
+    CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(hHeader);
     if (lm.getLastClosedLedgerHeader().hash != hHeader.hash)
     {
         throw std::runtime_error("replay produced mismatched ledger hash");
     }
     return true;
 }
-
 
 void
 ApplyLedgerChainWork::onStart()
@@ -1098,7 +1059,7 @@ ApplyLedgerChainWork::onRun()
         }
         scheduleSuccess();
     }
-    catch (std::runtime_error &e)
+    catch (std::runtime_error& e)
     {
         CLOG(ERROR, "History") << "Replay failed: " << e.what();
         scheduleFailure();
@@ -1119,12 +1080,10 @@ ApplyLedgerChainWork::onSuccess()
 // Base class for Catchup and Repair
 ///////////////////////////////////////////////////////////////////////////
 
-BucketDownloadWork::BucketDownloadWork(Application& app,
-                                       WorkParent& parent,
+BucketDownloadWork::BucketDownloadWork(Application& app, WorkParent& parent,
                                        std::string const& uniqueName,
                                        HistoryArchiveState const& localState)
-    : Work(app, parent, uniqueName)
-    , mLocalState(localState)
+    : Work(app, parent, uniqueName), mLocalState(localState)
 {
 }
 
@@ -1141,16 +1100,15 @@ BucketDownloadWork::onReset()
 // Catchup
 ///////////////////////////////////////////////////////////////////////////
 
-CatchupWork::CatchupWork(Application& app,
-                         WorkParent& parent,
-                         uint32_t initLedger,
-                         bool manualCatchup)
+CatchupWork::CatchupWork(Application& app, WorkParent& parent,
+                         uint32_t initLedger, bool manualCatchup)
     : BucketDownloadWork(
-        app, parent, fmt::format("catchup-{:08x}", initLedger),
-        app.getHistoryManager().getLastClosedHistoryArchiveState())
+          app, parent, fmt::format("catchup-{:08x}", initLedger),
+          app.getHistoryManager().getLastClosedHistoryArchiveState())
     , mInitLedger(initLedger)
-    , mNextLedger(manualCatchup ? initLedger :
-                  app.getHistoryManager().nextCheckpointLedger(initLedger))
+    , mNextLedger(manualCatchup ? initLedger
+                                : app.getHistoryManager().nextCheckpointLedger(
+                                      initLedger))
     , mManualCatchup(manualCatchup)
 {
 }
@@ -1159,23 +1117,20 @@ void
 CatchupWork::onReset()
 {
     BucketDownloadWork::onReset();
-    uint64_t sleepSeconds = mManualCatchup ? 0 :
-        mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
-    mGetHistoryArchiveStateWork =
-        addWork<GetHistoryArchiveStateWork>(mRemoteState,
-                                            mNextLedger-1,
-                                            std::chrono::seconds(sleepSeconds));
+    uint64_t sleepSeconds =
+        mManualCatchup
+            ? 0
+            : mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
+    mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
+        mRemoteState, mNextLedger - 1, std::chrono::seconds(sleepSeconds));
 }
-
 
 ///////////////////////////////////////////////////////////////////////////
 // Catchup Minimal
 ///////////////////////////////////////////////////////////////////////////
 
-CatchupMinimalWork::CatchupMinimalWork(Application& app,
-                                       WorkParent& parent,
-                                       uint32_t initLedger,
-                                       bool manualCatchup,
+CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
+                                       uint32_t initLedger, bool manualCatchup,
                                        handler endHandler)
     : CatchupWork(app, parent, initLedger, manualCatchup)
     , mEndHandler(endHandler)
@@ -1224,29 +1179,29 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL downloading buckets";
         mDownloadWork = addWork<Work>("download buckets");
-        std::vector<std::string> buckets = mRemoteState.differingBuckets(mLocalState);
+        std::vector<std::string> buckets =
+            mRemoteState.differingBuckets(mLocalState);
         for (auto const& hash : buckets)
         {
             FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
             // Each bucket gets its own work-chain of download->gunzip->verify
 
-            auto verify = mDownloadWork->addWork<VerifyBucketWork>(mBuckets,
-                                                                   ft.localPath_nogz(),
-                                                                   hexToBin256(hash));
+            auto verify = mDownloadWork->addWork<VerifyBucketWork>(
+                mBuckets, ft.localPath_nogz(), hexToBin256(hash));
             auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
+            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
+                                               ft.localPath_gz());
         }
         // ... as well as the last ledger-history file (for its final state).
         {
             FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
                                 mRemoteState.currentLedger);
-            auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(*mDownloadDir,
-                                                                        mNextLedger-1,
-                                                                        mNextLedger-1,
-                                                                        mManualCatchup,
-                                                                        mLastVerified);
+            auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(
+                *mDownloadDir, mNextLedger - 1, mNextLedger - 1, mManualCatchup,
+                mLastVerified);
             auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
+            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
+                                               ft.localPath_gz());
         }
         return WORK_PENDING;
     }
@@ -1256,12 +1211,13 @@ CatchupMinimalWork::onSuccess()
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup MINIMAL applying buckets";
-        mApplyWork = addWork<ApplyBucketsWork>(mBuckets,
-                                               mRemoteState, mLastVerified);
+        mApplyWork =
+            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mLastVerified);
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup MINIMAL at nextLedger=" << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup MINIMAL at nextLedger="
+                          << mNextLedger;
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
@@ -1281,11 +1237,9 @@ CatchupMinimalWork::onFailureRaise()
 // Catchup Complete
 ///////////////////////////////////////////////////////////////////////////
 
-CatchupCompleteWork::CatchupCompleteWork(Application& app,
-                                         WorkParent& parent,
+CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
-                                         bool manualCatchup,
-                                         handler endHandler)
+                                         bool manualCatchup, handler endHandler)
     : CatchupWork(app, parent, initLedger, manualCatchup)
     , mEndHandler(endHandler)
 {
@@ -1346,9 +1300,8 @@ CatchupCompleteWork::onSuccess()
     if (!mDownloadLedgersWork)
     {
         CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers";
-        mDownloadLedgersWork =
-            addWork<BatchDownloadWork>(firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER,
-                                       *mDownloadDir);
+        mDownloadLedgersWork = addWork<BatchDownloadWork>(
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -1356,9 +1309,8 @@ CatchupCompleteWork::onSuccess()
     if (!mDownloadTransactionsWork)
     {
         CLOG(INFO, "History") << "Catchup COMPLETE downloading transactions";
-        mDownloadTransactionsWork =
-            addWork<BatchDownloadWork>(firstSeq, lastSeq, HISTORY_FILE_TYPE_TRANSACTIONS,
-                                       *mDownloadDir);
+        mDownloadTransactionsWork = addWork<BatchDownloadWork>(
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_TRANSACTIONS, *mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -1367,9 +1319,8 @@ CatchupCompleteWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup COMPLETE verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
-        mVerifyWork =
-            addWork<VerifyLedgerChainWork>(*mDownloadDir, firstSeq, lastSeq,
-                                           mManualCatchup, mLastVerified);
+        mVerifyWork = addWork<VerifyLedgerChainWork>(
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mLastVerified);
         return WORK_PENDING;
     }
 
@@ -1382,7 +1333,8 @@ CatchupCompleteWork::onSuccess()
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup COMPLETE at nextLedger=" << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup COMPLETE at nextLedger="
+                          << mNextLedger;
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
@@ -1402,9 +1354,9 @@ CatchupCompleteWork::onFailureRaise()
 // Shapsnot resolve / write-out
 ///////////////////////////////////////////////////////////////////////////
 
-ResolveSnapshotWork::ResolveSnapshotWork(Application& app,
-                                         WorkParent& parent,
-                                         std::shared_ptr<StateSnapshot> snapshot)
+ResolveSnapshotWork::ResolveSnapshotWork(
+    Application& app, WorkParent& parent,
+    std::shared_ptr<StateSnapshot> snapshot)
     : Work(app, parent, "prepare-snapshot", Work::RETRY_FOREVER)
     , mSnapshot(snapshot)
 {
@@ -1426,8 +1378,7 @@ ResolveSnapshotWork::onRun()
     }
 }
 
-WriteSnapshotWork::WriteSnapshotWork(Application& app,
-                                     WorkParent& parent,
+WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
                                      std::shared_ptr<StateSnapshot> snapshot)
     : Work(app, parent, "write-snapshot", Work::RETRY_A_LOT)
     , mSnapshot(snapshot)
@@ -1446,11 +1397,10 @@ WriteSnapshotWork::onRun()
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        snap->mApp.getClock().getIOService().post(
-            [handler, ec]()
-            {
-                handler(ec);
-            });
+        snap->mApp.getClock().getIOService().post([handler, ec]()
+                                                  {
+                                                      handler(ec);
+                                                  });
     };
 
     // Throw the work over to a worker thread if we can use DB pools,
@@ -1470,8 +1420,7 @@ WriteSnapshotWork::onRun()
 ///////////////////////////////////////////////////////////////////////////
 
 PutSnapshotFilesWork::PutSnapshotFilesWork(
-    Application& app,
-    WorkParent& parent,
+    Application& app, WorkParent& parent,
     std::shared_ptr<HistoryArchive const> archive,
     std::shared_ptr<StateSnapshot> snapshot)
     : Work(app, parent, "put-snapshot-files")
@@ -1496,10 +1445,8 @@ PutSnapshotFilesWork::onSuccess()
     // Phase 1: fetch remote history archive state
     if (!mGetHistoryArchiveStateWork)
     {
-        mGetHistoryArchiveStateWork =
-            addWork<GetHistoryArchiveStateWork>(mRemoteState, 0,
-                                                std::chrono::seconds(0),
-                                                mArchive);
+        mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
+            mRemoteState, 0, std::chrono::seconds(0), mArchive);
         return WORK_PENDING;
     }
 
@@ -1508,13 +1455,10 @@ PutSnapshotFilesWork::onSuccess()
     {
         mPutFilesWork = addWork<Work>("put-files");
 
-        std::vector<std::shared_ptr<FileTransferInfo>> files =
-            {
-                mSnapshot->mLedgerSnapFile,
-                mSnapshot->mTransactionSnapFile,
-                mSnapshot->mTransactionResultSnapFile,
-                mSnapshot->mSCPHistorySnapFile
-            };
+        std::vector<std::shared_ptr<FileTransferInfo>> files = {
+            mSnapshot->mLedgerSnapFile, mSnapshot->mTransactionSnapFile,
+            mSnapshot->mTransactionResultSnapFile,
+            mSnapshot->mSCPHistorySnapFile};
 
         std::vector<std::string> bucketsToSend =
             mSnapshot->mLocalState.differingBuckets(mRemoteState);
@@ -1530,11 +1474,9 @@ PutSnapshotFilesWork::onSuccess()
             if (f && fs::exists(f->localPath_nogz()))
             {
                 auto put = mPutFilesWork->addWork<PutRemoteFileWork>(
-                    f->localPath_gz(),
-                    f->remoteName(),
-                    mArchive);
-                auto mkdir = put->addWork<MakeRemoteDirWork>(f->remoteDir(),
-                                                             mArchive);
+                    f->localPath_gz(), f->remoteName(), mArchive);
+                auto mkdir =
+                    put->addWork<MakeRemoteDirWork>(f->remoteDir(), mArchive);
                 mkdir->addWork<GzipFileWork>(f->localPath_nogz(), true);
             }
         }
@@ -1544,21 +1486,18 @@ PutSnapshotFilesWork::onSuccess()
     // Phase 3: update remote history archive state
     if (!mPutHistoryArchiveStateWork)
     {
-        mPutHistoryArchiveStateWork =
-            addWork<PutHistoryArchiveStateWork>(mSnapshot->mLocalState,
-                                                mArchive);
+        mPutHistoryArchiveStateWork = addWork<PutHistoryArchiveStateWork>(
+            mSnapshot->mLocalState, mArchive);
         return WORK_PENDING;
     }
 
     return WORK_SUCCESS;
 }
 
-
-PublishWork::PublishWork(Application& app,
-                         WorkParent& parent,
+PublishWork::PublishWork(Application& app, WorkParent& parent,
                          std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, fmt::format("publish-{:08x}",
-                                    snapshot->mLocalState.currentLedger))
+    : Work(app, parent,
+           fmt::format("publish-{:08x}", snapshot->mLocalState.currentLedger))
     , mSnapshot(snapshot)
 {
 }
@@ -1622,8 +1561,7 @@ PublishWork::onSuccess()
             {
                 continue;
             }
-            mUpdateArchivesWork->addWork<PutSnapshotFilesWork>(arch,
-                                                               mSnapshot);
+            mUpdateArchivesWork->addWork<PutSnapshotFilesWork>(arch, mSnapshot);
         }
         return WORK_PENDING;
     }
@@ -1644,10 +1582,9 @@ PublishWork::onFailureRaise()
 // Missing bucket repair
 ///////////////////////////////////////////////////////////////////////////
 
-RepairMissingBucketsWork::RepairMissingBucketsWork(Application& app,
-                                                   WorkParent& parent,
-                                                   HistoryArchiveState const& localState,
-                                                   handler endHandler)
+RepairMissingBucketsWork::RepairMissingBucketsWork(
+    Application& app, WorkParent& parent, HistoryArchiveState const& localState,
+    handler endHandler)
     : BucketDownloadWork(app, parent, "repair-buckets", localState)
     , mEndHandler(endHandler)
 {
@@ -1660,8 +1597,8 @@ RepairMissingBucketsWork::onReset()
     std::vector<std::string> bucketsToFetch;
     bucketsToFetch =
         mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
-    auto publishBuckets = mApp.getHistoryManager()
-        .getMissingBucketsReferencedByPublishQueue();
+    auto publishBuckets =
+        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
     bucketsToFetch.insert(bucketsToFetch.end(), publishBuckets.begin(),
                           publishBuckets.end());
 
@@ -1669,8 +1606,7 @@ RepairMissingBucketsWork::onReset()
     {
         FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
         // Each bucket gets its own work-chain of download->gunzip->verify
-        auto verify = addWork<VerifyBucketWork>(mBuckets,
-                                                ft.localPath_nogz(),
+        auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
                                                 hexToBin256(hash));
         auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
         gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
@@ -1691,5 +1627,4 @@ RepairMissingBucketsWork::onFailureRaise()
     asio::error_code ec = std::make_error_code(std::errc::io_error);
     mEndHandler(ec);
 }
-
 }

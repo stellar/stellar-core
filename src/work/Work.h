@@ -33,14 +33,14 @@ class WorkParent;
 class Work : public WorkParent
 {
 
-public:
-
+  public:
     static size_t const RETRY_ONCE = 1;
     static size_t const RETRY_A_FEW = 5;
     static size_t const RETRY_A_LOT = 32;
     static size_t const RETRY_FOREVER = 0xffffffff;
 
-    enum State {
+    enum State
+    {
         WORK_PENDING,
         WORK_RUNNING,
         WORK_SUCCESS,
@@ -48,9 +48,7 @@ public:
         WORK_FAILURE_RAISE
     };
 
-    Work(Application& app,
-         WorkParent& parent,
-         std::string uniqueName,
+    Work(Application& app, WorkParent& parent, std::string uniqueName,
          size_t maxRetries = RETRY_A_FEW);
 
     virtual ~Work();
@@ -88,13 +86,12 @@ public:
     void advance();
     void reset();
 
-protected:
-
+  protected:
     std::weak_ptr<WorkParent> mParent;
     std::string mUniqueName;
-    size_t mMaxRetries { RETRY_A_FEW };
-    size_t mRetries { 0 };
-    State mState { WORK_PENDING };
+    size_t mMaxRetries{RETRY_A_FEW};
+    size_t mRetries{0};
+    State mState{WORK_PENDING};
 
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
@@ -104,13 +101,20 @@ protected:
     void scheduleComplete(asio::error_code ec = asio::error_code());
     void scheduleRetry();
     void scheduleRun();
-    void scheduleSuccess() { scheduleComplete(); }
-    void scheduleFailure() { scheduleComplete(std::make_error_code(std::errc::io_error)); }
+    void
+    scheduleSuccess()
+    {
+        scheduleComplete();
+    }
+    void
+    scheduleFailure()
+    {
+        scheduleComplete(std::make_error_code(std::errc::io_error));
+    }
 
     void setState(State s);
 
     void notifyParent();
     virtual void notify(std::string const& childChanged) override;
 };
-
 }

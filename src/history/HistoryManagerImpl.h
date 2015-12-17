@@ -41,7 +41,8 @@ class HistoryManagerImpl : public HistoryManager
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
-    std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive() override;
+    std::shared_ptr<HistoryArchive>
+    selectRandomReadableHistoryArchive() override;
 
     uint32_t getCheckpointFrequency() override;
     uint32_t prevCheckpointLedger(uint32_t ledger) override;
@@ -56,8 +57,7 @@ class HistoryManagerImpl : public HistoryManager
 
     void queueCurrentHistory() override;
 
-    void
-    takeSnapshotAndPublish(HistoryArchiveState const& has);
+    void takeSnapshotAndPublish(HistoryArchiveState const& has);
 
     bool hasAnyWritableHistoryArchive() override;
 
@@ -70,8 +70,7 @@ class HistoryManagerImpl : public HistoryManager
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;
 
-    std::vector<std::string>
-    getBucketsReferencedByPublishQueue() override;
+    std::vector<std::string> getBucketsReferencedByPublishQueue() override;
 
     std::vector<HistoryArchiveState> getPublishQueueStates();
 

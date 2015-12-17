@@ -12,8 +12,7 @@ namespace stellar
 
 BucketApplicator::BucketApplicator(Database& db,
                                    std::shared_ptr<const Bucket> bucket)
-    : mDb(db)
-    , mBucket(bucket)
+    : mDb(db), mBucket(bucket)
 {
     if (!bucket->getFilename().empty())
     {
@@ -60,5 +59,4 @@ BucketApplicator::advance()
                              << " entries";
     }
 }
-
 }

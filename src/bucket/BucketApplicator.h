@@ -23,12 +23,11 @@ class BucketApplicator
     Database& mDb;
     std::shared_ptr<const Bucket> mBucket;
     XDRInputFileStream mIn;
-    size_t mSize { 0 };
-public:
-    BucketApplicator(Database& db,
-                     std::shared_ptr<const Bucket> bucket);
+    size_t mSize{0};
+
+  public:
+    BucketApplicator(Database& db, std::shared_ptr<const Bucket> bucket);
     operator bool() const;
     void advance();
 };
-
 }

@@ -17,8 +17,7 @@
 namespace stellar
 {
 
-WorkManager::WorkManager(Application& app)
-    : WorkParent(app)
+WorkManager::WorkManager(Application& app) : WorkParent(app)
 {
 }
 
@@ -26,8 +25,7 @@ WorkManager::~WorkManager()
 {
 }
 
-WorkManagerImpl::WorkManagerImpl(Application& app)
-    : WorkManager(app)
+WorkManagerImpl::WorkManagerImpl(Application& app) : WorkManager(app)
 {
 }
 
@@ -67,5 +65,4 @@ WorkManager::create(Application& app)
 {
     return std::make_shared<WorkManagerImpl>(app);
 }
-
 }

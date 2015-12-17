@@ -536,8 +536,8 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
         uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
         hm.queueCurrentHistory();
         size_t toPublish = hm.publishQueuedHistory();
-        while (((hm.getPublishSuccessCount() + hm.getPublishFailureCount())
-                - initDone) != toPublish)
+        while (((hm.getPublishSuccessCount() + hm.getPublishFailureCount()) -
+                initDone) != toPublish)
         {
             mApp.getClock().crank(false);
         }
