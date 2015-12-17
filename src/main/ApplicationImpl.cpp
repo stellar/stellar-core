@@ -23,6 +23,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
+#include "main/ExternalQueue.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -237,6 +238,12 @@ ApplicationImpl::start()
         {
             // restores the SCP state before starting overlay
             mHerder->restoreSCPState();
+            // perform maintenance tasks if configured to do so
+            // for now, we only perform it when CATCHUP_COMPLETE is not set
+            if (mConfig.MAINTENANCE_ON_STARTUP && !mConfig.CATCHUP_COMPLETE)
+            {
+                maintenance();
+            }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
@@ -362,6 +369,14 @@ ApplicationImpl::checkDB()
                                   this->getDatabase(),
                                   this->getBucketManager().getBucketList());
         });
+}
+
+void
+ApplicationImpl::maintenance()
+{
+    LOG(INFO) << "Performing maintenance";
+    ExternalQueue ps(*this);
+    ps.process();
 }
 
 void

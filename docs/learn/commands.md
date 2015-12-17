@@ -94,7 +94,8 @@ debugging purpose).
   sets or creates a cursor identified by `ID` with value `N`. ID is an uppercase AlphaNum, N is an uint32 that represents the last ledger sequence number that the instance ID processed.
   Cursors are used by dependent services to tell stellar-core which data can be safely deleted by the instance.
   The data is historical data stored in the SQL tables such as txhistory or ledgerheaders. When all consumers processed the data for ledger sequence N the data can be safely removed by the instance.
-  The actual deletion is performed by invoking the `maintenance` endpoint.
+  The actual deletion is performed by invoking the `maintenance` endpoint or on startup.
+  See also `dropcursor`.
 
 * **scp**
   `/scp?[limit=n]

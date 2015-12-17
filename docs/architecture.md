@@ -42,7 +42,7 @@ Other details:
 
   - Storage is split in two pieces, one bulk/cold Bucket-based store (history)
     kept in flat files, and one hot/indexed store (SQL DB). Both kept primarily
-	_off_ the validator nodes.
+    _off_ the validator nodes.
 
   - No direct service of public HTTP requests. HTTP and websocket frontends
     are on separate public/frontend servers.

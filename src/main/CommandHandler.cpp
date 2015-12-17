@@ -819,8 +819,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
     {
-        ExternalQueue ps(mApp);
-        ps.process();
+        mApp.maintenance();
         retStr = "Done";
     }
     else

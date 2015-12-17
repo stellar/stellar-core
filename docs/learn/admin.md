@@ -275,12 +275,33 @@ A more advanced way to configure your QUORUM_SET is to group validators by
 For example, you can imagine a QUORUM_SET that looks like
 ```
 [t: 100,
-    [ t: 30, bank1, bank2, bank3 ], # banks
-    [ t: 50, sdf1, sd2 ], # nonprofits
-    [ t: 30, univ1, univ2, univ3 ], # universities
+    [ t: 66, bank1, bank2, bank3 ], # banks
+    [ t: 50, sdf, foundation  ], # nonprofits
+    [ t: 33, univ1, univ2, univ3 ], # universities
     [ t: 50, friend1, friend2 ] # friends
 ]
 ```
+or more exactly, as entities are represented by validators
+```
+[t: 100, # requires all entities to be present
+    [ t: 66, # 2 out of 3 banks
+       [t: 66, bank1-server1, bank1-server2, bank1-server3], # consider bank1 up with 2 servers
+       [t: 50, bank2-server1, bank2-server2],
+       [t: 100, bank3-server1]
+    ],
+    [ t: 50, # any nonprofit
+       [t: 50, sdf1, sdf2], # one sdf server
+       [t: 50, foundation-1, foundation-2]
+    ],
+    [ t: 33, # at least 1 university
+       [ ** univ1 ** ],
+       [ ** univ2 ** ],
+       [ ** univ3 **]
+    ],
+    [ t: 50, friend1, friend2 ] # either friend
+]
+```
+
 This will configure the node to require one node of each category to reach consensus.
 
 # Recipes
@@ -295,8 +316,9 @@ PostgreSQL's `createdb` command.
 Set the `DATABASE` config variable to your choice of database.
 
 Run:
+
 1. `$ stellar-core --newdb`
-  - to initialize the database
+  - if you need to initialize the database
 2. `$ stellar-core`
   - to start the node
 
@@ -312,7 +334,7 @@ Set the `DATABASE` config variables on each node to your choice of database.
 Run:
 
 1. `$ stellar-core --newhist <historyarchive>`
-  - to initialize every history archive you are putting to.
+  - to initialize every history archive you are putting to (be sure to not push to the same archive from different nodes).
 2. `$ stellar-core --newdb`
   - to initialize the database on each node. 
 3. `$ stellar-core --forcescp`
