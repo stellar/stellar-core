@@ -19,8 +19,7 @@ namespace stellar
  * might soft-fail and require retrying, or require breaking up into pieces
  * to avoid monopolizing the main thread for too long.
  */
-class WorkManager : public WorkParent,
-                    private NonMovableOrCopyable
+class WorkManager : public WorkParent
 {
 public:
     WorkManager(Application& app);
