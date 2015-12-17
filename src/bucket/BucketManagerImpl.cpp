@@ -76,6 +76,19 @@ bucketBasename(std::string const& bucketHexHash)
     return "bucket-" + bucketHexHash + ".xdr";
 }
 
+std::string
+BucketManagerImpl::bucketFilename(std::string const& bucketHexHash)
+{
+    std::string basename = bucketBasename(bucketHexHash);
+    return getBucketDir() + "/" + basename;
+}
+
+std::string
+BucketManagerImpl::bucketFilename(Hash const& hash)
+{
+    return bucketFilename(binToHex(hash));
+}
+
 std::string const&
 BucketManagerImpl::getTmpDir()
 {
@@ -149,8 +162,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     {
         mBucketObjectInsert.Mark(nObjects);
         mBucketByteInsert.Mark(nBytes);
-        std::string basename = bucketBasename(binToHex(hash));
-        std::string canonicalName = getBucketDir() + "/" + basename;
+        std::string canonicalName = bucketFilename(hash);
         CLOG(DEBUG, "Bucket") << "Adopting bucket file " << filename << " as "
                               << canonicalName;
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
@@ -162,7 +174,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
 
         b = std::make_shared<Bucket>(canonicalName, hash);
         {
-            mSharedBuckets.insert(std::make_pair(basename, b));
+            mSharedBuckets.insert(std::make_pair(hash, b));
             mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
     }
@@ -178,8 +190,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     {
         return std::make_shared<Bucket>();
     }
-    std::string basename = bucketBasename(binToHex(hash));
-    auto i = mSharedBuckets.find(basename);
+    auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
     {
         CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
@@ -187,14 +198,14 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                               << i->second->getFilename();
         return i->second;
     }
-    std::string canonicalName = getBucketDir() + "/" + basename;
+    std::string canonicalName = bucketFilename(hash);
     if (fs::exists(canonicalName))
     {
         CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
                               << binToHex(hash)
                               << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
-        mSharedBuckets.insert(std::make_pair(basename, p));
+        mSharedBuckets.insert(std::make_pair(hash, p));
         mSharedBucketsSize.set_count(mSharedBuckets.size());
         return p;
     }
@@ -206,20 +217,28 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 {
 
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    std::set<std::string> referenced;
+    std::set<Hash> referenced;
     for (size_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
-        uint256 hashes[2] = {level.getCurr()->getHash(),
-                             level.getSnap()->getHash()};
-        for (auto const& hash : hashes)
-        {
-            std::string basename = bucketBasename(binToHex(hash));
-            referenced.insert(basename);
-        }
+        referenced.insert(level.getCurr()->getHash());
+        referenced.insert(level.getSnap()->getHash());
         for (auto const& h : level.getNext().getHashes())
         {
-            referenced.insert(h);
+            referenced.insert(hexToBin256(h));
+        }
+    }
+
+    // Implicitly retain any buckets that are referenced by a state in
+    // the publish queue.
+    auto pub = mApp.getHistoryManager().getBucketsReferencedByPublishQueue();
+    {
+        for (auto const& h : pub)
+        {
+            CLOG(DEBUG, "Bucket")
+                << "BucketManager::forgetUnreferencedBuckets: " << h
+                << " referenced by publish queue";
+            referenced.insert(hexToBin256(h));
         }
     }
 
@@ -248,13 +267,13 @@ BucketManagerImpl::forgetUnreferencedBuckets()
                 << j->second->getFilename();
             j->second->setRetain(false);
             mSharedBuckets.erase(j);
-            mSharedBucketsSize.set_count(mSharedBuckets.size());
         }
         else
         {
             j->second->setRetain(true);
         }
     }
+    mSharedBucketsSize.set_count(mSharedBuckets.size());
 }
 
 void
@@ -304,22 +323,12 @@ BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 std::vector<std::string>
 BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 {
-    std::vector<std::string> buckets;
-    for (auto const& level : has.currentBuckets)
-    {
-        for (auto const& h : level.next.getHashes())
-        {
-            buckets.push_back(h);
-        }
-        buckets.push_back(level.curr);
-        buckets.push_back(level.snap);
-    }
-
+    std::vector<std::string> buckets = has.allBuckets();
     std::vector<std::string> result;
     std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
                  [&](std::string b)
                  {
-                     auto filename = getBucketDir() + "/" + bucketBasename(b);
+                     auto filename = bucketFilename(b);
                      return !isZero(hexToBin256(b)) && !fs::exists(filename);
                  });
 

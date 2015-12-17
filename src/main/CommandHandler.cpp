@@ -529,27 +529,21 @@ CommandHandler::checkpoint(std::string const& params, std::string& retStr)
     auto& hm = mApp.getHistoryManager();
     if (hm.hasAnyWritableHistoryArchive())
     {
-        size_t done = 0;
+        size_t initFail = hm.getPublishFailureCount();
+        size_t initDone = hm.getPublishSuccessCount() + initFail;
         asio::error_code ec;
         uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
         uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
         hm.queueCurrentHistory();
-        size_t toPublish =
-            hm.publishQueuedHistory([&done, &ec](asio::error_code const& ec2)
-                                    {
-                                        if (ec2)
-                                        {
-                                            ec = ec2;
-                                        }
-                                        ++done;
-                                    });
-        while (done != toPublish)
+        size_t toPublish = hm.publishQueuedHistory();
+        while (((hm.getPublishSuccessCount() + hm.getPublishFailureCount()) -
+                initDone) != toPublish)
         {
             mApp.getClock().crank(false);
         }
-        if (ec)
+        if (initFail != hm.getPublishFailureCount())
         {
-            retStr = std::string("Publish failed: ") + ec.message();
+            retStr = std::string("Publish failed");
         }
         else
         {

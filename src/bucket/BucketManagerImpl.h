@@ -36,7 +36,7 @@ class BucketManagerImpl : public BucketManager
     Application& mApp;
     BucketList mBucketList;
     std::unique_ptr<TmpDir> mWorkDir;
-    std::map<std::string, std::shared_ptr<Bucket>> mSharedBuckets;
+    std::map<Hash, std::shared_ptr<Bucket>> mSharedBuckets;
     mutable std::recursive_mutex mBucketMutex;
     std::unique_ptr<std::string> mLockedBucketDir;
     medida::Meter& mBucketObjectInsert;
@@ -47,6 +47,8 @@ class BucketManagerImpl : public BucketManager
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);
+    std::string bucketFilename(std::string const& bucketHexHash);
+    std::string bucketFilename(Hash const& hash);
 
   public:
     BucketManagerImpl(Application& app);

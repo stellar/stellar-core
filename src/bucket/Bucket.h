@@ -36,7 +36,7 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
 {
 
     std::string const mFilename;
-    uint256 const mHash;
+    Hash const mHash;
     bool mRetain{false};
 
   public:
@@ -59,9 +59,9 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     // Construct a bucket with a given filename and hash. Asserts that the file
     // exists, but does not check that the hash is the bucket's hash. Caller
     // needs to ensure that.
-    Bucket(std::string const& filename, uint256 const& hash);
+    Bucket(std::string const& filename, Hash const& hash);
 
-    uint256 const& getHash() const;
+    Hash const& getHash() const;
     std::string const& getFilename() const;
 
     // Sets or clears the `retain` flag on the bucket. A retained bucket will

@@ -5,8 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/HistoryManager.h"
-#include "history/CatchupStateMachine.h"
-#include "history/PublishStateMachine.h"
+#include "util/TmpDir.h"
 #include <memory>
 
 namespace medida
@@ -18,14 +17,14 @@ namespace stellar
 {
 
 class Application;
+class Work;
 
 class HistoryManagerImpl : public HistoryManager
 {
     Application& mApp;
     std::unique_ptr<TmpDir> mWorkDir;
-    std::unique_ptr<PublishStateMachine> mPublish;
-    std::shared_ptr<CatchupStateMachine> mCatchup;
-    bool mManualCatchup{false};
+    std::shared_ptr<Work> mPublishWork;
+    std::shared_ptr<Work> mCatchupWork;
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -42,6 +41,9 @@ class HistoryManagerImpl : public HistoryManager
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
+    std::shared_ptr<HistoryArchive>
+    selectRandomReadableHistoryArchive() override;
+
     uint32_t getCheckpointFrequency() override;
     uint32_t prevCheckpointLedger(uint32_t ledger) override;
     uint32_t nextCheckpointLedger(uint32_t ledger) override;
@@ -51,51 +53,30 @@ class HistoryManagerImpl : public HistoryManager
 
     size_t publishQueueLength() const override;
 
-    void verifyHash(
-        std::string const& filename, uint256 const& hash,
-        std::function<void(asio::error_code const&)> handler) const override;
-
-    void decompress(std::string const& filename_gz,
-                    std::function<void(asio::error_code const&)> handler,
-                    bool keepExisting = false) const override;
-
-    void compress(std::string const& filename_nogz,
-                  std::function<void(asio::error_code const&)> handler,
-                  bool keepExisting = false) const override;
-
-    void putFile(
-        std::shared_ptr<HistoryArchive const> archive, std::string const& local,
-        std::string const& remote,
-        std::function<void(asio::error_code const&)> handler) const override;
-
-    void getFile(
-        std::shared_ptr<HistoryArchive const> archive,
-        std::string const& remote, std::string const& local,
-        std::function<void(asio::error_code const&)> handler) const override;
-
-    void
-    mkdir(std::shared_ptr<HistoryArchive const> archive, std::string const& dir,
-          std::function<void(asio::error_code const&)> handler) const override;
-
     bool maybeQueueHistoryCheckpoint() override;
 
     void queueCurrentHistory() override;
 
-    void
-    takeSnapshotAndQueue(HistoryArchiveState const& has,
-                         std::function<void(asio::error_code const&)> handler);
+    void takeSnapshotAndPublish(HistoryArchiveState const& has);
 
     bool hasAnyWritableHistoryArchive() override;
 
     uint32_t getMinLedgerQueuedToPublish() override;
 
-    size_t publishQueuedHistory(
-        std::function<void(asio::error_code const&)> handler) override;
+    uint32_t getMaxLedgerQueuedToPublish() override;
+
+    size_t publishQueuedHistory() override;
 
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;
 
-    void historyPublished(uint32_t ledgerSeq);
+    std::vector<std::string> getBucketsReferencedByPublishQueue() override;
+
+    std::vector<HistoryArchiveState> getPublishQueueStates();
+
+    void historyPublished(uint32_t ledgerSeq, bool success) override;
+
+    void historyCaughtup() override;
 
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,
@@ -106,8 +87,6 @@ class HistoryManagerImpl : public HistoryManager
         std::function<void(asio::error_code const& ec, CatchupMode mode,
                            LedgerHeaderHistoryEntry const& lastClosed)> handler,
         bool manualCatchup) override;
-
-    void snapshotWritten(asio::error_code const&) override;
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;
 

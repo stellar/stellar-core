@@ -82,6 +82,9 @@ struct HistoryArchiveState
     std::vector<std::string>
     differingBuckets(HistoryArchiveState const& other) const;
 
+    // Return vector of all buckets referenced by this state.
+    std::vector<std::string> allBuckets() const;
+
     template <class Archive>
     void
     serialize(Archive& ar)
@@ -138,30 +141,6 @@ class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
     bool hasPutCmd() const;
     bool hasMkdirCmd() const;
     std::string const& getName() const;
-
-    void getMostRecentState(
-        Application& app,
-        std::function<void(asio::error_code const&, HistoryArchiveState const&)>
-            handler) const;
-
-    void
-    getSnapState(Application& app, uint32_t snap,
-                 std::function<void(asio::error_code const&,
-                                    HistoryArchiveState const&)> handler) const;
-
-    void getStateFromPath(
-        Application& app, std::string const& remoteName,
-        std::function<void(asio::error_code const&, HistoryArchiveState const&)>
-            handler) const;
-
-    void putState(Application& app, HistoryArchiveState const& s,
-                  std::function<void(asio::error_code const&)> handler) const;
-
-    void
-    putStateInDir(Application& app, HistoryArchiveState const& s,
-                  std::string const& local, std::string const& remoteDir,
-                  std::string const& remoteName,
-                  std::function<void(asio::error_code const&)> handler) const;
 
     std::string getFileCmd(std::string const& remote,
                            std::string const& local) const;

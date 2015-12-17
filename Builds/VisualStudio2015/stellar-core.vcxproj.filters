@@ -91,6 +91,9 @@
     <Filter Include="overlay\tests">
       <UniqueIdentifier>{c9352652-3868-4d3d-9663-cb7f68f6ecf8}</UniqueIdentifier>
     </Filter>
+    <Filter Include="work">
+      <UniqueIdentifier>{5b7c914e-a53b-4ac8-9d59-4eb0a63d4e64}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -330,12 +333,6 @@
     <ClCompile Include="..\..\src\util\Math.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\CatchupStateMachine.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\PublishStateMachine.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\Bucket.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -488,6 +485,27 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp">
       <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\Work.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkParent.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkTests.cpp">
+      <Filter>work</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryWork.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
+      <Filter>bucket</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -692,12 +710,6 @@
     <ClInclude Include="..\..\src\util\asio.h">
       <Filter>util</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\history\CatchupStateMachine.h">
-      <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\PublishStateMachine.h">
-      <Filter>history</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\bucket\Bucket.h">
       <Filter>bucket</Filter>
     </ClInclude>
@@ -847,6 +859,27 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\StellarXDR.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\StateSnapshot.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\work\Work.h">
+      <Filter>work</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\work\WorkManager.h">
+      <Filter>work</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\work\WorkManagerImpl.h">
+      <Filter>work</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\work\WorkParent.h">
+      <Filter>work</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryWork.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
+      <Filter>bucket</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

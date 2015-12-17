@@ -5,6 +5,7 @@
 #include "main/Application.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryArchive.h"
+#include "history/HistoryWork.h"
 #include "main/test.h"
 #include "main/ExternalQueue.h"
 #include "main/Config.h"
@@ -22,6 +23,8 @@
 #include "process/ProcessManager.h"
 #include "util/NonCopyable.h"
 #include "herder/LedgerCloseData.h"
+#include "work/WorkManager.h"
+#include "work/WorkParent.h"
 #include <cstdio>
 #include <xdrpp/autocheck.h>
 #include <fstream>
@@ -122,7 +125,7 @@ class HistoryTests
         CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
     }
 
-    void crankTillDone(bool& done);
+    void crankTillDone();
     void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
@@ -135,7 +138,7 @@ class HistoryTests
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
                             Application::pointer app2, bool doStart = true,
-                            uint32_t maxCranks = 0xffffffff, uint32_t gap = 0);
+                            uint32_t gap = 0);
 
     bool
     flip()
@@ -145,9 +148,10 @@ class HistoryTests
 };
 
 void
-HistoryTests::crankTillDone(bool& done)
+HistoryTests::crankTillDone()
 {
-    while (!done && !app.getClock().getIOService().stopped())
+    while (!app.getWorkManager().allChildrenDone() &&
+           !app.getClock().getIOService().stopped())
     {
         app.getClock().crank(true);
     }
@@ -194,69 +198,47 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
         std::ofstream out(fname, std::ofstream::binary);
         out.write(s.data(), s.size());
     }
-    bool done = false;
-    hm.compress(fname, [&done, &fname, &hm](asio::error_code const& ec)
-                {
-                    std::string compressed = fname + ".gz";
-                    CHECK(!fs::exists(fname));
-                    CHECK(fs::exists(compressed));
-                    hm.decompress(compressed, [&done, &fname, compressed](
-                                                  asio::error_code const& ec)
-                                  {
-                                      CHECK(fs::exists(fname));
-                                      CHECK(!fs::exists(compressed));
-                                      done = true;
-                                  });
-                });
-    crankTillDone(done);
-}
+    std::string compressed = fname + ".gz";
+    auto& wm = app.getWorkManager();
+    auto g = wm.addWork<GzipFileWork>(fname);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(g->getState() == Work::WORK_SUCCESS);
+    REQUIRE(!fs::exists(fname));
+    REQUIRE(fs::exists(compressed));
 
-TEST_CASE_METHOD(HistoryTests, "HistoryManager::verifyHash", "[history]")
-{
-    std::string s = "hello there";
-    HistoryManager& hm = app.getHistoryManager();
-    std::string fname = hm.localFilename("hashme");
-    {
-        std::ofstream out(fname, std::ofstream::binary);
-        out.write(s.data(), s.size());
-    }
-    bool done = false;
-    uint256 hash = hexToBin256(
-        "12998c017066eb0d2a70b94e6ed3192985855ce390f321bbdb832022888bd251");
-    hm.verifyHash(fname, hash, [&done](asio::error_code const& ec)
-                  {
-                      CHECK(!ec);
-                      done = true;
-                  });
-    crankTillDone(done);
+    auto u = wm.addWork<GunzipFileWork>(compressed);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(u->getState() == Work::WORK_SUCCESS);
+    REQUIRE(fs::exists(fname));
+    REQUIRE(!fs::exists(compressed));
 }
 
 TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 {
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
-    bool done = false;
 
     auto i = app.getConfig().HISTORY.find("test");
-    CHECK(i != app.getConfig().HISTORY.end());
+    REQUIRE(i != app.getConfig().HISTORY.end());
     auto archive = i->second;
 
-    auto& theApp = this->app; // need a local scope reference
     has.resolveAllFutures();
-    archive->putState(app, has,
-                      [&done, &theApp, archive](asio::error_code const& ec)
-                      {
-                          CHECK(!ec);
-                          archive->getMostRecentState(
-                              theApp, [&done](asio::error_code const& ec,
-                                              HistoryArchiveState const& has2)
-                              {
-                                  CHECK(!ec);
-                                  CHECK(has2.currentLedger == 0x1234);
-                                  done = true;
-                              });
-                      });
-    crankTillDone(done);
+
+    auto& wm = app.getWorkManager();
+    auto put = wm.addWork<PutHistoryArchiveStateWork>(has, archive);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(put->getState() == Work::WORK_SUCCESS);
+
+    HistoryArchiveState has2;
+    auto get = wm.addWork<GetHistoryArchiveStateWork>(
+        has2, 0, std::chrono::seconds(0), archive);
+    wm.advanceChildren();
+    crankTillDone();
+    REQUIRE(get->getState() == Work::WORK_SUCCESS);
+    REQUIRE(has2.currentLedger == 0x1234);
 }
 
 extern LedgerEntry generateValidLedgerEntry();
@@ -415,7 +397,7 @@ bool
 HistoryTests::catchupApplication(uint32_t initLedger,
                                  HistoryManager::CatchupMode resumeMode,
                                  Application::pointer app2, bool doStart,
-                                 uint32_t maxCranks, uint32_t gap)
+                                 uint32_t gap)
 {
 
     auto& lm = app2->getLedgerManager();
@@ -485,14 +467,12 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
     assert(!app2->getClock().getIOService().stopped());
 
-    while ((app2->getLedgerManager().getState() !=
-            LedgerManager::LM_SYNCED_STATE) &&
-           !app2->getClock().getIOService().stopped() && (--maxCranks != 0))
+    while (!app2->getWorkManager().allChildrenDone())
     {
         app2->getClock().crank(false);
     }
 
-    if (maxCranks == 0)
+    if (app2->getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE)
     {
         return false;
     }
@@ -682,7 +662,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 
     auto& hm = app.getHistoryManager();
 
-    while (hm.getPublishDelayCount() < 2)
+    while (hm.getPublishQueueCount() < 4)
     {
         generateRandomLedger();
     }
@@ -694,10 +674,6 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
         CHECK(hm.getPublishFailureCount() == 0);
         app.getClock().crank(true);
     }
-
-    // We should have 1 inital publish, 1 subsequent publish, and
-    // 2 delayed publishes, making 4 total.
-    CHECK(hm.getPublishSuccessCount() == 4);
 
     auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
     auto app2 =
@@ -790,10 +766,10 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     initLedger = lm.getLastClosedLedgerNum();
 
     caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_COMPLETE,
-                                  app2, true, 30);
+                                  app2, true);
     CHECK(!caughtup);
     caughtup = catchupApplication(initLedger, HistoryManager::CATCHUP_MINIMAL,
-                                  app3, true, 30);
+                                  app3, true);
     CHECK(!caughtup);
 
     // Now complete this publish cycle and confirm that the stalled apps
@@ -938,6 +914,7 @@ TEST_CASE("persist publish queue", "[history]")
         LOG(INFO) << "minLedger " << minLedger;
         bool okQueue = minLedger == 0 || minLedger >= 35;
         CHECK(okQueue);
+        clock.cancelAllEvents();
         while (clock.cancelAllEvents() ||
                app1->getProcessManager().getNumRunningProcesses() > 0)
         {
@@ -976,9 +953,11 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
     caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2,
-                                  true, 10000, init + 10);
+                                  true, init + 10);
 
     assert(!caughtup);
+
+    app2->getWorkManager().clearChildren();
 
     // Now generate a little more history
     generateAndPublishHistory(1);

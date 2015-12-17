@@ -29,8 +29,8 @@ using xdr::operator<;
 struct LedgerEntryIdCmp
 {
     template <typename T, typename U>
-    auto operator()(T const& a, U const& b) const -> decltype(a.type(),
-                                                              b.type(), bool())
+    auto operator()(T const& a, U const& b) const
+        -> decltype(a.type(), b.type(), bool())
     {
         LedgerEntryType aty = a.type();
         LedgerEntryType bty = b.type();
