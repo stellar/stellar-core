@@ -211,17 +211,13 @@ TEST_CASE("ledger performance test", "[performance][hide]")
                 LOG(INFO) << endl
                           << "Performance test with " << iAccounts
                           << " accounts after " << iLedgers << " ledgers";
-                LOG(INFO) << endl
-                          << sim.metricsSummary("performance-test");
-                LOG(INFO) << endl
-                          << sim.metricsSummary("bucket");
+                LOG(INFO) << endl << sim.metricsSummary("performance-test");
+                LOG(INFO) << endl << sim.metricsSummary("bucket");
             }
         }
         LOG(INFO) << "Performance test with " << iAccounts << " accounts, done";
-        LOG(INFO) << endl
-                  << sim.metricsSummary("performance-test");
-        LOG(INFO) << endl
-                  << sim.metricsSummary("bucket");
+        LOG(INFO) << endl << sim.metricsSummary("performance-test");
+        LOG(INFO) << endl << sim.metricsSummary("bucket");
         LOG(INFO) << "done";
     }
 }

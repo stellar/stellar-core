@@ -253,6 +253,52 @@ nodes in your quorum set at all time but if any of those nodes fails your
 node will be stuck until all nodes come back and agree.
 On the other hand, a threshold too low may cause the node to follow a broken minority.
 
+### THRESHOLD_PERCENT and the "3f+1 rule"
+One thing to keep in mind is that more validators doesn't translate
+necessarily to better resilience as the number of byzantine failures `f`
+ is linked to the number of nodes `n` by `n>=3f+1`.
+The implication is that a 4 nodes network can only handle one byzantine
+failure (f=1).
+If you add 2 nodes (bringing the network to 6 nodes), it can still only handle
+one failure (2 failures requires 7 nodes).
+
+### Quorum intersection
+As each quorum set refers to other nodes (that themselves have a quorum set
+ configured), the overall network will reach consensus using this graph of
+ nodes.
+Particular attention has to be made to ensure that the overall network has
+what is called "quorum intersection":
+no two distinct sets of nodes should be allowed to agree to something
+ different. It's similar to what happens on a network that is fully
+ partitioned where for example, a DNS request could yield completely
+ different results depending on which partition you're talking to.
+The easiest way to ensure that is that all nodes should have a large overlap
+in how they configured their quorum set. Just like having redundant paths
+between machines in a network increases the reliability of the network.
+Overlap here means that any two nodes that reference a set of nodes:
+ * have a large overlap of the nodes
+ * the threshold is such that there will be some overlap between nodes
+   regardless of which node fails
+
+For example, consider two nodes that respectively reference the sets Set1 and
+ Set2 composed of some common nodes and some other nodes.
+Set1 = Common + extra1
+Set2 = Common + extra2
+Then if you want to ensure that when reaching consensus, each node has
+at least "safety" number of nodes in common.
+threshold1 >= (size(extra1) + safety)/size(Set1)
+threshold2 >= (size(extra2) + safety)/size(Set2)
+
+This can be expressed in percentage:
+ * safetyP = safety/common * 100
+ * commonP = common/sizeof(SetN) * 100
+threshold then should be greater or equal to
+ 100 - commonP + (safetyP*commonP)/100
+ 100 + (1 - safetyP)*commonP
+
+ so if 80% of the nodes in the set are common, and you consider that seeing 60% of those is enough
+ threshold should be set to 100 - 80 + 60*80/100 = 68
+
 ### Picking validators
 You want to pick validators that are reliable:
  * they are available (not crashed/down often)
@@ -270,35 +316,92 @@ Other node operator may or may not chose the same validators than you, it's
 up to them! All you need is to have a good overlap across the population of
  validators.
 
+### Typical way to configure QUORUM_SET
+
+If you are running a single node, your best bet is to configure your QUORUM_SET
+organized such that the validators you consider "stable" are at the top of
+the list "Stable", and other nodes that you are not ready yet to fully relly
+ on, but that you are considering for your stable list under various "Trial"
+ groups. Individual trial groups have the same weight than a single stable
+ validator when configured as below.
+
+ ```
+[QUORUM_SET]
+THRESHOLD_PERCENT=70 # optional, the default is fine
+# "Stable validators" 
+VALIDATORS=[
+"sdf1",
+"sdf2",
+"sdf3",
+...
+]
+# Nodes that are being considered for inclusion
+[QUORUM_SET.trial_group_1]
+THRESHOLD_PERCENT=51
+VALIDATORS=[
+"someNewValidator1",
+"someNewValidator2",
+"someNewValidator3"
+]
+[QUORUM_SET.trial_group_2]
+VALIDATORS=[
+"someNewValidator4"
+]
+```
+
+ Be sure to not add too many "Trial" groups at the top level:
+ too many non reliable groups at the top level are a threat
+ to liveness and may cause your node to get stuck.
+ If you have too many top level trial groups, you may have to group trial
+ groups into hierarchies of trial groups in order to keep the top level
+ reliable.
+
+ How many trial groups you can add depends on the level of risk you're
+ willing to take:
+ your "stable" group should represent a figure above the threshold that
+ you picked (and the threshold should be 66% for the top level).
+
+ Example:
+ if you have 3 nodes in your "stable" list, you may one trial group
+ but consider that in this case you cannot tolerate any failure from your
+ stable set (as you would only have 2 nodes out of 4).
+ Once you have 6 nodes in your "stable" list you can handle a failure of
+ one of your "stable" list and one failure in the "trial" list.
+
+ As you can see, in order to bootstrap a public network, you will need at least
+6 stable nodes in order to start vetting other nodes over time.
+
+### Advanced QUORUM_SET configuration
 A more advanced way to configure your QUORUM_SET is to group validators by
  entity type or organization.
 For example, you can imagine a QUORUM_SET that looks like
 ```
 [t: 100,
-    [ t: 66, bank1, bank2, bank3 ], # banks
-    [ t: 50, sdf, foundation  ], # nonprofits
-    [ t: 33, univ1, univ2, univ3 ], # universities
-    [ t: 50, friend1, friend2 ] # friends
+    [ t: 66, bank-1, bank-2, bank-3 ], # banks
+    [ t: 51, sdf, foundation-1, ...  ], # nonprofits
+    [ t: 51, univ-1, ... ], # universities
+    [ t: 51, friend-1, ... ] # friends
 ]
 ```
 or more exactly, as entities are represented by validators
 ```
 [t: 100, # requires all entities to be present
-    [ t: 66, # 2 out of 3 banks
-       [t: 66, bank1-server1, bank1-server2, bank1-server3], # consider bank1 up with 2 servers
-       [t: 50, bank2-server1, bank2-server2],
+    [ t: 66, # super majority of banks
+       [t: 66, bank1-server1, bank1-server2, bank1-server3],
+       [t: 51, bank2-server1, bank2-server2],
        [t: 100, bank3-server1]
     ],
-    [ t: 50, # any nonprofit
-       [t: 50, sdf1, sdf2], # one sdf server
-       [t: 50, foundation-1, foundation-2]
+    [ t: 51, # majority of nonprofits
+       [t: 51, sdf1, sdf2, sdf3],
+       [t: 51, foundation-1-server1, ...],
+       ...
     ],
-    [ t: 33, # at least 1 university
-       [ ** univ1 ** ],
-       [ ** univ2 ** ],
-       [ ** univ3 **]
+    [ t: 51, # majority of universities
+        ...
     ],
-    [ t: 50, friend1, friend2 ] # either friend
+    [ t: 51, # majority of friends
+        ...
+    ]
 ]
 ```
 

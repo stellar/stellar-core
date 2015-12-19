@@ -238,6 +238,22 @@ SCP::getExternalizingState(uint64 slotIndex)
     }
 }
 
+SCP::TriBool
+SCP::isNodeInQuorum(NodeID const& node)
+{
+    TriBool res = TB_MAYBE;
+    for (auto& s : mKnownSlots)
+    {
+        auto slot = s.second;
+        res = slot->isNodeInQuorum(node);
+        if (res == TB_TRUE || res == TB_FALSE)
+        {
+            break;
+        }
+    }
+    return res;
+}
+
 std::string
 SCP::getValueString(Value const& v) const
 {
@@ -318,15 +334,27 @@ SCP::envToStr(SCPStatement const& st) const
         auto const& nom = st.pledges.nominate();
         oss << " | NOMINATE"
             << " | D: " << hexAbbrev(qSetHash) << " | X: {";
+        bool first = true;
         for (auto const& v : nom.votes)
         {
-            oss << " '" << getValueString(v) << "',";
+            if (!first)
+            {
+                oss << " ,";
+            }
+            oss << "'" << getValueString(v) << "'";
+            first = false;
         }
         oss << "}"
             << " | Y: {";
+        first = true;
         for (auto const& a : nom.accepted)
         {
-            oss << " '" << getValueString(a) << "',";
+            if (!first)
+            {
+                oss << " ,";
+            }
+            oss << "'" << getValueString(a) << "'";
+            first = false;
         }
         oss << "}";
     }

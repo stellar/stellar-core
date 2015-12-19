@@ -10,6 +10,7 @@
 #include <set>
 #include <utility>
 #include "scp/SCP.h"
+#include "LocalNode.h"
 #include "lib/json/json-forwards.h"
 #include "BallotProtocol.h"
 #include "NominationProtocol.h"
@@ -112,6 +113,9 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     bool isFullyValidated() const;
     void setFullyValidated(bool fullyValidated);
+
+    // returns if a node is in the quorum originating at the local node
+    SCP::TriBool isNodeInQuorum(NodeID const& node);
 
     // ** status methods
 

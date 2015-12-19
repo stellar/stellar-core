@@ -34,7 +34,8 @@ class LocalNode
     // returns true if quorum set is well formed
     // updates knownNodes as it encounters new ones
     static bool isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
-                                        std::set<NodeID>& knownNodes);
+                                        std::set<NodeID>& knownNodes,
+                                        bool extraChecks);
 
     void adjustQSetHelper(SCPQuorumSet& qSet);
     // adjust qset such that self is a member of all slices
@@ -49,7 +50,8 @@ class LocalNode
     // returns if a nodeID's quorum set passes sanity checks
     bool isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet);
     // simplified sanity check (for configuration validation)
-    static bool isQuorumSetSaneSimplified(SCPQuorumSet const& qSet);
+    static bool isQuorumSetSaneSimplified(SCPQuorumSet const& qSet,
+                                          bool extraChecks);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 
@@ -57,6 +59,11 @@ class LocalNode
     Hash const& getQuorumSetHash();
     SecretKey const& getSecretKey();
     bool isValidator();
+
+    SCP::TriBool isNodeInQuorum(
+        NodeID const& node,
+        std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
+        std::map<NodeID, std::vector<SCPStatement const*>> const& map) const;
 
     // returns the quorum set {{X}}
     static SCPQuorumSetPtr getSingletonQSet(NodeID const& nodeID);
@@ -69,17 +76,13 @@ class LocalNode
     // normalized between 0-UINT64_MAX
     static uint64 getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset);
 
-    // Tests this node against nodeSet for the specified qSethash. Triggers the
-    // retrieval of qSetHash for this node and may throw a QuorumSlicesNotFound
-    // exception
+    // Tests this node against nodeSet for the specified qSethash.
     static bool isQuorumSlice(SCPQuorumSet const& qSet,
                               std::vector<NodeID> const& nodeSet);
     static bool isVBlocking(SCPQuorumSet const& qSet,
                             std::vector<NodeID> const& nodeSet);
 
     // Tests this node against a map of nodeID -> T for the specified qSetHash.
-    // Triggers the retrieval of qSetHash for this node and may throw a
-    // QuorumSlicesNotFound exception.
 
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.

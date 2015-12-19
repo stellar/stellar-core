@@ -92,6 +92,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.QUORUM_SET.validators.push_back(
             thisConfig.NODE_SEED.getPublicKey());
         thisConfig.QUORUM_SET.threshold = 1;
+        thisConfig.UNSAFE_QUORUM = true;
 
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
 

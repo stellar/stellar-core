@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include <algorithm>
 #include "lib/json/json.h"
+#include <unordered_set>
 
 namespace stellar
 {
@@ -47,15 +48,19 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
 
 bool
 LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
-                                   std::set<NodeID>& knownNodes)
+                                   std::set<NodeID>& knownNodes,
+                                   bool extraChecks)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
     size_t totEntries = v.size() + i.size();
 
+    size_t vBlockingSize = totEntries - qSet.threshold + 1;
+
     // threshold is within the proper range
-    if (qSet.threshold >= 1 && qSet.threshold <= totEntries)
+    if (qSet.threshold >= 1 && qSet.threshold <= totEntries &&
+        (!extraChecks || qSet.threshold >= vBlockingSize))
     {
         for (auto const& n : v)
         {
@@ -69,7 +74,7 @@ LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
 
         for (auto const& iSet : i)
         {
-            if (!isQuorumSetSaneInternal(iSet, knownNodes))
+            if (!isQuorumSetSaneInternal(iSet, knownNodes, extraChecks))
             {
                 return false;
             }
@@ -165,10 +170,10 @@ LocalNode::adjustQSet(SCPQuorumSet& qSet)
 }
 
 bool
-LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet)
+LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet, bool extraChecks)
 {
     std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, extraChecks);
     return wellFormed;
 }
 
@@ -176,7 +181,7 @@ bool
 LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
 {
     std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators);
+    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, false);
     return wellFormed && (allValidators.find(nodeID) != allValidators.end());
 }
 
@@ -550,5 +555,59 @@ bool
 LocalNode::isValidator()
 {
     return mIsValidator;
+}
+
+SCP::TriBool
+LocalNode::isNodeInQuorum(
+    NodeID const& node,
+    std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
+    std::map<NodeID, std::vector<SCPStatement const*>> const& map) const
+{
+    // perform a transitive search, starting with the local node
+    // the order is not important, so we can use sets to keep track of the work
+    std::unordered_set<NodeID> backlog;
+    std::unordered_set<NodeID> visited;
+    backlog.insert(mNodeID);
+
+    SCP::TriBool res = SCP::TB_FALSE;
+
+    while (backlog.size() != 0)
+    {
+        auto it = backlog.begin();
+        auto c = *it;
+        if (c == node)
+        {
+            return SCP::TB_TRUE;
+        }
+        backlog.erase(it);
+        visited.insert(c);
+
+        auto ite = map.find(c);
+        if (ite == map.end())
+        {
+            // can't lookup information on this node
+            res = SCP::TB_MAYBE;
+            continue;
+        }
+        for (auto st : ite->second)
+        {
+            auto qset = qfun(*st);
+            if (!qset)
+            {
+                // can't find the quorum set
+                res = SCP::TB_MAYBE;
+                continue;
+            }
+            // see if we need to explore further
+            forAllNodes(*qset, [&](NodeID const& n)
+                        {
+                            if (visited.find(n) == visited.end())
+                            {
+                                backlog.insert(n);
+                            }
+                        });
+        }
+    }
+    return res;
 }
 }

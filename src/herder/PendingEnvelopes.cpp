@@ -7,12 +7,13 @@
 #include "util/Logging.h"
 #include <scp/Slot.h>
 #include "herder/TxSetFrame.h"
-#include "main/Application.h"
+#include "main/Config.h"
 
 using namespace std;
 
 #define QSET_CACHE_SIZE 10000
 #define TXSET_CACHE_SIZE 10000
+#define NODES_QUORUM_CACHE_SIZE 1000
 
 namespace stellar
 {
@@ -24,6 +25,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mTxSetFetcher(app)
     , mQuorumSetFetcher(app)
     , mTxSetCache(TXSET_CACHE_SIZE)
+    , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
     , mPendingEnvelopesSize(
           app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
 {
@@ -34,7 +36,7 @@ PendingEnvelopes::~PendingEnvelopes()
 }
 
 void
-PendingEnvelopes::peerDoesntHave(MessageType type, uint256 const& itemID,
+PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
                                  Peer::pointer peer)
 {
     switch (type)
@@ -68,10 +70,55 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
     mTxSetFetcher.recv(hash);
 }
 
+bool
+PendingEnvelopes::isNodeInQuorum(NodeID const& node)
+{
+    bool res;
+
+    res = mNodesInQuorum.exists(node);
+    if (res)
+    {
+        res = mNodesInQuorum.get(node);
+    }
+
+    if (!res)
+    {
+        // search through the known slots
+        SCP::TriBool r = mHerder.getSCP().isNodeInQuorum(node);
+        if (r == SCP::TB_TRUE)
+        {
+            // only cache positive answers
+            // so that nodes can be added during rounds
+            mNodesInQuorum.put(node, true);
+            res = true;
+        }
+        else if (r == SCP::TB_FALSE)
+        {
+            res = false;
+        }
+        else
+        {
+            // MAYBE -> return true, but don't cache
+            res = true;
+        }
+    }
+
+    return res;
+}
+
 // called from Peer and when an Item tracker completes
 void
 PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
+    auto const& nodeID = envelope.statement.nodeID;
+    if (!isNodeInQuorum(nodeID))
+    {
+        CLOG(DEBUG, "Herder") << "Dropping envelope from "
+                              << mApp.getConfig().toShortString(nodeID)
+                              << " (not in quorum)";
+        return;
+    }
+
     // do we already have this envelope?
     // do we have the qset
     // do we have the txset

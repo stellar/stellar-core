@@ -485,6 +485,9 @@ VerifyLedgerChainWork::onSuccess()
         CLOG(ERROR, "History")
             << "Catchup material failed verification, propagating failure";
         return WORK_FAILURE_RAISE;
+    default:
+        assert(false);
+        throw std::runtime_error("unexpected VerifyLedgerChainWork state");
     }
 }
 

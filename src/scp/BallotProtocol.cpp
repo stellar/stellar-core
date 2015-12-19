@@ -1909,14 +1909,12 @@ const char* BallotProtocol::phaseNames[SCP_PHASE_NUM] = {"PREPARE", "FINISH",
 void
 BallotProtocol::dumpInfo(Json::Value& ret)
 {
-    Json::Value state;
+    Json::Value& state = ret["ballotProtocol"];
     state["heard"] = mHeardFromQuorum;
     state["ballot"] = mSlot.getSCP().ballotToStr(mCurrentBallot);
     state["phase"] = phaseNames[mPhase];
 
     state["state"] = getLocalState();
-
-    ret["ballotProtocol"].append(state);
 }
 
 void

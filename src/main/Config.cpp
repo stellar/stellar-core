@@ -639,9 +639,19 @@ Config::validateConfig()
         FAILURE_SAFETY = (static_cast<uint32>(nodes.size()) - 1) / 3;
     }
 
-    if (UNSAFE_QUORUM == false)
+    try
     {
-        try
+        if (FAILURE_SAFETY >= r.size())
+        {
+            LOG(ERROR) << "Not enough nodes / thresholds too strict in your "
+                          "Quorum set to ensure your desired level of "
+                          "FAILURE_SAFETY. Reduce FAILURE_SAFETY or fix "
+                          "quorum set";
+            throw std::invalid_argument(
+                "FAILURE_SAFETY incompatible with QUORUM_SET");
+        }
+
+        if (!UNSAFE_QUORUM)
         {
             if (FAILURE_SAFETY == 0)
             {
@@ -649,15 +659,6 @@ Config::validateConfig()
                     << "Can't have FAILURE_SAFETY=0 unless you also set "
                        "UNSAFE_QUORUM=true. Be sure you know what you are "
                        "doing!";
-                throw std::invalid_argument("SCP unsafe");
-            }
-
-            if (FAILURE_SAFETY >= r.size())
-            {
-                LOG(ERROR)
-                    << "Not enough nodes / thresholds too strict in your "
-                       "Quorum set to ensure your  desired level of "
-                       "FAILURE_SAFETY.";
                 throw std::invalid_argument("SCP unsafe");
             }
 
@@ -674,12 +675,12 @@ Config::validateConfig()
                 throw std::invalid_argument("SCP unsafe");
             }
         }
-        catch (...)
-        {
-            LOG(INFO) << " Current QUORUM_SET breaks with " << r.size()
-                      << " failures";
-            throw;
-        }
+    }
+    catch (...)
+    {
+        LOG(INFO) << " Current QUORUM_SET breaks with " << r.size()
+                  << " failures";
+        throw;
     }
 }
 
