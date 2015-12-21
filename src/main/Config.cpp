@@ -630,7 +630,7 @@ Config::validateConfig()
 
     // calculates nodes that would break quorum
     auto selfID = NODE_SEED.getPublicKey();
-    auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, &selfID);
+    auto r = LocalNode::findClosestVBlocking(QUORUM_SET, nodes, nullptr);
 
     if (FAILURE_SAFETY == -1)
     {
