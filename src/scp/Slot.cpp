@@ -192,7 +192,15 @@ Slot::isNodeInQuorum(NodeID const& node)
         n.emplace_back(&e.first);
     }
     return mSCP.getLocalNode()->isNodeInQuorum(
-        node, std::bind(&Slot::getQuorumSetFromStatement, this, _1), m);
+        node,
+        [this](SCPStatement const& st)
+        {
+            // uses the companion set here as we want to consider
+            // nodes that were used up to EXTERNALIZE
+            Hash h = getCompanionQuorumSetHashFromStatement(st);
+            return getSCPDriver().getQSet(h);
+        },
+        m);
 }
 
 SCPEnvelope

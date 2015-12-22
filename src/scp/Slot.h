@@ -142,7 +142,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     static std::vector<Value> getStatementValues(SCPStatement const& st);
 
     // returns the QuorumSet that should be used for a node given the
-    // statement
+    // statement (singleton for externalize)
     SCPQuorumSetPtr getQuorumSetFromStatement(SCPStatement const& st);
 
     // wraps a statement in an envelope (sign it, etc)
