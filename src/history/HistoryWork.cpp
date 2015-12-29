@@ -1176,9 +1176,17 @@ CatchupMinimalWork::getStatus() const
         {
             return mApplyWork->getStatus();
         }
-        else if (mDownloadWork)
+        else if (mDownloadBucketsWork)
         {
-            return mDownloadWork->getStatus();
+            return mDownloadBucketsWork->getStatus();
+        }
+        else if (mVerifyLedgersWork)
+        {
+            return mVerifyLedgersWork->getStatus();
+        }
+        else if (mDownloadLedgersWork)
+        {
+            return mDownloadLedgersWork->getStatus();
         }
         else if (mGetHistoryArchiveStateWork)
         {
@@ -1192,7 +1200,9 @@ void
 CatchupMinimalWork::onReset()
 {
     CatchupWork::onReset();
-    mDownloadWork.reset();
+    mDownloadLedgersWork.reset();
+    mVerifyLedgersWork.reset();
+    mDownloadBucketsWork.reset();
     mApplyWork.reset();
 }
 
@@ -1204,45 +1214,68 @@ CatchupMinimalWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    // Phase 2: select and download the buckets themselves.
-    if (!mDownloadWork)
+    // NB: we might be in CATCHUP_RECENT mode here, in which case
+    // we need to download and verify more than just 1 ledger.
+    // We therefore calculate a firstSeq/lastSeq pair covering the
+    // plausible range we're being asked to look at; if CATCHUP_RECENT
+    // is 0 then this will just be [mNextLedger-1, mNextLedger-1].
+    auto firstSeq = mNextLedger - 1;
+    auto lastSeq = mApp.getHistoryManager().nextCheckpointLedger(
+                       mInitLedger + mApp.getConfig().CATCHUP_RECENT) -
+                   1;
+
+    // Phase 2: download the ledger chain that validates the state
+    // we're about to assume.
+    if (!mDownloadLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup MINIMAL downloading buckets";
-        mDownloadWork = addWork<Work>("download buckets");
+        CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
+        mDownloadLedgersWork = addWork<BatchDownloadWork>(
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+        return WORK_PENDING;
+    }
+
+    // Phase 3: Verify the ledger chain
+    if (!mVerifyLedgersWork)
+    {
+        CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
+        mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            mLastVerified);
+        return WORK_PENDING;
+    }
+
+    // Phase 4: download and verify the buckets themselves.
+    if (!mDownloadBucketsWork)
+    {
+        CLOG(INFO, "History")
+            << "Catchup MINIMAL downloading and verifying buckets";
         std::vector<std::string> buckets =
             mRemoteState.differingBuckets(mLocalState);
+        mDownloadBucketsWork = addWork<Work>("download and verify buckets");
         for (auto const& hash : buckets)
         {
             FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
             // Each bucket gets its own work-chain of download->gunzip->verify
 
-            auto verify = mDownloadWork->addWork<VerifyBucketWork>(
+            auto verify = mDownloadBucketsWork->addWork<VerifyBucketWork>(
                 mBuckets, ft.localPath_nogz(), hexToBin256(hash));
-            auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
-                                               ft.localPath_gz());
-        }
-        // ... as well as the last ledger-history file (for its final state).
-        {
-            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
-                                mRemoteState.currentLedger);
-            auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(
-                *mDownloadDir, mNextLedger - 1, mNextLedger - 1, mManualCatchup,
-                mLastVerified);
             auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
             gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
                                                ft.localPath_gz());
         }
         return WORK_PENDING;
     }
-    assert(mDownloadWork->getState() == WORK_SUCCESS);
+
+    assert(mDownloadLedgersWork->getState() == WORK_SUCCESS);
+    assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);
+    assert(mDownloadBucketsWork->getState() == WORK_SUCCESS);
 
     // Phase 3: apply the buckets.
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup MINIMAL applying buckets";
         mApplyWork =
-            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mLastVerified);
+            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mFirstVerified);
         return WORK_PENDING;
     }
 
@@ -1250,7 +1283,7 @@ CatchupMinimalWork::onSuccess()
                           << mNextLedger;
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
+    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mFirstVerified);
 
     return WORK_SUCCESS;
 }

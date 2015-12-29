@@ -220,12 +220,15 @@ class CatchupWork : public BucketDownloadWork
 
 class CatchupMinimalWork : public CatchupWork
 {
-
+  public:
     typedef std::function<void(
         asio::error_code const& ec, HistoryManager::CatchupMode mode,
         LedgerHeaderHistoryEntry const& lastClosed)> handler;
 
-    std::shared_ptr<Work> mDownloadWork;
+  protected:
+    std::shared_ptr<Work> mDownloadLedgersWork;
+    std::shared_ptr<Work> mVerifyLedgersWork;
+    std::shared_ptr<Work> mDownloadBucketsWork;
     std::shared_ptr<Work> mApplyWork;
     handler mEndHandler;
 
