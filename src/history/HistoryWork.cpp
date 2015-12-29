@@ -1362,7 +1362,8 @@ CatchupCompleteWork::onSuccess()
     // Phase 2: download and decompress the ledgers.
     if (!mDownloadLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers";
+        CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers ["
+                              << firstSeq << ", " << lastSeq << "]";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
             firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
         return WORK_PENDING;
