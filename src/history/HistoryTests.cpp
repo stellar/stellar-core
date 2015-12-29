@@ -385,6 +385,10 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
+    if (resumeMode == HistoryManager::CATCHUP_RECENT)
+    {
+        mCfgs.back().CATCHUP_RECENT = 80;
+    }
     Application::pointer app2 = Application::create(
         clock, mConfigurator->configure(mCfgs.back(), false));
 
@@ -601,6 +605,8 @@ resumeModeName(HistoryManager::CatchupMode mode)
         return "CATCHUP_MINIMAL";
     case HistoryManager::CATCHUP_COMPLETE:
         return "CATCHUP_COMPLETE";
+    case HistoryManager::CATCHUP_RECENT:
+        return "CATCHUP_RECENT";
     default:
         abort();
     }
@@ -634,7 +640,9 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     std::vector<Application::pointer> apps;
 
     std::vector<HistoryManager::CatchupMode> resumeModes = {
-        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE};
+        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE,
+        HistoryManager::CATCHUP_RECENT,
+    };
 
     std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
                                                Config::TESTDB_ON_DISK_SQLITE};
