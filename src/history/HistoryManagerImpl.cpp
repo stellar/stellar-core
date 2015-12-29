@@ -624,6 +624,13 @@ HistoryManagerImpl::catchupHistory(
         mCatchupWork = mApp.getWorkManager().addWork<CatchupMinimalWork>(
             initLedger, manualCatchup, handler);
     }
+    else if (mode == CATCHUP_RECENT)
+    {
+        CLOG(INFO, "History") << "Starting CatchupRecentWork";
+        mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
+            initLedger, mApp.getConfig().CATCHUP_RECENT, manualCatchup,
+            handler);
+    }
     else
     {
         assert(mode == CATCHUP_COMPLETE);

@@ -190,10 +190,15 @@ class HistoryManager
     // closed ledger and the catchup point. This is set by config, default is
     // CATCHUP_MINIMAL but it should be CATCHUP_COMPLETE for any server with
     // API clients. See LedgerManager::startCatchUp and its callers for uses.
+    //
+    // CATCHUP_RECENT is a hybrid mode that does a CATCHUP_MINIMAL to a point
+    // in the recent past, then runs CATCHUP_COMPLETE from there forward to
+    // the present.
     enum CatchupMode
     {
         CATCHUP_COMPLETE,
         CATCHUP_MINIMAL,
+        CATCHUP_RECENT,
         CATCHUP_BUCKET_REPAIR
     };
 
