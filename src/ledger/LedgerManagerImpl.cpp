@@ -319,6 +319,16 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
+HistoryManager::CatchupMode
+getCatchupMode(Application& app)
+{
+    return app.getConfig().CATCHUP_COMPLETE
+               ? HistoryManager::CATCHUP_COMPLETE
+               : (app.getConfig().CATCHUP_RECENT == 0
+                      ? HistoryManager::CATCHUP_MINIMAL
+                      : HistoryManager::CATCHUP_RECENT);
+}
+
 // called by txherder
 void
 LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
@@ -376,10 +386,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
             CLOG(INFO, "Ledger") << "Close of ledger " << ledgerData.mLedgerSeq
                                  << " buffered, starting catchup";
-            startCatchUp(ledgerData.mLedgerSeq,
-                         mApp.getConfig().CATCHUP_COMPLETE
-                             ? HistoryManager::CATCHUP_COMPLETE
-                             : HistoryManager::CATCHUP_MINIMAL);
+            startCatchUp(ledgerData.mLedgerSeq, getCatchupMode(mApp));
         }
         break;
 
@@ -499,6 +506,19 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     }
     else
     {
+        // If we're in CATCHUP_RECENT mode, we actually only got part way
+        // through catchup -- we did the minimal prefix part -- and will
+        // get another callback as CATCHUP_COMPLETE when recent-replay is
+        // done. So for now just deposit LCL and prepare for replay.
+        if (mode == HistoryManager::CATCHUP_RECENT)
+        {
+            mLastClosedLedger = lastClosed;
+            CLOG(INFO, "Ledger") << "First phase of CATCHUP_RECENT done: "
+                                 << ledgerAbbrev(mLastClosedLedger);
+            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
+            return;
+        }
+
         // If we were in CATCHUP_MINIMAL mode, LCL has not been updated
         // and we need to pick it up here.
         if (mode == HistoryManager::CATCHUP_MINIMAL)
@@ -582,10 +602,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.mLedgerSeq;
                 mSyncingLedgers.clear();
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                startCatchUp(lastBuffered.mLedgerSeq,
-                             mApp.getConfig().CATCHUP_COMPLETE
-                                 ? HistoryManager::CATCHUP_COMPLETE
-                                 : HistoryManager::CATCHUP_MINIMAL);
+                startCatchUp(lastBuffered.mLedgerSeq, getCatchupMode(mApp));
                 return;
             }
         }
