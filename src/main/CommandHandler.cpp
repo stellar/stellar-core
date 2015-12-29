@@ -501,9 +501,13 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         {
             mode = HistoryManager::CATCHUP_MINIMAL;
         }
+        else if (modeP->second == std::string("recent"))
+        {
+            mode = HistoryManager::CATCHUP_RECENT;
+        }
         else
         {
-            retStr = "Mode should be either 'minimal' or 'complete'";
+            retStr = "Mode should be either 'minimal', 'recent' or 'complete'";
             return;
         }
     }
@@ -513,7 +517,9 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
               std::to_string(ledger) + std::string(" in mode ") +
               std::string(mode == HistoryManager::CATCHUP_COMPLETE
                               ? "CATCHUP_COMPLETE"
-                              : "CATCHUP_MINIMAL"));
+                              : (mode == HistoryManager::CATCHUP_RECENT
+                                     ? "CATCHUP_RECENT"
+                                     : "CATCHUP_MINIMAL")));
 }
 
 void
