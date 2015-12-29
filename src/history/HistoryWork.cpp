@@ -387,57 +387,43 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     LedgerHeaderHistoryEntry prev = mLastVerified;
     LedgerHeaderHistoryEntry curr;
 
-    // If we're in CATCHUP_MINIMAL mode, mLastVerified is blank and we are
-    // just going to scan to the end, check that it has the right sequence
-    // number and accept it. If we're in CATCHUP_COMPLETE mode, mLastVerified
-    // is nonzero and we are going to verify the entire chain from there to
-    // mLastSeq.
+    CLOG(DEBUG, "History") << "Verifying ledger headers from "
+                           << ft.localPath_nogz() << " starting from ledger "
+                           << LedgerManager::ledgerAbbrev(prev);
 
-    if (prev.header.ledgerSeq == 0)
+    while (hdrIn && hdrIn.readOne(curr))
     {
-        CLOG(INFO, "History") << "Loading final ledger header from "
-                              << ft.localPath_nogz();
-        bool readOne = false;
-        while (hdrIn && hdrIn.readOne(curr))
+
+        if (prev.header.ledgerSeq == 0)
         {
-            readOne = true;
+            // When we have no previous state to connect up with
+            // (eg. starting somewhere mid-chain like in CATCHUP_MINIMAL)
+            // we just accept the first chain entry we see. We will
+            // verify the chain continuously from here, and against the
+            // live network.
+            prev = curr;
+            continue;
         }
-        if (!readOne)
+
+        uint32_t expectedSeq = prev.header.ledgerSeq + 1;
+        if (curr.header.ledgerSeq < expectedSeq)
         {
-            CLOG(ERROR, "History") << "Empty ledger history file "
-                                   << ft.localPath_nogz();
+            // Harmless prehistory
+            continue;
+        }
+        else if (curr.header.ledgerSeq > expectedSeq)
+        {
+            CLOG(ERROR, "History")
+                << "History chain overshot expected ledger seq " << expectedSeq
+                << ", got " << curr.header.ledgerSeq << " instead";
             return HistoryManager::VERIFY_HASH_BAD;
         }
-    }
-    else
-    {
-        CLOG(DEBUG, "History")
-            << "Verifying ledger headers from " << ft.localPath_nogz()
-            << " starting from ledger " << LedgerManager::ledgerAbbrev(prev);
-
-        while (hdrIn && hdrIn.readOne(curr))
+        if (verifyLedgerHistoryLink(prev.hash, curr) !=
+            HistoryManager::VERIFY_HASH_OK)
         {
-            uint32_t expectedSeq = prev.header.ledgerSeq + 1;
-            if (curr.header.ledgerSeq < expectedSeq)
-            {
-                // Harmless prehistory
-                continue;
-            }
-            else if (curr.header.ledgerSeq > expectedSeq)
-            {
-                CLOG(ERROR, "History")
-                    << "History chain overshot expected ledger seq "
-                    << expectedSeq << ", got " << curr.header.ledgerSeq
-                    << " instead";
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            if (verifyLedgerHistoryLink(prev.hash, curr) !=
-                HistoryManager::VERIFY_HASH_OK)
-            {
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            prev = curr;
+            return HistoryManager::VERIFY_HASH_BAD;
         }
+        prev = curr;
     }
 
     if (curr.header.ledgerSeq != mCurrSeq)
