@@ -294,6 +294,38 @@ class CatchupCompleteWork : public CatchupWork
     void onFailureRaise() override;
 };
 
+// Catchup-recent is just a catchup-minimal to (now - N),
+// followed by a catchup-complete to now.
+class CatchupRecentWork : public Work
+{
+  public:
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& ledger)> handler;
+
+  protected:
+    std::shared_ptr<Work> mCatchupMinimalWork;
+    std::shared_ptr<Work> mCatchupCompleteWork;
+    uint32_t mInitLedger;
+    uint32_t mNumLedgers;
+    bool mManualCatchup;
+    handler mEndHandler;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastApplied;
+
+    handler writeFirstVerified();
+    handler writeLastApplied();
+
+  public:
+    CatchupRecentWork(Application& app, WorkParent& parent, uint32_t initLedger,
+                      uint32_t numLedgers, bool manualCatchup,
+                      handler endHandler);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+    void onFailureRaise() override;
+};
+
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;

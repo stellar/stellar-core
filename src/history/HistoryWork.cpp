@@ -1692,4 +1692,143 @@ RepairMissingBucketsWork::onFailureRaise()
     asio::error_code ec = std::make_error_code(std::errc::io_error);
     mEndHandler(ec);
 }
+
+///////////////////////////////////////////////////////////////////////////
+// CatchupRecentWork
+///////////////////////////////////////////////////////////////////////////
+
+CatchupRecentWork::CatchupRecentWork(Application& app, WorkParent& parent,
+                                     uint32_t initLedger, uint32_t numLedgers,
+                                     bool manualCatchup, handler endHandler)
+    : Work(app, parent, fmt::format("catchup-recent-{:08x}-{:08x}",
+                                    initLedger - numLedgers, initLedger))
+    , mInitLedger(initLedger)
+    , mNumLedgers(numLedgers)
+    , mManualCatchup(manualCatchup)
+    , mEndHandler(endHandler)
+{
+}
+
+std::string
+CatchupRecentWork::getStatus() const
+{
+    if (mState == WORK_PENDING)
+    {
+        if (mCatchupMinimalWork)
+        {
+            return mCatchupMinimalWork->getStatus();
+        }
+        else if (mCatchupCompleteWork)
+        {
+            return mCatchupCompleteWork->getStatus();
+        }
+    }
+    return Work::getStatus();
+}
+
+void
+CatchupRecentWork::onReset()
+{
+    clearChildren();
+    mCatchupMinimalWork.reset();
+    mCatchupCompleteWork.reset();
+    mFirstVerified = LedgerHeaderHistoryEntry();
+    mLastApplied = LedgerHeaderHistoryEntry();
+}
+
+CatchupRecentWork::handler
+CatchupRecentWork::writeFirstVerified()
+{
+    std::weak_ptr<CatchupRecentWork> weak =
+        std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
+    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+                  LedgerHeaderHistoryEntry const& ledger)
+    {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->mFirstVerified = ledger;
+    };
+}
+
+CatchupRecentWork::handler
+CatchupRecentWork::writeLastApplied()
+{
+    std::weak_ptr<CatchupRecentWork> weak =
+        std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
+    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+                  LedgerHeaderHistoryEntry const& ledger)
+    {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->mLastApplied = ledger;
+    };
+}
+
+Work::State
+CatchupRecentWork::onSuccess()
+{
+    if (!mCatchupMinimalWork)
+    {
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT starting inner CATCHUP_MINIMAL";
+        mCatchupMinimalWork = addWork<CatchupMinimalWork>(
+            mInitLedger - mNumLedgers, mManualCatchup, writeFirstVerified());
+        return WORK_PENDING;
+    }
+
+    if (!mCatchupCompleteWork)
+    {
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT finished inner CATCHUP_MINIMAL";
+        assert(mCatchupMinimalWork &&
+               mCatchupMinimalWork->getState() == WORK_SUCCESS);
+        // We make an initial callback in mode CATCHUP_RECENT, to drive the
+        // CATCHUP_MINIMAL LCL we just got through to the LM, and prepare
+        // it for the upcoming CATCHUP_COMPLETE replay.
+        asio::error_code ec;
+        mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
+
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT starting inner CATCHUP_COMPLETE";
+        // Now make a CATCHUP_COMPLETE inner worker, for replay.
+        mCatchupCompleteWork = addWork<CatchupCompleteWork>(
+            mInitLedger, mManualCatchup, writeLastApplied());
+
+        // Transfer the download dir used by the minimal catchup to the
+        // complete catchup, to avoid re-downloading the ledger history.
+        auto minimal =
+            std::static_pointer_cast<CatchupMinimalWork>(mCatchupMinimalWork);
+        auto complete =
+            std::static_pointer_cast<CatchupCompleteWork>(mCatchupCompleteWork);
+        complete->takeDownloadDir(*minimal);
+
+        return WORK_PENDING;
+    }
+
+    assert(mCatchupMinimalWork &&
+           mCatchupMinimalWork->getState() == WORK_SUCCESS);
+    assert(mCatchupCompleteWork &&
+           mCatchupCompleteWork->getState() == WORK_SUCCESS);
+
+    CLOG(INFO, "History") << "CATCHUP_RECENT finished inner CATCHUP_COMPLETE";
+    // The second callback we make is CATCHUP_COMPLETE
+    mApp.getHistoryManager().historyCaughtup();
+    asio::error_code ec;
+    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
+    return WORK_SUCCESS;
+}
+
+void
+CatchupRecentWork::onFailureRaise()
+{
+    mApp.getHistoryManager().historyCaughtup();
+    asio::error_code ec = std::make_error_code(std::errc::timed_out);
+    mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
+}
 }
