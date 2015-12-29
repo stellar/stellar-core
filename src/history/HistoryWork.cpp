@@ -305,6 +305,7 @@ VerifyBucketWork::onSuccess()
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
     uint32_t first, uint32_t last, bool manualCatchup,
+    LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
@@ -312,6 +313,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mCurrSeq(first)
     , mLastSeq(last)
     , mManualCatchup(manualCatchup)
+    , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
 {
 }
@@ -330,6 +332,10 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
+    if (mFirstVerified.header.ledgerSeq != 0)
+    {
+        mFirstVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    }
     if (mLastVerified.header.ledgerSeq != 0)
     {
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
@@ -456,6 +462,10 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
+        if (mCurrSeq == mFirstSeq)
+        {
+            mFirstVerified = curr;
+        }
         mLastVerified = curr;
     }
 
@@ -743,11 +753,12 @@ BatchDownloadWork::notify(std::string const& childChanged)
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState, LedgerHeaderHistoryEntry& lastVerified)
+    HistoryArchiveState& applyState,
+    LedgerHeaderHistoryEntry const& firstVerified)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
-    , mLastVerified(lastVerified)
+    , mFirstVerified(firstVerified)
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
 {
@@ -874,7 +885,7 @@ ApplyBucketsWork::onSuccess()
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    getBucketList().restartMerges(mApp, mLastVerified.header.ledgerSeq);
+    getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
     return WORK_SUCCESS;
 }
 
@@ -882,14 +893,15 @@ ApplyBucketsWork::onSuccess()
 // Apply Ledger Chain
 ///////////////////////////////////////////////////////////////////////////
 
-ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
-                                           TmpDir const& downloadDir,
-                                           uint32_t first, uint32_t last)
+ApplyLedgerChainWork::ApplyLedgerChainWork(
+    Application& app, WorkParent& parent, TmpDir const& downloadDir,
+    uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
     , mCurrSeq(first)
     , mLastSeq(last)
+    , mLastApplied(lastApplied)
 {
 }
 
@@ -907,6 +919,11 @@ ApplyLedgerChainWork::getStatus() const
 void
 ApplyLedgerChainWork::onReset()
 {
+    if (mLastApplied.header.ledgerSeq != 0)
+    {
+        mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    }
+
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
@@ -1055,6 +1072,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     {
         throw std::runtime_error("replay produced mismatched ledger hash");
     }
+    mLastApplied = hHeader;
     return true;
 }
 
@@ -1346,7 +1364,8 @@ CatchupCompleteWork::onSuccess()
         CLOG(INFO, "History") << "Catchup COMPLETE verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
         mVerifyWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mLastVerified);
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            mLastVerified);
         return WORK_PENDING;
     }
 
@@ -1354,8 +1373,8 @@ CatchupCompleteWork::onSuccess()
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup COMPLETE applying history";
-        mApplyWork =
-            addWork<ApplyLedgerChainWork>(*mDownloadDir, firstSeq, lastSeq);
+        mApplyWork = addWork<ApplyLedgerChainWork>(*mDownloadDir, firstSeq,
+                                                   lastSeq, mLastApplied);
         return WORK_PENDING;
     }
 
@@ -1363,7 +1382,7 @@ CatchupCompleteWork::onSuccess()
                           << mNextLedger;
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
+    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
 
     return WORK_SUCCESS;
 }

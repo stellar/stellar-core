@@ -124,7 +124,7 @@ class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     HistoryArchiveState& mApplyState;
-    LedgerHeaderHistoryEntry& mLastVerified;
+    LedgerHeaderHistoryEntry const& mFirstVerified;
 
     bool mApplying;
     size_t mLevel;
@@ -141,7 +141,7 @@ class ApplyBucketsWork : public Work
     ApplyBucketsWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      HistoryArchiveState& applyState,
-                     LedgerHeaderHistoryEntry& lastVerified);
+                     LedgerHeaderHistoryEntry const& firstVerified);
 
     void onReset() override;
     void onStart() override;
@@ -204,6 +204,7 @@ class CatchupWork : public BucketDownloadWork
 {
   protected:
     HistoryArchiveState mRemoteState;
+    LedgerHeaderHistoryEntry mFirstVerified;
     LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
     uint32_t mInitLedger;
@@ -297,6 +298,7 @@ class VerifyLedgerChainWork : public Work
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
     bool mManualCatchup;
+    LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
@@ -305,6 +307,7 @@ class VerifyLedgerChainWork : public Work
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, uint32_t firstSeq,
                           uint32_t lastSeq, bool manualCatchup,
+                          LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     std::string getStatus() const override;
     void onReset() override;
@@ -320,6 +323,7 @@ class ApplyLedgerChainWork : public Work
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
+    LedgerHeaderHistoryEntry& mLastApplied;
 
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
@@ -328,7 +332,7 @@ class ApplyLedgerChainWork : public Work
   public:
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
                          TmpDir const& downloadDir, uint32_t first,
-                         uint32_t last);
+                         uint32_t last, LedgerHeaderHistoryEntry& lastApplied);
     std::string getStatus() const override;
     void onReset() override;
     void onStart() override;
