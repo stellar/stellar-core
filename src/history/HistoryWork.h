@@ -197,6 +197,7 @@ class BucketDownloadWork : public Work
                        std::string const& uniqueName,
                        HistoryArchiveState const& localState);
     void onReset() override;
+    void takeDownloadDir(BucketDownloadWork& other);
 };
 
 class CatchupWork : public BucketDownloadWork

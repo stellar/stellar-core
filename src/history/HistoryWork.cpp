@@ -678,7 +678,12 @@ BatchDownloadWork::addNextDownloadWorker()
     }
 
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
-    if (!fs::exists(ft.localPath_gz()) && !fs::exists(ft.localPath_nogz()))
+    if (fs::exists(ft.localPath_gz()) || fs::exists(ft.localPath_nogz()))
+    {
+        CLOG(DEBUG, "History") << "already have " << mFileType
+                               << " for checkpoint " << mNext;
+    }
+    else
     {
         CLOG(DEBUG, "History") << "Downloading " << mFileType
                                << " for checkpoint " << mNext;
@@ -1106,6 +1111,15 @@ BucketDownloadWork::onReset()
     mBuckets.clear();
     mDownloadDir =
         make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
+}
+
+void
+BucketDownloadWork::takeDownloadDir(BucketDownloadWork& other)
+{
+    if (other.mDownloadDir)
+    {
+        mDownloadDir = std::move(other.mDownloadDir);
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////
