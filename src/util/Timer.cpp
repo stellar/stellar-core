@@ -360,8 +360,9 @@ VirtualClock::advanceTo(time_point n)
     // Keep the dispatch loop separate from the pop()-ing loop
     // so the triggered events can't mutate the priority queue
     // from underneat us while we are looping.
-    for (auto ev : toDispatch)
+    for (auto rit = toDispatch.rbegin(); rit != toDispatch.rend(); ++rit)
     {
+        auto ev = *rit;
         ev->trigger();
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
