@@ -748,6 +748,15 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
 {
+    // Consistency check: LCL should be in the _past_ from firstVerified,
+    // since we're about to clobber a bunch of DB state with new buckets
+    // held in firstVerified's state.
+    auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
+    {
+        throw std::runtime_error(
+            "ApplyBucketsWork applying ledger earlier than local LCL");
+    }
 }
 
 BucketList&
