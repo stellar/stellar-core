@@ -1137,10 +1137,11 @@ BucketDownloadWork::takeDownloadDir(BucketDownloadWork& other)
 ///////////////////////////////////////////////////////////////////////////
 
 CatchupWork::CatchupWork(Application& app, WorkParent& parent,
-                         uint32_t initLedger, bool manualCatchup)
+                         uint32_t initLedger, std::string const& mode,
+                         bool manualCatchup)
     : BucketDownloadWork(
-          app, parent, fmt::format("catchup-{:08x}", initLedger),
-          app.getHistoryManager().getLastClosedHistoryArchiveState())
+        app, parent, fmt::format("catchup-{:s}-{:08x}", mode, initLedger),
+        app.getHistoryManager().getLastClosedHistoryArchiveState())
     , mInitLedger(initLedger)
     , mNextLedger(manualCatchup ? initLedger
                                 : app.getHistoryManager().nextCheckpointLedger(
@@ -1166,9 +1167,8 @@ CatchupWork::onReset()
 ///////////////////////////////////////////////////////////////////////////
 
 CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
-                                       uint32_t initLedger, bool manualCatchup,
-                                       handler endHandler)
-    : CatchupWork(app, parent, initLedger, manualCatchup)
+                                       uint32_t initLedger, bool manualCatchup, handler endHandler)
+    : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
     , mEndHandler(endHandler)
 {
 }
@@ -1309,7 +1309,7 @@ CatchupMinimalWork::onFailureRaise()
 CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
                                          bool manualCatchup, handler endHandler)
-    : CatchupWork(app, parent, initLedger, manualCatchup)
+    : CatchupWork(app, parent, initLedger, "complete", manualCatchup)
     , mEndHandler(endHandler)
 {
 }

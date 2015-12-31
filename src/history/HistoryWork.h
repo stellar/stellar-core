@@ -214,7 +214,7 @@ class CatchupWork : public BucketDownloadWork
 
   public:
     CatchupWork(Application& app, WorkParent& parent, uint32_t initLedger,
-                bool manualCatchup);
+                std::string const& mode, bool manualCatchup);
     virtual void onReset() override;
 };
 
