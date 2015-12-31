@@ -1143,11 +1143,23 @@ CatchupWork::CatchupWork(Application& app, WorkParent& parent,
         app, parent, fmt::format("catchup-{:s}-{:08x}", mode, initLedger),
         app.getHistoryManager().getLastClosedHistoryArchiveState())
     , mInitLedger(initLedger)
-    , mNextLedger(manualCatchup ? initLedger
-                                : app.getHistoryManager().nextCheckpointLedger(
-                                      initLedger))
     , mManualCatchup(manualCatchup)
 {
+}
+
+uint32_t
+CatchupWork::nextLedger() const
+{
+    return mManualCatchup
+        ? mInitLedger
+        : mApp.getHistoryManager().nextCheckpointLedger(mInitLedger);
+}
+
+
+uint32_t
+CatchupWork::lastCheckpointSeq() const
+{
+    return nextLedger() - 1;
 }
 
 void
@@ -1156,10 +1168,10 @@ CatchupWork::onReset()
     BucketDownloadWork::onReset();
     uint64_t sleepSeconds =
         mManualCatchup
-            ? 0
-            : mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
+        ? 0
+        : mApp.getHistoryManager().nextCheckpointCatchupProbe(lastCheckpointSeq());
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        mRemoteState, mNextLedger - 1, std::chrono::seconds(sleepSeconds));
+        mRemoteState, firstCheckpointSeq(), std::chrono::seconds(sleepSeconds));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1171,6 +1183,14 @@ CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
     : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
     , mEndHandler(endHandler)
 {
+}
+
+uint32_t
+CatchupMinimalWork::firstCheckpointSeq() const
+{
+    auto firstLedger = mInitLedger > mApp.getConfig().CATCHUP_RECENT ?
+        (mInitLedger - mApp.getConfig().CATCHUP_RECENT) : 0;
+    return mApp.getHistoryManager().nextCheckpointLedger(firstLedger) - 1;
 }
 
 std::string
@@ -1220,15 +1240,8 @@ CatchupMinimalWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    // NB: we might be in CATCHUP_RECENT mode here, in which case
-    // we need to download and verify more than just 1 ledger.
-    // We therefore calculate a firstSeq/lastSeq pair covering the
-    // plausible range we're being asked to look at; if CATCHUP_RECENT
-    // is 0 then this will just be [mNextLedger-1, mNextLedger-1].
-    auto firstSeq = mNextLedger - 1;
-    auto lastSeq = mApp.getHistoryManager().nextCheckpointLedger(
-                       mInitLedger + mApp.getConfig().CATCHUP_RECENT) -
-                   1;
+    auto firstSeq = firstCheckpointSeq();
+    auto lastSeq = lastCheckpointSeq();
 
     // Phase 2: download the ledger chain that validates the state
     // we're about to assume.
@@ -1285,8 +1298,10 @@ CatchupMinimalWork::onSuccess()
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup MINIMAL at nextLedger="
-                          << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
+                          << LedgerManager::ledgerAbbrev(mFirstVerified)
+                          << " for nextLedger="
+                          << nextLedger();
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mFirstVerified);
@@ -1343,6 +1358,14 @@ CatchupCompleteWork::getStatus() const
     return Work::getStatus();
 }
 
+uint32_t
+CatchupCompleteWork::firstCheckpointSeq() const
+{
+
+    auto firstLedger = mLocalState.currentLedger;
+    return mApp.getHistoryManager().nextCheckpointLedger(firstLedger) - 1;
+}
+
 void
 CatchupCompleteWork::onReset()
 {
@@ -1361,9 +1384,8 @@ CatchupCompleteWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    auto& hm = mApp.getHistoryManager();
-    uint32_t firstSeq = hm.nextCheckpointLedger(mLocalState.currentLedger) - 1;
-    uint32_t lastSeq = mRemoteState.currentLedger;
+    uint32_t firstSeq = firstCheckpointSeq();
+    uint32_t lastSeq = lastCheckpointSeq();
 
     // Phase 2: download and decompress the ledgers.
     if (!mDownloadLedgersWork)
@@ -1404,8 +1426,9 @@ CatchupCompleteWork::onSuccess()
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup COMPLETE at nextLedger="
-                          << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup COMPLETE to state "
+                          << LedgerManager::ledgerAbbrev(mLastApplied)
+                          << " for nextLedger=" << nextLedger();
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
@@ -1704,12 +1727,11 @@ RepairMissingBucketsWork::onFailureRaise()
 ///////////////////////////////////////////////////////////////////////////
 
 CatchupRecentWork::CatchupRecentWork(Application& app, WorkParent& parent,
-                                     uint32_t initLedger, uint32_t numLedgers,
+                                     uint32_t initLedger,
                                      bool manualCatchup, handler endHandler)
-    : Work(app, parent, fmt::format("catchup-recent-{:08x}-{:08x}",
-                                    initLedger - numLedgers, initLedger))
+    : Work(app, parent, fmt::format("catchup-recent-{:d}-from-{:08x}",
+                                    app.getConfig().CATCHUP_RECENT, initLedger))
     , mInitLedger(initLedger)
-    , mNumLedgers(numLedgers)
     , mManualCatchup(manualCatchup)
     , mEndHandler(endHandler)
 {
@@ -1784,7 +1806,7 @@ CatchupRecentWork::onSuccess()
         CLOG(INFO, "History")
             << "CATCHUP_RECENT starting inner CATCHUP_MINIMAL";
         mCatchupMinimalWork = addWork<CatchupMinimalWork>(
-            mInitLedger - mNumLedgers, mManualCatchup, writeFirstVerified());
+            mInitLedger, mManualCatchup, writeFirstVerified());
         return WORK_PENDING;
     }
 

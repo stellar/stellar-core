@@ -640,8 +640,7 @@ HistoryManagerImpl::catchupHistory(
     {
         CLOG(INFO, "History") << "Starting CatchupRecentWork";
         mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
-            initLedger, mApp.getConfig().CATCHUP_RECENT, manualCatchup,
-            handler);
+            initLedger, manualCatchup, handler);
     }
     else
     {
