@@ -915,11 +915,7 @@ ApplyLedgerChainWork::getStatus() const
 void
 ApplyLedgerChainWork::onReset()
 {
-    if (mLastApplied.header.ledgerSeq != 0)
-    {
-        mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    }
-
+    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
