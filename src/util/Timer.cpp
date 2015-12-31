@@ -360,9 +360,8 @@ VirtualClock::advanceTo(time_point n)
     // Keep the dispatch loop separate from the pop()-ing loop
     // so the triggered events can't mutate the priority queue
     // from underneat us while we are looping.
-    for (auto rit = toDispatch.rbegin(); rit != toDispatch.rend(); ++rit)
+    for (auto ev : toDispatch)
     {
-        auto ev = *rit;
         ev->trigger();
     }
     // LOG(DEBUG) << "VirtualClock::advanceTo done";
@@ -425,7 +424,7 @@ bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
     // expiry time). The "greatest" timer is timer 0.
-    return mWhen > other.mWhen;
+    return mWhen >= other.mWhen;
 }
 
 VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
