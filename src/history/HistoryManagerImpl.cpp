@@ -618,6 +618,18 @@ HistoryManagerImpl::catchupHistory(
 
     mCatchupStart.Mark();
 
+    // Avoid CATCHUP_RECENT if it's going to actually try to revert
+    // us to an earlier state of the ledger than the LCL; in that case
+    // we're close enough to the network to just run CATCHUP_COMPLETE.
+    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (mode == CATCHUP_RECENT &&
+        (initLedger > lcl.header.ledgerSeq) &&
+        (initLedger - lcl.header.ledgerSeq) <= mApp.getConfig().CATCHUP_RECENT)
+    {
+        mode = HistoryManager::CATCHUP_COMPLETE;
+    }
+
+
     if (mode == CATCHUP_MINIMAL)
     {
         CLOG(INFO, "History") << "Starting CatchupMinimalWork";
