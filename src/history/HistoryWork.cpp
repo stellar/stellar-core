@@ -697,6 +697,7 @@ BatchDownloadWork::onReset()
     mNext = mFirst;
     mRunning.clear();
     mFinished.clear();
+    clearChildren();
     size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
     while (mChildren.size() < nChildren && mNext <= mLast)
     {
