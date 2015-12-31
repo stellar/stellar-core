@@ -919,7 +919,7 @@ ApplyLedgerChainWork::onReset()
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
-                          << ((mLastSeq - mFirstSeq) / step)
+                          << (1 + ((mLastSeq - mFirstSeq) / step))
                           << " transaction-history files from LCL "
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
@@ -1292,7 +1292,8 @@ CatchupMinimalWork::onSuccess()
     // Phase 3: apply the buckets.
     if (!mApplyWork)
     {
-        CLOG(INFO, "History") << "Catchup MINIMAL applying buckets";
+        CLOG(INFO, "History") << "Catchup MINIMAL applying buckets for state "
+                              << LedgerManager::ledgerAbbrev(mFirstVerified);
         mApplyWork =
             addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mFirstVerified);
         return WORK_PENDING;
@@ -1742,13 +1743,13 @@ CatchupRecentWork::getStatus() const
 {
     if (mState == WORK_PENDING)
     {
+        if (mCatchupCompleteWork)
+        {
+            return mCatchupCompleteWork->getStatus();
+        }
         if (mCatchupMinimalWork)
         {
             return mCatchupMinimalWork->getStatus();
-        }
-        else if (mCatchupCompleteWork)
-        {
-            return mCatchupCompleteWork->getStatus();
         }
     }
     return Work::getStatus();
