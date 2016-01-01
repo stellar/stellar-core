@@ -157,12 +157,14 @@ class VirtualClock
 class VirtualClockEvent : public NonMovableOrCopyable
 {
     std::function<void(asio::error_code)> mCallback;
+    unsigned mSeq;
     bool mTriggered;
 
   public:
     VirtualClock::time_point mWhen;
     VirtualClockEvent(VirtualClock::time_point when,
-                      std::function<void(asio::error_code)> callback);
+                      std::function<void(asio::error_code)> callback,
+                      unsigned seq);
     bool getTriggered();
     void trigger();
     void cancel();
