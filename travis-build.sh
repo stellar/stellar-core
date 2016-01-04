@@ -34,7 +34,7 @@ llvm-symbolizer --version || true
 # Create postgres databases
 export PGUSER=postgres
 psql -c "create database test;"
-for i in $(seq 0 8)
+for i in $(seq 0 15)
 do
     psql -c "create database test$i;"
 done
