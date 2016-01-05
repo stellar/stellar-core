@@ -133,7 +133,7 @@ class HistoryTests
     Application::pointer
     catchupNewApplication(uint32_t initLedger, Config::TestDbMode dbMode,
                           HistoryManager::CatchupMode resumeMode,
-                          std::string const& appName);
+                          std::string const& appName, uint32_t recent = 80);
 
     bool catchupApplication(uint32_t initLedger,
                             HistoryManager::CatchupMode resumeMode,
@@ -375,7 +375,8 @@ Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
                                     Config::TestDbMode dbMode,
                                     HistoryManager::CatchupMode resumeMode,
-                                    std::string const& appName)
+                                    std::string const& appName,
+                                    uint32_t recent)
 {
 
     CLOG(INFO, "History") << "****";
@@ -385,6 +386,10 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
+    if (resumeMode == HistoryManager::CATCHUP_RECENT)
+    {
+        mCfgs.back().CATCHUP_RECENT = recent;
+    }
     Application::pointer app2 = Application::create(
         clock, mConfigurator->configure(mCfgs.back(), false));
 
@@ -601,6 +606,8 @@ resumeModeName(HistoryManager::CatchupMode mode)
         return "CATCHUP_MINIMAL";
     case HistoryManager::CATCHUP_COMPLETE:
         return "CATCHUP_COMPLETE";
+    case HistoryManager::CATCHUP_RECENT:
+        return "CATCHUP_RECENT";
     default:
         abort();
     }
@@ -634,7 +641,9 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     std::vector<Application::pointer> apps;
 
     std::vector<HistoryManager::CatchupMode> resumeModes = {
-        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE};
+        HistoryManager::CATCHUP_MINIMAL, HistoryManager::CATCHUP_COMPLETE,
+        HistoryManager::CATCHUP_RECENT,
+    };
 
     std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
                                                Config::TESTDB_ON_DISK_SQLITE};
@@ -966,4 +975,61 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     init = app.getLedgerManager().getLastClosedLedgerNum();
     caughtup = catchupApplication(init, HistoryManager::CATCHUP_COMPLETE, app2);
     assert(caughtup);
+}
+
+/*
+ * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
+ * cases.
+ */
+TEST_CASE_METHOD(HistoryTests, "Catchup recent",
+                 "[history][catchuprecent]")
+{
+    auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
+    auto catchupMode = HistoryManager::CATCHUP_RECENT;
+    std::vector<Application::pointer> apps;
+
+    generateAndPublishInitialHistory(3);
+
+    // Network has published 0x3f (63), 0x7f (127) and 0xbf (191)
+    // Network is currently sitting on ledger 0xc0 (192)
+    uint32_t initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+
+    // Check that isolated catchups work at a variety of boundary
+    // conditions relative to the size of a checkpoint:
+    std::vector<uint32_t> recents =
+        {
+            0, 1, 2,
+            31, 32, 33,
+            62, 63, 64, 65, 66,
+            126, 127, 128, 129, 130,
+            190, 191, 192, 193, 194,
+            1000
+        };
+
+    for (auto r : recents)
+    {
+        auto name = std::string("catchup-recent-") + std::to_string(r);
+        apps.push_back(catchupNewApplication(initLedger, dbMode,
+                                             catchupMode, name, r));
+    }
+
+    // Now push network along a little bit and see that they can all still
+    // catch up properly.
+    generateAndPublishHistory(2);
+    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+
+    for (auto a : apps)
+    {
+        catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
+    }
+
+    // Now push network along a _lot_ futher along see that they can all still
+    // catch up properly.
+    generateAndPublishHistory(25);
+    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+
+    for (auto a : apps)
+    {
+        catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
+    }
 }

@@ -39,7 +39,7 @@ EOF
 
 setup_test() {
     runpg || return 1
-    for i in $(seq 0 8) ''; do
+    for i in $(seq 0 15) ''; do
 	psql -c "create database test$i;"
     done
 }

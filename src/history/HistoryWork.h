@@ -117,6 +117,7 @@ class VerifyBucketWork : public Work
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      std::string const& bucketFile, uint256 const& hash);
     void onRun() override;
+    void onStart() override;
     Work::State onSuccess() override;
 };
 
@@ -124,7 +125,7 @@ class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     HistoryArchiveState& mApplyState;
-    LedgerHeaderHistoryEntry& mLastVerified;
+    LedgerHeaderHistoryEntry const& mFirstVerified;
 
     bool mApplying;
     size_t mLevel;
@@ -141,7 +142,7 @@ class ApplyBucketsWork : public Work
     ApplyBucketsWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      HistoryArchiveState& applyState,
-                     LedgerHeaderHistoryEntry& lastVerified);
+                     LedgerHeaderHistoryEntry const& firstVerified);
 
     void onReset() override;
     void onStart() override;
@@ -197,35 +198,44 @@ class BucketDownloadWork : public Work
                        std::string const& uniqueName,
                        HistoryArchiveState const& localState);
     void onReset() override;
+    void takeDownloadDir(BucketDownloadWork& other);
 };
 
 class CatchupWork : public BucketDownloadWork
 {
   protected:
     HistoryArchiveState mRemoteState;
+    LedgerHeaderHistoryEntry mFirstVerified;
     LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
-    uint32_t mInitLedger;
-    uint32_t mNextLedger;
-    bool mManualCatchup;
+    uint32_t const mInitLedger;
+    bool const mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+
+    uint32_t nextLedger() const;
+    virtual uint32_t firstCheckpointSeq() const = 0;
+    uint32_t lastCheckpointSeq() const;
 
   public:
     CatchupWork(Application& app, WorkParent& parent, uint32_t initLedger,
-                bool manualCatchup);
+                std::string const& mode, bool manualCatchup);
     virtual void onReset() override;
 };
 
 class CatchupMinimalWork : public CatchupWork
 {
-
+  public:
     typedef std::function<void(
         asio::error_code const& ec, HistoryManager::CatchupMode mode,
         LedgerHeaderHistoryEntry const& lastClosed)> handler;
 
-    std::shared_ptr<Work> mDownloadWork;
+  protected:
+    std::shared_ptr<Work> mDownloadLedgersWork;
+    std::shared_ptr<Work> mVerifyLedgersWork;
+    std::shared_ptr<Work> mDownloadBucketsWork;
     std::shared_ptr<Work> mApplyWork;
     handler mEndHandler;
+    virtual uint32_t firstCheckpointSeq() const;
 
   public:
     CatchupMinimalWork(Application& app, WorkParent& parent,
@@ -278,11 +288,43 @@ class CatchupCompleteWork : public CatchupWork
     std::shared_ptr<Work> mVerifyWork;
     std::shared_ptr<Work> mApplyWork;
     handler mEndHandler;
+    virtual uint32_t firstCheckpointSeq() const;
 
   public:
     CatchupCompleteWork(Application& app, WorkParent& parent,
                         uint32_t initLedger, bool manualCatchup,
                         handler endHandler);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+    void onFailureRaise() override;
+};
+
+// Catchup-recent is just a catchup-minimal to (now - N),
+// followed by a catchup-complete to now.
+class CatchupRecentWork : public Work
+{
+  public:
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& ledger)> handler;
+
+  protected:
+    std::shared_ptr<Work> mCatchupMinimalWork;
+    std::shared_ptr<Work> mCatchupCompleteWork;
+    uint32_t mInitLedger;
+    bool mManualCatchup;
+    handler mEndHandler;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastApplied;
+
+    handler writeFirstVerified();
+    handler writeLastApplied();
+
+  public:
+    CatchupRecentWork(Application& app, WorkParent& parent,
+                      uint32_t initLedger, bool manualCatchup,
+                      handler endHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
@@ -296,6 +338,7 @@ class VerifyLedgerChainWork : public Work
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
     bool mManualCatchup;
+    LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
@@ -304,6 +347,7 @@ class VerifyLedgerChainWork : public Work
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, uint32_t firstSeq,
                           uint32_t lastSeq, bool manualCatchup,
+                          LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     std::string getStatus() const override;
     void onReset() override;
@@ -319,6 +363,7 @@ class ApplyLedgerChainWork : public Work
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
+    LedgerHeaderHistoryEntry& mLastApplied;
 
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
@@ -327,7 +372,7 @@ class ApplyLedgerChainWork : public Work
   public:
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
                          TmpDir const& downloadDir, uint32_t first,
-                         uint32_t last);
+                         uint32_t last, LedgerHeaderHistoryEntry& lastApplied);
     std::string getStatus() const override;
     void onReset() override;
     void onStart() override;
@@ -352,6 +397,7 @@ class WriteSnapshotWork : public Work
   public:
     WriteSnapshotWork(Application& app, WorkParent& parent,
                       std::shared_ptr<StateSnapshot> snapshot);
+    void onStart() override;
     void onRun() override;
 };
 

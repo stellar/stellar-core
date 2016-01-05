@@ -34,6 +34,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     RUN_STANDALONE = false;
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
+    CATCHUP_RECENT = 0;
     MAINTENANCE_ON_STARTUP = true;
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
@@ -269,6 +270,19 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid CATCHUP_COMPLETE");
                 }
                 CATCHUP_COMPLETE = item.second->as<bool>()->value();
+            }
+            else if (item.first == "CATCHUP_RECENT")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid CATCHUP_RECENT");
+                }
+                int64_t r = item.second->as<int64_t>()->value();
+                if (r < 0 || r >= UINT32_MAX)
+                {
+                    throw std::invalid_argument("invalid CATCHUP_RECENT");
+                }
+                CATCHUP_RECENT = r;
             }
             else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
             {

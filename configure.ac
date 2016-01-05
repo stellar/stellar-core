@@ -22,6 +22,9 @@ if test -z "${WFLAGS+set}"; then
    # output without this
    WFLAGS="$WFLAGS -Wno-unused-local-typedef"
 
+   # Also don't _further_ warn if the previous warning flag was unknown
+   WFLAGS="$WFLAGS -Wno-unknown-warning-option"
+
    # We want to consider unused MUST_USE results as errors
    WFLAGS="$WFLAGS -Werror=unused-result"
 fi

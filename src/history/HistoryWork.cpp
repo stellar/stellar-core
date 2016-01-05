@@ -33,16 +33,24 @@ fmtProgress(Application& app, std::string const& task, uint32_t first,
             uint32_t last, uint32_t curr)
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();
+    if (curr > last)
+    {
+        curr = last;
+    }
+    if (curr < first)
+    {
+        curr = first;
+    }
     if (step == 0)
     {
         step = 1;
     }
-    auto done = (curr - first) / step;
-    auto total = (last - first) / step;
-    if (total == 0)
+    if (last < first)
     {
-        total = 1;
+        last = first;
     }
+    auto done = 1 + ((curr - first) / step);
+    auto total = 1 + ((last - first) / step);
     auto pct = (100 * done) / total;
     return fmt::format("{:s} {:d}/{:d} ({:d}%)", task, done, total, pct);
 }
@@ -240,7 +248,7 @@ VerifyBucketWork::VerifyBucketWork(
 }
 
 void
-VerifyBucketWork::onRun()
+VerifyBucketWork::onStart()
 {
     std::string filename = mBucketFile;
     uint256 hash = mHash;
@@ -286,6 +294,12 @@ VerifyBucketWork::onRun()
         });
 }
 
+void
+VerifyBucketWork::onRun()
+{
+    // Do nothing: we spawned the verifier in onStart().
+}
+
 Work::State
 VerifyBucketWork::onSuccess()
 {
@@ -297,6 +311,7 @@ VerifyBucketWork::onSuccess()
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
     uint32_t first, uint32_t last, bool manualCatchup,
+    LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
@@ -304,6 +319,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mCurrSeq(first)
     , mLastSeq(last)
     , mManualCatchup(manualCatchup)
+    , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
 {
 }
@@ -322,6 +338,10 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
+    if (mFirstVerified.header.ledgerSeq != 0)
+    {
+        mFirstVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    }
     if (mLastVerified.header.ledgerSeq != 0)
     {
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
@@ -373,57 +393,43 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     LedgerHeaderHistoryEntry prev = mLastVerified;
     LedgerHeaderHistoryEntry curr;
 
-    // If we're in CATCHUP_MINIMAL mode, mLastVerified is blank and we are
-    // just going to scan to the end, check that it has the right sequence
-    // number and accept it. If we're in CATCHUP_COMPLETE mode, mLastVerified
-    // is nonzero and we are going to verify the entire chain from there to
-    // mLastSeq.
+    CLOG(DEBUG, "History") << "Verifying ledger headers from "
+                           << ft.localPath_nogz() << " starting from ledger "
+                           << LedgerManager::ledgerAbbrev(prev);
 
-    if (prev.header.ledgerSeq == 0)
+    while (hdrIn && hdrIn.readOne(curr))
     {
-        CLOG(INFO, "History") << "Loading final ledger header from "
-                              << ft.localPath_nogz();
-        bool readOne = false;
-        while (hdrIn && hdrIn.readOne(curr))
+
+        if (prev.header.ledgerSeq == 0)
         {
-            readOne = true;
+            // When we have no previous state to connect up with
+            // (eg. starting somewhere mid-chain like in CATCHUP_MINIMAL)
+            // we just accept the first chain entry we see. We will
+            // verify the chain continuously from here, and against the
+            // live network.
+            prev = curr;
+            continue;
         }
-        if (!readOne)
+
+        uint32_t expectedSeq = prev.header.ledgerSeq + 1;
+        if (curr.header.ledgerSeq < expectedSeq)
         {
-            CLOG(ERROR, "History") << "Empty ledger history file "
-                                   << ft.localPath_nogz();
+            // Harmless prehistory
+            continue;
+        }
+        else if (curr.header.ledgerSeq > expectedSeq)
+        {
+            CLOG(ERROR, "History")
+                << "History chain overshot expected ledger seq " << expectedSeq
+                << ", got " << curr.header.ledgerSeq << " instead";
             return HistoryManager::VERIFY_HASH_BAD;
         }
-    }
-    else
-    {
-        CLOG(DEBUG, "History")
-            << "Verifying ledger headers from " << ft.localPath_nogz()
-            << " starting from ledger " << LedgerManager::ledgerAbbrev(prev);
-
-        while (hdrIn && hdrIn.readOne(curr))
+        if (verifyLedgerHistoryLink(prev.hash, curr) !=
+            HistoryManager::VERIFY_HASH_OK)
         {
-            uint32_t expectedSeq = prev.header.ledgerSeq + 1;
-            if (curr.header.ledgerSeq < expectedSeq)
-            {
-                // Harmless prehistory
-                continue;
-            }
-            else if (curr.header.ledgerSeq > expectedSeq)
-            {
-                CLOG(ERROR, "History")
-                    << "History chain overshot expected ledger seq "
-                    << expectedSeq << ", got " << curr.header.ledgerSeq
-                    << " instead";
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            if (verifyLedgerHistoryLink(prev.hash, curr) !=
-                HistoryManager::VERIFY_HASH_OK)
-            {
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
-            prev = curr;
+            return HistoryManager::VERIFY_HASH_BAD;
         }
+        prev = curr;
     }
 
     if (curr.header.ledgerSeq != mCurrSeq)
@@ -448,6 +454,10 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
+        if (mCurrSeq == mFirstSeq)
+        {
+            mFirstVerified = curr;
+        }
         mLastVerified = curr;
     }
 
@@ -670,7 +680,12 @@ BatchDownloadWork::addNextDownloadWorker()
     }
 
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
-    if (!fs::exists(ft.localPath_gz()) && !fs::exists(ft.localPath_nogz()))
+    if (fs::exists(ft.localPath_gz()) || fs::exists(ft.localPath_nogz()))
+    {
+        CLOG(DEBUG, "History") << "already have " << mFileType
+                               << " for checkpoint " << mNext;
+    }
+    else
     {
         CLOG(DEBUG, "History") << "Downloading " << mFileType
                                << " for checkpoint " << mNext;
@@ -688,6 +703,7 @@ BatchDownloadWork::onReset()
     mNext = mFirst;
     mRunning.clear();
     mFinished.clear();
+    clearChildren();
     size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
     while (mChildren.size() < nChildren && mNext <= mLast)
     {
@@ -730,14 +746,24 @@ BatchDownloadWork::notify(std::string const& childChanged)
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState, LedgerHeaderHistoryEntry& lastVerified)
+    HistoryArchiveState& applyState,
+    LedgerHeaderHistoryEntry const& firstVerified)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
-    , mLastVerified(lastVerified)
+    , mFirstVerified(firstVerified)
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
 {
+    // Consistency check: LCL should be in the _past_ from firstVerified,
+    // since we're about to clobber a bunch of DB state with new buckets
+    // held in firstVerified's state.
+    auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
+    {
+        throw std::runtime_error(
+            "ApplyBucketsWork applying ledger earlier than local LCL");
+    }
 }
 
 BucketList&
@@ -861,7 +887,7 @@ ApplyBucketsWork::onSuccess()
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    getBucketList().restartMerges(mApp, mLastVerified.header.ledgerSeq);
+    getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
     return WORK_SUCCESS;
 }
 
@@ -869,14 +895,15 @@ ApplyBucketsWork::onSuccess()
 // Apply Ledger Chain
 ///////////////////////////////////////////////////////////////////////////
 
-ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
-                                           TmpDir const& downloadDir,
-                                           uint32_t first, uint32_t last)
+ApplyLedgerChainWork::ApplyLedgerChainWork(
+    Application& app, WorkParent& parent, TmpDir const& downloadDir,
+    uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
     , mCurrSeq(first)
     , mLastSeq(last)
+    , mLastApplied(lastApplied)
 {
 }
 
@@ -894,10 +921,11 @@ ApplyLedgerChainWork::getStatus() const
 void
 ApplyLedgerChainWork::onReset()
 {
+    mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
-                          << ((mLastSeq - mFirstSeq) / step)
+                          << (1 + ((mLastSeq - mFirstSeq) / step))
                           << " transaction-history files from LCL "
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
@@ -1042,6 +1070,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     {
         throw std::runtime_error("replay produced mismatched ledger hash");
     }
+    mLastApplied = hHeader;
     return true;
 }
 
@@ -1100,21 +1129,43 @@ BucketDownloadWork::onReset()
         make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
 }
 
+void
+BucketDownloadWork::takeDownloadDir(BucketDownloadWork& other)
+{
+    if (other.mDownloadDir)
+    {
+        mDownloadDir = std::move(other.mDownloadDir);
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////
 // Catchup
 ///////////////////////////////////////////////////////////////////////////
 
 CatchupWork::CatchupWork(Application& app, WorkParent& parent,
-                         uint32_t initLedger, bool manualCatchup)
+                         uint32_t initLedger, std::string const& mode,
+                         bool manualCatchup)
     : BucketDownloadWork(
-          app, parent, fmt::format("catchup-{:08x}", initLedger),
-          app.getHistoryManager().getLastClosedHistoryArchiveState())
+        app, parent, fmt::format("catchup-{:s}-{:08x}", mode, initLedger),
+        app.getHistoryManager().getLastClosedHistoryArchiveState())
     , mInitLedger(initLedger)
-    , mNextLedger(manualCatchup ? initLedger
-                                : app.getHistoryManager().nextCheckpointLedger(
-                                      initLedger))
     , mManualCatchup(manualCatchup)
 {
+}
+
+uint32_t
+CatchupWork::nextLedger() const
+{
+    return mManualCatchup
+        ? mInitLedger
+        : mApp.getHistoryManager().nextCheckpointLedger(mInitLedger);
+}
+
+
+uint32_t
+CatchupWork::lastCheckpointSeq() const
+{
+    return nextLedger() - 1;
 }
 
 void
@@ -1123,10 +1174,10 @@ CatchupWork::onReset()
     BucketDownloadWork::onReset();
     uint64_t sleepSeconds =
         mManualCatchup
-            ? 0
-            : mApp.getHistoryManager().nextCheckpointCatchupProbe(mInitLedger);
+        ? 0
+        : mApp.getHistoryManager().nextCheckpointCatchupProbe(lastCheckpointSeq());
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        mRemoteState, mNextLedger - 1, std::chrono::seconds(sleepSeconds));
+        mRemoteState, firstCheckpointSeq(), std::chrono::seconds(sleepSeconds));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1134,11 +1185,18 @@ CatchupWork::onReset()
 ///////////////////////////////////////////////////////////////////////////
 
 CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
-                                       uint32_t initLedger, bool manualCatchup,
-                                       handler endHandler)
-    : CatchupWork(app, parent, initLedger, manualCatchup)
+                                       uint32_t initLedger, bool manualCatchup, handler endHandler)
+    : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
     , mEndHandler(endHandler)
 {
+}
+
+uint32_t
+CatchupMinimalWork::firstCheckpointSeq() const
+{
+    auto firstLedger = mInitLedger > mApp.getConfig().CATCHUP_RECENT ?
+        (mInitLedger - mApp.getConfig().CATCHUP_RECENT) : 0;
+    return mApp.getHistoryManager().nextCheckpointLedger(firstLedger) - 1;
 }
 
 std::string
@@ -1150,9 +1208,17 @@ CatchupMinimalWork::getStatus() const
         {
             return mApplyWork->getStatus();
         }
-        else if (mDownloadWork)
+        else if (mDownloadBucketsWork)
         {
-            return mDownloadWork->getStatus();
+            return mDownloadBucketsWork->getStatus();
+        }
+        else if (mVerifyLedgersWork)
+        {
+            return mVerifyLedgersWork->getStatus();
+        }
+        else if (mDownloadLedgersWork)
+        {
+            return mDownloadLedgersWork->getStatus();
         }
         else if (mGetHistoryArchiveStateWork)
         {
@@ -1166,7 +1232,9 @@ void
 CatchupMinimalWork::onReset()
 {
     CatchupWork::onReset();
-    mDownloadWork.reset();
+    mDownloadLedgersWork.reset();
+    mVerifyLedgersWork.reset();
+    mDownloadBucketsWork.reset();
     mApplyWork.reset();
 }
 
@@ -1178,53 +1246,72 @@ CatchupMinimalWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    // Phase 2: select and download the buckets themselves.
-    if (!mDownloadWork)
+    auto firstSeq = firstCheckpointSeq();
+    auto lastSeq = lastCheckpointSeq();
+
+    // Phase 2: download the ledger chain that validates the state
+    // we're about to assume.
+    if (!mDownloadLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup MINIMAL downloading buckets";
-        mDownloadWork = addWork<Work>("download buckets");
+        CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
+        mDownloadLedgersWork = addWork<BatchDownloadWork>(
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+        return WORK_PENDING;
+    }
+
+    // Phase 3: Verify the ledger chain
+    if (!mVerifyLedgersWork)
+    {
+        CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
+        mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            mLastVerified);
+        return WORK_PENDING;
+    }
+
+    // Phase 4: download and verify the buckets themselves.
+    if (!mDownloadBucketsWork)
+    {
+        CLOG(INFO, "History")
+            << "Catchup MINIMAL downloading and verifying buckets";
         std::vector<std::string> buckets =
             mRemoteState.differingBuckets(mLocalState);
+        mDownloadBucketsWork = addWork<Work>("download and verify buckets");
         for (auto const& hash : buckets)
         {
             FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
             // Each bucket gets its own work-chain of download->gunzip->verify
 
-            auto verify = mDownloadWork->addWork<VerifyBucketWork>(
+            auto verify = mDownloadBucketsWork->addWork<VerifyBucketWork>(
                 mBuckets, ft.localPath_nogz(), hexToBin256(hash));
             auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
             gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
                                                ft.localPath_gz());
         }
-        // ... as well as the last ledger-history file (for its final state).
-        {
-            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
-                                mRemoteState.currentLedger);
-            auto verify = mDownloadWork->addWork<VerifyLedgerChainWork>(
-                *mDownloadDir, mNextLedger - 1, mNextLedger - 1, mManualCatchup,
-                mLastVerified);
-            auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
-                                               ft.localPath_gz());
-        }
         return WORK_PENDING;
     }
-    assert(mDownloadWork->getState() == WORK_SUCCESS);
+
+    assert(mDownloadLedgersWork->getState() == WORK_SUCCESS);
+    assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);
+    assert(mDownloadBucketsWork->getState() == WORK_SUCCESS);
 
     // Phase 3: apply the buckets.
     if (!mApplyWork)
     {
-        CLOG(INFO, "History") << "Catchup MINIMAL applying buckets";
+        CLOG(INFO, "History") << "Catchup MINIMAL applying buckets for state "
+                              << LedgerManager::ledgerAbbrev(mFirstVerified);
         mApplyWork =
-            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mLastVerified);
+            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mFirstVerified);
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup MINIMAL at nextLedger="
-                          << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
+                          << LedgerManager::ledgerAbbrev(mFirstVerified)
+                          << " for nextLedger="
+                          << nextLedger();
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
+    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mFirstVerified);
 
     return WORK_SUCCESS;
 }
@@ -1244,7 +1331,7 @@ CatchupMinimalWork::onFailureRaise()
 CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
                                          bool manualCatchup, handler endHandler)
-    : CatchupWork(app, parent, initLedger, manualCatchup)
+    : CatchupWork(app, parent, initLedger, "complete", manualCatchup)
     , mEndHandler(endHandler)
 {
 }
@@ -1278,6 +1365,14 @@ CatchupCompleteWork::getStatus() const
     return Work::getStatus();
 }
 
+uint32_t
+CatchupCompleteWork::firstCheckpointSeq() const
+{
+
+    auto firstLedger = mLocalState.currentLedger;
+    return mApp.getHistoryManager().nextCheckpointLedger(firstLedger) - 1;
+}
+
 void
 CatchupCompleteWork::onReset()
 {
@@ -1296,14 +1391,14 @@ CatchupCompleteWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    auto& hm = mApp.getHistoryManager();
-    uint32_t firstSeq = hm.nextCheckpointLedger(mLocalState.currentLedger) - 1;
-    uint32_t lastSeq = mRemoteState.currentLedger;
+    uint32_t firstSeq = firstCheckpointSeq();
+    uint32_t lastSeq = lastCheckpointSeq();
 
     // Phase 2: download and decompress the ledgers.
     if (!mDownloadLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers";
+        CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers ["
+                              << firstSeq << ", " << lastSeq << "]";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
             firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
         return WORK_PENDING;
@@ -1324,7 +1419,8 @@ CatchupCompleteWork::onSuccess()
         CLOG(INFO, "History") << "Catchup COMPLETE verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
         mVerifyWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mLastVerified);
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            mLastVerified);
         return WORK_PENDING;
     }
 
@@ -1332,16 +1428,17 @@ CatchupCompleteWork::onSuccess()
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup COMPLETE applying history";
-        mApplyWork =
-            addWork<ApplyLedgerChainWork>(*mDownloadDir, firstSeq, lastSeq);
+        mApplyWork = addWork<ApplyLedgerChainWork>(*mDownloadDir, firstSeq,
+                                                   lastSeq, mLastApplied);
         return WORK_PENDING;
     }
 
-    CLOG(INFO, "History") << "Completed catchup COMPLETE at nextLedger="
-                          << mNextLedger;
+    CLOG(INFO, "History") << "Completed catchup COMPLETE to state "
+                          << LedgerManager::ledgerAbbrev(mLastApplied)
+                          << " for nextLedger=" << nextLedger();
     mApp.getHistoryManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
+    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
 
     return WORK_SUCCESS;
 }
@@ -1390,7 +1487,7 @@ WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
 }
 
 void
-WriteSnapshotWork::onRun()
+WriteSnapshotWork::onStart()
 {
     auto handler = callComplete();
     auto snap = mSnapshot;
@@ -1417,6 +1514,12 @@ WriteSnapshotWork::onRun()
     {
         work();
     }
+}
+
+void
+WriteSnapshotWork::onRun()
+{
+    // Do nothing: we spawned the writer in onStart().
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -1630,5 +1733,143 @@ RepairMissingBucketsWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::io_error);
     mEndHandler(ec);
+}
+
+///////////////////////////////////////////////////////////////////////////
+// CatchupRecentWork
+///////////////////////////////////////////////////////////////////////////
+
+CatchupRecentWork::CatchupRecentWork(Application& app, WorkParent& parent,
+                                     uint32_t initLedger,
+                                     bool manualCatchup, handler endHandler)
+    : Work(app, parent, fmt::format("catchup-recent-{:d}-from-{:08x}",
+                                    app.getConfig().CATCHUP_RECENT, initLedger))
+    , mInitLedger(initLedger)
+    , mManualCatchup(manualCatchup)
+    , mEndHandler(endHandler)
+{
+}
+
+std::string
+CatchupRecentWork::getStatus() const
+{
+    if (mState == WORK_PENDING)
+    {
+        if (mCatchupCompleteWork)
+        {
+            return mCatchupCompleteWork->getStatus();
+        }
+        if (mCatchupMinimalWork)
+        {
+            return mCatchupMinimalWork->getStatus();
+        }
+    }
+    return Work::getStatus();
+}
+
+void
+CatchupRecentWork::onReset()
+{
+    clearChildren();
+    mCatchupMinimalWork.reset();
+    mCatchupCompleteWork.reset();
+    mFirstVerified = LedgerHeaderHistoryEntry();
+    mLastApplied = LedgerHeaderHistoryEntry();
+}
+
+CatchupRecentWork::handler
+CatchupRecentWork::writeFirstVerified()
+{
+    std::weak_ptr<CatchupRecentWork> weak =
+        std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
+    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+                  LedgerHeaderHistoryEntry const& ledger)
+    {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->mFirstVerified = ledger;
+    };
+}
+
+CatchupRecentWork::handler
+CatchupRecentWork::writeLastApplied()
+{
+    std::weak_ptr<CatchupRecentWork> weak =
+        std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
+    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+                  LedgerHeaderHistoryEntry const& ledger)
+    {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->mLastApplied = ledger;
+    };
+}
+
+Work::State
+CatchupRecentWork::onSuccess()
+{
+    if (!mCatchupMinimalWork)
+    {
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT starting inner CATCHUP_MINIMAL";
+        mCatchupMinimalWork = addWork<CatchupMinimalWork>(
+            mInitLedger, mManualCatchup, writeFirstVerified());
+        return WORK_PENDING;
+    }
+
+    if (!mCatchupCompleteWork)
+    {
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT finished inner CATCHUP_MINIMAL";
+        assert(mCatchupMinimalWork &&
+               mCatchupMinimalWork->getState() == WORK_SUCCESS);
+        // We make an initial callback in mode CATCHUP_RECENT, to drive the
+        // CATCHUP_MINIMAL LCL we just got through to the LM, and prepare
+        // it for the upcoming CATCHUP_COMPLETE replay.
+        asio::error_code ec;
+        mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
+
+        CLOG(INFO, "History")
+            << "CATCHUP_RECENT starting inner CATCHUP_COMPLETE";
+        // Now make a CATCHUP_COMPLETE inner worker, for replay.
+        mCatchupCompleteWork = addWork<CatchupCompleteWork>(
+            mInitLedger, mManualCatchup, writeLastApplied());
+
+        // Transfer the download dir used by the minimal catchup to the
+        // complete catchup, to avoid re-downloading the ledger history.
+        auto minimal =
+            std::static_pointer_cast<CatchupMinimalWork>(mCatchupMinimalWork);
+        auto complete =
+            std::static_pointer_cast<CatchupCompleteWork>(mCatchupCompleteWork);
+        complete->takeDownloadDir(*minimal);
+
+        return WORK_PENDING;
+    }
+
+    assert(mCatchupMinimalWork &&
+           mCatchupMinimalWork->getState() == WORK_SUCCESS);
+    assert(mCatchupCompleteWork &&
+           mCatchupCompleteWork->getState() == WORK_SUCCESS);
+
+    CLOG(INFO, "History") << "CATCHUP_RECENT finished inner CATCHUP_COMPLETE";
+    // The second callback we make is CATCHUP_COMPLETE
+    mApp.getHistoryManager().historyCaughtup();
+    asio::error_code ec;
+    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
+    return WORK_SUCCESS;
+}
+
+void
+CatchupRecentWork::onFailureRaise()
+{
+    mApp.getHistoryManager().historyCaughtup();
+    asio::error_code ec = std::make_error_code(std::errc::timed_out);
+    mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
 }
 }
