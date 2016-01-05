@@ -117,6 +117,7 @@ class VerifyBucketWork : public Work
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      std::string const& bucketFile, uint256 const& hash);
     void onRun() override;
+    void onStart() override;
     Work::State onSuccess() override;
 };
 
@@ -396,6 +397,7 @@ class WriteSnapshotWork : public Work
   public:
     WriteSnapshotWork(Application& app, WorkParent& parent,
                       std::shared_ptr<StateSnapshot> snapshot);
+    void onStart() override;
     void onRun() override;
 };
 

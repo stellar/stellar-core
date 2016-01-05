@@ -1032,6 +1032,4 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent",
     {
         catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
     }
-
-
 }

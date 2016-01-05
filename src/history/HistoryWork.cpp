@@ -248,7 +248,7 @@ VerifyBucketWork::VerifyBucketWork(
 }
 
 void
-VerifyBucketWork::onRun()
+VerifyBucketWork::onStart()
 {
     std::string filename = mBucketFile;
     uint256 hash = mHash;
@@ -292,6 +292,12 @@ VerifyBucketWork::onRun()
                                                    handler(ec);
                                                });
         });
+}
+
+void
+VerifyBucketWork::onRun()
+{
+    // Do nothing: we spawned the verifier in onStart().
 }
 
 Work::State
@@ -1481,7 +1487,7 @@ WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
 }
 
 void
-WriteSnapshotWork::onRun()
+WriteSnapshotWork::onStart()
 {
     auto handler = callComplete();
     auto snap = mSnapshot;
@@ -1508,6 +1514,12 @@ WriteSnapshotWork::onRun()
     {
         work();
     }
+}
+
+void
+WriteSnapshotWork::onRun()
+{
+    // Do nothing: we spawned the writer in onStart().
 }
 
 ///////////////////////////////////////////////////////////////////////////

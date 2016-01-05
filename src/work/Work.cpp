@@ -225,10 +225,16 @@ Work::advance()
     advanceChildren();
     if (allChildrenSuccessful())
     {
+        CLOG(DEBUG, "Work") << "all " << mChildren.size()
+                            << " children of " << getUniqueName()
+                            << " successful, scheduling run";
         scheduleRun();
     }
     else if (anyChildRaiseFailure())
     {
+        CLOG(DEBUG, "Work") << "some of " << mChildren.size()
+                            << " children of " << getUniqueName()
+                            << " successful, scheduling failure";
         scheduleFailure();
     }
 }
@@ -270,6 +276,8 @@ Work::complete(asio::error_code const& ec)
     {
     case WORK_SUCCESS:
         succ.Mark();
+        CLOG(DEBUG, "Work")
+            << "notifying parent of successful " << getUniqueName();
         notifyParent();
         break;
 
@@ -282,6 +290,8 @@ Work::complete(asio::error_code const& ec)
     case WORK_FAILURE_RAISE:
         fail.Mark();
         onFailureRaise();
+        CLOG(DEBUG, "Work")
+            << "notifying parent of failed " << getUniqueName();
         notifyParent();
         break;
 
