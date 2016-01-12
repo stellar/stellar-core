@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include "history/InferredQuorum.h"
 #include "history/HistoryArchive.h"
 #include <functional>
 #include <memory>
@@ -349,6 +350,9 @@ class HistoryManager
 
     // Return the HistoryArchiveState of the LedgerManager's LCL
     virtual HistoryArchiveState getLastClosedHistoryArchiveState() const = 0;
+
+    // Infer a quorum set by reading SCP messages in history archives.
+    virtual InferredQuorum inferQuorum() = 0;
 
     // Return the name of the HistoryManager's tmpdir (used for storing files in
     // transit).
