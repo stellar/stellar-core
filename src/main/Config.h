@@ -179,6 +179,7 @@ class Config : public std::enable_shared_from_this<Config>
     void load(std::string const& filename);
 
     std::string toShortString(PublicKey const& pk) const;
+    std::string toStrKey(PublicKey const& pk, bool& isAlias) const;
     std::string toStrKey(PublicKey const& pk) const;
     bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
 };
