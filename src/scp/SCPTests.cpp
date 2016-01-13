@@ -390,18 +390,10 @@ TEST_CASE("sane quorum set", "[scp]")
     SIMULATION_CREATE_NODE(2);
     SIMULATION_CREATE_NODE(3);
 
-    auto expandQSet = [&](SCPQuorumSet const& qSet)
-    {
-        SCPQuorumSet res;
-        res.threshold = 2;
-        res.validators.emplace_back(v0NodeID);
-        res.innerSets.emplace_back(qSet);
-        return res;
-    };
-
     auto check = [&](SCPQuorumSet const& qSetCheck, bool expected,
-                     bool expectedSelf, SCPQuorumSet const& expectedSelfQSet)
+                     SCPQuorumSet const& expectedSelfQSet)
     {
+        // first, without normalization
         {
             SCPQuorumSet localSet;
             localSet.threshold = 1;
@@ -410,17 +402,17 @@ TEST_CASE("sane quorum set", "[scp]")
 
             TestSCP scp(v100SecretKey, localSet);
 
-            REQUIRE(
-                expected ==
-                scp.mSCP.getLocalNode()->isQuorumSetSane(v0NodeID, qSetCheck));
+            REQUIRE(expected ==
+                    scp.mSCP.getLocalNode()->isQuorumSetSane(qSetCheck, false));
         }
         // secondary test: attempts to build local node with the set
+        // (this normalizes the set)
         TestSCP scp(v0SecretKey, qSetCheck);
 
         bool selfIsSane = scp.mSCP.getLocalNode()->isQuorumSetSane(
-            v0NodeID, scp.mSCP.getLocalNode()->getQuorumSet());
+            scp.mSCP.getLocalNode()->getQuorumSet(), false);
 
-        REQUIRE(expectedSelf == selfIsSane);
+        REQUIRE(expected == selfIsSane);
         auto actualQSet = scp.mSCP.getLocalNode()->getQuorumSet();
         REQUIRE(expectedSelfQSet == actualQSet);
     };
@@ -430,63 +422,69 @@ TEST_CASE("sane quorum set", "[scp]")
     qSet.threshold = 0;
     qSet.validators.push_back(v0NodeID);
 
-    SCPQuorumSet expectedQSet;
-    expectedQSet.threshold = 1;
-    expectedQSet.validators.push_back(v0NodeID);
-
-    check(qSet, false, true, expectedQSet);
+    // { t: 0, v0 }
+    check(qSet, false, qSet);
 
     qSet.threshold = 2;
     SCPQuorumSet qSetCheck2;
-    qSetCheck2.threshold = 1;
-    check(qSet, false, false, expandQSet(qSetCheck2));
+    qSetCheck2 = qSet;
+    // { t: 2, v0 }
+    check(qSet, false, qSetCheck2);
 
     qSet.threshold = 1;
-    expectedQSet.threshold = 1;
-    check(qSet, true, true, qSet);
+    // { t: 1, v0 }
+    check(qSet, true, qSet);
 
+    // { t: 1, v0, { t: 1, v1 } }
+    // -> { t:1, v0, v1 }
     SCPQuorumSet qSet2;
-    qSet2.threshold = 1;
-    qSet2.validators.push_back(v1NodeID);
+    qSet2 = qSet;
+    {
+        SCPQuorumSet qSetV1;
+        qSetV1.threshold = 1;
+        qSetV1.validators.push_back(v1NodeID);
+        qSet2.innerSets.push_back(qSetV1);
+    }
 
-    SCPQuorumSet qSet2_no0 = qSet2;
+    SCPQuorumSet qSetV0V1;
+    qSetV0V1 = qSet;
+    qSetV0V1.validators.push_back(v1NodeID);
+    check(qSet2, true, qSetV0V1);
 
-    check(qSet2, false, true, expandQSet(qSet2_no0));
+    // { t: 1, v0, { t: 1, v1 }, { t: 2, v2 } }
+    // -> { t:1, v0, v1, { t: 2, v2 } }
+    {
+        SCPQuorumSet qSet2bad;
+        SCPQuorumSet qSet2t2;
+        qSet2t2.threshold = 2;
+        qSet2t2.validators.push_back(v2NodeID);
 
-    qSet2.innerSets.emplace_back(qSet);
-    check(qSet2, true, true, expectedQSet);
+        qSet2bad = qSet2;
+        qSet2bad.innerSets.push_back(qSet2t2);
+        SCPQuorumSet qSetV0V1t2V2;
+        qSetV0V1t2V2 = qSetV0V1;
+        qSetV0V1t2V2.innerSets.push_back(qSet2t2);
+        check(qSet2bad, false, qSetV0V1t2V2);
+    }
 
-    qSet2.threshold = 2;
-    check(qSet2, true, true, expandQSet(qSet2_no0));
-
+    // qSet2 { t: 1, v0, { t: 1, v1 }, { t: 1, v2, v3 } }
+    // -> qSet3 { t:1, v0, v1, { t: 1, v2, v3 } }
+    SCPQuorumSet qSetV2V3;
+    qSetV2V3.threshold = 1;
+    qSetV2V3.validators.push_back(v2NodeID);
+    qSetV2V3.validators.push_back(v3NodeID);
+    qSet2.innerSets.push_back(qSetV2V3);
     SCPQuorumSet qSet3;
-    qSet3.threshold = 1;
-    qSet3.validators.push_back(v2NodeID);
-    qSet3.validators.push_back(v3NodeID);
+    qSet3 = qSetV0V1;
+    qSet3.innerSets.push_back(qSetV2V3);
+    check(qSet2, true, qSet3);
 
-    auto qSet3_no0 = qSet3;
-    qSet3.innerSets.emplace_back(qSet2);
-    qSet3_no0.innerSets.emplace_back(qSet2_no0);
-
-    check(qSet3, true, true, expandQSet(qSet3_no0));
-
-    qSet3.validators.push_back(v3NodeID);
-    qSet3_no0.validators.push_back(v3NodeID);
-    check(qSet3, false, false, expandQSet(qSet3_no0));
-
-    qSet3.validators.pop_back();
-    qSet3_no0.validators.pop_back();
-    qSet3.validators.push_back(v1NodeID);
-    qSet3_no0.validators.push_back(v1NodeID);
-    check(qSet3, false, false, expandQSet(qSet3_no0));
-
-    qSet3.validators.pop_back();
-    qSet3_no0.validators.pop_back();
-    qSet3.validators.push_back(v0NodeID);
-    check(qSet3, false, true, qSet);
-
-    qSet3.threshold = 2;
-    check(qSet3, false, true, expandQSet(qSet3_no0));
+    // { t: 1, qSet2 }
+    // --> qSet3
+    SCPQuorumSet qSetWrapper;
+    qSetWrapper.threshold = 1;
+    qSetWrapper.innerSets.push_back(qSet2);
+    check(qSet2, true, qSet3);
 }
 
 TEST_CASE("v-blocking distance", "[scp]")
@@ -619,7 +617,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     // we need 5 nodes to avoid sharing various thresholds:
     // v-blocking set size: 2
-    // threshold: 4 = 3 + self
+    // threshold: 4 = 3 + self or 4 others
     SCPQuorumSet qSet;
     qSet.threshold = 4;
     qSet.validators.push_back(v0NodeID);
@@ -627,9 +625,6 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     qSet.validators.push_back(v2NodeID);
     qSet.validators.push_back(v3NodeID);
     qSet.validators.push_back(v4NodeID);
-
-    // this quorum gets processed by v0 as
-    // self + 3 out of 4
 
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
@@ -665,7 +660,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     auto recvVBlocking = std::bind(recvVBlockingChecks, _1, true);
 
-    auto recvQuorumChecks = [&](genEnvelope gen, bool withChecks)
+    auto recvQuorumChecks =
+        [&](genEnvelope gen, bool withChecks, bool delayedQuorum)
     {
         SCPEnvelope e1 = gen(v1SecretKey);
         SCPEnvelope e2 = gen(v2SecretKey);
@@ -676,18 +672,18 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         scp.receiveEnvelope(e2);
         size_t i = scp.mEnvs.size() + 1;
         scp.receiveEnvelope(e3);
-        if (withChecks)
+        if (withChecks && !delayedQuorum)
         {
             REQUIRE(scp.mEnvs.size() == i);
         }
-        // nothing happens with an extra vote
+        // nothing happens with an extra vote (unless we're in delayedQuorum)
         scp.receiveEnvelope(e4);
-        if (withChecks)
+        if (withChecks && delayedQuorum)
         {
             REQUIRE(scp.mEnvs.size() == i);
         }
     };
-    auto recvQuorum = std::bind(recvQuorumChecks, _1, true);
+    auto recvQuorum = std::bind(recvQuorumChecks, _1, true, false);
 
     auto nodesAllPledgeToCommit = [&]()
     {
@@ -941,7 +937,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                     // stuck
                                     recvQuorumChecks(
                                         makeExternalizeGen(qSetHash, B2, 3),
-                                        false);
+                                        false, false);
                                     REQUIRE(scp.mEnvs.size() == 7);
                                     REQUIRE(scp.mExternalizedValues.size() ==
                                             0);
@@ -956,7 +952,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         recvQuorumChecks(
                                             makeConfirmGen(qSetHash, 3, B2, 2,
                                                            3),
-                                            false);
+                                            false, false);
                                         REQUIRE(scp.mEnvs.size() == 6);
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
@@ -974,7 +970,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         recvQuorumChecks(
                                             makeConfirmGen(qSetHash, 3, B3, 3,
                                                            3),
-                                            false);
+                                            false, false);
                                         REQUIRE(scp.mEnvs.size() == 7);
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
@@ -1053,8 +1049,11 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                           0, A3, &B2, 0, 2, &A2);
 
                             recvQuorumChecks(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
-                            REQUIRE(scp.mEnvs.size() == 6);
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2), true,
+                                true);
+                            REQUIRE(scp.mEnvs.size() == 7);
+                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
+                                          0, 3, B3, 2, 2);
                         }
                     }
                 }
@@ -1328,7 +1327,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                     // stuck
                                     recvQuorumChecks(
                                         makeExternalizeGen(qSetHash, B2, 3),
-                                        false);
+                                        false, false);
                                     REQUIRE(scp.mEnvs.size() == 7);
                                     REQUIRE(scp.mExternalizedValues.size() ==
                                             0);
@@ -1343,7 +1342,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         recvQuorumChecks(
                                             makeConfirmGen(qSetHash, 3, B2, 2,
                                                            3),
-                                            false);
+                                            false, false);
                                         REQUIRE(scp.mEnvs.size() == 6);
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
@@ -1361,7 +1360,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         recvQuorumChecks(
                                             makeConfirmGen(qSetHash, 3, B3, 3,
                                                            3),
-                                            false);
+                                            false, false);
                                         REQUIRE(scp.mEnvs.size() == 7);
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
@@ -1430,7 +1429,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                         {
                             // messages are ignored as B2 < A2
                             recvQuorumChecks(makePrepareGen(qSetHash, B2, &B2),
-                                             false);
+                                             false, false);
                             REQUIRE(scp.mEnvs.size() == 5);
                         }
                         SECTION("higher counter")
@@ -1442,19 +1441,15 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                             verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
                                           0, A3, &A2, 2, 2, &B2);
 
-                            // node is stuck as it's trying to
-                            // commit A2=<2,y> but rest of its quorum is
-                            // trying to commit B2
+                            // node is trying to commit A2=<2,y> but rest
+                            // of its quorum is trying to commit B2
+                            // we end up with a delayed quorum
                             recvQuorumChecks(
-                                makePrepareGen(qSetHash, B3, &B2, 2, 2), false);
-                            REQUIRE(scp.mEnvs.size() == 6);
-
-                            // accept c=B2 ; also bumps counter to 3
-                            recvVBlocking(
-                                makeConfirmGen(qSetHash, 2, B3, 2, 2));
+                                makePrepareGen(qSetHash, B3, &B2, 2, 2), true,
+                                true);
                             REQUIRE(scp.mEnvs.size() == 7);
                             verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
-                                          0, 2, B3, 2, 2);
+                                          0, 3, B3, 2, 2);
                         }
                     }
                 }
@@ -1502,7 +1497,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             SECTION("switch prepared B1")
             {
                 // can't switch to B1
-                recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false);
+                recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false,
+                                 false);
                 REQUIRE(scp.mEnvs.size() == 2);
             }
         }
@@ -1571,7 +1567,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
         SECTION("prepared A1")
         {
-            recvQuorumChecks(makePrepareGen(qSetHash, A1), false);
+            recvQuorumChecks(makePrepareGen(qSetHash, A1), false, false);
             REQUIRE(scp.mEnvs.size() == 0);
 
             SECTION("bump prepared A2")
@@ -1969,10 +1965,6 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         // quorum -> set nH=1
         REQUIRE(scp.mEnvs.size() == 4);
         verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, x2, &x1, 0, 1);
-
-        REQUIRE(scp.mEnvs.size() == 4);
-
-        recvQuorumChecks(makePrepareGen(qSetHash, x1, &x1, 1, 1), false);
         REQUIRE(scp.mEnvs.size() == 4);
 
         recvVBlocking(makePrepareGen(qSetHash, x2, &x2, 1, 1));
@@ -1981,13 +1973,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         verifyPrepare(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, x2, &x2, 0, 1);
 
         recvQuorum(makePrepareGen(qSetHash, x2, &x2, 1, 1));
-        // quorum confirms (2,x) prepared -> set h, also set c
-        REQUIRE(scp.mEnvs.size() == 6);
-        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x2, &x2, 2, 2);
-
-        recvVBlocking(makeConfirmGen(qSetHash, 2, x2, 1, 1));
-        // v-blocking commit (1,x) -> accept (1,x)
+        // quorum (including us) confirms (2,x) prepared -> set h=c=x2
+        // we also get extra message: a quorum not including us confirms (1,x)
+        // prepared
+        //  -> we confirm c=h=x1
         REQUIRE(scp.mEnvs.size() == 7);
+        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0, x2, &x2, 2, 2);
         verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0, 0, 2, x2, 1, 1);
     }
 
@@ -2101,7 +2092,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
     // we need 5 nodes to avoid sharing various thresholds:
     // v-blocking set size: 2
-    // threshold: 4 = 3 + self
+    // threshold: 4 = 3 + self or 4 others
     SCPQuorumSet qSet;
     qSet.threshold = 4;
     qSet.validators.push_back(v0NodeID);
@@ -2226,6 +2217,10 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 TestSCP scp2(v0SecretKey, qSet);
                 scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
+                // at this point
+                // votes = { x }
+                // accepted = { x }
+
                 // tests if nomination proceeds like normal
                 // nominates x
                 auto nominationRestore = [&]()
@@ -2241,23 +2236,24 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     verifyNominate(scp2.mEnvs[0], v0SecretKey, qSetHash0, 0,
                                    votes2, accepted);
 
-                    // other nodes only vote for 'x'
+                    // other nodes vote for 'x'
                     scp2.receiveEnvelope(nom1);
                     scp2.receiveEnvelope(nom2);
                     REQUIRE(scp2.mEnvs.size() == 1);
-                    // this causes 'x' to be accepted (quorum)
-
+                    // 'x' is accepted (quorum)
+                    // but because the restored state already included
+                    // 'x' in the accepted set, no new message is emitted
                     scp2.receiveEnvelope(nom3);
 
                     scp2.mExpectedCandidates.emplace(xValue);
                     scp2.mCompositeValue = xValue;
 
+                    // other nodes not emit 'x' as accepted
                     scp2.receiveEnvelope(acc1);
                     scp2.receiveEnvelope(acc2);
                     REQUIRE(scp2.mEnvs.size() == 1);
 
                     scp2.mCompositeValue = xValue;
-
                     // this causes the node to update its composite value to x
                     scp2.receiveEnvelope(acc3);
                 };
@@ -2271,13 +2267,13 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                     verifyPrepare(scp2.mEnvs[1], v0SecretKey, qSetHash0, 0,
                                   SCPBallot(1, xValue));
                 }
-                SECTION("ballot protocol started (on value y)")
+                SECTION("ballot protocol started (on value z)")
                 {
                     scp2.mSCP.setStateFromEnvelope(
                         0, makePrepare(v0SecretKey, qSetHash0, 0,
-                                       SCPBallot(1, yValue)));
+                                       SCPBallot(1, zValue)));
                     nominationRestore();
-                    // nomination didn't do anything (already working on y)
+                    // nomination didn't do anything (already working on z)
                     REQUIRE(scp2.mEnvs.size() == 1);
                 }
             }
@@ -2302,15 +2298,6 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
             acceptedY.emplace_back(yValue);
 
-            SCPEnvelope acc1 =
-                makeNominate(v1SecretKey, qSetHash, 0, votes, acceptedY);
-            SCPEnvelope acc2 =
-                makeNominate(v2SecretKey, qSetHash, 0, votes, acceptedY);
-            SCPEnvelope acc3 =
-                makeNominate(v3SecretKey, qSetHash, 0, votes, acceptedY);
-            SCPEnvelope acc4 =
-                makeNominate(v4SecretKey, qSetHash, 0, votes, acceptedY);
-
             SECTION("others only vote for y")
             {
                 SCPEnvelope nom1 =
@@ -2326,11 +2313,26 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
                 scp.receiveEnvelope(nom1);
                 scp.receiveEnvelope(nom2);
                 scp.receiveEnvelope(nom3);
-                scp.receiveEnvelope(nom4);
                 REQUIRE(scp.mEnvs.size() == 1);
+
+                // 'y' is accepted (quorum)
+                scp.receiveEnvelope(nom4);
+                REQUIRE(scp.mEnvs.size() == 2);
+                myVotes.emplace_back(yValue);
+                verifyNominate(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, myVotes,
+                               acceptedY);
             }
             SECTION("others accepted y")
             {
+                SCPEnvelope acc1 =
+                    makeNominate(v1SecretKey, qSetHash, 0, votes, acceptedY);
+                SCPEnvelope acc2 =
+                    makeNominate(v2SecretKey, qSetHash, 0, votes, acceptedY);
+                SCPEnvelope acc3 =
+                    makeNominate(v3SecretKey, qSetHash, 0, votes, acceptedY);
+                SCPEnvelope acc4 =
+                    makeNominate(v4SecretKey, qSetHash, 0, votes, acceptedY);
+
                 scp.receiveEnvelope(acc1);
                 REQUIRE(scp.mEnvs.size() == 1);
 

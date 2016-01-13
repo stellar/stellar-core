@@ -26,7 +26,7 @@ LocalNode::LocalNode(SecretKey const& secretKey, bool isValidator,
     , mQSet(qSet)
     , mSCP(scp)
 {
-    adjustQSet(mQSet);
+    normalizeQSet(mQSet);
     mQSetHash = sha256(xdr::xdr_to_opaque(mQSet));
 
     CLOG(INFO, "SCP") << "LocalNode::LocalNode"
@@ -89,53 +89,32 @@ LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
 }
 
 // helper function that:
-//  * removes occurences of 'self'
-//  * removes redundant inner sets (threshold = 0)
-//     * empty {}
-//     * reached because of self was { t: 1, self, other }
+//  * simplifies singleton inner set into outerset
+//      { t: n, v: { ... }, { t: 1, X }, ... }
+//        into
+//      { t: n, v: { ..., X }, .... }
 //  * simplifies singleton innersets
 //      { t:1, { innerSet } } into innerSet
 
 void
-LocalNode::adjustQSetHelper(SCPQuorumSet& qSet)
+LocalNode::normalizeQSet(SCPQuorumSet& qSet)
 {
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
     auto it = i.begin();
     while (it != i.end())
     {
-        adjustQSetHelper(*it);
-        // remove redundant sets
-        // note: they may not be empty (threshold reached because of self)
-        if (it->threshold == 0)
+        normalizeQSet(*it);
+        // merge singleton inner sets into validator list
+        if (it->threshold == 1 && it->validators.size() == 1 &&
+            it->innerSets.size() == 0)
         {
+            v.emplace_back(it->validators.front());
             it = i.erase(it);
-            if (qSet.threshold)
-            {
-                qSet.threshold--;
-            }
         }
         else
         {
             it++;
-        }
-    }
-
-    // removes self from validators
-    auto itv = v.begin();
-    while (itv != v.end())
-    {
-        if (*itv == mNodeID)
-        {
-            if (qSet.threshold)
-            {
-                qSet.threshold--;
-            }
-            itv = v.erase(itv);
-        }
-        else
-        {
-            itv++;
         }
     }
 
@@ -147,42 +126,12 @@ LocalNode::adjustQSetHelper(SCPQuorumSet& qSet)
     }
 }
 
-void
-LocalNode::adjustQSet(SCPQuorumSet& qSet)
-{
-    // transforms the qSet passed in into
-    // { t: 2, self, { aQSet } }
-    // where, aQset is the quorum set obtained by deleting self
-
-    auto aQSet = qSet;
-    adjustQSetHelper(aQSet);
-
-    qSet.threshold = 1;
-    qSet.validators.clear();
-    qSet.innerSets.clear();
-    qSet.validators.emplace_back(mNodeID);
-
-    if (aQSet.threshold != 0)
-    {
-        qSet.threshold++;
-        qSet.innerSets.emplace_back(aQSet);
-    }
-}
-
 bool
-LocalNode::isQuorumSetSaneSimplified(SCPQuorumSet const& qSet, bool extraChecks)
+LocalNode::isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
 {
     std::set<NodeID> allValidators;
     bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, extraChecks);
     return wellFormed;
-}
-
-bool
-LocalNode::isQuorumSetSane(NodeID const& nodeID, SCPQuorumSet const& qSet)
-{
-    std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, false);
-    return wellFormed && (allValidators.find(nodeID) != allValidators.end());
 }
 
 void

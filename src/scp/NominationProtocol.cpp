@@ -115,7 +115,7 @@ NominationProtocol::isSane(SCPStatement const& st)
 
     res = res &&
           mSlot.getLocalNode()->isQuorumSetSane(
-              st.nodeID, *mSlot.getQuorumSetFromStatement(st));
+              *mSlot.getQuorumSetFromStatement(st), false);
 
     return res;
 }
