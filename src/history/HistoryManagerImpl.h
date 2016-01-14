@@ -90,6 +90,8 @@ class HistoryManagerImpl : public HistoryManager
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;
 
+    InferredQuorum inferQuorum() override;
+
     std::string const& getTmpDir() override;
 
     std::string localFilename(std::string const& basename) override;

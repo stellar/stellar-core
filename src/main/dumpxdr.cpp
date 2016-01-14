@@ -22,7 +22,7 @@ dumpstream(XDRInputFileStream& in)
 void
 dumpxdr(std::string const& filename)
 {
-    std::regex rx(".*(ledger|bucket|transactions|results)-[[:xdigit:]]+\\.xdr");
+    std::regex rx(".*(ledger|bucket|transactions|results|scp)-[[:xdigit:]]+\\.xdr");
     std::smatch sm;
     if (std::regex_match(filename, sm, rx))
     {
@@ -41,10 +41,14 @@ dumpxdr(std::string const& filename)
         {
             dumpstream<TransactionHistoryEntry>(in);
         }
+        else if (sm[1] == "results")
+        {
+            dumpstream<TransactionHistoryResultEntry>(in);
+        }
         else
         {
-            assert(sm[1] == "results");
-            dumpstream<TransactionHistoryResultEntry>(in);
+            assert(sm[1] == "scp");
+            dumpstream<SCPHistoryEntry>(in);
         }
     }
     else

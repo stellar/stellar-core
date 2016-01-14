@@ -779,14 +779,27 @@ Config::toShortString(PublicKey const& pk) const
 }
 
 std::string
-Config::toStrKey(PublicKey const& pk) const
+Config::toStrKey(PublicKey const& pk, bool& isAlias) const
 {
     std::string ret = PubKeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
+    {
+        isAlias = false;
         return ret;
+    }
     else
+    {
+        isAlias = true;
         return it->second;
+    }
+}
+
+std::string
+Config::toStrKey(PublicKey const& pk) const
+{
+    bool isAlias;
+    return toStrKey(pk, isAlias);
 }
 
 bool
