@@ -17,11 +17,14 @@ namespace stellar
 class Logging
 {
     static el::Configurations gDefaultConf;
+    static int32_t logFileIndex;
 
   public:
     static void init();
     static void setFmt(std::string const& peerID, bool timestamps = true);
     static void setLoggingToFile(std::string const& filename);
+    static void rotateLogFile();
+    static void rolloutHandler(const char* filename, std::size_t size);
     static void setLogLevel(el::Level level, const char* partition);
     static el::Level getLLfromString(std::string const& levelName);
     static el::Level getLogLevel(std::string const& partition);

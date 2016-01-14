@@ -19,6 +19,7 @@ Levels:
 namespace stellar
 {
 el::Configurations Logging::gDefaultConf;
+int32_t Logging::logFileIndex;
 
 void
 Logging::setFmt(std::string const& peerID, bool timestamps)
@@ -60,7 +61,10 @@ Logging::init()
     gDefaultConf.setToDefault();
     gDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
     gDefaultConf.setGlobally(el::ConfigurationType::ToFile, "false");
+    gDefaultConf.setGlobally(el::ConfigurationType::MaxLogFileSize, "1");
     setFmt("<startup>");
+    logFileIndex = 0;
+    el::Helpers::installPreRollOutCallback(rolloutHandler);
 }
 
 void
@@ -69,6 +73,22 @@ Logging::setLoggingToFile(std::string const& filename)
     gDefaultConf.setGlobally(el::ConfigurationType::ToFile, "true");
     gDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
     el::Loggers::reconfigureAllLoggers(gDefaultConf);
+}
+
+void
+Logging::rolloutHandler(const char* filename, std::size_t size) {
+    // size is there to match easylogging++ library template
+    std::stringstream ss;
+    ss << "mv " << filename << " " << filename << "." << ++logFileIndex;
+    system(ss.str().c_str());
+    el::Loggers::removeFlag(el::LoggingFlag::StrictLogFileSizeCheck);
+}
+
+
+void
+Logging::rotateLogFile()
+{
+    el::Loggers::addFlag(el::LoggingFlag::StrictLogFileSizeCheck);
 }
 
 el::Level

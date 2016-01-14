@@ -463,6 +463,7 @@ void
 CommandHandler::logRotate(std::string const& params, std::string& retStr)
 {
     retStr = "Log rotate...";
+    Logging::rotateLogFile();
 }
 
 void
