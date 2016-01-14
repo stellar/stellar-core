@@ -387,8 +387,9 @@ VirtualClock::advanceToNext()
 
 VirtualClockEvent::VirtualClockEvent(
     VirtualClock::time_point when,
-    std::function<void(asio::error_code)> callback)
-    : mCallback(callback), mTriggered(false), mWhen(when)
+    std::function<void(asio::error_code)> callback,
+    unsigned seq)
+    : mCallback(callback), mSeq(seq), mTriggered(false), mWhen(when)
 {
 }
 
@@ -424,7 +425,7 @@ bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
     // expiry time). The "greatest" timer is timer 0.
-    return mWhen > other.mWhen;
+    return mWhen > other.mWhen || (mWhen == other.mWhen && mSeq > other.mSeq);
 }
 
 VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
@@ -488,7 +489,7 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
     if (!mCancelled)
     {
         assert(!mDeleting);
-        auto ve = make_shared<VirtualClockEvent>(mExpiryTime, fn);
+        auto ve = make_shared<VirtualClockEvent>(mExpiryTime, fn, mEvents.size());
         mClock.enqueue(ve);
         mEvents.push_back(ve);
     }
@@ -508,7 +509,7 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
                     onFailure(error);
                 else
                     onSuccess();
-            });
+            }, mEvents.size());
         mClock.enqueue(ve);
         mEvents.push_back(ve);
     }
