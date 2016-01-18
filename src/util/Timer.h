@@ -161,7 +161,9 @@ class VirtualClockEvent : public NonMovableOrCopyable
 
   public:
     VirtualClock::time_point mWhen;
+    size_t mSeq;
     VirtualClockEvent(VirtualClock::time_point when,
+                      size_t seq,
                       std::function<void(asio::error_code)> callback);
     bool getTriggered();
     void trigger();
@@ -188,6 +190,7 @@ class VirtualTimer : private NonMovableOrCopyable
     ~VirtualTimer();
 
     VirtualClock::time_point const& expiry_time() const;
+    size_t seq() const;
     void expires_at(VirtualClock::time_point t);
     void expires_from_now(VirtualClock::duration d);
     template <typename R, typename P>

@@ -387,8 +387,9 @@ VirtualClock::advanceToNext()
 
 VirtualClockEvent::VirtualClockEvent(
     VirtualClock::time_point when,
+    size_t seq,
     std::function<void(asio::error_code)> callback)
-    : mCallback(callback), mTriggered(false), mWhen(when)
+    : mCallback(callback), mTriggered(false), mWhen(when), mSeq(seq)
 {
 }
 
@@ -424,7 +425,12 @@ bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
     // expiry time). The "greatest" timer is timer 0.
-    return mWhen > other.mWhen;
+    // To break time-based ties (but preserve the ordering in which
+    // events were enqueued) we add an event-sequence number as well,
+    // such that a higher sequence number makes an event "less than"
+    // another.
+    return mWhen > other.mWhen || (mWhen == other.mWhen &&
+                                   mSeq > other.mSeq);
 }
 
 VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
@@ -466,6 +472,12 @@ VirtualTimer::expiry_time() const
     return mExpiryTime;
 }
 
+size_t
+VirtualTimer::seq() const
+{
+    return mEvents.empty() ? 0 : mEvents.back()->mSeq + 1;
+}
+
 void
 VirtualTimer::expires_at(VirtualClock::time_point t)
 {
@@ -488,7 +500,7 @@ VirtualTimer::async_wait(function<void(asio::error_code)> const& fn)
     if (!mCancelled)
     {
         assert(!mDeleting);
-        auto ve = make_shared<VirtualClockEvent>(mExpiryTime, fn);
+        auto ve = make_shared<VirtualClockEvent>(mExpiryTime, seq(), fn);
         mClock.enqueue(ve);
         mEvents.push_back(ve);
     }
@@ -502,7 +514,8 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
     {
         assert(!mDeleting);
         auto ve = make_shared<VirtualClockEvent>(
-            mExpiryTime, [onSuccess, onFailure](asio::error_code error)
+            mExpiryTime, seq(),
+            [onSuccess, onFailure](asio::error_code error)
             {
                 if (error)
                     onFailure(error);
