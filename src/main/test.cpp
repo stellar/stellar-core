@@ -42,8 +42,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         // you can change this by enabling the appropriate line below
         mode = Config::TESTDB_IN_MEMORY_SQLITE;
         // mode = Config::TESTDB_ON_DISK_SQLITE;
-        // mode = Config::TESTDB_UNIX_LOCAL_POSTGRESQL;
-        // mode = Config::TESTDB_TCP_LOCALHOST_POSTGRESQL;
+        // mode = Config::TESTDB_POSTGRESQL;
     }
     auto& cfgs = gTestCfg[mode];
     if (cfgs.size() <= static_cast<size_t>(instanceNumber))
