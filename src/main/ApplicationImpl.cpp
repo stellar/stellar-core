@@ -246,6 +246,11 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            if (ec)
+            {
+                throw std::runtime_error("Unable to restore last-known ledger state");
+            }
+
             // restores the SCP state before starting overlay
             mHerder->restoreSCPState();
             // perform maintenance tasks if configured to do so
