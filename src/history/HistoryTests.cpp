@@ -1033,3 +1033,24 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent",
         catchupApplication(initLedger, HistoryManager::CATCHUP_RECENT, a);
     }
 }
+
+// Check that initializing a history store that already exists, fails.
+
+TEST_CASE("initialize existing history store fails", "[history]")
+{
+    Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
+    TmpDirConfigurator tcfg;
+    cfg = tcfg.configure(cfg, true);
+
+    {
+        VirtualClock clock;
+        Application::pointer app = Application::create(clock, cfg);
+        REQUIRE(HistoryManager::initializeHistoryArchive(*app, "test"));
+    }
+
+    {
+        VirtualClock clock;
+        Application::pointer app = Application::create(clock, cfg);
+        REQUIRE(!HistoryManager::initializeHistoryArchive(*app, "test"));
+    }
+}

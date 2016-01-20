@@ -63,18 +63,38 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
                                << arch << "'";
         return false;
     }
-    HistoryArchiveState has;
-    CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
-    has.resolveAllFutures();
 
     auto& wm = app.getWorkManager();
-    auto w = wm.addWork<PutHistoryArchiveStateWork>(has, i->second);
+
+    // First check that there's no existing HAS in the archive
+    HistoryArchiveState existing;
+    CLOG(INFO, "History") << "Probing history archive '" << arch << "' for existing state";
+    auto getHas = wm.addWork<GetHistoryArchiveStateWork>(existing, 0,
+                                                         std::chrono::seconds(0),
+                                                         i->second, 0);
     wm.advanceChildren();
     while (!wm.allChildrenDone())
     {
         app.getClock().crank(false);
     }
-    if (w->getState() == Work::WORK_SUCCESS)
+    if (getHas->getState() == Work::WORK_SUCCESS)
+    {
+        CLOG(ERROR, "History") << "History archive '" << arch << "' already initialized!";
+        return false;
+    }
+    CLOG(INFO, "History") << "History archive '" << arch << "' appears uninitialized";
+
+    HistoryArchiveState has;
+    CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
+    has.resolveAllFutures();
+
+    auto putHas = wm.addWork<PutHistoryArchiveStateWork>(has, i->second);
+    wm.advanceChildren();
+    while (!wm.allChildrenDone())
+    {
+        app.getClock().crank(false);
+    }
+    if (putHas->getState() == Work::WORK_SUCCESS)
     {
         CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
         return true;
