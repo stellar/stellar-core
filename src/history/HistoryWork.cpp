@@ -56,8 +56,9 @@ fmtProgress(Application& app, std::string const& task, uint32_t first,
 }
 
 RunCommandWork::RunCommandWork(Application& app, WorkParent& parent,
-                               std::string const& uniqueName)
-    : Work(app, parent, uniqueName)
+                               std::string const& uniqueName,
+                               size_t maxRetries)
+    : Work(app, parent, uniqueName, maxRetries)
 {
 }
 
@@ -85,8 +86,10 @@ RunCommandWork::onRun()
 
 GetRemoteFileWork::GetRemoteFileWork(
     Application& app, WorkParent& parent, std::string const& remote,
-    std::string const& local, std::shared_ptr<HistoryArchive const> archive)
-    : RunCommandWork(app, parent, std::string("get-remote-file ") + remote)
+    std::string const& local, std::shared_ptr<HistoryArchive const> archive,
+    size_t maxRetries)
+    : RunCommandWork(app, parent, std::string("get-remote-file ") + remote,
+                     maxRetries)
     , mRemote(remote)
     , mLocal(local)
     , mArchive(archive)
@@ -508,8 +511,9 @@ VerifyLedgerChainWork::onSuccess()
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     Application& app, WorkParent& parent, HistoryArchiveState& state,
     uint32_t seq, VirtualClock::duration const& initialDelay,
-    std::shared_ptr<HistoryArchive const> archive)
-    : Work(app, parent, "get-history-archive-state")
+    std::shared_ptr<HistoryArchive const> archive,
+    size_t maxRetries)
+    : Work(app, parent, "get-history-archive-state", maxRetries)
     , mState(state)
     , mSeq(seq)
     , mInitialDelay(initialDelay)
@@ -550,7 +554,7 @@ GetHistoryArchiveStateWork::onReset()
     addWork<GetRemoteFileWork>(mSeq == 0
                                    ? HistoryArchiveState::wellKnownRemoteName()
                                    : HistoryArchiveState::remoteName(mSeq),
-                               mLocalFilename, mArchive);
+                               mLocalFilename, mArchive, getMaxRetries());
 
     if (mSeq != 0 && mRetries == 0 && mInitialDelay.count() != 0)
     {

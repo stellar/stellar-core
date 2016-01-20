@@ -35,7 +35,8 @@ class RunCommandWork : public Work
 
   public:
     RunCommandWork(Application& app, WorkParent& parent,
-                   std::string const& uniqueName);
+                   std::string const& uniqueName,
+                   size_t maxRetries = Work::RETRY_A_FEW);
     void onStart() override;
     void onRun() override;
 };
@@ -53,7 +54,8 @@ class GetRemoteFileWork : public RunCommandWork
     // retries.
     GetRemoteFileWork(Application& app, WorkParent& parent,
                       std::string const& remote, std::string const& local,
-                      std::shared_ptr<HistoryArchive const> archive = nullptr);
+                      std::shared_ptr<HistoryArchive const> archive = nullptr,
+                      size_t maxRetries = Work::RETRY_A_FEW);
     void onReset() override;
 };
 
@@ -163,7 +165,8 @@ class GetHistoryArchiveStateWork : public Work
         Application& app, WorkParent& parent, HistoryArchiveState& state,
         uint32_t seq = 0,
         VirtualClock::duration const& intitialDelay = std::chrono::seconds(0),
-        std::shared_ptr<HistoryArchive const> archive = nullptr);
+        std::shared_ptr<HistoryArchive const> archive = nullptr,
+        size_t maxRetries = Work::RETRY_A_FEW);
     std::string getStatus() const override;
     VirtualClock::duration getRetryDelay() const override;
     void onReset() override;
