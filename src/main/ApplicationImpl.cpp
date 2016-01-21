@@ -195,6 +195,10 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    if (mProcessManager)
+    {
+        mProcessManager->shutdown();
+    }
     reportCfgMetrics();
     shutdownMainIOService();
     joinAllThreads();
@@ -246,6 +250,11 @@ ApplicationImpl::start()
     mLedgerManager->loadLastKnownLedger(
         [this, &done](asio::error_code const& ec)
         {
+            if (ec)
+            {
+                throw std::runtime_error("Unable to restore last-known ledger state");
+            }
+
             // restores the SCP state before starting overlay
             mHerder->restoreSCPState();
             // perform maintenance tasks if configured to do so
@@ -305,6 +314,10 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
+    }
+    if (mProcessManager)
+    {
+        mProcessManager->shutdown();
     }
 
     mStoppingTimer.expires_from_now(
@@ -499,6 +512,10 @@ ApplicationImpl::syncOwnMetrics()
         .Mark(vignore);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
         .Mark(vhit + vmiss + vignore);
+
+    // Similarly, flush global process-table stats.
+    mMetrics->NewCounter({"process", "memory", "handles"}).set_count(
+        mProcessManager->getNumRunningProcesses());
 }
 
 void

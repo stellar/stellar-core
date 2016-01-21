@@ -41,6 +41,7 @@ class Configurator : NonCopyable
 {
   public:
     virtual Config& configure(Config& cfg, bool writable) const = 0;
+    virtual std::string getArchiveDirName() const { return ""; }
 };
 
 class TmpDirConfigurator : public Configurator
@@ -51,6 +52,11 @@ class TmpDirConfigurator : public Configurator
   public:
     TmpDirConfigurator() : mArchtmp("archtmp"), mDir(mArchtmp.tmpDir("archive"))
     {
+    }
+
+    std::string getArchiveDirName() const override
+    {
+        return mDir.getName();
     }
 
     Config&
@@ -818,6 +824,41 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
     auto hash1 = appPtr->getBucketManager().getBucketList().getHash();
     auto hash2 = app2->getBucketManager().getBucketList().getHash();
     CHECK(hash1 == hash2);
+}
+
+TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
+                 "[history][historybucketrepair]")
+{
+    generateAndPublishInitialHistory(1);
+
+    // Forcibly resolve any merges in progress, so we have a calm state to
+    // repair;
+    // NB: we cannot repair lost buckets from merges-in-progress, as they're not
+    // necessarily _published_ anywhere.
+    HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
+                            app.getBucketManager().getBucketList());
+    has.resolveAllFutures();
+    auto state = has.toString();
+
+    // Delete buckets from the archive before proceding.
+    // This means startup will fail.
+    auto dir = mConfigurator->getArchiveDirName();
+    REQUIRE(!dir.empty());
+    fs::deltree(dir + "/bucket");
+
+    auto cfg2 = getTestConfig(1);
+    cfg2.BUCKET_DIR_PATH += "2";
+    auto app2 =
+        Application::create(clock, mConfigurator->configure(cfg2, false));
+    app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
+                                        state);
+
+    REQUIRE_THROWS(app2->start());
+
+    while (app2->getProcessManager().getNumRunningProcesses() != 0)
+    {
+        app2->getClock().crank(false);
+    }
 }
 
 class S3Configurator : public Configurator

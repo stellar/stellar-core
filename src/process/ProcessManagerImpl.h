@@ -27,7 +27,9 @@ class ProcessManagerImpl : public ProcessManager
     // number of processes we run at once.
     static size_t gNumProcessesActive;
 
-    Application& mApp;
+    bool mIsShutdown{false};
+    size_t mMaxProcesses;
+    asio::io_service& mIOService;
 
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mPendingImpls;
     void maybeRunPendingProcesses();
@@ -37,7 +39,6 @@ class ProcessManagerImpl : public ProcessManager
     void startSignalWait();
     void handleSignalWait();
 
-    medida::Counter& mImplsSize;
     friend class ProcessExitEvent::Impl;
 
   public:
@@ -45,6 +46,10 @@ class ProcessManagerImpl : public ProcessManager
     ProcessExitEvent runProcess(std::string const& cmdLine,
                                 std::string outFile = "") override;
     size_t getNumRunningProcesses() override;
+
+    bool isShutdown() const override;
+    void shutdown() override;
+
     ~ProcessManagerImpl() override;
 };
 }

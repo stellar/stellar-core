@@ -13,7 +13,6 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "process/ProcessManager.h"
 #include "process/ProcessManagerImpl.h"
 
@@ -30,10 +29,10 @@
 namespace stellar
 {
 
-std::unique_ptr<ProcessManager>
+std::shared_ptr<ProcessManager>
 ProcessManager::create(Application& app)
 {
-    return make_unique<ProcessManagerImpl>(app);
+    return std::make_shared<ProcessManagerImpl>(app);
 }
 
 std::recursive_mutex ProcessManagerImpl::gImplsMutex;
@@ -66,12 +65,12 @@ class ProcessExitEvent::Impl
 #ifdef _WIN32
     asio::windows::object_handle mProcessHandle;
 #endif
-    ProcessManagerImpl& mProcManagerImpl;
+    std::shared_ptr<ProcessManagerImpl> mProcManagerImpl;
 
     Impl(std::shared_ptr<RealTimer> const& outerTimer,
          std::shared_ptr<asio::error_code> const& outerEc,
          std::string const& cmdLine, std::string const& outFile,
-         ProcessManagerImpl& pm)
+         std::shared_ptr<ProcessManagerImpl> pm)
         : mOuterTimer(outerTimer)
         , mOuterEc(outerEc)
         , mCmdLine(cmdLine)
@@ -83,16 +82,63 @@ class ProcessExitEvent::Impl
     {
     }
     void run();
+    void cancel(asio::error_code const& ec)
+    {
+        *mOuterEc = ec;
+        mOuterTimer->cancel();
+    }
 };
+
+
+
+bool
+ProcessManagerImpl::isShutdown() const
+{
+    return mIsShutdown;
+}
+
+void
+ProcessManagerImpl::shutdown()
+{
+    if (!mIsShutdown)
+    {
+        mIsShutdown = true;
+        auto ec = asio::error_code(1, asio::system_category());
+
+        // Cancel all pending.
+        for (auto& pending : mPendingImpls)
+        {
+            pending->cancel(ec);
+        }
+        mPendingImpls.clear();
+
+        // Cancel all running.
+        std::lock_guard<std::recursive_mutex> guard(
+            ProcessManagerImpl::gImplsMutex);
+        for (auto& pair : gImpls)
+        {
+            pair.second->cancel(ec);
+#ifdef _WIN32
+            pair.second->mProcessHandle.cancel(ec);
+#endif
+        }
+        gImpls.clear();
+        gNumProcessesActive = 0;
+#ifndef _WIN32
+        mSigChild.cancel(ec);
+#endif
+    }
+
+}
 
 #ifdef _WIN32
 #include <windows.h>
 #include <tchar.h>
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
-    : mApp(app)
-    , mSigChild(app.getClock().getIOService())
-    , mImplsSize(app.getMetrics().NewCounter({"process", "memory", "handles"}))
+    : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
+    , mIOService(app.getClock().getIOService())
+    , mSigChild(mIOService)
 {
 }
 
@@ -111,6 +157,7 @@ ProcessManagerImpl::handleSignalWait()
 void
 ProcessExitEvent::Impl::run()
 {
+    assert(!mProcManagerImpl->isShutdown());
     if (mRunning)
     {
         CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
@@ -175,16 +222,20 @@ ProcessExitEvent::Impl::run()
     mProcessHandle.async_wait(
         [sf](asio::error_code ec)
         {
+            if (sf->mProcManagerImpl->isShutdown())
+            {
+                return;
+            }
+
             {
                 std::lock_guard<std::recursive_mutex> guard(
                     ProcessManagerImpl::gImplsMutex);
                 --ProcessManagerImpl::gNumProcessesActive;
-                sf->mProcManagerImpl.mImplsSize.set_count(
-                    ProcessManagerImpl::gNumProcessesActive);
             }
+
             // Fire off any new processes we've made room for before we
             // trigger the callback.
-            sf->mProcManagerImpl.maybeRunPendingProcesses();
+            sf->mProcManagerImpl->maybeRunPendingProcesses();
 
             if (ec)
             {
@@ -199,10 +250,9 @@ ProcessExitEvent::Impl::run()
                 {
                     exitCode = 1;
                 }
-                *(sf->mOuterEc) =
-                    asio::error_code(exitCode, asio::system_category());
+                ec = asio::error_code(exitCode, asio::system_category());
             }
-            sf->mOuterTimer->cancel();
+            sf->cancel(ec);
         });
     mRunning = true;
 }
@@ -213,9 +263,9 @@ ProcessExitEvent::Impl::run()
 #include <sys/wait.h>
 
 ProcessManagerImpl::ProcessManagerImpl(Application& app)
-    : mApp(app)
-    , mSigChild(app.getClock().getIOService(), SIGCHLD)
-    , mImplsSize(app.getMetrics().NewCounter({"process", "memory", "handles"}))
+    : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
+    , mIOService(app.getClock().getIOService())
+    , mSigChild(mIOService, SIGCHLD)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     startSignalWait();
@@ -232,6 +282,10 @@ ProcessManagerImpl::startSignalWait()
 void
 ProcessManagerImpl::handleSignalWait()
 {
+    if (isShutdown())
+    {
+        return;
+    }
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     for (;;)
     {
@@ -240,7 +294,12 @@ ProcessManagerImpl::handleSignalWait()
         if (pid > 0)
         {
             auto pair = gImpls.find(pid);
-            assert(pair != gImpls.end());
+            if (pair == gImpls.end())
+            {
+                // Possible some other ProcessManager shut down and cleared
+                // out gImpls already.
+                continue;
+            }
             auto impl = pair->second;
 
             asio::error_code ec;
@@ -303,8 +362,7 @@ ProcessManagerImpl::handleSignalWait()
             // trigger the callback.
             maybeRunPendingProcesses();
 
-            *(impl->mOuterEc) = ec;
-            impl->mOuterTimer->cancel();
+            impl->cancel(ec);
         }
         else
         {
@@ -327,6 +385,7 @@ split(std::string const& s)
 void
 ProcessExitEvent::Impl::run()
 {
+    assert(!mProcManagerImpl->isShutdown());
     if (mRunning)
     {
         CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
@@ -397,10 +456,11 @@ ProcessExitEvent
 ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
-    auto& svc = mApp.getClock().getIOService();
-    ProcessExitEvent pe(svc);
+    ProcessExitEvent pe(mIOService);
+    std::shared_ptr<ProcessManagerImpl> self =
+        std::static_pointer_cast<ProcessManagerImpl>(shared_from_this());
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
-        pe.mTimer, pe.mEc, cmdLine, outFile, *this);
+        pe.mTimer, pe.mEc, cmdLine, outFile, self);
     mPendingImpls.push_back(pe.mImpl);
 
     maybeRunPendingProcesses();
@@ -410,9 +470,13 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 void
 ProcessManagerImpl::maybeRunPendingProcesses()
 {
+    if (mIsShutdown)
+    {
+        return;
+    }
     std::lock_guard<std::recursive_mutex> guard(gImplsMutex);
     while (!mPendingImpls.empty() &&
-           gNumProcessesActive < mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES)
+           gNumProcessesActive < mMaxProcesses)
     {
         auto i = mPendingImpls.front();
         mPendingImpls.pop_front();
@@ -421,7 +485,6 @@ ProcessManagerImpl::maybeRunPendingProcesses()
             CLOG(DEBUG, "Process") << "Running: " << i->mCmdLine;
             i->run();
             ++gNumProcessesActive;
-            mImplsSize.set_count(gNumProcessesActive);
         }
         catch (std::runtime_error& e)
         {
