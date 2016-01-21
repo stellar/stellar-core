@@ -195,6 +195,10 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    if (mProcessManager)
+    {
+        mProcessManager->shutdown();
+    }
     reportCfgMetrics();
     shutdownMainIOService();
     joinAllThreads();
@@ -310,6 +314,10 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
+    }
+    if (mProcessManager)
+    {
+        mProcessManager->shutdown();
     }
 
     mStoppingTimer.expires_from_now(
@@ -504,6 +512,10 @@ ApplicationImpl::syncOwnMetrics()
         .Mark(vignore);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
         .Mark(vhit + vmiss + vignore);
+
+    // Similarly, flush global process-table stats.
+    mMetrics->NewCounter({"process", "memory", "handles"}).set_count(
+        mProcessManager->getNumRunningProcesses());
 }
 
 void

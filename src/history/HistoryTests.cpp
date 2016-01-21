@@ -854,6 +854,11 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
                                         state);
 
     REQUIRE_THROWS(app2->start());
+
+    while (app2->getProcessManager().getNumRunningProcesses() != 0)
+    {
+        app2->getClock().crank(false);
+    }
 }
 
 class S3Configurator : public Configurator
