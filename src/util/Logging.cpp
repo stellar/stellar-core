@@ -78,9 +78,9 @@ Logging::setLoggingToFile(std::string const& filename)
 void
 Logging::rolloutHandler(const char* filename, std::size_t size) {
     // size is there to match easylogging++ library template
-    std::stringstream ss;
-    ss << "mv " << filename << " " << filename << "." << ++logFileIndex;
-    system(ss.str().c_str());
+    std::stringstream ss_new_filename;
+    ss_new_filename << filename << "." << ++logFileIndex;
+    std::rename(filename, ss_new_filename.str().c_str());
     el::Loggers::removeFlag(el::LoggingFlag::StrictLogFileSizeCheck);
 }
 
