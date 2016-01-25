@@ -93,7 +93,6 @@ connection::do_write()
         {
             connection_manager_.stop(shared_from_this());
         }
-
         asio::error_code closeEc;
         socket_.close(closeEc);
     });
