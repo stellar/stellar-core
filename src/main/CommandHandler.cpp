@@ -48,8 +48,10 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         LOG(INFO) << "Listening on " << ipStr << ":"
                   << mApp.getConfig().HTTP_PORT << " for HTTP requests";
 
+        int httpMaxClient = mApp.getConfig().PUBLIC_HTTP_PORT;
+
         mServer = stellar::make_unique<http::server::server>(
-            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT);
+            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT, httpMaxClient);
     }
     else
     {

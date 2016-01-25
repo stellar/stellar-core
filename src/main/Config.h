@@ -126,6 +126,7 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t DESIRED_MAX_TX_PER_LEDGER;
     unsigned short HTTP_PORT;       // what port to listen for commands
     bool PUBLIC_HTTP_PORT;          // if you accept commands from not localhost
+    int HTTP_MAX_CLIENT;  // maximum number of http clients, i.e backlog
     std::string NETWORK_PASSPHRASE; // identifier for the network
 
     // overlay config
