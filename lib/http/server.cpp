@@ -25,11 +25,11 @@ server::server(asio::io_service& io_service)
     , connection_manager_()
     , socket_(io_service_)
 {
-    
+
 }
 
 server::server(asio::io_service& io_service, const std::string& address,
-               unsigned short port)
+               unsigned short port, int maxClient)
     : io_service_(io_service)
     , signals_(io_service_)
     , acceptor_(io_service_)
@@ -43,7 +43,7 @@ server::server(asio::io_service& io_service, const std::string& address,
     acceptor_.open(endpoint.protocol());
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);
-    acceptor_.listen();
+    acceptor_.listen(maxClient);
     do_accept();
 }
 

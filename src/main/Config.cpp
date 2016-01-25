@@ -53,7 +53,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
-
+    HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 8;
     MAX_PEER_CONNECTIONS = 12;
@@ -197,6 +197,17 @@ Config::load(std::string const& filename)
                 if (parsedPort <= 0 || parsedPort > UINT16_MAX)
                     throw std::invalid_argument("bad port number");
                 HTTP_PORT = static_cast<unsigned short>(parsedPort);
+            }
+            else if (item.first == "HTTP_MAX_CLIENT")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid HTTP_MAX_CLIENT");
+                }
+                int64_t maxHttpClient = item.second->as<int64_t>()->value();
+                if (maxHttpClient < 0 || maxHttpClient > UINT16_MAX)
+                    throw std::invalid_argument("bad HTTP_MAX_CLIENT");
+                HTTP_MAX_CLIENT = static_cast<unsigned short>(maxHttpClient);
             }
             else if (item.first == "PUBLIC_HTTP_PORT")
             {

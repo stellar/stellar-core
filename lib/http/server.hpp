@@ -27,7 +27,7 @@ namespace server {
 /// The top-level class of the HTTP server.
 class server
 {
-    
+
 public:
     typedef std::function<void(const std::string&, std::string&)> routeHandler;
     server(const server&) = delete;
@@ -38,7 +38,7 @@ public:
 
     /// Construct the server to listen on the specified TCP address and port
     explicit server(asio::io_service& io_service,
-                    const std::string& address, unsigned short port);
+                    const std::string& address, unsigned short port, int maxClient);
     ~server();
 
     void addRoute(const std::string& routeName, routeHandler callback);
