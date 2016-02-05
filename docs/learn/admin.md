@@ -312,7 +312,7 @@ You do not need to put a lot of nodes there, just the ones that you think
  A good starting point is to pick all validators from the network and
  remove over time the ones that are causing you problems.
 
-Other node operator may or may not chose the same validators than you, it's
+Other node operators may or may not chose the same validators than you, it's
 up to them! All you need is to have a good overlap across the population of
  validators.
 
