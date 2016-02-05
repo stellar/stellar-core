@@ -16,6 +16,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "ledger/DataFrame.h"
 #include "overlay/OverlayManager.h"
 #include "main/PersistentState.h"
 #include "main/ExternalQueue.h"
@@ -50,7 +51,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 2;
+static unsigned long const SCHEMA_VERSION = 3;
 
 static void
 setSerializable(soci::session& sess)
@@ -109,6 +110,10 @@ Database::applySchemaUpgrade(unsigned long vers)
     {
     case 2:
         Herder::dropAll(*this);
+        break;
+
+    case 3:
+        DataFrame::dropAll(*this);
         break;
 
     default:

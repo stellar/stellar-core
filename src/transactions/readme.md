@@ -1,7 +1,5 @@
 #Transactions
-TODO: This mixes implementaion information with user info. Should split into 
-two docs.
-
+See [Concept documentation](https://www.stellar.org/developers/learn/concepts/transactions.html).
 
 Anything that changes the ledger is called a Transaction.
 Transactions have an arbitrary list of operations inside them.
@@ -130,9 +128,8 @@ transactions and LedgerDelta objects, this makes rolling back changes simpler.
 
 ##Result
 
-For each Operation, there is a matching Result type that allows to gather 
-information on failure or, in the case of success gather information on the key 
-side effects of the operation, in structured form.
+For each Operation, there is a matching Result type that gathers information on the key side effects 
+of the operation or in the case of failure records why in structured form.
 
 Results are queued in the txhistory table for other components to derive data:
 historical module for uploading it for long term storage, but also for API 

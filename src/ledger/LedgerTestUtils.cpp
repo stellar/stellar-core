@@ -116,6 +116,12 @@ makeValid(OfferEntry& o)
     clampLow(1, o.price.d);
 }
 
+void
+makeValid(DataEntry& d)
+{
+   
+}
+
 static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s)
     {
@@ -132,6 +138,9 @@ static auto validLedgerEntryGenerator = autocheck::map(
 
         case ACCOUNT:
             makeValid(led.account());
+            break;
+        case DATA:
+            makeValid(led.data());
             break;
         }
 

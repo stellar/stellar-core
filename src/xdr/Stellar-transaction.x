@@ -24,7 +24,8 @@ enum OperationType
     CHANGE_TRUST = 6,
     ALLOW_TRUST = 7,
     ACCOUNT_MERGE = 8,
-    INFLATION = 9
+    INFLATION = 9,
+    MANAGE_DATA = 10
 };
 
 /* CreateAccount
@@ -205,6 +206,21 @@ Result: InflationResult
     Result : AccountMergeResult
 */
 
+/* ManageData
+    Adds, Updates, or Deletes a key value pair associated with a particular 
+	account.
+
+    Threshold: med
+
+    Result: ManageDataResult
+*/
+
+struct ManageDataOp
+{
+    string64 dataName; 
+    DataValue* dataValue;   // set to null to clear
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -235,6 +251,8 @@ struct Operation
         AccountID destination;
     case INFLATION:
         void;
+    case MANAGE_DATA:
+        ManageDataOp manageDataOp;
     }
     body;
 };
@@ -592,6 +610,26 @@ default:
     void;
 };
 
+/******* ManageData Result ********/
+
+enum ManageDataResultCode
+{
+    // codes considered as "success" for the operation
+    MANAGE_DATA_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    MANAGE_DATA_NAME_NOT_FOUND = -1,  // Trying to remove a Data Entry that isn't there
+    MANAGE_DATA_LOW_RESERVE = -2,     // not enough funds to create a new Data Entry
+    MANAGE_DATA_INVALID_NAME = -3     // Name not a valid string
+};
+
+union ManageDataResult switch (ManageDataResultCode code)
+{
+case MANAGE_OFFER_SUCCESS:
+    void;
+default:
+    void;
+};
+
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -627,6 +665,8 @@ case opINNER:
         AccountMergeResult accountMergeResult;
     case INFLATION:
         InflationResult inflationResult;
+    case MANAGE_DATA:
+        ManageDataResult manageDataResult;
     }
     tr;
 default:

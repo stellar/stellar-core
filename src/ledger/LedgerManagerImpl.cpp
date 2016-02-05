@@ -16,6 +16,7 @@
 #include "ledger/LedgerManagerImpl.h"
 #include "TrustFrame.h"
 #include "OfferFrame.h"
+#include "DataFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -796,6 +797,10 @@ LedgerManagerImpl::checkDbState()
     trustLines = TrustFrame::loadAllLines(getDatabase());
     std::unordered_map<AccountID, std::vector<OfferFrame::pointer>> offers;
     offers = OfferFrame::loadAllOffers(getDatabase());
+    std::unordered_map<AccountID, std::vector<DataFrame::pointer>> datas;
+    datas = DataFrame::loadAllData(getDatabase());
+
+
     for (auto& i : aData)
     {
         auto const& a = i.second->getAccount();
@@ -811,6 +816,12 @@ LedgerManagerImpl::checkDbState()
         if (itOffers != offers.end())
         {
             actualSubEntries += itOffers->second.size();
+        }
+
+        auto itDatas = datas.find(i.first);
+        if(itDatas != datas.end())
+        {
+            actualSubEntries += itDatas->second.size();
         }
 
         if (a.numSubEntries != (uint32)actualSubEntries)

@@ -70,6 +70,18 @@ struct LedgerEntryIdCmp
                 return false;
             return aof.offerID < bof.offerID;
         }
+        case DATA:
+        {
+            auto const& ad = a.data();
+            auto const& bd = b.data();
+            if(ad.accountID < bd.accountID)
+                return true;
+            if(bd.accountID < ad.accountID)
+                return false;
+            {
+                return ad.dataName < bd.dataName;
+            }
+        }
         }
         return false;
     }

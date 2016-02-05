@@ -27,6 +27,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/TrustFrame.h"
 #include "ledger/OfferFrame.h"
+#include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "medida/medida.h"
 #include "lib/util/format.h"
@@ -496,7 +497,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
 
     // Step 3: scan the superbucket, checking each object against the DB and
     // counting objects along the way.
-    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0;
+    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData=0;
     {
         auto& meter = metrics.NewMeter({"bucket", "checkdb", "object-compare"},
                                        "comparison");
@@ -519,6 +520,9 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
                 case OFFER:
                     ++nOffers;
                     break;
+                case DATA:
+                    ++nData;
+                    break;
                 }
                 EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
                 if (meter.count() % 100 == 0)
@@ -535,5 +539,6 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
     compareSizes("account", AccountFrame::countObjects(sess), nAccounts);
     compareSizes("trustline", TrustFrame::countObjects(sess), nTrustLines);
     compareSizes("offer", OfferFrame::countObjects(sess), nOffers);
+    compareSizes("data", DataFrame::countObjects(sess), nData);
 }
 }

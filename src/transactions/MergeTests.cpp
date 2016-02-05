@@ -24,6 +24,7 @@ typedef std::unique_ptr<Application> appPtr;
 // Merging and then trying to set options in same ledger
 // Merging with outstanding 0 balance trust lines
 // Merging with outstanding offers
+// Merge when you have outstanding data entries
 TEST_CASE("merge", "[tx][merge]")
 {
     Config cfg(getTestConfig());
@@ -113,6 +114,25 @@ TEST_CASE("merge", "[tx][merge]")
 
             applyAccountMerge(app, a1, b1, a1_seq++,
                               ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+        }
+
+        SECTION("account has data")
+        {
+            // delete the trust line
+            applyChangeTrust(app, a1, gateway, a1_seq++, "USD", 0);
+
+            DataValue value;
+            value.resize(20);
+            for(int n = 0; n < 20; n++)
+            {
+                value[n] = (unsigned char)n;
+            }
+
+            std::string t1("test");
+
+            applyManageData(app, a1, t1, &value, a1_seq++);
+            applyAccountMerge(app, a1, b1, a1_seq++,
+                ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         }
     }
 

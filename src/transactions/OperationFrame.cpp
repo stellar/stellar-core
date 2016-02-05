@@ -20,6 +20,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
+#include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
 
 #include "medida/meter.h"
@@ -58,6 +59,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
     case INFLATION:
         return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
+    case MANAGE_DATA:
+        return shared_ptr<OperationFrame>(new ManageDataOpFrame(op, res, tx));
 
     default:
         ostringstream err;
