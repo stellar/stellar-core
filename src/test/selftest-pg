@@ -47,7 +47,10 @@ runpg() {
     $PGCTL init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
 	|| return 1
     conf="$PGDATA/postgresql.conf"
-    usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{s//\1/p;q}' "$conf")
+    usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{
+                    s//\1/p
+                    q
+                   }' "$conf")
     cat >> "$conf" <<EOF
 $usd = '$PGDATA'
 listen_addresses = ''
