@@ -2,8 +2,30 @@
 
 # Written by David Mazieres 2013-2015.  Public domain.
 
+countwords() {
+    echo $#
+}
+
+findcmd() {
+    SEEK=$1
+    CHECKDIRS="/usr/local/bin /usr/lib/postgresql"
+    FOUND=$(2>/dev/null find $CHECKDIRS -name $SEEK)
+    if [ -z "FOUND" ]
+    then
+        >&2 echo "Could not find $SEEK in any of $CHECKDIRS"
+        exit 1
+    elif [ $(countwords $FOUND) -ne 1 ]
+    then
+        >&2 echo "Multiple options for $SEEK found in $CHECKDIRS"
+    fi
+    echo $FOUND
+}
+
+: ${PGCTL:=$(findcmd pg_ctl)}
+: ${PSQL:=$(findcmd psql)}
+
 cleanup() {
-    pg_ctl stop -m immediate
+    $PGCTL stop -m immediate
     rm -rf "$PGDATA"
     exit
 }
@@ -22,7 +44,7 @@ runpg() {
 
     echo Creating temporary PostgreSQL database cluster in "$PGDATA"
 
-    pg_ctl init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
+    $PGCTL init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
 	|| return 1
     conf="$PGDATA/postgresql.conf"
     usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{s//\1/p;q}' "$conf")
@@ -34,18 +56,18 @@ fsync = no
 synchronous_commit = off
 full_page_writes = off
 EOF
-    pg_ctl start -w -s
+    $PGCTL start -w -s
 }
 
 setup_test() {
     runpg || return 1
     for i in $(seq 0 15) ''; do
-	psql -c "create database test$i;"
+	$PSQL -c "create database test$i;"
     done
 }
 
 if test "$#" = 0; then
-    if psql -c '\quit' test 2> /dev/null || setup_test; then
+    if $PSQL -c '\quit' test 2> /dev/null || setup_test; then
 	echo "Enabling PostgreSQL in most tests"
     else
 	echo "Disabling PostgreSQL in most tests"
