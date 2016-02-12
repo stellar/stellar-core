@@ -3,7 +3,9 @@ title: Administration
 ---
 
 Stellar Core is responsible for communicating directly with and maintaining 
-the Stellar peer-to-peer network.
+the Stellar peer-to-peer network. For a high-level introduction to Stellar Core, [watch this talk](https://www.youtube.com/watch?v=pt_mm8S9_WU) on the architecture and ledger basics:
+
+[![Introduction to Stellar Core](https://i.ytimg.com/vi/pt_mm8S9_WU/hqdefault.jpg "Introduction to Stellar Core")] (https://www.youtube.com/watch?v=pt_mm8S9_WU)
 
 ## Why run a node?
 
