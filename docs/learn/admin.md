@@ -138,7 +138,7 @@ and set the following value in your config:
 `NODE_IS_VALIDATOR=true`
 
 Tell other people your public key (GDMTUTQ... ) so people can add it to their `QUORUM_SET` in their config.
-If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
+If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=false`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
 
 See a [list of other validators](https://github.com/stellar/docs/blob/master/validators.md).
