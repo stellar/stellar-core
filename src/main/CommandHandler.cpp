@@ -470,6 +470,18 @@ CommandHandler::logRotate(std::string const& params, std::string& retStr)
 void
 CommandHandler::catchup(std::string const& params, std::string& retStr)
 {
+    switch (mApp.getLedgerManager().getState())
+    {
+    case LedgerManager::LM_BOOTING_STATE:
+        retStr = "Ledger Manager is still booting, try later";
+        return;
+    case LedgerManager::LM_CATCHING_UP_STATE:
+        retStr = "Catchup already in progress";
+        return;
+    default:
+        break;
+    }
+
     HistoryManager::CatchupMode mode = HistoryManager::CATCHUP_MINIMAL;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
