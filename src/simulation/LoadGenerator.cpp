@@ -41,8 +41,8 @@ using namespace std;
 // Account amounts are expressed in ten-millionths (10^-7).
 static const uint64_t TENMILLION = 10000000;
 
-// Every loadgen account or trustline gets a 99 unit balance (10^2 - 1).
-static const uint64_t LOADGEN_ACCOUNT_BALANCE = 99 * TENMILLION;
+// Every loadgen account or trustline gets a 999 unit balance (10^3 - 1).
+static const uint64_t LOADGEN_ACCOUNT_BALANCE = 999 * TENMILLION;
 
 // Trustlines are limited to 1000x the balance.
 static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
@@ -53,11 +53,11 @@ const uint32_t LoadGenerator::STEP_MSECS = 100;
 LoadGenerator::LoadGenerator(Hash const& networkID)
     : mMinBalance(0), mLastSecond(0)
 {
-    // Root account gets enough XLM to create 100 million (10^8) accounts, which
-    // thereby uses up 7 + 2 + 8 = 17 decimal digits. Luckily we have 2^63 =
+    // Root account gets enough XLM to create 10 million (10^7) accounts, which
+    // thereby uses up 7 + 3 + 7 = 17 decimal digits. Luckily we have 2^63 =
     // 9.2*10^18, so there's room even in 62bits to do this.
     auto root = make_shared<AccountInfo>(0, txtest::getRoot(networkID),
-                                         100000000ULL * LOADGEN_ACCOUNT_BALANCE,
+                                         10000000ULL * LOADGEN_ACCOUNT_BALANCE,
                                          0, *this);
     mAccounts.push_back(root);
 }
