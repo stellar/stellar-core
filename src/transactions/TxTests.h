@@ -149,7 +149,7 @@ uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 ManageOfferResult applyCreateOfferWithResult(
     Application& app, LedgerDelta& delta, uint64 offerId, SecretKey& source,
     Asset& selling, Asset& buying, Price const& price, int64_t amount,
-    SequenceNumber seq, ManageOfferResultCode result = MANAGE_OFFER_SUCCESS);
+    SequenceNumber seq, ManageOfferResultCode targetResult = MANAGE_OFFER_SUCCESS);
 
 TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey& source,
                                      SequenceNumber seq,
@@ -162,20 +162,29 @@ void applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
                      AccountID* inflationDest, uint32_t* setFlags,
                      uint32_t* clearFlags, ThresholdSetter* thrs,
                      Signer* signer, std::string* homeDomain,
-                     SetOptionsResultCode result = SET_OPTIONS_SUCCESS);
+                     SetOptionsResultCode targetResult = SET_OPTIONS_SUCCESS);
 
 TransactionFramePtr createInflation(Hash const& networkID, SecretKey& from,
                                     SequenceNumber seq);
 OperationResult applyInflation(Application& app, SecretKey& from,
                                SequenceNumber seq,
-                               InflationResultCode result = INFLATION_SUCCESS);
+                               InflationResultCode targetResult = INFLATION_SUCCESS);
 
 TransactionFramePtr createAccountMerge(Hash const& networkID, SecretKey& source,
                                        SecretKey& dest, SequenceNumber seq);
 
 void applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
                        SequenceNumber seq,
-                       AccountMergeResultCode result = ACCOUNT_MERGE_SUCCESS);
+                       AccountMergeResultCode targetResult = ACCOUNT_MERGE_SUCCESS);
+
+
+TransactionFramePtr createManageData(Hash const& networkID, SecretKey& source,
+    std::string& name, DataValue* value,  SequenceNumber seq);
+
+void applyManageData(
+    Application& app, SecretKey& source, std::string& name, 
+    DataValue* value,
+    SequenceNumber seq, ManageDataResultCode targetResult = MANAGE_DATA_SUCCESS);
 
 Asset makeAsset(SecretKey& issuer, std::string const& code);
 

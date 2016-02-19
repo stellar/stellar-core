@@ -7,6 +7,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/marshal.h"
@@ -32,6 +33,9 @@ EntryFrame::FromXDR(LedgerEntry const& from)
         break;
     case OFFER:
         res = std::make_shared<OfferFrame>(from);
+        break;
+    case DATA:
+        res = std::make_shared<DataFrame>(from);
         break;
     }
     return res;
@@ -60,6 +64,13 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
         auto const& off = key.offer();
         res = std::static_pointer_cast<EntryFrame>(
             OfferFrame::loadOffer(off.sellerID, off.offerID, db));
+    }
+    break;
+    case DATA:
+    {
+        auto const& data = key.data();
+        res = std::static_pointer_cast<EntryFrame>(
+            DataFrame::loadData(data.accountID,data.dataName, db));
     }
     break;
     }
@@ -197,6 +208,8 @@ EntryFrame::exists(Database& db, LedgerKey const& key)
         return TrustFrame::exists(db, key);
     case OFFER:
         return OfferFrame::exists(db, key);
+    case DATA:
+        return DataFrame::exists(db, key);
     default:
         abort();
     }
@@ -215,6 +228,9 @@ EntryFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
         break;
     case OFFER:
         OfferFrame::storeDelete(delta, db, key);
+        break;
+    case DATA:
+        DataFrame::storeDelete(delta, db, key);
         break;
     }
 }
@@ -242,6 +258,12 @@ LedgerEntryKey(LedgerEntry const& e)
         k.type(OFFER);
         k.offer().sellerID = d.offer().sellerID;
         k.offer().offerID = d.offer().offerID;
+        break;
+
+    case DATA:
+        k.type(DATA);
+        k.data().accountID = d.data().accountID;
+        k.data().dataName = d.data().dataName;
         break;
     }
     return k;

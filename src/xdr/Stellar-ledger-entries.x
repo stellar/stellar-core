@@ -10,7 +10,9 @@ namespace stellar
 typedef PublicKey AccountID;
 typedef opaque Thresholds[4];
 typedef string string32<32>;
+typedef string string64<64>;
 typedef uint64 SequenceNumber;
+typedef opaque DataValue<64>; 
 
 enum AssetType
 {
@@ -62,7 +64,8 @@ enum LedgerEntryType
 {
     ACCOUNT = 0,
     TRUSTLINE = 1,
-    OFFER = 2
+    OFFER = 2,
+    DATA = 3
 };
 
 struct Signer
@@ -190,6 +193,25 @@ struct OfferEntry
     ext;
 };
 
+/* DataEntry
+    Data can be attached to accounts.
+*/
+struct DataEntry
+{
+    AccountID accountID; // account this data belongs to
+    string64 dataName;
+    DataValue dataValue;
+
+    // reserved for future use
+    union switch (int v)
+    {
+    case 0:
+        void;
+    }
+    ext;
+};
+
+
 struct LedgerEntry
 {
     uint32 lastModifiedLedgerSeq; // ledger the LedgerEntry was last changed
@@ -202,6 +224,8 @@ struct LedgerEntry
         TrustLineEntry trustLine;
     case OFFER:
         OfferEntry offer;
+    case DATA:
+        DataEntry data;
     }
     data;
 

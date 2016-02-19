@@ -13,6 +13,7 @@
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/DataFrame.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -22,6 +23,7 @@
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/InflationOpFrame.h"
 #include "transactions/MergeOpFrame.h"
+#include "transactions/ManageDataOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -108,6 +110,10 @@ checkEntry(LedgerEntry const& le, Application& app)
         break;
     case OFFER:
         checkAccount(d.offer().sellerID, app);
+        break;
+    case DATA:
+        checkAccount(d.data().accountID, app);
+        break;
     default:
         break;
     }
@@ -125,8 +131,11 @@ checkAccount(AccountID const& id, Application& app)
     std::vector<OfferFrame::pointer> retOffers;
     OfferFrame::loadOffers(id, retOffers, app.getDatabase());
 
+    std::vector<DataFrame::pointer> retDatas;
+    DataFrame::loadAccountsData(id, retDatas, app.getDatabase());
+
     size_t actualSubEntries =
-        res->getAccount().signers.size() + retLines.size() + retOffers.size();
+        res->getAccount().signers.size() + retLines.size() + retOffers.size() + retDatas.size();
 
     REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
 }
@@ -815,7 +824,7 @@ createAccountMerge(Hash const& networkID, SecretKey& source, SecretKey& dest,
 
 void
 applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
-                  SequenceNumber seq, AccountMergeResultCode result)
+                  SequenceNumber seq, AccountMergeResultCode targetResult)
 {
     TransactionFramePtr txFrame =
         createAccountMerge(app.getNetworkID(), source, dest, seq);
@@ -825,8 +834,52 @@ applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
     applyCheck(txFrame, delta, app);
 
     REQUIRE(MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+                txFrame->getResult().result.results()[0]) == targetResult);
 }
+
+TransactionFramePtr 
+createManageData(Hash const& networkID, SecretKey& source,
+    std::string& name, DataValue* value, SequenceNumber seq)
+{
+    Operation op;
+    op.body.type(MANAGE_DATA);
+    op.body.manageDataOp().dataName = name;
+    if(value)
+        op.body.manageDataOp().dataValue.activate() = *value;
+
+    return transactionFromOperation(networkID, source, seq, op);
+}
+
+void 
+applyManageData( Application& app,  
+    SecretKey& source, std::string& name, DataValue* value,
+    SequenceNumber seq, ManageDataResultCode targetResult)
+{
+    TransactionFramePtr txFrame =
+        createManageData(app.getNetworkID(), source, name, value, seq);
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+        app.getDatabase());
+    applyCheck(txFrame, delta, app);
+
+    REQUIRE(ManageDataOpFrame::getInnerCode(
+        txFrame->getResult().result.results()[0]) == targetResult);
+
+    if(targetResult==MANAGE_DATA_SUCCESS)
+    {
+        auto dataFrame=DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
+        if(value)
+        {
+            REQUIRE(dataFrame != nullptr);
+            REQUIRE(dataFrame->getData().dataValue == *value);
+        } else
+        {
+            REQUIRE(dataFrame == nullptr);
+        }
+    } 
+}
+
+
 
 OperationFrame const&
 getFirstOperationFrame(TransactionFrame const& tx)

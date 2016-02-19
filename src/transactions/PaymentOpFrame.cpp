@@ -11,10 +11,10 @@
 #include "ledger/OfferFrame.h"
 #include "database/Database.h"
 #include "OfferExchange.h"
-#include <algorithm>
-
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "main/Application.h"
+#include <algorithm>
 
 namespace stellar
 {
@@ -29,13 +29,13 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                         LedgerManager& ledgerManager)
 {
     // if sending to self directly, just mark as success
     if (mPayment.destination == getSourceID())
     {
-        metrics.NewMeter({"op-payment", "success", "apply"}, "operation")
+        app.getMetrics().NewMeter({"op-payment", "success", "apply"}, "operation")
             .Mark();
         innerResult().code(PAYMENT_SUCCESS);
         return true;
@@ -60,8 +60,8 @@ PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
     ppayment.setSourceAccountPtr(mSourceAccount);
 
-    if (!ppayment.doCheckValid(metrics) ||
-        !ppayment.doApply(metrics, delta, ledgerManager))
+    if (!ppayment.doCheckValid(app) ||
+        !ppayment.doApply(app, delta, ledgerManager))
     {
         if (ppayment.getResultCode() != opINNER)
         {
@@ -72,42 +72,42 @@ PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         switch (PathPaymentOpFrame::getInnerCode(ppayment.getResult()))
         {
         case PATH_PAYMENT_UNDERFUNDED:
-            metrics.NewMeter({"op-payment", "failure", "underfunded"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "underfunded"},
                              "operation").Mark();
             res = PAYMENT_UNDERFUNDED;
             break;
         case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
-            metrics.NewMeter({"op-payment", "failure", "src-not-authorized"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "src-not-authorized"},
                              "operation").Mark();
             res = PAYMENT_SRC_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_SRC_NO_TRUST:
-            metrics.NewMeter({"op-payment", "failure", "src-no-trust"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "src-no-trust"},
                              "operation").Mark();
             res = PAYMENT_SRC_NO_TRUST;
             break;
         case PATH_PAYMENT_NO_DESTINATION:
-            metrics.NewMeter({"op-payment", "failure", "no-destination"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "no-destination"},
                              "operation").Mark();
             res = PAYMENT_NO_DESTINATION;
             break;
         case PATH_PAYMENT_NO_TRUST:
-            metrics.NewMeter({"op-payment", "failure", "no-trust"}, "operation")
+            app.getMetrics().NewMeter({"op-payment", "failure", "no-trust"}, "operation")
                 .Mark();
             res = PAYMENT_NO_TRUST;
             break;
         case PATH_PAYMENT_NOT_AUTHORIZED:
-            metrics.NewMeter({"op-payment", "failure", "not-authorized"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "not-authorized"},
                              "operation").Mark();
             res = PAYMENT_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_LINE_FULL:
-            metrics.NewMeter({"op-payment", "failure", "line-full"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "line-full"},
                              "operation").Mark();
             res = PAYMENT_LINE_FULL;
             break;
         case PATH_PAYMENT_NO_ISSUER:
-            metrics.NewMeter({"op-payment", "failure", "no-issuer"},
+            app.getMetrics().NewMeter({"op-payment", "failure", "no-issuer"},
                              "operation").Mark();
             res = PAYMENT_NO_ISSUER;
             break;
@@ -121,25 +121,25 @@ PaymentOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     assert(PathPaymentOpFrame::getInnerCode(ppayment.getResult()) ==
            PATH_PAYMENT_SUCCESS);
 
-    metrics.NewMeter({"op-payment", "success", "apply"}, "operation").Mark();
+    app.getMetrics().NewMeter({"op-payment", "success", "apply"}, "operation").Mark();
     innerResult().code(PAYMENT_SUCCESS);
 
     return true;
 }
 
 bool
-PaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+PaymentOpFrame::doCheckValid(Application& app)
 {
     if (mPayment.amount <= 0)
     {
-        metrics.NewMeter({"op-payment", "invalid", "malformed-negative-amount"},
+        app.getMetrics().NewMeter({"op-payment", "invalid", "malformed-negative-amount"},
                          "operation").Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
     if (!isAssetValid(mPayment.asset))
     {
-        metrics.NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
+        app.getMetrics().NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
                          "operation").Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;

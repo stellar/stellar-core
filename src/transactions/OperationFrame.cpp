@@ -20,6 +20,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
+#include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
 
 #include "medida/meter.h"
@@ -58,6 +59,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return shared_ptr<OperationFrame>(new MergeOpFrame(op, res, tx));
     case INFLATION:
         return shared_ptr<OperationFrame>(new InflationOpFrame(op, res, tx));
+    case MANAGE_DATA:
+        return shared_ptr<OperationFrame>(new ManageDataOpFrame(op, res, tx));
 
     default:
         ostringstream err;
@@ -79,7 +82,7 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
     res = checkValid(app, &delta);
     if (res)
     {
-        res = doApply(app.getMetrics(), delta, app.getLedgerManager());
+        res = doApply(app, delta, app.getLedgerManager());
     }
 
     return res;
@@ -124,6 +127,7 @@ OperationFrame::getResultCode() const
 bool
 OperationFrame::checkValid(Application& app, LedgerDelta* delta)
 {
+    
     bool forApply = (delta != nullptr);
     if (!loadAccount(delta, app.getDatabase()))
     {
@@ -161,6 +165,6 @@ OperationFrame::checkValid(Application& app, LedgerDelta* delta)
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid(app.getMetrics());
+    return doCheckValid(app);
 }
 }

@@ -14,6 +14,7 @@
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "main/Application.h"
 
 namespace stellar
 {
@@ -30,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
+PathPaymentOpFrame::doApply(Application& app,
                             LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -69,7 +70,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!destination)
         {
-            metrics.NewMeter({"op-path-payment", "failure", "no-destination"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "no-destination"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_NO_DESTINATION);
             return false;
@@ -97,7 +98,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
                                                        curB, db, delta);
             if (!tlI.second)
             {
-                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                app.getMetrics().NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curB;
@@ -108,7 +109,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!destLine)
         {
-            metrics.NewMeter({"op-path-payment", "failure", "no-trust"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "no-trust"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_NO_TRUST);
             return false;
@@ -116,7 +117,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!destLine->isAuthorized())
         {
-            metrics.NewMeter({"op-path-payment", "failure", "not-authorized"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "not-authorized"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_NOT_AUTHORIZED);
             return false;
@@ -124,7 +125,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!destLine->addBalance(curBReceived))
         {
-            metrics.NewMeter({"op-path-payment", "failure", "line-full"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "line-full"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_LINE_FULL);
             return false;
@@ -151,7 +152,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         {
             if (!AccountFrame::loadAccount(delta, getIssuer(curA), db))
             {
-                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                app.getMetrics().NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curA;
@@ -162,6 +163,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         OfferExchange oe(delta, ledgerManager);
 
         // curA -> curB
+        medida::MetricsRegistry& metrics = app.getMetrics();
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             curA, INT64_MAX, curASent, curB, curBReceived, actualCurBReceived,
             [this, &metrics](OfferFrame const& o)
@@ -189,7 +191,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
             }
         // fall through
         case OfferExchange::ePartial:
-            metrics.NewMeter({"op-path-payment", "failure", "too-few-offers"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "too-few-offers"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_TOO_FEW_OFFERS);
             return false;
@@ -214,7 +216,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
     if (curBSent > mPathPayment.sendMax)
     { // make sure not over the max
-        metrics.NewMeter({"op-path-payment", "failure", "over-send-max"},
+        app.getMetrics().NewMeter({"op-path-payment", "failure", "over-send-max"},
                          "operation").Mark();
         innerResult().code(PATH_PAYMENT_OVER_SENDMAX);
         return false;
@@ -226,7 +228,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if ((mSourceAccount->getAccount().balance - curBSent) < minBalance)
         { // they don't have enough to send
-            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "underfunded"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
@@ -250,7 +252,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
             if (!tlI.second)
             {
-                metrics.NewMeter({"op-path-payment", "failure", "no-issuer"},
+                app.getMetrics().NewMeter({"op-path-payment", "failure", "no-issuer"},
                                  "operation").Mark();
                 innerResult().code(PATH_PAYMENT_NO_ISSUER);
                 innerResult().noIssuer() = curB;
@@ -261,7 +263,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!sourceLineFrame)
         {
-            metrics.NewMeter({"op-path-payment", "failure", "src-no-trust"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "src-no-trust"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_SRC_NO_TRUST);
             return false;
@@ -269,7 +271,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!sourceLineFrame->isAuthorized())
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-path-payment", "failure", "src-not-authorized"},
                         "operation").Mark();
             innerResult().code(PATH_PAYMENT_SRC_NOT_AUTHORIZED);
@@ -278,7 +280,7 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!sourceLineFrame->addBalance(-curBSent))
         {
-            metrics.NewMeter({"op-path-payment", "failure", "underfunded"},
+            app.getMetrics().NewMeter({"op-path-payment", "failure", "underfunded"},
                              "operation").Mark();
             innerResult().code(PATH_PAYMENT_UNDERFUNDED);
             return false;
@@ -287,18 +289,18 @@ PathPaymentOpFrame::doApply(medida::MetricsRegistry& metrics,
         sourceLineFrame->storeChange(delta, db);
     }
 
-    metrics.NewMeter({"op-path-payment", "success", "apply"}, "operation")
+    app.getMetrics().NewMeter({"op-path-payment", "success", "apply"}, "operation")
         .Mark();
 
     return true;
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+PathPaymentOpFrame::doCheckValid(Application& app)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
-        metrics.NewMeter({"op-path-payment", "invalid", "malformed-amounts"},
+        app.getMetrics().NewMeter({"op-path-payment", "invalid", "malformed-amounts"},
                          "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
@@ -306,7 +308,7 @@ PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     if (!isAssetValid(mPathPayment.sendAsset) ||
         !isAssetValid(mPathPayment.destAsset))
     {
-        metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
+        app.getMetrics().NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
                          "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;
@@ -314,7 +316,7 @@ PathPaymentOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     auto const& p = mPathPayment.path;
     if (!std::all_of(p.begin(), p.end(), isAssetValid))
     {
-        metrics.NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
+        app.getMetrics().NewMeter({"op-path-payment", "invalid", "malformed-currencies"},
                          "operation").Mark();
         innerResult().code(PATH_PAYMENT_MALFORMED);
         return false;

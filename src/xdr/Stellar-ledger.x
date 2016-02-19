@@ -118,6 +118,13 @@ case OFFER:
         AccountID sellerID;
         uint64 offerID;
     } offer;
+
+case DATA:
+    struct
+    {
+        AccountID accountID;
+        string64 dataName;
+    } data;
 };
 
 enum BucketEntryType

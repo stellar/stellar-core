@@ -5,7 +5,7 @@
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"
-
+#include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
@@ -33,7 +33,7 @@ MergeOpFrame::getNeededThreshold() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
                       LedgerManager& ledgerManager)
 {
     AccountFrame::pointer otherAccount;
@@ -44,7 +44,7 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     if (!otherAccount)
     {
-        metrics.NewMeter({"op-merge", "failure", "no-account"}, "operation")
+        app.getMetrics().NewMeter({"op-merge", "failure", "no-account"}, "operation")
             .Mark();
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
@@ -52,7 +52,7 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     if (mSourceAccount->isImmutableAuth())
     {
-        metrics.NewMeter({"op-merge", "failure", "static-auth"}, "operation")
+        app.getMetrics().NewMeter({"op-merge", "failure", "static-auth"}, "operation")
             .Mark();
         innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
         return false;
@@ -61,7 +61,7 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     auto const& sourceAccount = mSourceAccount->getAccount();
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
-        metrics.NewMeter({"op-merge", "failure", "has-sub-entries"},
+        app.getMetrics().NewMeter({"op-merge", "failure", "has-sub-entries"},
                          "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
@@ -72,19 +72,19 @@ MergeOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
-    metrics.NewMeter({"op-merge", "success", "apply"}, "operation").Mark();
+    app.getMetrics().NewMeter({"op-merge", "success", "apply"}, "operation").Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     innerResult().sourceAccountBalance() = sourceBalance;
     return true;
 }
 
 bool
-MergeOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+MergeOpFrame::doCheckValid(Application& app)
 {
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())
     {
-        metrics.NewMeter({"op-merge", "invalid", "malformed-self-merge"},
+        app.getMetrics().NewMeter({"op-merge", "invalid", "malformed-self-merge"},
                          "operation").Mark();
         innerResult().code(ACCOUNT_MERGE_MALFORMED);
         return false;

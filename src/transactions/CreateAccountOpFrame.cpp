@@ -12,6 +12,7 @@
 #include "OfferExchange.h"
 #include <algorithm>
 
+#include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
@@ -30,7 +31,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
+CreateAccountOpFrame::doApply(Application& app,
                               LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     AccountFrame::pointer destAccount;
@@ -43,7 +44,7 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
     {
         if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
         { // not over the minBalance to make an account
-            metrics.NewMeter({"op-create-account", "failure", "low-reserve"},
+            app.getMetrics().NewMeter({"op-create-account", "failure", "low-reserve"},
                              "operation").Mark();
             innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
             return false;
@@ -56,7 +57,7 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
             if ((mSourceAccount->getAccount().balance - minBalance) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
-                metrics.NewMeter(
+                app.getMetrics().NewMeter(
                             {"op-create-account", "failure", "underfunded"},
                             "operation").Mark();
                 innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
@@ -74,7 +75,7 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
 
             destAccount->storeAdd(delta, db);
 
-            metrics.NewMeter({"op-create-account", "success", "apply"},
+            app.getMetrics().NewMeter({"op-create-account", "success", "apply"},
                              "operation").Mark();
             innerResult().code(CREATE_ACCOUNT_SUCCESS);
             return true;
@@ -82,7 +83,7 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
     }
     else
     {
-        metrics.NewMeter({"op-create-account", "failure", "already-exist"},
+        app.getMetrics().NewMeter({"op-create-account", "failure", "already-exist"},
                          "operation").Mark();
         innerResult().code(CREATE_ACCOUNT_ALREADY_EXIST);
         return false;
@@ -90,11 +91,11 @@ CreateAccountOpFrame::doApply(medida::MetricsRegistry& metrics,
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+CreateAccountOpFrame::doCheckValid(Application& app)
 {
     if (mCreateAccount.startingBalance <= 0)
     {
-        metrics.NewMeter({"op-create-account", "invalid",
+        app.getMetrics().NewMeter({"op-create-account", "invalid",
                           "malformed-negative-balance"},
                          "operation").Mark();
         innerResult().code(CREATE_ACCOUNT_MALFORMED);
@@ -103,7 +104,7 @@ CreateAccountOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (mCreateAccount.destination == getSourceID())
     {
-        metrics.NewMeter({"op-create-account", "invalid",
+        app.getMetrics().NewMeter({"op-create-account", "invalid",
                           "malformed-destination-equals-source"},
                          "operation").Mark();
         innerResult().code(CREATE_ACCOUNT_MALFORMED);

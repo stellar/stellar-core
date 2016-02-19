@@ -4,7 +4,7 @@
 
 #include "transactions/SetOptionsOpFrame.h"
 #include "database/Database.h"
-
+#include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
@@ -38,7 +38,7 @@ SetOptionsOpFrame::getNeededThreshold() const
 }
 
 bool
-SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -51,7 +51,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         inflationAccount = AccountFrame::loadAccount(delta, inflationID, db);
         if (!inflationAccount)
         {
-            metrics.NewMeter({"op-set-options", "failure", "invalid-inflation"},
+            app.getMetrics().NewMeter({"op-set-options", "failure", "invalid-inflation"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_INVALID_INFLATION);
             return false;
@@ -64,7 +64,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         if ((*mSetOptions.clearFlags & allAccountAuthFlags) &&
             mSourceAccount->isImmutableAuth())
         {
-            metrics.NewMeter({"op-set-options", "failure", "cant-change"},
+            app.getMetrics().NewMeter({"op-set-options", "failure", "cant-change"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_CANT_CHANGE);
             return false;
@@ -77,7 +77,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         if ((*mSetOptions.setFlags & allAccountAuthFlags) &&
             mSourceAccount->isImmutableAuth())
         {
-            metrics.NewMeter({"op-set-options", "failure", "cant-change"},
+            app.getMetrics().NewMeter({"op-set-options", "failure", "cant-change"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_CANT_CHANGE);
             return false;
@@ -132,7 +132,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
             {
                 if (signers.size() == signers.max_size())
                 {
-                    metrics.NewMeter({"op-set-options", "failure",
+                    app.getMetrics().NewMeter({"op-set-options", "failure",
                                       "too-many-signers"},
                                      "operation").Mark();
                     innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
@@ -140,7 +140,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
-                    metrics.NewMeter(
+                    app.getMetrics().NewMeter(
                                 {"op-set-options", "failure", "low-reserve"},
                                 "operation").Mark();
                     innerResult().code(SET_OPTIONS_LOW_RESERVE);
@@ -169,7 +169,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
         mSourceAccount->setUpdateSigners();
     }
 
-    metrics.NewMeter({"op-set-options", "success", "apply"}, "operation")
+    app.getMetrics().NewMeter({"op-set-options", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(SET_OPTIONS_SUCCESS);
     mSourceAccount->storeChange(delta, db);
@@ -177,7 +177,7 @@ SetOptionsOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+SetOptionsOpFrame::doCheckValid(Application& app)
 {
     if (mSetOptions.setFlags)
     {
@@ -201,7 +201,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if ((*mSetOptions.setFlags & *mSetOptions.clearFlags) != 0)
         {
-            metrics.NewMeter({"op-set-options", "invalid", "bad-flags"},
+            app.getMetrics().NewMeter({"op-set-options", "invalid", "bad-flags"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_BAD_FLAGS);
             return false;
@@ -212,7 +212,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (*mSetOptions.masterWeight > UINT8_MAX)
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-set-options", "invalid", "threshold-out-of-range"},
                         "operation").Mark();
             innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
@@ -224,7 +224,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (*mSetOptions.lowThreshold > UINT8_MAX)
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-set-options", "invalid", "threshold-out-of-range"},
                         "operation").Mark();
             innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
@@ -236,7 +236,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (*mSetOptions.medThreshold > UINT8_MAX)
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-set-options", "invalid", "threshold-out-of-range"},
                         "operation").Mark();
             innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
@@ -248,7 +248,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (*mSetOptions.highThreshold > UINT8_MAX)
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-set-options", "invalid", "threshold-out-of-range"},
                         "operation").Mark();
             innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
@@ -260,7 +260,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (mSetOptions.signer->pubKey == getSourceID())
         {
-            metrics.NewMeter({"op-set-options", "invalid", "bad-signer"},
+            app.getMetrics().NewMeter({"op-set-options", "invalid", "bad-signer"},
                              "operation").Mark();
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;
@@ -271,7 +271,7 @@ SetOptionsOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     {
         if (!isString32Valid(*mSetOptions.homeDomain))
         {
-            metrics.NewMeter(
+            app.getMetrics().NewMeter(
                         {"op-set-options", "invalid", "invalid-home-domain"},
                         "operation").Mark();
             innerResult().code(SET_OPTIONS_INVALID_HOME_DOMAIN);

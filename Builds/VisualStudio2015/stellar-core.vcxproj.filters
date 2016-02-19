@@ -483,6 +483,15 @@
     <ClCompile Include="..\..\src\overlay\FloodTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\DataFrame.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
@@ -506,6 +515,18 @@
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorum.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\util\BitsetEnumeratorTests.cpp">
+      <Filter>util</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -860,6 +881,12 @@
     <ClInclude Include="..\..\src\overlay\StellarXDR.h">
       <Filter>overlay</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\DataFrame.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\history\StateSnapshot.h">
       <Filter>history</Filter>
     </ClInclude>
@@ -880,6 +907,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
       <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\InferredQuorum.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

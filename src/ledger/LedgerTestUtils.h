@@ -20,6 +20,7 @@ namespace LedgerTestUtils
 void makeValid(AccountEntry& a);
 void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);
+void makeValid(DataEntry& d);
 
 LedgerEntry generateValidLedgerEntry(size_t b = 3);
 std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);

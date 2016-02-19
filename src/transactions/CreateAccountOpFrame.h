@@ -22,9 +22,9 @@ class CreateAccountOpFrame : public OperationFrame
     CreateAccountOpFrame(Operation const& op, OperationResult& res,
                          TransactionFrame& parentTx);
 
-    bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+    bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(medida::MetricsRegistry& metrics) override;
+    bool doCheckValid(Application& app) override;
 
     static CreateAccountResultCode
     getInnerCode(OperationResult const& res)
