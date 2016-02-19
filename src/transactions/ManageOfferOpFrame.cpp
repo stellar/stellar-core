@@ -12,6 +12,7 @@
 #include "OfferExchange.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "main/Application.h"
 
 // convert from sheep to wheat
 // selling sheep
@@ -119,12 +120,12 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
+ManageOfferOpFrame::doApply(Application& app,
                             LedgerDelta& delta, LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
 
-    if (!checkOfferValid(metrics, db, delta))
+    if (!checkOfferValid(app.getMetrics(), db, delta))
     {
         return false;
     }
@@ -142,7 +143,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
 
         if (!mSellSheepOffer)
         {
-            metrics.NewMeter({"op-manage-offer", "invalid", "not-found"},
+            app.getMetrics().NewMeter({"op-manage-offer", "invalid", "not-found"},
                              "operation").Mark();
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
@@ -199,7 +200,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
             if (maxWheatCanSell == 0)
             {
-                metrics.NewMeter({"op-manage-offer", "invalid", "line-full"},
+                app.getMetrics().NewMeter({"op-manage-offer", "invalid", "line-full"},
                                  "operation").Mark();
                 innerResult().code(MANAGE_OFFER_LINE_FULL);
                 return false;
@@ -328,7 +329,7 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
             // the minbalance
             if (!mSourceAccount->addNumEntries(1, ledgerManager))
             {
-                metrics.NewMeter({"op-manage-offer", "invalid", "low reserve"},
+                app.getMetrics().NewMeter({"op-manage-offer", "invalid", "low reserve"},
                                  "operation").Mark();
                 innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                 return false;
@@ -361,28 +362,28 @@ ManageOfferOpFrame::doApply(medida::MetricsRegistry& metrics,
     sqlTx.commit();
     tempDelta.commit();
 
-    metrics.NewMeter({"op-create-offer", "success", "apply"}, "operation")
+    app.getMetrics().NewMeter({"op-create-offer", "success", "apply"}, "operation")
         .Mark();
     return true;
 }
 
 // makes sure the currencies are different
 bool
-ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+ManageOfferOpFrame::doCheckValid(Application& app)
 {
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
 
     if (!isAssetValid(sheep) || !isAssetValid(wheat))
     {
-        metrics.NewMeter({"op-manage-offer", "invalid", "invalid-asset"},
+        app.getMetrics().NewMeter({"op-manage-offer", "invalid", "invalid-asset"},
                          "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
     }
     if (compareAsset(sheep, wheat))
     {
-        metrics.NewMeter({"op-manage-offer", "invalid", "equal-currencies"},
+        app.getMetrics().NewMeter({"op-manage-offer", "invalid", "equal-currencies"},
                          "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
         return false;
@@ -390,7 +391,7 @@ ManageOfferOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
     if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
         mManageOffer.price.n <= 0)
     {
-        metrics.NewMeter(
+        app.getMetrics().NewMeter(
                     {"op-manage-offer", "invalid", "negative-or-zero-values"},
                     "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);

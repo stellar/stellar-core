@@ -33,8 +33,8 @@ class OperationFrame
 
     bool checkSignature() const;
 
-    virtual bool doCheckValid(medida::MetricsRegistry& metrics) = 0;
-    virtual bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+    virtual bool doCheckValid(Application& app) = 0;
+    virtual bool doApply(Application& app, LedgerDelta& delta,
                          LedgerManager& ledgerManager) = 0;
     virtual int32_t getNeededThreshold() const;
 

@@ -6,7 +6,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/TrustFrame.h"
 #include "database/Database.h"
-
+#include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
@@ -26,12 +26,12 @@ AllowTrustOpFrame::getNeededThreshold() const
 }
 
 bool
-AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
-        metrics.NewMeter({"op-allow-trust", "failure", "not-required"},
+        app.getMetrics().NewMeter({"op-allow-trust", "failure", "not-required"},
                          "operation").Mark();
         innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
         return false;
@@ -40,7 +40,7 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
         !mAllowTrust.authorize)
     {
-        metrics.NewMeter({"op-allow-trust", "failure", "cant-revoke"},
+        app.getMetrics().NewMeter({"op-allow-trust", "failure", "cant-revoke"},
                          "operation").Mark();
         innerResult().code(ALLOW_TRUST_CANT_REVOKE);
         return false;
@@ -65,13 +65,13 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     if (!trustLine)
     {
-        metrics.NewMeter({"op-allow-trust", "failure", "no-trust-line"},
+        app.getMetrics().NewMeter({"op-allow-trust", "failure", "no-trust-line"},
                          "operation").Mark();
         innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
         return false;
     }
 
-    metrics.NewMeter({"op-allow-trust", "success", "apply"}, "operation")
+    app.getMetrics().NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
@@ -83,11 +83,11 @@ AllowTrustOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+AllowTrustOpFrame::doCheckValid(Application& app)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
-        metrics.NewMeter(
+        app.getMetrics().NewMeter(
                     {"op-allow-trust", "invalid", "malformed-non-alphanum"},
                     "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
@@ -108,7 +108,7 @@ AllowTrustOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
 
     if (!isAssetValid(ci))
     {
-        metrics.NewMeter(
+        app.getMetrics().NewMeter(
                     {"op-allow-trust", "invalid", "malformed-invalid-asset"},
                     "operation").Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);

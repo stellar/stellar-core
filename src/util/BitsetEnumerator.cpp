@@ -108,7 +108,7 @@ PermutationEnumerator::operator*() const
 
 // Simplest way of expressing unsigned unary-neg without tripping compiler
 // errors, and/or hunting for the One Right Signedness Cast agreeable to
-// all compilers / avoiding undefined behaviour.
+// all compilers / avoiding undefined behavior.
 static inline uint64_t
 uneg(uint64_t const& n)
 {
@@ -121,7 +121,7 @@ PermutationEnumerator::operator++()
     // Next bit-permutation. See:
     // https://graphics.stanford.edu/~seander/bithacks.html#NextBitPermutation
     uint64_t t = (mCur | (mCur - 1)) + 1;
-    mCur = t | ((((t & -t) / (mCur & uneg(mCur))) >> 1) - 1);
+    mCur = t | ((((t & uneg(t)) / (mCur & uneg(mCur))) >> 1) - 1);
 }
 
 ///////////////////////////////////////////////////////////////////////////

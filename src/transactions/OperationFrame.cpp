@@ -82,7 +82,7 @@ OperationFrame::apply(LedgerDelta& delta, Application& app)
     res = checkValid(app, &delta);
     if (res)
     {
-        res = doApply(app.getMetrics(), delta, app.getLedgerManager());
+        res = doApply(app, delta, app.getLedgerManager());
     }
 
     return res;
@@ -127,6 +127,7 @@ OperationFrame::getResultCode() const
 bool
 OperationFrame::checkValid(Application& app, LedgerDelta* delta)
 {
+    
     bool forApply = (delta != nullptr);
     if (!loadAccount(delta, app.getDatabase()))
     {
@@ -164,6 +165,6 @@ OperationFrame::checkValid(Application& app, LedgerDelta* delta)
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
 
-    return doCheckValid(app.getMetrics());
+    return doCheckValid(app);
 }
 }

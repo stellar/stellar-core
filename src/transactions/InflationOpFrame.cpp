@@ -9,6 +9,7 @@
 #include "overlay/StellarXDR.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "main/Application.h"
 
 const uint32_t INFLATION_FREQUENCY = (60 * 60 * 24 * 7); // every 7 days
 // inflation is .000190721 per 7 days, or 1% a year
@@ -27,7 +28,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
                           LedgerManager& ledgerManager)
 {
     LedgerDelta inflationDelta(delta);
@@ -40,7 +41,7 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
     time_t inflationTime = (INFLATION_START_TIME + seq * INFLATION_FREQUENCY);
     if (closeTime < inflationTime)
     {
-        metrics.NewMeter({"op-inflation", "failure", "not-time"}, "operation")
+        app.getMetrics().NewMeter({"op-inflation", "failure", "not-time"}, "operation")
             .Mark();
         innerResult().code(INFLATION_NOT_TIME);
         return false;
@@ -114,12 +115,12 @@ InflationOpFrame::doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
 
     inflationDelta.commit();
 
-    metrics.NewMeter({"op-inflation", "success", "apply"}, "operation").Mark();
+    app.getMetrics().NewMeter({"op-inflation", "success", "apply"}, "operation").Mark();
     return true;
 }
 
 bool
-InflationOpFrame::doCheckValid(medida::MetricsRegistry& metrics)
+InflationOpFrame::doCheckValid(Application& app)
 {
     return true;
 }

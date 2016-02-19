@@ -22,9 +22,9 @@ class SetOptionsOpFrame : public OperationFrame
     SetOptionsOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(medida::MetricsRegistry& metrics, LedgerDelta& delta,
+    bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(medida::MetricsRegistry& metrics) override;
+    bool doCheckValid(Application& app) override;
 
     static SetOptionsResultCode
     getInnerCode(OperationResult const& res)
