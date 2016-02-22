@@ -625,7 +625,7 @@ enum ManageDataResultCode
 
 union ManageDataResult switch (ManageDataResultCode code)
 {
-case MANAGE_OFFER_SUCCESS:
+case MANAGE_DATA_SUCCESS:
     void;
 default:
     void;
