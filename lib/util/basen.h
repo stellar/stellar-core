@@ -89,8 +89,8 @@ struct b16_conversion_traits
 
     static char encode(unsigned int index)
     {
-        const char* const dictionary = "0123456789ABCDEF";
-        assert(index < strlen(dictionary));
+        static const char dictionary[17] = "0123456789ABCDEF";
+        assert(index < 16);
         return dictionary[index];
     }
 
@@ -114,8 +114,8 @@ struct b32_conversion_traits
 
     static char encode(unsigned int index)
     {
-        const char * dictionary = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-        assert(index < strlen(dictionary));
+        static const char dictionary[33] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        assert(index < 32);
         return dictionary[index];
     }
 
@@ -139,8 +139,8 @@ struct b64_conversion_traits
 
     static char encode(unsigned int index)
     {
-        const char* const dictionary = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-        assert(index < strlen(dictionary));
+        static const char dictionary[65] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        assert(index < 64);
         return dictionary[index];
     }
 
