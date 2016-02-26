@@ -94,6 +94,15 @@ Peer::Peer(Application& app, PeerRole role)
     , mRecvGetSCPStateTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-state"}))
 
+    , mRecvSCPPrepareTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-prepare"}))
+    , mRecvSCPConfirmTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-confirm"}))
+    , mRecvSCPNominateTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-nominate"}))
+    , mRecvSCPExternalizeTimer(
+          app.getMetrics().NewTimer({"overlay", "recv", "scp-externalize"}))
+
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
     , mSendHelloMeter(
@@ -788,6 +797,13 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                                    msg.envelope().statement.nodeID);
 
     mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
+
+    auto type = msg.envelope().statement.pledges.type();
+    auto t =
+        (type == SCP_ST_PREPARE ? mRecvSCPPrepareTimer.TimeScope() :
+         (type == SCP_ST_CONFIRM ? mRecvSCPConfirmTimer.TimeScope() :
+          (type == SCP_ST_EXTERNALIZE ? mRecvSCPExternalizeTimer.TimeScope() :
+           (mRecvSCPNominateTimer.TimeScope()))));
 
     mApp.getHerder().recvSCPEnvelope(envelope);
 }
