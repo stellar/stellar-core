@@ -225,11 +225,12 @@ NominationProtocol::updateRoundLeaders()
                                }
                            });
     CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
-    for (auto const& rl : mRoundLeaders)
-    {
-        CLOG(DEBUG, "SCP") << "    leader "
-                           << mSlot.getSCPDriver().toShortString(rl);
-    }
+    if (Logging::logDebug("SCP"))
+        for (auto const& rl : mRoundLeaders)
+        {
+            CLOG(DEBUG, "SCP") << "    leader "
+                               << mSlot.getSCPDriver().toShortString(rl);
+        }
 }
 
 uint64
@@ -441,8 +442,9 @@ bool
 NominationProtocol::nominate(Value const& value, Value const& previousValue,
                              bool timedout)
 {
-    CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
-                       << mSlot.getSCP().getValueString(value);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
+                           << mSlot.getSCP().getValueString(value);
 
     bool updated = false;
 

@@ -127,7 +127,8 @@ TCPPeer::getIP()
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
-    CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
+    if (Logging::logTrace("Overlay"))
+        CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
 
     // places the buffer to write into the write queue
@@ -232,16 +233,19 @@ TCPPeer::startRead()
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
 
     assert(self->mIncomingHeader.size() == 0);
-    CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
+
+    if (Logging::logTrace("Overlay"))
+        CLOG(TRACE, "Overlay") << "TCPPeer::startRead to " << self->toString();
 
     self->mIncomingHeader.resize(4);
     asio::async_read(*(self->mSocket.get()),
                      asio::buffer(self->mIncomingHeader),
                      [self](asio::error_code ec, std::size_t length)
                      {
-                         CLOG(TRACE, "Overlay")
-                             << "TCPPeer::startRead calledback " << ec
-                             << " length:" << length;
+                         if (Logging::logTrace("Overlay"))
+                             CLOG(TRACE, "Overlay")
+                                 << "TCPPeer::startRead calledback " << ec
+                                 << " length:" << length;
                          self->readHeaderHandler(ec, length);
                      });
 }
