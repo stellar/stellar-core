@@ -26,5 +26,7 @@ class Logging
     static el::Level getLLfromString(std::string const& levelName);
     static el::Level getLogLevel(std::string const& partition);
     static std::string getStringFromLL(el::Level);
+    static bool logDebug(std::string const& partition);
+    static bool logTrace(std::string const& partition);
 };
 }

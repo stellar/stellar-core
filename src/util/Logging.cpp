@@ -90,6 +90,20 @@ Logging::getLogLevel(std::string const& partition)
     return el::Level::Unknown;
 }
 
+bool
+Logging::logDebug(std::string const& partition)
+{
+    auto lev = Logging::getLogLevel(partition);
+    return lev == el::Level::Debug || lev == el::Level::Trace;
+}
+
+bool
+Logging::logTrace(std::string const& partition)
+{
+    auto lev = Logging::getLogLevel(partition);
+    return lev == el::Level::Trace;
+}
+
 // Trace < Debug < Info < Warning < Error < Fatal < None
 void
 Logging::setLogLevel(el::Level level, const char* partition)
