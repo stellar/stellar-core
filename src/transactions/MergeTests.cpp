@@ -32,6 +32,8 @@ TEST_CASE("merge", "[tx][merge]")
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
+    app.start();
+    upgradeToCurrentLedgerVersion(app);
 
     // set up world
     // set up world
@@ -157,7 +159,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(txSet->checkValid(app));
             int64 a1Balance = getAccountBalance(a1, app);
             int64 b1Balance = getAccountBalance(b1, app);
-            auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
+            auto r = closeLedgerOn(app, 3, 1, 1, 2015, txSet);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txNO_ACCOUNT);
 

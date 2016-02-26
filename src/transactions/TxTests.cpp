@@ -201,6 +201,24 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     return std::move(res);
 }
 
+void
+upgradeToCurrentLedgerVersion(Application& app)
+{
+    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    auto const& lastHash = lcl.hash;
+    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lastHash);
+
+    LedgerUpgrade upgrade(LEDGER_UPGRADE_VERSION);
+    upgrade.newLedgerVersion() = app.getConfig().LEDGER_PROTOCOL_VERSION;
+    xdr::xvector<UpgradeType, 6> upgrades;
+    Value v(xdr::xdr_to_opaque(upgrade));
+    upgrades.emplace_back(v.begin(), v.end());
+
+    StellarValue sv(txSet->getContentsHash(), 1, upgrades, 0);
+    LedgerCloseData ledgerData(1, txSet, sv);
+    app.getLedgerManager().closeLedger(ledgerData);
+}
+
 SecretKey
 getRoot(Hash const& networkID)
 {

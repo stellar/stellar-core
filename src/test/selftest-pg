@@ -1,28 +1,30 @@
 #!/bin/sh
 
-# Written by David Mazieres 2013-2015.  Public domain.
+# Written by David Mazieres & Graydon Hoare 2013-2016.  Public domain.
 
 countwords() {
     echo $#
 }
 
-findcmd() {
-    SEEK=$1
-    CHECKDIRS="/usr/local/bin /usr/lib/postgresql"
-    FOUND=$(2>/dev/null find $CHECKDIRS -name $SEEK)
-    if [ -z "FOUND" ]
-    then
-        >&2 echo "Could not find $SEEK in any of $CHECKDIRS"
-        exit 1
-    elif [ $(countwords $FOUND) -ne 1 ]
-    then
-        >&2 echo "Multiple options for $SEEK found in $CHECKDIRS"
-    fi
-    echo $FOUND
+PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn)
+
+findpg() {
+    local cmd="$1"
+    command -v "$cmd" > /dev/null && return
+    for dir in /usr/bin /usr/local/bin $PGDIRS; do
+	if text -x "$dir/$cmd"; then
+	   PATH="${PATH}:$dir"
+	   return
+	fi
+    done
+    return 1
 }
 
-: ${PGCTL:=$(findcmd pg_ctl)}
-: ${PSQL:=$(findcmd psql)}
+findpg psql
+PSQL=psql
+
+findpg pg_ctl
+PGCTL=pg_ctl
 
 cleanup() {
     $PGCTL stop -m immediate
@@ -82,4 +84,3 @@ else
     setup_test
     "$@"
 fi
-

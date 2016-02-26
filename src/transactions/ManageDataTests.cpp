@@ -10,6 +10,7 @@
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "TxTests.h"
+#include "xdrpp/marshal.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -30,6 +31,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     Application& app = *appPtr;
 
     app.start();
+    upgradeToCurrentLedgerVersion(app);
 
     // set up world
     SecretKey root = getRoot(app.getNetworkID());
