@@ -183,7 +183,7 @@ DataFrame::exists(Database& db, LedgerKey const& key)
     auto timer = db.getSelectTimer("data-exists");
     auto prep =
         db.getPreparedStatement("SELECT EXISTS (SELECT NULL FROM accountdata "
-                                "WHERE account=:id AND dataname=:s)");
+                                "WHERE accountid=:id AND dataname=:s)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(dataName));
@@ -288,7 +288,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 void
 DataFrame::dropAll(Database& db)
 {
-    db.getSession() << "DROP TABLE IF EXISTS data;";
+    db.getSession() << "DROP TABLE IF EXISTS accountdata;";
     db.getSession() << kSQLCreateStatement1;
 }
 }
