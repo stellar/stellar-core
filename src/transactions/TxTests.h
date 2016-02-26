@@ -47,6 +47,8 @@ TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year, TxSetFramePtr txSet);
 
+void upgradeToCurrentLedgerVersion(Application& app);
+
 SecretKey getRoot(Hash const& networkID);
 
 SecretKey getAccount(const char* n);
