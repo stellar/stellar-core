@@ -158,8 +158,8 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm)
     size_t max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!
-        CLOG(DEBUG, "Herder") << "surge pricing in effect! "
-                              << mTransactions.size();
+        CLOG(WARNING, "Herder") << "surge pricing in effect! "
+                                << mTransactions.size();
 
         // determine the fee ratio for each account
         map<AccountID, double> accountFeeMap;

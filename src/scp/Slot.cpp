@@ -74,9 +74,10 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
     }
     else
     {
-        CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
-                           << " i: " << getSlotIndex() << " "
-                           << mSCP.envToStr(e);
+        if (Logging::logDebug("SCP"))
+            CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
+                               << " i: " << getSlotIndex() << " "
+                               << mSCP.envToStr(e);
     }
 }
 
@@ -107,9 +108,10 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
 {
     dbgAssert(envelope.statement.slotIndex == mSlotIndex);
 
-    CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
-                       << " i: " << getSlotIndex() << " "
-                       << mSCP.envToStr(envelope);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "Slot::processEnvelope"
+                           << " i: " << getSlotIndex() << " "
+                           << mSCP.envToStr(envelope);
 
     SCP::EnvelopeState res;
 

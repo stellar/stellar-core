@@ -7,6 +7,7 @@
 #include "transactions/TxTests.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
@@ -41,8 +42,8 @@ using namespace std;
 // Account amounts are expressed in ten-millionths (10^-7).
 static const uint64_t TENMILLION = 10000000;
 
-// Every loadgen account or trustline gets a 99 unit balance (10^2 - 1).
-static const uint64_t LOADGEN_ACCOUNT_BALANCE = 99 * TENMILLION;
+// Every loadgen account or trustline gets a 999 unit balance (10^3 - 1).
+static const uint64_t LOADGEN_ACCOUNT_BALANCE = 999 * TENMILLION;
 
 // Trustlines are limited to 1000x the balance.
 static const uint64_t LOADGEN_TRUSTLINE_LIMIT = 1000 * LOADGEN_ACCOUNT_BALANCE;
@@ -53,12 +54,12 @@ const uint32_t LoadGenerator::STEP_MSECS = 100;
 LoadGenerator::LoadGenerator(Hash const& networkID)
     : mMinBalance(0), mLastSecond(0)
 {
-    // Root account gets enough XLM to create 100 million (10^8) accounts, which
-    // thereby uses up 7 + 2 + 8 = 17 decimal digits. Luckily we have 2^63 =
+    // Root account gets enough XLM to create 10 million (10^7) accounts, which
+    // thereby uses up 7 + 3 + 7 = 17 decimal digits. Luckily we have 2^63 =
     // 9.2*10^18, so there's room even in 62bits to do this.
     auto root = make_shared<AccountInfo>(0, txtest::getRoot(networkID),
-                                         100000000ULL * LOADGEN_ACCOUNT_BALANCE,
-                                         0, *this);
+                                         10000000ULL * LOADGEN_ACCOUNT_BALANCE,
+                                         0, 0, *this);
     mAccounts.push_back(root);
 }
 
@@ -141,6 +142,8 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo>& txs)
             for (size_t i = 0; i < n; ++i)
             {
                 auto gw = rand_element(mGateways);
+                if (gw->canUseInLedger(ledgerNum))
+                    continue;
                 acc->establishTrust(gw);
             }
         }
@@ -150,16 +153,24 @@ LoadGenerator::maybeCreateAccount(uint32_t ledgerNum, vector<TxInfo>& txs)
         if (mGateways.size() > 2 &&
             mMarketMakers.size() < (mAccounts.size() / 100))
         {
-            acc->mBuyCredit = rand_element(mGateways);
+            auto buy = rand_element(mGateways);
+            auto sell = buy;
             do
             {
-                acc->mSellCredit = rand_element(mGateways);
-            } while (acc->mSellCredit == acc->mBuyCredit);
-            acc->mSellCredit->mSellingAccounts.push_back(acc);
-            acc->mBuyCredit->mBuyingAccounts.push_back(acc);
-            mMarketMakers.push_back(acc);
-            acc->establishTrust(acc->mBuyCredit);
-            acc->establishTrust(acc->mSellCredit);
+                sell = rand_element(mGateways);
+            } while (buy == sell);
+
+            if (buy->canUseInLedger(ledgerNum) &&
+                sell->canUseInLedger(ledgerNum))
+            {
+                acc->mBuyCredit = buy;
+                acc->mSellCredit = sell;
+                acc->mSellCredit->mSellingAccounts.push_back(acc);
+                acc->mBuyCredit->mBuyingAccounts.push_back(acc);
+                mMarketMakers.push_back(acc);
+                acc->establishTrust(acc->mBuyCredit);
+                acc->establishTrust(acc->mSellCredit);
+            }
         }
         mAccounts.push_back(acc);
         txs.push_back(acc->creationTransaction());
@@ -300,8 +311,16 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         auto build = buildScope.Stop();
 
         auto recvScope = recvTimer.TimeScope();
+        auto multinode = app.getOverlayManager().getPeers().size() > 1;
         for (auto& tx : txs)
         {
+            if (multinode && tx.mFrom != mAccounts[0])
+            {
+                // Reload the from-account if we're in multinode testing;
+                // odds of sequence-number skew due seems to be high enough to
+                // make this worthwhile.
+                loadAccount(app, tx.mFrom);
+            }
             if (!tx.execute(app))
             {
                 // Hopefully the rejection was just a bad seq number.
@@ -458,7 +477,8 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
     auto accountName = "Account-" + to_string(i);
     return make_shared<AccountInfo>(
         i, txtest::getAccount(accountName.c_str()), 0,
-        (static_cast<SequenceNumber>(ledgerNum) << 32), *this);
+        (static_cast<SequenceNumber>(ledgerNum) << 32),
+        ledgerNum, *this);
 }
 
 vector<LoadGenerator::AccountInfoPtr>
@@ -550,12 +570,11 @@ LoadGenerator::createTransferCreditTransaction(
 LoadGenerator::AccountInfoPtr
 LoadGenerator::pickRandomAccount(AccountInfoPtr tryToAvoid, uint32_t ledgerNum)
 {
-    SequenceNumber currSeq = static_cast<SequenceNumber>(ledgerNum) << 32;
     size_t i = mAccounts.size();
     while (i-- != 0)
     {
         auto n = rand_element(mAccounts);
-        if (n->mSeq < currSeq && n != tryToAvoid)
+        if (n->canUseInLedger(ledgerNum) && n != tryToAvoid)
         {
             return n;
         }
@@ -568,8 +587,7 @@ acceptablePathExtension(LoadGenerator::AccountInfoPtr from, uint32_t ledgerNum,
                         std::vector<LoadGenerator::AccountInfoPtr> const& path,
                         LoadGenerator::AccountInfoPtr proposed)
 {
-    SequenceNumber currSeq = static_cast<SequenceNumber>(ledgerNum) << 32;
-    if (proposed->mSeq >= currSeq || from == proposed)
+    if (!proposed->canUseInLedger(ledgerNum) || from == proposed)
     {
         return false;
     }
@@ -675,11 +693,15 @@ LoadGenerator::createRandomTransaction(float alpha, uint32_t ledgerNum)
         auto to = pickRandomPath(from, ledgerNum, path);
         if (to != from && !path.empty())
         {
-            return createTransferCreditTransaction(from, to, amount, path);
+            auto tx = createTransferCreditTransaction(from, to, amount, path);
+            tx.touchAccounts(ledgerNum);
+            return tx;
         }
     }
     auto to = pickRandomAccount(from, ledgerNum);
-    return createTransferNativeTransaction(from, to, amount);
+    auto tx = createTransferNativeTransaction(from, to, amount);
+    tx.touchAccounts(ledgerNum);
+    return tx;
 }
 
 vector<LoadGenerator::TxInfo>
@@ -699,8 +721,10 @@ LoadGenerator::createRandomTransactions(size_t n, float paretoAlpha)
 
 LoadGenerator::AccountInfo::AccountInfo(size_t id, SecretKey key,
                                         int64_t balance, SequenceNumber seq,
+                                        uint32_t lastChangedLedger,
                                         LoadGenerator& loadGen)
-    : mId(id), mKey(key), mBalance(balance), mSeq(seq), mLoadGen(loadGen)
+    : mId(id), mKey(key), mBalance(balance), mSeq(seq),
+      mLastChangedLedger(lastChangedLedger), mLoadGen(loadGen)
 {
 }
 
@@ -726,6 +750,14 @@ LoadGenerator::AccountInfo::establishTrust(AccountInfoPtr a)
         TrustLineInfo{a, LOADGEN_ACCOUNT_BALANCE, LOADGEN_TRUSTLINE_LIMIT};
     mTrustLines.push_back(tl);
     a->mTrustingAccounts.push_back(shared_from_this());
+}
+
+bool
+LoadGenerator::AccountInfo::canUseInLedger(uint32_t currentLedger)
+{
+    // Leave a 3-ledger window between uses of an account, in case
+    // it gets kicked down the road a bit.
+    return (mLastChangedLedger + 3) < currentLedger;
 }
 
 //////////////////////////////////////////////////////
@@ -787,6 +819,26 @@ LoadGenerator::TxMetrics::report()
                            << mOneOfferPathPayment.one_minute_rate() << " 1p, "
                            << mTwoOfferPathPayment.one_minute_rate() << " 2p, "
                            << mManyOfferPathPayment.one_minute_rate() << " Np)";
+}
+
+void
+LoadGenerator::TxInfo::touchAccounts(uint32_t ledger)
+{
+    if (mFrom)
+    {
+        mFrom->mLastChangedLedger = ledger;
+    }
+    if (mTo)
+    {
+        mTo->mLastChangedLedger = ledger;
+    }
+    for (auto i : mPath)
+    {
+        if (i)
+        {
+            i->mLastChangedLedger = ledger;
+        }
+    }
 }
 
 bool

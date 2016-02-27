@@ -263,17 +263,19 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
     }
     else if (!txSet->checkValid(mApp))
     {
-        CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
-                              << " i: " << slotIndex << " Invalid txSet:"
-                              << " " << hexAbbrev(txSet->getContentsHash());
+        if (Logging::logDebug("Herder"))
+            CLOG(DEBUG, "Herder") << "HerderImpl::validateValue"
+                                  << " i: " << slotIndex << " Invalid txSet:"
+                                  << " " << hexAbbrev(txSet->getContentsHash());
         res = SCPDriver::kInvalidValue;
     }
     else
     {
-        CLOG(DEBUG, "Herder")
-            << "HerderImpl::validateValue"
-            << " i: " << slotIndex
-            << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
+        if (Logging::logDebug("Herder"))
+            CLOG(DEBUG, "Herder")
+                << "HerderImpl::validateValue"
+                << " i: " << slotIndex
+                << " txSet: " << hexAbbrev(txSet->getContentsHash()) << " OK";
         res = SCPDriver::kFullyValidatedValue;
     }
     return res;
@@ -573,8 +575,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 
     Hash const& txSetHash = b.txSetHash;
 
-    CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
-                          << " txSet: " << hexAbbrev(txSetHash);
+    if (Logging::logDebug("Herder"))
+        CLOG(DEBUG, "Herder") << "HerderImpl::valueExternalized"
+                              << " txSet: " << hexAbbrev(txSetHash);
 
     // log information from older ledger to increase the chances that
     // all messages made it
@@ -639,8 +642,9 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
 void
 HerderImpl::nominatingValue(uint64 slotIndex, Value const& value)
 {
-    CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
-                          << " v: " << getValueString(value);
+    if (Logging::logDebug("Herder"))
+        CLOG(DEBUG, "Herder") << "nominatingValue i:" << slotIndex
+                              << " v: " << getValueString(value);
 
     if (!value.empty())
     {
@@ -852,10 +856,11 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
 {
     uint64 slotIndex = envelope.statement.slotIndex;
 
-    CLOG(DEBUG, "Herder") << "emitEnvelope"
-                          << " s:" << envelope.statement.pledges.type()
-                          << " i:" << slotIndex
-                          << " a:" << mApp.getStateHuman();
+    if (Logging::logDebug("Herder"))
+        CLOG(DEBUG, "Herder") << "emitEnvelope"
+                              << " s:" << envelope.statement.pledges.type()
+                              << " i:" << slotIndex
+                              << " a:" << mApp.getStateHuman();
 
     persistSCPState(slotIndex);
 
@@ -948,8 +953,9 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return TX_STATUS_ERROR;
     }
 
-    CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
-                          << PubKeyUtils::toShortString(acc);
+    if (Logging::logTrace("Herder"))
+        CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
+                              << PubKeyUtils::toShortString(acc);
 
     auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);
@@ -965,13 +971,14 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return;
     }
 
-    CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
-                          << " from: "
-                          << mApp.getConfig().toShortString(
-                                 envelope.statement.nodeID)
-                          << " s:" << envelope.statement.pledges.type()
-                          << " i:" << envelope.statement.slotIndex
-                          << " a:" << mApp.getStateHuman();
+    if (Logging::logDebug("Herder"))
+        CLOG(DEBUG, "Herder") << "recvSCPEnvelope"
+                              << " from: "
+                              << mApp.getConfig().toShortString(
+                                  envelope.statement.nodeID)
+                              << " s:" << envelope.statement.pledges.type()
+                              << " i:" << envelope.statement.slotIndex
+                              << " a:" << mApp.getStateHuman();
 
     if (envelope.statement.nodeID == mSCP.getLocalNode()->getNodeID())
     {

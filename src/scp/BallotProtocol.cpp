@@ -350,9 +350,10 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
         newb.value = value;
     }
 
-    CLOG(DEBUG, "SCP") << "BallotProtocol::bumpState"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " v: " << mSlot.getSCP().ballotToStr(newb);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::bumpState"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " v: " << mSlot.getSCP().ballotToStr(newb);
 
     bool updated = updateCurrentValue(newb);
 
@@ -427,9 +428,10 @@ BallotProtocol::updateCurrentValue(SCPBallot const& ballot)
 void
 BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::bumpToBallot"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " b: " << mSlot.getSCP().ballotToStr(ballot);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::bumpToBallot"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " b: " << mSlot.getSCP().ballotToStr(ballot);
 
     // `bumpToBallot` should be never called once we committed.
     dbgAssert(mPhase != SCP_PHASE_EXTERNALIZE);
@@ -833,9 +835,10 @@ BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
 bool
 BallotProtocol::setPreparedAccept(SCPBallot const& ballot)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedAccept"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " b: " << mSlot.getSCP().ballotToStr(ballot);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedAccept"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " b: " << mSlot.getSCP().ballotToStr(ballot);
 
     // update our state
     bool didWork = setPrepared(ballot);
@@ -980,9 +983,10 @@ bool
 BallotProtocol::setPreparedConfirmed(SCPBallot const& newC,
                                      SCPBallot const& newH)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedConfirmed"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " h: " << mSlot.getSCP().ballotToStr(newH);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::setPreparedConfirmed"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " h: " << mSlot.getSCP().ballotToStr(newH);
 
     bool didWork = false;
 
@@ -1229,10 +1233,11 @@ BallotProtocol::attemptAcceptCommit(SCPStatement const& hint)
 bool
 BallotProtocol::setAcceptCommit(SCPBallot const& c, SCPBallot const& h)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::setAcceptCommit"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " new c: " << mSlot.getSCP().ballotToStr(c)
-                       << " new h: " << mSlot.getSCP().ballotToStr(h);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::setAcceptCommit"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " new c: " << mSlot.getSCP().ballotToStr(c)
+                           << " new h: " << mSlot.getSCP().ballotToStr(h);
 
     bool didWork = false;
 
@@ -1431,10 +1436,11 @@ BallotProtocol::attemptConfirmCommit(SCPStatement const& hint)
 bool
 BallotProtocol::setConfirmCommit(SCPBallot const& c, SCPBallot const& h)
 {
-    CLOG(DEBUG, "SCP") << "BallotProtocol::setConfirmCommit"
-                       << " i: " << mSlot.getSlotIndex()
-                       << " new c: " << mSlot.getSCP().ballotToStr(c)
-                       << " new h: " << mSlot.getSCP().ballotToStr(h);
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::setConfirmCommit"
+                           << " i: " << mSlot.getSlotIndex()
+                           << " new c: " << mSlot.getSCP().ballotToStr(c)
+                           << " new h: " << mSlot.getSCP().ballotToStr(h);
 
     mCommit = make_unique<SCPBallot>(c);
     mHighBallot = make_unique<SCPBallot>(h);
@@ -1760,8 +1766,9 @@ void
 BallotProtocol::advanceSlot(SCPStatement const& hint)
 {
     mCurrentMessageLevel++;
-    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
-                       << " " << getLocalState();
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
+                           << " " << getLocalState();
 
     if (mCurrentMessageLevel >= MAX_ADVANCE_SLOT_RECURSION)
     {
@@ -1828,8 +1835,9 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
         } while (didBump);
     }
 
-    CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
-                       << " - exiting " << getLocalState();
+    if (Logging::logDebug("SCP"))
+        CLOG(DEBUG, "SCP") << "BallotProtocol::advanceSlot " << mCurrentMessageLevel
+                           << " - exiting " << getLocalState();
 
     --mCurrentMessageLevel;
 
