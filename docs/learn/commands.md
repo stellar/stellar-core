@@ -103,7 +103,7 @@ debugging purpose).
 
 * **tx**
   `/tx?blob=Base64`<br>
-  submit a [transaction](/docs/concepts/transaction.md) to the network.
+  submit a [transaction](../../learn/concepts/transactions.md) to the network.
   blob is a base64 encoded XDR serialized 'TransactionEnvelope'
   returns a JSON object with the following properties
   status:
