@@ -218,6 +218,9 @@ class Application
     virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate, bool autoRate) = 0;
 
+    // Access the load generator for manual operation.
+    virtual LoadGenerator& getLoadGenerator() = 0;
+
     // Run a consistency check between the database and the bucketlist.
     virtual void checkDB() = 0;
 
