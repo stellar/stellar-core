@@ -15,12 +15,31 @@ class Topologies
     static Simulation::pointer pair(Simulation::Mode mode,
                                     Hash const& networkID,
                                     std::function<Config()> confGen = nullptr);
-    static Simulation::pointer
-    cycle4(Hash const& networkID, std::function<Config()> confGen = nullptr);
+
+    static Simulation::pointer cycle4(Hash const& networkID,
+                                      std::function<Config()> confGen = nullptr);
+
     static Simulation::pointer core(int nNodes, float quorumThresoldFraction,
                                     Simulation::Mode mode,
                                     Hash const& networkID,
                                     std::function<Config()> confGen = nullptr);
+
+    static Simulation::pointer cycle(int nNodes, float quorumThresoldFraction,
+                                    Simulation::Mode mode,
+                                    Hash const& networkID,
+                                    std::function<Config()> confGen = nullptr);
+
+    static Simulation::pointer branchedcycle(int nNodes, float quorumThresoldFraction,
+                                             Simulation::Mode mode,
+                                             Hash const& networkID,
+                                             std::function<Config()> confGen = nullptr);
+
+    static Simulation::pointer separate(int nNodes, float quorumThresoldFraction,
+                                        Simulation::Mode mode,
+                                        Hash const& networkID,
+                                        std::function<Config()> confGen = nullptr);
+
+
     static Simulation::pointer
     hierarchicalQuorum(int nBranches, Simulation::Mode mode,
                        Hash const& networkID,
