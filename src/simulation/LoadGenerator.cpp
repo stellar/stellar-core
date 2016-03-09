@@ -7,6 +7,7 @@
 #include "transactions/TxTests.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerDelta.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -733,6 +734,43 @@ LoadGenerator::AccountInfo::creationTransaction()
 {
     return TxInfo{mLoadGen.mAccounts[0], shared_from_this(),
                   TxInfo::TX_CREATE_ACCOUNT, LOADGEN_ACCOUNT_BALANCE};
+}
+
+void
+LoadGenerator::AccountInfo::createDirectly(Application& app)
+{
+    AccountFrame a(mKey.getPublicKey());
+    AccountEntry& account = a.getAccount();
+    auto ledger = app.getLedgerManager().getLedgerNum();
+    account.balance = LOADGEN_ACCOUNT_BALANCE;
+    account.seqNum = ((SequenceNumber)ledger) << 32;
+    a.touch(ledger);
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());;
+    a.storeAdd(delta, app.getDatabase());
+}
+
+void
+LoadGenerator::AccountInfo::debitDirectly(Application& app,
+                                          int64_t debitAmount)
+{
+    auto existing = AccountFrame::loadAccount(mKey.getPublicKey(),
+                                              app.getDatabase());
+    if (!existing)
+    {
+        return;
+    }
+    AccountEntry& account = existing->getAccount();
+    auto ledger = app.getLedgerManager().getLedgerNum();
+    if (account.balance >= debitAmount)
+    {
+        account.balance -= debitAmount;
+    }
+    account.seqNum++;
+    existing->touch(ledger);
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());;
+    existing->storeChange(delta, app.getDatabase());
 }
 
 void

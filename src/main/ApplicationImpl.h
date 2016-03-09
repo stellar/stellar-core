@@ -81,6 +81,8 @@ class ApplicationImpl : public Application
     virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate, bool autoRate) override;
 
+    virtual LoadGenerator& getLoadGenerator() override;
+
     virtual void checkDB() override;
 
     virtual void maintenance() override;

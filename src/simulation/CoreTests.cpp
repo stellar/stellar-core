@@ -12,8 +12,12 @@
 #include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
+#include "util/Math.h"
 #include "herder/Herder.h"
 #include "transactions/TransactionFrame.h"
+#include "lib/util/format.h"
+#include "medida/stats/snapshot.h"
+#include <sstream>
 
 using namespace stellar;
 
@@ -291,7 +295,8 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     LOG(INFO) << simulation->metricsSummary("database");
 }
 
-TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
+Application::pointer
+newLoadTestApp(VirtualClock& clock)
 {
     Config cfg =
 #ifdef USE_POSTGRES
@@ -301,14 +306,19 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
     cfg.RUN_STANDALONE = false;
     cfg.PARANOID_MODE = false;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 10000;
-    VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
     appPtr->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
         cfg.DESIRED_MAX_TX_PER_LEDGER;
+    return appPtr;
+}
 
+TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
+{
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    auto appPtr = newLoadTestApp(clock);
     appPtr->generateLoad(100000, 100000, 10, true);
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
@@ -317,5 +327,166 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
     while (!io.stopped() && complete.count() == 0)
     {
         clock.crank();
+    }
+}
+
+class ScaleReporter
+{
+    std::vector<std::string> mColumns;
+    std::string mFilename;
+    std::ofstream mOut;
+    size_t mNumWritten{0};
+    static std::string join(std::vector<std::string> const& parts,
+                            std::string const& sep)
+    {
+        std::string sum;
+        bool first = true;
+        for (auto const& s : parts)
+        {
+            if (first)
+            {
+                first = false;
+            }
+            else
+            {
+                sum += sep;
+            }
+            sum += s;
+        }
+        return sum;
+    }
+
+public:
+    ScaleReporter(std::vector<std::string> const& columns)
+        : mColumns(columns),
+          mFilename(fmt::format("{:s}-{:d}.csv", join(columns, "-vs-"),
+                                std::time(nullptr))),
+          mOut(mFilename)
+    {
+        LOG(INFO) << "Opened " << mFilename << " for writing";
+        mOut << join(columns, ",") << std::endl;
+    }
+
+    ~ScaleReporter()
+    {
+        LOG(INFO) << "Wrote " << mNumWritten << " rows to " << mFilename;
+    }
+
+    void write(std::vector<double> const& vals) {
+        assert(vals.size() == mColumns.size());
+        std::ostringstream oss;
+        for (size_t i = 0; i < vals.size(); ++i)
+        {
+            if (i != 0)
+            {
+                oss << ", ";
+                mOut << ",";
+            }
+            oss << mColumns.at(i) << "=" << std::fixed << vals.at(i);
+            mOut << std::fixed << vals.at(i);
+        }
+        LOG(INFO) << std::fixed << "Writing " << oss.str();
+        mOut << std::endl;
+        ++mNumWritten;
+    }
+};
+
+void closeLedger(Application& app)
+{
+    auto& clock = app.getClock();
+    bool advanced = false;
+    VirtualTimer t(clock);
+    t.expires_from_now(std::chrono::seconds(Herder::EXP_LEDGER_TIMESPAN_SECONDS));
+    t.async_wait([&](asio::error_code ec){ advanced = true; });
+
+    auto& io = clock.getIOService();
+    asio::io_service::work mainWork(io);
+    auto &lm = app.getLedgerManager();
+    auto start = lm.getLastClosedLedgerNum();
+    while ((!io.stopped() &&
+            lm.getLastClosedLedgerNum() == start) ||
+           !advanced)
+    {
+        clock.crank();
+    }
+}
+
+TEST_CASE("Accounts vs. latency", "[scalability][hide]")
+{
+    ScaleReporter r({"accounts", "txcount",
+                "latencymin", "latencymax", "latency50", "latency95", "latency99"});
+
+    VirtualClock clock;
+    auto appPtr = newLoadTestApp(clock);
+    auto& app = *appPtr;
+
+    auto& lg = app.getLoadGenerator();
+    auto& txtime = app.getMetrics().NewTimer({"transaction", "op", "apply"});
+
+    size_t step = 5000;
+    size_t total = 10000000;
+
+    closeLedger(app);
+    closeLedger(app);
+
+    while (!app.getClock().getIOService().stopped() && lg.mAccounts.size() < total)
+    {
+        LOG(INFO) << "Creating " << (step*10)
+                  << " bulking accounts and " << (step/10) << " interesting accounts ("
+                  << 100 * (((double)lg.mAccounts.size()) / ((double)total))
+                  << "%)";
+
+        auto curr = lg.mAccounts.size();
+
+        // First, create 10*step "bulking" accounts
+        auto accounts = lg.createAccounts(step * 10);
+        for (auto& acc : accounts)
+        {
+            acc->createDirectly(app);
+        }
+
+        // Then create step/10 "interesting" accounts via txs that set up
+        // trustlines and offers and such
+        std::vector<LoadGenerator::TxInfo> txs;
+        uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
+        int tries = 10000;
+        while (tries-- > 0 && txs.size() < step/10) {
+            lg.maybeCreateAccount(ledgerNum, txs);
+        }
+        for (auto& tx : txs)
+        {
+            tx.execute(app);
+        }
+        closeLedger(app);
+
+        // Reload everything we just added.
+        while (curr < lg.mAccounts.size())
+        {
+            lg.loadAccount(app, lg.mAccounts.at(curr++));
+        }
+
+        txtime.Clear();
+        txs.clear();
+
+        tries = 10000;
+        while (tries-- > 0 && txs.size() < step/10) {
+            txs.push_back(lg.createRandomTransaction(0.5, ledgerNum));
+        }
+
+        LOG(INFO) << "Applying " << txs.size() << " transactions...";
+        for (auto& tx : txs)
+        {
+            tx.execute(app);
+        }
+        closeLedger(app);
+        app.reportCfgMetrics();
+        r.write({(double)lg.mAccounts.size(),
+                    (double)txtime.count(),
+                    txtime.min(),
+                    txtime.max(),
+                    txtime.GetSnapshot().getMedian(),
+                    txtime.GetSnapshot().get95thPercentile(),
+                    txtime.GetSnapshot().get99thPercentile()
+                    });
     }
 }
