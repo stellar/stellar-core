@@ -124,6 +124,8 @@ class LoadGenerator
         AccountInfoPtr mBuyCredit;
         AccountInfoPtr mSellCredit;
 
+        void createDirectly(Application& app);
+        void debitDirectly(Application& app, int64_t debitAmount);
         TxInfo creationTransaction();
 
       private:
