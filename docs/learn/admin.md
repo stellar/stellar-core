@@ -351,27 +351,27 @@ VALIDATORS=[
 ]
 ```
 
- Be sure to not add too many "Trial" groups at the top level:
+ Be sure to not add too many "trial" groups at the top level:
  too many non reliable groups at the top level are a threat
  to liveness and may cause your node to get stuck.
- If you have too many top level trial groups, you may have to group trial
- groups into hierarchies of trial groups in order to keep the top level
+ If you have too many top level "trial" groups, you may have to group "trial"
+ groups into hierarchies of "trial" groups in order to keep the top level
  reliable.
 
- How many trial groups you can add depends on the level of risk you're
+ How many "trial" groups you can add depends on the level of risk you're
  willing to take:
  your "stable" group should represent a figure above the threshold that
  you picked (and the threshold should be 66% for the top level).
 
  Example:
- if you have 3 nodes in your "stable" list, you may one trial group
- but consider that in this case you cannot tolerate any failure from your
- stable set (as you would only have 2 nodes out of 4).
+ If you have 3 nodes in your "stable" list, you may have one node in your "trial" group
+ but consider that in this case you cannot tolerate any failure from your "stable" set
+ (as you would only have 2 nodes out of 4).
  Once you have 6 nodes in your "stable" list you can handle a failure of
  one of your "stable" list and one failure in the "trial" list.
 
  As you can see, in order to bootstrap a public network, you will need at least
-6 stable nodes in order to start vetting other nodes over time.
+6 "stable" nodes in order to start vetting other nodes over time.
 
 ### Advanced QUORUM_SET configuration
 A more advanced way to configure your QUORUM_SET is to group validators by
