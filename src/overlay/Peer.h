@@ -100,8 +100,8 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
     medida::Timer& mRecvSCPPrepareTimer;
     medida::Timer& mRecvSCPConfirmTimer;
-    medida::Timer& mRecvSCPExternalizeTimer;
     medida::Timer& mRecvSCPNominateTimer;
+    medida::Timer& mRecvSCPExternalizeTimer;
 
     medida::Meter& mSendErrorMeter;
     medida::Meter& mSendHelloMeter;
