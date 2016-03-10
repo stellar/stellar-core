@@ -391,12 +391,18 @@ public:
     }
 };
 
-void closeLedger(Application& app)
+static void
+closeLedger(Application& app)
 {
     auto& clock = app.getClock();
     bool advanced = false;
     VirtualTimer t(clock);
-    t.expires_from_now(std::chrono::seconds(Herder::EXP_LEDGER_TIMESPAN_SECONDS));
+    auto nsecs = std::chrono::seconds(Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+    if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        nsecs = std::chrono::seconds(1);
+    }
+    t.expires_from_now(nsecs);
     t.async_wait([&](asio::error_code ec){ advanced = true; });
 
     auto& io = clock.getIOService();
@@ -409,6 +415,42 @@ void closeLedger(Application& app)
     {
         clock.crank();
     }
+}
+
+static void
+generateAccountsAndCloseLedger(Application& app, int num)
+{
+    auto& lg = app.getLoadGenerator();
+    std::vector<LoadGenerator::TxInfo> txs;
+    uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
+    int tries = num * 100;
+    while (tries-- > 0 && txs.size() < (size_t)num) {
+        lg.maybeCreateAccount(ledgerNum, txs);
+    }
+    LOG(INFO) << "Creating " << num << " accounts via txs...";
+    for (auto& tx : txs)
+    {
+        tx.execute(app);
+    }
+    closeLedger(app);
+}
+
+static void
+generateTxsAndCloseLedger(Application& app, int num)
+{
+    auto& lg = app.getLoadGenerator();
+    std::vector<LoadGenerator::TxInfo> txs;
+    uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
+    int tries = num * 100;
+    while (tries-- > 0 && txs.size() < (size_t)num) {
+        txs.push_back(lg.createRandomTransaction(0.5, ledgerNum));
+    }
+    LOG(INFO) << "Applying " << txs.size() << " transactions...";
+    for (auto& tx : txs)
+    {
+        tx.execute(app);
+    }
+    closeLedger(app);
 }
 
 TEST_CASE("Accounts vs. latency", "[scalability][hide]")
@@ -447,17 +489,7 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
 
         // Then create step/10 "interesting" accounts via txs that set up
         // trustlines and offers and such
-        std::vector<LoadGenerator::TxInfo> txs;
-        uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
-        int tries = 10000;
-        while (tries-- > 0 && txs.size() < step/10) {
-            lg.maybeCreateAccount(ledgerNum, txs);
-        }
-        for (auto& tx : txs)
-        {
-            tx.execute(app);
-        }
-        closeLedger(app);
+        generateAccountsAndCloseLedger(app, step/10);
 
         // Reload everything we just added.
         while (curr < lg.mAccounts.size())
@@ -466,19 +498,11 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
         }
 
         txtime.Clear();
-        txs.clear();
 
-        tries = 10000;
-        while (tries-- > 0 && txs.size() < step/10) {
-            txs.push_back(lg.createRandomTransaction(0.5, ledgerNum));
-        }
+        // Then generate some non-account-creating (payment) txs in
+        // a subsequent ledger.
+        generateTxsAndCloseLedger(app, step/10);
 
-        LOG(INFO) << "Applying " << txs.size() << " transactions...";
-        for (auto& tx : txs)
-        {
-            tx.execute(app);
-        }
-        closeLedger(app);
         app.reportCfgMetrics();
         r.write({(double)lg.mAccounts.size(),
                     (double)txtime.count(),
@@ -489,4 +513,92 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
                     txtime.GetSnapshot().get99thPercentile()
                     });
     }
+}
+
+static void
+netTopologyTest(std::string const& name,
+                std::function<Simulation::pointer(int numNodes, int& cfgCount)> mkSim)
+{
+    ScaleReporter r({name + "nodes", "in-msg", "in-byte", "out-msg", "out-byte"});
+
+    for (int numNodes = 4; numNodes < 64; numNodes += 4)
+    {
+        auto cfgCount = 0;
+        auto sim = mkSim(numNodes, cfgCount);
+        sim->startAllNodes();
+        auto nodes = sim->getNodes();
+        assert(!nodes.empty());
+        auto& app = *nodes[0];
+        auto& lg = app.getLoadGenerator();
+        closeLedger(app);
+
+        generateAccountsAndCloseLedger(app, 50);
+        closeLedger(app);
+
+        app.reportCfgMetrics();
+
+        auto& inmsg = app.getMetrics().NewMeter({"overlay", "message", "read"}, "message");
+        auto& inbyte = app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte");
+
+        auto& outmsg = app.getMetrics().NewMeter({"overlay", "message", "write"}, "message");
+        auto& outbyte = app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte");
+
+        r.write({(double)numNodes,
+                    (double)inmsg.count(),
+                    (double)inbyte.count(),
+                    (double)outmsg.count(),
+                    (double)outbyte.count(),
+                    });
+    }
+}
+
+TEST_CASE("Mesh nodes vs. network traffic", "[scalability][hide]")
+{
+    netTopologyTest(
+        "mesh",
+        [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+            return Topologies::core(
+                numNodes, 1.0, Simulation::OVER_LOOPBACK,
+                sha256(fmt::format("nodes-{:d}", numNodes)),
+                [&]() -> Config {
+                    Config res = getTestConfig(cfgCount++);
+                    res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+                    res.MAX_PEER_CONNECTIONS = 1000;
+                    return res;
+                });
+        });
+}
+
+TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
+{
+    netTopologyTest(
+        "cycle",
+        [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+            return Topologies::cycle(
+                numNodes, 1.0, Simulation::OVER_LOOPBACK,
+                sha256(fmt::format("nodes-{:d}", numNodes)),
+                [&]() -> Config {
+                    Config res = getTestConfig(cfgCount++);
+                    res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+                    res.MAX_PEER_CONNECTIONS = 1000;
+                    return res;
+                });
+        });
+}
+
+TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
+{
+    netTopologyTest(
+        "branchedcycle",
+        [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+            return Topologies::branchedcycle(
+                numNodes, 1.0, Simulation::OVER_LOOPBACK,
+                sha256(fmt::format("nodes-{:d}", numNodes)),
+                [&]() -> Config {
+                    Config res = getTestConfig(cfgCount++);
+                    res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+                    res.MAX_PEER_CONNECTIONS = 1000;
+                    return res;
+                });
+        });
 }

@@ -76,9 +76,9 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 }
 
 Simulation::pointer
-Topologies::core(int nNodes, float quorumThresoldFraction,
-                 Simulation::Mode mode, Hash const& networkID,
-                 std::function<Config()> confGen)
+Topologies::separate(int nNodes, float quorumThresoldFraction,
+                     Simulation::Mode mode, Hash const& networkID,
+                     std::function<Config()> confGen)
 {
     Simulation::pointer simulation =
         make_shared<Simulation>(mode, networkID, confGen);
@@ -103,13 +103,73 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     {
         simulation->addNode(k, qSet, simulation->getClock());
     }
+    return simulation;
+}
+
+Simulation::pointer
+Topologies::core(int nNodes, float quorumThresoldFraction,
+                 Simulation::Mode mode, Hash const& networkID,
+                 std::function<Config()> confGen)
+{
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
+                                           mode, networkID, confGen);
+
+    auto nodes = simulation->getNodeIDs();
+    assert(nodes.size() == nNodes);
+
     for (int from = 0; from < nNodes - 1; from++)
     {
         for (int to = from + 1; to < nNodes; to++)
         {
-            simulation->addPendingConnection(keys[from].getPublicKey(),
-                                             keys[to].getPublicKey());
+            simulation->addPendingConnection(nodes[from],
+                                             nodes[to]);
         }
+    }
+
+    return simulation;
+}
+
+Simulation::pointer
+Topologies::cycle(int nNodes, float quorumThresoldFraction,
+                  Simulation::Mode mode, Hash const& networkID,
+                  std::function<Config()> confGen)
+{
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
+                                           mode, networkID, confGen);
+
+    auto nodes = simulation->getNodeIDs();
+    assert(nodes.size() == nNodes);
+
+    for (int from = 0; from < nNodes; from++)
+    {
+        int to = (from+1) % nNodes;
+        simulation->addPendingConnection(nodes[from],
+                                         nodes[to]);
+    }
+
+    return simulation;
+}
+
+Simulation::pointer
+Topologies::branchedcycle(int nNodes, float quorumThresoldFraction,
+                          Simulation::Mode mode, Hash const& networkID,
+                          std::function<Config()> confGen)
+{
+    auto simulation = Topologies::separate(nNodes, quorumThresoldFraction,
+                                           mode, networkID, confGen);
+
+    auto nodes = simulation->getNodeIDs();
+    assert(nodes.size() == nNodes);
+
+    for (int from = 0; from < nNodes; from++)
+    {
+        int to = (from+1) % nNodes;
+        simulation->addPendingConnection(nodes[from],
+                                         nodes[to]);
+
+        int other = (from+(nNodes/2)) % nNodes;
+        simulation->addPendingConnection(nodes[from],
+                                         nodes[other]);
     }
 
     return simulation;
