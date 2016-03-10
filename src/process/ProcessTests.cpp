@@ -142,11 +142,15 @@ TEST_CASE("subprocess storm", "[process]")
                        });
     }
 
+    size_t last = 0;
     while (completed < n && !clock.getIOService().stopped())
     {
         clock.crank(false);
         size_t n2 = app.getProcessManager().getNumRunningProcesses();
-        CLOG(INFO, "Process") << "running subprocess count: " << n;
+        if (last != n2) {
+            CLOG(INFO, "Process") << "running subprocess count: " << n2;
+        }
+        last = n2;
         REQUIRE(n2 <= cfg.MAX_CONCURRENT_SUBPROCESSES);
     }
 
