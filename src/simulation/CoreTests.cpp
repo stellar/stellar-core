@@ -17,6 +17,15 @@
 #include "transactions/TransactionFrame.h"
 #include "lib/util/format.h"
 #include "medida/stats/snapshot.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
+#include "bucket/LedgerCmp.h"
+#include "bucket/BucketManagerImpl.h"
+#include "ledger/LedgerManager.h"
+#include "herder/LedgerCloseData.h"
+#include "ledger/LedgerTestUtils.h"
+#include "xdrpp/autocheck.h"
 #include <sstream>
 
 using namespace stellar;
@@ -601,4 +610,46 @@ TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
                     return res;
                 });
         });
+}
+
+TEST_CASE("Bucket-list entries vs. write throughput", "[scalability][hide]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+
+    Application::pointer app = Application::create(clock, cfg);
+    autocheck::generator<std::vector<LedgerKey>> deadGen;
+
+    auto& obj = app->getMetrics().NewMeter({"bucket", "object", "insert"}, "object");
+    auto& batch = app->getMetrics().NewTimer({"bucket", "batch", "add"});
+    auto& byte = app->getMetrics().NewMeter({"bucket", "byte", "insert"}, "byte");
+    auto& merges = app->getMetrics().NewTimer({"bucket", "snap", "merge"});
+
+    ScaleReporter r({"bucketobjs", "bytes", "objrate", "byterate",
+                "batchlatency99", "batchlatencymax",
+                "merges", "mergelatencymax", "mergelatencymean"});
+
+    for (uint32_t i = 1;
+         !app->getClock().getIOService().stopped() && i < 0x200000; ++i)
+    {
+        app->getClock().crank(false);
+        app->getBucketManager()
+            .addBatch(*app, i, LedgerTestUtils::generateValidLedgerEntries(100),
+                      deadGen(5));
+
+        if ((i & 0xff) == 0xff)
+        {
+            r.write({(double)obj.count(),
+                        (double)byte.count(),
+                        obj.one_minute_rate(),
+                        byte.one_minute_rate(),
+                        batch.GetSnapshot().get99thPercentile(),
+                        batch.max(),
+                        (double)merges.count(),
+                        merges.max(),
+                        merges.mean()});
+
+            app->getBucketManager().forgetUnreferencedBuckets();
+        }
+    }
 }
