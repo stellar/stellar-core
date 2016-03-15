@@ -23,6 +23,7 @@ Build Dependencies
 
 - In order to compile xdrc and run the binary you will need to either
        * Download and install MinGW from http://sourceforge.net/projects/mingw/files/
+	      * In the MinGW Installation Manager in `MSYS/MinGW Developer Toolkit` choose `Flex` and `Bison` packages for installation
           * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
        * Download and install cygwin from https://cygwin.com/install.html
           * Get cygwin setup to install `Flex` and `Bison`
