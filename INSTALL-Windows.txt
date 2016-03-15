@@ -23,6 +23,7 @@ Build Dependencies
 
 - In order to compile xdrc and run the binary you will need to either
        * Download and install MinGW from http://sourceforge.net/projects/mingw/files/
+	      * In the MinGW Installation Manager in `MSYS/MinGW Developer Toolkit` choose `Flex` and `Bison` packages for installation
           * Add `C:\MinGW\msys\1.0\bin;C:\MinGW\bin` to the end of `%PATH%`
        * Download and install cygwin from https://cygwin.com/install.html
           * Get cygwin setup to install `Flex` and `Bison`
@@ -37,6 +38,10 @@ Build Dependencies
     `Couldn't reserve space for mingw's heap, Win32 error 0`.
     A workaround is to reboot until you can run `bison.exe` from a cmd.exe
     prompt.
+
+- If you do not have cURL installed
+		* Download and install/extract cURL from https://curl.haxx.se/download.html#Win64
+          * Add installation/extraction directory (e.g. `C:\Program Files\curl_7_47_1_x64`) to the end of `%PATH%`
 
 - For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
 
