@@ -38,6 +38,10 @@ Build Dependencies
     A workaround is to reboot until you can run `bison.exe` from a cmd.exe
     prompt.
 
+- If you do not have cURL installed
+		* Download and install/extract cURL from https://curl.haxx.se/download.html#Win64
+          * Add installation/extraction directory (e.g. `C:\Program Files\curl_7_47_1_x64`) to the end of `%PATH%`
+
 - For making changes to the code, you should install the clang-format tool and Visual Studio extension, you can find both at http://llvm.org/builds/
 
 Basic Installation
