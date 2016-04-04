@@ -202,6 +202,10 @@ IMPORTANT:
  will result in undefined behavior, *potentially data loss*.
  * do not run `newhist` on an existing archive unless you want to erase it
 
+## Network passphrase
+Stellar-core uses network passphrases to keep networks (e.g. public, test, private) separate from each other. Each Stellar-core instance broadcasts it's configured passphrase and will only connect to peers that are using the same passphrase as it. This ensures that networks are distinct and data is not inadvertently mixed between networks.
+
+A passphrase is a string that can contain anything but usually contains information about the network. For example, the public network passphrase is `Public Global Stellar Network ; September 2015`. It is configured in the Stellar-core cfg file under the key `NETWORK_PASSPHRASE`.
 
 # Quorum
 
