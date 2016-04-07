@@ -36,6 +36,7 @@ ManageDataOpFrame::doApply(Application& app,
     Database& db = ledgerManager.getDatabase();
     
     auto dataFrame = DataFrame::loadData(mSourceAccount->getID(), mManageData.dataName, db);
+    
 
     if(mManageData.dataValue)
     {
@@ -59,6 +60,7 @@ ManageDataOpFrame::doApply(Application& app,
             mSourceAccount->storeChange(delta, db);
         } else
         {  // modify an existing entry
+            delta.recordEntry(*dataFrame);
             dataFrame->getData().dataValue = *mManageData.dataValue;
             dataFrame->storeChange(delta, db);
         }
@@ -72,7 +74,7 @@ ManageDataOpFrame::doApply(Application& app,
             innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
-
+        delta.recordEntry(*dataFrame);
         mSourceAccount->addNumEntries(-1, ledgerManager);
         mSourceAccount->storeChange(delta, db);
         dataFrame->storeDelete(delta, db);
