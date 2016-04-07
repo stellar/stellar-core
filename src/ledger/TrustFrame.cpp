@@ -359,7 +359,15 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
     if (cachedEntryExists(key, db))
     {
         auto p = getCachedEntry(key, db);
-        return p ? std::make_shared<TrustFrame>(*p) : nullptr;
+        if (p)
+        {
+            pointer ret = std::make_shared<TrustFrame>(*p);
+            if (delta)
+            {
+                delta->recordEntry(*ret);
+            }
+            return ret;
+        }
     }
 
     std::string accStr, issuerStr, assetStr;
