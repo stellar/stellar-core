@@ -134,10 +134,12 @@ LedgerDelta::deleteEntry(LedgerKey const& k)
     }
     else
     {
-        assert(mDelete.find(k) == mDelete.end()); // double delete is invalid
-        // only keep the delete
+        if(mDelete.find(k) == mDelete.end())
+        {
+            mDelete.insert(k);
+        }// else already being deleted
+
         mMod.erase(k);
-        mDelete.insert(k);
     }
 }
 
