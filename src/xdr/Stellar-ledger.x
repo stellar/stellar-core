@@ -144,11 +144,10 @@ case DEADENTRY:
 
 // Transaction sets are the unit used by SCP to decide on transitions
 // between ledgers
-const MAX_TX_PER_LEDGER = 5000;
 struct TransactionSet
 {
     Hash previousLedgerHash;
-    TransactionEnvelope txs<MAX_TX_PER_LEDGER>;
+    TransactionEnvelope txs<>;
 };
 
 struct TransactionResultPair
@@ -160,7 +159,7 @@ struct TransactionResultPair
 // TransactionResultSet is used to recover results between ledgers
 struct TransactionResultSet
 {
-    TransactionResultPair results<MAX_TX_PER_LEDGER>;
+    TransactionResultPair results<>;
 };
 
 // Entries below are used in the historical subsystem

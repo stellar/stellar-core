@@ -657,7 +657,6 @@ HerderImpl::combineCandidates(uint64 slotIndex,
                               std::set<Value> const& candidates)
 {
     Hash h;
-    xdr::xvector<UpgradeType, 4> emptyV;
 
     StellarValue comp(h, 0, emptyUpgradeSteps, 0);
 
