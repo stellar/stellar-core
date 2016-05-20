@@ -33,6 +33,7 @@ class CommandHandler
     void checkdb(std::string const& params, std::string& retStr);
     void connect(std::string const& params, std::string& retStr);
     void dropcursor(std::string const& params, std::string& retStr);
+    void dropPeer(std::string const& params, std::string& retStr);
     void generateLoad(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);

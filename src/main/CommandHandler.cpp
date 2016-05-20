@@ -71,6 +71,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::connect, this, _1, _2));
     mServer->addRoute("dropcursor",
                       std::bind(&CommandHandler::dropcursor, this, _1, _2));
+    mServer->addRoute("droppeer",
+                      std::bind(&CommandHandler::dropPeer, this, _1, _2));
     mServer->addRoute("generateload",
                       std::bind(&CommandHandler::generateLoad, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
@@ -256,6 +258,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
+        "</p><p><h1> "
+        "/droppeer?node=NODE_ID</h1>"
+        "drops peer identified by PEER_ID"
         "</p><p><h1> "
         "/generateload[?accounts=N&txs=M&txrate=(R|auto)]</h1>"
         "artificially generate load for testing; must be used with "
@@ -599,6 +604,45 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
     else
     {
         retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
+    }
+}
+
+void
+CommandHandler::dropPeer(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto peerId = retMap.find("node");
+    if (peerId != retMap.end())
+    {
+        auto found = false;
+        NodeID n;
+        if (mApp.getHerder().resolveNodeID(peerId->second, n))
+        {
+            auto peers = mApp.getOverlayManager().getPeers();
+            auto peer = std::find_if(
+                peers.begin(), peers.end(),
+                [&n](Peer::pointer peer) { return peer->getPeerID() == n; });
+            if (peer != peers.end())
+            {
+                retStr = "Drop peer: ";
+                retStr += peerId->second;
+                mApp.getOverlayManager().dropPeer(*peer);
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            retStr = "Peer ";
+            retStr += peerId->second;
+            retStr += " not found";
+        }
+    }
+    else
+    {
+        retStr = "Must specify at least peer id: droppeer?node=NODE_ID";
     }
 }
 
