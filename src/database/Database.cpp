@@ -18,6 +18,7 @@
 #include "ledger/TrustFrame.h"
 #include "ledger/DataFrame.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/BanManager.h"
 #include "main/PersistentState.h"
 #include "main/ExternalQueue.h"
 #include "ledger/LedgerHeaderFrame.h"
@@ -51,7 +52,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 3;
+static unsigned long const SCHEMA_VERSION = 4;
 
 static void
 setSerializable(soci::session& sess)
@@ -114,6 +115,10 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 3:
         DataFrame::dropAll(*this);
+        break;
+
+    case 4:
+        BanManager::dropAll(*this);
         break;
 
     default:

@@ -59,6 +59,7 @@ class ApplicationImpl : public Application
     virtual PersistentState& getPersistentState() override;
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkManager& getWorkManager() override;
+    virtual BanManager& getBanManager() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 
@@ -125,6 +126,7 @@ class ApplicationImpl : public Application
     std::shared_ptr<WorkManager> mWorkManager;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<LoadGenerator> mLoadGenerator;
+    std::unique_ptr<BanManager> mBanManager;
 
     std::vector<std::thread> mWorkerThreads;
 

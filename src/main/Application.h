@@ -34,6 +34,7 @@ class PersistentState;
 class LoadGenerator;
 class CommandHandler;
 class WorkManager;
+class BanManager;
 
 /*
  * State of a single instance of the stellar-core application.
@@ -187,6 +188,7 @@ class Application
     virtual PersistentState& getPersistentState() = 0;
     virtual CommandHandler& getCommandHandler() = 0;
     virtual WorkManager& getWorkManager() = 0;
+    virtual BanManager& getBanManager() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

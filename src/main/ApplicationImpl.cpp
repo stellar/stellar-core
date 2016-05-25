@@ -11,6 +11,7 @@
 #include "util/asio.h"
 #include "ledger/LedgerManager.h"
 #include "herder/Herder.h"
+#include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
@@ -94,6 +95,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
+    mBanManager = BanManager::create(*this);
 
     while (t--)
     {
@@ -597,6 +599,12 @@ WorkManager&
 ApplicationImpl::getWorkManager()
 {
     return *mWorkManager;
+}
+
+BanManager &
+ApplicationImpl::getBanManager()
+{
+    return *mBanManager;
 }
 
 asio::io_service&

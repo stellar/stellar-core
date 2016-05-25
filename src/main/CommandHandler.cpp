@@ -12,6 +12,7 @@
 #include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include <overlay/BanManager.h>
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "StellarCoreVersion.h"
@@ -259,8 +260,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> "
-        "/droppeer?node=NODE_ID</h1>"
-        "drops peer identified by PEER_ID"
+        "/droppeer?node=NODE_ID[&ban=D]</h1>"
+        "drops peer identified by PEER_ID, when D is 1 the peer is also banned"
         "</p><p><h1> "
         "/generateload[?accounts=N&txs=M&txrate=(R|auto)]</h1>"
         "artificially generate load for testing; must be used with "
@@ -614,6 +615,7 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
 
     auto peerId = retMap.find("node");
+    auto ban = retMap.find("ban");
     if (peerId != retMap.end())
     {
         auto found = false;
@@ -626,9 +628,16 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
                 [&n](Peer::pointer peer) { return peer->getPeerID() == n; });
             if (peer != peers.end())
             {
-                retStr = "Drop peer: ";
-                retStr += peerId->second;
                 mApp.getOverlayManager().dropPeer(*peer);
+                if (ban != retMap.end() && ban->second == "1")
+                {
+                    retStr = "Drop and ban peer: ";
+                    mApp.getBanManager().banNode(n);
+                }
+                else
+                    retStr = "Drop peer: ";
+
+                retStr += peerId->second;
                 found = true;
             }
         }
