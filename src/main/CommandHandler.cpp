@@ -99,6 +99,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    mServer->addRoute("unban",
+                      std::bind(&CommandHandler::unban, this, _1, _2));
 }
 
 void
@@ -318,7 +320,10 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /maintenance[?queue=true]</h1> Performs maintenance tasks "
         "on the instance."
         "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
-        "for more information</li></ul"
+        "for more information</li></ul>"
+        "</p><p><h1> "
+        "/unban?node=NODE_ID</h1>"
+        "remove ban for PEER_ID"
         "</p>"
 
         "<br>";
@@ -674,6 +679,35 @@ CommandHandler::bans(std::string const& params, std::string& retStr)
     }
 
     retStr = root.toStyledString();
+}
+
+void
+CommandHandler::unban(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto peerId = retMap.find("node");
+    if (peerId != retMap.end())
+    {
+        NodeID n;
+        if (mApp.getHerder().resolveNodeID(peerId->second, n))
+        {
+            retStr = "Unban peer: ";
+            retStr += peerId->second;
+            mApp.getBanManager().unbanNode(n);
+        }
+        else
+        {
+            retStr = "Peer ";
+            retStr += peerId->second;
+            retStr += " not found";
+        }
+    }
+    else
+    {
+        retStr = "Must specify at least peer id: unban?node=NODE_ID";
+    }
 }
 
 void
