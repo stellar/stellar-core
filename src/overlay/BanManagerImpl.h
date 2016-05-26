@@ -24,5 +24,6 @@ class BanManagerImpl : public BanManager
     void banNode(NodeID nodeID) override;
     void unbanNode(NodeID nodeID) override;
     bool isBanned(NodeID nodeID) override;
+    std::vector<std::string> getBans() override;
 };
 }

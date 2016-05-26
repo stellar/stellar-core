@@ -28,6 +28,7 @@ class CommandHandler
 
     void fileNotFound(std::string const& params, std::string& retStr);
 
+    void bans(std::string const& params, std::string& retStr);
     void catchup(std::string const& params, std::string& retStr);
     void checkpoint(std::string const& params, std::string& retStr);
     void checkdb(std::string const& params, std::string& retStr);

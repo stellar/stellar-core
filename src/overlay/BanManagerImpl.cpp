@@ -71,6 +71,27 @@ BanManagerImpl::isBanned(NodeID nodeID)
     return count == 1;
 }
 
+std::vector<std::string>
+BanManagerImpl::getBans()
+{
+    std::vector<std::string> result;
+    std::string nodeIDString;
+    auto timer = mApp.getDatabase().getSelectTimer("ban");
+    auto prep = mApp.getDatabase().getPreparedStatement(
+        "SELECT nodeid FROM ban");
+    uint32_t count;
+    auto& st = prep.statement();
+    st.exchange(soci::into(nodeIDString));
+    st.define_and_bind();
+    st.execute(true);
+    while (st.got_data())
+    {
+        result.push_back(nodeIDString);
+        st.fetch();
+    }
+    return result;
+}
+
 void
 BanManager::dropAll(Database& db)
 {

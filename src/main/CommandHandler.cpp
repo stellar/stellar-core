@@ -62,6 +62,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    mServer->addRoute("bans",
+                      std::bind(&CommandHandler::bans, this, _1, _2));
     mServer->addRoute("catchup",
                       std::bind(&CommandHandler::catchup, this, _1, _2));
     mServer->addRoute("checkdb",
@@ -250,7 +252,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
     retStr += "supported commands:<p/>";
 
     retStr +=
-        "<p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
+        "<p><h1> /bans</h1>"
+        "list current active bans"
+        "</p><p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
         "triggers the instance to catch up to ledger NNN from history; "
         "mode is either 'minimal' (the default, if omitted) or 'complete'."
         "</p><p><h1> /checkdb</h1>"
@@ -653,6 +657,23 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
     {
         retStr = "Must specify at least peer id: droppeer?node=NODE_ID";
     }
+}
+
+void
+CommandHandler::bans(std::string const& params, std::string& retStr)
+{
+    Json::Value root;
+
+    root["bans"];
+    int counter = 0;
+    for (auto ban : mApp.getBanManager().getBans())
+    {
+        root["bans"][counter] = ban;
+
+        counter++;
+    }
+
+    retStr = root.toStyledString();
 }
 
 void

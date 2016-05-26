@@ -31,6 +31,9 @@ class BanManager
     // Check if node is banned
     virtual bool isBanned(NodeID nodeID) = 0;
 
+    // List banned nodes
+    virtual std::vector<std::string> getBans() = 0;
+
     virtual ~BanManager()
     {
     }
