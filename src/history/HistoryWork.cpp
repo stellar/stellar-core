@@ -1705,13 +1705,14 @@ void
 RepairMissingBucketsWork::onReset()
 {
     BucketDownloadWork::onReset();
-    std::vector<std::string> bucketsToFetch;
-    bucketsToFetch =
+    std::unordered_set<std::string> bucketsToFetch;
+    auto missingBuckets =
         mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
     auto publishBuckets =
         mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
-    bucketsToFetch.insert(bucketsToFetch.end(), publishBuckets.begin(),
-                          publishBuckets.end());
+
+    bucketsToFetch.insert(missingBuckets.begin(), missingBuckets.end());
+    bucketsToFetch.insert(publishBuckets.begin(), publishBuckets.end());
 
     for (auto const& hash : bucketsToFetch)
     {
