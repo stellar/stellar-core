@@ -110,6 +110,7 @@ void
 ApplicationImpl::newDB()
 {
     mDatabase->initialize();
+    mDatabase->upgradeToCurrentSchema();
 
     LOG(INFO) << "* ";
     LOG(INFO) << "* The database has been initialized";
