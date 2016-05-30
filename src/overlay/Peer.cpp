@@ -17,6 +17,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
+#include "BanManager.h"
 #include "util/Logging.h"
 
 #include "medida/metrics_registry.h"
@@ -149,6 +150,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-hello-peerid"}, "drop"))
     , mDropInRecvHelloCertMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-hello-cert"}, "drop"))
+    , mDropInRecvHelloBanMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-hello-ban"}, "drop"))
     , mDropInRecvHelloNetMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-hello-net"}, "drop"))
     , mDropInRecvHelloPortMeter(app.getMetrics().NewMeter(
@@ -884,6 +887,14 @@ Peer::recvHello(Hello const& elo)
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
         mDropInRecvHelloCertMeter.Mark();
+        drop();
+        return;
+    }
+
+    if (mApp.getBanManager().isBanned(elo.peerID))
+    {
+        CLOG(ERROR, "Overlay") << "Node is banned";
+        mDropInRecvHelloBanMeter.Mark();
         drop();
         return;
     }

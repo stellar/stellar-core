@@ -13,6 +13,7 @@
 #include "main/Config.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "BanManager.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -165,6 +166,26 @@ TEST_CASE("reject peers with invalid cert", "[overlay]")
     REQUIRE(!conn.getAcceptor()->isConnected());
     REQUIRE(app1->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-cert"}, "drop")
+                .count() != 0);
+}
+
+TEST_CASE("reject banned peers", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+    app1->getBanManager().banNode(cfg2.NODE_SEED.getPublicKey());
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isConnected());
+    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(app1->getMetrics()
+                .NewMeter({"overlay", "drop", "recv-hello-ban"}, "drop")
                 .count() != 0);
 }
 

@@ -12,6 +12,7 @@
 #include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include <overlay/BanManager.h>
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "StellarCoreVersion.h"
@@ -61,6 +62,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
+    mServer->addRoute("bans",
+                      std::bind(&CommandHandler::bans, this, _1, _2));
     mServer->addRoute("catchup",
                       std::bind(&CommandHandler::catchup, this, _1, _2));
     mServer->addRoute("checkdb",
@@ -71,6 +74,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::connect, this, _1, _2));
     mServer->addRoute("dropcursor",
                       std::bind(&CommandHandler::dropcursor, this, _1, _2));
+    mServer->addRoute("droppeer",
+                      std::bind(&CommandHandler::dropPeer, this, _1, _2));
     mServer->addRoute("generateload",
                       std::bind(&CommandHandler::generateLoad, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
@@ -94,6 +99,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    mServer->addRoute("unban",
+                      std::bind(&CommandHandler::unban, this, _1, _2));
 }
 
 void
@@ -247,7 +254,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
     retStr += "supported commands:<p/>";
 
     retStr +=
-        "<p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
+        "<p><h1> /bans</h1>"
+        "list current active bans"
+        "</p><p><h1> /catchup?ledger=NNN[&mode=MODE]</h1>"
         "triggers the instance to catch up to ledger NNN from history; "
         "mode is either 'minimal' (the default, if omitted) or 'complete'."
         "</p><p><h1> /checkdb</h1>"
@@ -256,6 +265,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
+        "</p><p><h1> "
+        "/droppeer?node=NODE_ID[&ban=D]</h1>"
+        "drops peer identified by PEER_ID, when D is 1 the peer is also banned"
         "</p><p><h1> "
         "/generateload[?accounts=N&txs=M&txrate=(R|auto)]</h1>"
         "artificially generate load for testing; must be used with "
@@ -308,7 +320,10 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /maintenance[?queue=true]</h1> Performs maintenance tasks "
         "on the instance."
         "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
-        "for more information</li></ul"
+        "for more information</li></ul>"
+        "</p><p><h1> "
+        "/unban?node=NODE_ID</h1>"
+        "remove ban for PEER_ID"
         "</p>"
 
         "<br>";
@@ -599,6 +614,99 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
     else
     {
         retStr = "Must specify a peer and port: connect&peer=PEER&port=PORT";
+    }
+}
+
+void
+CommandHandler::dropPeer(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto peerId = retMap.find("node");
+    auto ban = retMap.find("ban");
+    if (peerId != retMap.end())
+    {
+        auto found = false;
+        NodeID n;
+        if (mApp.getHerder().resolveNodeID(peerId->second, n))
+        {
+            auto peers = mApp.getOverlayManager().getPeers();
+            auto peer = std::find_if(
+                peers.begin(), peers.end(),
+                [&n](Peer::pointer peer) { return peer->getPeerID() == n; });
+            if (peer != peers.end())
+            {
+                mApp.getOverlayManager().dropPeer(*peer);
+                if (ban != retMap.end() && ban->second == "1")
+                {
+                    retStr = "Drop and ban peer: ";
+                    mApp.getBanManager().banNode(n);
+                }
+                else
+                    retStr = "Drop peer: ";
+
+                retStr += peerId->second;
+                found = true;
+            }
+        }
+
+        if (!found)
+        {
+            retStr = "Peer ";
+            retStr += peerId->second;
+            retStr += " not found";
+        }
+    }
+    else
+    {
+        retStr = "Must specify at least peer id: droppeer?node=NODE_ID";
+    }
+}
+
+void
+CommandHandler::bans(std::string const& params, std::string& retStr)
+{
+    Json::Value root;
+
+    root["bans"];
+    int counter = 0;
+    for (auto ban : mApp.getBanManager().getBans())
+    {
+        root["bans"][counter] = ban;
+
+        counter++;
+    }
+
+    retStr = root.toStyledString();
+}
+
+void
+CommandHandler::unban(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+
+    auto peerId = retMap.find("node");
+    if (peerId != retMap.end())
+    {
+        NodeID n;
+        if (mApp.getHerder().resolveNodeID(peerId->second, n))
+        {
+            retStr = "Unban peer: ";
+            retStr += peerId->second;
+            mApp.getBanManager().unbanNode(n);
+        }
+        else
+        {
+            retStr = "Peer ";
+            retStr += peerId->second;
+            retStr += " not found";
+        }
+    }
+    else
+    {
+        retStr = "Must specify at least peer id: unban?node=NODE_ID";
     }
 }
 

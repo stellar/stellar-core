@@ -72,11 +72,11 @@ log in `$PGDATA/pg_log/` after running tests, as well as manually
 inspect the database with `psql`.
 
 Finally, you can use an existing database cluster so long as it has
-databases named `test0`, `test1`, ..., `test8`, and `test`.  Do set
+databases named `test0`, `test1`, ..., `test9`, and `test`.  Do set
 this up, make sure your `PGHOST` and `PGUSER` environment variables
 are appropriately set, then run the following from bash:
 
-    for i in $(seq 0 8) ''; do
+    for i in $(seq 0 9) ''; do
         psql -c "create database test$i;"
     done
 
