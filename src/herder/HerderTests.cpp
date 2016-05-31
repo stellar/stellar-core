@@ -410,31 +410,6 @@ TEST_CASE("surge", "[herder]")
             REQUIRE(tx->getSourceID() == accountB.getPublicKey());
         }
     }
-    SECTION("one account paying more except for one tx")
-    {
-        // extra transaction would push the account below the reserve
-        for (int n = 0; n < 10; n++)
-        {
-            auto tx = createPaymentTx(networkID, root, destAccount, rootSeq++,
-                                      n + 10);
-            tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
-            txSet->add(tx);
-
-            tx = createPaymentTx(networkID, accountB, destAccount,
-                                 accountBSeq++, n + 10);
-            if (n != 1)
-                tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
-            txSet->add(tx);
-        }
-        txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
-        REQUIRE(txSet->mTransactions.size() == 5);
-        REQUIRE(txSet->checkValid(*app));
-        for (auto& tx : txSet->mTransactions)
-        {
-            REQUIRE(tx->getSourceID() == root.getPublicKey());
-        }
-    }
 
     SECTION("one account paying more except for one tx")
     {
