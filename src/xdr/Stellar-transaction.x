@@ -283,7 +283,7 @@ case MEMO_RETURN:
 struct TimeBounds
 {
     uint64 minTime;
-    uint64 maxTime;
+    uint64 maxTime; // 0 here means no maxTime
 };
 
 /* a transaction is a container for a set of operations
