@@ -1,7 +1,7 @@
 #Transactions
 See [Concept documentation](https://www.stellar.org/developers/learn/concepts/transactions.html).
 
-Anything that changes the ledger is called a Transaction.
+Anything that changes the ledger is called a _Transaction_.
 Transactions have an arbitrary list of operations inside them.
 
 See the "struct Transaction" definition in src/xdr/Stellar-transaction.x
@@ -12,8 +12,7 @@ See the TransactionFrame class for the implementation.
 *********************
 ##Fees
 The network charges a fee for each transaction - right now the fee is just 
-proportional to the number of operations inside it. See 
-TransactionFrame::getMinFee for the actual implementation.
+proportional to the number of operations inside it. See `TransactionFrame::getMinFee` for the actual implementation.
 
 The base fee (multiplier) is decided during consensus; the desired base fee for 
 each instance is defined in their configuration file.
@@ -21,10 +20,10 @@ each instance is defined in their configuration file.
 ##Sequence Number
 Transactions follow a strict ordering rule when it comes to processing of 
 transactions per account:
-* each transaction has a sequence number field.
+* Each transaction has a sequence number field.
 * The transaction number has to be the next sequence number based off the one 
   stored in the source account when the transaction is applied.
-* The next sequence number is obtained by adding "1" to the current number.
+* The next sequence number is obtained by incrementing the current sequence number by 1.
 * The account entry is updated with the next sequence number of the transaction 
   when the transaction is applied.
 
@@ -37,8 +36,9 @@ numbers 6, 7 and 8.
 
 ##Validity of a transaction
 
-A transaction is considered valid iff
-(A)
+A transaction is considered valid if and only if:
+
+* __A__
  * the Source Account exists
  * the transaction is signed for the source account (see Signatures below)
  * the signatures together meet the "low" threshold
@@ -46,16 +46,16 @@ A transaction is considered valid iff
  * the sequence number follows the rules defined in the "Sequence Number" section
  * the current ledger sequence number is within the [minLedger, maxLedger]  range
 and
-(B)
+* __B__
  * all operations are valid
  * all signatures attached to the transaction are used (by operations or by the 
-   check in part (A))
+   check in part __A__ )
 
 Checking for the validity of a transaction is used by other modules to decide 
 if a transaction should be forwarded to other peers or included in the next 
 transaction set.
 
-Note that because transactions are not applied during validation (in this C++ 
+__Note__ that because transactions are not applied during validation (in this C++ 
 implementation), there is a chance that a transaction invalidates another 
 transaction; therefore this is really a best effort implementation specific.
 
@@ -66,7 +66,7 @@ Source Accounts for transactions are charged a fee and their sequence number
 is updated. 
 Then, the transactions are applied one by one.
 
-To apply a transaction, it first checks for part (A) of the validity check.
+To apply a transaction, it first checks for part __A__ of the validity check.
 
 If any operation fails, the transaction is rolled back entirely but marked as 
 such: the sequence number in the account is consumed, the fee is collected and 
@@ -92,16 +92,16 @@ Each operation falls under a specific threshold category: low, medium, high.
 Thresholds define the level of priviledge an operation needs in order to succeed.
 
 * Low Security:
- * AllowTrustTx
- * Used to allowing other signers to allow people to hold credit from this 
+  * AllowTrustTx
+  * Used to allowing other signers to allow people to hold credit from this 
    account but not issue it.
 * Medium Secruity:
- * All else
+  * All else
 * High Security:
- * SetOptions for Signer and threshold
- * Used to change the Set of signers and the thresholds.
+  * SetOptions for Signer and threshold
+  * Used to change the Set of signers and the thresholds.
 
- See the section on signatures below for more details.
+See the section on signatures below for more details.
 
 ##Validity of an operation
 
@@ -138,7 +138,7 @@ The txfeehistory table is additional meta data that tracks changes to the ledger
 done before transactions are applied.
 
 ##List of operations
-See src/xdr/Stellar-transaction.x for a detailed list of all operations and results.
+See `src/xdr/Stellar-transaction.x` for a detailed list of all operations and results.
 
 ##Implementation
 For each operation type, there is a matching Frame class: for example, the Payment Operation has a PaymentFrame class associated with it.

@@ -1,6 +1,6 @@
 # Historical records
 
-The history module is responible for interfacing with "history archives",
+The history module is responsible for interfacing with "history archives",
 loosely defined as "places that flat files can be stored and retrieved from".
 
 History archives are defined by the user by adding sections of the form
