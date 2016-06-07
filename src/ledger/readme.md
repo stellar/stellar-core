@@ -7,11 +7,11 @@ last closed ledger; when the new set is applied, a new "last closed ledger"
 is defined.
 
 Each ledger is cryptographically linked to a unique previous ledger, creating
-a historical chain that goes back to the genesis ledger. 
+a historical chain that goes back to the genesis ledger.
 We define the sequence number of a ledger recursively:
 * genesis ledger has sequence number 1
 * a ledger directly derived from a ledger with sequence number n, has sequence
-    number n+1
+  number n+1
 
 #Data structure organization
 
@@ -80,7 +80,7 @@ scpValue.
 Stored in txSetResultHash, it's the hash of a list of TransactionResultPair which
 conceptually links each transaction to a transaction result.
 
-This data is not stricly speaking necessary for validating the chain, but
+This data is not strictly speaking necessary for validating the chain, but
 makes it easier for entities to validate the result of a given transaction
 without having to replay and validate the entire ledger state.
 
@@ -102,10 +102,11 @@ Accounts control the access rights to balances.
 
 The other entries are "add-ons" to the main account entry; with every new entry
 attached to the account, the minimum balance in LUM goes up for the
-account (also known as reserve). See LedgerManager::getMinBalance for more detail.
+account (also known as reserve).
+See `LedgerManager::getMinBalance` for more detail.
 
 ###TrustLineEntry
-Trust lines are lines of credit the account has given a particular issuer in a 
+Trust lines are lines of credit the account has given a particular issuer in a
 specific asset.
 
 It defines the rules around the use of this asset.
@@ -150,34 +151,31 @@ For more detail see the "Closing a ledger" section.
 
 When closing a ledger, the engine needs to apply the consensus transaction set
 to the last closed ledger to produce a new closed ledger.
+The method that does this is `LedgerManagerImpl::closeLedger`.
 
-The method that does this is "LedgerManagerImpl::closeLedger".
-
-First the transaction set is reordered in apply order:
+1. First the transaction set is reordered in apply order:
 during consensus, the transaction set was sorted by hash to keep things simple,
 but when it comes to actually applying them, they need to be sorted such that
 transactions for a given account are applied in sequence number order and also
 randomized enough so that it becomes unfeasible to submit a transaction and
 guarantee that it will be executed before or after another transaction in the set.
+_See `TxSetFrame::sortForApply` for more detail._
 
-See TxSetFrame::sortForApply for more detail.
-
-Once the list of transactions to apply is computed, each transaction is
+2. Once the list of transactions to apply is computed, each transaction is
 applied to the ledger.
+_See [`src/transactions/readme.md`](../transactions/readme.md) for more detail
+on how transactions are applied._
 
-See [`src/transactions/readme.md`](../transactions/readme.md) for more detail
-on how transactions are applied.
+3. After applying each transaction its result is stored in the transaction history
+table (see [Historical Data](###Historical-Data)) and side effects (captured in LedgerDelta) are saved.
 
-After applying each transaction its result is stored in the transaction history
-table (see Historical data) and side effects (captured in LedgerDelta) are saved.
-
-After all transactions have been applied, the changes are committed to
+4. After all transactions have been applied, the changes are committed to
 the current state of the database via SQL commit and to the overall LedgerDelta
-for the entire Ledger close is fed to the BucketManager (see BucketManager).
+for the entire Ledger close is fed to the BucketManager (see [BucketManager](##BucketManager)).
 
-At this point the module notifies the history subsystem that a ledger was
+5. At this point the module notifies the history subsystem that a ledger was
 closed so that it can publish the new ledger/transaction set for long term storage.
-See [`src/history/readme.md`](../history/readme.md) for more detail.
+_See [`src/history/readme.md`](../history/readme.md) for more detail._
 
 #Storage
 
@@ -194,14 +192,14 @@ For more detail on the SQL implementation, see [`src/database/`](../database/)
 The SQL tables for Ledger Entries represent the state of the current ledger:
 ie, if an account is modified in some way, the "Accounts" table will have the change.
 
-###Historical data
-Some tables are used as queues to other subsystems: 
+###Historical Data
+Some tables are used as queues to other subsystems:
 
 LedgerHeader contains the ledger headers that were produced by the "closeLedger"
 method in LedgerManager.
 
 TxHistory contains the record of all transactions applied to all ledgers that
-were closed.
+were closed.  
 See [`src/transactions/TransactionFrame.cpp`](../transactions/TransactionFrame.cpp)
 for more detail.
 
