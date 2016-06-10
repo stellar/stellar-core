@@ -16,6 +16,7 @@ stellar-core can be controlled via the following commands.
 `$ stellar-core --convertid SDQVDISRYN2JXBS7ICL7QJAEKB3HWBJFP2QECXG7GZICAHBK4UNJCWK2`
 
 * **--dumpxdr FILE**:  Dumps the given XDR file and then exits.
+* **--loadxdr FILE**:  Load an XDR bucket file, for testing.
 * **--forcescp**: This command is used to start a network from scratch or when a 
 network has lost quorum because of failed nodes or otherwise. It sets a flag in 
 the database. The next time stellar-core is run, stellar-core will start 
@@ -25,6 +26,9 @@ forcescp doesn't change the requirements for quorum so although this node will e
 * **--fuzz FILE**: Run a single fuzz input and exit.
 * **--genfuzz FILE**:  Generate a random fuzzer input file.
 * **--genseed**: Generate and print a random public/private key and then exit.
+* **--inferquorum**:   Print a potential quorum set inferred from history.
+* **--checkquorum**:   Check quorum intersection from history to ensure there is closure over all the validators in the network.
+* **--graphquorum**:   Print a quorum set graph from history.
 * **--offlineinfo**: Returns an output similar to `--c info` for an offline instance
 * **--ll LEVEL**: Set the log level. It is redundant with `--c ll` but we need this form if you want to change the log level during test runs.
 * **--metric METRIC**: Report metric METRIC on exit. Used for gathering a metric cumulatively during a test run.
