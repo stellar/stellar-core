@@ -114,7 +114,7 @@ socket_type accept(socket_type s, socket_addr_type* addr,
   if (new_s == invalid_socket)
     return new_s;
 
-#if defined(__MACH__) && defined(__APPLE__) || defined(__FreeBSD__)
+#if defined(__MACH__) && defined(__APPLE__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   int optval = 1;
   int result = error_wrapper(::setsockopt(new_s,
         SOL_SOCKET, SO_NOSIGPIPE, &optval, sizeof(optval)), ec);
@@ -1395,7 +1395,7 @@ socket_type socket(int af, int type, int protocol,
   ec = asio::error_code();
 
   return s;
-#elif defined(__MACH__) && defined(__APPLE__) || defined(__FreeBSD__)
+#elif defined(__MACH__) && defined(__APPLE__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)
   socket_type s = error_wrapper(::socket(af, type, protocol), ec);
   if (s == invalid_socket)
     return s;

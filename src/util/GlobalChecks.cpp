@@ -9,6 +9,7 @@
 #endif
 #include <thread>
 #include <cassert>
+#include <cstdlib>
 
 namespace stellar
 {
