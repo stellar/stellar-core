@@ -1120,7 +1120,10 @@ ApplyLedgerChainWork::onSuccess()
 BucketDownloadWork::BucketDownloadWork(Application& app, WorkParent& parent,
                                        std::string const& uniqueName,
                                        HistoryArchiveState const& localState)
-    : Work(app, parent, uniqueName), mLocalState(localState)
+    : Work(app, parent, uniqueName)
+    , mLocalState(localState)
+    , mDownloadDir(make_unique<TmpDir>(
+          mApp.getTmpDirManager().tmpDir(getUniqueName())))
 {
 }
 
@@ -1129,8 +1132,6 @@ BucketDownloadWork::onReset()
 {
     clearChildren();
     mBuckets.clear();
-    mDownloadDir =
-        make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
 }
 
 void
