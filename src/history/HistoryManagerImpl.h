@@ -7,6 +7,7 @@
 #include "history/HistoryManager.h"
 #include "util/TmpDir.h"
 #include <memory>
+#include <list>
 
 namespace medida
 {
@@ -19,12 +20,38 @@ namespace stellar
 class Application;
 class Work;
 
+class HistoryManagerImpl;
+
+struct HistoryBucketCache
+{
+    HistoryManagerImpl& mManager;
+    std::map<std::string, int> mUnpublishedBucketRefCounts;
+    std::list<std::pair<int, std::string> > mPublishingBuckets;
+
+    HistoryBucketCache(HistoryManagerImpl& hm)
+           : mManager(hm){
+
+    }
+
+    bool loadIfEmpty();
+
+    void referenceBucketes(HistoryArchiveState& har);
+
+    void dereferenceSingleBucket(std::string hash);
+
+    void prepairPublish(HistoryArchiveState const& har);
+
+    void confirmPublished(uint32_t ledgerSeq, bool success);
+};
+
 class HistoryManagerImpl : public HistoryManager
 {
     Application& mApp;
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<Work> mPublishWork;
     std::shared_ptr<Work> mCatchupWork;
+    std::unique_ptr<HistoryBucketCache> mBucketCache;
+
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -37,6 +64,7 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mCatchupSuccess;
     medida::Meter& mCatchupFailure;
 
+    HistoryBucketCache& getBucketCache();
   public:
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
