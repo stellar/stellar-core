@@ -822,14 +822,19 @@ void HistoryBucketCache::prepairPublish(HistoryArchiveState const& har) {
 }
 
 void HistoryBucketCache::confirmPublished(uint32_t ledgerSeq, bool success) {
-    for (std::list<std::pair<int, Hash> >::iterator lb = mPublishingBuckets.begin();
-         lb != mPublishingBuckets.end();
-         ++lb) {
-        if (lb->first == ledgerSeq) {
+    auto iter = mPublishingBuckets.begin();
+    while (iter != mPublishingBuckets.end())
+    {
+        if (iter->first == ledgerSeq)
+        {
             if (success) {
-                dereferenceSingleBucket(lb->second);
+                dereferenceSingleBucket(iter->second);
             }
-            mPublishingBuckets.erase(lb);
+            iter = mPublishingBuckets.erase(iter);
+        }
+        else
+        {
+            ++iter;
         }
     }
 }
