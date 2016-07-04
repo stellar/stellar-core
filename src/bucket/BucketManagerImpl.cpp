@@ -229,50 +229,48 @@ BucketManagerImpl::forgetUnreferencedBuckets()
         }
     }
 
+    std::set<Hash> sharedbuckets;
+    for ( const auto &bucket : mSharedBuckets ) {
+        sharedbuckets.insert(bucket.first);
+        bucket.second->setRetain(true);
+    }
+
     // Implicitly retain any buckets that are referenced by a state in
     // the publish queue.
-    auto pub = mApp.getHistoryManager().getBucketsReferencedByPublishQueue();
+    auto pub = mApp.getHistoryManager().getBucketsUnreferencedByPublishQueue(sharedbuckets);
     {
         for (auto const& h : pub)
         {
             CLOG(DEBUG, "Bucket")
-                << "BucketManager::forgetUnreferencedBuckets: " << h
-                << " referenced by publish queue";
-            referenced.insert(hexToBin256(h));
+                << "BucketManager::forgetUnreferencedBuckets: " << binToHex(h)
+                << " unreferenced by publish queue";
+            if (referenced.find(h) != referenced.end()) {
+                CLOG(DEBUG, "Bucket") << "But is referenced in BucketList, keep it";
+            }
+            else {
+                // Only drop buckets if the bucketlist has forgotten them _and_
+                // no other in-progress structures (worker threads, shadow lists)
+                // have references to them, just us. It's ok to retain a few too
+                // many buckets, a little longer than necessary.
+                //
+                // This conservatism is important because we want to enforce that only
+                // one bucket ever exists in memory with a given filename, and that
+                // we're the first and last to know about it. Otherwise buckets might
+                // race on deleting the underlying file from one another.
+
+                auto j = mSharedBuckets.find(h);
+                assert(j != mSharedBuckets.end());
+                if (j->second.use_count() == 1) {
+                    CLOG(TRACE, "Bucket")
+                        << "BucketManager::forgetUnreferencedBuckets dropping "
+                        << j->second->getFilename();
+                    j->second->setRetain(false);
+                    mSharedBuckets.erase(j);
+                }
+            }
         }
     }
 
-    for (auto i = mSharedBuckets.begin(); i != mSharedBuckets.end();)
-    {
-        // Standard says map iterators other than the one you're erasing remain
-        // valid.
-        auto j = i;
-        ++i;
-
-        // Only drop buckets if the bucketlist has forgotten them _and_
-        // no other in-progress structures (worker threads, shadow lists)
-        // have references to them, just us. It's ok to retain a few too
-        // many buckets, a little longer than necessary.
-        //
-        // This conservatism is important because we want to enforce that only
-        // one bucket ever exists in memory with a given filename, and that
-        // we're the first and last to know about it. Otherwise buckets might
-        // race on deleting the underlying file from one another.
-
-        if (referenced.find(j->first) == referenced.end() &&
-            j->second.use_count() == 1)
-        {
-            CLOG(TRACE, "Bucket")
-                << "BucketManager::forgetUnreferencedBuckets dropping "
-                << j->second->getFilename();
-            j->second->setRetain(false);
-            mSharedBuckets.erase(j);
-        }
-        else
-        {
-            j->second->setRetain(true);
-        }
-    }
     mSharedBucketsSize.set_count(mSharedBuckets.size());
 }
 

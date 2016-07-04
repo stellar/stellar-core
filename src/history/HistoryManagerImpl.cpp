@@ -587,16 +587,27 @@ HistoryManagerImpl::getPublishQueueStates()
     return states;
 }
 
-std::vector<std::string>
-HistoryManagerImpl::getBucketsReferencedByPublishQueue()
+std::vector<Hash>
+HistoryManagerImpl::getBucketsUnreferencedByPublishQueue(std::set<Hash>& buckets)
 {
     auto& refmap = getBucketCache().mUnpublishedBucketRefCounts;
-    std::vector<std::string> keys;
-    keys.reserve(refmap.size());
-    for(auto kv : refmap) {
-        keys.push_back(kv.first);
+    std::vector<Hash> retkeys;
+
+    //reference implementation of std::set_difference(buckets, refmap.keys, retkeys)
+    auto first1 = buckets.begin();
+    auto last1 = buckets.end();
+    auto first2 = refmap.begin();
+    auto last2 = refmap.end();
+
+    while (first1!=last1 && first2!=last2)
+    {
+      if (*first1<first2->first) { retkeys.push_back(*first1); ++first1; }
+      else if (first2->first<*first1) ++first2;
+      else { ++first1; ++first2; }
     }
-    return keys;
+    retkeys.insert(retkeys.end(), first1, last1);
+
+    return retkeys;
 }
 
 std::vector<std::string>
@@ -775,7 +786,8 @@ bool HistoryBucketCache::loadIfEmpty() {
 
 void HistoryBucketCache::referenceBucketes(HistoryArchiveState &har)
 {
-    for (auto hash :har.allBuckets()) {
+    for (auto hashstr :har.allBuckets()) {
+        auto hash = hexToBin256(hashstr);
         auto hit = mUnpublishedBucketRefCounts.find(hash);
         if (hit == mUnpublishedBucketRefCounts.end()) {
             mUnpublishedBucketRefCounts[hash] = 1;
@@ -786,7 +798,8 @@ void HistoryBucketCache::referenceBucketes(HistoryArchiveState &har)
     }
 }
 
-void HistoryBucketCache::dereferenceSingleBucket(string hash) {
+void HistoryBucketCache::dereferenceSingleBucket(Hash const& hash) {
+
     auto hit = mUnpublishedBucketRefCounts.find(hash);
     if (hit == mUnpublishedBucketRefCounts.end()) {
         assert("unmatched deference");
@@ -804,12 +817,12 @@ void HistoryBucketCache::dereferenceSingleBucket(string hash) {
 
 void HistoryBucketCache::prepairPublish(HistoryArchiveState const& har) {
     for (auto bucket :har.allBuckets()) {
-        mPublishingBuckets.push_back(std::make_pair(har.currentLedger, bucket));
+        mPublishingBuckets.push_back(std::make_pair(har.currentLedger, hexToBin256(bucket)));
     }
 }
 
 void HistoryBucketCache::confirmPublished(uint32_t ledgerSeq, bool success) {
-    for (std::list<std::pair<int, std::string> >::iterator lb = mPublishingBuckets.begin();
+    for (std::list<std::pair<int, Hash> >::iterator lb = mPublishingBuckets.begin();
          lb != mPublishingBuckets.end();
          ++lb) {
         if (lb->first == ledgerSeq) {

@@ -25,8 +25,8 @@ class HistoryManagerImpl;
 struct HistoryBucketCache
 {
     HistoryManagerImpl& mManager;
-    std::map<std::string, int> mUnpublishedBucketRefCounts;
-    std::list<std::pair<int, std::string> > mPublishingBuckets;
+    std::map<Hash, int> mUnpublishedBucketRefCounts;
+    std::list<std::pair<int, Hash> > mPublishingBuckets;
 
     HistoryBucketCache(HistoryManagerImpl& hm)
            : mManager(hm){
@@ -37,7 +37,7 @@ struct HistoryBucketCache
 
     void referenceBucketes(HistoryArchiveState& har);
 
-    void dereferenceSingleBucket(std::string hash);
+    void dereferenceSingleBucket(Hash const& hash);
 
     void prepairPublish(HistoryArchiveState const& har);
 
@@ -98,7 +98,7 @@ class HistoryManagerImpl : public HistoryManager
     std::vector<std::string>
     getMissingBucketsReferencedByPublishQueue() override;
 
-    std::vector<std::string> getBucketsReferencedByPublishQueue() override;
+    std::vector<Hash> getBucketsUnreferencedByPublishQueue(std::set<Hash>& buckets) override;
 
     std::vector<HistoryArchiveState> getPublishQueueStates();
 
