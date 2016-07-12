@@ -777,7 +777,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.logAndUpdateStatus(true);
 
     // step 4
-    mApp.getBucketManager().forgetUnreferencedBuckets();
+    if (getState() != LM_CATCHING_UP_STATE) {
+        mApp.getBucketManager().forgetUnreferencedBuckets();
+    }
 }
 
 void
