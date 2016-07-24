@@ -528,6 +528,9 @@
     <ClCompile Include="..\..\src\util\BitsetEnumeratorTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -913,6 +916,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
       <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\BanManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\BanManagerImpl.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
