@@ -1,5 +1,6 @@
 Installation Instructions
 ==================
+These are intructions for building stellar-core from source. For a potentially quicker set up we also have stellar-core in a docker container: https://github.com/stellar/docker-stellar-core-horizon
 
 ## Picking a version to run
 
