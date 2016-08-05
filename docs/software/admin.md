@@ -7,6 +7,8 @@ the Stellar peer-to-peer network. For a high-level introduction to Stellar Core,
 
 [![Introduction to Stellar Core](https://i.ytimg.com/vi/pt_mm8S9_WU/hqdefault.jpg "Introduction to Stellar Core")](https://www.youtube.com/watch?v=pt_mm8S9_WU)
 
+It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in stellar-core.
+
 ## Why run a node?
 
 Run stellar-core if you want to:
@@ -19,6 +21,7 @@ Run stellar-core if you want to:
 
 ## Building
 See [readme](https://github.com/stellar/stellar-core/blob/master/README.md) for build instructions.
+We also provide a [docker container](https://github.com/stellar/docker-stellar-core-horizon) for a potentially quicker set up than building from source.
 
 ## Configuring
 All configuration for stellar-core is done with a TOML file. By default 
@@ -32,6 +35,10 @@ stellar-core loads
 
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
 configuration options.  
+
+Here is an [example test network config](https://github.com/stellar/docker-stellar-core-horizon/blob/master/testnet/core/etc/stellar-core.cfg) for connecting to the test network.
+
+Here is an [example public network config](https://github.com/stellar/docs/blob/master/other/stellar-core-validator-example.cfg) for connecting to the public network.
 
 The examples in this file don't specify `--conf betterfile.cfg` for brevity.
 
@@ -69,7 +76,7 @@ Stellar-core can be gracefully exited at any time by delivering `SIGINT` or
 
 Stellar-core can also be packaged in a container system such as Docker, so long 
 as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
-volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core).
+volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core-horizon).
 
 Note: `BUCKET_DIR_PATH` and `TMP_DIR_PATH` *must* reside on the same volume
 as stellar-core needs to rename files between the two.
