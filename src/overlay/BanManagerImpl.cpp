@@ -79,7 +79,6 @@ BanManagerImpl::getBans()
     auto timer = mApp.getDatabase().getSelectTimer("ban");
     auto prep = mApp.getDatabase().getPreparedStatement(
         "SELECT nodeid FROM ban");
-    uint32_t count;
     auto& st = prep.statement();
     st.exchange(soci::into(nodeIDString));
     st.define_and_bind();
