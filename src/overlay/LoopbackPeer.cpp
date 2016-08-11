@@ -113,7 +113,7 @@ duplicateMessage(xdr::msg_ptr const& msg)
 {
     xdr::msg_ptr msg2 = xdr::message_t::alloc(msg->size());
     memcpy(msg2->raw_data(), msg->raw_data(), msg->raw_size());
-    return std::move(msg2);
+    return msg2;
 }
 
 void
@@ -157,7 +157,7 @@ LoopbackPeer::deliverOne()
         if (mDuplicateProb(mGenerator))
         {
             CLOG(INFO, "Overlay") << "LoopbackPeer duplicated message";
-            mOutQueue.emplace_front(std::move(duplicateMessage(msg)));
+            mOutQueue.emplace_front(duplicateMessage(msg));
             mStats.messagesDuplicated++;
         }
 
