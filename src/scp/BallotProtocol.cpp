@@ -1873,6 +1873,9 @@ BallotProtocol::validateValues(SCPStatement const& st)
     case SCPStatementType::SCP_ST_EXTERNALIZE:
         values.insert(st.pledges.externalize().commit.value);
         break;
+    default:
+        // This shouldn't happen
+        return SCPDriver::kInvalidValue;
     }
     SCPDriver::ValidationLevel res = SCPDriver::kFullyValidatedValue;
     for (auto const& v : values)

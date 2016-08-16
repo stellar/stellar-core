@@ -4,9 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#define _ELPP_THREAD_SAFE
-#define _ELPP_DISABLE_DEFAULT_CRASH_HANDLING
-#define _ELPP_NO_DEFAULT_LOG_FILE
+#define ELPP_THREAD_SAFE
+#define ELPP_DISABLE_DEFAULT_CRASH_HANDLING
+#define ELPP_NO_DEFAULT_LOG_FILE
 
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead

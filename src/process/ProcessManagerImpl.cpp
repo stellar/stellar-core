@@ -464,7 +464,7 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     mPendingImpls.push_back(pe.mImpl);
 
     maybeRunPendingProcesses();
-    return std::move(pe);
+    return pe;
 }
 
 void
