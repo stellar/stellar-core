@@ -62,6 +62,16 @@ SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
                   "Unexpected signature length");
 }
 
+SecretKey::~SecretKey()
+{
+    std::memset(mSecretKey.data(), 0, mSecretKey.size());
+}
+
+SecretKey::Seed::~Seed()
+{
+    std::memset(mSeed.data(), 0, mSeed.size());
+}
+
 PublicKey
 SecretKey::getPublicKey() const
 {

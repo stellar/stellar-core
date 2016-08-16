@@ -50,6 +50,8 @@ enum opttag
     OPT_METRIC,
     OPT_NEWDB,
     OPT_NEWHIST,
+    OPT_PRINTTXN,
+    OPT_SIGNTXN,
     OPT_TEST,
     OPT_VERSION
 };
@@ -60,6 +62,8 @@ static const struct option stellar_core_options[] = {
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
     {"checkquorum", optional_argument, nullptr, OPT_CHECKQUORUM},
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
+    {"printtxn", required_argument, nullptr, OPT_PRINTTXN},
+    {"signtxn", required_argument, nullptr, OPT_SIGNTXN},
     {"loadxdr", required_argument, nullptr, OPT_LOADXDR},
     {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
     {"fuzz", required_argument, nullptr, OPT_FUZZ},
@@ -94,7 +98,7 @@ usage(int err = 1)
           "with the local ledger rather than waiting to hear from the "
           "network.\n"
           "      --fuzz FILE     Run a single fuzz input and exit\n"
-          "      --genfuzz FILE  Generate a random fuzzer input file\n "
+          "      --genfuzz FILE  Generate a random fuzzer input file\n"
           "      --genseed       Generate and print a random node seed\n"
           "      --help          Display this string\n"
           "      --inferquorum   Print a quorum set inferred from history\n"
@@ -109,6 +113,12 @@ usage(int err = 1)
           "      --newdb         Creates or restores the DB to the genesis "
           "ledger\n"
           "      --newhist ARCH  Initialize the named history archive ARCH\n"
+          "      --printtxn FILE Pretty-print one transaction envelope,"
+          " then quit\n"
+          "      --signtxn FILE  Add signature to transaction envelope,"
+          " then quit\n"
+          "                      (Key is read from stdin or terminal, as"
+          " appropriate.)\n"
           "      --test          Run self-tests\n"
           "      --version       Print version information\n";
     exit(err);
@@ -404,6 +414,12 @@ main(int argc, char* const* argv)
             return 0;
         case OPT_DUMPXDR:
             dumpxdr(std::string(optarg));
+            return 0;
+        case OPT_PRINTTXN:
+            printtxn(std::string(optarg));
+            return 0;
+        case OPT_SIGNTXN:
+            signtxn(std::string(optarg));
             return 0;
         case OPT_LOADXDR:
             loadXdrBucket = std::string(optarg);

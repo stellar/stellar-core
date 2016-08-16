@@ -1,12 +1,37 @@
 #include "util/XDRStream.h"
 #include "util/Fs.h"
 #include "main/dumpxdr.h"
+#include "crypto/SecretKey.h"
 #include <xdrpp/printer.h>
 #include <regex>
 #include <iostream>
 
+#if !defined(USE_TERMIOS) && !MSVC
+# define HAVE_TERMIOS 1
+#endif
+#if HAVE_TERMIOS
+extern "C" {
+#include <termios.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+}
+#endif // HAVE_TERMIOS
+
+#if MSVC
+#include <io.h>
+#define isatty _isatty
+#endif // MSVC
+
 namespace stellar
 {
+
+std::string
+xdr_printer(const PublicKey &pk)
+{
+    return PubKeyUtils::toStrKey(pk);
+}
 
 template <typename T>
 void
@@ -56,4 +81,132 @@ dumpxdr(std::string const& filename)
         throw std::runtime_error("unrecognized XDR filename");
     }
 }
+
+#define throw_perror(msg)                                               \
+do {                                                                    \
+    throw std::runtime_error(std::string(msg) + ": " + xdr_strerror(errno)); \
+} while(0)
+
+static std::string
+readFile(const std::string &filename)
+{
+    using namespace std;
+    ostringstream input;
+    if (filename == "-" || filename.empty())
+        input << cin.rdbuf();
+    else {
+        ifstream file(filename.c_str());
+        if (!file)
+            throw_perror(filename);
+        input << file.rdbuf();
+    }
+    return input.str();
+}
+
+void
+printtxn(const std::string &filename)
+{
+    using xdr::operator<<;
+
+    TransactionEnvelope txenv;
+    xdr::xdr_from_opaque(readFile(filename), txenv);
+    std::cout << txenv;
+}
+
+static int
+set_echo_flag(int fd, bool flag)
+{
+#if HAVE_TERMIOS
+    struct termios tios;
+    if (tcgetattr(fd, &tios))
+        return -1;
+    int old = !!(tios.c_lflag & ECHO);
+    if (flag)
+        tios.c_lflag |= ECHO;
+    else
+        tios.c_lflag &= ~ECHO;
+    return tcsetattr(fd, TCSAFLUSH, &tios) == 0 ? old : -1;
+#else // !HAVE_TERMIOS
+    // Sorry, Windows.  Might need to use something like this:
+    // https://msdn.microsoft.com/en-us/library/ms683167(VS.85).aspx
+    // http://stackoverflow.com/questions/1413445/read-a-password-from-stdcin/1455007#1455007
+    errno = ENOSYS;
+    return -1;
+#endif // !HAVE_TERMIOS
+}
+
+std::string
+readSecret(const std::string &prompt, bool force_tty)
+{
+    std::string ret;
+
+    if (!isatty(0) && !force_tty) {
+        std::getline(std::cin, ret);
+        return ret;
+    }
+
+    struct cleanup {
+        std::function<void()> action_;
+        ~cleanup() { if (action_) action_(); }
+    };
+
+    int fd = open("/dev/tty", O_RDWR);
+    if (fd == -1)
+        throw_perror("/dev/tty");
+    cleanup clean_fd;
+    clean_fd.action_ = [fd]{ close(fd); };
+
+    cleanup clean_echo;
+    int oldecho = set_echo_flag(fd, false);
+    if (oldecho == -1)
+        throw_perror("cannot disable terminal echo");
+    else if (oldecho)
+        clean_echo.action_ = [fd]{ set_echo_flag(fd, true); };
+
+    write(fd, prompt.c_str(), prompt.size());
+
+    char buf[256];
+    ssize_t n = read(fd, buf, sizeof(buf));
+    if (n < 0)
+        throw_perror("read secret key");
+    write(fd, "\n", 1);
+    char *p = static_cast<char *>(std::memchr(buf, '\n', sizeof(buf)));
+    if (!p)
+        throw std::runtime_error("line too long");
+    ret.assign(buf, p - buf);
+    memset(buf, 0, sizeof(buf));
+    return ret;
+}
+
+void
+signtxn(std::string const& filename)
+{
+    using namespace std;
+
+    try {
+        const bool txn_stdin = filename == "-" || filename.empty();
+
+        if (isatty(1))
+            throw std::runtime_error(
+                "Refusing to write binary transaction to terminal");
+
+        TransactionEnvelope txenv;
+        xdr::xdr_from_opaque(readFile(filename), txenv);
+        if (txenv.signatures.size() == txenv.signatures.max_size())
+            throw std::runtime_error(
+                "Evelope already contains maximum number of signatures");
+
+        SecretKey sk(SecretKey::fromStrKeySeed(
+                         readSecret("Secret key seed: ", txn_stdin)));
+        txenv.signatures.emplace_back(PubKeyUtils::getHint(sk.getPublicKey()),
+                                      sk.sign(xdr::xdr_to_opaque(txenv.tx)));
+
+        auto out = xdr::xdr_to_opaque(txenv);
+        cout.write(reinterpret_cast<char *>(out.data()), out.size());
+    }
+    catch (const std::exception &e) {
+        cerr << e.what() << endl;
+    }
+}
+
 }
