@@ -23,7 +23,7 @@
 #include "util/optional.h"
 #include <locale>
 
-_INITIALIZE_EASYLOGGINGPP
+INITIALIZE_EASYLOGGINGPP
 
 namespace stellar
 {

@@ -198,7 +198,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
                        return std::make_pair(r1, r2);
                    });
 
-    return std::move(res);
+    return res;
 }
 
 void
