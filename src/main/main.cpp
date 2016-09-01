@@ -397,14 +397,16 @@ main(int argc, char* const* argv)
     std::vector<std::string> metrics;
 
     int opt;
-    while ((opt = getopt_long_only(argc, argv, "", stellar_core_options,
+    while ((opt = getopt_long_only(argc, argv, "c:", stellar_core_options,
                                    nullptr)) != -1)
     {
         switch (opt)
         {
+        case 'c':
         case OPT_CMD:
             command = optarg;
             rest.insert(rest.begin(), argv + optind, argv + argc);
+            optind = argc;
             break;
         case OPT_CONF:
             cfgFile = std::string(optarg);
@@ -473,8 +475,9 @@ main(int argc, char* const* argv)
                         metrics);
         }
         case OPT_VERSION:
-            std::cout << STELLAR_CORE_VERSION;
+            std::cout << STELLAR_CORE_VERSION << std::endl;
             return 0;
+        case OPT_HELP:
         default:
             usage(0);
             return 0;
