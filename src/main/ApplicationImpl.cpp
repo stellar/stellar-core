@@ -19,6 +19,7 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
+#include "util/IssueManager.h"
 #include "work/WorkManager.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
@@ -97,6 +98,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
+    mIssueManager = make_unique<IssueManager>();
+
+    if (!cfg.NTP_SERVER.empty())
+    {
+        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
+    }
 
     if (!cfg.NTP_SERVER.empty())
     {
@@ -624,6 +631,12 @@ BanManager&
 ApplicationImpl::getBanManager()
 {
     return *mBanManager;
+}
+
+IssueManager&
+ApplicationImpl::getIssueManager()
+{
+    return *mIssueManager;
 }
 
 asio::io_service&
