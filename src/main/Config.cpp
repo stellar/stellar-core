@@ -66,6 +66,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     NODE_IS_VALIDATOR = false;
 
     DATABASE = "sqlite3://:memory:";
+    NTP_SERVER = "pool.ntp.org";
 }
 
 void
@@ -584,6 +585,14 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid NETWORK_PASSPHRASE");
                 }
                 NETWORK_PASSPHRASE = item.second->as<std::string>()->value();
+            }
+            else if (item.first == "NTP_SERVER")
+            {
+                if (!item.second->as<std::string>())
+                {
+                    throw std::invalid_argument("invalid NTP_SERVER");
+                }
+                NTP_SERVER = item.second->as<std::string>()->value();
             }
             else
             {

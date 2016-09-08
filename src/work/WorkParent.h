@@ -43,6 +43,8 @@ class WorkParent : public std::enable_shared_from_this<WorkParent>,
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
 
+    Application& app() const;
+
     template <typename T, typename... Args>
     std::shared_ptr<T>
     addWork(Args&&... args)

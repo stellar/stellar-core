@@ -19,12 +19,14 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
+#include "util/IssueManager.h"
 #include "work/WorkManager.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
 #include "main/ExternalQueue.h"
+#include "main/NtpSynchronizationChecker.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -96,6 +98,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
+    mIssueManager = make_unique<IssueManager>();
+
+    if (!cfg.NTP_SERVER.empty())
+    {
+        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
+    }
 
     while (t--)
     {
@@ -198,6 +206,10 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->shutdown();
+    }
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -294,6 +306,11 @@ ApplicationImpl::start()
             done = true;
         });
 
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->start();
+    }
+
     while (!done)
     {
         mVirtualClock.crank(true);
@@ -317,6 +334,10 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
+    }
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->shutdown();
     }
     if (mProcessManager)
     {
@@ -601,10 +622,16 @@ ApplicationImpl::getWorkManager()
     return *mWorkManager;
 }
 
-BanManager &
+BanManager&
 ApplicationImpl::getBanManager()
 {
     return *mBanManager;
+}
+
+IssueManager&
+ApplicationImpl::getIssueManager()
+{
+    return *mIssueManager;
 }
 
 asio::io_service&

@@ -175,6 +175,8 @@ class Config : public std::enable_shared_from_this<Config>
     std::vector<std::string> COMMANDS;
     std::vector<std::string> REPORT_METRICS;
 
+    std::string NTP_SERVER; // ntp server used to check if time is valid on host
+
     Config();
 
     void load(std::string const& filename);
