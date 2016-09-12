@@ -13,7 +13,6 @@
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
-#include "util/IssueManager.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "StellarCoreVersion.h"
@@ -456,13 +455,6 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
     info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
-
-    auto& issues = mApp.getIssueManager();
-    auto counter = 0;
-    for (auto issue : issues)
-    {
-        info["issues"][counter++] = getIssueHuman(issue);
-    }
 
     auto& herder = mApp.getHerder();
     Json::Value q;

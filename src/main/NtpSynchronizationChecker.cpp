@@ -6,7 +6,6 @@
 
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "util/IssueManager.h"
 #include "util/NtpWork.h"
 
 #include <iostream>
@@ -33,23 +32,8 @@ NtpSynchronizationChecker::notify(const std::string&)
     if (allChildrenSuccessful())
     {
         clearChildren();
-        updateIssueManager();
         mNtpWork.reset();
         scheduleNextCheck();
-    }
-}
-
-void
-NtpSynchronizationChecker::updateIssueManager()
-{
-    auto &issueManager = app().getIssueManager();
-    if (mNtpWork->isSynchronized())
-    {
-        issueManager.removeIssue(Issue::TIME_NOT_SYNCHRONIZED);
-    }
-    else
-    {
-        issueManager.addIssue(Issue::TIME_NOT_SYNCHRONIZED);
     }
 }
 

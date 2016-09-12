@@ -17,8 +17,6 @@ class NtpWork;
  * Class that periodically check if local time is synchronized with NTP server.
  * NTP server is passed in construtor as a domain name or string representation
  * of ip address.
- *
- * Its adds issue to IssueManager in case time is not synchronized.
  */
 class NtpSynchronizationChecker : public WorkParent
 {
@@ -47,7 +45,6 @@ class NtpSynchronizationChecker : public WorkParent
 
     virtual void notify(const std::string& childChanged) override;
 
-    void updateIssueManager();
     void scheduleNextCheck();
 };
 
