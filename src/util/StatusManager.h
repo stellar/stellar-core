@@ -15,6 +15,7 @@ namespace stellar
  */
 enum class StatusCategory
 {
+    HISTORY,
     NTP,
     NUM
 };
@@ -32,8 +33,9 @@ class StatusManager
     explicit StatusManager();
     ~StatusManager();
 
-    void addStatusMessage(StatusCategory issue, std::string message);
+    void setStatusMessage(StatusCategory issue, std::string message);
     void removeStatusMessage(StatusCategory issue);
+    std::string getStatusMessage(StatusCategory issue) const;
 
     const_iterator begin() const { return mStatusMessages.begin(); }
     const_iterator end() const { return mStatusMessages.end(); }

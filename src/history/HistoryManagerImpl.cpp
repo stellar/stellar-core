@@ -30,6 +30,7 @@
 #include "medida/meter.h"
 #include "xdrpp/marshal.h"
 #include "util/Math.h"
+#include "util/StatusManager.h"
 
 #include <fstream>
 #include <system_error>
@@ -299,11 +300,11 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
     if (mCatchupWork || mPublishWork)
     {
         auto current = stateStr.str();
-        auto existing = mApp.getExtraStateInfo();
+        auto existing = mApp.getStatusManager().getStatusMessage(StatusCategory::HISTORY);
         if (existing != current)
         {
             CLOG(INFO, "History") << current;
-            mApp.setExtraStateInfo(current);
+            mApp.getStatusManager().setStatusMessage(StatusCategory::HISTORY, current);
         }
     }
 }

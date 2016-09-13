@@ -447,8 +447,6 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = mApp.getStateHuman();
-    if (mApp.getExtraStateInfo().size())
-        info["extra"] = mApp.getExtraStateInfo();
     info["ledger"]["num"] = (int)lm.getLedgerNum();
     info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
     info["ledger"]["closeTime"] =

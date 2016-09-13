@@ -493,18 +493,6 @@ ApplicationImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
-std::string
-ApplicationImpl::getExtraStateInfo() const
-{
-    return std::string(mExtraStateInfo);
-}
-
-void
-ApplicationImpl::setExtraStateInfo(std::string const& stateStr)
-{
-    mExtraStateInfo = stateStr;
-}
-
 bool
 ApplicationImpl::isStopping() const
 {

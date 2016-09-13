@@ -271,7 +271,7 @@ class HistoryManager
     // catchup probe.
     virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
 
-    // Emit a log message and call app.setExtraStateInfo() to
+    // Emit a log message and set StatusManager HISTORY status to
     // describe current catchup/publish state. The `contiguous` argument
     // is passed in to describe whether the ledger-manager's view of
     // current catchup tasks is currently contiguous or discontiguous.

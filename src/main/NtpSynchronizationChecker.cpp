@@ -49,7 +49,7 @@ NtpSynchronizationChecker::updateStatusManager()
     }
     else
     {
-        statusManager.addStatusMessage(StatusCategory::NTP, "Local time is not synchronized with NTP time.");
+        statusManager.setStatusMessage(StatusCategory::NTP, "Local time is not synchronized with NTP time.");
     }
 }
 
