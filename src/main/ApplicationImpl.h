@@ -61,7 +61,7 @@ class ApplicationImpl : public Application
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkManager& getWorkManager() override;
     virtual BanManager& getBanManager() override;
-    virtual IssueManager& getIssueManager() override;
+    virtual StatusManager& getStatusManager() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 
@@ -130,7 +130,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<LoadGenerator> mLoadGenerator;
     std::unique_ptr<BanManager> mBanManager;
     std::shared_ptr<NtpSynchronizationChecker> mNtpSynchronizationChecker;
-    std::unique_ptr<IssueManager> mIssueManager;
+    std::unique_ptr<StatusManager> mStatusManager;
 
     std::vector<std::thread> mWorkerThreads;
 

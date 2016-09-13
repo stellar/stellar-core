@@ -6,8 +6,8 @@
 
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "util/IssueManager.h"
 #include "util/NtpWork.h"
+#include "util/StatusManager.h"
 
 #include <iostream>
 
@@ -33,23 +33,23 @@ NtpSynchronizationChecker::notify(const std::string&)
     if (allChildrenSuccessful())
     {
         clearChildren();
-        updateIssueManager();
+        updateStatusManager();
         mNtpWork.reset();
         scheduleNextCheck();
     }
 }
 
 void
-NtpSynchronizationChecker::updateIssueManager()
+NtpSynchronizationChecker::updateStatusManager()
 {
-    auto &issueManager = app().getIssueManager();
+    auto &statusManager = app().getStatusManager();
     if (mNtpWork->isSynchronized())
     {
-        issueManager.removeIssue(Issue::TIME_NOT_SYNCHRONIZED);
+        statusManager.removeStatusMessage(StatusCategory::NTP);
     }
     else
     {
-        issueManager.addIssue(Issue::TIME_NOT_SYNCHRONIZED);
+        statusManager.addStatusMessage(StatusCategory::NTP, "Local time is not synchronized with NTP time.");
     }
 }
 

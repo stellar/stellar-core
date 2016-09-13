@@ -13,9 +13,9 @@
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
-#include "util/IssueManager.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "util/StatusManager.h"
 #include "StellarCoreVersion.h"
 
 #include "util/basen.h"
@@ -457,11 +457,11 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
     info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
 
-    auto& issues = mApp.getIssueManager();
+    auto& statusMessages = mApp.getStatusManager();
     auto counter = 0;
-    for (auto issue : issues)
+    for (auto statusMessage : statusMessages)
     {
-        info["issues"][counter++] = getIssueHuman(issue);
+        info["status"][counter++] = statusMessage.second;
     }
 
     auto& herder = mApp.getHerder();

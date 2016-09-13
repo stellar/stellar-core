@@ -19,7 +19,7 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
-#include "util/IssueManager.h"
+#include "util/StatusManager.h"
 #include "work/WorkManager.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
@@ -98,7 +98,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
-    mIssueManager = make_unique<IssueManager>();
+    mStatusManager = make_unique<StatusManager>();
 
     if (!cfg.NTP_SERVER.empty())
     {
@@ -633,10 +633,10 @@ ApplicationImpl::getBanManager()
     return *mBanManager;
 }
 
-IssueManager&
-ApplicationImpl::getIssueManager()
+StatusManager&
+ApplicationImpl::getStatusManager()
 {
-    return *mIssueManager;
+    return *mStatusManager;
 }
 
 asio::io_service&
