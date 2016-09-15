@@ -22,20 +22,22 @@ class SecretKey
     CryptoKeyType mKeyType;
     uint512 mSecretKey;
 
-  public:
-    SecretKey();
-
     struct Seed
     {
         CryptoKeyType mKeyType;
         uint256 mSeed;
+        ~Seed();
     };
-
-    // Get the public key portion of this secret key.
-    PublicKey getPublicKey() const;
 
     // Get the seed portion of this secret key.
     Seed getSeed() const;
+
+  public:
+    SecretKey();
+    ~SecretKey();
+
+    // Get the public key portion of this secret key.
+    PublicKey getPublicKey() const;
 
     // Get the seed portion of this secret key as a StrKey string.
     std::string getStrKeySeed() const;
@@ -54,6 +56,12 @@ class SecretKey
 
     // Decode a secret key from a provided StrKey seed value.
     static SecretKey fromStrKeySeed(std::string const& strKeySeed);
+    static SecretKey fromStrKeySeed(std::string &&strKeySeed) {
+        SecretKey ret = fromStrKeySeed(strKeySeed);
+        for (std::size_t i = 0; i < strKeySeed.size(); ++i)
+            strKeySeed[i] = 0;
+        return ret;
+    }
 
     // Decode a secret key from a binary seed value.
     static SecretKey fromSeed(ByteSlice const& seed);

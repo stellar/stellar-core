@@ -10,4 +10,7 @@ namespace stellar
 {
 
 void dumpxdr(std::string const& filename);
+void printtxn(std::string const& filename);
+void signtxn(std::string const& filename);
+
 }

@@ -34,6 +34,17 @@ forcescp doesn't change the requirements for quorum so although this node will e
 * **--metric METRIC**: Report metric METRIC on exit. Used for gathering a metric cumulatively during a test run.
 * **--newdb**: Clears the local database and resets it to the genesis ledger. If you connect to the network after that it will catch up from scratch. 
 * **--newhist ARCH**:  Initialize the named history archive ARCH. ARCH should be one of the history archives you have specified in the stellar-core.cfg. This will write a `.well-known/stellar-history.json` file in the archive root.
+* **--printtxn FILE**:  Pretty-print a binary file containing a
+  `TransactionEnvelope`.  If FILE is "-", the transaction is read from
+  standard input.
+* **--signtxn FILE**:  Add a digital signature to a transaction
+  envelope stored in binary format in FILE, and send the result to
+  standard output (which should be redirected to a file or piped
+  through a tool such as `base64`).  The private signing key is read
+  from standard input, unless FILE is "-" in which case the
+  transaction envelope is read from standard input and the signing key
+  is read from `/dev/tty`.  In either event, if the signing key
+  appears to be coming from a terminal, stellar-core disables echo.
 * **--test**: Run all the unit tests. For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md) on possible options for test. For example this will run just the "Herder" tests and stop after the first failure: `stellar-core --test -a [Herder]` 
 * **--version**: Print version info and then exit.
 
