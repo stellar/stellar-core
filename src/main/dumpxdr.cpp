@@ -135,6 +135,18 @@ set_echo_flag(int fd, bool flag)
 #endif // !HAVE_TERMIOS
 }
 
+#if __GNUC__ >= 4 && __GLIBC__ >= 2
+// Realistically, if a write fails in one of these utility functions,
+// it should kill us with SIGPIPE.  Hence, we don't need to check the
+// return value of write.  However, GCC and glibc are now extremely
+// aggressive with warn_unused_result, to the point that a cast to
+// void won't do anything.  To work around the problem, we define an
+// equivalent function without the warn_unused_result attribute.
+constexpr ssize_t (&mywrite)(int, const void *, size_t) = ::write;
+#else // not (gcc 4+ and glibc)
+#define mywrite write
+#endif // not (gcc 4+ and glibc)
+
 std::string
 readSecret(const std::string &prompt, bool force_tty)
 {
@@ -163,13 +175,13 @@ readSecret(const std::string &prompt, bool force_tty)
     else if (oldecho)
         clean_echo.action_ = [fd]{ set_echo_flag(fd, true); };
 
-    write(fd, prompt.c_str(), prompt.size());
+    mywrite(fd, prompt.c_str(), prompt.size());
 
     char buf[256];
     ssize_t n = read(fd, buf, sizeof(buf));
     if (n < 0)
         throw_perror("read secret key");
-    write(fd, "\n", 1);
+    mywrite(fd, "\n", 1);
     char *p = static_cast<char *>(std::memchr(buf, '\n', sizeof(buf)));
     if (!p)
         throw std::runtime_error("line too long");
