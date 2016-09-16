@@ -19,12 +19,14 @@
 #include "database/Database.h"
 #include "process/ProcessManager.h"
 #include "main/CommandHandler.h"
+#include "util/StatusManager.h"
 #include "work/WorkManager.h"
 #include "simulation/LoadGenerator.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
 #include "main/ExternalQueue.h"
+#include "main/NtpSynchronizationChecker.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
 #include "medida/meter.h"
@@ -96,6 +98,17 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
+    mStatusManager = make_unique<StatusManager>();
+
+    if (!cfg.NTP_SERVER.empty())
+    {
+        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
+    }
+
+    if (!cfg.NTP_SERVER.empty())
+    {
+        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
+    }
 
     while (t--)
     {
@@ -198,6 +211,10 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->shutdown();
+    }
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -294,6 +311,11 @@ ApplicationImpl::start()
             done = true;
         });
 
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->start();
+    }
+
     while (!done)
     {
         mVirtualClock.crank(true);
@@ -317,6 +339,10 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
+    }
+    if (mNtpSynchronizationChecker)
+    {
+        mNtpSynchronizationChecker->shutdown();
     }
     if (mProcessManager)
     {
@@ -467,18 +493,6 @@ ApplicationImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
-std::string
-ApplicationImpl::getExtraStateInfo() const
-{
-    return std::string(mExtraStateInfo);
-}
-
-void
-ApplicationImpl::setExtraStateInfo(std::string const& stateStr)
-{
-    mExtraStateInfo = stateStr;
-}
-
 bool
 ApplicationImpl::isStopping() const
 {
@@ -601,10 +615,16 @@ ApplicationImpl::getWorkManager()
     return *mWorkManager;
 }
 
-BanManager &
+BanManager&
 ApplicationImpl::getBanManager()
 {
     return *mBanManager;
+}
+
+StatusManager&
+ApplicationImpl::getStatusManager()
+{
+    return *mStatusManager;
 }
 
 asio::io_service&

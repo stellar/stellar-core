@@ -95,6 +95,10 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
 
+        // disable NTP - travis-ci does not allow network access:
+        // The container-based, OSX, and GCE (both Precise and Trusty) builds do not currently have IPv6 connectivity.
+        thisConfig.NTP_SERVER.clear();
+
         std::ostringstream dbname;
         switch (mode)
         {

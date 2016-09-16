@@ -88,4 +88,11 @@ WorkParent::allChildrenDone() const
     }
     return true;
 }
+
+Application&
+WorkParent::app() const
+{
+    return mApp;
+}
+
 }

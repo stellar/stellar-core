@@ -11,10 +11,11 @@
 #include "main/Application.h"
 #include "main/CommandHandler.h"
 #include "main/Config.h"
+#include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
-#include <overlay/BanManager.h>
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "util/StatusManager.h"
 #include "StellarCoreVersion.h"
 
 #include "util/basen.h"
@@ -437,7 +438,7 @@ CommandHandler::info(std::string const& params, std::string& retStr)
 {
     Json::Value root;
 
-    LedgerManager& lm = mApp.getLedgerManager();
+    auto& lm = mApp.getLedgerManager();
 
     auto& info = root["info"];
 
@@ -446,8 +447,6 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = mApp.getStateHuman();
-    if (mApp.getExtraStateInfo().size())
-        info["extra"] = mApp.getExtraStateInfo();
     info["ledger"]["num"] = (int)lm.getLedgerNum();
     info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
     info["ledger"]["closeTime"] =
@@ -455,6 +454,13 @@ CommandHandler::info(std::string const& params, std::string& retStr)
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
     info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
+
+    auto& statusMessages = mApp.getStatusManager();
+    auto counter = 0;
+    for (auto statusMessage : statusMessages)
+    {
+        info["status"][counter++] = statusMessage.second;
+    }
 
     auto& herder = mApp.getHerder();
     Json::Value q;
