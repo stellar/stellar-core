@@ -16,10 +16,10 @@
 #include "main/PersistentState.h"
 #include "simulation/Simulation.h"
 #include "herder/LedgerCloseData.h"
-#include <soci.h>
 #include "bucket/BucketManager.h"
 #include "util/optional.h"
 #include "util/Math.h"
+#include "util/SociNoWarnings.h"
 
 using namespace stellar;
 using namespace std;

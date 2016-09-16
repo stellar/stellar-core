@@ -19,6 +19,7 @@
 #include "overlay/PeerRecord.h"
 #include "BanManager.h"
 #include "util/Logging.h"
+#include "util/SociNoWarnings.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -26,7 +27,6 @@
 
 #include "xdrpp/marshal.h"
 
-#include <soci.h>
 #include <time.h>
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
