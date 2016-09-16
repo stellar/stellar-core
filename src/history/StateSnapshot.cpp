@@ -18,12 +18,11 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include "util/SociNoWarnings.h"
 #include "util/XDRStream.h"
 
 #include "medida/metrics_registry.h"
 #include "medida/counter.h"
-
-#include <soci.h>
 
 namespace stellar
 {
