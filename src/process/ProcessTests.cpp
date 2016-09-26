@@ -117,8 +117,8 @@ TEST_CASE("subprocess storm", "[process]")
 
     std::string dir(cfg.TMP_DIR_PATH + "/process-storm");
     fs::mkdir(dir);
-    fs::mkdir(dir + "/src");
-    fs::mkdir(dir + "/dst");
+    fs::mkpath(dir + "/src");
+    fs::mkpath(dir + "/dst");
 
     for (size_t i = 0; i < n; ++i)
     {

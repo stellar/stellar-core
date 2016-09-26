@@ -261,6 +261,24 @@ processExists(long pid)
 
 #endif
 
+bool
+mkpath(const std::string &path)
+{
+    auto pos = 0;
+    while (pos < path.length())
+    {
+        auto slash = path.find('/', pos);
+        pos = slash == std::string::npos ? path.length() : slash;
+        if (!exists(path.substr(0, pos)) && !mkdir(path.substr(0, pos)))
+        {
+            return false;
+        }
+        pos++;
+    }
+
+    return true;
+}
+
 std::string
 hexStr(uint32_t checkpointNum)
 {

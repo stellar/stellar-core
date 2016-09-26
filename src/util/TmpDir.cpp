@@ -21,7 +21,7 @@ TmpDir::TmpDir(std::string const& prefix)
     {
         std::string hex = binToHex(randomBytes(8));
         std::string name = prefix + "-" + hex;
-        if (fs::mkdir(name))
+        if (fs::mkpath(name))
         {
             mPath = make_unique<std::string>(name);
             break;
@@ -56,7 +56,7 @@ TmpDir::~TmpDir()
 TmpDirManager::TmpDirManager(std::string const& root) : mRoot(root)
 {
     clean();
-    fs::mkdir(root);
+    fs::mkpath(root);
 }
 
 TmpDirManager::~TmpDirManager()
