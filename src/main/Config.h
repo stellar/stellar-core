@@ -119,7 +119,6 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t OVERLAY_PROTOCOL_VERSION;     // max overlay version understood
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
-    std::string TMP_DIR_PATH;
     std::string BUCKET_DIR_PATH;
     uint32_t DESIRED_BASE_FEE;     // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops

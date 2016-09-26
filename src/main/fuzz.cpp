@@ -54,12 +54,10 @@ struct CfgDirGuard
     }
     CfgDirGuard(Config const& c) : mConfig(c)
     {
-        clean(mConfig.TMP_DIR_PATH);
         clean(mConfig.BUCKET_DIR_PATH);
     }
     ~CfgDirGuard()
     {
-        clean(mConfig.TMP_DIR_PATH);
         clean(mConfig.BUCKET_DIR_PATH);
     }
 };
@@ -107,7 +105,6 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.PUBLIC_HTTP_PORT = false;
     cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-1.log";
-    cfg1.TMP_DIR_PATH = "fuzz-tmp-1";
     cfg1.BUCKET_DIR_PATH = "fuzz-buckets-1";
 
     cfg2.RUN_STANDALONE = true;
@@ -115,7 +112,6 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.PUBLIC_HTTP_PORT = false;
     cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-2.log";
-    cfg2.TMP_DIR_PATH = "fuzz-tmp-2";
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
 
     CfgDirGuard g1(cfg1);
