@@ -4,6 +4,7 @@
 
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
@@ -835,7 +836,7 @@ LedgerManagerImpl::checkDbState()
             throw std::runtime_error(
                 fmt::format("Mismatch in number of subentries for account {}: "
                             "account says {} but found {}",
-                            PubKeyUtils::toStrKey(i.first), a.numSubEntries,
+                            KeyUtils::toStrKey(i.first), a.numSubEntries,
                             actualSubEntries));
         }
     }
@@ -845,7 +846,7 @@ LedgerManagerImpl::checkDbState()
         {
             throw std::runtime_error(
                 fmt::format("Unexpected trust line found for account {}",
-                            PubKeyUtils::toStrKey(tl.first)));
+                            KeyUtils::toStrKey(tl.first)));
         }
     }
     for (auto& of : offers)
@@ -854,7 +855,7 @@ LedgerManagerImpl::checkDbState()
         {
             throw std::runtime_error(
                 fmt::format("Unexpected offer found for account {}",
-                            PubKeyUtils::toStrKey(of.first)));
+                            KeyUtils::toStrKey(of.first)));
         }
     }
 }

@@ -4,11 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <memory>
-#include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
+
+#include <memory>
+#include <set>
 
 namespace soci
 {
@@ -39,6 +41,7 @@ class TransactionFrame
 
     AccountFrame::pointer mSigningAccount;
     std::vector<bool> mUsedSignatures;
+    std::set<SignerKey> mUsedOneTimeSignerKeys;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -54,6 +57,7 @@ class TransactionFrame
     void resetSignatureTracker();
     void resetResults();
     bool checkAllSignaturesUsed();
+    void removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager);
     void markResultFailed();
 
   public:

@@ -35,7 +35,7 @@ const char *signtxn_network_id;
 std::string
 xdr_printer(const PublicKey &pk)
 {
-    return PubKeyUtils::toStrKey(pk);
+    return KeyUtils::toStrKey<PublicKey>(pk);
 }
 
 template <typename T>

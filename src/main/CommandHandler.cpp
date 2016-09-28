@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/server.hpp"
@@ -153,7 +154,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         if (acc)
         {
             root["name"] = accName->second;
-            root["id"] = PubKeyUtils::toStrKey(acc->getID());
+            root["id"] = KeyUtils::toStrKey(acc->getID());
             root["balance"] = (Json::Int64)acc->getBalance();
             root["seqnum"] = (Json::UInt64)acc->getSeqNum();
         }
@@ -203,8 +204,8 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
         root["from_name"] = from->second;
         root["to_name"] = to->second;
-        root["from_id"] = PubKeyUtils::toStrKey(fromKey.getPublicKey());
-        root["to_id"] = PubKeyUtils::toStrKey(toKey.getPublicKey());
+        root["from_id"] = KeyUtils::toStrKey(fromKey.getPublicKey());
+        root["to_id"] = KeyUtils::toStrKey(toKey.getPublicKey());
         ;
         root["amount"] = (Json::UInt64)paymentAmount;
 

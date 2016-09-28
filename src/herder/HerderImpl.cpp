@@ -4,6 +4,7 @@
 
 #include "herder/HerderImpl.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "herder/TxSetFrame.h"
 #include "herder/LedgerCloseData.h"
@@ -938,7 +939,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
-                              << PubKeyUtils::toShortString(acc);
+                              << KeyUtils::toShortString(acc);
 
     auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);
@@ -1427,7 +1428,7 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             auto const& envelopes = mSCP.getCurrentState(seq);
             for (auto const& e : envelopes)
             {
-                std::string curK = PubKeyUtils::toStrKey(e.statement.nodeID);
+                std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
                 if (curK.compare(0, arg.size(), arg) == 0)
                 {
                     retKey = e.statement.nodeID;
@@ -1719,7 +1720,7 @@ HerderImpl::saveSCPHistory(uint64 index)
             usedQSets.insert(std::make_pair(qHash, getQSet(qHash)));
 
             std::string nodeIDStrKey =
-                PubKeyUtils::toStrKey(e.statement.nodeID);
+                KeyUtils::toStrKey(e.statement.nodeID);
 
             auto envelopeBytes(xdr::xdr_to_opaque(e));
 
