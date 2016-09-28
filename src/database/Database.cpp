@@ -119,6 +119,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 4:
         BanManager::dropAll(*this);
+        DataFrame::dropAll(*this); // not and error, it changed again
         break;
 
     default:
