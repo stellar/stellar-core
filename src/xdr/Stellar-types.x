@@ -16,7 +16,8 @@ typedef hyper int64;
 
 enum CryptoKeyType
 {
-    KEY_TYPE_ED25519 = 0
+    KEY_TYPE_ED25519 = 0,
+    KEY_TYPE_HASH_TX = 1
 };
 
 enum PublicKeyType
@@ -26,7 +27,8 @@ enum PublicKeyType
 
 enum SignerKeyType
 {
-    SIGNER_KEY_TYPE_ED25519 = KEY_TYPE_ED25519
+    SIGNER_KEY_TYPE_ED25519 = KEY_TYPE_ED25519,
+    SIGNER_KEY_TYPE_HASH_TX = KEY_TYPE_HASH_TX
 };
 
 union PublicKey switch (PublicKeyType type)
@@ -39,6 +41,8 @@ union SignerKey switch (SignerKeyType type)
 {
 case SIGNER_KEY_TYPE_ED25519:
     uint256 ed25519;
+case SIGNER_KEY_TYPE_HASH_TX:
+    Hash hashTx;
 };
 
 // variable size as the size depends on the signature scheme used

@@ -259,7 +259,9 @@ SetOptionsOpFrame::doCheckValid(Application& app)
 
     if (mSetOptions.signer)
     {
-        if (mSetOptions.signer->key == KeyUtils::convertKey<SignerKey>(getSourceID()))
+        auto isSelf = mSetOptions.signer->key == KeyUtils::convertKey<SignerKey>(getSourceID());
+        auto isPublicKey = KeyUtils::canConvert<PublicKey>(mSetOptions.signer->key);
+        if (isSelf || (!isPublicKey && app.getLedgerManager().getCurrentLedgerVersion() < 3))
         {
             app.getMetrics().NewMeter({"op-set-options", "invalid", "bad-signer"},
                              "operation").Mark();

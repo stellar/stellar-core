@@ -17,6 +17,8 @@ KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
     case strKey::STRKEY_PUBKEY_ED25519:
     case strKey::STRKEY_SEED_ED25519:
         return crypto_sign_PUBLICKEYBYTES;
+    case strKey::STRKEY_PUBKEY_HASH_TX:
+        return 32U;
     default:
         throw std::invalid_argument("invalid key version: " + std::to_string(keyVersion));
     }

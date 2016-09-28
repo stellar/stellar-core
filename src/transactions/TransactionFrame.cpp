@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "xdrpp/marshal.h"
 #include <string>
+#include "util/basen.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "ledger/LedgerDelta.h"
@@ -17,10 +18,13 @@
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
-#include "util/basen.h"
+#include "util/Algoritm.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+
+#include <algorithm>
+#include <numeric>
 
 namespace stellar
 {
@@ -130,40 +134,55 @@ TransactionFrame::addSignature(SecretKey const& secretKey)
 bool
 TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 {
-    vector<Signer> keyWeights;
+    vector<Signer> keyWeightsV;
     if (account.getAccount().thresholds[0])
-        keyWeights.push_back(
+        keyWeightsV.push_back(
             Signer(KeyUtils::convertKey<SignerKey>(account.getID()), account.getAccount().thresholds[0]));
 
-    keyWeights.insert(keyWeights.end(), account.getAccount().signers.begin(),
+    keyWeightsV.insert(keyWeightsV.end(), account.getAccount().signers.begin(),
                       account.getAccount().signers.end());
+
+    auto keyWeights = split(keyWeightsV, [](const Signer &s){ return s.key.type(); });
 
     Hash const& contentsHash = getContentsHash();
 
     // calculate the weight of the signatures
     int totalWeight = 0;
 
+    // compare all available SIGNER_KEY_TYPE_HASH_TX with current transaction hash
+    // current transaction hash is not stored in getEnvelope().signatures - it is
+    // computed with getContentsHash() method
+    for (auto const &signerKey : keyWeights[SIGNER_KEY_TYPE_HASH_TX])
+    {
+        if (signerKey.key.hashTx() == contentsHash)
+        {
+            mUsedOneTimeSignerKeys[account.getID()].insert(signerKey.key);
+            totalWeight += signerKey.weight;
+            if (totalWeight >= neededWeight)
+                return true;
+        }
+    }
+
+    auto &accountkeyWeights = keyWeights[SIGNER_KEY_TYPE_ED25519];
     for (size_t i = 0; i < getEnvelope().signatures.size(); i++)
     {
         auto const& sig = getEnvelope().signatures[i];
 
-        for (auto it = keyWeights.begin(); it != keyWeights.end(); it++)
+        for (auto it = accountkeyWeights.begin(); it != accountkeyWeights.end(); ++it)
         {
-            if (KeyUtils::canConvert<PublicKey>(it->key))
+            auto &signerKey = *it;
+            auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey.key);
+            if (PubKeyUtils::hasHint(pubKey, sig.hint) &&
+                PubKeyUtils::verifySig(pubKey, sig.signature,
+                                       contentsHash))
             {
-                auto pubKey = KeyUtils::convertKey<PublicKey>(it->key);
-                if (PubKeyUtils::hasHint(pubKey, sig.hint) &&
-                    PubKeyUtils::verifySig(pubKey, sig.signature,
-                                        contentsHash))
-                {
-                    mUsedSignatures[i] = true;
-                    totalWeight += (*it).weight;
-                    if (totalWeight >= neededWeight)
-                        return true;
+                mUsedSignatures[i] = true;
+                totalWeight += signerKey.weight;
+                if (totalWeight >= neededWeight)
+                    return true;
 
-                    keyWeights.erase(it); // can't sign twice
-                    break;
-                }
+                accountkeyWeights.erase(it);
+                break;
             }
         }
     }
@@ -377,6 +396,7 @@ TransactionFrame::resetSignatureTracker()
 {
     mSigningAccount.reset();
     mUsedSignatures = std::vector<bool>(mEnvelope.signatures.size());
+    mUsedOneTimeSignerKeys.clear();
 }
 
 bool
@@ -396,37 +416,51 @@ TransactionFrame::checkAllSignaturesUsed()
 void
 TransactionFrame::removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    LedgerKey key;
-    key.type(ACCOUNT);
-    key.account().accountID = mSigningAccount->getAccount().accountID;
-
-    if (!AccountFrame::exists(ledgerManager.getDatabase(), key))
+    for (auto const &usedAccount : mUsedOneTimeSignerKeys)
     {
-        // if the signing account was merged into another during this transaction
-        // we do not have to remove signers here, as merging does this job
-        return;
+        removeUsedOneTimeSignerKeys(usedAccount.first, delta, ledgerManager);
     }
 
-    auto &signers = mSigningAccount->getAccount().signers;
-    auto changed = false;
-    for (auto const &signerKey : mUsedOneTimeSignerKeys)
+    mUsedOneTimeSignerKeys.clear();
+}
+
+void
+TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, LedgerDelta& delta, LedgerManager& ledgerManager) const
+{
+    auto account = AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
+    if (!account)
     {
-        auto it = std::find_if(std::begin(signers), std::end(signers), [&signerKey](Signer const& signer){ return signer.key == signerKey; });
-        if (it != std::end(signers))
-        {
-            auto removed = mSigningAccount->addNumEntries(-1, ledgerManager);
-            assert(removed);
-            changed = true;
-            signers.erase(it);
-        }
+        return; // probably account was removed due to merge operation
     }
+
+    auto const &keys = mUsedOneTimeSignerKeys.at(accountId);
+    auto changed = std::accumulate(std::begin(keys), std::end(keys), false, [&](bool r, const SignerKey &signerKey){
+        return r || removeAccountSigner(account, signerKey, ledgerManager);
+    });
 
     if (changed)
     {
-        mSigningAccount->setUpdateSigners();
-        mSigningAccount->storeChange(delta, ledgerManager.getDatabase());
+        account->setUpdateSigners();
+        account->storeChange(delta, ledgerManager.getDatabase());
     }
-    mUsedOneTimeSignerKeys.clear();
+}
+
+bool
+TransactionFrame::removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const
+{
+    auto &signers = account->getAccount().signers;
+    auto it = std::find_if(std::begin(signers), std::end(signers), [&signerKey](Signer const &signer){
+        return signer.key == signerKey;
+    });
+    if (it != std::end(signers))
+    {
+        auto removed = account->addNumEntries(-1, ledgerManager);
+        assert(removed);
+        signers.erase(it);
+        return true;
+    }
+
+    return false;
 }
 
 bool
@@ -536,6 +570,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 // accepted by nodes
                 return false;
             }
+
             // if an error occured, it is responsibility of account's owner to remove that signer
             removeUsedOneTimeSignerKeys(thisTxDelta, app.getLedgerManager());
             sqlTx.commit();
