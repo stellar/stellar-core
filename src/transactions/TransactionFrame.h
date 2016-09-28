@@ -31,7 +31,8 @@ class XDROutputFileStream;
 class SHA256;
 
 class TransactionFrame;
-typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
+using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
+using UsedOneTimeSignerKeys = std::map<AccountID, std::set<SignerKey>>;
 
 class TransactionFrame
 {
@@ -41,7 +42,7 @@ class TransactionFrame
 
     AccountFrame::pointer mSigningAccount;
     std::vector<bool> mUsedSignatures;
-    std::set<SignerKey> mUsedOneTimeSignerKeys;
+    UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -58,6 +59,8 @@ class TransactionFrame
     void resetResults();
     bool checkAllSignaturesUsed();
     void removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void removeUsedOneTimeSignerKeys(const AccountID &accountId, LedgerDelta& delta, LedgerManager& ledgerManager) const;
+    bool removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const;
     void markResultFailed();
 
   public:
