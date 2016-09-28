@@ -307,6 +307,10 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
             mApp.getStatusManager().setStatusMessage(StatusCategory::HISTORY, current);
         }
     }
+    else
+    {
+        mApp.getStatusManager().removeStatusMessage(StatusCategory::HISTORY);
+    }
 }
 
 size_t
