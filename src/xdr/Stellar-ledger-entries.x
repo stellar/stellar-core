@@ -70,7 +70,7 @@ enum LedgerEntryType
 
 struct Signer
 {
-    AccountID pubKey;
+    SignerKey key;
     uint32 weight; // really only need 1byte
 };
 

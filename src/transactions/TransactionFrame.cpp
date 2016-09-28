@@ -13,6 +13,7 @@
 #include "ledger/LedgerDelta.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
@@ -132,7 +133,7 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
     vector<Signer> keyWeights;
     if (account.getAccount().thresholds[0])
         keyWeights.push_back(
-            Signer(account.getID(), account.getAccount().thresholds[0]));
+            Signer(KeyUtils::convertKey<SignerKey>(account.getID()), account.getAccount().thresholds[0]));
 
     keyWeights.insert(keyWeights.end(), account.getAccount().signers.begin(),
                       account.getAccount().signers.end());
@@ -148,17 +149,21 @@ TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
 
         for (auto it = keyWeights.begin(); it != keyWeights.end(); it++)
         {
-            if (PubKeyUtils::hasHint((*it).pubKey, sig.hint) &&
-                PubKeyUtils::verifySig((*it).pubKey, sig.signature,
-                                       contentsHash))
+            if (KeyUtils::canConvert<PublicKey>(it->key))
             {
-                mUsedSignatures[i] = true;
-                totalWeight += (*it).weight;
-                if (totalWeight >= neededWeight)
-                    return true;
+                auto pubKey = KeyUtils::convertKey<PublicKey>(it->key);
+                if (PubKeyUtils::hasHint(pubKey, sig.hint) &&
+                    PubKeyUtils::verifySig(pubKey, sig.signature,
+                                        contentsHash))
+                {
+                    mUsedSignatures[i] = true;
+                    totalWeight += (*it).weight;
+                    if (totalWeight >= neededWeight)
+                        return true;
 
-                keyWeights.erase(it); // can't sign twice
-                break;
+                    keyWeights.erase(it); // can't sign twice
+                    break;
+                }
             }
         }
     }
@@ -388,6 +393,42 @@ TransactionFrame::checkAllSignaturesUsed()
     return true;
 }
 
+void
+TransactionFrame::removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager)
+{
+    LedgerKey key;
+    key.type(ACCOUNT);
+    key.account().accountID = mSigningAccount->getAccount().accountID;
+
+    if (!AccountFrame::exists(ledgerManager.getDatabase(), key))
+    {
+        // if the signing account was merged into another during this transaction
+        // we do not have to remove signers here, as merging does this job
+        return;
+    }
+
+    auto &signers = mSigningAccount->getAccount().signers;
+    auto changed = false;
+    for (auto const &signerKey : mUsedOneTimeSignerKeys)
+    {
+        auto it = std::find_if(std::begin(signers), std::end(signers), [&signerKey](Signer const& signer){ return signer.key == signerKey; });
+        if (it != std::end(signers))
+        {
+            auto removed = mSigningAccount->addNumEntries(-1, ledgerManager);
+            assert(removed);
+            changed = true;
+            signers.erase(it);
+        }
+    }
+
+    if (changed)
+    {
+        mSigningAccount->setUpdateSigners();
+        mSigningAccount->storeChange(delta, ledgerManager.getDatabase());
+    }
+    mUsedOneTimeSignerKeys.clear();
+}
+
 bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
@@ -495,7 +536,8 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 // accepted by nodes
                 return false;
             }
-
+            // if an error occured, it is responsibility of account's owner to remove that signer
+            removeUsedOneTimeSignerKeys(thisTxDelta, app.getLedgerManager());
             sqlTx.commit();
             thisTxDelta.commit();
         }

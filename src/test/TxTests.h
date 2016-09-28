@@ -70,6 +70,8 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
 int64_t getAccountBalance(SecretKey const& k, Application& app);
 
+xdr::xvector<Signer,20> getAccountSigners(SecretKey const& k, Application& app);
+
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey const&from,
                                       SecretKey const&to, SequenceNumber seq,
                                       std::string const& assetCode,

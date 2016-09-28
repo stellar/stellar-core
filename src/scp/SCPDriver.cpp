@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "xdrpp/marshal.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "crypto/SecretKey.h"
@@ -25,7 +26,7 @@ SCPDriver::getValueString(Value const& v) const
 std::string
 SCPDriver::toShortString(PublicKey const& pk) const
 {
-    return PubKeyUtils::toShortString(pk);
+    return KeyUtils::toShortString(pk);
 }
 
 // values used to switch hash function between priority and neighborhood checks

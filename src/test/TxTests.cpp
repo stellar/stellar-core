@@ -316,6 +316,14 @@ getAccountBalance(SecretKey const& k, Application& app)
     return account->getBalance();
 }
 
+xdr::xvector<Signer,20>
+getAccountSigners(SecretKey const& k, Application& app)
+{
+    AccountFrame::pointer account;
+    account = loadAccount(k, app);
+    return account->getAccount().signers;
+}
+
 void
 checkTransaction(TransactionFrame& txFrame)
 {
