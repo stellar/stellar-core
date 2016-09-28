@@ -10,6 +10,7 @@
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
+#include "util/Logging.h"
 
 namespace stellar
 {
@@ -37,7 +38,11 @@ class XDRInputFileStream
         if (!mIn)
         {
             std::string msg("failed to open XDR file: ");
-            throw std::runtime_error(msg + filename);
+            msg += filename;
+            msg += ", reason: ";
+            msg += std::to_string(errno);
+            CLOG(ERROR, "Fs") << msg;
+            throw std::runtime_error(msg);
         }
     }
 
@@ -100,7 +105,11 @@ class XDROutputFileStream
         if (!mOut)
         {
             std::string msg("failed to open XDR file: ");
-            throw std::runtime_error(msg + filename);
+            msg += filename;
+            msg += ", reason: ";
+            msg += std::to_string(errno);
+            CLOG(FATAL, "Fs") << msg;
+            throw std::runtime_error(msg);
         }
     }
 
