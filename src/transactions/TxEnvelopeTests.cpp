@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SignerKey.h"
 #include "main/Application.h"
 #include "util/Timer.h"
 #include "overlay/LoopbackPeer.h"
@@ -112,7 +113,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
         SecretKey s1 = getAccount("S1");
-        Signer sk1(s1.getPublicKey(), 5); // below low rights
+        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 5); // below low rights
 
         ThresholdSetter th;
 
@@ -125,7 +126,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         nullptr);
 
         SecretKey s2 = getAccount("S2");
-        Signer sk2(s2.getPublicKey(), 95); // med rights account
+        Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 95); // med rights account
 
         applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr,
                         &sk2, nullptr);

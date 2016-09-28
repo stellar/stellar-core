@@ -19,9 +19,25 @@ enum CryptoKeyType
     KEY_TYPE_ED25519 = 0
 };
 
-union PublicKey switch (CryptoKeyType type)
+enum PublicKeyType
 {
-case KEY_TYPE_ED25519:
+    PUBLIC_KEY_TYPE_ED25519 = KEY_TYPE_ED25519
+};
+
+enum SignerKeyType
+{
+    SIGNER_KEY_TYPE_ED25519 = KEY_TYPE_ED25519
+};
+
+union PublicKey switch (PublicKeyType type)
+{
+case PUBLIC_KEY_TYPE_ED25519:
+    uint256 ed25519;
+};
+
+union SignerKey switch (SignerKeyType type)
+{
+case SIGNER_KEY_TYPE_ED25519:
     uint256 ed25519;
 };
 

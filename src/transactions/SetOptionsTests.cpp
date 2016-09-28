@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SignerKey.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"
@@ -49,7 +50,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     SECTION("Signers")
     {
         SecretKey s1 = getAccount("S1");
-        Signer sk1(s1.getPublicKey(), 1); // low right account
+        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 1); // low right account
 
         ThresholdSetter th;
 
@@ -66,7 +67,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("can't use master key as alternate signer")
         {
-            Signer sk(a1.getPublicKey(), 100);
+            Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk, nullptr, SET_OPTIONS_BAD_SIGNER);
         }
@@ -83,20 +84,22 @@ TEST_CASE("set options", "[tx][setoptions]")
             AccountFrame::pointer a1Account;
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             {
                 Signer& a_sk1 = a1Account->getAccount().signers[0];
-                REQUIRE(a_sk1.pubKey == sk1.pubKey);
+                REQUIRE(a_sk1.key == sk1.key);
                 REQUIRE(a_sk1.weight == sk1.weight);
             }
 
             // add signer 2
             SecretKey s2 = getAccount("S2");
-            Signer sk2(s2.getPublicKey(), 100);
+            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
             // update signer 2
@@ -109,15 +112,16 @@ TEST_CASE("set options", "[tx][setoptions]")
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
+            // remove signer 1
             sk1.weight = 0;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
-            // remove signer 1
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk2.pubKey == sk2.pubKey);
+            REQUIRE(a_sk2.key == sk2.key);
             REQUIRE(a_sk2.weight == sk2.weight);
 
             // remove signer 2
@@ -126,6 +130,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                             nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
         }
     }

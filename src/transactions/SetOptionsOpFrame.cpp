@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/SetOptionsOpFrame.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -122,7 +123,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
             bool found = false;
             for (auto& oldSigner : signers)
             {
-                if (oldSigner.pubKey == mSetOptions.signer->pubKey)
+                if (oldSigner.key == mSetOptions.signer->key)
                 {
                     oldSigner.weight = mSetOptions.signer->weight;
                     found = true;
@@ -155,7 +156,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
             while (it != signers.end())
             {
                 Signer& oldSigner = *it;
-                if (oldSigner.pubKey == mSetOptions.signer->pubKey)
+                if (oldSigner.key == mSetOptions.signer->key)
                 {
                     it = signers.erase(it);
                     mSourceAccount->addNumEntries(-1, ledgerManager);
@@ -258,7 +259,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
 
     if (mSetOptions.signer)
     {
-        if (mSetOptions.signer->pubKey == getSourceID())
+        if (mSetOptions.signer->key == KeyUtils::convertKey<SignerKey>(getSourceID()))
         {
             app.getMetrics().NewMeter({"op-set-options", "invalid", "bad-signer"},
                              "operation").Mark();

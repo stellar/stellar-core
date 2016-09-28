@@ -14,6 +14,7 @@
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryManager.h"
 #include "main/PersistentState.h"
@@ -501,7 +502,7 @@ main(int argc, char* const* argv)
             throw std::invalid_argument(s);
         }
         Logging::setFmt(
-            PubKeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
+            KeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())
