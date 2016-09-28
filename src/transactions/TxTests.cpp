@@ -441,9 +441,7 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
     }
 }
 
-TransactionFramePtr
-createPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
-                SequenceNumber seq, int64_t amount)
+Operation createPaymentOp(SecretKey* from, SecretKey& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -451,7 +449,17 @@ createPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
     op.body.paymentOp().destination = to.getPublicKey();
     op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
 
-    return transactionFromOperation(networkID, from, seq, op);
+    if (from)
+        op.sourceAccount.activate() = from->getPublicKey();
+
+    return op;
+}
+
+TransactionFramePtr
+createPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
+                SequenceNumber seq, int64_t amount)
+{
+    return transactionFromOperation(networkID, from, seq, createPaymentOp(nullptr, to, amount));
 }
 
 void
@@ -867,7 +875,7 @@ applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
                 txFrame->getResult().result.results()[0]) == targetResult);
 }
 
-TransactionFramePtr 
+TransactionFramePtr
 createManageData(Hash const& networkID, SecretKey& source,
     std::string& name, DataValue* value, SequenceNumber seq)
 {
@@ -880,8 +888,8 @@ createManageData(Hash const& networkID, SecretKey& source,
     return transactionFromOperation(networkID, source, seq, op);
 }
 
-void 
-applyManageData( Application& app,  
+void
+applyManageData( Application& app,
     SecretKey& source, std::string& name, DataValue* value,
     SequenceNumber seq, ManageDataResultCode targetResult)
 {
@@ -906,7 +914,7 @@ applyManageData( Application& app,
         {
             REQUIRE(dataFrame == nullptr);
         }
-    } 
+    }
 }
 
 

@@ -11,6 +11,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "util/TestUtils.h"
 #include "TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -32,8 +33,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app(clock, cfg);
     app.start();
 
     // set up world
@@ -72,8 +72,10 @@ TEST_CASE("set options", "[tx][setoptions]")
                             nullptr, &sk, nullptr, SET_OPTIONS_BAD_SIGNER);
         }
 
-        SECTION("multiple signers")
+        SECTION("multiple signers for protocol version 2")
         {
+            app.getLedgerManager().setCurrentLedgerVersion(2);
+
             // add some funds
             applyPaymentTx(app, root, a1, rootSeq++,
                            app.getLedgerManager().getMinBalance(2));
@@ -102,6 +104,17 @@ TEST_CASE("set options", "[tx][setoptions]")
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
+            // add signer 3 - non account, will fail for old ledger
+            SignerKey s3;
+            s3.type(SIGNER_KEY_TYPE_HASH_TX);
+            Signer sk3(s3, 100);
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk3, nullptr, SET_OPTIONS_BAD_SIGNER);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+
             // update signer 2
             sk2.weight = 11;
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
@@ -123,6 +136,99 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer& a_sk2 = a1Account->getAccount().signers[0];
             REQUIRE(a_sk2.key == sk2.key);
             REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 3 - non account, not added, because of old ledger
+            sk3.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk3, nullptr, SET_OPTIONS_BAD_SIGNER);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+
+            // remove signer 2
+            sk2.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 0);
+            REQUIRE(a1Account->getAccount().signers.size() == 0);
+        }
+
+        SECTION("multiple signers for protocol version 3")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
+            // add some funds
+            applyPaymentTx(app, root, a1, rootSeq++,
+                           app.getLedgerManager().getMinBalance(2));
+
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
+                            &sk1, nullptr);
+
+            AccountFrame::pointer a1Account;
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            {
+                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                REQUIRE(a_sk1.key == sk1.key);
+                REQUIRE(a_sk1.weight == sk1.weight);
+            }
+
+            // add signer 2
+            SecretKey s2 = getAccount("S2");
+            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+
+            // add signer 3 - non account
+            SignerKey s3;
+            s3.type(SIGNER_KEY_TYPE_HASH_TX);
+            Signer sk3(s3, 100);
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk3, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 3);
+            REQUIRE(a1Account->getAccount().signers.size() == 3);
+
+            // update signer 2
+            sk2.weight = 11;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk2, nullptr);
+
+            // update signer 1
+            sk1.weight = 11;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk1, nullptr);
+
+            // remove signer 1
+            sk1.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk1, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+            Signer& a_sk2 = a1Account->getAccount().signers[0];
+            REQUIRE(a_sk2.key == sk2.key);
+            REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 3 - non account
+            sk3.weight = 0;
+            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                            nullptr, &sk3, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
 
             // remove signer 2
             sk2.weight = 0;
