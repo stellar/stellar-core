@@ -10,6 +10,8 @@
 #include "util/types.h"
 #include "crypto/Hex.h"
 #include "scp/LocalNode.h"
+
+#include <functional>
 #include <sstream>
 
 namespace stellar
@@ -825,46 +827,43 @@ Config::toStrKey(PublicKey const& pk) const
 bool
 Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 {
-    if (s.size() > 1)
+    auto expanded = expandNodeID(s);
+    if (expanded.empty())
     {
-        std::string arg = s.substr(1);
-        auto it = VALIDATOR_NAMES.end();
-        if (s[0] == '$')
-        {
-            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
-                              [&](std::pair<std::string, std::string> const& p)
-                              {
-                                  return p.second == arg;
-                              });
-        }
-        else if (s[0] == '@')
-        {
-            it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
-                              [&](std::pair<std::string, std::string> const& p)
-                              {
-                                  return p.first.compare(0, arg.size(), arg) ==
-                                         0;
-                              });
-        }
-        else
-        {
-            retKey = PubKeyUtils::fromStrKey(s);
-            return true;
-        }
+        return false;
+    }
 
-        if (it == VALIDATOR_NAMES.end())
-        {
-            return false;
-        }
-        else
-        {
-            retKey = PubKeyUtils::fromStrKey(it->first);
-        }
+    retKey = PubKeyUtils::fromStrKey(expanded);
+    return true;
+}
+
+std::string
+Config::expandNodeID(const std::string &s) const
+{
+    if (s.length() < 2)
+    {
+        throw std::invalid_argument("bad public key");
+    }
+    if (s[0] != '$' && s[0] != '@')
+    {
+        return s;
+    }
+
+    using validatorMatcher_t = std::function<bool(std::pair<std::string, std::string> const&)>;
+    auto arg = s.substr(1);
+    auto validatorMatcher = s[0] == '$'
+            ? validatorMatcher_t{[&](std::pair<std::string, std::string> const& p) { return p.second == arg; }}
+            : validatorMatcher_t{[&](std::pair<std::string, std::string> const& p) { return p.first.compare(0, arg.size(), arg) == 0; }};
+
+    auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(), validatorMatcher);
+    if (it != VALIDATOR_NAMES.end())
+    {
+        return it->first;
     }
     else
     {
-        retKey = PubKeyUtils::fromStrKey(s);
+        return {};
     }
-    return true;
 }
+
 }

@@ -26,6 +26,8 @@ class Config : public std::enable_shared_from_this<Config>
     void parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                      bool isSeed);
 
+    std::string expandNodeID(std::string const& s) const;
+
   public:
     typedef std::shared_ptr<Config> pointer;
 
