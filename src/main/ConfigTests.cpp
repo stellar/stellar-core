@@ -93,7 +93,7 @@ TEST_CASE("resolve node id", "[config]")
         auto result = cfg.resolveNodeID("$core", publicKey);
         REQUIRE(!result);
     }
-/* currently not working
+
     SECTION("existing full node id")
     {
         auto publicKey = PublicKey{};
@@ -124,5 +124,5 @@ TEST_CASE("resolve node id", "[config]")
     {
         auto publicKey = PublicKey{};
         REQUIRE_THROWS_AS(cfg.resolveNodeID("TDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey), std::invalid_argument);
-    } */
+    }
 }

@@ -846,6 +846,11 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
                                          0;
                               });
         }
+        else
+        {
+            retKey = PubKeyUtils::fromStrKey(s);
+            return true;
+        }
 
         if (it == VALIDATOR_NAMES.end())
         {
