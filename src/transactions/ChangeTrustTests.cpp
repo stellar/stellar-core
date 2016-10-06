@@ -1,6 +1,6 @@
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
-// under the ISC License. See the COPYING file at the top-level directory of
-// this distribution or at http://opensource.org/licenses/ISC
+// Copyright 2016 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
@@ -77,5 +77,41 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99), ex_CHANGE_TRUST_NO_ISSUER);
         }
+    }
+    SECTION("trusting self")
+    {
+        auto idrCur = makeAsset(gateway, "IDR");
+        auto loadTrustLine = [&](){ return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur, db); };
+        auto validateTrustLineIsConst = [&]()
+        {
+            auto trustLine = loadTrustLine();
+            REQUIRE(trustLine);
+            REQUIRE(trustLine->getBalance() == INT64_MAX);
+        };
+
+        validateTrustLineIsConst();
+
+        // create a trustline with a limit of INT64_MAX - 1 wil lfail
+        REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, INT64_MAX - 1), ex_CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
+
+        // create a trustline with a limit of INT64_MAX
+        gateway.changeTrust(idrCur, INT64_MAX);
+        validateTrustLineIsConst();
+
+        auto gatewayAccountBefore = loadAccount(gateway, app);
+        gateway.pay(gateway, idrCur, 50);
+        validateTrustLineIsConst();
+        auto gatewayAccountAfter = loadAccount(gateway, app);
+        REQUIRE(gatewayAccountAfter->getBalance() ==
+                (gatewayAccountBefore->getBalance() - app.getLedgerManager().getTxFee()));
+
+        // lower the limit will fail, because it is still INT64_MAX
+        REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 50), ex_CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
+
+        // delete the trust line will fail
+        REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 0), ex_CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
     }
 }
