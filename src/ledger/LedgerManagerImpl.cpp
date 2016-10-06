@@ -308,6 +308,12 @@ LedgerManagerImpl::getCurrentLedgerHeader()
     return mCurrentLedger->mHeader;
 }
 
+uint32_t
+LedgerManagerImpl::getCurrentLedgerVersion() const
+{
+    return getCurrentLedgerHeader().ledgerVersion;
+}
+
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {
