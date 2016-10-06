@@ -398,6 +398,8 @@ applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trusto
             throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
         case ALLOW_TRUST_CANT_REVOKE:
             throw ex_ALLOW_TRUST_CANT_REVOKE{};
+        case ALLOW_TRUST_SELF_NOT_ALLOWED:
+            throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
         default:
             break;
     }
@@ -583,6 +585,8 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
             throw ex_CHANGE_TRUST_INVALID_LIMIT{};
         case CHANGE_TRUST_LOW_RESERVE:
             throw ex_CHANGE_TRUST_LOW_RESERVE{};
+        case CHANGE_TRUST_SELF_NOT_ALLOWED:
+            throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
         default:
             break;
     }

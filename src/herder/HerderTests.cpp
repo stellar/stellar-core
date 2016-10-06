@@ -689,7 +689,7 @@ TEST_CASE("SCP State", "[herder]")
     // and round id for selecting leader.
     for (int i = 0; i < 3; i++)
     {
-        nodeKeys[i] = SecretKey::fromSeed(sha256("node_" + std::to_string(i)));
+        nodeKeys[i] = SecretKey::fromSeed(sha256("Node_" + std::to_string(i)));
         nodeIDs[i] = nodeKeys[i].getPublicKey();
         nodeCfgs[i] =
             getTestConfig(i + 1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
