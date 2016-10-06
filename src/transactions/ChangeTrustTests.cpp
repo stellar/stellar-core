@@ -90,4 +90,48 @@ TEST_CASE("change trust", "[tx][changetrust]")
                              CHANGE_TRUST_NO_ISSUER);
         }
     }
+    SECTION("trusting self")
+    {
+        auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
+
+        applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance2);
+        auto gateway_seq = getAccountSeqNum(gateway, app) + 1;
+
+        auto idrCur = makeAsset(gateway, "IDR");
+        auto loadTrustLine = [&](){ return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur, db); };
+        auto validateTrustLineIsConst = [&]()
+        {
+            auto trustLine = loadTrustLine();
+            REQUIRE(trustLine);
+            REQUIRE(trustLine->getBalance() == INT64_MAX);
+        };
+
+        validateTrustLineIsConst();
+
+        // create a trustline with a limit of INT64_MAX - 1 wil lfail
+        applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX - 1,
+                        CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
+
+        // create a trustline with a limit of INT64_MAX
+        applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX);
+        validateTrustLineIsConst();
+
+        auto gatewayAccountBefore = loadAccount(gateway, app);
+        applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway_seq++, 50);
+        validateTrustLineIsConst();
+        auto gatewayAccountAfter = loadAccount(gateway, app);
+        REQUIRE(gatewayAccountAfter->getBalance() ==
+                (gatewayAccountBefore->getBalance() - app.getLedgerManager().getTxFee()));
+
+        // lower the limit will fail, because it is still INT64_MAX
+        applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 50,
+                         CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
+
+        // delete the trust line will fail
+        applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 0,
+                         CHANGE_TRUST_INVALID_LIMIT);
+        validateTrustLineIsConst();
+    }
 }
