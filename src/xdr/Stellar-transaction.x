@@ -532,7 +532,8 @@ enum ChangeTrustResultCode
     CHANGE_TRUST_NO_ISSUER = -2,     // could not find issuer
     CHANGE_TRUST_INVALID_LIMIT = -3, // cannot drop limit below balance
                                      // cannot create with a limit of 0
-    CHANGE_TRUST_LOW_RESERVE = -4 // not enough funds to create a new trust line
+    CHANGE_TRUST_LOW_RESERVE = -4, // not enough funds to create a new trust line,
+    CHANGE_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
 };
 
 union ChangeTrustResult switch (ChangeTrustResultCode code)
@@ -554,7 +555,8 @@ enum AllowTrustResultCode
     ALLOW_TRUST_NO_TRUST_LINE = -2, // trustor does not have a trustline
                                     // source account does not require trust
     ALLOW_TRUST_TRUST_NOT_REQUIRED = -3,
-    ALLOW_TRUST_CANT_REVOKE = -4 // source account can't revoke trust
+    ALLOW_TRUST_CANT_REVOKE = -4, // source account can't revoke trust,
+    ALLOW_TRUST_SELF_NOT_ALLOWED = -5 // trusting self is not allowed
 };
 
 union AllowTrustResult switch (AllowTrustResultCode code)

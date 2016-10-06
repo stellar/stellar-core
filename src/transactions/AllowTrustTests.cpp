@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "main/test.h"
 #include "transactions/TxTests.h"
+#include "util/TestUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -16,8 +17,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     auto const& cfg = getTestConfig();
 
     VirtualClock clock;
-    auto appPtr = Application::create(clock, cfg);
-    auto& app = *appPtr;
+    ApplicationEditableVersion app{clock, cfg};
     auto& db = app.getDatabase();
 
     app.start();
@@ -126,31 +126,68 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("self allow trust")
     {
-        SECTION("allow trust not required")
+        SECTION("protocol version 2")
         {
-            applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true, ALLOW_TRUST_TRUST_NOT_REQUIRED);
-            applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_TRUST_NOT_REQUIRED);
-        }
+            app.getLedgerManager().setCurrentLedgerVersion(2);
 
-        SECTION("allow trust without explicit trustline")
-        {
-            auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
-            applySetOptions(app, gateway, gatewaySeq++, nullptr, &setFlags,
-                            nullptr, nullptr, nullptr, nullptr);
-
-            SECTION("do not set revocable flag")
+            SECTION("allow trust not required")
             {
-                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true);
-                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_CANT_REVOKE);
+                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true, ALLOW_TRUST_TRUST_NOT_REQUIRED);
+                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_TRUST_NOT_REQUIRED);
             }
-            SECTION("set revocable flag")
+
+            SECTION("allow trust without explicit trustline")
             {
-                auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+                auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
                 applySetOptions(app, gateway, gatewaySeq++, nullptr, &setFlags,
                                 nullptr, nullptr, nullptr, nullptr);
 
-                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true);
-                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false);
+                SECTION("do not set revocable flag")
+                {
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true);
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_CANT_REVOKE);
+                }
+                SECTION("set revocable flag")
+                {
+                    auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+                    applySetOptions(app, gateway, gatewaySeq++, nullptr, &setFlags,
+                                    nullptr, nullptr, nullptr, nullptr);
+
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true);
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false);
+                }
+            }
+        }
+        SECTION("protocol version 3")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
+            SECTION("allow trust not required")
+            {
+                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true, ALLOW_TRUST_SELF_NOT_ALLOWED);
+                applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_SELF_NOT_ALLOWED);
+            }
+
+            SECTION("allow trust without explicit trustline")
+            {
+                auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
+                applySetOptions(app, gateway, gatewaySeq++, nullptr, &setFlags,
+                                nullptr, nullptr, nullptr, nullptr);
+
+                SECTION("do not set revocable flag")
+                {
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true, ALLOW_TRUST_SELF_NOT_ALLOWED);
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_SELF_NOT_ALLOWED);
+                }
+                SECTION("set revocable flag")
+                {
+                    auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+                    applySetOptions(app, gateway, gatewaySeq++, nullptr, &setFlags,
+                                    nullptr, nullptr, nullptr, nullptr);
+
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", true, ALLOW_TRUST_SELF_NOT_ALLOWED);
+                    applyAllowTrust(app, gateway, gateway, gatewaySeq++, "IDR", false, ALLOW_TRUST_SELF_NOT_ALLOWED);
+                }
             }
         }
     }
