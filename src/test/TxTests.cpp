@@ -386,6 +386,22 @@ applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trusto
     throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
+
+    auto result = AllowTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ALLOW_TRUST_MALFORMED:
+            throw ex_ALLOW_TRUST_MALFORMED{};
+        case ALLOW_TRUST_NO_TRUST_LINE:
+            throw ex_ALLOW_TRUST_NO_TRUST_LINE{};
+        case ALLOW_TRUST_TRUST_NOT_REQUIRED:
+            throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
+        case ALLOW_TRUST_CANT_REVOKE:
+            throw ex_ALLOW_TRUST_CANT_REVOKE{};
+        default:
+            break;
+    }
+
     REQUIRE(AllowTrustOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == ALLOW_TRUST_SUCCESS);
 }
