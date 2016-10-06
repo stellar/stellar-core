@@ -92,7 +92,7 @@ ManageDataOpFrame::doApply(Application& app,
 bool
 ManageDataOpFrame::doCheckValid(Application& app)
 {
-    if(app.getLedgerManager().getCurrentLedgerHeader().ledgerVersion < 2)
+    if(app.getLedgerManager().getCurrentLedgerVersion() < 2)
     {
         app.getMetrics().NewMeter(
         { "op-set-options", "invalid", "invalid-data-old-protocol" },
