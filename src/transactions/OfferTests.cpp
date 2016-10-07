@@ -12,6 +12,7 @@
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include "util/TestUtils.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 
@@ -33,8 +34,8 @@ TEST_CASE("create offer", "[tx][offers]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app(clock, cfg);
+    Hash const& networkID = app.getNetworkID();
     app.start();
 
     // set up world
@@ -181,8 +182,20 @@ TEST_CASE("create offer", "[tx][offers]")
 
         REQUIRE_THROWS_AS(a1.manageOffer(0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LINE_FULL);
 
-        // offer with amount 0
-        a1.manageOffer(0, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
+        SECTION("protocol version 2")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(2);
+
+            // offer with amount 0
+            a1.manageOffer(0, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
+        }
+        SECTION("protocol version 3")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
+            // offer with amount 0
+            REQUIRE_THROWS_AS(a1.manageOffer(0, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED), ex_MANAGE_OFFER_NOT_FOUND);
+        }
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
