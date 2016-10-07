@@ -10,6 +10,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "TxTests.h"
+#include "util/TestUtils.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
@@ -32,8 +33,7 @@ TEST_CASE("create offer", "[tx][offers]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app(clock, cfg);
     Hash const& networkID = app.getNetworkID();
     app.start();
 
@@ -228,9 +228,22 @@ TEST_CASE("create offer", "[tx][offers]")
         applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
                                    100, a1_seq++, MANAGE_OFFER_LINE_FULL);
 
-        // offer with amount 0
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   0, a1_seq++);
+        SECTION("protocol version 2")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(2);
+
+            // offer with amount 0
+            applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                       0, a1_seq++);
+        }
+        SECTION("protocol version 3")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
+            // offer with amount 0
+            applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
+                                       0, a1_seq++, MANAGE_OFFER_NOT_FOUND);
+        }
 
         // there should be no pending offer at this point in the system
         OfferFrame offer;
