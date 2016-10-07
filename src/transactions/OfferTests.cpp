@@ -181,6 +181,9 @@ TEST_CASE("create offer", "[tx][offers]")
 
         REQUIRE_THROWS_AS(a1.manageOffer(0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LINE_FULL);
 
+        // offer with amount 0
+        a1.manageOffer(0, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
+
         // there should be no pending offer at this point in the system
         OfferFrame offer;
         for (int i = 0; i < 9; i++)
