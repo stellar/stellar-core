@@ -322,7 +322,7 @@ struct Transaction
 };
 
 struct TransactionSignaturePayload {
-    string networkId<>;
+    Hash networkId;
     union switch (EnvelopeType type)
     {
     case ENVELOPE_TYPE_TX:
