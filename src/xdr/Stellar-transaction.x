@@ -321,11 +321,24 @@ struct Transaction
     ext;
 };
 
+struct TransactionSignaturePayload {
+    string networkId<>;
+    union switch (EnvelopeType type)
+    {
+    case ENVELOPE_TYPE_TX:
+          Transaction tx;
+    /* All other values of type are invalid */
+    } taggedTransaction;
+};
+
 /* A TransactionEnvelope wraps a transaction with signatures. */
 struct TransactionEnvelope
 {
     Transaction tx;
-    DecoratedSignature signatures<20>;
+    /* Each decorated signature is a signature over the SHA256 hash of
+     * a TransactionSignaturePayload */
+    DecoratedSignature
+    signatures<20>;
 };
 
 /* Operation Results section */

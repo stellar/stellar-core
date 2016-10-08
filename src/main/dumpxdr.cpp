@@ -27,6 +27,8 @@ extern "C" {
 namespace stellar
 {
 
+const char *signtxn_network_id;
+
 std::string
 xdr_printer(const PublicKey &pk)
 {
@@ -196,6 +198,12 @@ signtxn(std::string const& filename)
     using namespace std;
 
     try {
+        if (!signtxn_network_id)
+            signtxn_network_id = getenv("STELLAR_NETWORK_ID");
+        if (!signtxn_network_id)
+            throw std::runtime_error("missing --netid argument or "
+                                     "STELLAR_NETWORK_ID environment variable");
+
         const bool txn_stdin = filename == "-" || filename.empty();
 
         if (isatty(1))
@@ -210,8 +218,12 @@ signtxn(std::string const& filename)
 
         SecretKey sk(SecretKey::fromStrKeySeed(
                          readSecret("Secret key seed: ", txn_stdin)));
-        txenv.signatures.emplace_back(PubKeyUtils::getHint(sk.getPublicKey()),
-                                      sk.sign(xdr::xdr_to_opaque(txenv.tx)));
+        txenv.signatures.emplace_back(
+            PubKeyUtils::getHint(sk.getPublicKey()),
+            sk.sign(sha256(xdr::xdr_to_opaque(
+                               xdr::xstring<>(signtxn_network_id),
+                               ENVELOPE_TYPE_TX,
+                               xdr::xdr_to_opaque(txenv.tx)))));
 
         auto out = xdr::xdr_to_opaque(txenv);
         cout.write(reinterpret_cast<char *>(out.data()), out.size());
