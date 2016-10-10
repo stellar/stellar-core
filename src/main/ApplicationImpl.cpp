@@ -105,11 +105,6 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
     }
 
-    if (!cfg.NTP_SERVER.empty())
-    {
-        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
-    }
-
     while (t--)
     {
         mWorkerThreads.emplace_back([this, t]()
