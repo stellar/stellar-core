@@ -115,10 +115,10 @@ TEST_CASE("subprocess storm", "[process]")
     size_t n = 100;
     size_t completed = 0;
 
-    std::string dir(cfg.TMP_DIR_PATH + "/process-storm");
+    std::string dir(cfg.BUCKET_DIR_PATH + "/tmp/process-storm");
     fs::mkdir(dir);
-    fs::mkdir(dir + "/src");
-    fs::mkdir(dir + "/dst");
+    fs::mkpath(dir + "/src");
+    fs::mkpath(dir + "/dst");
 
     for (size_t i = 0; i < n; ++i)
     {

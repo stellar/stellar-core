@@ -65,7 +65,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         sstream << "stellar" << instanceNumber << ".log";
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
-        thisConfig.TMP_DIR_PATH = rootDir + "tmp";
 
         thisConfig.PARANOID_MODE = true;
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;

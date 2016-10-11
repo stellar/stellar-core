@@ -47,7 +47,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     UNSAFE_QUORUM = false;
 
     LOG_FILE_PATH = "stellar-core.log";
-    TMP_DIR_PATH = "tmp";
     BUCKET_DIR_PATH = "buckets";
 
     DESIRED_BASE_FEE = 100;
@@ -360,11 +359,7 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "TMP_DIR_PATH")
             {
-                if (!item.second->as<std::string>())
-                {
-                    throw std::invalid_argument("invalid TMP_DIR_PATH");
-                }
-                TMP_DIR_PATH = item.second->as<std::string>()->value();
+                throw std::invalid_argument("TMP_DIR_PATH is not supported anymore - tmp data is now kept in BUCKET_DIR_PATH/tmp");
             }
             else if (item.first == "BUCKET_DIR_PATH")
             {

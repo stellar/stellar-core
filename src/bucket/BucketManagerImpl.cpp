@@ -45,7 +45,7 @@ BucketManager::dropAll(Application& app)
 
     if (!fs::exists(d))
     {
-        if (!fs::mkdir(d))
+        if (!fs::mkpath(d))
         {
             throw std::runtime_error("Unable to create bucket directory: " + d);
         }
