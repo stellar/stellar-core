@@ -684,10 +684,18 @@ BatchDownloadWork::addNextDownloadWorker()
     }
 
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
-    if (fs::exists(ft.localPath_gz()) || fs::exists(ft.localPath_nogz()))
+    if (fs::exists(ft.localPath_nogz()))
     {
         CLOG(DEBUG, "History") << "already have " << mFileType
-                               << " for checkpoint " << mNext;
+            << " for checkpoint " << mNext;
+    }
+    else if (fs::exists(ft.localPath_gz()))
+    {
+        CLOG(DEBUG, "History") << "Unzipping " << mFileType
+            << " for checkpoint " << mNext;
+        auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
+        assert(mRunning.find(gunzip->getUniqueName()) == mRunning.end());
+        mRunning.insert(std::make_pair(gunzip->getUniqueName(), mNext));
     }
     else
     {
