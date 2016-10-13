@@ -216,15 +216,15 @@ signtxn(std::string const& filename)
             throw std::runtime_error(
                 "Evelope already contains maximum number of signatures");
 
-		Hash networkID = sha256(std::string(signtxn_network_id));
-
         SecretKey sk(SecretKey::fromStrKeySeed(
                          readSecret("Secret key seed: ", txn_stdin)));
+        TransactionSignaturePayload payload;
+        payload.networkId = sha256(std::string(signtxn_network_id));
+        payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
+        payload.taggedTransaction.tx() = txenv.tx;
         txenv.signatures.emplace_back(
             PubKeyUtils::getHint(sk.getPublicKey()),
-            sk.sign(sha256(xdr::xdr_to_opaque(networkID,
-                               ENVELOPE_TYPE_TX,
-                               xdr::xdr_to_opaque(txenv.tx)))));
+            sk.sign(sha256(xdr::xdr_to_opaque(payload))));
 
         auto out = xdr::xdr_to_opaque(txenv);
         cout.write(reinterpret_cast<char *>(out.data()), out.size());
