@@ -21,6 +21,58 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
+namespace {
+
+long
+operator * (long x, const Price &y)
+{
+    return x * y.n / y.d;
+}
+
+Price
+operator * (const Price & x, const Price &y)
+{
+    return Price{x.n * y.n, x.d * y.d};
+}
+
+template<typename T>
+void rotateRight(std::deque<T> &d)
+{
+    auto e = d.back();
+    d.pop_back();
+    d.push_front(e);
+}
+
+std::string assetToString(const Asset &asset)
+{
+    auto r = std::string{};
+    switch (asset.type())
+    {
+    case stellar::ASSET_TYPE_NATIVE:
+        r = std::string{"XLM"};
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM4:
+        assetCodeToStr(asset.alphaNum4().assetCode, r);
+        break;
+    case stellar::ASSET_TYPE_CREDIT_ALPHANUM12:
+        assetCodeToStr(asset.alphaNum12().assetCode, r);
+        break;
+    }
+    return r;
+};
+
+std::string assetPathToString(const std::deque<Asset> &assets)
+{
+    auto r = assetToString(assets[0]);
+    for (auto i = assets.rbegin(); i != assets.rend(); i++)
+    {
+        r += " -> " + assetToString(*i);
+    }
+    return r;
+};
+
+}
+
 // *XLM Payment
 // *Credit Payment
 // XLM -> Credit Payment
@@ -29,6 +81,9 @@ typedef std::unique_ptr<Application> appPtr;
 // Credit -> Credit -> Credit -> Credit Payment
 // path payment where there isn't enough in the path
 // path payment with a transfer rate
+// path payment with cycle (arbitrage)
+// path payment with cycle (anti-arbitrage)
+// path payment with cycle (anti-arbitrage and big max send)
 TEST_CASE("payment", "[tx][payment]")
 {
     Config const& cfg = getTestConfig();
@@ -162,6 +217,11 @@ TEST_CASE("payment", "[tx][payment]")
             app, root, b1, rootSeq++,
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
             PAYMENT_NO_DESTINATION);
+
+        AccountFrame::pointer rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - txfee));
     }
 
     SECTION("rescue account (was below reserve)")
@@ -330,6 +390,7 @@ TEST_CASE("payment", "[tx][payment]")
         applyCreditPaymentTx(app, a1, gateway, idrCur, a1Seq++,
                              trustLineStartingBalance);
     }
+
     SECTION("payment through path")
     {
         SECTION("send XLM with path (not enough offers)")
@@ -347,12 +408,10 @@ TEST_CASE("payment", "[tx][payment]")
                              trustLineStartingBalance);
 
         // add a couple offers in the order book
-
-        OfferFrame::pointer offer;
-
         const Price usdPriceOffer(2, 1);
 
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
+
         applyCreateAccountTx(app, root, b1, rootSeq++, minBalance3 + 10000);
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
         applyChangeTrust(app, b1, gateway2, b1Seq++, "USD", trustLineLimit);
@@ -425,7 +484,7 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            offer = loadOffer(b1, offerB1, app);
+            auto offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.sellerID == b1.getPublicKey());
             checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -548,7 +607,7 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            offer = loadOffer(b1, offerB1, app);
+            auto offer = loadOffer(b1, offerB1, app);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.sellerID == b1.getPublicKey());
             checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -567,6 +626,7 @@ TEST_CASE("payment", "[tx][payment]")
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 170 * assetMultiplier);
         }
+
         SECTION("missing trust line")
         {
             // modify C's trustlines to invalidate C's offer
@@ -596,7 +656,7 @@ TEST_CASE("payment", "[tx][payment]")
                 // B1
                 auto const& b1Res = multi.offers[1];
                 REQUIRE(b1Res.offerID == offerB1);
-                offer = loadOffer(b1, offerB1, app);
+                auto offer = loadOffer(b1, offerB1, app);
                 OfferEntry const& oe = offer->getOffer();
                 REQUIRE(b1Res.sellerID == b1.getPublicKey());
                 checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -633,6 +693,137 @@ TEST_CASE("payment", "[tx][payment]")
                 checkBalances();
             }
         }
+    }
+
+    SECTION("path payment with cycle")
+    {
+        // Create 3 different cycles.
+        // First cycle involves 3 transaction in which buying price is always half - so sender buys 8 times as much XLM as he/she sells (arbitrage).
+        // Second cycle involves 3 transaction in which buying price is always two - so sender buys 8 times as much XLM as he/she sells (anti-arbitrage).
+        // Thanks to send max option this transaction is rejected.
+        // Third cycle is similar to second, but send max is set to a high value, so transaction proceeds even if it makes sender lose a lot of XLM.
+
+        // Each cycle is created in 3 variants (to check if behavior does not depend of nativeness of asset):
+        // * XLM -> USD -> IDR -> XLM
+        // * USD -> IDR -> XLM -> USD
+        // * IDR -> XLM -> USD -> IDR
+        // To create variants, rotateRight() function is used on accounts, offers and assets -
+        // it greatly simplified index calculation in the code.
+
+        using AccountData = std::pair<SecretKey, SequenceNumber>;
+        auto paymentAmount = 10 * assetMultiplier; // amount of money that 'destination' account will receive
+        auto offerAmount = 8 * paymentAmount;      // amount of money in offer required to pass - needs 8x of payment for anti-arbitrage case
+        auto initialBalance = 2 * offerAmount;     // we need twice as much money as in the offer because of Price{2, 1} that is used in one case
+        auto txFee = app.getLedgerManager().getTxFee();
+
+        auto assets = std::deque<Asset>{xlmCur, usdCur, idrCur};
+        auto pathSize = assets.size();
+        auto accounts = std::deque<AccountData>{};
+
+        auto setupAccount = [&](const std::string &name){
+            // setup account with required trustlines and money both in native and assets
+            auto account = getAccount(name.c_str());
+            applyCreateAccountTx(app, root, account, rootSeq++, initialBalance);
+            auto sequenceNumber = getAccountSeqNum(account, app) + 1;
+            applyChangeTrust(app, account, gateway, sequenceNumber++, "IDR", trustLineLimit);
+            applyCreditPaymentTx(app, gateway, account, idrCur, gateway_seq++, initialBalance);
+            applyChangeTrust(app, account, gateway2, sequenceNumber++, "USD", trustLineLimit);
+            applyCreditPaymentTx(app, gateway2, account, usdCur, gateway2_seq++, initialBalance);
+
+            return AccountData{account, sequenceNumber};
+        };
+
+        auto validateAccountAsset = [&](const SecretKey &account, int assetIndex, int difference, int feeCount){
+            if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
+            {
+                REQUIRE(getAccountBalance(account, app) == initialBalance + difference - feeCount * txFee);
+            }
+            else
+            {
+                REQUIRE(loadTrustLine(account, assets[assetIndex], app)->getBalance() == initialBalance + difference);
+            }
+        };
+        auto validateAccountAssets = [&](const SecretKey &account, int assetIndex, int difference, int feeCount){
+            for (auto i = 0; i < pathSize; i++)
+            {
+                validateAccountAsset(account, i, (assetIndex == i) ? difference : 0, feeCount);
+            }
+        };
+        auto validateOffer = [&](const SecretKey &account, uint64_t offerId, int difference){
+            auto offer = loadOffer(account, offerId, app);
+            auto offerEntry = offer->getOffer();
+            REQUIRE(offerEntry.amount == offerAmount + difference);
+        };
+
+        auto source = setupAccount("S");
+        auto destination = setupAccount("D");
+
+        auto validateSource = [&](int difference){ validateAccountAssets(source.first, 0, difference, 3); };
+        auto validateDestination = [&](int difference){ validateAccountAssets(destination.first, 0, difference, 2); };
+
+        for (auto i = 0; i < pathSize; i++) // create account for each known asset
+        {
+            accounts.emplace_back(setupAccount(std::string{"C"} + std::to_string(i)));
+            validateAccountAssets(accounts[i].first, 0, 0, 2); // 2x change trust called
+        }
+
+        auto testPath = [&](
+            const std::string &name,
+            const Price &price,
+            int maxMultipler,
+            PathPaymentResultCode result)
+        {
+            SECTION(name)
+            {
+                auto offers = std::deque<uint64_t>{};
+                for (auto i = 0; i < pathSize; i++)
+                {
+                    offers.push_back(applyCreateOffer(app, delta, 0, accounts[i].first, assets[i], assets[(i + 2) % pathSize], price, offerAmount, accounts[i].second++));
+                    validateOffer(accounts[i].first, offers[i], 0);
+                }
+
+                for (auto i = 0; i < pathSize; i++)
+                {
+                    auto path = std::vector<Asset>{assets[1], assets[2]};
+                    SECTION(std::string{"send with path ("} + assetPathToString(assets) + ")")
+                    {
+                        auto destinationMultiplier = result == PATH_PAYMENT_SUCCESS ? 1 : 0;
+                        auto sellerMultipler = result == PATH_PAYMENT_SUCCESS ? Price{1, 1} : Price{0, 1};
+                        auto buyerMultipler = sellerMultipler * price;
+
+                        auto res = applyPathPaymentTx(
+                            app, source.first, destination.first, assets[0], maxMultipler * paymentAmount, assets[0],
+                            paymentAmount, source.second++, result, &path);
+
+                        for (auto j = 0; j < pathSize; j++)
+                        {
+                            auto index = (pathSize - j) % pathSize; // it is done from end of path to begin of path
+                            validateAccountAsset(accounts[index].first, index, -paymentAmount * sellerMultipler, 3);                // sold asset
+                            validateOffer(accounts[index].first, offers[index], -paymentAmount * sellerMultipler);                  // sold asset
+                            validateAccountAsset(accounts[index].first, (index + 2) % pathSize, paymentAmount * buyerMultipler, 3); // bought asset
+                            validateAccountAsset(accounts[index].first, (index + 1) % pathSize, 0, 3);                              // ignored asset
+                            sellerMultipler = sellerMultipler * price;
+                            buyerMultipler = buyerMultipler * price;
+                        }
+
+                        validateSource(-paymentAmount * sellerMultipler);
+                        validateDestination(paymentAmount * destinationMultiplier);
+                    }
+
+                    // next cycle variant
+                    rotateRight(assets);
+                    rotateRight(accounts);
+                    rotateRight(offers);
+                }
+            }
+        };
+
+        // cycle with every asset on path costing half as much as previous - 8 times gain
+        testPath("arbitrage", Price(1, 2), 1, PATH_PAYMENT_SUCCESS);
+        // cycle with every asset on path costing twice as much as previous - 8 times loss - unacceptable
+        testPath("anti-arbitrage", Price(2, 1), 1, PATH_PAYMENT_OVER_SENDMAX);
+        // cycle with every asset on path costing twice as much as previous - 8 times loss - acceptable (but not wise to do)
+        testPath("anti-arbitrage with big sendmax", Price(2, 1), 8, PATH_PAYMENT_SUCCESS);
     }
 }
 
