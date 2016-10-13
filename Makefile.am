@@ -22,7 +22,7 @@ always:
 # formatting the man page with pandoc, it substitutes $(PREFIX) for
 # the string %prefix%.  In the event that pandoc is not found, instead
 # of failing with an error, just use the last version successfully
-docs/stellar-core.1: docs/stellar-core.1.md
+docs/stellar-core.1: docs/stellar-core.1.md docs/software/commands.md
 	mkdir -p docs
 	sed -ne '/^#/,$$p' "$(top_srcdir)/docs/software/commands.md" \
 	    | sed -e '/^%commands%$$/{s///; r/dev/stdin' -e '}' \

@@ -52,6 +52,7 @@ enum opttag
     OPT_NEWHIST,
     OPT_PRINTTXN,
     OPT_SIGNTXN,
+    OPT_NETID,
     OPT_TEST,
     OPT_VERSION
 };
@@ -64,6 +65,7 @@ static const struct option stellar_core_options[] = {
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
     {"printtxn", required_argument, nullptr, OPT_PRINTTXN},
     {"signtxn", required_argument, nullptr, OPT_SIGNTXN},
+    {"netid", required_argument, nullptr, OPT_NETID},
     {"loadxdr", required_argument, nullptr, OPT_LOADXDR},
     {"forcescp", optional_argument, nullptr, OPT_FORCESCP},
     {"fuzz", required_argument, nullptr, OPT_FUZZ},
@@ -119,6 +121,9 @@ usage(int err = 1)
           " then quit\n"
           "                      (Key is read from stdin or terminal, as"
           " appropriate.)\n"
+          "      --netid STRING  Specify network ID for subsequent signtxn\n"
+          "                      (Default is STELLAR_NETWORK_ID environment"
+          "variable)\n"
           "      --test          Run self-tests\n"
           "      --version       Print version information\n";
     exit(err);
@@ -422,6 +427,9 @@ main(int argc, char* const* argv)
             return 0;
         case OPT_SIGNTXN:
             signtxn(std::string(optarg));
+            return 0;
+        case OPT_NETID:
+            signtxn_network_id = optarg;
             return 0;
         case OPT_LOADXDR:
             loadXdrBucket = std::string(optarg);

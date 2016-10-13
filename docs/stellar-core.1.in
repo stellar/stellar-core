@@ -110,6 +110,14 @@ in which case the transaction envelope is read from standard input and
 the signing key is read from \f[C]/dev/tty\f[].
 In either event, if the signing key appears to be coming from a
 terminal, stellar\-core disables echo.
+Note that if you do not have a STELLAR_NETWORK_ID environment variable,
+then before this argument you must specify the \-\-netid option.
+.IP \[bu] 2
+\f[B]\-\-netid STRING\f[]: The \-\-signtxn option requires a particular
+network to sign for.
+For example, the production stellar network is
+"\f[C]Public\ Global\ Stellar\ Network\ ;\ September\ 2015\f[]" while
+the test network is "\f[C]Test\ SDF\ Network\ ;\ September\ 2015\f[]".
 .IP \[bu] 2
 \f[B]\-\-test\f[]: Run all the unit tests.
 For further

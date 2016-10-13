@@ -45,6 +45,13 @@ forcescp doesn't change the requirements for quorum so although this node will e
   transaction envelope is read from standard input and the signing key
   is read from `/dev/tty`.  In either event, if the signing key
   appears to be coming from a terminal, stellar-core disables echo.
+  Note that if you do not have a STELLAR_NETWORK_ID environment
+  variable, then before this argument you must specify the --netid
+  option.
+* **--netid STRING**:  The --signtxn option requires a particular
+  network to sign for.  For example, the production stellar network is
+  "`Public Global Stellar Network ; September 2015`" while the test
+  network is "`Test SDF Network ; September 2015`".
 * **--test**: Run all the unit tests. For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md) on possible options for test. For example this will run just the "Herder" tests and stop after the first failure: `stellar-core --test -a [Herder]` 
 * **--version**: Print version info and then exit.
 
