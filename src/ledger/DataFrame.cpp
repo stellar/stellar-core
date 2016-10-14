@@ -19,14 +19,15 @@ namespace stellar
 const char* DataFrame::kSQLCreateStatement1 =
     "CREATE TABLE accountdata"
     "("
-        "accountid  VARCHAR(56)  NOT NULL,"
-        "dataname     VARCHAR(64) NOT NULL,"
+        "accountid    VARCHAR(56)  NOT NULL,"
+        "dataname     VARCHAR(64)  NOT NULL,"
         "datavalue    VARCHAR(112) NOT NULL,"
+        "lastmodified INT          NOT NULL,"
         "PRIMARY KEY  (accountid, dataname)"
     ");";
 
 static const char* dataColumnSelector =
-    "SELECT accountid,dataname,datavalue FROM accountdata";
+    "SELECT accountid,dataname,datavalue,lastmodified FROM accountdata";
 
 DataFrame::DataFrame() : EntryFrame(DATA), mData(mEntry.data.data())
 {
@@ -115,6 +116,7 @@ DataFrame::loadData(StatementContext& prep,
     st.exchange(into(actIDStrKey));
     st.exchange(into(dataName, dataNameIndicator));
     st.exchange(into(dataValue, dataValueIndicator));
+    st.exchange(into(le.lastModifiedLedgerSeq));
     st.define_and_bind();
     st.execute(true);
     while (st.got_data())
@@ -250,12 +252,12 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 
     if (insert)
     {
-        sql = "INSERT INTO accountdata (accountid,dataname,datavalue)"
-               " VALUES (:aid,:dn,:dv)";
+        sql = "INSERT INTO accountdata (accountid,dataname,datavalue,lastmodified)"
+               " VALUES (:aid,:dn,:dv,:lm)";
     }
     else
     {
-        sql = "UPDATE accountdata SET datavalue=:dv "
+        sql = "UPDATE accountdata SET datavalue=:dv,lastmodified=:lm "
               " WHERE accountid=:aid AND dataname=:dn";
     }
 
@@ -266,6 +268,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     st.exchange(use(actIDStrKey, "aid"));
     st.exchange(use(dataName, "dn"));
     st.exchange(use(dataValue, "dv"));
+    st.exchange(use(getLastModified(), "lm"));
 
     st.define_and_bind();
     st.execute(true);
