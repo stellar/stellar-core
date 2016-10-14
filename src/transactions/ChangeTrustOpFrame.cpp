@@ -32,6 +32,17 @@ ChangeTrustOpFrame::doApply(Application& app,
     auto& trustLine = tlI.first;
     auto& issuer = tlI.second;
 
+    if (app.getLedgerManager().getCurrentLedgerVersion() > 2)
+    {
+        if (issuer && (issuer->getID() == getSourceID()))
+        { // since version 3 it is not allowed to use CHANGE_TRUST on self
+            app.getMetrics().NewMeter({"op-change-trust", "failure", "trust-self"},
+                             "operation").Mark();
+            innerResult().code(CHANGE_TRUST_SELF_NOT_ALLOWED);
+            return false;
+        }
+    }
+
     if (trustLine)
     { // we are modifying an old trustline
 
