@@ -83,6 +83,9 @@ class LedgerManager
     // Return the current ledger header.
     virtual LedgerHeader const& getCurrentLedgerHeader() const = 0;
 
+    // Return the current ledger version.
+    virtual uint32_t getCurrentLedgerVersion() const = 0;
+
     // Return the LCL header and (complete, immutable) hash.
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;

@@ -10,6 +10,8 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/PersistentState.h"
 #include "history/HistoryManager.h"
+#include "transactions/TransactionFrame.h"
+#include "util/Timer.h"
 #include "xdr/Stellar-ledger.h"
 
 /*
@@ -89,6 +91,7 @@ class LedgerManagerImpl : public LedgerManager
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
     LedgerHeader const& getCurrentLedgerHeader() const override;
     LedgerHeader& getCurrentLedgerHeader() override;
+    uint32_t getCurrentLedgerVersion() const override;
 
     Database& getDatabase() override;
 
