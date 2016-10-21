@@ -119,7 +119,7 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 4:
         BanManager::dropAll(*this);
-        DataFrame::dropAll(*this); // not and error, it changed again
+        mSession << "ALTER TABLE accountdata ADD lastmodified INT NOT NULL DEFAULT 0;";
         break;
 
     default:
