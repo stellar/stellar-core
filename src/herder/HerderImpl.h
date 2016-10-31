@@ -85,7 +85,6 @@ class HerderImpl : public Herder, public SCPDriver
                     std::function<void()> cb) override;
 
     void emitEnvelope(SCPEnvelope const& envelope) override;
-    bool recvTransactions(TxSetFramePtr txSet);
     // Extra SCP methods overridden solely to increment metrics.
     void updatedCandidateValue(uint64 slotIndex, Value const& value) override;
     void startedBallotProtocol(uint64 slotIndex,

@@ -869,23 +869,6 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     startRebroadcastTimer();
 }
 
-bool
-HerderImpl::recvTransactions(TxSetFramePtr txSet)
-{
-    soci::transaction sqltx(mApp.getDatabase().getSession());
-    mApp.getDatabase().setCurrentTransactionReadOnly();
-
-    bool allGood = true;
-    for (auto tx : txSet->sortForApply())
-    {
-        if (recvTransaction(tx) != TX_STATUS_PENDING)
-        {
-            allGood = false;
-        }
-    }
-    return allGood;
-}
-
 void
 HerderImpl::TxMap::addTx(TransactionFramePtr tx)
 {
