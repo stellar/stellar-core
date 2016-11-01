@@ -52,8 +52,8 @@ class LoopbackPeer : public Peer
 
     Stats mStats;
 
-    void sendMessage(xdr::msg_ptr&& xdrBytes);
-    AuthCert getAuthCert();
+    void sendMessage(xdr::msg_ptr&& xdrBytes) override;
+    AuthCert getAuthCert() override;
 
     void processInQueue();
 
@@ -62,8 +62,8 @@ class LoopbackPeer : public Peer
     {
     }
     LoopbackPeer(Application& app, PeerRole role);
-    void drop();
-    std::string getIP();
+    void drop() override;
+    std::string getIP() override;
 
     void deliverOne();
     void deliverAll();
@@ -98,6 +98,8 @@ class LoopbackPeer : public Peer
 
     double getReorderProbability() const;
     void setReorderProbability(double d);
+
+    using Peer::sendAuth;
 
     friend class LoopbackPeerConnection;
 };
