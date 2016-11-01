@@ -160,6 +160,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-reject"}, "drop"))
+    , mDropInRecvAuthInvalidPeerMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-auth-invalid-peer"}, "drop"))
     , mDropInRecvErrorMeter(
           app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
 {
@@ -852,6 +854,16 @@ Peer::recvError(StellarMessage const& msg)
 void
 Peer::noteHandshakeSuccessInPeerRecord()
 {
+    if (getIP().empty() || getRemoteListeningPort() == 0)
+    {
+        CLOG(ERROR, "Overlay") << "unable to handshake with "
+                               << getIP() << ":"
+                               << getRemoteListeningPort();
+        mDropInRecvAuthInvalidPeerMeter.Mark();
+        drop();
+        return;
+    }
+
     auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
                                          getRemoteListeningPort());
     if (pr)

@@ -101,10 +101,12 @@ OverlayManagerImpl::start()
 void
 OverlayManagerImpl::connectTo(std::string const& peerStr)
 {
-    PeerRecord pr;
-    if (PeerRecord::parseIPPort(peerStr, mApp, pr))
+    try
+    {
+        auto pr = PeerRecord::parseIPPort(peerStr, mApp);
         connectTo(pr);
-    else
+    }
+    catch (const std::runtime_error &)
     {
         CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
     }
@@ -113,25 +115,13 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
 void
 OverlayManagerImpl::connectTo(PeerRecord& pr)
 {
-    if (pr.mPort == 0)
-    {
-        CLOG(ERROR, "Overlay") << "Invalid port: " << pr.toString();
-        return;
-    }
-
-    if (!pr.mIP.size())
-    {
-        CLOG(ERROR, "Overlay") << "OverlayManagerImpl::connectTo Invalid IP ";
-        return;
-    }
-
     mConnectionsAttempted.Mark();
-    if (!getConnectedPeer(pr.mIP, pr.mPort))
+    if (!getConnectedPeer(pr.ip(), pr.port()))
     {
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addConnectedPeer(TCPPeer::initiate(mApp, pr.mIP, pr.mPort));
+        addConnectedPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
     }
     else
     {
@@ -147,9 +137,9 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
 {
     for (auto const& peerStr : list)
     {
-        PeerRecord pr;
-        if (PeerRecord::parseIPPort(peerStr, mApp, pr))
+        try
         {
+            auto pr = PeerRecord::parseIPPort(peerStr, mApp);
             if (resetBackOff)
             {
                 pr.storePeerRecord(mApp.getDatabase());
@@ -159,7 +149,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
                 pr.insertIfNew(mApp.getDatabase());
             }
         }
-        else
+        catch (std::runtime_error &)
         {
             CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
         }
@@ -173,14 +163,18 @@ OverlayManagerImpl::storeConfigPeers()
     std::vector<std::string> ppeers;
     for (auto const& s : mApp.getConfig().PREFERRED_PEERS)
     {
-        PeerRecord pr;
-        if (PeerRecord::parseIPPort(s, mApp, pr))
+        try
         {
+            auto pr = PeerRecord::parseIPPort(s, mApp);
             auto r = mPreferredPeers.insert(pr.toString());
             if (r.second)
             {
                 ppeers.push_back(*r.first);
             }
+        }
+        catch (std::runtime_error &)
+        {
+            CLOG(ERROR, "Overlay") << "Unable to add preferred peer '" << s << "'";
         }
     }
 
@@ -211,7 +205,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
         {
             break;
         }
-        if (!getConnectedPeer(pr.mIP, pr.mPort))
+        if (!getConnectedPeer(pr.ip(), pr.port()))
         {
             connectTo(pr);
         }

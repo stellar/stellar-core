@@ -132,6 +132,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mDropInRecvHelloPortMeter;
     medida::Meter& mDropInRecvAuthUnexpectedMeter;
     medida::Meter& mDropInRecvAuthRejectMeter;
+    medida::Meter& mDropInRecvAuthInvalidPeerMeter;
     medida::Meter& mDropInRecvErrorMeter;
 
     bool shouldAbort() const;

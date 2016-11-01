@@ -13,20 +13,20 @@
 
 namespace stellar
 {
+
 using namespace std;
 
 TEST_CASE("toXdr", "[overlay][PeerRecord]")
 {
     VirtualClock clock;
     Application::pointer app = Application::create(clock, getTestConfig());
-    PeerRecord pr;
-    PeerRecord::parseIPPort("1.25.50.200:256", *app, pr);
+    auto pr = PeerRecord::parseIPPort("1.25.50.200:256", *app);
     pr.mNumFailures = 2;
 
     SECTION("fromIPPort and toXdr")
     {
-        REQUIRE(pr.mIP == "1.25.50.200");
-        REQUIRE(pr.mPort == 256);
+        REQUIRE(pr.ip() == "1.25.50.200");
+        REQUIRE(pr.port() == 256);
 
         PeerAddress xdr;
         pr.toXdr(xdr);
@@ -49,7 +49,7 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
             REQUIRE(!pr2.insertIfNew(app->getDatabase()));
 
             auto actualPR = PeerRecord::loadPeerRecord(app->getDatabase(),
-                                                       pr.mIP, pr.mPort);
+                                                       pr.ip(), pr.port());
             REQUIRE(*actualPR == pr);
         }
 
@@ -59,7 +59,7 @@ TEST_CASE("toXdr", "[overlay][PeerRecord]")
         pr.mNextAttempt = pr.mNextAttempt + chrono::seconds(12);
         pr.storePeerRecord(app->getDatabase());
         auto actual1 =
-            PeerRecord::loadPeerRecord(app->getDatabase(), pr.mIP, pr.mPort);
+            PeerRecord::loadPeerRecord(app->getDatabase(), pr.ip(), pr.port());
         REQUIRE(*actual1 == pr);
 
         auto actual2 =
@@ -79,5 +79,139 @@ TEST_CASE("private addresses", "[overlay][PeerRecord]")
     CHECK(pr.isPrivateAddress());
     pr = PeerRecord("192.168.1.2", 15, clock.now());
     CHECK(pr.isPrivateAddress());
+}
+
+TEST_CASE("create peer rercord", "[overlay][PeerRecord]")
+{
+    SECTION("empty")
+    {
+        REQUIRE_THROWS_AS(PeerRecord("", 0, {}), std::runtime_error);
+    }
+
+    SECTION("empty ip")
+    {
+        REQUIRE_THROWS_AS(PeerRecord("", 80, {}), std::runtime_error);
+    }
+
+    SECTION("zero port")
+    {
+        REQUIRE_THROWS_AS(PeerRecord("127.0.0.1", 0, {}), std::runtime_error);
+    }
+
+    SECTION("random string") // PeerRecord does not validate IP format
+    {
+        auto pr = PeerRecord("random string", 80, {});
+        REQUIRE(pr.ip() == "random string");
+        REQUIRE(pr.port() == 80);
+    }
+
+    SECTION("valid data")
+    {
+        auto pr = PeerRecord("127.0.0.1", 80, {});
+        REQUIRE(pr.ip() == "127.0.0.1");
+        REQUIRE(pr.port() == 80);
+    }
+}
+
+TEST_CASE("parse peer rercord", "[overlay][PeerRecord]")
+{
+    VirtualClock clock;
+    auto app = Application::create(clock, getTestConfig());
+
+    SECTION("empty")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("", *app), std::runtime_error);
+    }
+
+    SECTION("random string")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("random string", *app), std::runtime_error);
+    }
+
+    SECTION("invalid ipv4")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.256", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("256.256.256.256", *app), std::runtime_error);
+    }
+
+    SECTION("ipv4 mask instead of address")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/8", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/16", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/24", *app), std::runtime_error);
+    }
+
+    SECTION("valid ipv6")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:0db8:0a0b:12f0:0000:0000:0000:0001", *app), std::runtime_error);
+    }
+
+    SECTION("invalid ipv6")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("10000:db8:a0b:12f0::1", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:0db8:0a0b:12f0:0000:10000:0000:0001", *app), std::runtime_error);
+    }
+
+    SECTION("ipv6 mask instead of address")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/16", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/32", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/64", *app), std::runtime_error);
+    }
+
+    SECTION("valid ipv4 with empty port")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:", *app), std::runtime_error);
+    }
+
+    SECTION("valid ipv4 with invalid port")
+    {
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:-1", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:0", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65536", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65537", *app), std::runtime_error);
+    }
+
+    SECTION("valid ipv4 with default port")
+    {
+        auto pr = PeerRecord::parseIPPort("127.0.0.2", *app);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == DEFAULT_PEER_PORT);
+
+        pr = PeerRecord::parseIPPort("8.8.8.8", *app);
+        REQUIRE(pr.ip() == "8.8.8.8");
+        REQUIRE(pr.port() == DEFAULT_PEER_PORT);
+    }
+
+    SECTION("valid ipv4 with different default port")
+    {
+        auto pr = PeerRecord::parseIPPort("127.0.0.2", *app, 10);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == 10);
+
+        pr = PeerRecord::parseIPPort("8.8.8.8", *app, 10);
+        REQUIRE(pr.ip() == "8.8.8.8");
+        REQUIRE(pr.port() == 10);
+    }
+
+    SECTION("valid ipv4 with valid port")
+    {
+        auto pr = PeerRecord::parseIPPort("127.0.0.2:1", *app);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == 1);
+
+        pr = PeerRecord::parseIPPort("127.0.0.2:1234", *app);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == 1234);
+
+        pr = PeerRecord::parseIPPort("127.0.0.2:65534", *app);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == 65534);
+
+        pr = PeerRecord::parseIPPort("127.0.0.2:65535", *app);
+        REQUIRE(pr.ip() == "127.0.0.2");
+        REQUIRE(pr.port() == 65535);
+    }
 }
 }
