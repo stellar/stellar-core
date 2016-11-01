@@ -1006,9 +1006,17 @@ Peer::recvHello(Hello const& elo)
 void
 Peer::recvAuth(StellarMessage const& msg)
 {
+    if (mState != GOT_HELLO)
+    {
+        CLOG(INFO, "Overlay") << "Unexpected AUTH message before HELLO";
+        mDropInRecvAuthUnexpectedMeter.Mark();
+        drop(ERR_MISC, "out-of-order AUTH message");
+        return;
+    }
+
     if (isAuthenticated())
     {
-        CLOG(ERROR, "Overlay") << "Unexpected AUTH message";
+        CLOG(INFO, "Overlay") << "Unexpected AUTH message";
         mDropInRecvAuthUnexpectedMeter.Mark();
         drop(ERR_MISC, "out-of-order AUTH message");
         return;
