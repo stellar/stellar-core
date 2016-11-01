@@ -39,6 +39,9 @@ namespace txtest
 bool
 applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 {
+    // TODO: maybe we should just close ledger with tx instead of checking all of
+    // that manually?
+
     bool check = tx->checkValid(app, 0);
     TransactionResult checkResult = tx->getResult();
 
@@ -92,6 +95,7 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
+    delta.checkAgainstDatabase(app);
 
     return res;
 }
