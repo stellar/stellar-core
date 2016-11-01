@@ -41,13 +41,6 @@ SCP::receiveEnvelope(SCPEnvelope const& envelope)
 }
 
 bool
-SCP::abandonBallot(uint64 slotIndex)
-{
-    dbgAssert(isValidator());
-    return getSlot(slotIndex, true)->abandonBallot();
-}
-
-bool
 SCP::nominate(uint64 slotIndex, Value const& value, Value const& previousValue)
 {
     dbgAssert(isValidator());
