@@ -50,7 +50,7 @@ class Tracker
     VirtualTimer mTimer;
     bool mIsStopped = false;
     std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
-    uint256 mItemID;
+    Hash mItemHash;
     medida::Meter& mTryNextPeerReset;
     medida::Meter& mTryNextPeer;
 
@@ -64,7 +64,7 @@ class Tracker
     void tryNextPeer();
 
   public:
-    explicit Tracker(Application& app, uint256 const& id);
+    explicit Tracker(Application& app, Hash const& hash);
 
     virtual ~Tracker();
 };
@@ -77,20 +77,20 @@ template <class TrackerT> class ItemFetcher : private NonMovableOrCopyable
 
     explicit ItemFetcher(Application& app);
 
-    void fetch(uint256 itemID, const SCPEnvelope& envelope);
+    void fetch(Hash itemHash, const SCPEnvelope& envelope);
 
     void stopFetchingBelow(uint64 slotIndex);
 
-    void doesntHave(uint256 const& itemID, Peer::pointer peer);
+    void doesntHave(Hash const& itemHash, Peer::pointer peer);
 
     // recv: notifies all listeners of the arrival of the item
-    void recv(uint256 itemID);
+    void recv(Hash itemHash);
 
   protected:
     void stopFetchingBelowInternal(uint64 slotIndex);
 
     Application& mApp;
-    std::map<uint256, std::shared_ptr<TrackerT>> mTrackers;
+    std::map<Hash, std::shared_ptr<TrackerT>> mTrackers;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
@@ -102,7 +102,7 @@ template <class TrackerT> class ItemFetcher : private NonMovableOrCopyable
 class TxSetTracker : public Tracker
 {
   public:
-    TxSetTracker(Application& app, uint256 id) : Tracker(app, id)
+    TxSetTracker(Application& app, Hash hash) : Tracker(app, hash)
     {
     }
 
@@ -112,7 +112,7 @@ class TxSetTracker : public Tracker
 class QuorumSetTracker : public Tracker
 {
   public:
-    QuorumSetTracker(Application& app, uint256 id) : Tracker(app, id)
+    QuorumSetTracker(Application& app, Hash hash) : Tracker(app, hash)
     {
     }
 

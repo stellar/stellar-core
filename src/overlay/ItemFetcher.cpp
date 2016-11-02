@@ -30,14 +30,14 @@ ItemFetcher<TrackerT>::ItemFetcher(Application& app)
 
 template <class TrackerT>
 void
-ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
+ItemFetcher<TrackerT>::fetch(Hash itemHash, const SCPEnvelope& envelope)
 {
-    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemID);
-    auto entryIt = mTrackers.find(itemID);
+    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemHash);
+    auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
     { // not being tracked
-        TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemID);
-        mTrackers[itemID] = tracker;
+        TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemHash);
+        mTrackers[itemHash] = tracker;
         mItemMapSize.inc();
 
         tracker->listen(envelope);
@@ -82,9 +82,9 @@ ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
 
 template <class TrackerT>
 void
-ItemFetcher<TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
+ItemFetcher<TrackerT>::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
-    const auto& iter = mTrackers.find(itemID);
+    const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
         iter->second->doesntHave(peer);
@@ -93,18 +93,18 @@ ItemFetcher<TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
 
 template <class TrackerT>
 void
-ItemFetcher<TrackerT>::recv(uint256 itemID)
+ItemFetcher<TrackerT>::recv(Hash itemHash)
 {
-    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID);
-    const auto& iter = mTrackers.find(itemID);
+    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
+    const auto& iter = mTrackers.find(itemHash);
     using xdr::operator==;
     if (iter != mTrackers.end())
     {
         // this code can safely be called even if recvSCPEnvelope ends up
-        // calling recv on the same itemID
+        // calling recv on the same itemHash
         auto& waiting = iter->second->mWaitingEnvelopes;
 
-        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : "
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash) << " : "
                                << waiting.size();
 
         while (!waiting.empty())
@@ -118,11 +118,11 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
     }
 }
 
-Tracker::Tracker(Application& app, uint256 const& id)
+Tracker::Tracker(Application& app, Hash const& hash)
     : mApp(app)
     , mNumListRebuild(0)
     , mTimer(app)
-    , mItemID(id)
+    , mItemHash(hash)
     , mTryNextPeerReset(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "reset-fetcher"}, "item-fetcher"))
     , mTryNextPeer(app.getMetrics().NewMeter(
@@ -168,7 +168,7 @@ Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
-        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemID);
+        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemHash);
         tryNextPeer();
     }
 }
@@ -180,7 +180,7 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID) << " last: "
+    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash) << " last: "
                            << (mLastAskedPeer ? mLastAskedPeer->toString()
                                               : "<none>");
 
@@ -213,7 +213,7 @@ Tracker::tryNextPeer()
 
         mNumListRebuild++;
 
-        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
+        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
                                << " attempt " << mNumListRebuild
                                << " reset to #" << mPeersToAsk.size();
         mTryNextPeerReset.Mark();
@@ -246,7 +246,7 @@ Tracker::tryNextPeer()
     else
     {
         mLastAskedPeer = peer;
-        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
+        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash) << " to "
                                << peer->toString();
         mTryNextPeer.Mark();
         askPeer(peer);
@@ -275,13 +275,13 @@ Tracker::listen(const SCPEnvelope& env)
 void
 TxSetTracker::askPeer(Peer::pointer peer)
 {
-    peer->sendGetTxSet(mItemID);
+    peer->sendGetTxSet(mItemHash);
 }
 
 void
 QuorumSetTracker::askPeer(Peer::pointer peer)
 {
-    peer->sendGetQuorumSet(mItemID);
+    peer->sendGetQuorumSet(mItemHash);
 }
 
 template class ItemFetcher<TxSetTracker>;
