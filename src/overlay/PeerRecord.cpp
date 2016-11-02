@@ -237,12 +237,6 @@ PeerRecord::isLocalhost() const
 }
 
 bool
-PeerRecord::isStored(Database& db)
-{
-    return loadPeerRecord(db, mIP, mPort) != nullopt<PeerRecord>();
-}
-
-bool
 PeerRecord::insertIfNew(Database& db)
 {
     auto tm = VirtualClock::pointToTm(mNextAttempt);

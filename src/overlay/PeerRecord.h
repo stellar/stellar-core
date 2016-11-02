@@ -51,9 +51,6 @@ class PeerRecord
     bool isPrivateAddress() const;
     bool isLocalhost() const;
 
-    // returns true if peerRecord is already in the database
-    bool isStored(Database& db);
-
     // insert record in database if it's a new record
     // returns true if inserted
     bool insertIfNew(Database& db);
