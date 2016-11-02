@@ -20,23 +20,22 @@ namespace stellar
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 static int const MAX_REBUILD_FETCH_LIST = 1000;
 
-template <class TrackerT>
-ItemFetcher<TrackerT>::ItemFetcher(Application& app)
+ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
     : mApp(app)
     , mItemMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
+    , mAskPeer(askPeer)
 {
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::fetch(Hash itemHash, const SCPEnvelope& envelope)
+ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
 {
     CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemHash);
     auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
     { // not being tracked
-        TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemHash);
+        TrackerPtr tracker = std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
         mTrackers[itemHash] = tracker;
         mItemMapSize.inc();
 
@@ -49,9 +48,8 @@ ItemFetcher<TrackerT>::fetch(Hash itemHash, const SCPEnvelope& envelope)
     }
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
+ItemFetcher::stopFetchingBelow(uint64 slotIndex)
 {
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
@@ -62,9 +60,8 @@ ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
         });
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
+ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex)
 {
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
@@ -80,9 +77,8 @@ ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
     }
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::doesntHave(Hash const& itemHash, Peer::pointer peer)
+ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
     const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
@@ -91,9 +87,8 @@ ItemFetcher<TrackerT>::doesntHave(Hash const& itemHash, Peer::pointer peer)
     }
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::recv(Hash itemHash)
+ItemFetcher::recv(Hash itemHash)
 {
     CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
     const auto& iter = mTrackers.find(itemHash);
@@ -118,8 +113,9 @@ ItemFetcher<TrackerT>::recv(Hash itemHash)
     }
 }
 
-Tracker::Tracker(Application& app, Hash const& hash)
-    : mApp(app)
+Tracker::Tracker(Application& app, Hash const& hash, AskPeer &askPeer)
+    : mAskPeer(askPeer)
+    , mApp(app)
     , mNumListRebuild(0)
     , mTimer(app)
     , mItemHash(hash)
@@ -128,6 +124,7 @@ Tracker::Tracker(Application& app, Hash const& hash)
     , mTryNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
 {
+    assert(mAskPeer);
 }
 
 Tracker::~Tracker()
@@ -249,7 +246,7 @@ Tracker::tryNextPeer()
         CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash) << " to "
                                << peer->toString();
         mTryNextPeer.Mark();
-        askPeer(peer);
+        mAskPeer(peer, mItemHash);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 
@@ -272,18 +269,4 @@ Tracker::listen(const SCPEnvelope& env)
         std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
 
-void
-TxSetTracker::askPeer(Peer::pointer peer)
-{
-    peer->sendGetTxSet(mItemHash);
-}
-
-void
-QuorumSetTracker::askPeer(Peer::pointer peer)
-{
-    peer->sendGetQuorumSet(mItemHash);
-}
-
-template class ItemFetcher<TxSetTracker>;
-template class ItemFetcher<QuorumSetTracker>;
 }

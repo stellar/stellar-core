@@ -38,8 +38,8 @@ class PendingEnvelopes
     // all the quorum sets we have learned about
     cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
 
-    ItemFetcher<TxSetTracker> mTxSetFetcher;
-    ItemFetcher<QuorumSetTracker> mQuorumSetFetcher;
+    ItemFetcher mTxSetFetcher;
+    ItemFetcher mQuorumSetFetcher;
 
     // all the txsets we have learned about per ledger#
     cache::lru_cache<Hash, TxSetFramePtr> mTxSetCache;

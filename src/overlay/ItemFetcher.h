@@ -38,11 +38,15 @@ class TxSetFrame;
 struct SCPQuorumSet;
 using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
+using AskPeer = std::function<void(Peer::pointer, Hash)>;
 
 class Tracker
 {
+  private:
+    AskPeer mAskPeer;
+
   protected:
-    template <class T> friend class ItemFetcher;
+    friend class ItemFetcher;
     Application& mApp;
     Peer::pointer mLastAskedPeer;
     int mNumListRebuild;
@@ -58,24 +62,22 @@ class Tracker
 
     void listen(const SCPEnvelope& env);
 
-    virtual void askPeer(Peer::pointer peer) = 0;
-
     void doesntHave(Peer::pointer peer);
     void tryNextPeer();
 
   public:
-    explicit Tracker(Application& app, Hash const& hash);
+    explicit Tracker(Application& app, Hash const& hash, AskPeer &askPeer);
 
     virtual ~Tracker();
 };
 
-template <class TrackerT> class ItemFetcher : private NonMovableOrCopyable
+class ItemFetcher : private NonMovableOrCopyable
 {
 
   public:
-    using TrackerPtr = std::shared_ptr<TrackerT>;
+    using TrackerPtr = std::shared_ptr<Tracker>;
 
-    explicit ItemFetcher(Application& app);
+    explicit ItemFetcher(Application& app, AskPeer askPeer);
 
     void fetch(Hash itemHash, const SCPEnvelope& envelope);
 
@@ -90,35 +92,16 @@ template <class TrackerT> class ItemFetcher : private NonMovableOrCopyable
     void stopFetchingBelowInternal(uint64 slotIndex);
 
     Application& mApp;
-    std::map<Hash, std::shared_ptr<TrackerT>> mTrackers;
+    std::map<Hash, std::shared_ptr<Tracker>> mTrackers;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing
     // a single counter for all the items being fetched by all of them. Be
     // careful, therefore, to only increment and decrement this counter, not set
     // it absolutely.
     medida::Counter& mItemMapSize;
+
+  private:
+    AskPeer mAskPeer;
 };
 
-class TxSetTracker : public Tracker
-{
-  public:
-    TxSetTracker(Application& app, Hash hash) : Tracker(app, hash)
-    {
-    }
-
-    void askPeer(Peer::pointer peer) override;
-};
-
-class QuorumSetTracker : public Tracker
-{
-  public:
-    QuorumSetTracker(Application& app, Hash hash) : Tracker(app, hash)
-    {
-    }
-
-    void askPeer(Peer::pointer peer) override;
-};
-
-using TxSetTrackerPtr = ItemFetcher<TxSetTracker>::TrackerPtr;
-using QuorumSetTrackerPtr = ItemFetcher<QuorumSetTracker>::TrackerPtr;
 }
