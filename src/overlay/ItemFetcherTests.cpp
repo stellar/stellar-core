@@ -111,11 +111,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
     SECTION("no cache")
     {
-        itemFetcher.recv(fourteen);
-
         auto zeroEnvelope1 = makeEnvelope(0);
         itemFetcher.fetch(zero, zeroEnvelope1);
-
         itemFetcher.recv(zero);
 
         auto zeroEnvelope2 = makeEnvelope(0);
@@ -168,6 +165,12 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
         REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
         REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
+    }
+
+    SECTION("ignore not asked items")
+    {
+        itemFetcher.recv(zero);
+        REQUIRE(app.getHerder().received == expectedReceived); // no new data received
     }
 }
 }
