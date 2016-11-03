@@ -104,7 +104,7 @@ ItemFetcher::recv(Hash itemHash)
 {
     CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
     const auto& iter = mTrackers.find(itemHash);
-    using xdr::operator==;
+
     if (iter != mTrackers.end())
     {
         // this code can safely be called even if recvSCPEnvelope ends up

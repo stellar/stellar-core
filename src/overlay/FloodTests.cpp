@@ -230,8 +230,6 @@ TEST_CASE("Flooding", "[flood][overlay]")
             txSet.sortForHash();
             auto& herder = inApp->getHerder();
 
-            herder.recvTxSet(txSet.getContentsHash(), txSet);
-
             // build the quorum set used by this message
             // use sources as validators
             SCPQuorumSet qset;
@@ -239,8 +237,6 @@ TEST_CASE("Flooding", "[flood][overlay]")
             qset.validators.emplace_back(sourcesPub[i]);
 
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
-
-            herder.recvSCPQuorumSet(qSetHash, qset);
 
             // build an SCP nomination message for the next ledger
 
@@ -264,6 +260,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             // inject the message
             herder.recvSCPEnvelope(envelope);
+
+            herder.recvTxSet(txSet.getContentsHash(), txSet);
+            herder.recvSCPQuorumSet(qSetHash, qset);
 
         };
 

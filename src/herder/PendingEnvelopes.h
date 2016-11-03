@@ -57,7 +57,9 @@ class PendingEnvelopes
     ~PendingEnvelopes();
 
     void recvSCPEnvelope(SCPEnvelope const& envelope);
+    void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    void addTxSet(Hash hash, TxSetFramePtr txset);
     void recvTxSet(Hash hash, TxSetFramePtr txset);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,
