@@ -67,8 +67,9 @@ class Tracker
 
   public:
     explicit Tracker(Application& app, Hash const& hash, AskPeer &askPeer);
-
     virtual ~Tracker();
+
+    bool hasWaitingEnvelopes() const { return mWaitingEnvelopes.size() > 0; }
 };
 
 class ItemFetcher : private NonMovableOrCopyable
@@ -80,6 +81,8 @@ class ItemFetcher : private NonMovableOrCopyable
     explicit ItemFetcher(Application& app, AskPeer askPeer);
 
     void fetch(Hash itemHash, const SCPEnvelope& envelope);
+
+    bool isFetching(Hash itemHash) const;
 
     void stopFetchingBelow(uint64 slotIndex);
 

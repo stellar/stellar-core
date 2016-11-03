@@ -48,6 +48,18 @@ ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
     }
 }
 
+bool
+ItemFetcher::isFetching(Hash itemHash) const
+{
+    auto iter = mTrackers.find(itemHash);
+    if (iter == mTrackers.end())
+    {
+        return false;
+    }
+
+    return iter->second->hasWaitingEnvelopes();
+}
+
 void
 ItemFetcher::stopFetchingBelow(uint64 slotIndex)
 {
@@ -191,8 +203,6 @@ Tracker::tryNextPeer()
             auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
             peersWithEnvelope.insert(s.begin(), s.end());
         }
-
-        mPeersToAsk.clear();
 
         // move the peers that have the envelope to the back,
         // to be processed first

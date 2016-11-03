@@ -11,7 +11,6 @@
 #include "herder/Herder.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
-#include <overlay/ItemFetcher.h>
 #include "PendingEnvelopes.h"
 
 namespace medida

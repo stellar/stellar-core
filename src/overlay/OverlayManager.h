@@ -6,7 +6,6 @@
 
 #include "overlay/StellarXDR.h"
 #include "overlay/Peer.h"
-#include "ItemFetcher.h"
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
