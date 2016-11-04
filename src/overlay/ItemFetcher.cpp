@@ -167,7 +167,6 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
 
     mTimer.cancel();
     mLastAskedPeer = nullptr;
-    mIsStopped = true;
 
     return false;
 }
