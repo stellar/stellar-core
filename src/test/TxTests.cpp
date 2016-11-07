@@ -352,6 +352,25 @@ transactionFromOperation(Hash const& networkID, SecretKey const& from,
 }
 
 TransactionFramePtr
+transactionFromOperations(Hash const& networkID, SecretKey const& from,
+                          SequenceNumber seq, const std::vector<Operation> &ops)
+{
+    TransactionEnvelope e;
+
+    e.tx.sourceAccount = from.getPublicKey();
+    e.tx.fee = ops.size() * 100;
+    e.tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops), std::back_inserter(e.tx.operations));
+
+    TransactionFramePtr res =
+        TransactionFrame::makeTransactionFromWire(networkID, e);
+
+    res->addSignature(from);
+
+    return res;
+}
+
+TransactionFramePtr
 createChangeTrust(Hash const& networkID, SecretKey const& from, PublicKey const& to,
                   SequenceNumber seq, std::string const& assetCode,
                   int64_t limit)
