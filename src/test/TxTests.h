@@ -74,6 +74,8 @@ xdr::xvector<Signer,20> getAccountSigners(SecretKey const& k, Application& app);
 
 TransactionFramePtr transactionFromOperation(Hash const& networkID, SecretKey const& from,
                                              SequenceNumber seq, Operation const& op);
+TransactionFramePtr transactionFromOperations(Hash const& networkID, SecretKey const& from,
+                                              SequenceNumber seq, const std::vector<Operation> &ops);
 
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey const&from,
                                       SecretKey const&to, SequenceNumber seq,
