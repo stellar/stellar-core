@@ -12,9 +12,9 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
-#include <soci.h>
 #include "transactions/TxTests.h"
 #include "transactions/TransactionFrame.h"
+#include "util/SociNoWarnings.h"
 
 using namespace stellar;
 using namespace std;

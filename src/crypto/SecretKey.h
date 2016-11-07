@@ -4,10 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/KeyUtils.h"
 #include "xdr/Stellar-types.h"
-#include <ostream>
-#include <functional>
+
 #include <array>
+#include <functional>
+#include <ostream>
 
 namespace stellar
 {
@@ -15,16 +17,17 @@ namespace stellar
 using xdr::operator==;
 
 class ByteSlice;
+struct SignerKey;
 
 class SecretKey
 {
     using uint512 = xdr::opaque_array<64>;
-    CryptoKeyType mKeyType;
+    PublicKeyType mKeyType;
     uint512 mSecretKey;
 
     struct Seed
     {
-        CryptoKeyType mKeyType;
+        PublicKeyType mKeyType;
         uint256 mSeed;
         ~Seed();
     };
@@ -72,6 +75,22 @@ class SecretKey
     }
 };
 
+template<>
+struct KeyFunctions<PublicKey>
+{
+    struct getKeyTypeEnum
+    {
+        using type = PublicKeyType;
+    };
+
+    static std::string getKeyTypeName();
+    static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
+    static PublicKeyType toKeyType(strKey::StrKeyVersionByte keyVersion);
+    static strKey::StrKeyVersionByte toKeyVersion(PublicKeyType keyType);
+    static uint256 & getKeyValue(PublicKey &key);
+    static uint256 const& getKeyValue(PublicKey const &key);
+};
+
 // public key utility functions
 namespace PubKeyUtils
 {
@@ -82,12 +101,6 @@ bool verifySig(PublicKey const& key, Signature const& signature,
 void clearVerifySigCache();
 void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
                                uint64_t& ignores);
-
-std::string toShortString(PublicKey const& pk);
-
-std::string toStrKey(PublicKey const& pk);
-
-PublicKey fromStrKey(std::string const& s);
 
 // returns hint from key
 SignatureHint getHint(PublicKey const& pk);

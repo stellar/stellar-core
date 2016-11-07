@@ -70,6 +70,11 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
 int64_t getAccountBalance(SecretKey const& k, Application& app);
 
+xdr::xvector<Signer,20> getAccountSigners(SecretKey const& k, Application& app);
+
+TransactionFramePtr transactionFromOperation(Hash const& networkID, SecretKey& from,
+                                             SequenceNumber seq, Operation const& op);
+
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey& from,
                                       SecretKey& to, SequenceNumber seq,
                                       std::string const& assetCode,
@@ -99,6 +104,7 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
                      SequenceNumber seq, int64_t amount,
                      CreateAccountResultCode result = CREATE_ACCOUNT_SUCCESS);
 
+Operation createPaymentOp(SecretKey* from, SecretKey& to, int64_t amount);
 TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey& from,
                                     SecretKey& to, SequenceNumber seq,
                                     int64_t amount);
@@ -184,7 +190,7 @@ TransactionFramePtr createManageData(Hash const& networkID, SecretKey& source,
     std::string& name, DataValue* value,  SequenceNumber seq);
 
 void applyManageData(
-    Application& app, SecretKey& source, std::string& name, 
+    Application& app, SecretKey& source, std::string& name,
     DataValue* value,
     SequenceNumber seq, ManageDataResultCode targetResult = MANAGE_DATA_SUCCESS);
 

@@ -6,6 +6,7 @@
 #include "util/Logging.h"
 #include "lib/catch.hpp"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/Random.h"
@@ -132,7 +133,7 @@ TEST_CASE("sign tests", "[crypto]")
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
     LOG(DEBUG) << "generated random secret key seed: " << sk.getStrKeySeed();
-    LOG(DEBUG) << "corresponding public key: " << PubKeyUtils::toStrKey(pk);
+    LOG(DEBUG) << "corresponding public key: " << KeyUtils::toStrKey(pk);
 
     CHECK(SecretKey::fromStrKeySeed(sk.getStrKeySeed()) == sk);
 

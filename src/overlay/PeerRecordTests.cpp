@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "PeerRecord.h"
-#include <soci.h>
 #include "database/Database.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include "main/test.h"
+#include "util/SociNoWarnings.h"
 
 namespace stellar
 {

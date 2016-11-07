@@ -5,6 +5,7 @@
 #include "ledger/DataFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "LedgerDelta.h"
@@ -79,7 +80,7 @@ DataFrame::loadData(AccountID const& accountID, std::string dataName,
 {
     DataFrame::pointer retData;
 
-    std::string actIDStrKey = PubKeyUtils::toStrKey(accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(accountID);
 
     std::string sql = dataColumnSelector;
     sql += " WHERE accountid = :id AND dataname = :dataname";
@@ -120,7 +121,7 @@ DataFrame::loadData(StatementContext& prep,
     st.execute(true);
     while (st.got_data())
     {
-        oe.accountID = PubKeyUtils::fromStrKey(actIDStrKey);
+        oe.accountID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
         
         if((dataNameIndicator != soci::i_ok) ||
             (dataValueIndicator != soci::i_ok))
@@ -143,7 +144,7 @@ DataFrame::loadAccountsData(AccountID const& accountID,
                        Database& db)
 {
     std::string actIDStrKey;
-    actIDStrKey = PubKeyUtils::toStrKey(accountID);
+    actIDStrKey = KeyUtils::toStrKey(accountID);
 
     std::string sql = dataColumnSelector;
     sql += " WHERE accountid = :id";
@@ -178,7 +179,7 @@ DataFrame::loadAllData(Database& db)
 bool
 DataFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.data().accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
     int exists = 0;
     auto timer = db.getSelectTimer("data-exists");
@@ -211,7 +212,7 @@ DataFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.data().accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
     auto timer = db.getDeleteTimer("data");
     auto prep = db.getPreparedStatement("DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
@@ -241,7 +242,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 {
     touch(delta);
 
-    std::string actIDStrKey = PubKeyUtils::toStrKey(mData.accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
     std::string dataName = mData.dataName;
     std::string dataValue = bn::encode_b64(mData.dataValue);
    

@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
@@ -339,7 +340,7 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 
     if (peer->isAuthenticated())
     {
-        std::string kstr = PubKeyUtils::toStrKey(peer->getPeerID());
+        std::string kstr = KeyUtils::toStrKey(peer->getPeerID());
         std::vector<std::string> const& pk =
             mApp.getConfig().PREFERRED_PEER_KEYS;
         if (std::find(pk.begin(), pk.end(), kstr) != pk.end())

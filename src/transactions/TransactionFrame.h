@@ -4,11 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <memory>
-#include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
+
+#include <memory>
+#include <set>
 
 namespace soci
 {
@@ -29,7 +31,8 @@ class XDROutputFileStream;
 class SHA256;
 
 class TransactionFrame;
-typedef std::shared_ptr<TransactionFrame> TransactionFramePtr;
+using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
+using UsedOneTimeSignerKeys = std::map<AccountID, std::set<SignerKey>>;
 
 class TransactionFrame
 {
@@ -39,6 +42,7 @@ class TransactionFrame
 
     AccountFrame::pointer mSigningAccount;
     std::vector<bool> mUsedSignatures;
+    UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -54,6 +58,9 @@ class TransactionFrame
     void resetSignatureTracker();
     void resetResults();
     bool checkAllSignaturesUsed();
+    void removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void removeUsedOneTimeSignerKeys(const AccountID &accountId, LedgerDelta& delta, LedgerManager& ledgerManager) const;
+    bool removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const;
     void markResultFailed();
 
   public:

@@ -9,6 +9,7 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "scp/LocalNode.h"
 
 #include <functional>
@@ -620,7 +621,7 @@ Config::load(std::string const& filename)
                     PublicKey nodeID;
                     parseNodeID(v->as<std::string>()->value(), nodeID);
                     PREFERRED_PEER_KEYS.push_back(
-                        PubKeyUtils::toStrKey(nodeID));
+                        KeyUtils::toStrKey(nodeID));
                 }
             }
         }
@@ -756,7 +757,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
         }
         else
         {
-            retKey = PubKeyUtils::fromStrKey(nodestr);
+            retKey = KeyUtils::fromStrKey<PublicKey>(nodestr);
         }
 
         if (iss)
@@ -787,7 +788,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
 std::string
 Config::toShortString(PublicKey const& pk) const
 {
-    std::string ret = PubKeyUtils::toStrKey(pk);
+    std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
         return ret.substr(0, 5);
@@ -798,7 +799,7 @@ Config::toShortString(PublicKey const& pk) const
 std::string
 Config::toStrKey(PublicKey const& pk, bool& isAlias) const
 {
-    std::string ret = PubKeyUtils::toStrKey(pk);
+    std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
     {
@@ -828,7 +829,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
         return false;
     }
 
-    retKey = PubKeyUtils::fromStrKey(expanded);
+    retKey = KeyUtils::fromStrKey<PublicKey>(expanded);
     return true;
 }
 
