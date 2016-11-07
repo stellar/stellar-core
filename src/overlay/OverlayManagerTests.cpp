@@ -59,7 +59,7 @@ class OverlayManagerStub : public OverlayManagerImpl
     virtual void
     connectTo(PeerRecord& pr) override
     {
-        if (!getConnectedPeer(pr.mIP, pr.mPort))
+        if (!getConnectedPeer(pr.ip(), pr.port()))
         {
             pr.backOff(mApp.getClock());
             pr.storePeerRecord(mApp.getDatabase());

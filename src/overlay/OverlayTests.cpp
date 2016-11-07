@@ -13,6 +13,7 @@
 #include "main/Config.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/TCPPeer.h"
 #include "BanManager.h"
 
 #include "medida/metrics_registry.h"
@@ -45,6 +46,39 @@ TEST_CASE("loopback peer hello", "[overlay]")
 
     REQUIRE(conn.getInitiator()->isAuthenticated());
     REQUIRE(conn.getAcceptor()->isAuthenticated());
+}
+
+TEST_CASE("loopback peer with 0 port", "[overlay]")
+{
+    VirtualClock clock;
+    auto const &cfg1 = getTestConfig(0);
+    auto cfg2 = getTestConfig(1);
+    cfg2.PEER_PORT = 0;
+
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isAuthenticated());
+    REQUIRE(!conn.getAcceptor()->isAuthenticated());
+}
+
+TEST_CASE("loopback peer send auth before hello", "[overlay]")
+{
+    VirtualClock clock;
+    auto const &cfg1 = getTestConfig(0);
+    auto const &cfg2 = getTestConfig(1);
+    auto app1 = Application::create(clock, cfg1);
+    auto app2 = Application::create(clock, cfg2);
+
+    LoopbackPeerConnection conn(*app1, *app2);
+    conn.getInitiator()->sendAuth();
+    crankSome(clock);
+
+    REQUIRE(!conn.getInitiator()->isAuthenticated());
+    REQUIRE(!conn.getAcceptor()->isAuthenticated());
 }
 
 TEST_CASE("failed auth", "[overlay]")

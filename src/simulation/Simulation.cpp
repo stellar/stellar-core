@@ -136,6 +136,10 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
     }
     auto from = getNode(initiator);
     auto to = getNode(acceptor);
+    if (to->getConfig().PEER_PORT == 0)
+    {
+        throw runtime_error("PEER_PORT cannot be set to 0");
+    }
     PeerRecord pr{"127.0.0.1", to->getConfig().PEER_PORT,
                   from->getClock().now()};
     from->getOverlayManager().connectTo(pr);

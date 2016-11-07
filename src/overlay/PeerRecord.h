@@ -16,19 +16,23 @@ using namespace std;
 
 class PeerRecord
 {
-  public:
+  private:
     std::string mIP;
     unsigned short mPort;
+
+  public:
     VirtualClock::time_point mNextAttempt;
     uint32_t mNumFailures;
 
-    PeerRecord(){};
-
+    /**
+     * Create new PeerRecord object. If preconditions are not met - exception
+     * is thrown.
+     *
+     * @pre: !ip.empty()
+     * @pre: port > 0
+     */
     PeerRecord(string const& ip, unsigned short port,
-               VirtualClock::time_point nextAttempt, uint32_t fails = 0)
-        : mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails)
-    {
-    }
+               VirtualClock::time_point nextAttempt, uint32_t fails = 0);
 
     bool operator==(PeerRecord& other)
     {
@@ -37,15 +41,22 @@ class PeerRecord
                mNumFailures == other.mNumFailures;
     }
 
-    static bool parseIPPort(std::string const& ipPort, Application& app,
-                            PeerRecord& ret,
-                            unsigned short defaultPort = DEFAULT_PEER_PORT);
+    static PeerRecord parseIPPort(std::string const& ipPort, Application& app,
+                                  unsigned short defaultPort = DEFAULT_PEER_PORT);
 
+    /**
+     * Load PeerRecord from database. If preconditions are not met - exception
+     * is thrown from PeerRecord constructor.
+     * If given PeerRecord is not found, nullopt is returned.
+     * If @p ip is empty or @ip is set to 0 nullopt is returned.
+     */
     static optional<PeerRecord> loadPeerRecord(Database& db, std::string ip,
                                                unsigned short port);
     static void loadPeerRecords(Database& db, uint32_t max,
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
+    const std::string & ip() const { return mIP; };
+    unsigned short port() const { return mPort; };
 
     bool isSelfAddressAndPort(std::string const& ip, unsigned short port) const;
     bool isPrivateAddress() const;

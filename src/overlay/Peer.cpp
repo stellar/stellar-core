@@ -160,6 +160,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-reject"}, "drop"))
+    , mDropInRecvAuthInvalidPeerMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-auth-invalid-peer"}, "drop"))
     , mDropInRecvErrorMeter(
           app.getMetrics().NewMeter({"overlay", "drop", "recv-error"}, "drop"))
 {
@@ -852,6 +854,16 @@ Peer::recvError(StellarMessage const& msg)
 void
 Peer::noteHandshakeSuccessInPeerRecord()
 {
+    if (getIP().empty() || getRemoteListeningPort() == 0)
+    {
+        CLOG(ERROR, "Overlay") << "unable to handshake with "
+                               << getIP() << ":"
+                               << getRemoteListeningPort();
+        mDropInRecvAuthInvalidPeerMeter.Mark();
+        drop();
+        return;
+    }
+
     auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
                                          getRemoteListeningPort());
     if (pr)
@@ -994,9 +1006,17 @@ Peer::recvHello(Hello const& elo)
 void
 Peer::recvAuth(StellarMessage const& msg)
 {
+    if (mState != GOT_HELLO)
+    {
+        CLOG(INFO, "Overlay") << "Unexpected AUTH message before HELLO";
+        mDropInRecvAuthUnexpectedMeter.Mark();
+        drop(ERR_MISC, "out-of-order AUTH message");
+        return;
+    }
+
     if (isAuthenticated())
     {
-        CLOG(ERROR, "Overlay") << "Unexpected AUTH message";
+        CLOG(INFO, "Overlay") << "Unexpected AUTH message";
         mDropInRecvAuthUnexpectedMeter.Mark();
         drop(ERR_MISC, "out-of-order AUTH message");
         return;
