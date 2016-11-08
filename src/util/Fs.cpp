@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "crypto/Hex.h"
 #include "lib/util/format.h"
@@ -261,19 +262,44 @@ processExists(long pid)
 
 #endif
 
+PathSplitter::PathSplitter(std::string path) :
+    mPath{std::move(path)},
+    mPos{0}
+{
+}
+
+std::string
+PathSplitter::next()
+{
+    auto slash = mPath.find('/', mPos);
+    mPos = slash == std::string::npos ? mPath.length() : slash;
+    auto r = mPos == 0 ? "/" : mPath.substr(0, mPos);
+    mPos++;
+    auto mLastSlash = mPos;
+    while (mLastSlash < mPath.length() && mPath[mLastSlash] == '/')
+        mLastSlash++;
+    if (mLastSlash > mPos)
+        mPath.erase(mPos, mLastSlash - mPos);
+    return r;
+}
+
+bool
+PathSplitter::hasNext() const
+{
+    return mPos < mPath.length();
+}
+
 bool
 mkpath(const std::string &path)
 {
-    auto pos = 0;
-    while (pos < path.length())
+    auto splitter = PathSplitter{path};
+    while (splitter.hasNext())
     {
-        auto slash = path.find('/', pos);
-        pos = slash == std::string::npos ? path.length() : slash;
-        if (!exists(path.substr(0, pos)) && !mkdir(path.substr(0, pos)))
+        auto subpath = splitter.next();
+        if (!exists(subpath) && !mkdir(subpath))
         {
             return false;
         }
-        pos++;
     }
 
     return true;
