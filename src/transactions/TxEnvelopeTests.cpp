@@ -474,6 +474,33 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(getAccountSigners(root, app).size() == 0);
                     REQUIRE(getAccountSigners(a1, app).size() == 0);
                 }
+
+                SECTION("hash tx in multiple ops source account signers")
+                {
+                    Operation op = createPaymentOp(&a1, root, 100);
+                    TransactionFramePtr tx =
+                        transactionFromOperations(networkID, root, rootSeq + 1, {op, op});
+                    tx->getEnvelope().signatures.clear();
+
+                    SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
+                    Signer sk1(sk, 1);
+                    applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                    nullptr);
+                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                    nullptr);
+
+                    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                    app.getDatabase());
+
+                    REQUIRE(getAccountSigners(root, app).size() == 1);
+                    REQUIRE(getAccountSigners(a1, app).size() == 1);
+                    applyCheck(tx, delta, app);
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                            PAYMENT_SUCCESS);
+                    REQUIRE(getAccountSigners(root, app).size() == 0);
+                    REQUIRE(getAccountSigners(a1, app).size() == 0);
+                }
             }
         }
     }
