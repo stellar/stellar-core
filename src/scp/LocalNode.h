@@ -37,17 +37,11 @@ class LocalNode
                                         std::set<NodeID>& knownNodes,
                                         bool extraChecks);
 
-    // normalize quorum set
-    void normalizeQSet(SCPQuorumSet& qSet);
-
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
               SCPQuorumSet const& qSet, SCP* scp);
 
     NodeID const& getNodeID();
-
-    // returns if a quorum set passes sanity checks
-    static bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks);
 
     void updateQuorumSet(SCPQuorumSet const& qSet);
 

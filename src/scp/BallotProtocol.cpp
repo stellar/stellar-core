@@ -11,6 +11,7 @@
 #include "crypto/SHA.h"
 #include "util/Logging.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "lib/json/json.h"
 #include "util/make_unique.h"
 #include "util/GlobalChecks.h"
@@ -218,7 +219,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
 bool
 BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 {
-    bool res = mSlot.getLocalNode()->isQuorumSetSane(
+    bool res = isQuorumSetSane(
         *mSlot.getQuorumSetFromStatement(st), false);
     if (!res)
     {

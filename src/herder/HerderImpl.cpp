@@ -1403,12 +1403,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 }
 
 bool
-HerderImpl::isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
-{
-    return LocalNode::isQuorumSetSane(qSet, extraChecks);
-}
-
-bool
 HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
 {
     bool r = mApp.getConfig().resolveNodeID(s, retKey);

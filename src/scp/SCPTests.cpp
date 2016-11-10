@@ -14,6 +14,7 @@
 #include "util/Logging.h"
 #include "simulation/Simulation.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 
 namespace stellar
 {
@@ -400,21 +401,17 @@ TEST_CASE("sane quorum set", "[scp]")
             SIMULATION_CREATE_NODE(100);
             localSet.validators.emplace_back(v100SecretKey.getPublicKey());
 
-            TestSCP scp(v100SecretKey, localSet);
-
-            REQUIRE(expected ==
-                    scp.mSCP.getLocalNode()->isQuorumSetSane(qSetCheck, false));
+            REQUIRE(expected == isQuorumSetSane(qSetCheck, false));
         }
         // secondary test: attempts to build local node with the set
         // (this normalizes the set)
-        TestSCP scp(v0SecretKey, qSetCheck);
 
-        bool selfIsSane = scp.mSCP.getLocalNode()->isQuorumSetSane(
-            scp.mSCP.getLocalNode()->getQuorumSet(), false);
+        auto normalizedQSet = qSetCheck;
+        normalizeQSet(normalizedQSet);
+        bool selfIsSane = isQuorumSetSane(normalizedQSet, false);
 
         REQUIRE(expected == selfIsSane);
-        auto actualQSet = scp.mSCP.getLocalNode()->getQuorumSet();
-        REQUIRE(expectedSelfQSet == actualQSet);
+        REQUIRE(expectedSelfQSet == normalizedQSet);
     };
 
     SCPQuorumSet qSet;

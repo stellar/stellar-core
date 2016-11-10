@@ -115,8 +115,6 @@ class HerderImpl : public Herder, public SCPDriver
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
-    bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks) override;
-
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
     void dumpInfo(Json::Value& ret, size_t limit) override;

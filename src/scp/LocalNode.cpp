@@ -12,6 +12,7 @@
 #include <algorithm>
 #include "lib/json/json.h"
 #include <unordered_set>
+#include "scp/QuorumSetUtils.h"
 
 namespace stellar
 {
@@ -86,52 +87,6 @@ LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
     {
         return false;
     }
-}
-
-// helper function that:
-//  * simplifies singleton inner set into outerset
-//      { t: n, v: { ... }, { t: 1, X }, ... }
-//        into
-//      { t: n, v: { ..., X }, .... }
-//  * simplifies singleton innersets
-//      { t:1, { innerSet } } into innerSet
-
-void
-LocalNode::normalizeQSet(SCPQuorumSet& qSet)
-{
-    auto& v = qSet.validators;
-    auto& i = qSet.innerSets;
-    auto it = i.begin();
-    while (it != i.end())
-    {
-        normalizeQSet(*it);
-        // merge singleton inner sets into validator list
-        if (it->threshold == 1 && it->validators.size() == 1 &&
-            it->innerSets.size() == 0)
-        {
-            v.emplace_back(it->validators.front());
-            it = i.erase(it);
-        }
-        else
-        {
-            it++;
-        }
-    }
-
-    // simplify quorum set if needed
-    if (qSet.threshold == 1 && v.size() == 0 && i.size() == 1)
-    {
-        auto t = qSet.innerSets.back();
-        qSet = t;
-    }
-}
-
-bool
-LocalNode::isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
-{
-    std::set<NodeID> allValidators;
-    bool wellFormed = isQuorumSetSaneInternal(qSet, allValidators, extraChecks);
-    return wellFormed;
 }
 
 void
