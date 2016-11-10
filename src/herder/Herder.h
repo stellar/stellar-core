@@ -110,11 +110,6 @@ class Herder
 
     virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger) = 0;
 
-    // returns if the quorum set passes basic sanity checks
-    // if extraChecks is set, performs additional checks
-    virtual bool isQuorumSetSane(SCPQuorumSet const& qSet,
-                                 bool extraChecks) = 0;
-
     // lookup a nodeID in config and in SCP messages
     virtual bool resolveNodeID(std::string const& s, PublicKey& retKey) = 0;
 
