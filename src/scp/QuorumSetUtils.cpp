@@ -27,24 +27,28 @@ private:
     bool mExtraChecks;
     std::set<NodeID> mKnownNodes;
     bool mIsSane;
+    int mCount {0};
 
-    bool checkSanity(SCPQuorumSet const& qSet);
+    bool checkSanity(SCPQuorumSet const& qSet, int depth);
 };
 
 QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks) :
     mExtraChecks{extraChecks}
 {
-    mIsSane = checkSanity(qSet);
+    mIsSane = checkSanity(qSet, 0) && mCount >= 1 && mCount <= 1000;
 }
 
-bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet)
+bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
 {
+    if (depth > 2)
+        return false;
+
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
     size_t totEntries = v.size() + i.size();
-
     size_t vBlockingSize = totEntries - qSet.threshold + 1;
+    mCount += v.size();
 
     // threshold is within the proper range
     if (qSet.threshold >= 1 && qSet.threshold <= totEntries &&
@@ -62,7 +66,7 @@ bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet)
 
         for (auto const& iSet : i)
         {
-            if (!checkSanity(iSet))
+            if (!checkSanity(iSet, depth + 1))
             {
                 return false;
             }
