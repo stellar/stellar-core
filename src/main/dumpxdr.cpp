@@ -21,7 +21,10 @@ extern "C" {
 
 #if MSVC
 #include <io.h>
+#include <fcntl.h>
+#include <BaseTsd.h>
 #define isatty _isatty
+typedef SSIZE_T ssize_t;
 #endif // MSVC
 
 namespace stellar

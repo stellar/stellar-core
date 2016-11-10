@@ -54,7 +54,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../..;src/generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -109,7 +109,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>src;../../src;../../lib;../../lib/libmedida/src;../../lib/soci/src/core;../../lib/autocheck/include;../../lib/cereal/include;../../lib/asio/include;../../lib/xdrpp;../../lib/libsodium/src/libsodium/include;../..;src/generated;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NOMINMAX;ASIO_STANDALONE;USE_POSTGRES;_WINSOCK_DEPRECATED_NO_WARNINGS;SODIUM_STATIC;ASIO_SEPARATE_COMPILATION;ASIO_ERROR_CATEGORY_NOEXCEPT=noexcept;_CRT_SECURE_NO_WARNINGS;_WIN32_WINNT=0x0501;WIN32;_MBCS;_CRT_NONSTDC_NO_DEPRECATE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
@@ -238,8 +238,11 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
+    <ClCompile Include="..\..\src\main\ApplicationTests.cpp" />
+    <ClCompile Include="..\..\src\main\ConfigTests.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
     <ClCompile Include="..\..\src\main\fuzz.cpp" />
+    <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
@@ -291,6 +294,10 @@
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp" />
     <ClCompile Include="..\..\src\util\HashOfHash.cpp" />
     <ClCompile Include="..\..\src\util\Math.cpp" />
+    <ClCompile Include="..\..\src\util\NtpClient.cpp" />
+    <ClCompile Include="..\..\src\util\NtpWork.cpp" />
+    <ClCompile Include="..\..\src\util\StatusManager.cpp" />
+    <ClCompile Include="..\..\src\util\StatusManagerTest.cpp" />
     <ClCompile Include="..\..\src\util\TmpDir.cpp" />
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\TimerTests.cpp" />
@@ -341,6 +348,7 @@
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
+    <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\LoadManager.h" />
@@ -434,7 +442,10 @@
     <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
     <ClInclude Include="..\..\src\util\NonCopyable.h" />
+    <ClInclude Include="..\..\src\util\NtpClient.h" />
+    <ClInclude Include="..\..\src\util\NtpWork.h" />
     <ClInclude Include="..\..\src\util\optional.h" />
+    <ClInclude Include="..\..\src\util\StatusManager.h" />
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
