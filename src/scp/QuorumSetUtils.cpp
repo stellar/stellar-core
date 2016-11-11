@@ -43,6 +43,9 @@ bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
     if (depth > 2)
         return false;
 
+    if (qSet.threshold < 1)
+        return false;
+
     auto& v = qSet.validators;
     auto& i = qSet.innerSets;
 
@@ -50,34 +53,32 @@ bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
     size_t vBlockingSize = totEntries - qSet.threshold + 1;
     mCount += v.size();
 
-    // threshold is within the proper range
-    if (qSet.threshold >= 1 && qSet.threshold <= totEntries &&
-        (!mExtraChecks || qSet.threshold >= vBlockingSize))
-    {
-        for (auto const& n : v)
-        {
-            auto r = mKnownNodes.insert(n);
-            if (!r.second)
-            {
-                // n was already present
-                return false;
-            }
-        }
-
-        for (auto const& iSet : i)
-        {
-            if (!checkSanity(iSet, depth + 1))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-    else
-    {
+    if (qSet.threshold > totEntries)
         return false;
+
+    // threshold is within the proper range
+    if (mExtraChecks && qSet.threshold < vBlockingSize)
+        return false;
+
+    for (auto const& n : v)
+    {
+        auto r = mKnownNodes.insert(n);
+        if (!r.second)
+        {
+            // n was already present
+            return false;
+        }
     }
+
+    for (auto const& iSet : i)
+    {
+        if (!checkSanity(iSet, depth + 1))
+        {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 }
