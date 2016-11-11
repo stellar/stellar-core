@@ -18,6 +18,7 @@
 #include "util/make_unique.h"
 #include "lib/json/json.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "main/PersistentState.h"
 
 #include "medida/meter.h"
@@ -1216,7 +1217,10 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 void
 HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
-    mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    if (isQuorumSetSane(qset, false))
+    {
+        mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    }
 }
 
 void
