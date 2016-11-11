@@ -219,13 +219,7 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
 bool
 BallotProtocol::isStatementSane(SCPStatement const& st, bool self)
 {
-    bool res = isQuorumSetSane(
-        *mSlot.getQuorumSetFromStatement(st), false);
-    if (!res)
-    {
-        CLOG(DEBUG, "SCP") << "Invalid quorum set received";
-        return false;
-    }
+    auto res = true;
 
     switch (st.pledges.type())
     {
