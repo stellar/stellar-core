@@ -6,6 +6,7 @@
 
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
+#include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
 #include "util/Algoritm.h"
 
@@ -40,6 +41,28 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
             totalWeight += signerKey.weight;
             if (totalWeight >= neededWeight)
                 return true;
+        }
+    }
+
+    auto &hashXKeyWeights = signers[SIGNER_KEY_TYPE_HASH_X];
+    for (size_t i = 0; i < mSignatures.size(); i++)
+    {
+        auto x = std::string{mSignatures[i].signature.begin(), mSignatures[i].signature.end()};
+        auto hash = sha256(x);
+
+        for (auto it = hashXKeyWeights.begin(); it != hashXKeyWeights.end(); ++it)
+        {
+            auto &signerKey = *it;
+            if (signerKey.key.hashX() == hash)
+            {
+                mUsedSignatures[i] = true;
+                totalWeight += signerKey.weight;
+                if (totalWeight >= neededWeight)
+                    return true;
+
+                hashXKeyWeights.erase(it);
+                break;
+            }
         }
     }
 
