@@ -47,48 +47,6 @@ LocalNode::buildSingletonQSet(NodeID const& nodeID)
     return qSet;
 }
 
-bool
-LocalNode::isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
-                                   std::set<NodeID>& knownNodes,
-                                   bool extraChecks)
-{
-    auto& v = qSet.validators;
-    auto& i = qSet.innerSets;
-
-    size_t totEntries = v.size() + i.size();
-
-    size_t vBlockingSize = totEntries - qSet.threshold + 1;
-
-    // threshold is within the proper range
-    if (qSet.threshold >= 1 && qSet.threshold <= totEntries &&
-        (!extraChecks || qSet.threshold >= vBlockingSize))
-    {
-        for (auto const& n : v)
-        {
-            auto r = knownNodes.insert(n);
-            if (!r.second)
-            {
-                // n was already present
-                return false;
-            }
-        }
-
-        for (auto const& iSet : i)
-        {
-            if (!isQuorumSetSaneInternal(iSet, knownNodes, extraChecks))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-    else
-    {
-        return false;
-    }
-}
-
 void
 LocalNode::updateQuorumSet(SCPQuorumSet const& qSet)
 {
