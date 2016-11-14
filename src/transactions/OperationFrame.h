@@ -21,6 +21,7 @@ class Application;
 class LedgerManager;
 class LedgerDelta;
 
+class SignatureChecker;
 class TransactionFrame;
 
 class OperationFrame
@@ -31,7 +32,7 @@ class OperationFrame
     AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
-    bool checkSignature() const;
+    bool checkSignature(SignatureChecker& signatureChecker) const;
 
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(Application& app, LedgerDelta& delta,
@@ -75,9 +76,9 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(Application& app, LedgerDelta* delta = nullptr);
+    bool checkValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta = nullptr);
 
-    bool apply(LedgerDelta& delta, Application& app);
+    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta, Application& app);
 
     Operation const&
     getOperation() const
