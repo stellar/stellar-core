@@ -31,12 +31,6 @@ class LocalNode
 
     SCP* mSCP;
 
-    // returns true if quorum set is well formed
-    // updates knownNodes as it encounters new ones
-    static bool isQuorumSetSaneInternal(SCPQuorumSet const& qSet,
-                                        std::set<NodeID>& knownNodes,
-                                        bool extraChecks);
-
   public:
     LocalNode(SecretKey const& secretKey, bool isValidator,
               SCPQuorumSet const& qSet, SCP* scp);
