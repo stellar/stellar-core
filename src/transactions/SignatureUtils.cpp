@@ -5,6 +5,8 @@
 #include "transactions/SignatureUtils.h"
 
 #include "crypto/SecretKey.h"
+#include "crypto/SHA.h"
+#include "crypto/SignerKey.h"
 #include "xdr/Stellar-transaction.h"
 
 namespace stellar
@@ -22,6 +24,14 @@ sign(SecretKey const& secretKey, Hash const& hash)
     return result;
 }
 
+bool
+verify(DecoratedSignature const& sig, Signer const& signer, Hash const& hash)
+{
+    auto pubKey = KeyUtils::convertKey<PublicKey>(signer.key);
+    return PubKeyUtils::hasHint(pubKey, sig.hint)
+        && PubKeyUtils::verifySig(pubKey, sig.signature, hash);
+}
+
 DecoratedSignature
 signHashX(const ByteSlice &x)
 {
@@ -30,6 +40,14 @@ signHashX(const ByteSlice &x)
     std::memcpy(out.data(), x.data(), x.size());
     result.signature = out;
     return result;
+}
+
+bool
+verifyHashX(DecoratedSignature const& sig, Signer const& signer)
+{
+    auto x = std::string{sig.signature.begin(), sig.signature.end()};
+    auto hash = sha256(x);
+    return signer.key.hashX() == hash;
 }
 
 }

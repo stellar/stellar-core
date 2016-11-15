@@ -12,12 +12,16 @@ namespace stellar
 class ByteSlice;
 class SecretKey;
 struct DecoratedSignature;
+struct Signer;
 
 namespace SignatureUtils
 {
 
 DecoratedSignature sign(SecretKey const& secretKey, Hash const& hash);
+bool verify(DecoratedSignature const& sig, Signer const& signer, Hash const& hash);
+
 DecoratedSignature signHashX(const ByteSlice &x);
+bool verifyHashX(DecoratedSignature const& sig, Signer const& signer);
 
 }
 
