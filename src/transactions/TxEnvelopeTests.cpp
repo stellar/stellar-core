@@ -210,590 +210,336 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
         SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
-        SECTION("hash tx")
+        struct AltSignature
         {
-            SECTION("protocol version 2")
-            {
-                app.getLedgerManager().setCurrentLedgerVersion(2);
+            std::string name;
+            bool removeAfterSucces;
+            std::function<SignerKey(TransactionFrame const&)> createSigner;
+            std::function<void(TransactionFrame &)> sign;
+        };
 
-                TransactionFramePtr tx =
-                    createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-                tx->getEnvelope().signatures.clear();
-
-                SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                Signer sk1(sk, 1);
-                applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                nullptr, SET_OPTIONS_BAD_SIGNER);
+        auto x = randomBytes(32);
+        auto alternatives = std::vector<AltSignature>{
+            AltSignature{
+                "hash tx",
+                true,
+                [](TransactionFrame const& tx){ return SignerKeyUtils::hashTxKey(tx); },
+                [](TransactionFrame &){}
+            },
+            AltSignature{
+                "hash x",
+                false,
+                [x](TransactionFrame const&){ return SignerKeyUtils::hashXKey(x); },
+                [x](TransactionFrame & tx){ tx.addSignature(SignatureUtils::signHashX(x)); }
             }
+        };
 
-            SECTION("protocol version 3")
-            {
-                app.getLedgerManager().setCurrentLedgerVersion(3);
-
-                SECTION("single signature")
-                {
-                    SECTION("invalid seq nr")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq, 1000);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_SEQ);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-
-                    SECTION("invalid signature")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        sk.hashTx()[0] ^= 0x01;
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-
-                    SECTION("too many signatures (signed by owner)")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-
-                    SECTION("success")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                        REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                    }
-
-                    SECTION("merge signing account")
-                    {
-                        SecretKey b1 = getAccount("B");
-                        applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
-                        SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
-
-                        applyPaymentTx(app, a1, b1, a1Seq++, 1000);
-
-                        TransactionFramePtr tx =
-                            createAccountMerge(networkID, b1, a1, b1Seq + 1);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, b1, b1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                        REQUIRE(getAccountSigners(b1, app).size() == 1);
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                        REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                ACCOUNT_MERGE_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                        REQUIRE(!loadAccount(b1, app, false));
-                    }
-
-                    SECTION("failing transaction")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, -1);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == stellar::txFAILED);
-                        REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                stellar::PAYMENT_MALFORMED);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-                }
-
-                SECTION("multisig")
-                {
-                    SecretKey s1 = getAccount("S1");
-                    Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
-
-                    ThresholdSetter th;
-
-                    th.masterWeight = make_optional<uint8_t>(100);
-                    th.lowThreshold = make_optional<uint8_t>(10);
-                    th.medThreshold = make_optional<uint8_t>(50);
-                    th.highThreshold = make_optional<uint8_t>(100);
-
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1,
-                                    nullptr);
-
-                    SECTION("not enough rights (envelope)")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 5); // below low rights
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                    }
-
-                    SECTION("not enough rights (operation)")
-                    {
-                        // updating thresholds requires high
-                        TransactionFramePtr tx =
-                            createSetOptions(networkID, a1, a1Seq + 1, nullptr, nullptr,
-                                            nullptr, &th, nullptr, nullptr);
-                        tx->getEnvelope().signatures.clear();
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 95);  // med rights account
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txFAILED);
-                        REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                    }
-
-                    SECTION("success signature + hash tx")
-                    {
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
-
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(s1);
-
-                        SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                        Signer sk1(sk, 5); // below low rights
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                        REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-                }
-
-                SECTION("hash tx in op source account signers")
-                {
-                    Operation op = createPaymentOp(&a1, root, 100);
-                    TransactionFramePtr tx =
-                        transactionFromOperation(networkID, root, rootSeq + 1, op);
-                    tx->getEnvelope().signatures.clear();
-
-                    SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                    Signer sk1(sk, 1);
-                    applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-
-                    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                    app.getDatabase());
-
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    applyCheck(tx, delta, app);
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                            PAYMENT_SUCCESS);
-                    REQUIRE(getAccountSigners(root, app).size() == 0);
-                    REQUIRE(getAccountSigners(a1, app).size() == 0);
-                }
-
-                SECTION("hash tx in multiple ops source account signers")
-                {
-                    Operation op = createPaymentOp(&a1, root, 100);
-                    TransactionFramePtr tx =
-                        transactionFromOperations(networkID, root, rootSeq + 1, {op, op});
-                    tx->getEnvelope().signatures.clear();
-
-                    SignerKey sk = SignerKeyUtils::hashTxKey(*tx);
-                    Signer sk1(sk, 1);
-                    applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-
-                    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                    app.getDatabase());
-
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    applyCheck(tx, delta, app);
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                            PAYMENT_SUCCESS);
-                    REQUIRE(getAccountSigners(root, app).size() == 0);
-                    REQUIRE(getAccountSigners(a1, app).size() == 0);
-                }
-            }
-        }
-
-        SECTION("hash x")
+        for (auto const& alternative : alternatives)
         {
-            auto x = randomBytes(32);
-
-            SECTION("protocol version 2")
+            SECTION(alternative.name)
             {
-                app.getLedgerManager().setCurrentLedgerVersion(2);
-
-                SignerKey sk = SignerKeyUtils::hashXKey(x);
-                Signer sk1(sk, 1);
-                applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                nullptr, SET_OPTIONS_BAD_SIGNER);
-            }
-
-            SECTION("protocol version 3")
-            {
-                app.getLedgerManager().setCurrentLedgerVersion(3);
-
-                SECTION("single signature")
+                SECTION("protocol version 2")
                 {
+                    app.getLedgerManager().setCurrentLedgerVersion(2);
 
-                    SECTION("invalid signature")
+                    TransactionFramePtr tx =
+                        createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+                    tx->getEnvelope().signatures.clear();
+
+                    SignerKey sk = alternative.createSigner(*tx);
+                    Signer sk1(sk, 1);
+                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                    nullptr, SET_OPTIONS_BAD_SIGNER);
+                }
+
+                SECTION("protocol version 3")
+                {
+                    app.getLedgerManager().setCurrentLedgerVersion(3);
+
+                    SECTION("single signature")
                     {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        sk.hashX()[0] ^= 0x01;
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
+                        SECTION("invalid seq nr")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq, 1000);
+                            tx->getEnvelope().signatures.clear();
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
 
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, 1000);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
 
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        }
+
+                        SECTION("invalid signature")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+                            tx->getEnvelope().signatures.clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            KeyFunctions<SignerKey>::getKeyValue(sk)[0] ^= 0x01;
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        }
+
+                        SECTION("too many signatures (signed by owner)")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        }
+
+                        SECTION("success")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+                            tx->getEnvelope().signatures.clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                                    PAYMENT_SUCCESS);
+                            REQUIRE(getAccountSigners(a1, app).size() == (alternative.removeAfterSucces ? 0 : 1));
+                        }
+
+                        SECTION("merge signing account")
+                        {
+                            SecretKey b1 = getAccount("B");
+                            applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
+                            SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+
+                            applyPaymentTx(app, a1, b1, a1Seq++, 1000);
+
+                            TransactionFramePtr tx =
+                                createAccountMerge(networkID, b1, a1, b1Seq + 1);
+                            tx->getEnvelope().signatures.clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, b1, b1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 0);
+                            REQUIRE(getAccountSigners(b1, app).size() == 1);
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                                    ACCOUNT_MERGE_SUCCESS);
+                            REQUIRE(getAccountSigners(a1, app).size() == 0);
+                            REQUIRE(!loadAccount(b1, app, false));
+                        }
+
+                        SECTION("failing transaction")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, -1);
+                            tx->getEnvelope().signatures.clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 1);
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == stellar::txFAILED);
+                            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                                    stellar::PAYMENT_MALFORMED);
+                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        }
                     }
 
-                    SECTION("too many signatures (signed by owner)")
+                    SECTION("multisig")
                     {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        Signer sk1(sk, 1);
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                        SecretKey s1 = getAccount("S1");
+                        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
+
+                        ThresholdSetter th;
+
+                        th.masterWeight = make_optional<uint8_t>(100);
+                        th.lowThreshold = make_optional<uint8_t>(10);
+                        th.medThreshold = make_optional<uint8_t>(50);
+                        th.highThreshold = make_optional<uint8_t>(100);
+
+                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1,
                                         nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
+                        SECTION("not enough rights (envelope)")
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+                            tx->getEnvelope().signatures.clear();
 
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, 1000);
-                        tx->addSignature(SignatureUtils::signHashX(x));
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 5); // below low rights
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
 
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        }
+
+                        SECTION("not enough rights (operation)")
+                        {
+                            // updating thresholds requires high
+                            TransactionFramePtr tx =
+                                createSetOptions(networkID, a1, a1Seq + 1, nullptr, nullptr,
+                                                nullptr, &th, nullptr, nullptr);
+                            tx->getEnvelope().signatures.clear();
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 95);  // med rights account
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txFAILED);
+                            REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        }
+
+                        SECTION("success signature + " + alternative.name)
+                        {
+                            TransactionFramePtr tx =
+                                createPaymentTx(networkID, a1, root, a1Seq + 1, 1000);
+
+                            tx->getEnvelope().signatures.clear();
+                            tx->addSignature(s1);
+
+                            SignerKey sk = alternative.createSigner(*tx);
+                            Signer sk1(sk, 5); // below low rights
+                            applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                            nullptr);
+
+                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                            app.getDatabase());
+
+                            alternative.sign(*tx);
+                            applyCheck(tx, delta, app);
+                            REQUIRE(tx->getResultCode() == txSUCCESS);
+                            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                                    PAYMENT_SUCCESS);
+                            REQUIRE(getAccountSigners(a1, app).size() == (alternative.removeAfterSucces ? 1 : 2));
+                        }
                     }
 
-                    SECTION("success")
+                    SECTION(alternative.name + " in op source account signers")
                     {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
+                        Operation op = createPaymentOp(&a1, root, 100);
+                        TransactionFramePtr tx =
+                            transactionFromOperation(networkID, root, rootSeq + 1, op);
+                        tx->getEnvelope().signatures.clear();
+
+                        SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
+                        applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                                        nullptr);
                         applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
                                         nullptr);
 
                         LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
+                                          app.getDatabase());
 
+                        REQUIRE(getAccountSigners(root, app).size() == 1);
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, 1000);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
+                        alternative.sign(*tx);
                         applyCheck(tx, delta, app);
-
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                                 PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(root, app).size() == (alternative.removeAfterSucces ? 0 : 1));
+                        REQUIRE(getAccountSigners(a1, app).size() == (alternative.removeAfterSucces ? 0 : 1));
                     }
 
-                    SECTION("merge signing account")
+                    SECTION(alternative.name + " in multiple ops source account signers")
                     {
-                        SecretKey b1 = getAccount("B");
-                        applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
-                        SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+                        Operation op = createPaymentOp(&a1, root, 100);
+                        TransactionFramePtr tx =
+                            transactionFromOperations(networkID, root, rootSeq + 1, {op, op});
+                        tx->getEnvelope().signatures.clear();
 
-                        applyPaymentTx(app, a1, b1, a1Seq++, 1000);
-
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
+                        SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        applySetOptions(app, b1, b1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
+                        applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
                                         nullptr);
-
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                        REQUIRE(getAccountSigners(b1, app).size() == 1);
-
-                        TransactionFramePtr tx =
-                            createAccountMerge(networkID, b1, a1, b1Seq++);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
-                        applyCheck(tx, delta, app);
-
-                        REQUIRE(tx->getResultCode() == txSUCCESS);
-                        REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                ACCOUNT_MERGE_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                        REQUIRE(!loadAccount(b1, app, false));
-                    }
-
-                    SECTION("failing transaction")
-                    {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        Signer sk1(sk, 1);
                         applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
                                         nullptr);
 
                         LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                                         app.getDatabase());
 
+                        REQUIRE(getAccountSigners(root, app).size() == 1);
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, -1);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == stellar::txFAILED);
-                        REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                                stellar::PAYMENT_MALFORMED);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
-                    }
-                }
-
-                SECTION("multisig")
-                {
-                    SecretKey s1 = getAccount("S1");
-                    Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
-
-                    ThresholdSetter th;
-
-                    th.masterWeight = make_optional<uint8_t>(100);
-                    th.lowThreshold = make_optional<uint8_t>(10);
-                    th.medThreshold = make_optional<uint8_t>(50);
-                    th.highThreshold = make_optional<uint8_t>(100);
-
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1,
-                                    nullptr);
-
-                    SECTION("not enough rights (envelope)")
-                    {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        Signer sk1(sk, 5); // below low rights
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, 1000);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                    }
-
-                    SECTION("not enough rights (operation)")
-                    {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        Signer sk1(sk, 95);  // med rights account
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        // updating thresholds requires high
-                        TransactionFramePtr tx =
-                            createSetOptions(networkID, a1, a1Seq++, nullptr, nullptr,
-                                            nullptr, &th, nullptr, nullptr);
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
-                        applyCheck(tx, delta, app);
-                        REQUIRE(tx->getResultCode() == txFAILED);
-                        REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                    }
-
-                    SECTION("success signature + hash tx")
-                    {
-                        SignerKey sk = SignerKeyUtils::hashXKey(x);
-                        Signer sk1(sk, 5); // below low rights
-                        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                        nullptr);
-
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                        app.getDatabase());
-
-                        TransactionFramePtr tx =
-                            createPaymentTx(networkID, a1, root, a1Seq++, 1000);
-
-                        tx->getEnvelope().signatures.clear();
-                        tx->addSignature(s1);
-                        tx->addSignature(SignatureUtils::signHashX(x));
-
+                        alternative.sign(*tx);
                         applyCheck(tx, delta, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                                 PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        REQUIRE(getAccountSigners(root, app).size() == (alternative.removeAfterSucces ? 0 : 1));
+                        REQUIRE(getAccountSigners(a1, app).size() == (alternative.removeAfterSucces ? 0 : 1));
                     }
-                }
-
-                SECTION("hash x in op source account signers")
-                {
-                    SignerKey sk = SignerKeyUtils::hashXKey(x);
-                    Signer sk1(sk, 1);
-                    applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-
-                    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                    app.getDatabase());
-
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
-
-                    Operation op = createPaymentOp(&a1, root, 100);
-                    TransactionFramePtr tx =
-                        transactionFromOperation(networkID, root, rootSeq++, op);
-                    tx->getEnvelope().signatures.clear();
-                    tx->addSignature(SignatureUtils::signHashX(x));
-
-                    applyCheck(tx, delta, app);
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                            PAYMENT_SUCCESS);
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
-                }
-
-                SECTION("hash x in multiple ops source account signers")
-                {
-                    SignerKey sk = SignerKeyUtils::hashXKey(x);
-                    Signer sk1(sk, 1);
-                    applySetOptions(app, root, rootSeq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-
-                    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                    app.getDatabase());
-
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
-
-                    Operation op = createPaymentOp(&a1, root, 100);
-                    TransactionFramePtr tx =
-                        transactionFromOperations(networkID, root, rootSeq++, {op, op});
-                    tx->getEnvelope().signatures.clear();
-                    tx->addSignature(SignatureUtils::signHashX(x));
-
-                    applyCheck(tx, delta, app);
-                    REQUIRE(tx->getResultCode() == txSUCCESS);
-                    REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                            PAYMENT_SUCCESS);
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
                 }
             }
         }
