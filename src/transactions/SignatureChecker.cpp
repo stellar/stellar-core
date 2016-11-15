@@ -8,6 +8,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
+#include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 
 namespace stellar
@@ -44,50 +45,45 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
         }
     }
 
-    auto &hashXKeyWeights = signers[SIGNER_KEY_TYPE_HASH_X];
-    for (size_t i = 0; i < mSignatures.size(); i++)
-    {
-        auto x = std::string{mSignatures[i].signature.begin(), mSignatures[i].signature.end()};
-        auto hash = sha256(x);
-
-        for (auto it = hashXKeyWeights.begin(); it != hashXKeyWeights.end(); ++it)
+    using VerifyT = std::function<bool(DecoratedSignature const&, Signer const&)>;
+    auto verifyAll = [&](std::vector<Signer> &signers, VerifyT verify){
+        for (size_t i = 0; i < mSignatures.size(); i++)
         {
-            auto &signerKey = *it;
-            if (signerKey.key.hashX() == hash)
-            {
-                mUsedSignatures[i] = true;
-                totalWeight += signerKey.weight;
-                if (totalWeight >= neededWeight)
-                    return true;
+            auto const& sig = mSignatures[i];
 
-                hashXKeyWeights.erase(it);
-                break;
+            for (auto it = signers.begin(); it != signers.end(); ++it)
+            {
+                auto &signerKey = *it;
+                if (verify(sig, signerKey))
+                {
+                    mUsedSignatures[i] = true;
+                    totalWeight += signerKey.weight;
+                    if (totalWeight >= neededWeight)
+                        return true;
+
+                    signers.erase(it);
+                    break;
+                }
             }
         }
+
+        return false;
+    };
+
+    auto verified = verifyAll(signers[SIGNER_KEY_TYPE_HASH_X], [&](DecoratedSignature const& sig, Signer const& signerKey){
+        return SignatureUtils::verifyHashX(sig, signerKey);
+    });
+    if (verified)
+    {
+        return true;
     }
 
-    auto &accountKeyWeights = signers[SIGNER_KEY_TYPE_ED25519];
-    for (size_t i = 0; i < mSignatures.size(); i++)
+    verified = verifyAll(signers[SIGNER_KEY_TYPE_ED25519], [&](DecoratedSignature const& sig, Signer const& signerKey){
+        return SignatureUtils::verify(sig, signerKey, mContentsHash);
+    });
+    if (verified)
     {
-        auto const& sig = mSignatures[i];
-
-        for (auto it = accountKeyWeights.begin(); it != accountKeyWeights.end(); ++it)
-        {
-            auto &signerKey = *it;
-            auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey.key);
-            if (PubKeyUtils::hasHint(pubKey, sig.hint) &&
-                PubKeyUtils::verifySig(pubKey, sig.signature,
-                                       mContentsHash))
-            {
-                mUsedSignatures[i] = true;
-                totalWeight += signerKey.weight;
-                if (totalWeight >= neededWeight)
-                    return true;
-
-                accountKeyWeights.erase(it);
-                break;
-            }
-        }
+        return true;
     }
 
     return false;
