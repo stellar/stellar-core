@@ -71,7 +71,7 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
     };
 
     auto verified = verifyAll(signers[SIGNER_KEY_TYPE_HASH_X], [&](DecoratedSignature const& sig, Signer const& signerKey){
-        return SignatureUtils::verifyHashX(sig, signerKey);
+        return SignatureUtils::verifyHashX(sig, signerKey.key);
     });
     if (verified)
     {
@@ -79,7 +79,7 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
     }
 
     verified = verifyAll(signers[SIGNER_KEY_TYPE_ED25519], [&](DecoratedSignature const& sig, Signer const& signerKey){
-        return SignatureUtils::verify(sig, signerKey, mContentsHash);
+        return SignatureUtils::verify(sig, signerKey.key, mContentsHash);
     });
     if (verified)
     {
