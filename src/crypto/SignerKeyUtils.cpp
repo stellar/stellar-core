@@ -4,6 +4,7 @@
 
 #include "crypto/SignerKeyUtils.h"
 
+#include "crypto/SHA.h"
 #include "transactions/TransactionFrame.h"
 
 namespace stellar
@@ -18,6 +19,15 @@ hashTxKey(TransactionFrame const &tx)
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_HASH_TX);
     sk.hashTx() = tx.getContentsHash();
+    return sk;
+}
+
+SignerKey
+hashXKey(ByteSlice const &bs)
+{
+    SignerKey sk;
+    sk.type(SIGNER_KEY_TYPE_HASH_X);
+    sk.hashX() = sha256(bs);
     return sk;
 }
 
