@@ -136,6 +136,7 @@ class TransactionFrame
     double getFeeRatio(LedgerManager const& lm) const;
 
     void addSignature(SecretKey const& secretKey);
+    void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker, AccountFrame& account, int32_t neededWeight);
 
