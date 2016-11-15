@@ -18,6 +18,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
 #include "transactions/SignatureChecker.h"
+#include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 
 #include "medida/meter.h"
@@ -125,10 +126,14 @@ void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
     clearCached();
-    DecoratedSignature sig;
-    sig.signature = secretKey.sign(getContentsHash());
-    sig.hint = PubKeyUtils::getHint(secretKey.getPublicKey());
-    mEnvelope.signatures.push_back(sig);
+    auto sig = SignatureUtils::sign(secretKey, getContentsHash());
+    addSignature(sig);
+}
+
+void
+TransactionFrame::addSignature(DecoratedSignature const& signature)
+{
+    mEnvelope.signatures.push_back(signature);
 }
 
 bool
