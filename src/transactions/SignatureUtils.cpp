@@ -51,6 +51,25 @@ verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
     return signerKey.hashX() == hash;
 }
 
+SignatureHint getHint(ByteSlice const& bs)
+{
+    SignatureHint res;
+    memcpy(res.data(), bs.end() - res.size(), res.size());
+    return res;
+}
+
+bool
+hasHint(ByteSlice const& bs, SignatureHint const& hint)
+{
+    if (bs.size() < hint.size())
+    {
+        return false;
+    }
+
+    return memcmp(bs.end() - hint.size(), hint.data(),
+                  hint.size()) == 0;
+}
+
 }
 
 }
