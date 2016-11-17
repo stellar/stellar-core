@@ -28,8 +28,10 @@ bool
 verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    return PubKeyUtils::hasHint(pubKey, sig.hint)
-        && PubKeyUtils::verifySig(pubKey, sig.signature, hash);
+    if (!PubKeyUtils::hasHint(pubKey, sig.hint))
+        return false;
+
+    return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
 }
 
 DecoratedSignature
@@ -40,12 +42,16 @@ signHashX(const ByteSlice &x)
     out.resize(x.size());
     std::memcpy(out.data(), x.data(), x.size());
     result.signature = out;
+    result.hint = getHint(sha256(x));
     return result;
 }
 
 bool
 verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
 {
+    if (!hasHint(signerKey.hashX(), sig.hint))
+        return false;
+
     auto x = std::string{sig.signature.begin(), sig.signature.end()};
     auto hash = sha256(x);
     return signerKey.hashX() == hash;
