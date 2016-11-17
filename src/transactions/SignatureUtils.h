@@ -23,6 +23,9 @@ bool verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash cons
 DecoratedSignature signHashX(const ByteSlice &x);
 bool verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey);
 
+SignatureHint getHint(ByteSlice const& bs);
+bool hasHint(ByteSlice const& bs, SignatureHint const& hint);
+
 }
 
 }
