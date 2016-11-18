@@ -16,88 +16,18 @@
 
 namespace medida
 {
-class Counter;
+    class Counter;
 }
 
 namespace stellar
 {
+
+class Tracker;
 class TxSetFrame;
 struct SCPQuorumSet;
 using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
 using AskPeer = std::function<void(Peer::pointer, Hash)>;
-
-/**
- * @class Tracker
- *
- * Asks peers for given data set. If a peer does not have given data set,
- * asks another one. If no peer does have given data set, it starts again
- * with new set of peers (possibly overlapping, as peers may learned about
- * this data set in meantime).
- *
- * For asking a AskPeer delegate is used.
- *
- * Tracker keeps list of envelopes that requires given data set to be
- * fully resolved. When data is received each envelope is resend to Herder
- * so it can check if it has all required data and then process envelope.
- * @see listen(Peer::pointer) is used to add envelopes to that list.
- */
-class Tracker
-{
-  private:
-    AskPeer mAskPeer;
-
-  protected:
-    friend class ItemFetcher;
-    Application& mApp;
-    Peer::pointer mLastAskedPeer;
-    int mNumListRebuild;
-    std::deque<Peer::pointer> mPeersToAsk;
-    VirtualTimer mTimer;
-    std::vector<std::pair<Hash, SCPEnvelope>> mWaitingEnvelopes;
-    Hash mItemHash;
-    medida::Meter& mTryNextPeerReset;
-    medida::Meter& mTryNextPeer;
-
-    /**
-     * Called periodically to remove old envelopes from list (with ledger id
-     * below some @p slotIndex).
-     *
-     * Returns true if at least one envelope remained in list.
-     */
-    bool clearEnvelopesBelow(uint64 slotIndex);
-
-    /**
-     * Add @p env to list of envelopes that will be resend to Herder when data
-     * is received.
-     */
-    void listen(const SCPEnvelope& env);
-
-    /**
-     * Called when given @p peer informs that it does not have given data.
-     * Next peer will be tried if available.
-     */
-    void doesntHave(Peer::pointer peer);
-
-    /**
-     * Called either when @see doesntHave(Peer::pointer) was received or
-     * request to peer timed out.
-     */
-    void tryNextPeer();
-
-  public:
-    /**
-     * Create Tracker that tracks data identified by @p hash. @p askPeer
-     * delegate is used to fetch the data.
-     */
-    explicit Tracker(Application& app, Hash const& hash, AskPeer &askPeer);
-    virtual ~Tracker();
-
-    /**
-     * Return true if any data is
-     */
-    bool hasWaitingEnvelopes() const { return mWaitingEnvelopes.size() > 0; }
-};
 
 /**
  * @class ItemFetcher
