@@ -40,73 +40,83 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         Tracker t{*app, hash, nullAskPeer};
         REQUIRE(t.size() == 0);
         REQUIRE(t.empty());
+        REQUIRE(t.getLastSeenSlotIndex() == 0);
     }
 
     SECTION("can listen on envelope")
     {
         Tracker t{*app, hash, nullAskPeer};
-        auto env0 = makeEnvelope(0);
-        t.listen(env0);
+        auto env1 = makeEnvelope(1);
+        t.listen(env1);
 
         REQUIRE(t.size() == 1);
         REQUIRE(!t.empty());
-        REQUIRE(env0 == t.pop());
+        REQUIRE(t.getLastSeenSlotIndex() == 1);
+        REQUIRE(env1 == t.pop());
         REQUIRE(t.size() == 0);
         REQUIRE(t.empty());
+        REQUIRE(t.getLastSeenSlotIndex() == 1);
+        t.resetLastSeenSlotIndex();
+        REQUIRE(t.getLastSeenSlotIndex() == 0);
     }
 
     SECTION("can listen twice on the same envelope")
     {
         Tracker t{*app, hash, nullAskPeer};
-        auto env0 = makeEnvelope(0);
-        t.listen(env0);
-        t.listen(env0);
+        auto env1 = makeEnvelope(1);
+        t.listen(env1);
+        t.listen(env1);
+        REQUIRE(t.getLastSeenSlotIndex() == 1);
 
-        REQUIRE(env0 == t.pop());
-        REQUIRE(env0 == t.pop());
+        REQUIRE(env1 == t.pop());
+        REQUIRE(env1 == t.pop());
     }
 
     SECTION("can listen on different envelopes")
     {
         Tracker t{*app, hash, nullAskPeer};
-        auto env0 = makeEnvelope(0);
         auto env1 = makeEnvelope(1);
-        t.listen(env0);
+        auto env2 = makeEnvelope(2);
         t.listen(env1);
+        REQUIRE(t.getLastSeenSlotIndex() == 1);
+        t.listen(env2);
+        REQUIRE(t.getLastSeenSlotIndex() == 2);
 
+        REQUIRE(env2 == t.pop());
         REQUIRE(env1 == t.pop());
-        REQUIRE(env0 == t.pop());
     }
 
     SECTION("properly removes old envelopes")
     {
         Tracker t{*app, hash, nullAskPeer};
-        auto env0 = makeEnvelope(0);
         auto env1 = makeEnvelope(1);
         auto env2 = makeEnvelope(2);
         auto env3 = makeEnvelope(3);
         auto env4 = makeEnvelope(4);
-        t.listen(env4);
-        t.listen(env2);
-        t.listen(env0);
-        t.listen(env1);
+        auto env5 = makeEnvelope(5);
+        t.listen(env5);
         t.listen(env3);
+        t.listen(env1);
+        t.listen(env2);
+        t.listen(env4);
 
         REQUIRE(t.size() == 5);
-        REQUIRE(t.clearEnvelopesBelow(3));
-        REQUIRE(t.size() == 2);
-        REQUIRE(env3 == t.pop());
-        REQUIRE(env4 == t.pop());
+        REQUIRE(t.getLastSeenSlotIndex() == 5);
 
-        t.listen(env4);
-        t.listen(env2);
-        t.listen(env0);
-        t.listen(env1);
-        t.listen(env3);
-        REQUIRE(t.size() == 5);
-        REQUIRE(!t.clearEnvelopesBelow(6));
-        REQUIRE(t.empty());
+        SECTION("properly removes some old envelopes")
+        {
+            REQUIRE(t.clearEnvelopesBelow(4));
+            REQUIRE(t.size() == 2);
+            REQUIRE(env4 == t.pop());
+            REQUIRE(env5 == t.pop());
+        }
 
+
+        SECTION("properly removes all old envelopes")
+        {
+            REQUIRE(!t.clearEnvelopesBelow(6));
+            REQUIRE(t.empty());
+        }
     }
 }
 
