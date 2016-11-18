@@ -115,6 +115,7 @@ HerderImpl::HerderImpl(Application& app)
 {
     Hash hash = mSCP.getLocalNode()->getQuorumSetHash();
     mPendingEnvelopes.addSCPQuorumSet(hash,
+                                      0,
                                       mSCP.getLocalNode()->getQuorumSet());
 }
 
@@ -1316,14 +1317,14 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     auto txSetHash = proposedSet->getContentsHash();
 
-    // Inform the item fetcher so queries from other peers about his txSet
-    // can be answered. Note this can trigger SCP callbacks, externalize, etc
-    // if we happen to build a txset that we were trying to download.
-    mPendingEnvelopes.addTxSet(txSetHash, proposedSet);
-
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint32_t slotIndex = lcl.header.ledgerSeq + 1;
+
+    // Inform the item fetcher so queries from other peers about his txSet
+    // can be answered. Note this can trigger SCP callbacks, externalize, etc
+    // if we happen to build a txset that we were trying to download.
+    mPendingEnvelopes.addTxSet(txSetHash, slotIndex, proposedSet);
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
@@ -1577,12 +1578,12 @@ HerderImpl::restoreSCPState()
             TxSetFramePtr cur =
                 make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
             Hash h = cur->getContentsHash();
-            mPendingEnvelopes.addTxSet(h, cur);
+            mPendingEnvelopes.addTxSet(h, 0, cur);
         }
         for (auto const& qset : latestQSets)
         {
             Hash hash = sha256(xdr::xdr_to_opaque(qset));
-            mPendingEnvelopes.addSCPQuorumSet(hash, qset);
+            mPendingEnvelopes.addSCPQuorumSet(hash, 0, qset);
         }
         for (auto const& e : latestEnvs)
         {
