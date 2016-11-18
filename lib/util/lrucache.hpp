@@ -86,6 +86,19 @@ namespace cache {
             }
         }
 
+        template<typename F>
+        void erase_if(const F &f) {
+            for (auto it = std::begin(_cache_items_map); it != std::end(_cache_items_map);) {
+                if (f(it->second->second)) {
+                    _cache_items_list.erase(it->second);
+                    it = _cache_items_map.erase(it);
+                }
+                else {
+                    ++it;
+                }
+            }
+        }
+
         void clear() {
             _cache_items_map.clear();
             _cache_items_list.clear();
