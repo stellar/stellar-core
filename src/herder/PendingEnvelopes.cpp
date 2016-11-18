@@ -54,12 +54,12 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 }
 
 void
-PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex, const SCPQuorumSet& q)
 {
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
-    mQsetCache.put(hash, qset);
+    mQsetCache.put(hash, std::make_pair(lastSeenSlotIndex, qset));
     mQuorumSetFetcher.recv(hash);
 }
 
@@ -68,18 +68,19 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
-    if (mQuorumSetFetcher.getLastSeenSlotIndex(hash) > 0)
+    auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
+    if (lastSeenSlotIndex > 0)
     {
-        addSCPQuorumSet(hash, q);
+        addSCPQuorumSet(hash, lastSeenSlotIndex, q);
     }
 }
 
 void
-PendingEnvelopes::addTxSet(Hash hash, TxSetFramePtr txset)
+PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
-    mTxSetCache.put(hash, txset);
+    mTxSetCache.put(hash, std::make_pair(lastSeenSlotIndex, txset));
     mTxSetFetcher.recv(hash);
 }
 
@@ -88,9 +89,10 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
-    if (mTxSetFetcher.getLastSeenSlotIndex(hash) > 0)
+    auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
+    if (lastSeenSlotIndex > 0)
     {
-        addTxSet(hash, txset);
+        addTxSet(hash, lastSeenSlotIndex, txset);
     }
 }
 
@@ -339,7 +341,7 @@ PendingEnvelopes::getTxSet(Hash const& hash)
 {
     if (mTxSetCache.exists(hash))
     {
-        return mTxSetCache.get(hash);
+        return mTxSetCache.get(hash).second;
     }
 
     return TxSetFramePtr();
@@ -350,7 +352,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
 {
     if (mQsetCache.exists(hash))
     {
-        return mQsetCache.get(hash);
+        return mQsetCache.get(hash).second;
     }
 
     return SCPQuorumSetPtr();
