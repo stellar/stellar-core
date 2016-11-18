@@ -46,16 +46,16 @@ ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
     }
 }
 
-bool
-ItemFetcher::isFetching(Hash itemHash) const
+uint64
+ItemFetcher::getLastSeenSlotIndex(Hash itemHash) const
 {
     auto iter = mTrackers.find(itemHash);
     if (iter == mTrackers.end())
     {
-        return false;
+        return 0;
     }
 
-    return !iter->second->empty();
+    return iter->second->getLastSeenSlotIndex();
 }
 
 void

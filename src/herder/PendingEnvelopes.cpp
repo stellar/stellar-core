@@ -68,7 +68,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
-    if (mQuorumSetFetcher.isFetching(hash))
+    if (mQuorumSetFetcher.getLastSeenSlotIndex(hash) > 0)
     {
         addSCPQuorumSet(hash, q);
     }
@@ -88,7 +88,7 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
-    if (mTxSetFetcher.isFetching(hash))
+    if (mTxSetFetcher.getLastSeenSlotIndex(hash) > 0)
     {
         addTxSet(hash, txset);
     }

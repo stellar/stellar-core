@@ -55,9 +55,10 @@ class ItemFetcher : private NonMovableOrCopyable
     void fetch(Hash itemHash, const SCPEnvelope& envelope);
 
     /**
-     * Check if data identified by @p hash is currently being fetched.
+     * Return biggest slot index seen for given hash. If 0, then given hash
+     * is not being fetched.
      */
-    bool isFetching(Hash itemHash) const;
+    uint64 getLastSeenSlotIndex(Hash itemHash) const;
 
     /**
      * Called periodically to remove old envelopes from list (with ledger id
