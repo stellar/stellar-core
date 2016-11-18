@@ -117,7 +117,8 @@ ItemFetcher::recv(Hash itemHash)
             mApp.getHerder().recvSCPEnvelope(tracker->pop());
         }
         // stop the timer, stop requesting the item as we have it
-        iter->second->cancel();
+        tracker->resetLastSeenSlotIndex();
+        tracker->cancel();
     }
 }
 

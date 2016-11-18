@@ -48,6 +48,7 @@ class Tracker
     Hash mItemHash;
     medida::Meter& mTryNextPeerReset;
     medida::Meter& mTryNextPeer;
+    uint64 mLastSeenSlotIndex {0};
 
   public:
     /**
@@ -102,6 +103,16 @@ class Tracker
      * request to peer timed out.
      */
     void tryNextPeer();
+
+    /**
+     * Return biggest slot index seen since last reset.
+     */
+    uint64 getLastSeenSlotIndex() const { return mLastSeenSlotIndex; }
+
+    /**
+     * Reset value of biggest slot index seen.
+     */
+    void resetLastSeenSlotIndex() { mLastSeenSlotIndex = 0; }
 
 };
 
