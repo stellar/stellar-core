@@ -315,6 +315,11 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
         else
             break;
     }
+
+    // 0 is special mark for data that we do not know the slot index
+    // it is used for state loaded from database
+    mQsetCache.erase_if([&](SCPQuorumSetCacheItem const &i){ return i.first != 0 && i.first < slotIndex; });
+    mTxSetCache.erase_if([&](TxSetFramCacheItem const &i){ return i.first != 0 && i.first < slotIndex; });
 }
 
 void
@@ -333,6 +338,9 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
 
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
         mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
+
+        mQsetCache.erase_if([&](SCPQuorumSetCacheItem const &i){ return i.first == slotIndex; });
+        mTxSetCache.erase_if([&](TxSetFramCacheItem const &i){ return i.first == slotIndex; });
     }
 }
 
