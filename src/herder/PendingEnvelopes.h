@@ -35,14 +35,16 @@ class PendingEnvelopes
     // ledger# and list of envelopes that haven't been sent to SCP yet
     std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
 
+    using SCPQuorumSetCacheItem = std::pair<uint64, SCPQuorumSetPtr>;
     // all the quorum sets we have learned about
-    cache::lru_cache<Hash, std::pair<uint64, SCPQuorumSetPtr>> mQsetCache;
+    cache::lru_cache<Hash, SCPQuorumSetCacheItem> mQsetCache;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
+    using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
     // all the txsets we have learned about per ledger#
-    cache::lru_cache<Hash, std::pair<uint64, TxSetFramePtr>> mTxSetCache;
+    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
 
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
