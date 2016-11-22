@@ -347,10 +347,17 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
     }
 }
 
+enum class Requirement
+{
+    OPTIONAL,
+    REQUIRED
+};
+
 template <typename T>
 bool
-parseOptionalNumParam(std::map<std::string, std::string> const& map,
-                      std::string const& key, T& val, std::string& retStr)
+parseNumParam(std::map<std::string, std::string> const& map,
+              std::string const& key, T& val, std::string& retStr,
+              Requirement requirement)
 {
     auto i = map.find(key);
     if (i != map.end())
@@ -362,8 +369,9 @@ parseOptionalNumParam(std::map<std::string, std::string> const& map,
             retStr = fmt::format("Failed to parse '{}' argument", key);
             return false;
         }
+        return true;
     }
-    return true;
+    return requirement == Requirement::OPTIONAL;
 }
 
 void
@@ -382,10 +390,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
-        if (!parseOptionalNumParam(map, "accounts", nAccounts, retStr))
+        if (!parseNumParam(map, "accounts", nAccounts, retStr, Requirement::OPTIONAL))
             return;
 
-        if (!parseOptionalNumParam(map, "txs", nTxs, retStr))
+        if (!parseNumParam(map, "txs", nTxs, retStr, Requirement::OPTIONAL))
             return;
 
         {
@@ -394,7 +402,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             {
                 autoRate = true;
             }
-            else if (!parseOptionalNumParam(map, "txrate", txRate, retStr))
+            else if (!parseNumParam(map, "txrate", txRate, retStr, Requirement::OPTIONAL))
                 return;
         }
 
@@ -929,8 +937,9 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
 
     uint32 cursor;
 
-    if (!parseOptionalNumParam(map, "cursor", cursor, retStr))
+    if (!parseNumParam(map, "cursor", cursor, retStr, Requirement::REQUIRED))
     {
+        retStr = "Invalid cursor";
         return;
     }
 
