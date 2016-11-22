@@ -597,6 +597,25 @@ TEST_CASE("payment", "[tx][payment]")
             }
         }
     }
+
+    SECTION("path payment with rounding errors")
+    {
+        auto issuer = root.create("issuer", 5999999400);
+        auto source = root.create("source", 1989999000);
+        auto destination = root.create("destination", 499999700);
+        auto seller = root.create("seller", 20999999300);
+
+        auto cnyCur = makeAsset(issuer, "CNY");
+        destination.changeTrust(cnyCur, INT64_MAX);
+        seller.changeTrust(cnyCur, 100000 * assetMultiplier);
+
+        issuer.pay(seller, cnyCur, 170 * assetMultiplier);
+        seller.manageOffer(0, cnyCur, xlmCur, Price{2000, 29}, 145000000);
+
+        auto path = std::vector<Asset>{};
+        // bug, it should succeed
+        applyPathPaymentTx(app, source, destination, xlmCur, 1382068965, cnyCur, 2 * assetMultiplier, source.nextSequenceNumber(), PATH_PAYMENT_TOO_FEW_OFFERS, &path);
+    }
 }
 
 TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
