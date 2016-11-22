@@ -541,7 +541,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                              << ledgerAbbrev(mLastClosedLedger);
 
         // Now replay remaining txs from buffered local network history.
-        bool applied = false;
         for (auto const& lcd : mSyncingLedgers)
         {
             if (lcd.mLedgerSeq < mLastClosedLedger.header.ledgerSeq + 1)
@@ -574,7 +573,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << ", tx_count=" << lcd.mTxSet->size()
                     << ", sv: " << stellarValueToString(lcd.mValue) << "]";
                 closeLedger(lcd);
-                applied = true;
             }
             else
             {
