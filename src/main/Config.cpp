@@ -828,7 +828,14 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
         return false;
     }
 
-    retKey = PubKeyUtils::fromStrKey(expanded);
+    try
+    {
+        retKey = PubKeyUtils::fromStrKey(expanded);
+    }
+    catch (std::invalid_argument &)
+    {
+        return false;
+    }
     return true;
 }
 
@@ -837,7 +844,7 @@ Config::expandNodeID(const std::string &s) const
 {
     if (s.length() < 2)
     {
-        throw std::invalid_argument("bad public key");
+        return s;
     }
     if (s[0] != '$' && s[0] != '@')
     {
