@@ -70,73 +70,73 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
 int64_t getAccountBalance(SecretKey const& k, Application& app);
 
-TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey& from,
-                                      SecretKey& to, SequenceNumber seq,
+TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey const&from,
+                                      SecretKey const&to, SequenceNumber seq,
                                       std::string const& assetCode,
                                       int64_t limit);
 
-void applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
+void applyChangeTrust(Application& app, SecretKey const&from, SecretKey const&to,
                       SequenceNumber seq, std::string const& assetCode,
                       int64_t limit,
                       ChangeTrustResultCode result = CHANGE_TRUST_SUCCESS);
 
-TransactionFramePtr createAllowTrust(Hash const& networkID, SecretKey& from,
-                                     SecretKey& trustor, SequenceNumber seq,
+TransactionFramePtr createAllowTrust(Hash const& networkID, SecretKey const&from,
+                                     SecretKey const&trustor, SequenceNumber seq,
                                      std::string const& assetCode,
                                      bool authorize);
 
-void applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
+void applyAllowTrust(Application& app, SecretKey const&from, SecretKey const&trustor,
                      SequenceNumber seq, std::string const& assetCode,
                      bool authorize,
                      AllowTrustResultCode result = ALLOW_TRUST_SUCCESS);
 
 TransactionFramePtr createCreateAccountTx(Hash const& networkID,
-                                          SecretKey& from, SecretKey& to,
+                                          SecretKey const& from, SecretKey const&to,
                                           SequenceNumber seq, int64_t amount);
 
 void
-applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
+applyCreateAccountTx(Application& app, SecretKey const&from, SecretKey const&to,
                      SequenceNumber seq, int64_t amount,
                      CreateAccountResultCode result = CREATE_ACCOUNT_SUCCESS);
 
-TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey& from,
-                                    SecretKey& to, SequenceNumber seq,
+TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey const&from,
+                                    SecretKey const&to, SequenceNumber seq,
                                     int64_t amount);
 
-void applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+void applyPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
                     SequenceNumber seq, int64_t amount,
                     PaymentResultCode result = PAYMENT_SUCCESS);
 
 TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
-                                          SecretKey& from, SecretKey& to,
+                                          SecretKey const&from, SecretKey const&to,
                                           Asset& ci, SequenceNumber seq,
                                           int64_t amount);
 
-PaymentResult applyCreditPaymentTx(Application& app, SecretKey& from,
-                                   SecretKey& to, Asset& ci, SequenceNumber seq,
+PaymentResult applyCreditPaymentTx(Application& app, SecretKey const&from,
+                                   SecretKey const&to, Asset& ci, SequenceNumber seq,
                                    int64_t amount,
                                    PaymentResultCode result = PAYMENT_SUCCESS);
 
-TransactionFramePtr createPathPaymentTx(Hash const& networkID, SecretKey& from,
-                                        SecretKey& to, Asset const& sendCur,
+TransactionFramePtr createPathPaymentTx(Hash const& networkID, SecretKey const&from,
+                                        SecretKey const&to, Asset const& sendCur,
                                         int64_t sendMax, Asset const& destCur,
                                         int64_t destAmount, SequenceNumber seq,
                                         std::vector<Asset>* path = nullptr);
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+applyPathPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                    int64_t destAmount, SequenceNumber seq,
                    PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
                    std::vector<Asset>* path = nullptr);
 
 TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
-                                  SecretKey& source, Asset& selling,
+                                  SecretKey const&source, Asset& selling,
                                   Asset& buying, Price const& price,
                                   int64_t amount, SequenceNumber seq);
 
 TransactionFramePtr createPassiveOfferOp(Hash const& networkID,
-                                         SecretKey& source, Asset& selling,
+                                         SecretKey const&source, Asset& selling,
                                          Asset& buying, Price const& price,
                                          int64_t amount, SequenceNumber seq);
 
@@ -144,51 +144,51 @@ TransactionFramePtr createPassiveOfferOp(Hash const& networkID,
 // expects a new offer to be created
 // returns the ID of the new offer
 uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                          SecretKey& source, Asset& selling, Asset& buying,
+                          SecretKey const&source, Asset& selling, Asset& buying,
                           Price const& price, int64_t amount,
                           SequenceNumber seq);
 
 ManageOfferResult applyCreateOfferWithResult(
-    Application& app, LedgerDelta& delta, uint64 offerId, SecretKey& source,
+    Application& app, LedgerDelta& delta, uint64 offerId, SecretKey const&source,
     Asset& selling, Asset& buying, Price const& price, int64_t amount,
     SequenceNumber seq, ManageOfferResultCode targetResult = MANAGE_OFFER_SUCCESS);
 
-TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey& source,
+TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey const&source,
                                      SequenceNumber seq,
                                      AccountID* inflationDest,
                                      uint32_t* setFlags, uint32_t* clearFlags,
                                      ThresholdSetter* thrs, Signer* signer,
                                      std::string* homeDomain);
 
-void applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
+void applySetOptions(Application& app, SecretKey const&source, SequenceNumber seq,
                      AccountID* inflationDest, uint32_t* setFlags,
                      uint32_t* clearFlags, ThresholdSetter* thrs,
                      Signer* signer, std::string* homeDomain,
                      SetOptionsResultCode targetResult = SET_OPTIONS_SUCCESS);
 
-TransactionFramePtr createInflation(Hash const& networkID, SecretKey& from,
+TransactionFramePtr createInflation(Hash const& networkID, SecretKey const&from,
                                     SequenceNumber seq);
-OperationResult applyInflation(Application& app, SecretKey& from,
+OperationResult applyInflation(Application& app, SecretKey const&from,
                                SequenceNumber seq,
                                InflationResultCode targetResult = INFLATION_SUCCESS);
 
-TransactionFramePtr createAccountMerge(Hash const& networkID, SecretKey& source,
-                                       SecretKey& dest, SequenceNumber seq);
+TransactionFramePtr createAccountMerge(Hash const& networkID, SecretKey const&source,
+                                       SecretKey const&dest, SequenceNumber seq);
 
-void applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
+void applyAccountMerge(Application& app, SecretKey const&source, SecretKey const&dest,
                        SequenceNumber seq,
                        AccountMergeResultCode targetResult = ACCOUNT_MERGE_SUCCESS);
 
 
-TransactionFramePtr createManageData(Hash const& networkID, SecretKey& source,
+TransactionFramePtr createManageData(Hash const& networkID, SecretKey const&source,
     std::string& name, DataValue* value,  SequenceNumber seq);
 
 void applyManageData(
-    Application& app, SecretKey& source, std::string& name, 
+    Application& app, SecretKey const&source, std::string& name,
     DataValue* value,
     SequenceNumber seq, ManageDataResultCode targetResult = MANAGE_DATA_SUCCESS);
 
-Asset makeAsset(SecretKey& issuer, std::string const& code);
+Asset makeAsset(SecretKey const&issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);
@@ -197,7 +197,7 @@ OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 // modifying the type of the operation will lead to undefined behavior
 Operation& getFirstOperation(TransactionFrame& tx);
 
-void reSignTransaction(TransactionFrame& tx, SecretKey& source);
+void reSignTransaction(TransactionFrame& tx, SecretKey const&source);
 
 // checks that b-maxd <= a <= b
 // bias towards seller means
