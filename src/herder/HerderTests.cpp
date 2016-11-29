@@ -52,8 +52,6 @@ TEST_CASE("standalone", "[herder]")
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
-    AccountFrame::pointer rootAccount = loadAccount(root, *app);
-
     SECTION("basic ledger close on valid txs")
     {
         bool stop = false;
@@ -177,19 +175,11 @@ TEST_CASE("txset", "[herder]")
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
-    AccountFrame::pointer rootAccount;
-
-    rootAccount = loadAccount(root, *app);
-
-    SecretKey sourceAccount = getAccount("source");
-
     int64_t amountPop =
         nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
         paymentAmount;
 
-    applyCreateAccountTx(*app, root, sourceAccount, root.nextSequenceNumber(), amountPop);
-
-    SequenceNumber sourceSeq = getAccountSeqNum(sourceAccount, *app) + 1;
+    auto sourceAccount = root.create("source", amountPop);
 
     std::vector<std::vector<TransactionFramePtr>> transactions;
 
@@ -205,13 +195,13 @@ TEST_CASE("txset", "[herder]")
             {
                 transactions[i].emplace_back(
                     createCreateAccountTx(networkID, sourceAccount, accounts[i],
-                                          sourceSeq++, paymentAmount));
+                                          sourceAccount.nextSequenceNumber(), paymentAmount));
             }
             else
             {
                 transactions[i].emplace_back(
                     createPaymentTx(networkID, sourceAccount, accounts[i],
-                                    sourceSeq++, paymentAmount));
+                                    sourceAccount.nextSequenceNumber(), paymentAmount));
             }
         }
     }
@@ -267,7 +257,7 @@ TEST_CASE("txset", "[herder]")
             SECTION("gap after")
             {
                 txSet->add(createPaymentTx(networkID, sourceAccount,
-                                           accounts[0], sourceSeq + 5,
+                                           accounts[0], sourceAccount.getLastSequenceNumber() + 5,
                                            paymentAmount));
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
@@ -301,7 +291,7 @@ TEST_CASE("txset", "[herder]")
         {
             // extra transaction would push the account below the reserve
             txSet->add(createPaymentTx(networkID, sourceAccount, accounts[0],
-                                       sourceSeq++, paymentAmount));
+                                       sourceAccount.nextSequenceNumber(), paymentAmount));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -336,21 +326,9 @@ TEST_CASE("surge", "[herder]")
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    AccountFrame::pointer rootAccount;
-
-    SecretKey destAccount = getAccount("destAccount");
-
-    rootAccount = loadAccount(root, *app);
-
-    applyCreateAccountTx(*app, root, destAccount, root.nextSequenceNumber(), 500000000);
-
-    SecretKey accountB = getAccount("accountB");
-    applyCreateAccountTx(*app, root, accountB, root.nextSequenceNumber(), 5000000000);
-    SequenceNumber accountBSeq = getAccountSeqNum(accountB, *app) + 1;
-
-    SecretKey accountC = getAccount("accountC");
-    applyCreateAccountTx(*app, root, accountC, root.nextSequenceNumber(), 5000000000);
-    SequenceNumber accountCSeq = getAccountSeqNum(accountC, *app) + 1;
+    auto destAccount = root.create("destAccount", 500000000);
+    auto accountB = root.create("accountB", 5000000000);
+    auto accountC = root.create("accountC", 5000000000);
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app->getLedgerManager().getLastClosedLedgerHeader().hash);
@@ -393,7 +371,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
             auto tx = createPaymentTx(networkID, accountB, destAccount,
-                                      accountBSeq++, n + 10);
+                                      accountB.nextSequenceNumber(), n + 10);
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
         }
@@ -418,7 +396,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
 
             tx = createPaymentTx(networkID, accountB, destAccount,
-                                 accountBSeq++, n + 10);
+                                 accountB.nextSequenceNumber(), n + 10);
             if (n != 1)
                 tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
             txSet->add(tx);
@@ -441,9 +419,9 @@ TEST_CASE("surge", "[herder]")
             txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
             txSet->add(createPaymentTx(networkID, accountB, destAccount,
-                                       accountBSeq++, n + 10));
+                                       accountB.nextSequenceNumber(), n + 10));
             txSet->add(createPaymentTx(networkID, accountC, destAccount,
-                                       accountCSeq++, n + 10));
+                                       accountC.nextSequenceNumber(), n + 10));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(lm);

@@ -102,11 +102,10 @@ TransactionFramePtr createCreateAccountTx(Hash const& networkID,
                                           SequenceNumber seq, int64_t amount);
 
 void
-applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const&to,
-                     SequenceNumber seq, int64_t amount,
-                     CreateAccountResultCode result = CREATE_ACCOUNT_SUCCESS);
+applyCreateAccountTx(Application& app, SecretKey const&from, SecretKey const&to,
+                     SequenceNumber seq, int64_t amount);
 
-Operation createPaymentOp(SecretKey* from, SecretKey const& to, int64_t amount);
+Operation createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount);
 TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey const&from,
                                     SecretKey const&to, SequenceNumber seq,
                                     int64_t amount);

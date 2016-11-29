@@ -36,12 +36,10 @@ TEST_CASE("manage data", "[tx][managedata]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    SecretKey gateway = getAccount("gw");
 
     const int64_t minBalance = app.getLedgerManager().getMinBalance(3)-100;
 
-    applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance);
-    SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
+    auto gateway = root.create("gw", minBalance);
 
     DataValue value,value2;
     value.resize(64);
@@ -57,21 +55,21 @@ TEST_CASE("manage data", "[tx][managedata]")
     std::string t3("test3");
     std::string t4("test4");
 
-    applyManageData(app, gateway, t1, &value, gateway_seq++);
-    applyManageData(app, gateway, t2, &value, gateway_seq++);
+    applyManageData(app, gateway, t1, &value, gateway.nextSequenceNumber());
+    applyManageData(app, gateway, t2, &value, gateway.nextSequenceNumber());
     // try to add too much data
-    applyManageData(app, gateway, t3, &value, gateway_seq++, MANAGE_DATA_LOW_RESERVE);
+    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber(), MANAGE_DATA_LOW_RESERVE);
 
     // modify an existing data entry
-    applyManageData(app, gateway, t1, &value2, gateway_seq++);
+    applyManageData(app, gateway, t1, &value2, gateway.nextSequenceNumber());
 
     // clear an existing data entry
-    applyManageData(app, gateway, t1, nullptr, gateway_seq++);
+    applyManageData(app, gateway, t1, nullptr, gateway.nextSequenceNumber());
 
     // can now add test3 since test was removed
-    applyManageData(app, gateway, t3, &value, gateway_seq++);
+    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber());
 
     // fail to remove data entry that isn't present
-    applyManageData(app, gateway, t4, nullptr, gateway_seq++, MANAGE_DATA_NAME_NOT_FOUND);
+    applyManageData(app, gateway, t4, nullptr, gateway.nextSequenceNumber(), MANAGE_DATA_NAME_NOT_FOUND);
 
 }

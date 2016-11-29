@@ -51,7 +51,7 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            applyCreateAccountTx(app, root, to, root.nextSequenceNumber(), setupBalance);
+            root.create(to, setupBalance);
 
             AccountFrame::pointer act;
             act = loadAccount(to, app);
@@ -200,7 +200,7 @@ doInflation(Application& app, int nbAccounts,
 
     auto root = TestAccount::createRoot(app);
     TransactionFramePtr txFrame = createInflation(
-        app.getNetworkID(), root, getAccountSeqNum(root, app) + 1);
+        app.getNetworkID(), root, root.nextSequenceNumber());
 
     expectedFees += txFrame->getFee();
 

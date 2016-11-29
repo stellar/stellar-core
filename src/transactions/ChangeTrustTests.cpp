@@ -30,14 +30,11 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    SecretKey gateway = getAccount("gw");
+    auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
+    auto gateway = root.create("gw", minBalance2);
 
     SECTION("basic tests")
     {
-        const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-        applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-        SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
         Asset idrCur = makeAsset(gateway, "IDR");
 
@@ -49,7 +46,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 100);
 
         // fill it to 90
-        applyCreditPaymentTx(app, gateway, root, idrCur, gateway_seq++, 90);
+        applyCreditPaymentTx(app, gateway, root, idrCur, gateway.nextSequenceNumber(), 90);
 
         // can't lower the limit below balance
         applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 89,
@@ -71,19 +68,14 @@ TEST_CASE("change trust", "[tx][changetrust]")
     {
         SECTION("new trust line")
         {
-            applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "USD", 100,
+            applyChangeTrust(app, root, getAccount("non-existing"), root.nextSequenceNumber(), "USD", 100,
                              CHANGE_TRUST_NO_ISSUER);
         }
         SECTION("edit existing")
         {
-            const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-            applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-            SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
-
             applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 100);
             // Merge gateway back into root (the trustline still exists)
-            applyAccountMerge(app, gateway, root, gateway_seq++);
+            applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
 
             applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 99,
                              CHANGE_TRUST_NO_ISSUER);
@@ -94,11 +86,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
         SECTION("protocol version 2")
         {
             app.getLedgerManager().setCurrentLedgerVersion(2);
-
-            auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-            applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-            auto gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
             auto idrCur = makeAsset(gateway, "IDR");
             auto loadTrustLine = [&](){ return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur, db); };
@@ -112,39 +99,34 @@ TEST_CASE("change trust", "[tx][changetrust]")
             validateTrustLineIsConst();
 
             // create a trustline with a limit of INT64_MAX - 1 wil lfail
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX - 1,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", INT64_MAX - 1,
                             CHANGE_TRUST_INVALID_LIMIT);
             validateTrustLineIsConst();
 
             // create a trustline with a limit of INT64_MAX
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX);
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", INT64_MAX);
             validateTrustLineIsConst();
 
             auto gatewayAccountBefore = loadAccount(gateway, app);
-            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway_seq++, 50);
+            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway.nextSequenceNumber(), 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
             REQUIRE(gatewayAccountAfter->getBalance() ==
                     (gatewayAccountBefore->getBalance() - app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 50,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", 50,
                             CHANGE_TRUST_INVALID_LIMIT);
             validateTrustLineIsConst();
 
             // delete the trust line will fail
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 0,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", 0,
                             CHANGE_TRUST_INVALID_LIMIT);
             validateTrustLineIsConst();
         }
         SECTION("protocol version 3")
         {
             app.getLedgerManager().setCurrentLedgerVersion(3);
-
-            auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-            applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-            auto gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
             auto idrCur = makeAsset(gateway, "IDR");
             auto loadTrustLine = [&](){ return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur, db); };
@@ -157,28 +139,28 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             validateTrustLineIsConst();
 
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX - 1,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", INT64_MAX - 1,
                             CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", INT64_MAX,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", INT64_MAX,
                              CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
             auto gatewayAccountBefore = loadAccount(gateway, app);
-            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway_seq++, 50);
+            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway.nextSequenceNumber(), 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
             REQUIRE(gatewayAccountAfter->getBalance() ==
                     (gatewayAccountBefore->getBalance() - app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 50,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", 50,
                             CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
             // delete the trust line will fail
-            applyChangeTrust(app, gateway, gateway, gateway_seq++, "IDR", 0,
+            applyChangeTrust(app, gateway, gateway, gateway.nextSequenceNumber(), "IDR", 0,
                             CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
         }

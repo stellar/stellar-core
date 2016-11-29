@@ -15,6 +15,7 @@
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/DataFrame.h"
+#include "test/TestExceptions.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -99,6 +100,21 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     delta.checkAgainstDatabase(app);
 
     return res;
+}
+
+bool
+throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+{
+    auto r = applyCheck(tx, delta, app);
+    switch (tx->getResultCode())
+    {
+        case txNO_ACCOUNT:
+            throw ex_txNO_ACCOUNT{};
+        default:
+            // ignore rest for now
+            break;
+    }
+    return r;
 }
 
 void
@@ -419,8 +435,7 @@ createCreateAccountTx(Hash const& networkID, SecretKey const& from, SecretKey co
 
 void
 applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const& to,
-                     SequenceNumber seq, int64_t amount,
-                     CreateAccountResultCode result)
+                     SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -433,20 +448,17 @@ applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const& t
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
-    auto innerCode =
+    auto result =
         CreateAccountOpFrame::getInnerCode(txResult.result.results()[0]);
-    REQUIRE(innerCode == result);
-
-    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
     AccountFrame::pointer toAccountAfter;
     toAccountAfter = loadAccount(to, app, false);
 
-    if (innerCode != CREATE_ACCOUNT_SUCCESS)
+    if (result != CREATE_ACCOUNT_SUCCESS)
     {
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
@@ -459,9 +471,26 @@ applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const& t
     {
         REQUIRE(toAccountAfter);
     }
+    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
+
+    switch (result)
+    {
+        case CREATE_ACCOUNT_MALFORMED:
+            throw ex_CREATE_ACCOUNT_MALFORMED{};
+        case CREATE_ACCOUNT_UNDERFUNDED:
+            throw ex_CREATE_ACCOUNT_UNDERFUNDED{};
+        case CREATE_ACCOUNT_LOW_RESERVE:
+            throw ex_CREATE_ACCOUNT_LOW_RESERVE{};
+        case CREATE_ACCOUNT_ALREADY_EXIST:
+            throw ex_CREATE_ACCOUNT_ALREADY_EXIST{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == CREATE_ACCOUNT_SUCCESS);
 }
 
-Operation createPaymentOp(SecretKey* from, SecretKey const& to, int64_t amount)
+Operation createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
