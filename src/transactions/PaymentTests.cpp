@@ -279,7 +279,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("with trust")
         {
-            applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", 1000);
+            a1.changeTrust(idrCur, 1000);
             applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(), 100);
 
             TrustFrame::pointer line;
@@ -289,7 +289,7 @@ TEST_CASE("payment", "[tx][payment]")
             // create b1 account
             auto b1 = root.create("B", paymentAmount);
 
-            applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "IDR", 100);
+            b1.changeTrust(idrCur, 100);
 
             SECTION("positive")
             {
@@ -316,17 +316,16 @@ TEST_CASE("payment", "[tx][payment]")
                 // should be able to send back credits to issuer
                 applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(), 75);
                 // cannot change the limit
-                applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", 25,
-                                 CHANGE_TRUST_NO_ISSUER);
+                REQUIRE_THROWS_AS(a1.changeTrust(idrCur, 25), ex_CHANGE_TRUST_NO_ISSUER);
                 applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(), 25);
                 // and should be able to delete the trust line too
-                applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", 0);
+                a1.changeTrust(idrCur, 0);
             }
         }
     }
     SECTION("issuer large amounts")
     {
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", INT64_MAX);
+        a1.changeTrust(idrCur, INT64_MAX);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              INT64_MAX);
         TrustFrame::pointer line;
@@ -350,7 +349,7 @@ TEST_CASE("payment", "[tx][payment]")
         applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr, &setFlags,
                         nullptr, nullptr, nullptr, nullptr);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
@@ -383,8 +382,8 @@ TEST_CASE("payment", "[tx][payment]")
         }
 
         // setup a1
-        applyChangeTrust(app, a1, gateway2, a1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
 
         applyCreditPaymentTx(app, gateway2, a1, usdCur, gateway2.nextSequenceNumber(),
                              trustLineStartingBalance);
@@ -395,29 +394,25 @@ TEST_CASE("payment", "[tx][payment]")
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
 
         auto b1 = root.create("B", minBalance3 + 10000);
-        applyChangeTrust(app, b1, gateway2, b1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "IDR", trustLineLimit);
+        b1.changeTrust(usdCur, trustLineLimit);
+        b1.changeTrust(idrCur, trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, b1, idrCur, gateway.nextSequenceNumber(),
                              trustLineStartingBalance);
 
-        uint64_t offerB1 =
-            applyCreateOffer(app, delta, 0, b1, idrCur, usdCur, usdPriceOffer,
-                             100 * assetMultiplier, b1.nextSequenceNumber());
+        auto offerB1 = b1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOffer, 100 * assetMultiplier);
 
         // setup "c1"
         auto c1 = root.create("C", minBalance3 + 10000);
 
-        applyChangeTrust(app, c1, gateway2, c1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "IDR", trustLineLimit);
+        c1.changeTrust(usdCur, trustLineLimit);
+        c1.changeTrust(idrCur, trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, c1, idrCur, gateway.nextSequenceNumber(),
                              trustLineStartingBalance);
 
         // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD @ 0.66
-        uint64_t offerC1 =
-            applyCreateOffer(app, delta, 0, c1, idrCur, usdCur, Price(3, 2),
-                             100 * assetMultiplier, c1.nextSequenceNumber());
+        auto offerC1 = c1.manageOffer(delta, 0, idrCur, usdCur, Price(3, 2), 100 * assetMultiplier);
 
         // at this point:
         // a1 holds (0, IDR) (trustLineStartingBalance, USD)
@@ -542,8 +537,7 @@ TEST_CASE("payment", "[tx][payment]")
             applyPaymentTx(app, root, a1, root.nextSequenceNumber(), 100 * assetMultiplier);
 
             // offer is sell 100 USD for 100 XLM
-            applyCreateOffer(app, delta, 0, a1, usdCur, xlmCur, Price(1, 1),
-                             100 * assetMultiplier, a1.nextSequenceNumber());
+            a1.manageOffer(delta, 0, usdCur, xlmCur, Price(1, 1), 100 * assetMultiplier);
 
             // A1: try to send 100 USD to B1 using XLM
 
@@ -555,8 +549,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send with path (offer participant reaching limit)")
         {
             // make it such that C can only receive 120 USD (4/5th of offerC)
-            applyChangeTrust(app, c1, gateway2, c1.nextSequenceNumber(), "USD",
-                             120 * assetMultiplier);
+            c1.changeTrust(usdCur, 120 * assetMultiplier);
 
             // A1: try to send 105 IDR to B1 using USD
             // cost 120 (C's offer maxed out at 4/5th of published amount)
@@ -660,14 +653,14 @@ TEST_CASE("payment", "[tx][payment]")
                 applyCreditPaymentTx(app, c1, gateway, idrCur, c1.nextSequenceNumber(),
                                      trustLineStartingBalance);
 
-                applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "IDR", 0);
+                c1.changeTrust(idrCur, 0);
 
                 checkBalances();
             }
 
             SECTION("deleted buying line")
             {
-                applyChangeTrust(app, c1, gateway2, c1.nextSequenceNumber(), "USD", 0);
+                c1.changeTrust(usdCur, 0);
                 checkBalances();
             }
         }
@@ -700,9 +693,9 @@ TEST_CASE("payment", "[tx][payment]")
         auto setupAccount = [&](const std::string &name){
             // setup account with required trustlines and money both in native and assets
             auto account = root.create(name, initialBalance);
-            applyChangeTrust(app, account, gateway, account.nextSequenceNumber(), "IDR", trustLineLimit);
+            account.changeTrust(idrCur, trustLineLimit);
             applyCreditPaymentTx(app, gateway, account, idrCur, gateway.nextSequenceNumber(), initialBalance);
-            applyChangeTrust(app, account, gateway2, account.nextSequenceNumber(), "USD", trustLineLimit);
+            account.changeTrust(usdCur, trustLineLimit);
             applyCreditPaymentTx(app, gateway2, account, usdCur, gateway2.nextSequenceNumber(), initialBalance);
 
             return account;
@@ -719,7 +712,7 @@ TEST_CASE("payment", "[tx][payment]")
             }
         };
         auto validateAccountAssets = [&](const SecretKey &account, int assetIndex, int difference, int feeCount){
-            for (auto i = 0; i < pathSize; i++)
+            for (size_t i = 0; i < pathSize; i++)
             {
                 validateAccountAsset(account, i, (assetIndex == i) ? difference : 0, feeCount);
             }
@@ -736,7 +729,7 @@ TEST_CASE("payment", "[tx][payment]")
         auto validateSource = [&](int difference){ validateAccountAssets(source, 0, difference, 3); };
         auto validateDestination = [&](int difference){ validateAccountAssets(destination, 0, difference, 2); };
 
-        for (auto i = 0; i < pathSize; i++) // create account for each known asset
+        for (size_t i = 0; i < pathSize; i++) // create account for each known asset
         {
             accounts.emplace_back(setupAccount(std::string{"C"} + std::to_string(i)));
             validateAccountAssets(accounts[i], 0, 0, 2); // 2x change trust called
@@ -753,7 +746,7 @@ TEST_CASE("payment", "[tx][payment]")
                 auto offers = std::deque<uint64_t>{};
                 for (size_t i = 0; i < pathSize; i++)
                 {
-                    offers.push_back(applyCreateOffer(app, delta, 0, accounts[i], assets[i], assets[(i + 2) % pathSize], price, offerAmount, accounts[i].nextSequenceNumber()));
+                    offers.push_back(accounts[i].manageOffer(delta, 0, assets[i], assets[(i + 2) % pathSize], price, offerAmount));
                     validateOffer(accounts[i], offers[i], 0);
                 }
 

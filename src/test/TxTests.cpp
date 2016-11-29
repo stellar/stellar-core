@@ -340,7 +340,7 @@ transactionFromOperation(Hash const& networkID, SecretKey const& from,
 }
 
 TransactionFramePtr
-createChangeTrust(Hash const& networkID, SecretKey const& from, SecretKey const& to,
+createChangeTrust(Hash const& networkID, SecretKey const& from, PublicKey const& to,
                   SequenceNumber seq, std::string const& assetCode,
                   int64_t limit)
 {
@@ -351,7 +351,7 @@ createChangeTrust(Hash const& networkID, SecretKey const& from, SecretKey const&
     op.body.changeTrustOp().line.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.changeTrustOp().line.alphaNum4().assetCode,
                    assetCode);
-    op.body.changeTrustOp().line.alphaNum4().issuer = to.getPublicKey();
+    op.body.changeTrustOp().line.alphaNum4().issuer = to;
 
     return transactionFromOperation(networkID, from, seq, op);
 }
@@ -514,9 +514,9 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 }
 
 void
-applyChangeTrust(Application& app, SecretKey const& from, SecretKey const& to,
+applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
                  SequenceNumber seq, std::string const& assetCode,
-                 int64_t limit, ChangeTrustResultCode result)
+                 int64_t limit)
 {
     TransactionFramePtr txFrame;
 
@@ -528,8 +528,21 @@ applyChangeTrust(Application& app, SecretKey const& from, SecretKey const& to,
     applyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(ChangeTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto result = ChangeTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case CHANGE_TRUST_MALFORMED:
+            throw ex_CHANGE_TRUST_MALFORMED{};
+        case CHANGE_TRUST_NO_ISSUER:
+            throw ex_CHANGE_TRUST_NO_ISSUER{};
+        case CHANGE_TRUST_INVALID_LIMIT:
+            throw ex_CHANGE_TRUST_INVALID_LIMIT{};
+        case CHANGE_TRUST_LOW_RESERVE:
+            throw ex_CHANGE_TRUST_LOW_RESERVE{};
+    }
+
+    REQUIRE(result == CHANGE_TRUST_SUCCESS);
 }
 
 TransactionFramePtr
@@ -646,7 +659,7 @@ createPassiveOfferOp(Hash const& networkID, SecretKey const& source, Asset& sell
 
 TransactionFramePtr
 manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
-              Asset& selling, Asset& buying, Price const& price, int64_t amount,
+              Asset const& selling, Asset const& buying, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
@@ -662,7 +675,7 @@ manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
 
 static ManageOfferResult
 applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
-                       SecretKey const& source, Asset& selling, Asset& buying,
+                       SecretKey const& source, Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
     uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
@@ -676,7 +689,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
     txFrame = manageOfferOp(app.getNetworkID(), offerId, source, selling,
                             buying, price, amount, seq);
 
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
@@ -717,35 +730,50 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
 }
 
 uint64_t
-applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                 SecretKey const& source, Asset& selling, Asset& buying,
-                 Price const& price, int64_t amount, SequenceNumber seq)
+applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
+                 SecretKey const& source, Asset const& selling, Asset const& buying,
+                 Price const& price, int64_t amount, SequenceNumber seq, ManageOfferEffect expectedEffect)
 {
     ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, delta, offerId, source, selling, buying, price, amount, seq);
+
+    switch (createOfferRes.code())
+    {
+        case MANAGE_OFFER_MALFORMED:
+            throw ex_MANAGE_OFFER_MALFORMED{};
+        case MANAGE_OFFER_SELL_NO_TRUST:
+            throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
+        case MANAGE_OFFER_BUY_NO_TRUST:
+            throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
+        case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_LINE_FULL:
+            throw ex_MANAGE_OFFER_LINE_FULL{};
+        case MANAGE_OFFER_UNDERFUNDED:
+            throw ex_MANAGE_OFFER_UNDERFUNDED{};
+        case MANAGE_OFFER_CROSS_SELF:
+            throw ex_MANAGE_OFFER_CROSS_SELF{};
+        case MANAGE_OFFER_SELL_NO_ISSUER:
+            throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
+        case MANAGE_OFFER_BUY_NO_ISSUER:
+            throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
+        case MANAGE_OFFER_NOT_FOUND:
+            throw ex_MANAGE_OFFER_NOT_FOUND{};
+        case MANAGE_OFFER_LOW_RESERVE:
+            throw ex_MANAGE_OFFER_LOW_RESERVE{};
+        default:
+            break;
+    }
 
     REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
 
-    REQUIRE(success.effect() == MANAGE_OFFER_CREATED);
+    REQUIRE(success.effect() == expectedEffect);
 
-    return success.offer().offerID;
-}
-
-ManageOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey const& source, Asset& selling, Asset& buying,
-                           Price const& price, int64_t amount,
-                           SequenceNumber seq, ManageOfferResultCode result)
-{
-    ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, selling, buying, price, amount, seq);
-
-    auto res = manageOfferRes.code();
-    REQUIRE(res == result);
-
-    return manageOfferRes;
+    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID : 0;
 }
 
 TransactionFramePtr
