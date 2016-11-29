@@ -10,6 +10,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/TestUtils.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
 #include "database/Database.h"
@@ -38,7 +39,7 @@ TEST_CASE("create offer", "[tx][offers]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot(networkID);
+    auto root = TestAccount::createRoot(app);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
     SecretKey c1 = getAccount("C");

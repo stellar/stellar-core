@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "simulation/Simulation.h"
+#include "test/TestAccount.h"
 
 #include "main/test.h"
 #include "lib/catch.hpp"
@@ -45,7 +46,7 @@ TEST_CASE("standalone", "[herder]")
     app->start();
 
     // set up world
-    SecretKey root = getRoot(networkID);
+    auto root = TestAccount::createRoot(*app);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
@@ -53,7 +54,6 @@ TEST_CASE("standalone", "[herder]")
 
     AccountFrame::pointer rootAccount = loadAccount(root, *app);
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
     SECTION("basic ledger close on valid txs")
     {
         bool stop = false;
@@ -77,9 +77,9 @@ TEST_CASE("standalone", "[herder]")
         {
             // create accounts
             TransactionFramePtr txFrameA1 = createCreateAccountTx(
-                networkID, root, a1, rootSeq++, paymentAmount);
+                networkID, root, a1, root.nextSequenceNumber(), paymentAmount);
             TransactionFramePtr txFrameA2 = createCreateAccountTx(
-                networkID, root, b1, rootSeq++, paymentAmount);
+                networkID, root, b1, root.nextSequenceNumber(), paymentAmount);
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
                     Herder::TX_STATUS_PENDING);
@@ -169,7 +169,7 @@ TEST_CASE("txset", "[herder]")
     app->start();
 
     // set up world
-    SecretKey root = getRoot(networkID);
+    auto root = TestAccount::createRoot(*app);
 
     const int nbAccounts = 2;
     const int nbTransactions = 5;
@@ -181,15 +181,13 @@ TEST_CASE("txset", "[herder]")
 
     rootAccount = loadAccount(root, *app);
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
-
     SecretKey sourceAccount = getAccount("source");
 
     int64_t amountPop =
         nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
         paymentAmount;
 
-    applyCreateAccountTx(*app, root, sourceAccount, rootSeq++, amountPop);
+    applyCreateAccountTx(*app, root, sourceAccount, root.nextSequenceNumber(), amountPop);
 
     SequenceNumber sourceSeq = getAccountSeqNum(sourceAccount, *app) + 1;
 
@@ -336,7 +334,7 @@ TEST_CASE("surge", "[herder]")
         cfg.DESIRED_MAX_TX_PER_LEDGER;
 
     // set up world
-    SecretKey root = getRoot(networkID);
+    auto root = TestAccount::createRoot(*app);
 
     AccountFrame::pointer rootAccount;
 
@@ -344,16 +342,14 @@ TEST_CASE("surge", "[herder]")
 
     rootAccount = loadAccount(root, *app);
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
-
-    applyCreateAccountTx(*app, root, destAccount, rootSeq++, 500000000);
+    applyCreateAccountTx(*app, root, destAccount, root.nextSequenceNumber(), 500000000);
 
     SecretKey accountB = getAccount("accountB");
-    applyCreateAccountTx(*app, root, accountB, rootSeq++, 5000000000);
+    applyCreateAccountTx(*app, root, accountB, root.nextSequenceNumber(), 5000000000);
     SequenceNumber accountBSeq = getAccountSeqNum(accountB, *app) + 1;
 
     SecretKey accountC = getAccount("accountC");
-    applyCreateAccountTx(*app, root, accountC, rootSeq++, 5000000000);
+    applyCreateAccountTx(*app, root, accountC, root.nextSequenceNumber(), 5000000000);
     SequenceNumber accountCSeq = getAccountSeqNum(accountC, *app) + 1;
 
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
@@ -364,7 +360,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount, rootSeq++,
+            txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
         }
         txSet->sortForHash();
@@ -378,7 +374,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount, rootSeq++,
+            txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
         }
         random_shuffle(txSet->mTransactions.begin(),
@@ -394,7 +390,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount, rootSeq++,
+            txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
             auto tx = createPaymentTx(networkID, accountB, destAccount,
                                       accountBSeq++, n + 10);
@@ -416,7 +412,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            auto tx = createPaymentTx(networkID, root, destAccount, rootSeq++,
+            auto tx = createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                       n + 10);
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
@@ -442,7 +438,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 30; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount, rootSeq++,
+            txSet->add(createPaymentTx(networkID, root, destAccount, root.nextSequenceNumber(),
                                        n + 10));
             txSet->add(createPaymentTx(networkID, accountB, destAccount,
                                        accountBSeq++, n + 10));
@@ -472,7 +468,7 @@ TEST_CASE("SCP Driver", "[herder]")
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
-    SecretKey root = getRoot(networkID);
+    auto root = TestAccount::createRoot(*app);
     SecretKey a1 = getAccount("A");
 
     SECTION("combineCandidates")
@@ -492,11 +488,10 @@ TEST_CASE("SCP Driver", "[herder]")
         };
         auto addTransactions = [&](TxSetFramePtr txSet, int n)
         {
-            SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
             for (int i = 0; i < n; i++)
             {
                 txSet->mTransactions.emplace_back(createCreateAccountTx(
-                    networkID, root, a1, rootSeq++, 10000000));
+                    networkID, root, a1, root.nextSequenceNumber(), 10000000));
             }
         };
 

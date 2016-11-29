@@ -13,6 +13,7 @@
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
+#include "test/TestAccount.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 
@@ -39,7 +40,7 @@ TEST_CASE("payment", "[tx][payment]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
 
@@ -57,9 +58,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     const int64_t paymentAmount = minBalance2;
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
     // create an account
-    applyCreateAccountTx(app, root, a1, rootSeq++, paymentAmount);
+    applyCreateAccountTx(app, root, a1, root.nextSequenceNumber(), paymentAmount);
 
     SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
 
@@ -79,11 +79,11 @@ TEST_CASE("payment", "[tx][payment]")
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
-    applyCreateAccountTx(app, root, gateway, rootSeq++, gatewayPayment);
+    applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), gatewayPayment);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
     // sets up gateway2 account
-    applyCreateAccountTx(app, root, gateway2, rootSeq++, gatewayPayment);
+    applyCreateAccountTx(app, root, gateway2, root.nextSequenceNumber(), gatewayPayment);
     SequenceNumber gateway2_seq = getAccountSeqNum(gateway2, app) + 1;
 
     AccountFrame::pointer a1Account, rootAccount;
@@ -109,11 +109,11 @@ TEST_CASE("payment", "[tx][payment]")
     {
         SECTION("Success")
         {
-            applyCreateAccountTx(app, root, b1, rootSeq++,
+            applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(),
                                  app.getLedgerManager().getMinBalance(0));
             SECTION("Account already exists")
             {
-                applyCreateAccountTx(app, root, b1, rootSeq++,
+                applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(),
                                      app.getLedgerManager().getMinBalance(0),
                                      CREATE_ACCOUNT_ALREADY_EXIST);
             }
@@ -125,7 +125,7 @@ TEST_CASE("payment", "[tx][payment]")
         }
         SECTION("Amount too small to create account")
         {
-            applyCreateAccountTx(app, root, b1, rootSeq++,
+            applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(),
                                  app.getLedgerManager().getMinBalance(0) - 1,
                                  CREATE_ACCOUNT_LOW_RESERVE);
         }
@@ -133,7 +133,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send XLM to an existing account")
     {
-        applyPaymentTx(app, root, a1, rootSeq++, morePayment);
+        applyPaymentTx(app, root, a1, root.nextSequenceNumber(), morePayment);
 
         AccountFrame::pointer a1Account2, rootAccount2;
         rootAccount2 = loadAccount(root, app);
@@ -148,7 +148,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send to self")
     {
-        applyPaymentTx(app, root, root, rootSeq++, morePayment);
+        applyPaymentTx(app, root, root, root.nextSequenceNumber(), morePayment);
 
         AccountFrame::pointer rootAccount2;
         rootAccount2 = loadAccount(root, app);
@@ -159,7 +159,7 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("send XLM to a new account (no destination)")
     {
         applyPaymentTx(
-            app, root, b1, rootSeq++,
+            app, root, b1, root.nextSequenceNumber(),
             app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
             PAYMENT_NO_DESTINATION);
     }
@@ -168,7 +168,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         int64 orgReserve = app.getLedgerManager().getMinBalance(0);
 
-        applyCreateAccountTx(app, root, b1, rootSeq++, orgReserve + 1000);
+        applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(), orgReserve + 1000);
 
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
@@ -184,7 +184,7 @@ TEST_CASE("payment", "[tx][payment]")
 
         // top up the account to unblock it
         int64 topUp = app.getLedgerManager().getMinBalance(0) - orgReserve;
-        applyPaymentTx(app, root, b1, rootSeq++, topUp);
+        applyPaymentTx(app, root, b1, root.nextSequenceNumber(), topUp);
 
         // payment goes through
         applyPaymentTx(app, b1, root, b1Seq++, 1);
@@ -194,7 +194,7 @@ TEST_CASE("payment", "[tx][payment]")
         int64 startingBalance = paymentAmount + 5 +
                                 app.getLedgerManager().getMinBalance(0) +
                                 txfee * 2;
-        applyCreateAccountTx(app, root, b1, rootSeq++, startingBalance);
+        applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(), startingBalance);
 
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
         auto tx1 = createPaymentTx(app.getNetworkID(), b1, root, b1Seq++,
@@ -243,7 +243,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(line->getBalance() == 100);
 
             // create b1 account
-            applyCreateAccountTx(app, root, b1, rootSeq++, paymentAmount);
+            applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(), paymentAmount);
 
             SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
 
@@ -353,7 +353,7 @@ TEST_CASE("payment", "[tx][payment]")
         const Price usdPriceOffer(2, 1);
 
         // offer is sell 100 IDR for 200 USD ; buy USD @ 2.0 = sell IRD @ 0.5
-        applyCreateAccountTx(app, root, b1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(), minBalance3 + 10000);
         SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
         applyChangeTrust(app, b1, gateway2, b1Seq++, "USD", trustLineLimit);
         applyChangeTrust(app, b1, gateway, b1Seq++, "IDR", trustLineLimit);
@@ -368,7 +368,7 @@ TEST_CASE("payment", "[tx][payment]")
         // setup "c1"
         SecretKey c1 = getAccount("C");
 
-        applyCreateAccountTx(app, root, c1, rootSeq++, minBalance3 + 10000);
+        applyCreateAccountTx(app, root, c1, root.nextSequenceNumber(), minBalance3 + 10000);
         SequenceNumber c1Seq = getAccountSeqNum(c1, app) + 1;
 
         applyChangeTrust(app, c1, gateway2, c1Seq++, "USD", trustLineLimit);
@@ -502,7 +502,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send with path (takes own offer)")
         {
             // raise A1's balance by what we're trying to send
-            applyPaymentTx(app, root, a1, rootSeq++, 100 * assetMultiplier);
+            applyPaymentTx(app, root, a1, root.nextSequenceNumber(), 100 * assetMultiplier);
 
             // offer is sell 100 USD for 100 XLM
             applyCreateOffer(app, delta, 0, a1, usdCur, xlmCur, Price(1, 1),
@@ -649,16 +649,14 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
         Application::create(clock, getTestConfig(0, mode));
     app->start();
 
-    SecretKey root = getRoot(app->getNetworkID());
+    auto root = TestAccount::createRoot(*app);
     SecretKey a1 = getAccount("A");
     int64_t txfee = app->getLedgerManager().getTxFee();
     const int64_t paymentAmount =
         app->getLedgerManager().getMinBalance(1) + txfee * 10;
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, *app) + 1;
-
     {
         auto ctx = app->getDatabase().captureAndLogSQL("createAccount");
-        applyCreateAccountTx(*app, root, a1, rootSeq++, paymentAmount);
+        applyCreateAccountTx(*app, root, a1, root.nextSequenceNumber(), paymentAmount);
     }
 }

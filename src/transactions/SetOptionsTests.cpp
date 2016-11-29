@@ -12,6 +12,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/TestUtils.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -37,12 +38,10 @@ TEST_CASE("set options", "[tx][setoptions]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
     SecretKey a1 = getAccount("A");
 
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
-
-    applyCreateAccountTx(app, root, a1, rootSeq++,
+    applyCreateAccountTx(app, root, a1, root.nextSequenceNumber(),
                          app.getLedgerManager().getMinBalance(0) + 1000);
 
     SequenceNumber a1seq = getAccountSeqNum(a1, app) + 1;
@@ -77,7 +76,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             app.getLedgerManager().setCurrentLedgerVersion(2);
 
             // add some funds
-            applyPaymentTx(app, root, a1, rootSeq++,
+            applyPaymentTx(app, root, a1, root.nextSequenceNumber(),
                            app.getLedgerManager().getMinBalance(2));
 
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
@@ -161,7 +160,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             app.getLedgerManager().setCurrentLedgerVersion(3);
 
             // add some funds
-            applyPaymentTx(app, root, a1, rootSeq++,
+            applyPaymentTx(app, root, a1, root.nextSequenceNumber(),
                            app.getLedgerManager().getMinBalance(2));
 
             applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,

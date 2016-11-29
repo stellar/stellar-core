@@ -13,6 +13,7 @@
 #include "simulation/Simulation.h"
 #include "overlay/OverlayManager.h"
 #include "simulation/Topologies.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerDelta.h"
@@ -52,7 +53,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
         const int nbTx = 100;
 
-        SecretKey root = getRoot(networkID);
+        auto root = TestAccount::createRoot(*app0);
         auto rootA =
             AccountFrame::loadAccount(root.getPublicKey(), app0->getDatabase());
 

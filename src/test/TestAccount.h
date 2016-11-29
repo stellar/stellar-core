@@ -22,6 +22,7 @@ public:
 
     SecretKey getSecretKey() const { return mSk; }
     PublicKey getPublicKey() const { return getSecretKey().getPublicKey(); }
+    SequenceNumber getLastSequenceNumber() const { return mSn; }
     SequenceNumber nextSequenceNumber() { return ++mSn; }
 
 private:
