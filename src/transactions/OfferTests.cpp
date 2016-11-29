@@ -11,6 +11,7 @@
 #include "util/Logging.h"
 #include "util/TestUtils.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
 #include "database/Database.h"
@@ -65,11 +66,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("account a1 does not exist")
     {
-        auto txFrame =
-            manageOfferOp(networkID, 0, getAccount("a1"), idrCur, usdCur, oneone, 100, 1);
-
-        applyCheck(txFrame, delta, app);
-        REQUIRE(txFrame->getResultCode() == txNO_ACCOUNT);
+        auto a1 = TestAccount{app, getAccount("a1"), 0};
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_txNO_ACCOUNT);
     }
 
     SECTION("passive offer")
@@ -77,10 +75,10 @@ TEST_CASE("create offer", "[tx][offers]")
         auto a1 = root.create("A", minBalance2 * 2);
         auto b1 = root.create("B", minBalance2 * 2);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "IDR", trustLineLimit);
-        applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "USD", trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
+        b1.changeTrust(idrCur, trustLineLimit);
+        b1.changeTrust(usdCur, trustLineLimit);
 
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineBalance);
@@ -88,14 +86,12 @@ TEST_CASE("create offer", "[tx][offers]")
                              trustLineBalance);
 
         uint64_t firstOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
-        auto txFrame = manageOfferOp(networkID, 0, a1, idrCur, usdCur, oneone,
-                                     100 * assetMultiplier, a1.nextSequenceNumber());
-        REQUIRE(applyCheck(txFrame, delta, app));
+        a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100 * assetMultiplier);
 
         // offer2 is a passive offer
         uint64_t secondOfferID =
             delta.getHeaderFrame().getLastGeneratedID() + 1;
-        txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, oneone,
+        auto txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, oneone,
                                        100 * assetMultiplier, b1.nextSequenceNumber());
         REQUIRE(applyCheck(txFrame, delta, app));
 
@@ -130,10 +126,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             SECTION("modify high")
             {
-                txFrame =
-                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
-                                  highPrice, 100 * assetMultiplier, b1.nextSequenceNumber());
-                applyCheck(txFrame, delta, app);
+                b1.manageOffer(delta, secondOfferID, usdCur, idrCur, highPrice, 100 * assetMultiplier, MANAGE_OFFER_UPDATED);
 
                 offer = loadOffer(a1, firstOfferID, app);
                 REQUIRE(offer->getAmount() == (100 * assetMultiplier));
@@ -146,10 +139,7 @@ TEST_CASE("create offer", "[tx][offers]")
             }
             SECTION("modify low")
             {
-                txFrame =
-                    manageOfferOp(networkID, secondOfferID, b1, usdCur, idrCur,
-                                  lowPrice, 100 * assetMultiplier, b1.nextSequenceNumber());
-                applyCheck(txFrame, delta, app);
+                b1.manageOffer(delta, secondOfferID, usdCur, idrCur, lowPrice, 100 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                 REQUIRE(!loadOffer(a1, firstOfferID, app, false));
                 REQUIRE(!loadOffer(b1, secondOfferID, app, false));
@@ -164,39 +154,33 @@ TEST_CASE("create offer", "[tx][offers]")
         // sell IDR for USD
 
         // missing IDR trust
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_SELL_NO_TRUST);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_SELL_NO_TRUST);
 
         // no issuer for selling
         SecretKey gateway2 = getAccount("other gate");
         Asset idrCur2 = makeAsset(gateway2, "IDR");
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur2, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_SELL_NO_ISSUER);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur2, usdCur, oneone, 100), ex_MANAGE_OFFER_SELL_NO_ISSUER);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
 
         // can't sell IDR if account doesn't have any
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_UNDERFUNDED);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_UNDERFUNDED);
 
         // fund a1 with some IDR
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineLimit);
 
         // missing USD trust
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_BUY_NO_TRUST);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_BUY_NO_TRUST);
 
         // no issuer for buying
         Asset usdCur2 = makeAsset(gateway2, "USD");
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur2, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_BUY_NO_ISSUER);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur2, oneone, 100), ex_MANAGE_OFFER_BUY_NO_ISSUER);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
 
         // need sufficient XLM funds to create an offer
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_LOW_RESERVE);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LOW_RESERVE);
 
         // add some funds to create the offer
         applyPaymentTx(app, root, a1, root.nextSequenceNumber(), minBalance2);
@@ -205,33 +189,29 @@ TEST_CASE("create offer", "[tx][offers]")
         // first, fill the trust line to the limit
         applyCreditPaymentTx(app, gateway, a1, usdCur, gateway.nextSequenceNumber(),
                              trustLineLimit);
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_LINE_FULL);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LINE_FULL);
 
         // try to overflow
         // first moves the limit and balance to INT64_MAX
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", INT64_MAX);
+        a1.changeTrust(usdCur, INT64_MAX);
         applyCreditPaymentTx(app, gateway, a1, usdCur, gateway.nextSequenceNumber(),
                              INT64_MAX - trustLineLimit);
 
-        applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                   100, a1.nextSequenceNumber(), MANAGE_OFFER_LINE_FULL);
+        REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LINE_FULL);
 
         SECTION("protocol version 2")
         {
             app.getLedgerManager().setCurrentLedgerVersion(2);
 
             // offer with amount 0
-            applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                       0, a1.nextSequenceNumber());
+            a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
         }
         SECTION("protocol version 3")
         {
             app.getLedgerManager().setCurrentLedgerVersion(3);
 
             // offer with amount 0
-            applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur, oneone,
-                                       0, a1.nextSequenceNumber(), MANAGE_OFFER_NOT_FOUND);
+            REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 0), ex_MANAGE_OFFER_NOT_FOUND);
         }
 
         // there should be no pending offer at this point in the system
@@ -248,29 +228,21 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto a1 = root.create("A", minBalanceA + 10000);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineBalance);
 
-        auto res = applyCreateOfferWithResult(app, delta, 0, a1, idrCur, usdCur,
-                                              oneone, 100, a1.nextSequenceNumber(),
-                                              MANAGE_OFFER_SUCCESS);
-
-        auto offer = res.success().offer.offer();
-        auto orgOffer = loadOffer(a1, offer.offerID, app);
+        auto offerID = a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100);
+        auto orgOffer = loadOffer(a1, offerID, app);
 
         SECTION("Cancel offer")
         {
             auto cancelCheck = [&]()
             {
-                auto cancelRes = applyCreateOfferWithResult(
-                    app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 0,
-                    a1.nextSequenceNumber(), MANAGE_OFFER_SUCCESS);
+                a1.manageOffer(delta, offerID, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
 
-                REQUIRE(cancelRes.success().offer.effect() ==
-                        MANAGE_OFFER_DELETED);
-                REQUIRE(!loadOffer(a1, offer.offerID, app, false));
+                REQUIRE(!loadOffer(a1, offerID, app, false));
             };
             SECTION("Typical")
             {
@@ -287,7 +259,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
                 SECTION("Deleted trust line")
                 {
-                    applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", 0);
+                    a1.changeTrust(idrCur, 0);
                     cancelCheck();
                 }
             }
@@ -304,7 +276,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
                 SECTION("Deleted trust line")
                 {
-                    applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", 0);
+                    a1.changeTrust(usdCur, 0);
                     cancelCheck();
                 }
             }
@@ -313,33 +285,25 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             SECTION("Delete non existant offer")
             {
-                auto bogusOfferID = offer.offerID + 1;
-                auto r = applyCreateOfferWithResult(
-                    app, delta, bogusOfferID, a1, idrCur, usdCur, oneone, 0,
-                    a1.nextSequenceNumber(), MANAGE_OFFER_NOT_FOUND);
+                auto bogusOfferID = offerID + 1;
+                REQUIRE_THROWS_AS(a1.manageOffer(delta, bogusOfferID, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED), ex_MANAGE_OFFER_NOT_FOUND);
             }
         }
         SECTION("Update price")
         {
             const Price onetwo(1, 2);
-            auto updateRes = applyCreateOfferWithResult(
-                app, delta, offer.offerID, a1, idrCur, usdCur, onetwo, 100,
-                a1.nextSequenceNumber(), MANAGE_OFFER_SUCCESS);
+            a1.manageOffer(delta, offerID, idrCur, usdCur, onetwo, 100, MANAGE_OFFER_UPDATED);
 
-            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
-            auto modOffer = loadOffer(a1, offer.offerID, app);
+            auto modOffer = loadOffer(a1, offerID, app);
             REQUIRE(modOffer->getOffer().price == onetwo);
             modOffer->getOffer().price = oneone;
             REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
         }
         SECTION("Update amount")
         {
-            auto updateRes = applyCreateOfferWithResult(
-                app, delta, offer.offerID, a1, idrCur, usdCur, oneone, 10,
-                a1.nextSequenceNumber(), MANAGE_OFFER_SUCCESS);
+            a1.manageOffer(delta, offerID, idrCur, usdCur, oneone, 10, MANAGE_OFFER_UPDATED);
 
-            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
-            auto modOffer = loadOffer(a1, offer.offerID, app);
+            auto modOffer = loadOffer(a1, offerID, app);
             REQUIRE(modOffer->getOffer().amount == 10);
             modOffer->getOffer().amount = 100;
             REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
@@ -351,12 +315,9 @@ TEST_CASE("create offer", "[tx][offers]")
                                  trustLineBalance);
 
             // swap selling and buying
-            auto updateRes = applyCreateOfferWithResult(
-                app, delta, offer.offerID, a1, usdCur, idrCur, oneone, 100,
-                a1.nextSequenceNumber(), MANAGE_OFFER_SUCCESS);
+            a1.manageOffer(delta, offerID, usdCur, idrCur, oneone, 100, MANAGE_OFFER_UPDATED);
 
-            REQUIRE(updateRes.success().offer.effect() == MANAGE_OFFER_UPDATED);
-            auto modOffer = loadOffer(a1, offer.offerID, app);
+            auto modOffer = loadOffer(a1, offerID, app);
             REQUIRE(modOffer->getOffer().selling == usdCur);
             REQUIRE(modOffer->getOffer().buying == idrCur);
             std::swap(modOffer->getOffer().buying,
@@ -382,8 +343,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto a1 = root.create("A", minBalanceA + 10000);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", trustLineLimit);
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineBalance);
         SECTION("Native offers")
@@ -394,13 +355,11 @@ TEST_CASE("create offer", "[tx][offers]")
             const Price somePrice(3, 2);
             SECTION("IDR -> XLM")
             {
-                applyCreateOffer(app, delta, 0, a1, xlmCur, idrCur, somePrice,
-                                 100 * assetMultiplier, a1.nextSequenceNumber());
+                a1.manageOffer(delta, 0, xlmCur, idrCur, somePrice, 100 * assetMultiplier);
             }
             SECTION("XLM -> IDR")
             {
-                applyCreateOffer(app, delta, 0, a1, idrCur, xlmCur, somePrice,
-                                 100 * assetMultiplier, a1.nextSequenceNumber());
+                a1.manageOffer(delta, 0, idrCur, xlmCur, somePrice, 100 * assetMultiplier);
             }
         }
 
@@ -416,9 +375,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // offer is sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy USD
                 // @
                 // 1.5
-                uint64_t newOfferID = applyCreateOffer(
-                    app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
-                    100 * assetMultiplier, a1.nextSequenceNumber());
+                auto newOfferID = a1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
                 offer = loadOffer(a1, newOfferID, app);
 
@@ -435,8 +392,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
             auto b1 = root.create("B", minBalance3 + 10000);
 
-            applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "IDR", trustLineLimit);
-            applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "USD", trustLineLimit);
+            b1.changeTrust(idrCur, trustLineLimit);
+            b1.changeTrust(usdCur, trustLineLimit);
 
             const Price twoone(2, 1);
 
@@ -447,9 +404,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 // offer is sell 40 USD for 80 IDR ; sell USD @ 2
 
-                uint64_t offerID =
-                    applyCreateOffer(app, delta, 0, b1, usdCur, idrCur, twoone,
-                                     40 * assetMultiplier, b1.nextSequenceNumber());
+                auto offerID = b1.manageOffer(delta, 0, usdCur, idrCur, twoone, 40 * assetMultiplier);
 
                 // verifies that the offer was created properly
                 offer = loadOffer(b1, offerID, app);
@@ -487,9 +442,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
 
                 uint64_t beforeID = delta.getHeaderFrame().getLastGeneratedID();
-                applyCreateOfferWithResult(app, delta, 0, a1, usdCur, idrCur,
-                                           exactCross, 150 * assetMultiplier,
-                                           a1.nextSequenceNumber(), MANAGE_OFFER_CROSS_SELF);
+                REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, usdCur, idrCur, exactCross, 150 * assetMultiplier), ex_MANAGE_OFFER_CROSS_SELF);
                 REQUIRE(beforeID ==
                         delta.getHeaderFrame().getLastGeneratedID());
 
@@ -516,11 +469,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 uint64_t expectedID =
                     delta.getHeaderFrame().getLastGeneratedID() + 1;
-                auto const& res = applyCreateOfferWithResult(
-                    app, delta, 0, b1, usdCur, idrCur, exactCross,
-                    150 * assetMultiplier, b1.nextSequenceNumber());
 
-                REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
+                b1.manageOffer(delta, 0, usdCur, idrCur, exactCross, 150 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                 // verifies that the offer was not created
                 REQUIRE(!loadOffer(b1, expectedID, app, false));
@@ -571,11 +521,8 @@ TEST_CASE("create offer", "[tx][offers]")
                 uint64_t expectedID =
                     delta.getHeaderFrame().getLastGeneratedID() + 1;
                 // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                auto const& res = applyCreateOfferWithResult(
-                    app, delta, 0, b1, usdCur, idrCur, onetwo,
-                    1010 * assetMultiplier, b1.nextSequenceNumber());
+                b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, 1010 * assetMultiplier, MANAGE_OFFER_DELETED);
 
-                REQUIRE(res.success().offer.effect() == MANAGE_OFFER_DELETED);
                 // verify that the offer was not created
                 REQUIRE(!loadOffer(b1, expectedID, app, false));
 
@@ -666,12 +613,8 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     uint64_t wouldCreateID =
                         delta.getHeaderFrame().getLastGeneratedID() + 1;
-                    auto const& res = applyCreateOfferWithResult(
-                        app, delta, 0, b1, usdCur, idrCur, onetwo,
-                        1 * assetMultiplier, b1.nextSequenceNumber());
+                    b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, 1 * assetMultiplier, MANAGE_OFFER_DELETED);
 
-                    REQUIRE(res.success().offer.effect() ==
-                            MANAGE_OFFER_DELETED);
                     REQUIRE(!loadOffer(b1, wouldCreateID, app, false));
                 }
 
@@ -728,18 +671,14 @@ TEST_CASE("create offer", "[tx][offers]")
                 // inject also an offer that should get cleaned up
                 uint64_t cOfferID = 0;
                 {
-                    applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "IDR",
-                                     trustLineLimit);
-                    applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "USD",
-                                     trustLineLimit);
+                    c1.changeTrust(idrCur, trustLineLimit);
+                    c1.changeTrust(usdCur, trustLineLimit);
                     applyCreditPaymentTx(app, gateway, c1, idrCur,
                                          gateway.nextSequenceNumber(),
                                          20000 * assetMultiplier);
 
                     // matches the offer from A
-                    cOfferID = applyCreateOffer(
-                        app, delta, 0, c1, idrCur, usdCur, usdPriceOfferA,
-                        100 * assetMultiplier, c1.nextSequenceNumber());
+                    cOfferID = c1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
                     // drain account
                     applyCreditPaymentTx(app, c1, gateway, idrCur, c1.nextSequenceNumber(),
                                          20000 * assetMultiplier);
@@ -750,9 +689,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
 
                 int64_t usdBalanceForSale = 10000 * assetMultiplier;
-                uint64_t offerID =
-                    applyCreateOffer(app, delta, 0, b1, usdCur, idrCur, onetwo,
-                                     usdBalanceForSale, b1.nextSequenceNumber());
+                auto offerID = b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, usdBalanceForSale);
 
                 offer = loadOffer(b1, offerID, app);
 
@@ -795,9 +732,7 @@ TEST_CASE("create offer", "[tx][offers]")
             const Price usdPriceOfferA(3, 2);
             // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell IRD @
             // 0.66
-            uint64_t offerA1 = applyCreateOffer(
-                app, delta, 0, a1, idrCur, usdCur, usdPriceOfferA,
-                100 * assetMultiplier, a1.nextSequenceNumber());
+            auto offerA1 = a1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
             offer = loadOffer(a1, offerA1, app);
 
@@ -806,26 +741,20 @@ TEST_CASE("create offer", "[tx][offers]")
                 // b1 sells the same thing
                 auto b1 = root.create("B", minBalance3 + 10000);
 
-                applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "IDR",
-                                 trustLineLimit);
-                applyChangeTrust(app, b1, gateway, b1.nextSequenceNumber(), "USD",
-                                 trustLineLimit);
+                b1.changeTrust(idrCur, trustLineLimit);
+                b1.changeTrust(usdCur, trustLineLimit);
 
                 applyCreditPaymentTx(app, gateway, b1, idrCur, gateway.nextSequenceNumber(),
                                      trustLineBalance);
 
-                uint64_t offerB1 = applyCreateOffer(
-                    app, delta, 0, b1, idrCur, usdCur, usdPriceOfferA,
-                    100 * assetMultiplier, b1.nextSequenceNumber());
+                auto offerB1 = b1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
                 offer = loadOffer(b1, offerB1, app);
 
                 auto c1 = root.create("C", minBalanceA + 10000);
 
-                applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "USD",
-                                 trustLineLimit);
-                applyChangeTrust(app, c1, gateway, c1.nextSequenceNumber(), "IDR",
-                                 trustLineLimit);
+                c1.changeTrust(usdCur, trustLineLimit);
+                c1.changeTrust(idrCur, trustLineLimit);
 
                 applyCreditPaymentTx(app, gateway, c1, usdCur, gateway.nextSequenceNumber(),
                                      trustLineBalance);
@@ -845,12 +774,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
                     // -> sell USD @ 1.5 IDR
                     const Price idrPriceOfferC(2, 3);
-                    auto offerC1Res = applyCreateOfferWithResult(
-                        app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
-                        300 * assetMultiplier, c1.nextSequenceNumber());
-                    // offer consumed offers but was not created
-                    REQUIRE(offerC1Res.success().offer.effect() ==
-                            MANAGE_OFFER_DELETED);
+                    c1.manageOffer(delta, 0, usdCur, idrCur, idrPriceOfferC, 300 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                     TrustFrame::pointer line;
 
@@ -901,10 +825,9 @@ TEST_CASE("create offer", "[tx][offers]")
                         // setup d1
                         auto d1 = root.create("D", minBalance3 + 10000);
 
-                        applyChangeTrust(app, d1, secgateway, d1.nextSequenceNumber(), "IDR",
-                                         trustLineLimit);
-                        applyChangeTrust(app, d1, secgateway, d1.nextSequenceNumber(), "USD",
-                                         trustLineLimit);
+                        d1.changeTrust(secIdrCur, trustLineLimit);
+                        d1.changeTrust(secUsdCur, trustLineLimit);
+
                         applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(), "USD",
                                         true);
                         applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(), "IDR",
@@ -917,9 +840,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 =
                         // sell IRD @
                         // 0.66
-                        auto offerD1 = applyCreateOffer(
-                            app, delta, 0, d1, secIdrCur, secUsdCur,
-                            usdPriceOfferD, 100 * assetMultiplier, d1.nextSequenceNumber());
+                        auto offerD1 = d1.manageOffer(delta, 0, secIdrCur, secUsdCur, usdPriceOfferD, 100 * assetMultiplier);
 
                         SECTION("D not authorized to hold USD")
                         {
@@ -935,10 +856,9 @@ TEST_CASE("create offer", "[tx][offers]")
                         // setup e1
                         auto e1 = root.create("E", minBalance3 + 10000);
 
-                        applyChangeTrust(app, e1, secgateway, e1.nextSequenceNumber(), "IDR",
-                                         trustLineLimit);
-                        applyChangeTrust(app, e1, secgateway, e1.nextSequenceNumber(), "USD",
-                                         trustLineLimit);
+                        e1.changeTrust(secIdrCur, trustLineLimit);
+                        e1.changeTrust(secUsdCur, trustLineLimit);
+
                         applyAllowTrust(app, secgateway, e1, secgateway.nextSequenceNumber(), "USD",
                                         true);
                         applyAllowTrust(app, secgateway, e1, secgateway.nextSequenceNumber(), "IDR",
@@ -947,17 +867,14 @@ TEST_CASE("create offer", "[tx][offers]")
                         applyCreditPaymentTx(app, secgateway, e1, secIdrCur,
                                              secgateway.nextSequenceNumber(), trustLineBalance);
 
-                        uint64_t offerE1 = applyCreateOffer(
-                            app, delta, 0, e1, secIdrCur, secUsdCur,
-                            usdPriceOfferD, 100 * assetMultiplier, e1.nextSequenceNumber());
+                        auto offerE1 = e1.manageOffer(delta, 0, secIdrCur, secUsdCur, usdPriceOfferD, 100 * assetMultiplier);
 
                         // setup f1
                         auto f1 = root.create("F", minBalance3 + 10000);
 
-                        applyChangeTrust(app, f1, secgateway, f1.nextSequenceNumber(), "IDR",
-                                         trustLineLimit);
-                        applyChangeTrust(app, f1, secgateway, f1.nextSequenceNumber(), "USD",
-                                         trustLineLimit);
+                        f1.changeTrust(secIdrCur, trustLineLimit);
+                        f1.changeTrust(secUsdCur, trustLineLimit);
+
                         applyAllowTrust(app, secgateway, f1, secgateway.nextSequenceNumber(), "USD",
                                         true);
                         applyAllowTrust(app, secgateway, f1, secgateway.nextSequenceNumber(), "IDR",
@@ -974,15 +891,11 @@ TEST_CASE("create offer", "[tx][offers]")
                         // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
                         // -> sell USD @ 1.5 IDR
                         const Price idrPriceOfferC(2, 3);
-                        auto offerF1Res = applyCreateOfferWithResult(
-                            app, delta, 0, f1, secUsdCur, secIdrCur,
-                            idrPriceOfferC, 300 * assetMultiplier, f1.nextSequenceNumber());
+                        auto offerF1ID = f1.manageOffer(delta, 0, secUsdCur, secIdrCur, idrPriceOfferC, 300 * assetMultiplier);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
-                        REQUIRE(offerF1Res.success().offer.effect() ==
-                                MANAGE_OFFER_CREATED);
 
-                        REQUIRE(offerF1Res.success().offer.offer().amount ==
-                                150 * assetMultiplier);
+                        auto offerF1 = loadOffer(f1, offerF1ID, app, true);
+                        REQUIRE(offerF1->getAmount() == 150 * assetMultiplier);
 
                         TrustFrame::pointer line;
 
@@ -1030,15 +943,11 @@ TEST_CASE("create offer", "[tx][offers]")
                         // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66 USD
                         // -> sell USD @ 1.5 IDR
                         const Price idrPriceOfferC(2, 3);
-                        auto offerC1Res = applyCreateOfferWithResult(
-                            app, delta, 0, c1, usdCur, idrCur, idrPriceOfferC,
-                            300 * assetMultiplier, c1.nextSequenceNumber());
+                        auto offerC1ID = c1.manageOffer(delta, 0, usdCur, idrCur, idrPriceOfferC, 300 * assetMultiplier);
                         // offer created would be buy 50 IDR for 75 USD ; 0.66
-                        REQUIRE(offerC1Res.success().offer.effect() ==
-                                MANAGE_OFFER_CREATED);
+                        auto offerC1 = loadOffer(c1, offerC1ID, app, true);
 
-                        REQUIRE(offerC1Res.success().offer.offer().amount ==
-                                75 * assetMultiplier);
+                        REQUIRE(offerC1->getAmount() == 75 * assetMultiplier);
 
                         TrustFrame::pointer line;
 
@@ -1081,21 +990,14 @@ TEST_CASE("create offer", "[tx][offers]")
                 SECTION("issuer creates an offer, claimed by somebody else")
                 {
                     // sell 100 IDR for 90 USD
-                    uint64_t gwOffer = applyCreateOffer(
-                        app, delta, 0, gateway, idrCur, usdCur, Price(9, 10),
-                        100 * assetMultiplier, gateway.nextSequenceNumber());
+                    auto gwOffer = gateway.manageOffer(delta, 0, idrCur, usdCur, Price(9, 10), 100 * assetMultiplier);
 
                     // fund a1 with some USD
                     applyCreditPaymentTx(app, gateway, a1, usdCur,
                                          gateway.nextSequenceNumber(), 1000 * assetMultiplier);
 
                     // sell USD for IDR
-                    auto resA = applyCreateOfferWithResult(
-                        app, delta, 0, a1, usdCur, idrCur, Price(1, 1),
-                        90 * assetMultiplier, a1.nextSequenceNumber());
-
-                    REQUIRE(resA.success().offer.effect() ==
-                            MANAGE_OFFER_DELETED);
+                    a1.manageOffer(delta, 0, usdCur, idrCur, Price(1, 1), 90 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                     // gw's offer was deleted
                     REQUIRE(!loadOffer(gateway, gwOffer, app, false));
@@ -1110,11 +1012,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
                 SECTION("issuer claims an offer from somebody else")
                 {
-                    auto res = applyCreateOfferWithResult(
-                        app, delta, 0, gateway, usdCur, idrCur, Price(2, 3),
-                        150 * assetMultiplier, gateway.nextSequenceNumber());
-                    REQUIRE(res.success().offer.effect() ==
-                            MANAGE_OFFER_DELETED);
+                    gateway.manageOffer(delta, 0, usdCur, idrCur, Price(2, 3), 150 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                     // A's offer was deleted
                     REQUIRE(!loadOffer(a1, offerA1, app, false));

@@ -80,7 +80,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("With sub entries")
     {
         Asset usdCur = makeAsset(gateway, "USD");
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", trustLineLimit);
+        a1.changeTrust(usdCur, trustLineLimit);
 
         SECTION("account has trust line")
         {
@@ -97,14 +97,13 @@ TEST_CASE("merge", "[tx][merge]")
             const Price somePrice(3, 2);
             for (int i = 0; i < 4; i++)
             {
-                applyCreateOffer(app, delta, 0, a1, xlmCur, usdCur, somePrice,
-                                 100 * assetMultiplier, a1.nextSequenceNumber());
+                a1.manageOffer(delta, 0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
             }
             // empty out balance
             applyCreditPaymentTx(app, a1, gateway, usdCur, a1.nextSequenceNumber(),
                                  trustLineBalance);
             // delete the trust line
-            applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", 0);
+            a1.changeTrust(usdCur, 0);
 
             applyAccountMerge(app, a1, b1, a1.nextSequenceNumber(),
                               ACCOUNT_MERGE_HAS_SUB_ENTRIES);
@@ -113,7 +112,7 @@ TEST_CASE("merge", "[tx][merge]")
         SECTION("account has data")
         {
             // delete the trust line
-            applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "USD", 0);
+            a1.changeTrust(usdCur, 0);
 
             DataValue value;
             value.resize(20);

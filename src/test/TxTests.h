@@ -78,17 +78,16 @@ TransactionFramePtr transactionFromOperations(Hash const& networkID, SecretKey c
                                               SequenceNumber seq, const std::vector<Operation> &ops);
 
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey const&from,
-                                      SecretKey const&to, SequenceNumber seq,
+                                      PublicKey const&to, SequenceNumber seq,
                                       std::string const& assetCode,
                                       int64_t limit);
 
-void applyChangeTrust(Application& app, SecretKey const&from, SecretKey const&to,
+void applyChangeTrust(Application& app, SecretKey const&from, PublicKey const&to,
                       SequenceNumber seq, std::string const& assetCode,
-                      int64_t limit,
-                      ChangeTrustResultCode result = CHANGE_TRUST_SUCCESS);
+                      int64_t limit);
 
 TransactionFramePtr createAllowTrust(Hash const& networkID, SecretKey const&from,
-                                     SecretKey const&trustor, SequenceNumber seq,
+                                     PublicKey const&trustor, SequenceNumber seq,
                                      std::string const& assetCode,
                                      bool authorize);
 
@@ -138,8 +137,8 @@ applyPathPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
                    std::vector<Asset>* path = nullptr);
 
 TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
-                                  SecretKey const&source, Asset& selling,
-                                  Asset& buying, Price const& price,
+                                  SecretKey const&source, Asset const& selling,
+                                  Asset const& buying, Price const& price,
                                   int64_t amount, SequenceNumber seq);
 
 TransactionFramePtr createPassiveOfferOp(Hash const& networkID,
@@ -147,18 +146,11 @@ TransactionFramePtr createPassiveOfferOp(Hash const& networkID,
                                          Asset& buying, Price const& price,
                                          int64_t amount, SequenceNumber seq);
 
-// expects success
-// expects a new offer to be created
-// returns the ID of the new offer
-uint64_t applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                          SecretKey const&source, Asset& selling, Asset& buying,
+// returns the ID of the new offer if created
+uint64_t applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
+                          SecretKey const&source, Asset const& selling, Asset const& buying,
                           Price const& price, int64_t amount,
-                          SequenceNumber seq);
-
-ManageOfferResult applyCreateOfferWithResult(
-    Application& app, LedgerDelta& delta, uint64 offerId, SecretKey const&source,
-    Asset& selling, Asset& buying, Price const& price, int64_t amount,
-    SequenceNumber seq, ManageOfferResultCode targetResult = MANAGE_OFFER_SUCCESS);
+                          SequenceNumber seq, ManageOfferEffect expectedEffect);
 
 TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey const&source,
                                      SequenceNumber seq,

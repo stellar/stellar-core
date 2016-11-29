@@ -67,7 +67,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("allow trust not required with payment")
     {
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineStartingBalance);
         applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
@@ -80,7 +80,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
         applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr, &setFlags,
                         nullptr, nullptr, nullptr, nullptr);
 
-        applyChangeTrust(app, a1, gateway, a1.nextSequenceNumber(), "IDR", trustLineLimit);
+        a1.changeTrust(idrCur, trustLineLimit);
         applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
                              trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
 
