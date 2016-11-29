@@ -30,14 +30,11 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    SecretKey gateway = getAccount("gw");
+    auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
+    auto gateway = root.create("gw", minBalance2);
 
     SECTION("basic tests")
     {
-        const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-        applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-        SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
         Asset idrCur = makeAsset(gateway, "IDR");
 
@@ -49,7 +46,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 100);
 
         // fill it to 90
-        applyCreditPaymentTx(app, gateway, root, idrCur, gateway_seq++, 90);
+        applyCreditPaymentTx(app, gateway, root, idrCur, gateway.nextSequenceNumber(), 90);
 
         // can't lower the limit below balance
         applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 89,
@@ -71,19 +68,14 @@ TEST_CASE("change trust", "[tx][changetrust]")
     {
         SECTION("new trust line")
         {
-            applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "USD", 100,
+            applyChangeTrust(app, root, getAccount("non-existing"), root.nextSequenceNumber(), "USD", 100,
                              CHANGE_TRUST_NO_ISSUER);
         }
         SECTION("edit existing")
         {
-            const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-            applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance2);
-            SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
-
             applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 100);
             // Merge gateway back into root (the trustline still exists)
-            applyAccountMerge(app, gateway, root, gateway_seq++);
+            applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
 
             applyChangeTrust(app, root, gateway, root.nextSequenceNumber(), "IDR", 99,
                              CHANGE_TRUST_NO_ISSUER);

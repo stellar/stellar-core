@@ -96,8 +96,7 @@ TransactionFramePtr createCreateAccountTx(Hash const& networkID,
 
 void
 applyCreateAccountTx(Application& app, SecretKey const&from, SecretKey const&to,
-                     SequenceNumber seq, int64_t amount,
-                     CreateAccountResultCode result = CREATE_ACCOUNT_SUCCESS);
+                     SequenceNumber seq, int64_t amount);
 
 TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey const&from,
                                     SecretKey const&to, SequenceNumber seq,

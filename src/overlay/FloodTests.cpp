@@ -80,7 +80,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             }
         }
 
-        expectedSeq = getAccountSeqNum(root, *app0) + 1;
+        expectedSeq = root.getLastSequenceNumber() + 1;
 
         // enough for connections to be made
         simulation->crankForAtLeast(std::chrono::seconds(1), false);

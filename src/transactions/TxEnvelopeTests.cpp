@@ -107,8 +107,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("multisig")
     {
-        applyCreateAccountTx(app, root, a1, root.nextSequenceNumber(), paymentAmount);
-        SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
+        auto a1 = root.create("A", paymentAmount);
 
         SecretKey s1 = getAccount("S1");
         Signer sk1(s1.getPublicKey(), 5); // below low rights
@@ -120,19 +119,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th.medThreshold = make_optional<uint8_t>(50);
         th.highThreshold = make_optional<uint8_t>(100);
 
-        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, &th, &sk1,
+        applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, &th, &sk1,
                         nullptr);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 95); // med rights account
 
-        applySetOptions(app, a1, a1Seq++, nullptr, nullptr, nullptr, nullptr,
+        applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, nullptr,
                         &sk2, nullptr);
 
         SECTION("not enough rights (envelope)")
         {
             TransactionFramePtr tx =
-                createPaymentTx(app.getNetworkID(), a1, root, a1Seq++, 1000);
+                createPaymentTx(app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
 
             // only sign with s1
             tx->getEnvelope().signatures.clear();
@@ -149,7 +148,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             // updating thresholds requires high
             TransactionFramePtr tx =
-                createSetOptions(app.getNetworkID(), a1, a1Seq++, nullptr, nullptr,
+                createSetOptions(app.getNetworkID(), a1, a1.nextSequenceNumber(), nullptr, nullptr,
                                  nullptr, &th, &sk1, nullptr);
 
             // only sign with s1 (med)
@@ -167,7 +166,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("success two signatures")
         {
             TransactionFramePtr tx =
-                createPaymentTx(app.getNetworkID(), a1, root, a1Seq++, 1000);
+                createPaymentTx(app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
 
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
@@ -205,17 +204,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("non empty")
         {
-            SecretKey b1 = getAccount("B");
-            applyCreateAccountTx(app, root, a1, root.nextSequenceNumber(), paymentAmount);
-            applyCreateAccountTx(app, root, b1, root.nextSequenceNumber(), paymentAmount);
-
-            SequenceNumber a1Seq = getAccountSeqNum(a1, app) + 1;
-            SequenceNumber b1Seq = getAccountSeqNum(b1, app) + 1;
+            auto a1 = root.create("A", paymentAmount);
+            auto b1 = root.create("B", paymentAmount);
 
             SECTION("single tx wrapped by different account")
             {
                 TransactionFramePtr tx =
-                    createPaymentTx(app.getNetworkID(), a1, root, a1Seq++, 1000);
+                    createPaymentTx(app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
 
                 // change inner payment to be b->root
                 tx->getEnvelope().tx.operations[0].sourceAccount.activate() =
@@ -254,13 +249,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("multiple tx")
             {
                 TransactionFramePtr tx_a =
-                    createPaymentTx(app.getNetworkID(), a1, root, a1Seq++, 1000);
+                    createPaymentTx(app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
                 SECTION("one invalid tx")
                 {
                     Asset idrCur = makeAsset(b1, "IDR");
                     Price price(1, 1);
                     TransactionFramePtr tx_b = manageOfferOp(
-                        app.getNetworkID(), 0, b1, idrCur, idrCur, price, 1000, b1Seq);
+                        app.getNetworkID(), 0, b1, idrCur, idrCur, price, 1000, b1.getLastSequenceNumber());
 
                     // build a new tx based off tx_a and tx_b
                     tx_b->getEnvelope()
@@ -300,7 +295,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     // this payment is too large
                     TransactionFramePtr tx_b = createPaymentTx(
-                        app.getNetworkID(), b1, root, b1Seq++, paymentAmount);
+                        app.getNetworkID(), b1, root, b1.nextSequenceNumber(), paymentAmount);
 
                     tx_b->getEnvelope()
                         .tx.operations[0]
@@ -338,7 +333,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("both success")
                 {
                     TransactionFramePtr tx_b =
-                        createPaymentTx(app.getNetworkID(), b1, root, b1Seq++, 1000);
+                        createPaymentTx(app.getNetworkID(), b1, root, b1.nextSequenceNumber(), 1000);
 
                     tx_b->getEnvelope()
                         .tx.operations[0]
@@ -382,7 +377,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 //  2. send from C -> root
 
                 TransactionFramePtr tx = createCreateAccountTx(
-                    app.getNetworkID(), b1, c1, b1Seq++, paymentAmount / 2);
+                    app.getNetworkID(), b1, c1, b1.nextSequenceNumber(), paymentAmount / 2);
 
                 TransactionFramePtr tx_c =
                     createPaymentTx(app.getNetworkID(), c1, root, 0, 1000);
