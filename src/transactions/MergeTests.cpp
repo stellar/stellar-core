@@ -11,7 +11,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 #include "ledger/LedgerDelta.h"
 
 using namespace stellar;

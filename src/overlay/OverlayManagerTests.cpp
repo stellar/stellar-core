@@ -13,7 +13,7 @@
 #include "util/Timer.h"
 #include "database/Database.h"
 #include <soci.h>
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 
 using namespace stellar;

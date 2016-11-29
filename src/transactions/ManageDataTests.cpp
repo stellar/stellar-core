@@ -9,7 +9,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 #include "xdrpp/marshal.h"
 
 using namespace stellar;
@@ -68,7 +68,7 @@ TEST_CASE("manage data", "[tx][managedata]")
 
     // clear an existing data entry
     applyManageData(app, gateway, t1, nullptr, gateway_seq++);
-    
+
     // can now add test3 since test was removed
     applyManageData(app, gateway, t3, &value, gateway_seq++);
 

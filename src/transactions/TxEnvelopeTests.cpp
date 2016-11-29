@@ -15,7 +15,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

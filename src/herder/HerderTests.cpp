@@ -11,7 +11,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "crypto/SHA.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"

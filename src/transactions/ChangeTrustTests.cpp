@@ -9,7 +9,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

@@ -10,7 +10,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
 

@@ -9,7 +9,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 #include "util/Timer.h"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"

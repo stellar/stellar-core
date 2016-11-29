@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "TxTests.h"
+
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
@@ -9,7 +11,6 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/ByteSlice.h"
-#include "transactions/TxTests.h"
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -855,7 +856,7 @@ applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
                 txFrame->getResult().result.results()[0]) == targetResult);
 }
 
-TransactionFramePtr 
+TransactionFramePtr
 createManageData(Hash const& networkID, SecretKey& source,
     std::string& name, DataValue* value, SequenceNumber seq)
 {
@@ -868,8 +869,8 @@ createManageData(Hash const& networkID, SecretKey& source,
     return transactionFromOperation(networkID, source, seq, op);
 }
 
-void 
-applyManageData( Application& app,  
+void
+applyManageData( Application& app,
     SecretKey& source, std::string& name, DataValue* value,
     SequenceNumber seq, ManageDataResultCode targetResult)
 {
@@ -894,7 +895,7 @@ applyManageData( Application& app,
         {
             REQUIRE(dataFrame == nullptr);
         }
-    } 
+    }
 }
 
 
