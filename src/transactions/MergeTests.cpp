@@ -11,6 +11,7 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "ledger/LedgerDelta.h"
 
@@ -37,7 +38,7 @@ TEST_CASE("merge", "[tx][merge]")
 
     // set up world
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
     SecretKey a1 = getAccount("A");
     SecretKey b1 = getAccount("B");
     SecretKey gateway = getAccount("gate");

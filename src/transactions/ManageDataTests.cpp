@@ -9,6 +9,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "xdrpp/marshal.h"
 
@@ -34,14 +35,12 @@ TEST_CASE("manage data", "[tx][managedata]")
     upgradeToCurrentLedgerVersion(app);
 
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
     SecretKey gateway = getAccount("gw");
-
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
     const int64_t minBalance = app.getLedgerManager().getMinBalance(3)-100;
 
-    applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance);
+    applyCreateAccountTx(app, root, gateway, root.nextSequenceNumber(), minBalance);
     SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
 
     DataValue value,value2;
