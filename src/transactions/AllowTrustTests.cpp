@@ -5,7 +5,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/test.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "util/TestUtils.h"
 #include "util/Timer.h"
 
