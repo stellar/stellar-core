@@ -12,7 +12,8 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
-#include "transactions/TxTests.h"
+#include <soci.h>
+#include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "util/SociNoWarnings.h"
 

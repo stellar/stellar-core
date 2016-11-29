@@ -18,8 +18,8 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
-#include "transactions/TxTests.h"
 #include "util/TestUtils.h"
+#include "test/TxTests.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

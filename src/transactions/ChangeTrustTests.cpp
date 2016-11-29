@@ -10,7 +10,7 @@
 #include "util/Logging.h"
 #include "util/TestUtils.h"
 #include "lib/json/json.h"
-#include "TxTests.h"
+#include "test/TxTests.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
