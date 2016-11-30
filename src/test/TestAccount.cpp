@@ -58,4 +58,10 @@ TestAccount::manageOffer(LedgerDelta & delta, uint64_t offerID, Asset const& sel
     return applyManageOffer(mApp, delta, offerID, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
 }
 
+void
+TestAccount::pay(PublicKey const& destination, Asset const& selling, int64_t amount)
+{
+    applyCreditPaymentTx(mApp, getSecretKey(), destination, selling, nextSequenceNumber(), amount);
+}
+
 };

@@ -30,8 +30,10 @@ public:
 
     void changeTrust(Asset const &asset, int64_t limit);
     uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID, Asset const& selling, Asset const& buying, Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+    void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
 
     operator SecretKey () const { return getSecretKey(); }
+    operator PublicKey () const { return getPublicKey(); }
 
     SecretKey getSecretKey() const { return mSk; }
     PublicKey getPublicKey() const { return getSecretKey().getPublicKey(); }

@@ -266,21 +266,19 @@ TEST_CASE("payment", "[tx][payment]")
     {
         SECTION("credit sent to new account (no account error)")
         {
-            applyCreditPaymentTx(app, gateway, getAccount("B"), idrCur, gateway.nextSequenceNumber(), 100,
-                                 PAYMENT_NO_DESTINATION);
+            REQUIRE_THROWS_AS(gateway.pay(getAccount("B").getPublicKey(), idrCur, 100), ex_PAYMENT_NO_DESTINATION);
         }
 
         // actual sendcredit
         SECTION("credit payment with no trust")
         {
-            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(), 100,
-                                 PAYMENT_NO_TRUST);
+            REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, 100), ex_PAYMENT_NO_TRUST);
         }
 
         SECTION("with trust")
         {
             a1.changeTrust(idrCur, 1000);
-            applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(), 100);
+            gateway.pay(a1, idrCur, 100);
 
             TrustFrame::pointer line;
             line = loadTrustLine(a1, idrCur, app);
@@ -294,7 +292,7 @@ TEST_CASE("payment", "[tx][payment]")
             SECTION("positive")
             {
                 // first, send 40 from a1 to b1
-                applyCreditPaymentTx(app, a1, b1, idrCur, a1.nextSequenceNumber(), 40);
+                a1.pay(b1, idrCur, 40);
 
                 line = loadTrustLine(a1, idrCur, app);
                 REQUIRE(line->getBalance() == 60);
@@ -303,7 +301,7 @@ TEST_CASE("payment", "[tx][payment]")
 
                 // then, send back to the gateway
                 // the gateway does not have a trust line as it's the issuer
-                applyCreditPaymentTx(app, b1, gateway, idrCur, b1.nextSequenceNumber(), 40);
+                b1.pay(gateway, idrCur, 40);
                 line = loadTrustLine(b1, idrCur, app);
                 REQUIRE(line->getBalance() == 0);
             }
@@ -311,13 +309,12 @@ TEST_CASE("payment", "[tx][payment]")
             {
                 applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
                 // cannot send to an account that is not the issuer
-                applyCreditPaymentTx(app, a1, b1, idrCur, a1.nextSequenceNumber(), 40,
-                                     PAYMENT_NO_ISSUER);
+                REQUIRE_THROWS_AS(a1.pay(b1, idrCur, 40), ex_PAYMENT_NO_ISSUER);
                 // should be able to send back credits to issuer
-                applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(), 75);
+                a1.pay(gateway, idrCur,  75);
                 // cannot change the limit
                 REQUIRE_THROWS_AS(a1.changeTrust(idrCur, 25), ex_CHANGE_TRUST_NO_ISSUER);
-                applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(), 25);
+                a1.pay(gateway, idrCur,  25);
                 // and should be able to delete the trust line too
                 a1.changeTrust(idrCur, 0);
             }
@@ -326,14 +323,14 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("issuer large amounts")
     {
         a1.changeTrust(idrCur, INT64_MAX);
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
+        gateway.pay(a1, idrCur,
                              INT64_MAX);
         TrustFrame::pointer line;
         line = loadTrustLine(a1, idrCur, app);
         REQUIRE(line->getBalance() == INT64_MAX);
 
         // send it all back
-        applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(), INT64_MAX);
+        a1.pay(gateway, idrCur,  INT64_MAX);
         line = loadTrustLine(a1, idrCur, app);
         REQUIRE(line->getBalance() == 0);
 
@@ -351,24 +348,21 @@ TEST_CASE("payment", "[tx][payment]")
 
         a1.changeTrust(idrCur, trustLineLimit);
 
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+        REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, trustLineStartingBalance), ex_PAYMENT_NOT_AUTHORIZED);
 
         applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
 
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
+        gateway.pay(a1, idrCur,
                              trustLineStartingBalance);
 
         // send it all back
         applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", false);
 
-        applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
-                             trustLineStartingBalance,
-                             PAYMENT_SRC_NOT_AUTHORIZED);
+        REQUIRE_THROWS_AS(a1.pay(gateway, idrCur, trustLineStartingBalance), ex_PAYMENT_SRC_NOT_AUTHORIZED);
 
         applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
 
-        applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
+        a1.pay(gateway, idrCur,
                              trustLineStartingBalance);
     }
 
@@ -385,8 +379,7 @@ TEST_CASE("payment", "[tx][payment]")
         a1.changeTrust(usdCur, trustLineLimit);
         a1.changeTrust(idrCur, trustLineLimit);
 
-        applyCreditPaymentTx(app, gateway2, a1, usdCur, gateway2.nextSequenceNumber(),
-                             trustLineStartingBalance);
+        gateway2.pay(a1, usdCur, trustLineStartingBalance);
 
         // add a couple offers in the order book
         const Price usdPriceOffer(2, 1);
@@ -396,9 +389,7 @@ TEST_CASE("payment", "[tx][payment]")
         auto b1 = root.create("B", minBalance3 + 10000);
         b1.changeTrust(usdCur, trustLineLimit);
         b1.changeTrust(idrCur, trustLineLimit);
-
-        applyCreditPaymentTx(app, gateway, b1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance);
+        gateway.pay(b1, idrCur, trustLineStartingBalance);
 
         auto offerB1 = b1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOffer, 100 * assetMultiplier);
 
@@ -408,8 +399,7 @@ TEST_CASE("payment", "[tx][payment]")
         c1.changeTrust(usdCur, trustLineLimit);
         c1.changeTrust(idrCur, trustLineLimit);
 
-        applyCreditPaymentTx(app, gateway, c1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance);
+        gateway.pay(c1, idrCur, trustLineStartingBalance);
 
         // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD @ 0.66
         auto offerC1 = c1.manageOffer(delta, 0, idrCur, usdCur, Price(3, 2), 100 * assetMultiplier);
@@ -650,9 +640,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             SECTION("deleted selling line")
             {
-                applyCreditPaymentTx(app, c1, gateway, idrCur, c1.nextSequenceNumber(),
-                                     trustLineStartingBalance);
-
+                c1.pay(gateway, idrCur, trustLineStartingBalance);
                 c1.changeTrust(idrCur, 0);
 
                 checkBalances();
@@ -694,9 +682,9 @@ TEST_CASE("payment", "[tx][payment]")
             // setup account with required trustlines and money both in native and assets
             auto account = root.create(name, initialBalance);
             account.changeTrust(idrCur, trustLineLimit);
-            applyCreditPaymentTx(app, gateway, account, idrCur, gateway.nextSequenceNumber(), initialBalance);
+            gateway.pay(account, idrCur, initialBalance);
             account.changeTrust(usdCur, trustLineLimit);
-            applyCreditPaymentTx(app, gateway2, account, usdCur, gateway2.nextSequenceNumber(), initialBalance);
+            gateway2.pay(account, usdCur, initialBalance);
 
             return account;
         };

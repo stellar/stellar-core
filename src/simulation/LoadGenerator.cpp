@@ -1026,7 +1026,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey, assetPath.front(),
+                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), assetPath.front(),
                 mFrom->mSeq + 1, mAmount));
         }
         else
