@@ -591,14 +591,14 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
 }
 
 TransactionFramePtr
-createCreditPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
-                      Asset& asset, SequenceNumber seq, int64_t amount)
+createCreditPaymentTx(Hash const& networkID, SecretKey const& from, PublicKey const& to,
+                      Asset const& asset, SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().asset = asset;
-    op.body.paymentOp().destination = to.getPublicKey();
+    op.body.paymentOp().destination = to;
 
     return transactionFromOperation(networkID, from, seq, op);
 }
@@ -613,10 +613,9 @@ makeAsset(SecretKey const& issuer, std::string const& code)
     return asset;
 }
 
-PaymentResult
-applyCreditPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
-                     Asset& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result)
+void
+applyCreditPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
+                     Asset const& ci, SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -625,16 +624,40 @@ applyCreditPaymentTx(Application& app, SecretKey const& from, SecretKey const& t
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
 
-    PaymentResult res = firstResult.tr().paymentResult();
-    auto resCode = res.code();
-    REQUIRE(resCode == result);
-    return res;
+    auto res = firstResult.tr().paymentResult();
+    auto result = res.code();
+
+    switch (result)
+    {
+        case PAYMENT_MALFORMED:
+            throw ex_PAYMENT_MALFORMED{};
+        case PAYMENT_UNDERFUNDED:
+            throw ex_PAYMENT_UNDERFUNDED{};
+        case PAYMENT_SRC_NO_TRUST:
+            throw ex_PAYMENT_SRC_NO_TRUST{};
+        case PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PAYMENT_NO_DESTINATION:
+            throw ex_PAYMENT_NO_DESTINATION{};
+        case PAYMENT_NO_TRUST:
+            throw ex_PAYMENT_NO_TRUST{};
+        case PAYMENT_NOT_AUTHORIZED:
+            throw ex_PAYMENT_NOT_AUTHORIZED{};
+        case PAYMENT_LINE_FULL:
+            throw ex_PAYMENT_LINE_FULL{};
+        case PAYMENT_NO_ISSUER:
+            throw ex_PAYMENT_NO_ISSUER{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PAYMENT_SUCCESS);
 }
 
 TransactionFramePtr

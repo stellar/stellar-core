@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "main/test.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
 #include "test/TxTests.h"
 #include "util/TestUtils.h"
 #include "util/Timer.h"
@@ -68,10 +69,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     SECTION("allow trust not required with payment")
     {
         a1.changeTrust(idrCur, trustLineLimit);
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance);
-        applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
-                             trustLineStartingBalance);
+        gateway.pay(a1, idrCur, trustLineStartingBalance);
+        a1.pay(gateway, idrCur, trustLineStartingBalance);
     }
 
     SECTION("allow trust required")
@@ -81,19 +80,16 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                         nullptr, nullptr, nullptr, nullptr);
 
         a1.changeTrust(idrCur, trustLineLimit);
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance, PAYMENT_NOT_AUTHORIZED);
+        REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, trustLineStartingBalance), ex_PAYMENT_NOT_AUTHORIZED);
 
         applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
-        applyCreditPaymentTx(app, gateway, a1, idrCur, gateway.nextSequenceNumber(),
-                             trustLineStartingBalance);
+        gateway.pay(a1, idrCur, trustLineStartingBalance);
 
         SECTION("do not set revocable flag")
         {
             applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", false,
                             ALLOW_TRUST_CANT_REVOKE);
-            applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
-                                trustLineStartingBalance);
+            a1.pay(gateway, idrCur, trustLineStartingBalance);
 
             applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", false,
                             ALLOW_TRUST_CANT_REVOKE);
@@ -105,13 +101,10 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                             nullptr, nullptr, nullptr, nullptr);
 
             applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", false);
-            applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
-                                trustLineStartingBalance,
-                                PAYMENT_SRC_NOT_AUTHORIZED);
+            REQUIRE_THROWS_AS(a1.pay(gateway, idrCur, trustLineStartingBalance), ex_PAYMENT_SRC_NOT_AUTHORIZED);
 
             applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
-            applyCreditPaymentTx(app, a1, gateway, idrCur, a1.nextSequenceNumber(),
-                                trustLineStartingBalance);
+            a1.pay(gateway, idrCur, trustLineStartingBalance);
         }
     }
 

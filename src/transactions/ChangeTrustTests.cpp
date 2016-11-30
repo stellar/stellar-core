@@ -44,7 +44,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         root.changeTrust(idrCur, 100);
 
         // fill it to 90
-        applyCreditPaymentTx(app, gateway, root, idrCur, gateway.nextSequenceNumber(), 90);
+        gateway.pay(root, idrCur, 90);
 
         // can't lower the limit below balance
         REQUIRE_THROWS_AS(root.changeTrust(idrCur, 89), ex_CHANGE_TRUST_INVALID_LIMIT);
@@ -56,7 +56,8 @@ TEST_CASE("change trust", "[tx][changetrust]")
         root.changeTrust(idrCur, 90);
 
         // clear the balance
-        applyCreditPaymentTx(app, root, gateway, idrCur, root.nextSequenceNumber(), 90);
+        root.pay(gateway, idrCur, 90);
+
         // delete the trust line
         root.changeTrust(idrCur, 0);
         REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idrCur, db)));
@@ -103,7 +104,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             validateTrustLineIsConst();
 
             auto gatewayAccountBefore = loadAccount(gateway, app);
-            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway.nextSequenceNumber(), 50);
+            gateway.pay(gateway, idrCur, 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
             REQUIRE(gatewayAccountAfter->getBalance() ==
@@ -139,7 +140,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             validateTrustLineIsConst();
 
             auto gatewayAccountBefore = loadAccount(gateway, app);
-            applyCreditPaymentTx(app, gateway, gateway, idrCur, gateway.nextSequenceNumber(), 50);
+            gateway.pay(gateway, idrCur, 50);
             validateTrustLineIsConst();
             auto gatewayAccountAfter = loadAccount(gateway, app);
             REQUIRE(gatewayAccountAfter->getBalance() ==

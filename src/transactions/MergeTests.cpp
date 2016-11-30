@@ -89,8 +89,7 @@ TEST_CASE("merge", "[tx][merge]")
         }
         SECTION("account has offer")
         {
-            applyCreditPaymentTx(app, gateway, a1, usdCur, gateway.nextSequenceNumber(),
-                                 trustLineBalance);
+            gateway.pay(a1, usdCur, trustLineBalance);
             Asset xlmCur;
             xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
 
@@ -100,8 +99,7 @@ TEST_CASE("merge", "[tx][merge]")
                 a1.manageOffer(delta, 0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
             }
             // empty out balance
-            applyCreditPaymentTx(app, a1, gateway, usdCur, a1.nextSequenceNumber(),
-                                 trustLineBalance);
+            a1.pay(gateway, usdCur, trustLineBalance);
             // delete the trust line
             a1.changeTrust(usdCur, 0);
 

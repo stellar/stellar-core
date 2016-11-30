@@ -114,14 +114,13 @@ void applyPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
                     PaymentResultCode result = PAYMENT_SUCCESS);
 
 TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
-                                          SecretKey const&from, SecretKey const&to,
-                                          Asset& ci, SequenceNumber seq,
+                                          SecretKey const&from, PublicKey const&to,
+                                          Asset const& ci, SequenceNumber seq,
                                           int64_t amount);
 
-PaymentResult applyCreditPaymentTx(Application& app, SecretKey const&from,
-                                   SecretKey const&to, Asset& ci, SequenceNumber seq,
-                                   int64_t amount,
-                                   PaymentResultCode result = PAYMENT_SUCCESS);
+void applyCreditPaymentTx(Application& app, SecretKey const&from,
+                          PublicKey const&to, Asset const& ci, SequenceNumber seq,
+                          int64_t amount);
 
 TransactionFramePtr createPathPaymentTx(Hash const& networkID, SecretKey const&from,
                                         SecretKey const&to, Asset const& sendCur,

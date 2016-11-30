@@ -36,6 +36,16 @@ class ex_MANAGE_OFFER_BUY_NO_ISSUER {};
 class ex_MANAGE_OFFER_NOT_FOUND {};
 class ex_MANAGE_OFFER_LOW_RESERVE {};
 
+class ex_PAYMENT_MALFORMED {};
+class ex_PAYMENT_UNDERFUNDED {};
+class ex_PAYMENT_SRC_NO_TRUST {};
+class ex_PAYMENT_SRC_NOT_AUTHORIZED {};
+class ex_PAYMENT_NO_DESTINATION {};
+class ex_PAYMENT_NO_TRUST {};
+class ex_PAYMENT_NOT_AUTHORIZED {};
+class ex_PAYMENT_LINE_FULL {};
+class ex_PAYMENT_NO_ISSUER {};
+
 }
 
 }
