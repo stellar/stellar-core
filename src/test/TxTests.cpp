@@ -474,7 +474,7 @@ createPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& t
 
 void
 applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
-               SequenceNumber seq, int64_t amount, PaymentResultCode result)
+               SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -487,19 +487,18 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
-    auto innerCode = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
-    REQUIRE(innerCode == result);
+    auto result = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
 
     REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
     AccountFrame::pointer toAccountAfter;
     toAccountAfter = loadAccount(to, app, false);
 
-    if (innerCode != PAYMENT_SUCCESS)
+    if (result != PAYMENT_SUCCESS)
     {
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
@@ -513,6 +512,32 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
         REQUIRE(toAccount);
         REQUIRE(toAccountAfter);
     }
+
+    switch (result)
+    {
+        case PAYMENT_MALFORMED:
+            throw ex_PAYMENT_MALFORMED{};
+        case PAYMENT_UNDERFUNDED:
+            throw ex_PAYMENT_UNDERFUNDED{};
+        case PAYMENT_SRC_NO_TRUST:
+            throw ex_PAYMENT_SRC_NO_TRUST{};
+        case PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PAYMENT_NO_DESTINATION:
+            throw ex_PAYMENT_NO_DESTINATION{};
+        case PAYMENT_NO_TRUST:
+            throw ex_PAYMENT_NO_TRUST{};
+        case PAYMENT_NOT_AUTHORIZED:
+            throw ex_PAYMENT_NOT_AUTHORIZED{};
+        case PAYMENT_LINE_FULL:
+            throw ex_PAYMENT_LINE_FULL{};
+        case PAYMENT_NO_ISSUER:
+            throw ex_PAYMENT_NO_ISSUER{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PAYMENT_SUCCESS);
 }
 
 void

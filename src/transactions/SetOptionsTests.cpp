@@ -68,8 +68,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("multiple signers")
         {
             // add some funds
-            applyPaymentTx(app, root, a1, root.nextSequenceNumber(),
-                           app.getLedgerManager().getMinBalance(2));
+            root.pay(a1, app.getLedgerManager().getMinBalance(2));
 
             applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, &th,
                             &sk1, nullptr);

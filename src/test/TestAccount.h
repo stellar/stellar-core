@@ -35,6 +35,7 @@ public:
     uint64_t createPassiveOffer(LedgerDelta & delta,
                                 Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+    void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
 
     operator SecretKey () const { return getSecretKey(); }
