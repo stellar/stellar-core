@@ -120,7 +120,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send XLM to an existing account")
     {
-        applyPaymentTx(app, root, a1, root.nextSequenceNumber(), morePayment);
+        root.pay(a1, morePayment);
 
         AccountFrame::pointer a1Account2, rootAccount2;
         rootAccount2 = loadAccount(root, app);
@@ -135,7 +135,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send to self")
     {
-        applyPaymentTx(app, root, root, root.nextSequenceNumber(), morePayment);
+        root.pay(root, morePayment);
 
         AccountFrame::pointer rootAccount2;
         rootAccount2 = loadAccount(root, app);
@@ -145,10 +145,13 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send XLM to a new account (no destination)")
     {
-        applyPaymentTx(
-            app, root, getAccount("B"), root.nextSequenceNumber(),
-            app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2,
-            PAYMENT_NO_DESTINATION);
+        REQUIRE_THROWS_AS(root.pay(getAccount("B"), app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2),
+            ex_PAYMENT_NO_DESTINATION);
+
+        AccountFrame::pointer rootAccount2;
+        rootAccount2 = loadAccount(root, app);
+        REQUIRE(rootAccount2->getBalance() ==
+                (rootAccount->getBalance() - txfee));
     }
 
     SECTION("rescue account (was below reserve)")
@@ -169,10 +172,10 @@ TEST_CASE("payment", "[tx][payment]")
 
         // top up the account to unblock it
         int64 topUp = app.getLedgerManager().getMinBalance(0) - orgReserve;
-        applyPaymentTx(app, root, b1, root.nextSequenceNumber(), topUp);
+        root.pay(b1, topUp);
 
         // payment goes through
-        applyPaymentTx(app, b1, root, b1.nextSequenceNumber(), 1);
+        b1.pay(root, 1);
     }
     SECTION("two payments, first breaking second")
     {
@@ -466,7 +469,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("send with path (takes own offer)")
         {
             // raise A1's balance by what we're trying to send
-            applyPaymentTx(app, root, a1, root.nextSequenceNumber(), 100 * assetMultiplier);
+            root.pay(a1, 100 * assetMultiplier);
 
             // offer is sell 100 USD for 100 XLM
             a1.manageOffer(delta, 0, usdCur, xlmCur, Price(1, 1), 100 * assetMultiplier);

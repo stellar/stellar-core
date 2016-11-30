@@ -175,7 +175,7 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE_THROWS_AS(a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100), ex_MANAGE_OFFER_LOW_RESERVE);
 
         // add some funds to create the offer
-        applyPaymentTx(app, root, a1, root.nextSequenceNumber(), minBalance2);
+        root.pay(a1, minBalance2);
 
         // can't receive more of what we're trying to buy
         // first, fill the trust line to the limit

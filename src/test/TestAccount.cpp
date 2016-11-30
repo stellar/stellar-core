@@ -69,6 +69,12 @@ TestAccount::createPassiveOffer(LedgerDelta & delta,
 }
 
 void
+TestAccount::pay(SecretKey const& destination, int64_t amount)
+{
+    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(), amount);
+}
+
+void
 TestAccount::pay(PublicKey const& destination, Asset const& selling, int64_t amount)
 {
     applyCreditPaymentTx(mApp, getSecretKey(), destination, selling, nextSequenceNumber(), amount);
