@@ -711,8 +711,8 @@ applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 }
 
 TransactionFramePtr
-createPassiveOfferOp(Hash const& networkID, SecretKey const& source, Asset& selling,
-                     Asset& buying, Price const& price, int64_t amount,
+createPassiveOfferOp(Hash const& networkID, SecretKey const& source, Asset const& selling,
+                     Asset const& buying, Price const& price, int64_t amount,
                      SequenceNumber seq)
 {
     Operation op;
@@ -838,6 +838,94 @@ applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
     REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+
+    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID : 0;
+}
+
+uint64_t
+applyCreatePassiveOffer(Application& app, LedgerDelta& delta,
+                        SecretKey const&source, Asset const& selling, Asset const& buying,
+                        Price const& price, int64_t amount,
+                        SequenceNumber seq, ManageOfferEffect expectedEffect)
+{
+    auto expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+
+    TransactionFramePtr txFrame;
+    txFrame = createPassiveOfferOp(app.getNetworkID(), source, selling,
+                            buying, price, amount, seq);
+
+    throwingApplyCheck(txFrame, delta, app);
+
+    checkTransaction(*txFrame);
+
+    auto& results = txFrame->getResult().result.results();
+
+    REQUIRE(results.size() == 1);
+
+    auto& createPassiveOfferResult = results[0].tr().manageOfferResult();
+
+    if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
+    {
+        OfferFrame::pointer offer;
+
+        auto& offerResult = createPassiveOfferResult.success().offer;
+
+        switch (offerResult.effect())
+        {
+        case MANAGE_OFFER_CREATED:
+        case MANAGE_OFFER_UPDATED:
+        {
+            offer = loadOffer(source, expectedOfferID, app);
+            auto& offerEntry = offer->getOffer();
+            REQUIRE(offerEntry == offerResult.offer());
+            REQUIRE(offerEntry.price == price);
+            REQUIRE(offerEntry.selling == selling);
+            REQUIRE(offerEntry.buying == buying);
+        }
+        break;
+        case MANAGE_OFFER_DELETED:
+            REQUIRE(!loadOffer(source, expectedOfferID, app, false));
+            break;
+        default:
+            abort();
+        }
+    }
+
+    switch (createPassiveOfferResult.code())
+    {
+        case MANAGE_OFFER_MALFORMED:
+            throw ex_MANAGE_OFFER_MALFORMED{};
+        case MANAGE_OFFER_SELL_NO_TRUST:
+            throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
+        case MANAGE_OFFER_BUY_NO_TRUST:
+            throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
+        case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_LINE_FULL:
+            throw ex_MANAGE_OFFER_LINE_FULL{};
+        case MANAGE_OFFER_UNDERFUNDED:
+            throw ex_MANAGE_OFFER_UNDERFUNDED{};
+        case MANAGE_OFFER_CROSS_SELF:
+            throw ex_MANAGE_OFFER_CROSS_SELF{};
+        case MANAGE_OFFER_SELL_NO_ISSUER:
+            throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
+        case MANAGE_OFFER_BUY_NO_ISSUER:
+            throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
+        case MANAGE_OFFER_NOT_FOUND:
+            throw ex_MANAGE_OFFER_NOT_FOUND{};
+        case MANAGE_OFFER_LOW_RESERVE:
+            throw ex_MANAGE_OFFER_LOW_RESERVE{};
+        default:
+            break;
+    }
+
+    REQUIRE(createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS);
+
+    auto& success = createPassiveOfferResult.success().offer;
 
     REQUIRE(success.effect() == expectedEffect);
 
