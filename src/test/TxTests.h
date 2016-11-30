@@ -133,8 +133,8 @@ TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
                                   int64_t amount, SequenceNumber seq);
 
 TransactionFramePtr createPassiveOfferOp(Hash const& networkID,
-                                         SecretKey const&source, Asset& selling,
-                                         Asset& buying, Price const& price,
+                                         SecretKey const&source, Asset const& selling,
+                                         Asset const& buying, Price const& price,
                                          int64_t amount, SequenceNumber seq);
 
 // returns the ID of the new offer if created
@@ -142,6 +142,12 @@ uint64_t applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
                           SecretKey const&source, Asset const& selling, Asset const& buying,
                           Price const& price, int64_t amount,
                           SequenceNumber seq, ManageOfferEffect expectedEffect);
+
+// returns the ID of the new offer if created
+uint64_t applyCreatePassiveOffer(Application& app, LedgerDelta& delta,
+                                 SecretKey const&source, Asset const& selling, Asset const& buying,
+                                 Price const& price, int64_t amount,
+                                 SequenceNumber seq, ManageOfferEffect expectedEffect);
 
 TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey const&source,
                                      SequenceNumber seq,

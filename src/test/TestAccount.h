@@ -29,7 +29,12 @@ public:
     TestAccount create(std::string const& name, uint64_t initialBalance);
 
     void changeTrust(Asset const &asset, int64_t limit);
-    uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID, Asset const& selling, Asset const& buying, Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+    uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID,
+                         Asset const& selling, Asset const& buying,
+                         Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+    uint64_t createPassiveOffer(LedgerDelta & delta,
+                                Asset const& selling, Asset const& buying,
+                                Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
     void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
 
     operator SecretKey () const { return getSecretKey(); }

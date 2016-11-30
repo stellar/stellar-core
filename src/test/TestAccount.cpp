@@ -53,9 +53,19 @@ TestAccount::changeTrust(Asset const &asset, int64_t limit)
 }
 
 uint64_t
-TestAccount::manageOffer(LedgerDelta & delta, uint64_t offerID, Asset const& selling, Asset const& buying, Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
+TestAccount::manageOffer(LedgerDelta & delta, uint64_t offerID,
+                         Asset const& selling, Asset const& buying,
+                         Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
 {
     return applyManageOffer(mApp, delta, offerID, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
+}
+
+uint64_t
+TestAccount::createPassiveOffer(LedgerDelta & delta,
+                                Asset const& selling, Asset const& buying,
+                                Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
+{
+    return applyCreatePassiveOffer(mApp, delta, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
 }
 
 void

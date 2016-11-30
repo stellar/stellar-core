@@ -89,9 +89,7 @@ TEST_CASE("create offer", "[tx][offers]")
         // offer2 is a passive offer
         uint64_t secondOfferID =
             delta.getHeaderFrame().getLastGeneratedID() + 1;
-        auto txFrame = createPassiveOfferOp(networkID, b1, usdCur, idrCur, oneone,
-                                       100 * assetMultiplier, b1.nextSequenceNumber());
-        REQUIRE(applyCheck(txFrame, delta, app));
+        b1.createPassiveOffer(delta, usdCur, idrCur, oneone, 100 * assetMultiplier);
 
         REQUIRE(secondOfferID == (firstOfferID + 1));
 
@@ -111,10 +109,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             uint64_t thirdOfferID =
                 delta.getHeaderFrame().getLastGeneratedID() + 1;
-            txFrame =
-                createPassiveOfferOp(networkID, b1, usdCur, idrCur, lowPrice,
-                                     100 * assetMultiplier, b1.nextSequenceNumber());
-            applyCheck(txFrame, delta, app);
+            b1.createPassiveOffer(delta, usdCur, idrCur, lowPrice, 100 * assetMultiplier, MANAGE_OFFER_DELETED);
 
             // offer1 is taken, offer3 was not created
             REQUIRE(!loadOffer(a1, firstOfferID, app, false));
