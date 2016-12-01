@@ -812,10 +812,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         d1.changeTrust(secIdrCur, trustLineLimit);
                         d1.changeTrust(secUsdCur, trustLineLimit);
 
-                        applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(), "USD",
-                                        true);
-                        applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(), "IDR",
-                                        true);
+                        secgateway.allowTrust(secUsdCur, d1);
+                        secgateway.allowTrust(secIdrCur, d1);
 
                         secgateway.pay(d1, secIdrCur, trustLineBalance);
 
@@ -827,13 +825,11 @@ TEST_CASE("create offer", "[tx][offers]")
 
                         SECTION("D not authorized to hold USD")
                         {
-                            applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(),
-                                            "USD", false);
+                            secgateway.denyTrust(secUsdCur, d1);
                         }
                         SECTION("D not authorized to send IDR")
                         {
-                            applyAllowTrust(app, secgateway, d1, secgateway.nextSequenceNumber(),
-                                            "IDR", false);
+                            secgateway.denyTrust(secIdrCur, d1);
                         }
 
                         // setup e1
@@ -842,10 +838,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         e1.changeTrust(secIdrCur, trustLineLimit);
                         e1.changeTrust(secUsdCur, trustLineLimit);
 
-                        applyAllowTrust(app, secgateway, e1, secgateway.nextSequenceNumber(), "USD",
-                                        true);
-                        applyAllowTrust(app, secgateway, e1, secgateway.nextSequenceNumber(), "IDR",
-                                        true);
+                        secgateway.allowTrust(secUsdCur, e1);
+                        secgateway.allowTrust(secIdrCur, e1);
 
                         secgateway.pay(e1, secIdrCur, trustLineBalance);
 
@@ -857,10 +851,8 @@ TEST_CASE("create offer", "[tx][offers]")
                         f1.changeTrust(secIdrCur, trustLineLimit);
                         f1.changeTrust(secUsdCur, trustLineLimit);
 
-                        applyAllowTrust(app, secgateway, f1, secgateway.nextSequenceNumber(), "USD",
-                                        true);
-                        applyAllowTrust(app, secgateway, f1, secgateway.nextSequenceNumber(), "IDR",
-                                        true);
+                        secgateway.allowTrust(secUsdCur, f1);
+                        secgateway.allowTrust(secIdrCur, f1);
 
                         secgateway.pay(f1, secUsdCur, trustLineBalance);
 

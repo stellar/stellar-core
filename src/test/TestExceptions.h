@@ -12,6 +12,12 @@ namespace txtest
 
 class ex_txNO_ACCOUNT {};
 
+class ex_ALLOW_TRUST_MALFORMED {};
+class ex_ALLOW_TRUST_NO_TRUST_LINE {};
+class ex_ALLOW_TRUST_TRUST_NOT_REQUIRED {};
+class ex_ALLOW_TRUST_CANT_REVOKE {};
+class ex_ALLOW_TRUST_SELF_NOT_ALLOWED {};
+
 class ex_CREATE_ACCOUNT_MALFORMED {};
 class ex_CREATE_ACCOUNT_UNDERFUNDED {};
 class ex_CREATE_ACCOUNT_LOW_RESERVE {};

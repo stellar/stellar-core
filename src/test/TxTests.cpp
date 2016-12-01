@@ -388,14 +388,14 @@ createChangeTrust(Hash const& networkID, SecretKey const& from, PublicKey const&
 }
 
 TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from, SecretKey const& trustor,
+createAllowTrust(Hash const& networkID, SecretKey const& from, PublicKey const& trustor,
                  SequenceNumber seq, std::string const& assetCode,
                  bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
-    op.body.allowTrustOp().trustor = trustor.getPublicKey();
+    op.body.allowTrustOp().trustor = trustor;
     op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.allowTrustOp().asset.assetCode4(), assetCode);
     op.body.allowTrustOp().authorize = authorize;
@@ -404,9 +404,9 @@ createAllowTrust(Hash const& networkID, SecretKey const& from, SecretKey const& 
 }
 
 void
-applyAllowTrust(Application& app, SecretKey const& from, SecretKey const& trustor,
+applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trustor,
                 SequenceNumber seq, std::string const& assetCode,
-                bool authorize, AllowTrustResultCode result)
+                bool authorize)
 {
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(app.getNetworkID(), from, trustor, seq,
@@ -414,11 +414,28 @@ applyAllowTrust(Application& app, SecretKey const& from, SecretKey const& trusto
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(AllowTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto result = AllowTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ALLOW_TRUST_MALFORMED:
+            throw ex_ALLOW_TRUST_MALFORMED{};
+        case ALLOW_TRUST_NO_TRUST_LINE:
+            throw ex_ALLOW_TRUST_NO_TRUST_LINE{};
+        case ALLOW_TRUST_TRUST_NOT_REQUIRED:
+            throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
+        case ALLOW_TRUST_CANT_REVOKE:
+            throw ex_ALLOW_TRUST_CANT_REVOKE{};
+        case ALLOW_TRUST_SELF_NOT_ALLOWED:
+            throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == ALLOW_TRUST_SUCCESS);
 }
 
 TransactionFramePtr
@@ -591,7 +608,7 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
