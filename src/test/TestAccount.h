@@ -29,6 +29,8 @@ public:
     TestAccount create(std::string const& name, uint64_t initialBalance);
 
     void changeTrust(Asset const &asset, int64_t limit);
+    void allowTrust(Asset const &asset, PublicKey const& trustor);
+    void denyTrust(Asset const &asset, PublicKey const& trustor);
     uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID,
                          Asset const& selling, Asset const& buying,
                          Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);

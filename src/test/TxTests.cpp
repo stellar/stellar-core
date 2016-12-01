@@ -357,14 +357,14 @@ createChangeTrust(Hash const& networkID, SecretKey const& from, PublicKey const&
 }
 
 TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from, SecretKey const& trustor,
+createAllowTrust(Hash const& networkID, SecretKey const& from, PublicKey const& trustor,
                  SequenceNumber seq, std::string const& assetCode,
                  bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
-    op.body.allowTrustOp().trustor = trustor.getPublicKey();
+    op.body.allowTrustOp().trustor = trustor;
     op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.allowTrustOp().asset.assetCode4(), assetCode);
     op.body.allowTrustOp().authorize = authorize;
@@ -373,9 +373,9 @@ createAllowTrust(Hash const& networkID, SecretKey const& from, SecretKey const& 
 }
 
 void
-applyAllowTrust(Application& app, SecretKey const& from, SecretKey const& trustor,
+applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trustor,
                 SequenceNumber seq, std::string const& assetCode,
-                bool authorize, AllowTrustResultCode result)
+                bool authorize)
 {
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(app.getNetworkID(), from, trustor, seq,
@@ -383,11 +383,11 @@ applyAllowTrust(Application& app, SecretKey const& from, SecretKey const& trusto
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     REQUIRE(AllowTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+                txFrame->getResult().result.results()[0]) == ALLOW_TRUST_SUCCESS);
 }
 
 TransactionFramePtr

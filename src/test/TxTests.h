@@ -84,10 +84,9 @@ TransactionFramePtr createAllowTrust(Hash const& networkID, SecretKey const&from
                                      std::string const& assetCode,
                                      bool authorize);
 
-void applyAllowTrust(Application& app, SecretKey const&from, SecretKey const&trustor,
+void applyAllowTrust(Application& app, SecretKey const&from, PublicKey const&trustor,
                      SequenceNumber seq, std::string const& assetCode,
-                     bool authorize,
-                     AllowTrustResultCode result = ALLOW_TRUST_SUCCESS);
+                     bool authorize);
 
 TransactionFramePtr createCreateAccountTx(Hash const& networkID,
                                           SecretKey const& from, SecretKey const&to,

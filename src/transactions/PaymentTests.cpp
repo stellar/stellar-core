@@ -348,17 +348,17 @@ TEST_CASE("payment", "[tx][payment]")
 
         REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, trustLineStartingBalance), ex_PAYMENT_NOT_AUTHORIZED);
 
-        applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
+        gateway.allowTrust(idrCur, a1);
 
         gateway.pay(a1, idrCur,
                              trustLineStartingBalance);
 
         // send it all back
-        applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", false);
+        gateway.denyTrust(idrCur, a1);
 
         REQUIRE_THROWS_AS(a1.pay(gateway, idrCur, trustLineStartingBalance), ex_PAYMENT_SRC_NOT_AUTHORIZED);
 
-        applyAllowTrust(app, gateway, a1, gateway.nextSequenceNumber(), "IDR", true);
+        gateway.allowTrust(idrCur, a1);
 
         a1.pay(gateway, idrCur,
                              trustLineStartingBalance);

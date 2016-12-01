@@ -38,18 +38,22 @@ void
 TestAccount::changeTrust(Asset const &asset, int64_t limit)
 {
     auto assetCode = std::string{};
+    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
+    applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer, nextSequenceNumber(), assetCode, limit);
+}
 
-    switch (asset.type())
-    {
-        case ASSET_TYPE_CREDIT_ALPHANUM4:
-            assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-            applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer, nextSequenceNumber(), assetCode, limit);
-            break;
-        case ASSET_TYPE_CREDIT_ALPHANUM12:
-            assetCodeToStr(asset.alphaNum12().assetCode, assetCode);
-            applyChangeTrust(mApp, getSecretKey(), asset.alphaNum12().issuer, nextSequenceNumber(), assetCode, limit);
-            break;
-    }
+void TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
+{
+    auto assetCode = std::string{};
+    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
+    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, true);
+}
+
+void TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
+{
+    auto assetCode = std::string{};
+    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
+    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, false);
 }
 
 uint64_t
