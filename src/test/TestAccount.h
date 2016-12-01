@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
+#include "ledger/OfferFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -31,6 +32,9 @@ public:
     void changeTrust(Asset const &asset, int64_t limit);
     void allowTrust(Asset const &asset, PublicKey const& trustor);
     void denyTrust(Asset const &asset, PublicKey const& trustor);
+
+    OfferFrame::pointer loadOffer(uint64_t offerID) const;
+    bool hasOffer(uint64_t offerID) const;
     uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID,
                          Asset const& selling, Asset const& buying,
                          Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
