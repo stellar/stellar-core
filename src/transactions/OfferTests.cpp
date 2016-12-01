@@ -36,7 +36,6 @@ TEST_CASE("create offer", "[tx][offers]")
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
-    Hash const& networkID = app.getNetworkID();
     app.start();
 
     // set up world
@@ -94,11 +93,11 @@ TEST_CASE("create offer", "[tx][offers]")
         REQUIRE(secondOfferID == (firstOfferID + 1));
 
         // offer1 didn't change
-        OfferFrame::pointer offer = loadOffer(a1, firstOfferID, app);
+        auto offer = a1.loadOffer(firstOfferID);
         REQUIRE(offer->getAmount() == (100 * assetMultiplier));
         REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-        offer = loadOffer(b1, secondOfferID, app);
+        offer = b1.loadOffer(secondOfferID);
         REQUIRE(offer->getAmount() == (100 * assetMultiplier));
         REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
 
@@ -112,8 +111,8 @@ TEST_CASE("create offer", "[tx][offers]")
             b1.createPassiveOffer(delta, usdCur, idrCur, lowPrice, 100 * assetMultiplier, MANAGE_OFFER_DELETED);
 
             // offer1 is taken, offer3 was not created
-            REQUIRE(!loadOffer(a1, firstOfferID, app, false));
-            REQUIRE(!loadOffer(b1, thirdOfferID, app, false));
+            REQUIRE(!a1.hasOffer(firstOfferID));
+            REQUIRE(!b1.hasOffer(thirdOfferID));
         }
         SECTION("modify existing passive offer")
         {
@@ -121,11 +120,11 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 b1.manageOffer(delta, secondOfferID, usdCur, idrCur, highPrice, 100 * assetMultiplier, MANAGE_OFFER_UPDATED);
 
-                offer = loadOffer(a1, firstOfferID, app);
+                offer = a1.loadOffer(firstOfferID);
                 REQUIRE(offer->getAmount() == (100 * assetMultiplier));
                 REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
 
-                offer = loadOffer(b1, secondOfferID, app);
+                offer = b1.loadOffer(secondOfferID);
                 REQUIRE(offer->getAmount() == (100 * assetMultiplier));
                 REQUIRE(offer->getPrice() == highPrice);
                 REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
@@ -134,8 +133,8 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 b1.manageOffer(delta, secondOfferID, usdCur, idrCur, lowPrice, 100 * assetMultiplier, MANAGE_OFFER_DELETED);
 
-                REQUIRE(!loadOffer(a1, firstOfferID, app, false));
-                REQUIRE(!loadOffer(b1, secondOfferID, app, false));
+                REQUIRE(!a1.hasOffer(firstOfferID));
+                REQUIRE(!b1.hasOffer(secondOfferID));
             }
         }
     }
@@ -195,7 +194,7 @@ TEST_CASE("create offer", "[tx][offers]")
         OfferFrame offer;
         for (int i = 0; i < 9; i++)
         {
-            REQUIRE(!loadOffer(a1, i, app, false));
+            REQUIRE(!a1.hasOffer(i));
         }
     }
 
@@ -211,7 +210,7 @@ TEST_CASE("create offer", "[tx][offers]")
                              trustLineBalance);
 
         auto offerID = a1.manageOffer(delta, 0, idrCur, usdCur, oneone, 100);
-        auto orgOffer = loadOffer(a1, offerID, app);
+        auto orgOffer = a1.loadOffer(offerID);
 
         SECTION("Cancel offer")
         {
@@ -219,7 +218,7 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 a1.manageOffer(delta, offerID, idrCur, usdCur, oneone, 0, MANAGE_OFFER_DELETED);
 
-                REQUIRE(!loadOffer(a1, offerID, app, false));
+                REQUIRE(!a1.hasOffer(offerID));
             };
             SECTION("Typical")
             {
@@ -270,7 +269,7 @@ TEST_CASE("create offer", "[tx][offers]")
             const Price onetwo(1, 2);
             a1.manageOffer(delta, offerID, idrCur, usdCur, onetwo, 100, MANAGE_OFFER_UPDATED);
 
-            auto modOffer = loadOffer(a1, offerID, app);
+            auto modOffer = a1.loadOffer(offerID);
             REQUIRE(modOffer->getOffer().price == onetwo);
             modOffer->getOffer().price = oneone;
             REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
@@ -279,7 +278,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             a1.manageOffer(delta, offerID, idrCur, usdCur, oneone, 10, MANAGE_OFFER_UPDATED);
 
-            auto modOffer = loadOffer(a1, offerID, app);
+            auto modOffer = a1.loadOffer(offerID);
             REQUIRE(modOffer->getOffer().amount == 10);
             modOffer->getOffer().amount = 100;
             REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
@@ -293,7 +292,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // swap selling and buying
             a1.manageOffer(delta, offerID, usdCur, idrCur, oneone, 100, MANAGE_OFFER_UPDATED);
 
-            auto modOffer = loadOffer(a1, offerID, app);
+            auto modOffer = a1.loadOffer(offerID);
             REQUIRE(modOffer->getOffer().selling == usdCur);
             REQUIRE(modOffer->getOffer().buying == idrCur);
             std::swap(modOffer->getOffer().buying,
@@ -353,7 +352,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // 1.5
                 auto newOfferID = a1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
-                offer = loadOffer(a1, newOfferID, app);
+                offer = a1.loadOffer(newOfferID);
 
                 a1OfferID.push_back(newOfferID);
 
@@ -383,7 +382,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 auto offerID = b1.manageOffer(delta, 0, usdCur, idrCur, twoone, 40 * assetMultiplier);
 
                 // verifies that the offer was created properly
-                offer = loadOffer(b1, offerID, app);
+                offer = b1.loadOffer(offerID);
                 REQUIRE(offer->getPrice() == twoone);
                 REQUIRE(offer->getAmount() == 40 * assetMultiplier);
                 REQUIRE(offer->getBuying().alphaNum4().assetCode ==
@@ -394,7 +393,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // and that a1 offers were not touched
                 for (auto a1Offer : a1OfferID)
                 {
-                    offer = loadOffer(a1, a1Offer, app);
+                    offer = a1.loadOffer(a1Offer);
                     REQUIRE(offer->getPrice() == usdPriceOfferA);
                     REQUIRE(offer->getAmount() == 100 * assetMultiplier);
                     REQUIRE(offer->getBuying().alphaNum4().assetCode ==
@@ -424,7 +423,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 for (auto a1Offer : a1OfferID)
                 {
-                    offer = loadOffer(a1, a1Offer, app);
+                    offer = a1.loadOffer(a1Offer);
                     REQUIRE(offer->getPrice() == usdPriceOfferA);
                     REQUIRE(offer->getAmount() == 100 * assetMultiplier);
                     REQUIRE(offer->getBuying().alphaNum4().assetCode ==
@@ -449,7 +448,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 b1.manageOffer(delta, 0, usdCur, idrCur, exactCross, 150 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                 // verifies that the offer was not created
-                REQUIRE(!loadOffer(b1, expectedID, app, false));
+                REQUIRE(!b1.hasOffer(expectedID));
 
                 // and the state of a1 offers
                 for (int i = 0; i < nbOffers; i++)
@@ -459,11 +458,11 @@ TEST_CASE("create offer", "[tx][offers]")
                     if (i == 0)
                     {
                         // first offer was taken
-                        REQUIRE(!loadOffer(a1, a1Offer, app, false));
+                        REQUIRE(!a1.hasOffer(a1Offer));
                     }
                     else
                     {
-                        offer = loadOffer(a1, a1Offer, app);
+                        offer = a1.loadOffer(a1Offer);
                         REQUIRE(offer->getPrice() == usdPriceOfferA);
                         REQUIRE(offer->getAmount() == 100 * assetMultiplier);
                         REQUIRE(offer->getBuying().alphaNum4().assetCode ==
@@ -500,7 +499,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, 1010 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                 // verify that the offer was not created
-                REQUIRE(!loadOffer(b1, expectedID, app, false));
+                REQUIRE(!b1.hasOffer(expectedID));
 
                 // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy
                 // USD
@@ -525,12 +524,12 @@ TEST_CASE("create offer", "[tx][offers]")
                     if (i < 6)
                     {
                         // first 6 offers are taken
-                        REQUIRE(!loadOffer(a1, a1Offer, app, false));
+                        REQUIRE(!a1.hasOffer(a1Offer));
                     }
                     else
                     {
                         // others are untouched
-                        offer = loadOffer(a1, a1Offer, app);
+                        offer = a1.loadOffer(a1Offer);
                         REQUIRE(offer->getPrice() == usdPriceOfferA);
                         REQUIRE(offer->getBuying().alphaNum4().assetCode ==
                                 usdCur.alphaNum4().assetCode);
@@ -591,14 +590,14 @@ TEST_CASE("create offer", "[tx][offers]")
                         delta.getHeaderFrame().getLastGeneratedID() + 1;
                     b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, 1 * assetMultiplier, MANAGE_OFFER_DELETED);
 
-                    REQUIRE(!loadOffer(b1, wouldCreateID, app, false));
+                    REQUIRE(!b1.hasOffer(wouldCreateID));
                 }
 
                 for (int i = 0; i < nbOffers; i++)
                 {
                     uint64_t a1Offer = a1OfferID[i];
 
-                    offer = loadOffer(a1, a1Offer, app);
+                    offer = a1.loadOffer(a1Offer);
 
                     REQUIRE(offer->getBuying().alphaNum4().assetCode ==
                             usdCur.alphaNum4().assetCode);
@@ -656,7 +655,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     // drain account
                     c1.pay(gateway, idrCur, 20000 * assetMultiplier);
                     // offer should still be there
-                    loadOffer(c1, cOfferID, app);
+                    REQUIRE(c1.hasOffer(cOfferID));
                 }
 
                 // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
@@ -664,7 +663,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 int64_t usdBalanceForSale = 10000 * assetMultiplier;
                 auto offerID = b1.manageOffer(delta, 0, usdCur, idrCur, onetwo, usdBalanceForSale);
 
-                offer = loadOffer(b1, offerID, app);
+                offer = b1.loadOffer(offerID);
 
                 // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66 -> buy
                 // USD
@@ -677,12 +676,12 @@ TEST_CASE("create offer", "[tx][offers]")
                 checkAmounts(expected, offer->getAmount());
 
                 // check that the bogus offer was cleared
-                REQUIRE(!loadOffer(c1, cOfferID, app, false));
+                REQUIRE(!c1.hasOffer(cOfferID));
 
                 for (int i = 0; i < nbOffers; i++)
                 {
                     uint64_t a1Offer = a1OfferID[i];
-                    REQUIRE(!loadOffer(a1, a1Offer, app, false));
+                    REQUIRE(!a1.hasOffer(a1Offer));
                 }
 
                 // check balances
@@ -707,7 +706,7 @@ TEST_CASE("create offer", "[tx][offers]")
             // 0.66
             auto offerA1 = a1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
-            offer = loadOffer(a1, offerA1, app);
+            offer = a1.loadOffer(offerA1);
 
             SECTION("multiple parties")
             {
@@ -721,7 +720,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                 auto offerB1 = b1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOfferA, 100 * assetMultiplier);
 
-                offer = loadOffer(b1, offerB1, app);
+                offer = b1.loadOffer(offerB1);
 
                 auto c1 = root.create("C", minBalanceA + 10000);
 
@@ -852,7 +851,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         auto offerF1ID = f1.manageOffer(delta, 0, secUsdCur, secIdrCur, idrPriceOfferC, 300 * assetMultiplier);
                         // offer created would be buy 100 IDR for 150 USD ; 0.66
 
-                        auto offerF1 = loadOffer(f1, offerF1ID, app, true);
+                        auto offerF1 = f1.loadOffer(offerF1ID);
                         REQUIRE(offerF1->getAmount() == 150 * assetMultiplier);
 
                         TrustFrame::pointer line;
@@ -860,7 +859,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         // check balances
 
                         // D1's offer was deleted
-                        REQUIRE(!loadOffer(d1, offerD1, app, false));
+                        REQUIRE(!d1.hasOffer(offerD1));
 
                         line = loadTrustLine(d1, secUsdCur, app);
                         checkAmounts(0, line->getBalance());
@@ -869,7 +868,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         checkAmounts(trustLineBalance, line->getBalance());
 
                         // E1's offer was taken
-                        REQUIRE(!loadOffer(e1, offerE1, app, false));
+                        REQUIRE(!e1.hasOffer(offerE1));
 
                         line = loadTrustLine(e1, secUsdCur, app);
                         checkAmounts(line->getBalance(), 150 * assetMultiplier);
@@ -901,7 +900,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         const Price idrPriceOfferC(2, 3);
                         auto offerC1ID = c1.manageOffer(delta, 0, usdCur, idrCur, idrPriceOfferC, 300 * assetMultiplier);
                         // offer created would be buy 50 IDR for 75 USD ; 0.66
-                        auto offerC1 = loadOffer(c1, offerC1ID, app, true);
+                        auto offerC1 = c1.loadOffer(offerC1ID);
 
                         REQUIRE(offerC1->getAmount() == 75 * assetMultiplier);
 
@@ -910,7 +909,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         // check balances
 
                         // A1's offer was deleted
-                        REQUIRE(!loadOffer(a1, offerA1, app, false));
+                        REQUIRE(!a1.hasOffer(offerA1));
 
                         line = loadTrustLine(a1, usdCur, app);
                         checkAmounts(trustLineLimit, line->getBalance());
@@ -920,7 +919,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                      line->getBalance());
 
                         // B1's offer was taken
-                        REQUIRE(!loadOffer(b1, offerB1, app, false));
+                        REQUIRE(!b1.hasOffer(offerB1));
 
                         line = loadTrustLine(b1, usdCur, app);
                         checkAmounts(line->getBalance(), 150 * assetMultiplier);
@@ -955,7 +954,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     a1.manageOffer(delta, 0, usdCur, idrCur, Price(1, 1), 90 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                     // gw's offer was deleted
-                    REQUIRE(!loadOffer(gateway, gwOffer, app, false));
+                    REQUIRE(!gateway.hasOffer(gwOffer));
 
                     // check balance
                     line = loadTrustLine(a1, usdCur, app);
@@ -970,7 +969,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     gateway.manageOffer(delta, 0, usdCur, idrCur, Price(2, 3), 150 * assetMultiplier, MANAGE_OFFER_DELETED);
 
                     // A's offer was deleted
-                    REQUIRE(!loadOffer(a1, offerA1, app, false));
+                    REQUIRE(!a1.hasOffer(offerA1));
 
                     // check balance
                     line = loadTrustLine(a1, usdCur, app);

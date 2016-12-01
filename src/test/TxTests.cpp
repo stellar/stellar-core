@@ -272,10 +272,10 @@ requireNoAccount(SecretKey const& k, Application& app)
 }
 
 OfferFrame::pointer
-loadOffer(SecretKey const& k, uint64 offerID, Application& app, bool mustExist)
+loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
 {
     OfferFrame::pointer res =
-        OfferFrame::loadOffer(k.getPublicKey(), offerID, app.getDatabase());
+        OfferFrame::loadOffer(k, offerID, app.getDatabase());
     if (mustExist)
     {
         REQUIRE(res);
@@ -762,7 +762,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer = loadOffer(source, expectedOfferID, app);
+            offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
             auto& offerEntry = offer->getOffer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
@@ -771,7 +771,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         }
         break;
         case MANAGE_OFFER_DELETED:
-            REQUIRE(!loadOffer(source, expectedOfferID, app, false));
+            REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
             break;
         default:
             abort();
@@ -861,16 +861,17 @@ applyCreatePassiveOffer(Application& app, LedgerDelta& delta,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer = loadOffer(source, expectedOfferID, app);
+            offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
             auto& offerEntry = offer->getOffer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
             REQUIRE(offerEntry.selling == selling);
             REQUIRE(offerEntry.buying == buying);
+            REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
         }
         break;
         case MANAGE_OFFER_DELETED:
-            REQUIRE(!loadOffer(source, expectedOfferID, app, false));
+            REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
             break;
         default:
             abort();

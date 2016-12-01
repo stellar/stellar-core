@@ -435,7 +435,7 @@ TEST_CASE("payment", "[tx][payment]")
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!loadOffer(c1, offerC1, app, false));
+            REQUIRE(!c1.hasOffer(offerC1));
             line = loadTrustLine(c1, idrCur, app);
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 100 * assetMultiplier);
@@ -445,7 +445,7 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            auto offer = loadOffer(b1, offerB1, app);
+            auto offer = b1.loadOffer(offerB1);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.sellerID == b1.getPublicKey());
             checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -556,7 +556,7 @@ TEST_CASE("payment", "[tx][payment]")
             // C1
             // offer was taken
             REQUIRE(multi.offers[0].offerID == offerC1);
-            REQUIRE(!loadOffer(c1, offerC1, app, false));
+            REQUIRE(!c1.hasOffer(offerC1));
             line = loadTrustLine(c1, idrCur, app);
             checkAmounts(line->getBalance(),
                          trustLineStartingBalance - 80 * assetMultiplier);
@@ -566,7 +566,7 @@ TEST_CASE("payment", "[tx][payment]")
             // B1
             auto const& b1Res = multi.offers[1];
             REQUIRE(b1Res.offerID == offerB1);
-            auto offer = loadOffer(b1, offerB1, app);
+            auto offer = b1.loadOffer(offerB1);
             OfferEntry const& oe = offer->getOffer();
             REQUIRE(b1Res.sellerID == b1.getPublicKey());
             checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -610,12 +610,12 @@ TEST_CASE("payment", "[tx][payment]")
                 REQUIRE(multi.offers[0].offerID == offerC1);
                 REQUIRE(multi.offers[0].amountSold == 0);
                 REQUIRE(multi.offers[0].amountBought == 0);
-                REQUIRE(!loadOffer(c1, offerC1, app, false));
+                REQUIRE(!c1.hasOffer(offerC1));
 
                 // B1
                 auto const& b1Res = multi.offers[1];
                 REQUIRE(b1Res.offerID == offerB1);
-                auto offer = loadOffer(b1, offerB1, app);
+                auto offer = b1.loadOffer(offerB1);
                 OfferEntry const& oe = offer->getOffer();
                 REQUIRE(b1Res.sellerID == b1.getPublicKey());
                 checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
@@ -703,8 +703,8 @@ TEST_CASE("payment", "[tx][payment]")
                 validateAccountAsset(account, i, (assetIndex == i) ? difference : 0, feeCount);
             }
         };
-        auto validateOffer = [&](const SecretKey &account, uint64_t offerId, int difference){
-            auto offer = loadOffer(account, offerId, app);
+        auto validateOffer = [offerAmount](const TestAccount &account, uint64_t offerId, int difference){
+            auto offer = account.loadOffer(offerId);
             auto offerEntry = offer->getOffer();
             REQUIRE(offerEntry.amount == offerAmount + difference);
         };

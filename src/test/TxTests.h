@@ -60,8 +60,8 @@ AccountFrame::pointer loadAccount(SecretKey const& k, Application& app,
 // short hand to check that an account does not exist
 void requireNoAccount(SecretKey const& k, Application& app);
 
-OfferFrame::pointer loadOffer(SecretKey const& k, uint64 offerID,
-                              Application& app, bool mustExist = true);
+OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
+                              Application& app, bool mustExist);
 
 TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
