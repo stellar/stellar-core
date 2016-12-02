@@ -96,7 +96,7 @@ TEST_CASE("merge", "[tx][merge]")
             const Price somePrice(3, 2);
             for (int i = 0; i < 4; i++)
             {
-                a1.manageOffer(delta, 0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
+                a1.manageOffer(0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
             }
             // empty out balance
             a1.pay(gateway, usdCur, trustLineBalance);

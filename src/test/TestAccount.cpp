@@ -69,19 +69,18 @@ TestAccount::hasOffer(uint64_t offerID) const
 }
 
 uint64_t
-TestAccount::manageOffer(LedgerDelta & delta, uint64_t offerID,
+TestAccount::manageOffer(uint64_t offerID,
                          Asset const& selling, Asset const& buying,
                          Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
 {
-    return applyManageOffer(mApp, delta, offerID, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
+    return applyManageOffer(mApp, offerID, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
 }
 
 uint64_t
-TestAccount::createPassiveOffer(LedgerDelta & delta,
-                                Asset const& selling, Asset const& buying,
+TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
 {
-    return applyCreatePassiveOffer(mApp, delta, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
+    return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
 }
 
 void

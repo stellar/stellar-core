@@ -13,7 +13,6 @@ namespace stellar
 {
 
 class Application;
-class LedgerDelta;
 
 class TestAccount
 {
@@ -35,11 +34,10 @@ public:
 
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
-    uint64_t manageOffer(LedgerDelta & delta, uint64_t offerID,
+    uint64_t manageOffer(uint64_t offerID,
                          Asset const& selling, Asset const& buying,
                          Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
-    uint64_t createPassiveOffer(LedgerDelta & delta,
-                                Asset const& selling, Asset const& buying,
+    uint64_t createPassiveOffer(Asset const& selling, Asset const& buying,
                                 Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
     void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
