@@ -784,11 +784,14 @@ manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
 }
 
 static ManageOfferResult
-applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
+applyCreateOfferHelper(Application& app, uint64 offerId,
                        SecretKey const& source, Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
-    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto expectedOfferID = lastGeneratedID + 1;
     if (offerId != 0)
     {
         expectedOfferID = offerId;
@@ -799,9 +802,18 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
     txFrame = manageOfferOp(app.getNetworkID(), offerId, source, selling,
                             buying, price, amount, seq);
 
-    throwingApplyCheck(txFrame, delta, app);
+    try
+    {
+        throwingApplyCheck(txFrame, delta, app);
+    }
+    catch (...)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        throw;
+    }
 
     checkTransaction(*txFrame);
+    delta.commit();
 
     auto& results = txFrame->getResult().result.results();
 
@@ -835,17 +847,21 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
             abort();
         }
     }
+    else
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+    }
 
     return manageOfferResult;
 }
 
 uint64_t
-applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
+applyManageOffer(Application& app, uint64 offerId,
                  SecretKey const& source, Asset const& selling, Asset const& buying,
                  Price const& price, int64_t amount, SequenceNumber seq, ManageOfferEffect expectedEffect)
 {
     ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, selling, buying, price, amount, seq);
+        app, offerId, source, selling, buying, price, amount, seq);
 
     switch (createOfferRes.code())
     {
@@ -887,20 +903,32 @@ applyManageOffer(Application& app, LedgerDelta& delta, uint64 offerId,
 }
 
 uint64_t
-applyCreatePassiveOffer(Application& app, LedgerDelta& delta,
+applyCreatePassiveOffer(Application& app,
                         SecretKey const&source, Asset const& selling, Asset const& buying,
                         Price const& price, int64_t amount,
                         SequenceNumber seq, ManageOfferEffect expectedEffect)
 {
-    auto expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto expectedOfferID = lastGeneratedID + 1;
 
     TransactionFramePtr txFrame;
     txFrame = createPassiveOfferOp(app.getNetworkID(), source, selling,
                             buying, price, amount, seq);
 
-    throwingApplyCheck(txFrame, delta, app);
+    try
+    {
+        throwingApplyCheck(txFrame, delta, app);
+    }
+    catch (...)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        throw;
+    }
 
     checkTransaction(*txFrame);
+    delta.commit();
 
     auto& results = txFrame->getResult().result.results();
 
@@ -934,6 +962,11 @@ applyCreatePassiveOffer(Application& app, LedgerDelta& delta,
         default:
             abort();
         }
+    }
+
+    if (createPassiveOfferResult.code() != MANAGE_OFFER_SUCCESS)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
     }
 
     switch (createPassiveOfferResult.code())

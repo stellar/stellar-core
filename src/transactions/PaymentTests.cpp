@@ -336,7 +336,7 @@ TEST_CASE("payment", "[tx][payment]")
         b1.changeTrust(idrCur, trustLineLimit);
         gateway.pay(b1, idrCur, trustLineStartingBalance);
 
-        auto offerB1 = b1.manageOffer(delta, 0, idrCur, usdCur, usdPriceOffer, 100 * assetMultiplier);
+        auto offerB1 = b1.manageOffer(0, idrCur, usdCur, usdPriceOffer, 100 * assetMultiplier);
 
         // setup "c1"
         auto c1 = root.create("C", minBalance3 + 10000);
@@ -347,7 +347,7 @@ TEST_CASE("payment", "[tx][payment]")
         gateway.pay(c1, idrCur, trustLineStartingBalance);
 
         // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD @ 0.66
-        auto offerC1 = c1.manageOffer(delta, 0, idrCur, usdCur, Price(3, 2), 100 * assetMultiplier);
+        auto offerC1 = c1.manageOffer(0, idrCur, usdCur, Price(3, 2), 100 * assetMultiplier);
 
         // at this point:
         // a1 holds (0, IDR) (trustLineStartingBalance, USD)
@@ -472,7 +472,7 @@ TEST_CASE("payment", "[tx][payment]")
             root.pay(a1, 100 * assetMultiplier);
 
             // offer is sell 100 USD for 100 XLM
-            a1.manageOffer(delta, 0, usdCur, xlmCur, Price(1, 1), 100 * assetMultiplier);
+            a1.manageOffer(0, usdCur, xlmCur, Price(1, 1), 100 * assetMultiplier);
 
             // A1: try to send 100 USD to B1 using XLM
 
