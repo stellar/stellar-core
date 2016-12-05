@@ -97,31 +97,12 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
     }
 
-    numWheatReceived = canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price);
-
-    // adjust numWheatReceived with what the seller has
-    auto wheatCanSell = canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager);
-    if (numWheatReceived > wheatCanSell)
-    {
-        numWheatReceived = wheatCanSell;
-    }
-
-    // you can receive the lesser of the amount of wheat offered or
-    // the amount the guy has
-
-    if (numWheatReceived >= sellingWheatOffer.getOffer().amount)
-    {
-        numWheatReceived = sellingWheatOffer.getOffer().amount;
-    }
-    else
-    {
-        // update the offer based on the balance (to determine if it should be
-        // deleted or not)
-        // note that we don't need to write into the db at this point as the
-        // actual update
-        // is done further down
-        sellingWheatOffer.getOffer().amount = numWheatReceived;
-    }
+    numWheatReceived = std::min({
+        canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price),
+        canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
+        sellingWheatOffer.getOffer().amount
+    });
+    sellingWheatOffer.getOffer().amount = numWheatReceived;
 
     bool reducedOffer = false;
 
