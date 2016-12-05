@@ -12,6 +12,15 @@
 namespace stellar
 {
 
+struct ExchangeResult
+{
+    int64_t numWheatReceived;
+    int64_t numSheepSend;
+    bool reduced;
+};
+
+ExchangeResult exchange(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend);
+
 class OfferExchange
 {
 
