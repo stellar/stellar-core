@@ -56,6 +56,27 @@ canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::poi
 
 }
 
+ExchangeResult
+exchange(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+{
+    auto result = ExchangeResult{};
+    result.reduced = wheatReceived > maxWheatReceive;
+    wheatReceived = std::min(wheatReceived, maxWheatReceive);
+
+    // this guy can get X wheat to you. How many sheep does that get him?
+    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d))
+    {
+        result.numSheepSend = INT64_MAX;
+    }
+
+    result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
+    result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
+    // bias towards seller (this cannot overflow at this point)
+    result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n);
+
+    return result;
+}
+
 OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
     : mDelta(delta), mLedgerManager(ledgerManager)
 {
@@ -103,40 +124,15 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         sellingWheatOffer.getOffer().amount
     });
     sellingWheatOffer.getOffer().amount = numWheatReceived;
-
-    bool reducedOffer = false;
-
-    if (numWheatReceived > maxWheatReceived)
-    {
-        numWheatReceived = maxWheatReceived;
-        reducedOffer = true;
-    }
-
-    // this guy can get X wheat to you. How many sheep does that get him?
-    if (!bigDivide(numSheepSend, numWheatReceived,
-                   sellingWheatOffer.getOffer().price.n,
-                   sellingWheatOffer.getOffer().price.d))
-    {
-        numSheepSend = INT64_MAX;
-    }
-
-    if (numSheepSend > maxSheepSend)
-    {
-        // reduce the number even more if there is a limit on Sheep
-        numSheepSend = maxSheepSend;
-        reducedOffer = true;
-    }
-
-    // bias towards seller (this cannot overflow at this point)
-    numWheatReceived =
-        bigDivide(numSheepSend, sellingWheatOffer.getOffer().price.d,
-                  sellingWheatOffer.getOffer().price.n);
+    auto exchangeResult = exchange(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
+    numWheatReceived = exchangeResult.numWheatReceived;
+    numSheepSend = exchangeResult.numSheepSend;
 
     bool offerTaken = false;
 
     if (numWheatReceived == 0 || numSheepSend == 0)
     {
-        if (reducedOffer)
+        if (exchangeResult.reduced)
         {
             return eOfferCantConvert;
         }
