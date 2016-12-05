@@ -12,6 +12,32 @@
 namespace stellar
 {
 
+namespace
+{
+
+int64_t
+canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return INT64_MAX;
+    }
+
+    // compute value based on what the account can receive
+    auto sellerMaxSheep =
+        trustLine ? trustLine->getMaxAmountReceive() : 0;
+
+    auto result = int64_t{};
+    if (!bigDivide(result, sellerMaxSheep, price.d, price.n))
+    {
+        result = INT64_MAX;
+    }
+
+    return result;
+}
+
+}
+
 OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
     : mDelta(delta), mLedgerManager(ledgerManager)
 {
@@ -47,27 +73,13 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame::pointer sheepLineAccountB;
-
-    if (sheep.type() == ASSET_TYPE_NATIVE)
-    {
-        numWheatReceived = INT64_MAX;
-    }
-    else
+    if (sheep.type() != ASSET_TYPE_NATIVE)
     {
         sheepLineAccountB =
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
-
-        // compute numWheatReceived based on what the account can receive
-        int64_t sellerMaxSheep =
-            sheepLineAccountB ? sheepLineAccountB->getMaxAmountReceive() : 0;
-
-        if (!bigDivide(numWheatReceived, sellerMaxSheep,
-                       sellingWheatOffer.getOffer().price.d,
-                       sellingWheatOffer.getOffer().price.n))
-        {
-            numWheatReceived = INT64_MAX;
-        }
     }
+
+    numWheatReceived = canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price);
 
     // adjust numWheatReceived with what the seller has
     {
