@@ -36,6 +36,24 @@ canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
     return result;
 }
 
+int64_t
+canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::pointer trustLine, LedgerManager &ledgerManager)
+{
+    int64_t result;
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        // can only send above the minimum balance
+        return account->getBalanceAboveReserve(ledgerManager);
+    }
+
+    if (trustLine && trustLine->isAuthorized())
+    {
+        return trustLine->getBalance();
+    }
+
+    return 0;
+}
+
 }
 
 OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
@@ -82,29 +100,12 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     numWheatReceived = canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price);
 
     // adjust numWheatReceived with what the seller has
+    auto wheatCanSell = canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager);
+    if (numWheatReceived > wheatCanSell)
     {
-        int64_t wheatCanSell;
-        if (wheat.type() == ASSET_TYPE_NATIVE)
-        {
-            // can only send above the minimum balance
-            wheatCanSell = accountB->getBalanceAboveReserve(mLedgerManager);
-        }
-        else
-        {
-            if (wheatLineAccountB && wheatLineAccountB->isAuthorized())
-            {
-                wheatCanSell = wheatLineAccountB->getBalance();
-            }
-            else
-            {
-                wheatCanSell = 0;
-            }
-        }
-        if (numWheatReceived > wheatCanSell)
-        {
-            numWheatReceived = wheatCanSell;
-        }
+        numWheatReceived = wheatCanSell;
     }
+
     // you can receive the lesser of the amount of wheat offered or
     // the amount the guy has
 
