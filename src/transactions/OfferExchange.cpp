@@ -125,24 +125,24 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     });
     sellingWheatOffer.getOffer().amount = numWheatReceived;
     auto exchangeResult = exchange(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
+
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
 
     bool offerTaken = false;
 
-    if (numWheatReceived == 0 || numSheepSend == 0)
+    switch (exchangeResult.type())
     {
-        if (exchangeResult.reduced)
-        {
+        case ExchangeResultType::REDUCED_TO_ZERO:
             return eOfferCantConvert;
-        }
-        else
-        {
+        case ExchangeResultType::BOGUS:
             // force delete the offer as it represents a bogus offer
             numWheatReceived = 0;
             numSheepSend = 0;
             offerTaken = true;
-        }
+            break;
+        default:
+            break;
     }
 
     offerTaken =
