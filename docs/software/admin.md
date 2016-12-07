@@ -291,22 +291,25 @@ Overlap here means that any two nodes that reference a set of nodes:
 
 For example, consider two nodes that respectively reference the sets Set1 and
  Set2 composed of some common nodes and some other nodes.
-Set1 = Common + extra1
-Set2 = Common + extra2
+
+ * Set1 = Common + extra1
+ * Set2 = Common + extra2
+
 Then if you want to ensure that when reaching consensus, each node has
 at least "safety" number of nodes in common.
-threshold1 >= (size(extra1) + safety)/size(Set1)
-threshold2 >= (size(extra2) + safety)/size(Set2)
+ * threshold1 >= (size(extra1) + safety)/size(Set1)
+ * threshold2 >= (size(extra2) + safety)/size(Set2)
 
 This can be expressed in percentage:
  * safetyP = safety/common * 100
  * commonP = common/sizeof(SetN) * 100
+ 
 threshold then should be greater or equal to
- 100 - commonP + (safetyP*commonP)/100
- 100 + (1 - safetyP)*commonP
+ * 100 - commonP + (safetyP*commonP)/100   or 
+ * 100 - (1 - safetyP/100)*commonP
 
- so if 80% of the nodes in the set are common, and you consider that seeing 60% of those is enough
- threshold should be set to 100 - 80 + 60*80/100 = 68
+so if 80% of the nodes in the set are common, and you consider that seeing 60% of those is enough
+threshold should be set to 100 - 80 + 60*80/100 = 68
 
 ### Picking validators
 You want to pick validators that are reliable:
