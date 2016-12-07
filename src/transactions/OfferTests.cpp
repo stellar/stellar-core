@@ -985,4 +985,18 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         }
     }
+
+    SECTION("offers with invalid prices")
+    {
+        auto a = root.create("A", minBalance2 * 2);
+        a.changeTrust(idrCur, trustLineLimit);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, -1}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, 1}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, -1}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, 0}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, 0}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, 1}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{1, -1}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+        REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{1, 0}, 150 * assetMultiplier), ex_MANAGE_OFFER_MALFORMED);
+    }
 }
