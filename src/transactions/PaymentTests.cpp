@@ -671,6 +671,42 @@ TEST_CASE("payment", "[tx][payment]")
         applyPathPaymentTx(app, source, destination, xlmCur, 1382068965, cnyCur, 2 * assetMultiplier, source.nextSequenceNumber(), PATH_PAYMENT_TOO_FEW_OFFERS, &path);
     }
 
+    SECTION("path with bogus offer, bogus offer shows on offers trail")
+    {
+        auto paymentToReceive = 24 * assetMultiplier;
+        auto offerSize = paymentToReceive / 2;
+        auto initialBalance = app.getLedgerManager().getMinBalance(10) + txfee * 10 + 100 * assetMultiplier;
+        auto mm = root.create("mm", initialBalance);
+        auto source = root.create("source", initialBalance);
+        auto destination = root.create("destination", initialBalance);
+        mm.changeTrust(idrCur, trustLineLimit);
+        mm.changeTrust(usdCur, trustLineLimit);
+        destination.changeTrust(idrCur, trustLineLimit);
+        gateway.pay(mm, idrCur, 100 * assetMultiplier);
+        gateway2.pay(mm, usdCur, 100 * assetMultiplier);
+
+        auto idrCurCheapOfferID = mm.manageOffer(0, idrCur, usdCur, Price{3, 12}, offerSize);
+        auto idrCurMidBogusOfferID = mm.manageOffer(0, idrCur, usdCur, Price{4, 12}, 1);
+        auto idrCurExpensiveOfferID = mm.manageOffer(0, idrCur, usdCur, Price{6, 12}, offerSize);
+        auto usdCurOfferID = mm.manageOffer(0, usdCur, xlmCur, Price{1, 2}, 2 * offerSize);
+
+        auto path = std::vector<Asset>{xlmCur, usdCur};
+        auto res = applyPathPaymentTx(
+            app, source, destination, xlmCur, 8 * paymentToReceive, idrCur,
+            paymentToReceive, source.nextSequenceNumber(), PATH_PAYMENT_SUCCESS, &path);
+
+        auto const& offers = res.success().offers;
+        REQUIRE(offers.size() == 4);
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurCheapOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurMidBogusOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurExpensiveOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == usdCurOfferID; }) != std::end(offers));
+    }
+
     SECTION("path payment with cycle")
     {
         // Create 3 different cycles.
