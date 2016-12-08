@@ -27,6 +27,7 @@ public:
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);
+    void merge(PublicKey const& into);
 
     void changeTrust(Asset const &asset, int64_t limit);
     void allowTrust(Asset const &asset, PublicKey const& trustor);

@@ -1060,29 +1060,43 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
 }
 
 TransactionFramePtr
-createAccountMerge(Hash const& networkID, SecretKey const& source, SecretKey const& dest,
+createAccountMerge(Hash const& networkID, SecretKey const& source, PublicKey const& dest,
                    SequenceNumber seq)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
-    op.body.destination() = dest.getPublicKey();
+    op.body.destination() = dest;
 
     return transactionFromOperation(networkID, source, seq, op);
 }
 
 void
-applyAccountMerge(Application& app, SecretKey const& source, SecretKey const& dest,
-                  SequenceNumber seq, AccountMergeResultCode targetResult)
+applyAccountMerge(Application& app, SecretKey const& source, PublicKey const& dest,
+                  SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
         createAccountMerge(app.getNetworkID(), source, dest, seq);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
-    REQUIRE(MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == targetResult);
+    auto result = MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ACCOUNT_MERGE_MALFORMED:
+            throw ex_ACCOUNT_MERGE_MALFORMED{};
+        case ACCOUNT_MERGE_NO_ACCOUNT:
+            throw ex_ACCOUNT_MERGE_NO_ACCOUNT{};
+        case ACCOUNT_MERGE_IMMUTABLE_SET:
+            throw ex_ACCOUNT_MERGE_IMMUTABLE_SET{};
+        case ACCOUNT_MERGE_HAS_SUB_ENTRIES:
+            throw ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
 }
 
 TransactionFramePtr

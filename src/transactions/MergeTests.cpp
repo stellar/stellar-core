@@ -12,6 +12,7 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
 #include "test/TxTests.h"
 #include "ledger/LedgerDelta.h"
 
@@ -54,12 +55,12 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("merge into self")
     {
-        applyAccountMerge(app, a1, a1, a1.nextSequenceNumber(), ACCOUNT_MERGE_MALFORMED);
+        REQUIRE_THROWS_AS(a1.merge(a1), ex_ACCOUNT_MERGE_MALFORMED);
     }
 
     SECTION("merge into non existent account")
     {
-        applyAccountMerge(app, a1, getAccount("B"), a1.nextSequenceNumber(), ACCOUNT_MERGE_NO_ACCOUNT);
+        REQUIRE_THROWS_AS(a1.merge(getAccount("B").getPublicKey()), ex_ACCOUNT_MERGE_NO_ACCOUNT);
     }
 
     auto b1 = root.create("B", minBalance);
@@ -74,7 +75,7 @@ TEST_CASE("merge", "[tx][merge]")
         applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
                         nullptr, nullptr);
 
-        applyAccountMerge(app, a1, b1, a1.nextSequenceNumber(), ACCOUNT_MERGE_IMMUTABLE_SET);
+        REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_IMMUTABLE_SET);
     }
 
     SECTION("With sub entries")
@@ -84,8 +85,7 @@ TEST_CASE("merge", "[tx][merge]")
 
         SECTION("account has trust line")
         {
-            applyAccountMerge(app, a1, b1, a1.nextSequenceNumber(),
-                              ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         }
         SECTION("account has offer")
         {
@@ -103,8 +103,7 @@ TEST_CASE("merge", "[tx][merge]")
             // delete the trust line
             a1.changeTrust(usdCur, 0);
 
-            applyAccountMerge(app, a1, b1, a1.nextSequenceNumber(),
-                              ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         }
 
         SECTION("account has data")
@@ -122,8 +121,7 @@ TEST_CASE("merge", "[tx][merge]")
             std::string t1("test");
 
             applyManageData(app, a1, t1, &value, a1.nextSequenceNumber());
-            applyAccountMerge(app, a1, b1, a1.nextSequenceNumber(),
-                ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         }
     }
 
@@ -131,7 +129,7 @@ TEST_CASE("merge", "[tx][merge]")
     {
         SECTION("success - basic")
         {
-            applyAccountMerge(app, a1, b1, a1.nextSequenceNumber());
+            a1.merge(b1);
             REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
                                                app.getDatabase()));
         }

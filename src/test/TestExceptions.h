@@ -12,6 +12,12 @@ namespace txtest
 
 class ex_txNO_ACCOUNT {};
 
+
+class ex_ACCOUNT_MERGE_MALFORMED {};
+class ex_ACCOUNT_MERGE_NO_ACCOUNT {};
+class ex_ACCOUNT_MERGE_IMMUTABLE_SET {};
+class ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES {};
+
 class ex_CREATE_ACCOUNT_MALFORMED {};
 class ex_CREATE_ACCOUNT_UNDERFUNDED {};
 class ex_CREATE_ACCOUNT_LOW_RESERVE {};

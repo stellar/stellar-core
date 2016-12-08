@@ -167,11 +167,10 @@ OperationResult applyInflation(Application& app, SecretKey const&from,
                                InflationResultCode targetResult = INFLATION_SUCCESS);
 
 TransactionFramePtr createAccountMerge(Hash const& networkID, SecretKey const&source,
-                                       SecretKey const&dest, SequenceNumber seq);
+                                       PublicKey const&dest, SequenceNumber seq);
 
-void applyAccountMerge(Application& app, SecretKey const&source, SecretKey const&dest,
-                       SequenceNumber seq,
-                       AccountMergeResultCode targetResult = ACCOUNT_MERGE_SUCCESS);
+void applyAccountMerge(Application& app, SecretKey const&source, PublicKey const&dest,
+                       SequenceNumber seq);
 
 
 TransactionFramePtr createManageData(Hash const& networkID, SecretKey const&source,

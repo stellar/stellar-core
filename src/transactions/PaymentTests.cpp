@@ -305,7 +305,7 @@ TEST_CASE("payment", "[tx][payment]")
             }
             SECTION("missing issuer")
             {
-                applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                gateway.merge(root);
                 // cannot send to an account that is not the issuer
                 REQUIRE_THROWS_AS(a1.pay(b1, idrCur, 40), ex_PAYMENT_NO_ISSUER);
                 // should be able to send back credits to issuer
@@ -472,7 +472,7 @@ TEST_CASE("payment", "[tx][payment]")
                 SECTION("last")
                 {
                     // gateway issued idrCur
-                    applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                    gateway.merge(root);
 
                     auto res = applyPathPaymentTx(
                         app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
@@ -482,7 +482,7 @@ TEST_CASE("payment", "[tx][payment]")
                 SECTION("first")
                 {
                     // gateway2 issued usdCur
-                    applyAccountMerge(app, gateway2, root, gateway2.nextSequenceNumber());
+                    gateway2.merge(root);
 
                     auto res = applyPathPaymentTx(
                         app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
@@ -509,7 +509,7 @@ TEST_CASE("payment", "[tx][payment]")
                 SECTION("cannot take offers on the way")
                 {
                     // gateway issued idrCur
-                    applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                    gateway.merge(root);
 
                     auto res = applyPathPaymentTx(
                         app, a1, gateway, usdCur, 250 * assetMultiplier, idrCur,

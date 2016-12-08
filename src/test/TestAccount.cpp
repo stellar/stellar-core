@@ -35,6 +35,12 @@ TestAccount::create(std::string const& name, uint64_t initialBalance)
 }
 
 void
+TestAccount::merge(PublicKey const& into)
+{
+    applyAccountMerge(mApp, getSecretKey(), into, nextSequenceNumber());
+}
+
+void
 TestAccount::changeTrust(Asset const &asset, int64_t limit)
 {
     auto assetCode = std::string{};
