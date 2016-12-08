@@ -115,4 +115,13 @@ TestAccount::pay(PublicKey const& destination, Asset const& selling, int64_t amo
     applyCreditPaymentTx(mApp, getSecretKey(), destination, selling, nextSequenceNumber(), amount);
 }
 
+PathPaymentResult
+TestAccount::pay(PublicKey const& destination, Asset const& sendCur, int64_t sendMax,
+                 Asset const& destCur, int64_t destAmount, std::vector<Asset> const& path,
+                 Asset *noIssuer)
+{
+    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur, sendMax,
+                              destCur, destAmount, nextSequenceNumber(), path, noIssuer);
+}
+
 };

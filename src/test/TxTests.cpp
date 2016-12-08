@@ -645,10 +645,10 @@ applyCreditPaymentTx(Application& app, SecretKey const& from, PublicKey const& t
 }
 
 TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
+createPathPaymentTx(Hash const& networkID, SecretKey const& from, PublicKey const& to,
                     Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                     int64_t destAmount, SequenceNumber seq,
-                    std::vector<Asset>* path)
+                    std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -657,23 +657,17 @@ createPathPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey cons
     ppop.sendMax = sendMax;
     ppop.destAsset = destCur;
     ppop.destAmount = destAmount;
-    ppop.destination = to.getPublicKey();
-    if (path)
-    {
-        for (auto const& cur : *path)
-        {
-            ppop.path.push_back(cur);
-        }
-    }
+    ppop.destination = to;
+    std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
 
     return transactionFromOperation(networkID, from, seq, op);
 }
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
+applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
-                   int64_t destAmount, SequenceNumber seq,
-                   PathPaymentResultCode result, std::vector<Asset>* path)
+                   int64_t destAmount, SequenceNumber seq, std::vector<Asset> const& path,
+                   Asset *noIssuer)
 {
     TransactionFramePtr txFrame;
 
@@ -682,15 +676,53 @@ applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
 
-    PathPaymentResult res = firstResult.tr().pathPaymentResult();
-    auto resCode = res.code();
-    REQUIRE(resCode == result);
+    auto res = firstResult.tr().pathPaymentResult();
+    auto result = res.code();
+
+    if (result != PATH_PAYMENT_NO_ISSUER)
+    {
+        REQUIRE(!noIssuer);
+    }
+
+    switch (result)
+    {
+        case PATH_PAYMENT_MALFORMED:
+            throw ex_PATH_PAYMENT_MALFORMED{};
+        case PATH_PAYMENT_UNDERFUNDED:
+            throw ex_PATH_PAYMENT_UNDERFUNDED{};
+        case PATH_PAYMENT_SRC_NO_TRUST:
+            throw ex_PATH_PAYMENT_SRC_NO_TRUST{};
+        case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PATH_PAYMENT_NO_DESTINATION:
+            throw ex_PATH_PAYMENT_NO_DESTINATION{};
+        case PATH_PAYMENT_NO_TRUST:
+            throw ex_PATH_PAYMENT_NO_TRUST{};
+        case PATH_PAYMENT_NOT_AUTHORIZED:
+            throw ex_PATH_PAYMENT_NOT_AUTHORIZED{};
+        case PATH_PAYMENT_LINE_FULL:
+            throw ex_PATH_PAYMENT_LINE_FULL{};
+        case PATH_PAYMENT_NO_ISSUER:
+            REQUIRE(noIssuer);
+            REQUIRE(*noIssuer == res.noIssuer());
+            throw ex_PATH_PAYMENT_NO_ISSUER{};
+        case PATH_PAYMENT_TOO_FEW_OFFERS:
+            throw ex_PATH_PAYMENT_TOO_FEW_OFFERS{};
+        case PATH_PAYMENT_OFFER_CROSS_SELF:
+            throw ex_PATH_PAYMENT_OFFER_CROSS_SELF{};
+        case PATH_PAYMENT_OVER_SENDMAX:
+            throw ex_PATH_PAYMENT_OVER_SENDMAX{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PATH_PAYMENT_SUCCESS);
     return res;
 }
 

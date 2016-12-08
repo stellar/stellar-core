@@ -51,6 +51,8 @@ public:
                                 Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
     void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
+    PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur, int64_t sendMax,
+                          Asset const& destCur, int64_t destAmount, std::vector<Asset> const& path, Asset *noIssuer = nullptr);
 
     operator SecretKey () const { return getSecretKey(); }
     operator PublicKey () const { return getPublicKey(); }

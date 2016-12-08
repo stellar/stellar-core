@@ -113,17 +113,16 @@ void applyCreditPaymentTx(Application& app, SecretKey const&from,
                           int64_t amount);
 
 TransactionFramePtr createPathPaymentTx(Hash const& networkID, SecretKey const&from,
-                                        SecretKey const&to, Asset const& sendCur,
+                                        PublicKey const&to, Asset const& sendCur,
                                         int64_t sendMax, Asset const& destCur,
                                         int64_t destAmount, SequenceNumber seq,
-                                        std::vector<Asset>* path = nullptr);
+                                        std::vector<Asset> const& path);
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
+applyPathPaymentTx(Application& app, SecretKey const&from, PublicKey const&to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                    int64_t destAmount, SequenceNumber seq,
-                   PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
-                   std::vector<Asset>* path = nullptr);
+                   std::vector<Asset> const& path, Asset *noIssuer = nullptr);
 
 TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
                                   SecretKey const&source, Asset const& selling,
