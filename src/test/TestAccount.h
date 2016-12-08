@@ -14,6 +14,11 @@ namespace stellar
 
 class Application;
 
+namespace txtest
+{
+    struct ThresholdSetter;
+}
+
 class TestAccount
 {
 public:
@@ -32,6 +37,10 @@ public:
     void changeTrust(Asset const &asset, int64_t limit);
     void allowTrust(Asset const &asset, PublicKey const& trustor);
     void denyTrust(Asset const &asset, PublicKey const& trustor);
+
+    void setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                    uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
+                    Signer* signer, std::string* homeDomain);
 
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;

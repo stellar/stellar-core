@@ -791,9 +791,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         uint32_t setFlags =
                             AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
-                        applySetOptions(app, secgateway, secgateway.nextSequenceNumber(), nullptr,
-                                        &setFlags, nullptr, nullptr, nullptr,
-                                        nullptr);
+                        secgateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr, nullptr);
 
                         // setup d1
                         auto d1 = root.create("D", minBalance3 + 10000);

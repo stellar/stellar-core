@@ -1013,7 +1013,7 @@ void
 applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
                 AccountID* inflationDest, uint32_t* setFlags,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                std::string* homeDomain, SetOptionsResultCode result)
+                std::string* homeDomain)
 {
     TransactionFramePtr txFrame;
 
@@ -1022,11 +1022,36 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(SetOptionsOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+    auto result = SetOptionsOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+
+    switch (result)
+    {
+        case SET_OPTIONS_LOW_RESERVE:
+            throw ex_SET_OPTIONS_LOW_RESERVE{};
+        case SET_OPTIONS_TOO_MANY_SIGNERS:
+            throw ex_SET_OPTIONS_TOO_MANY_SIGNERS{};
+        case SET_OPTIONS_BAD_FLAGS:
+            throw ex_SET_OPTIONS_BAD_FLAGS{};
+        case SET_OPTIONS_INVALID_INFLATION:
+            throw ex_SET_OPTIONS_INVALID_INFLATION{};
+        case SET_OPTIONS_CANT_CHANGE:
+            throw ex_SET_OPTIONS_CANT_CHANGE{};
+        case SET_OPTIONS_UNKNOWN_FLAG:
+            throw ex_SET_OPTIONS_UNKNOWN_FLAG{};
+        case SET_OPTIONS_THRESHOLD_OUT_OF_RANGE:
+            throw ex_SET_OPTIONS_THRESHOLD_OUT_OF_RANGE{};
+        case SET_OPTIONS_BAD_SIGNER:
+            throw ex_SET_OPTIONS_BAD_SIGNER{};
+        case SET_OPTIONS_INVALID_HOME_DOMAIN:
+            throw ex_SET_OPTIONS_INVALID_HOME_DOMAIN{};
+        default:
+            break;
+    }
+
+    REQUIRE(SET_OPTIONS_SUCCESS == result);
 }
 
 TransactionFramePtr

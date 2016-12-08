@@ -48,18 +48,32 @@ TestAccount::changeTrust(Asset const &asset, int64_t limit)
     applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer, nextSequenceNumber(), assetCode, limit);
 }
 
-void TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
+void
+TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
     applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, true);
 }
 
-void TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
+void
+TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
     applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, false);
+}
+
+
+void
+TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                        uint32_t* clearFlags, ThresholdSetter* thrs,
+                        Signer* signer, std::string* homeDomain)
+{
+    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(),
+                    inflationDest, setFlags,
+                    clearFlags, thrs,
+                    signer, homeDomain);
 }
 
 OfferFrame::pointer

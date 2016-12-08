@@ -157,8 +157,7 @@ TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey const&sour
 void applySetOptions(Application& app, SecretKey const&source, SequenceNumber seq,
                      AccountID* inflationDest, uint32_t* setFlags,
                      uint32_t* clearFlags, ThresholdSetter* thrs,
-                     Signer* signer, std::string* homeDomain,
-                     SetOptionsResultCode targetResult = SET_OPTIONS_SUCCESS);
+                     Signer* signer, std::string* homeDomain);
 
 TransactionFramePtr createInflation(Hash const& networkID, SecretKey const&from,
                                     SequenceNumber seq);

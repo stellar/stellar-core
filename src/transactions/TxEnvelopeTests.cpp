@@ -119,14 +119,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th.medThreshold = make_optional<uint8_t>(50);
         th.highThreshold = make_optional<uint8_t>(100);
 
-        applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, &th, &sk1,
-                        nullptr);
+        a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
         SecretKey s2 = getAccount("S2");
         Signer sk2(s2.getPublicKey(), 95); // med rights account
 
-        applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, nullptr,
-                        &sk2, nullptr);
+        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
         SECTION("not enough rights (envelope)")
         {

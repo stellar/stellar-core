@@ -72,8 +72,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("Account has static auth flag set")
     {
         uint32 flags = AUTH_IMMUTABLE_FLAG;
-        applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
-                        nullptr, nullptr);
+        a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
 
         REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_IMMUTABLE_SET);
     }
