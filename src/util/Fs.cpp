@@ -73,7 +73,7 @@ exists(std::string const& name)
 
     if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND)
+        if (GetLastError() == ERROR_FILE_NOT_FOUND || GetLastError() == ERROR_PATH_NOT_FOUND)
         {
             return false;
         }
