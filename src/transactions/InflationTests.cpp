@@ -11,7 +11,8 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "TxTests.h"
+#include "test/TestAccount.h"
+#include "test/TxTests.h"
 #include "transactions/InflationOpFrame.h"
 #include <functional>
 
@@ -36,9 +37,7 @@ createTestAccounts(Application& app, int nbAccounts,
                    std::function<int(int)> getVote)
 {
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
-
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
+    auto root = TestAccount::createRoot(app);
 
     auto& lm = app.getLedgerManager();
     auto& db = app.getDatabase();
@@ -52,7 +51,7 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            applyCreateAccountTx(app, root, to, rootSeq++, setupBalance);
+            root.create(to, setupBalance);
 
             AccountFrame::pointer act;
             act = loadAccount(to, app);
@@ -199,9 +198,9 @@ doInflation(Application& app, int nbAccounts,
 
     std::vector<int64> expectedBalances;
 
-    auto root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
     TransactionFramePtr txFrame = createInflation(
-        app.getNetworkID(), root, getAccountSeqNum(root, app) + 1);
+        app.getNetworkID(), root, root.nextSequenceNumber());
 
     expectedFees += txFrame->getFee();
 
@@ -284,49 +283,47 @@ TEST_CASE("inflation", "[tx][inflation]")
     Application::pointer appPtr = Application::create(clock, cfg);
     Application& app = *appPtr;
 
-    SecretKey root = getRoot(app.getNetworkID());
+    auto root = TestAccount::createRoot(app);
 
     app.start();
-
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
 
     SECTION("not time")
     {
         closeLedgerOn(app, 2, 30, 6, 2014);
-        applyInflation(app, root, rootSeq++, INFLATION_NOT_TIME);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_NOT_TIME);
 
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 0);
 
         closeLedgerOn(app, 3, 1, 7, 2014);
 
-        auto txFrame = createInflation(app.getNetworkID(), root, rootSeq++);
+        auto txFrame = createInflation(app.getNetworkID(), root, root.nextSequenceNumber());
 
         closeLedgerOn(app, 4, 7, 7, 2014, txFrame);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
-        applyInflation(app, root, rootSeq++, INFLATION_NOT_TIME);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_NOT_TIME);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
         closeLedgerOn(app, 5, 8, 7, 2014);
-        applyInflation(app, root, rootSeq++, INFLATION_SUCCESS);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
         closeLedgerOn(app, 6, 14, 7, 2014);
-        applyInflation(app, root, rootSeq++, INFLATION_NOT_TIME);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_NOT_TIME);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
         closeLedgerOn(app, 7, 15, 7, 2014);
-        applyInflation(app, root, rootSeq++, INFLATION_SUCCESS);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 3);
 
         closeLedgerOn(app, 8, 21, 7, 2014);
-        applyInflation(app, root, rootSeq++, INFLATION_NOT_TIME);
+        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_NOT_TIME);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 3);
     }

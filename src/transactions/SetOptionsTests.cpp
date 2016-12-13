@@ -10,7 +10,8 @@
 #include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
-#include "TxTests.h"
+#include "test/TestAccount.h"
+#include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
 
@@ -36,15 +37,8 @@ TEST_CASE("set options", "[tx][setoptions]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
-    SecretKey a1 = getAccount("A");
-
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
-
-    applyCreateAccountTx(app, root, a1, rootSeq++,
-                         app.getLedgerManager().getMinBalance(0) + 1000);
-
-    SequenceNumber a1seq = getAccountSeqNum(a1, app) + 1;
+    auto root = TestAccount::createRoot(app);
+    auto a1 = root.create("A", app.getLedgerManager().getMinBalance(0) + 1000);
 
     SECTION("Signers")
     {
@@ -60,24 +54,23 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("insufficient balance")
         {
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, &th,
                             &sk1, nullptr, SET_OPTIONS_LOW_RESERVE);
         }
 
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(a1.getPublicKey(), 100);
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk, nullptr, SET_OPTIONS_BAD_SIGNER);
         }
 
         SECTION("multiple signers")
         {
             // add some funds
-            applyPaymentTx(app, root, a1, rootSeq++,
-                           app.getLedgerManager().getMinBalance(2));
+            root.pay(a1, app.getLedgerManager().getMinBalance(2));
 
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr, &th,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr, &th,
                             &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
@@ -93,7 +86,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             // add signer 2
             SecretKey s2 = getAccount("S2");
             Signer sk2(s2.getPublicKey(), 100);
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
@@ -101,16 +94,16 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // update signer 2
             sk2.weight = 11;
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk2, nullptr);
 
             // update signer 1
             sk1.weight = 11;
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
             sk1.weight = 0;
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk1, nullptr);
 
             // remove signer 1
@@ -122,7 +115,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 2
             sk2.weight = 0;
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                             nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
@@ -136,7 +129,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         {
             uint32_t setFlags = AUTH_REQUIRED_FLAG;
             uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, &setFlags, &clearFlags,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &setFlags, &clearFlags,
                             nullptr, nullptr, nullptr, SET_OPTIONS_BAD_FLAGS);
         }
         SECTION("auth flags")
@@ -144,32 +137,32 @@ TEST_CASE("set options", "[tx][setoptions]")
             uint32_t flags;
 
             flags = AUTH_REQUIRED_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
                             nullptr, nullptr);
 
             flags = AUTH_REVOCABLE_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
                             nullptr, nullptr);
 
             // clear flag
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, &flags, nullptr,
                             nullptr, nullptr);
 
             flags = AUTH_IMMUTABLE_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
                             nullptr, nullptr);
 
             // at this point trying to change any flag should fail
 
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, &flags, nullptr,
                             nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
 
             flags = AUTH_REQUIRED_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, nullptr, &flags, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, &flags, nullptr,
                             nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
 
             flags = AUTH_REVOCABLE_FLAG;
-            applySetOptions(app, a1, a1seq++, nullptr, &flags, nullptr, nullptr,
+            applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, &flags, nullptr, nullptr,
                             nullptr, nullptr, SET_OPTIONS_CANT_CHANGE);
         }
     }
@@ -181,7 +174,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
             for (auto& s : bad)
             {
-                applySetOptions(app, a1, a1seq++, nullptr, nullptr, nullptr,
+                applySetOptions(app, a1, a1.nextSequenceNumber(), nullptr, nullptr, nullptr,
                                 nullptr, nullptr, &s,
                                 SET_OPTIONS_INVALID_HOME_DOMAIN);
             }

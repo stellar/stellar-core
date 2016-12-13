@@ -18,7 +18,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "ledger/LedgerManager.h"
 #include "process/ProcessManager.h"
 #include "util/NonCopyable.h"

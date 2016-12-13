@@ -9,7 +9,9 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
-#include "TxTests.h"
+#include "test/TestAccount.h"
+#include "test/TestExceptions.h"
+#include "test/TxTests.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -28,66 +30,52 @@ TEST_CASE("change trust", "[tx][changetrust]")
     app.start();
 
     // set up world
-    SecretKey root = getRoot(app.getNetworkID());
-    SecretKey gateway = getAccount("gw");
-
-    SequenceNumber rootSeq = getAccountSeqNum(root, app) + 1;
+    auto root = TestAccount::createRoot(app);
+    auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
+    auto gateway = root.create("gw", minBalance2);
+    Asset idrCur = makeAsset(gateway, "IDR");
 
     SECTION("basic tests")
     {
-        const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-        applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance2);
-        SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
-
-        Asset idrCur = makeAsset(gateway, "IDR");
-
         // create a trustline with a limit of 0
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0,
-                         CHANGE_TRUST_INVALID_LIMIT);
+        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0), ex_CHANGE_TRUST_INVALID_LIMIT);
 
         // create a trustline with a limit of 100
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 100);
+        root.changeTrust(idrCur, 100);
 
         // fill it to 90
-        applyCreditPaymentTx(app, gateway, root, idrCur, gateway_seq++, 90);
+        gateway.pay(root, idrCur, 90);
 
         // can't lower the limit below balance
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 89,
-                         CHANGE_TRUST_INVALID_LIMIT);
+        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 89), ex_CHANGE_TRUST_INVALID_LIMIT);
+
         // can't delete if there is a balance
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0,
-                         CHANGE_TRUST_INVALID_LIMIT);
+        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0), ex_CHANGE_TRUST_INVALID_LIMIT);
 
         // lower the limit at the balance
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 90);
+        root.changeTrust(idrCur, 90);
 
         // clear the balance
-        applyCreditPaymentTx(app, root, gateway, idrCur, rootSeq++, 90);
+        root.pay(gateway, idrCur, 90);
+
         // delete the trust line
-        applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 0);
+        root.changeTrust(idrCur, 0);
         REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idrCur, db)));
     }
     SECTION("issuer does not exist")
     {
         SECTION("new trust line")
         {
-            applyChangeTrust(app, root, gateway, rootSeq, "USD", 100,
-                             CHANGE_TRUST_NO_ISSUER);
+            Asset usdCur = makeAsset(getAccount("non-existing"), "IDR");
+            REQUIRE_THROWS_AS(root.changeTrust(usdCur, 100), ex_CHANGE_TRUST_NO_ISSUER);
         }
         SECTION("edit existing")
         {
-            const int64_t minBalance2 = app.getLedgerManager().getMinBalance(2);
-
-            applyCreateAccountTx(app, root, gateway, rootSeq++, minBalance2);
-            SequenceNumber gateway_seq = getAccountSeqNum(gateway, app) + 1;
-
-            applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 100);
+            root.changeTrust(idrCur, 100);
             // Merge gateway back into root (the trustline still exists)
-            applyAccountMerge(app, gateway, root, gateway_seq++);
+            applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
 
-            applyChangeTrust(app, root, gateway, rootSeq++, "IDR", 99,
-                             CHANGE_TRUST_NO_ISSUER);
+            REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99), ex_CHANGE_TRUST_NO_ISSUER);
         }
     }
 }
