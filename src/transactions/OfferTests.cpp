@@ -54,6 +54,8 @@ TEST_CASE("create offer", "[tx][offers]")
     // sets up gateway account
     auto gateway = root.create("gateway", minBalance2 * 10);
 
+    Asset xlmCur;
+    xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
     Asset idrCur = makeAsset(gateway, "IDR");
     Asset usdCur = makeAsset(gateway, "USD");
 
@@ -313,9 +315,6 @@ TEST_CASE("create offer", "[tx][offers]")
                              trustLineBalance);
         SECTION("Native offers")
         {
-            Asset xlmCur;
-            xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
-
             const Price somePrice(3, 2);
             SECTION("IDR -> XLM")
             {
@@ -450,6 +449,41 @@ TEST_CASE("create offer", "[tx][offers]")
                         REQUIRE(offer->getSelling().alphaNum4().assetCode ==
                                 idrCur.alphaNum4().assetCode);
                     }
+                }
+            }
+
+            SECTION("crossing offers with rounding")
+            {
+                auto bidAmount = 8224563625;
+                auto bidPrice = Price{500, 2061}; // bid for 4.1220000
+                auto askAmount = 2000000000;
+                auto askPrice = Price{2551, 625}; // ask for 4.0816000
+
+                auto askingOfferAccount = root.create("asking offer account", 10000000000);
+                auto biddingOfferAccount = root.create("bidding offer account", 10000000000);
+                askingOfferAccount.changeTrust(idrCur, trustLineLimit);
+                biddingOfferAccount.changeTrust(idrCur, trustLineLimit);
+                gateway.pay(askingOfferAccount, idrCur, trustLineBalance);
+
+                SECTION("bid before ask uses bid price")
+                {
+                    auto biddingOfferID = biddingOfferAccount.manageOffer(0, xlmCur, idrCur, bidPrice, bidAmount);
+                    auto askingOfferID = askingOfferAccount.manageOffer(0, idrCur, xlmCur, askPrice, askAmount);
+
+                    auto biddingOffer = biddingOfferAccount.loadOffer(biddingOfferID)->getOffer();
+                    auto askingOffer = askingOfferAccount.loadOffer(askingOfferID)->getOffer();
+                    REQUIRE(askingOffer.amount == 4715278); // 8224563625 / 4.1220000 = 1995284722,22 = 2000000000 - 4715278
+                    REQUIRE(biddingOffer.amount == 1); // rounding error, should be 0
+                }
+
+                SECTION("ask before bid uses ask price")
+                {
+                    auto askingOfferID = askingOfferAccount.manageOffer(0, idrCur, xlmCur, askPrice, askAmount);
+                    auto biddingOfferID = biddingOfferAccount.manageOffer(0, xlmCur, idrCur, bidPrice, bidAmount);
+
+                    REQUIRE(!askingOfferAccount.hasOffer(askingOfferID));
+                    auto biddingOffer = biddingOfferAccount.loadOffer(biddingOfferID)->getOffer();
+                    REQUIRE(biddingOffer.amount == 61363625); // 2000000000 * 4.0816000 = 8163200000 = 8224563625 - 61363625
                 }
             }
 
