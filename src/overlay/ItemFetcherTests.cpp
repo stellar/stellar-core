@@ -2,129 +2,175 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
-#include <main/Application.h>
-#include "main/test.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
+#include "main/ApplicationImpl.h"
+#include "main/test.h"
 #include "overlay/ItemFetcher.h"
-#include "overlay/OverlayManager.h"
 #include "overlay/LoopbackPeer.h"
-#include <crypto/SHA.h>
-#include <crypto/Hex.h>
+#include "overlay/OverlayManager.h"
+#include "util/asio.h"
+#include "xdr/Stellar-types.h"
 
 namespace stellar
 {
 
-/* this wasn't in the VS project. So I removed IntTracker.
-
-using IntFetcher = ItemFetcher<int, IntTracker>;
-
-TEST_CASE("ItemFetcher fetches", "[overlay]")
+namespace
 {
 
-    VirtualClock clock;
-    auto app = Application::create(clock, getTestConfig(0));
+class HerderStub : public HerderImpl
+{
+public:
+    HerderStub(Application& app) : HerderImpl(app) {};
 
-    IntFetcher itemFetcher(*app, 2);
+    std::vector<int> received;
 
-    std::string received;
-
-    auto cb = [&](int const &item)
+private:
+    void recvSCPEnvelope(SCPEnvelope const& envelope) override
     {
-        received += std::to_string(item) + " ";
-    };
+        received.push_back(envelope.statement.pledges.confirm().nPrepared);
+    }
+};
 
-    Hash zero = sha256(ByteSlice("zero"));
-    Hash ten = sha256(ByteSlice("ten"));
-    Hash twelve = sha256(ByteSlice("twelve"));
-    Hash fourteen = sha256(ByteSlice("fourteen"));
-
-    auto tTen = itemFetcher.fetch(ten, cb);
-    auto tTwelve = itemFetcher.fetch(twelve, cb);
-    itemFetcher.fetch(twelve, cb); // tracker held by tTwelve
-
-
-    REQUIRE(!itemFetcher.isNeeded(zero));
-    REQUIRE(itemFetcher.isNeeded(ten));
-    REQUIRE(itemFetcher.isNeeded(twelve));
-
-    itemFetcher.recv(twelve, 12);
-    itemFetcher.recv(ten, 10);
-
-    REQUIRE(received == "12 12 10 ");
-
-    REQUIRE(!itemFetcher.isNeeded(zero));
-    REQUIRE(!itemFetcher.isNeeded(ten));
-    REQUIRE(!itemFetcher.isNeeded(twelve));
-
-    SECTION("stops fetching items whose tracker was released")
+class ApplicationStub : public ApplicationImpl
+{
+public:
+    ApplicationStub(VirtualClock& clock, Config const& cfg)
+        : ApplicationImpl(clock, cfg)
     {
-        auto tFourteen = itemFetcher.fetch(fourteen, cb);
-        tFourteen.reset(); // tracker released, won't be received
-
-        REQUIRE(!itemFetcher.isNeeded(fourteen));
-
-        itemFetcher.recv(fourteen, 14);
-        REQUIRE(received == "12 12 10 ");
+        mHerder = std::make_shared<HerderStub>(*this);
+        newDB();
     }
 
-    SECTION("caches")
+    virtual HerderStub&
+    getHerder() override
     {
-        tTen.reset();
-        tTwelve.reset();
-        itemFetcher.recv(fourteen, 14);
-        REQUIRE(*itemFetcher.get(ten) == 10);
-        REQUIRE(*itemFetcher.get(twelve) == 12);
-        auto tZero = itemFetcher.fetch(zero, cb);
-        itemFetcher.recv(zero, 0);
-        itemFetcher.fetch(zero, cb); // from cache
+        return *mHerder;
+    }
 
-        REQUIRE(!itemFetcher.get(ten));
-        REQUIRE(*itemFetcher.get(twelve) == 12);
-        REQUIRE(*itemFetcher.get(zero) == 0);
-        REQUIRE(received == "12 12 10 0 0 ");
+private:
+    std::shared_ptr<HerderStub> mHerder;
+};
+
+
+SCPEnvelope makeEnvelope(int id)
+{
+    static int slotIndex {0};
+
+    auto result = SCPEnvelope{};
+    result.statement.slotIndex = slotIndex++;
+    result.statement.pledges.type(SCP_ST_CONFIRM);
+    result.statement.pledges.confirm().nPrepared = id;
+    return result;
+}
+
+}
+
+TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
+{
+    VirtualClock clock;
+    ApplicationStub app{clock, getTestConfig(0)};
+
+    std::vector<Peer::pointer> asked;
+    std::vector<Hash> received;
+    ItemFetcher itemFetcher(app, [&](Peer::pointer peer, Hash hash){
+        asked.push_back(peer);
+        peer->sendGetQuorumSet(hash);
+    });
+
+    auto zero = sha256(ByteSlice("zero"));
+    auto ten = sha256(ByteSlice("ten"));
+    auto twelve = sha256(ByteSlice("twelve"));
+    auto fourteen = sha256(ByteSlice("fourteen"));
+
+    auto tenEnvelope = makeEnvelope(10);
+    auto twelveEnvelope1 = makeEnvelope(12);
+    auto twelveEnvelope2 = makeEnvelope(12);
+
+    itemFetcher.fetch(ten, tenEnvelope);
+    itemFetcher.fetch(twelve, twelveEnvelope1);
+    itemFetcher.fetch(twelve, twelveEnvelope2);
+
+    REQUIRE(!itemFetcher.isFetching(zero));
+    REQUIRE(itemFetcher.isFetching(ten));
+    REQUIRE(itemFetcher.isFetching(twelve));
+    REQUIRE(!itemFetcher.isFetching(fourteen));
+
+    itemFetcher.recv(twelve);
+    itemFetcher.recv(ten);
+
+    auto expectedReceived = std::vector<int>{12, 12, 10};
+    REQUIRE(app.getHerder().received == expectedReceived);
+
+    REQUIRE(!itemFetcher.isFetching(zero));
+    REQUIRE(!itemFetcher.isFetching(ten));
+    REQUIRE(!itemFetcher.isFetching(twelve));
+    REQUIRE(!itemFetcher.isFetching(fourteen));
+
+    SECTION("no cache")
+    {
+        auto zeroEnvelope1 = makeEnvelope(0);
+        itemFetcher.fetch(zero, zeroEnvelope1);
+        itemFetcher.recv(zero);
+
+        auto zeroEnvelope2 = makeEnvelope(0);
+        itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current implementation, will re-fetch
+
+        expectedReceived = std::vector<int>{12, 12, 10, 0};
+        REQUIRE(app.getHerder().received == expectedReceived);
+
+        REQUIRE(itemFetcher.isFetching(zero));
+        REQUIRE(!itemFetcher.isFetching(ten));
+        REQUIRE(!itemFetcher.isFetching(twelve));
+        REQUIRE(!itemFetcher.isFetching(fourteen));
     }
 
     SECTION("asks peers in turn")
     {
-        auto other = Application::create(clock, getTestConfig(1));
-        LoopbackPeerConnection connection1(*app, *other);
-        LoopbackPeerConnection connection2(*app, *other);
+        auto other1 = Application::create(clock, getTestConfig(1));
+        auto other2 = Application::create(clock, getTestConfig(2));
+        LoopbackPeerConnection connection1(app, *other1);
+        LoopbackPeerConnection connection2(app, *other2);
         auto peer1 = connection1.getInitiator();
         auto peer2 = connection2.getInitiator();
 
-        IntTrackerPtr tZero;
-        IntTrackerPtr tZero2;
         SECTION("fetching once works")
         {
-            tZero = itemFetcher.fetch(zero, cb);
-            tZero2 = tZero;
+            auto zeroEnvelope1 = makeEnvelope(0);
+            itemFetcher.fetch(zero, zeroEnvelope1);
         }
-        SECTION("fetching twice does not trigger any additional network
-activity")
+        SECTION("fetching twice does not trigger any additional network activity")
         {
-            tZero = itemFetcher.fetch(zero, cb);
-            tZero2 = itemFetcher.fetch(zero, cb);
+            auto zeroEnvelope1 = makeEnvelope(0);
+            auto zeroEnvelope2 = makeEnvelope(0);
+            itemFetcher.fetch(zero, zeroEnvelope1);
+            itemFetcher.fetch(zero, zeroEnvelope2);
         }
-        REQUIRE(tZero->mAsked.size() == 1);
+        REQUIRE(asked.size() == 0);
 
-        while(tZero->mAsked.size() < 4)
+        while (asked.size() < 4)
         {
             clock.crank(true);
         }
-        itemFetcher.recv(zero, 0);
-        while (clock.crank(false) > 0) { }
 
-        REQUIRE(tZero->mAsked.size() == 4);
-        REQUIRE(tZero == tZero2);
+        itemFetcher.recv(zero);
 
-        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer1) ==
-2);
-        REQUIRE(std::count(tZero->mAsked.begin(), tZero->mAsked.end(), peer2) ==
-2);
+        while (clock.crank(false) > 0)
+        {
+        }
 
+        REQUIRE(asked.size() == 4);
 
+        REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
+        REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
+    }
+
+    SECTION("ignore not asked items")
+    {
+        itemFetcher.recv(zero);
+        REQUIRE(app.getHerder().received == expectedReceived); // no new data received
     }
 }
-*/
 }

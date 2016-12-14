@@ -20,24 +20,23 @@ namespace stellar
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 static int const MAX_REBUILD_FETCH_LIST = 1000;
 
-template <class TrackerT>
-ItemFetcher<TrackerT>::ItemFetcher(Application& app)
+ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
     : mApp(app)
     , mItemMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))
+    , mAskPeer(askPeer)
 {
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
+ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
 {
-    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemID);
-    auto entryIt = mTrackers.find(itemID);
+    CLOG(TRACE, "Overlay") << "fetch " << hexAbbrev(itemHash);
+    auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
     { // not being tracked
-        TrackerPtr tracker = std::make_shared<TrackerT>(mApp, itemID);
-        mTrackers[itemID] = tracker;
+        TrackerPtr tracker = std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
+        mTrackers[itemHash] = tracker;
         mItemMapSize.inc();
 
         tracker->listen(envelope);
@@ -49,9 +48,20 @@ ItemFetcher<TrackerT>::fetch(uint256 itemID, const SCPEnvelope& envelope)
     }
 }
 
-template <class TrackerT>
+bool
+ItemFetcher::isFetching(Hash itemHash) const
+{
+    auto iter = mTrackers.find(itemHash);
+    if (iter == mTrackers.end())
+    {
+        return false;
+    }
+
+    return iter->second->hasWaitingEnvelopes();
+}
+
 void
-ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
+ItemFetcher::stopFetchingBelow(uint64 slotIndex)
 {
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
@@ -62,9 +72,8 @@ ItemFetcher<TrackerT>::stopFetchingBelow(uint64 slotIndex)
         });
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
+ItemFetcher::stopFetchingBelowInternal(uint64 slotIndex)
 {
     for (auto iter = mTrackers.begin(); iter != mTrackers.end();)
     {
@@ -80,31 +89,29 @@ ItemFetcher<TrackerT>::stopFetchingBelowInternal(uint64 slotIndex)
     }
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::doesntHave(uint256 const& itemID, Peer::pointer peer)
+ItemFetcher::doesntHave(Hash const& itemHash, Peer::pointer peer)
 {
-    const auto& iter = mTrackers.find(itemID);
+    const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
         iter->second->doesntHave(peer);
     }
 }
 
-template <class TrackerT>
 void
-ItemFetcher<TrackerT>::recv(uint256 itemID)
+ItemFetcher::recv(Hash itemHash)
 {
-    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID);
-    const auto& iter = mTrackers.find(itemID);
-    using xdr::operator==;
+    CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash);
+    const auto& iter = mTrackers.find(itemHash);
+
     if (iter != mTrackers.end())
     {
         // this code can safely be called even if recvSCPEnvelope ends up
-        // calling recv on the same itemID
+        // calling recv on the same itemHash
         auto& waiting = iter->second->mWaitingEnvelopes;
 
-        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemID) << " : "
+        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash) << " : "
                                << waiting.size();
 
         while (!waiting.empty())
@@ -118,16 +125,18 @@ ItemFetcher<TrackerT>::recv(uint256 itemID)
     }
 }
 
-Tracker::Tracker(Application& app, uint256 const& id)
-    : mApp(app)
+Tracker::Tracker(Application& app, Hash const& hash, AskPeer &askPeer)
+    : mAskPeer(askPeer)
+    , mApp(app)
     , mNumListRebuild(0)
     , mTimer(app)
-    , mItemID(id)
+    , mItemHash(hash)
     , mTryNextPeerReset(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "reset-fetcher"}, "item-fetcher"))
     , mTryNextPeer(app.getMetrics().NewMeter(
           {"overlay", "item-fetcher", "next-peer"}, "item-fetcher"))
 {
+    assert(mAskPeer);
 }
 
 Tracker::~Tracker()
@@ -158,7 +167,6 @@ Tracker::clearEnvelopesBelow(uint64 slotIndex)
 
     mTimer.cancel();
     mLastAskedPeer = nullptr;
-    mIsStopped = true;
 
     return false;
 }
@@ -168,7 +176,7 @@ Tracker::doesntHave(Peer::pointer peer)
 {
     if (mLastAskedPeer == peer)
     {
-        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemID);
+        CLOG(TRACE, "Overlay") << "Does not have " << hexAbbrev(mItemHash);
         tryNextPeer();
     }
 }
@@ -180,7 +188,7 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID) << " last: "
+    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash) << " last: "
                            << (mLastAskedPeer ? mLastAskedPeer->toString()
                                               : "<none>");
 
@@ -194,8 +202,6 @@ Tracker::tryNextPeer()
             auto const& s = mApp.getOverlayManager().getPeersKnows(e.first);
             peersWithEnvelope.insert(s.begin(), s.end());
         }
-
-        mPeersToAsk.clear();
 
         // move the peers that have the envelope to the back,
         // to be processed first
@@ -213,7 +219,7 @@ Tracker::tryNextPeer()
 
         mNumListRebuild++;
 
-        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemID)
+        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
                                << " attempt " << mNumListRebuild
                                << " reset to #" << mPeersToAsk.size();
         mTryNextPeerReset.Mark();
@@ -246,10 +252,10 @@ Tracker::tryNextPeer()
     else
     {
         mLastAskedPeer = peer;
-        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemID) << " to "
+        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash) << " to "
                                << peer->toString();
         mTryNextPeer.Mark();
-        askPeer(peer);
+        mAskPeer(peer, mItemHash);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 
@@ -272,18 +278,4 @@ Tracker::listen(const SCPEnvelope& env)
         std::make_pair(sha256(xdr::xdr_to_opaque(m)), env));
 }
 
-void
-TxSetTracker::askPeer(Peer::pointer peer)
-{
-    peer->sendGetTxSet(mItemID);
-}
-
-void
-QuorumSetTracker::askPeer(Peer::pointer peer)
-{
-    peer->sendGetQuorumSet(mItemID);
-}
-
-template class ItemFetcher<TxSetTracker>;
-template class ItemFetcher<QuorumSetTracker>;
 }

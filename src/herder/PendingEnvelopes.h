@@ -38,8 +38,8 @@ class PendingEnvelopes
     // all the quorum sets we have learned about
     cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
 
-    ItemFetcher<TxSetTracker> mTxSetFetcher;
-    ItemFetcher<QuorumSetTracker> mQuorumSetFetcher;
+    ItemFetcher mTxSetFetcher;
+    ItemFetcher mQuorumSetFetcher;
 
     // all the txsets we have learned about per ledger#
     cache::lru_cache<Hash, TxSetFramePtr> mTxSetCache;
@@ -57,7 +57,35 @@ class PendingEnvelopes
     ~PendingEnvelopes();
 
     void recvSCPEnvelope(SCPEnvelope const& envelope);
+
+    /**
+     * Add @p qset identified by @p hash to local cache. Notifies
+     * @see ItemFetcher about that event - it may cause calls to Herder's
+     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
+     * in PendingEnvelopes.
+     */
+    void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+
+    /**
+     * Check if @p qset identified by @p hash was requested before from peers.
+     * If not, ignores that @p qset. If it was requested, calls
+     * @see addSCPQuorumSet.
+     */
     void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+
+    /**
+     * Add @p txset identified by @p hash to local cache. Notifies
+     * @see ItemFetcher about that event - it may cause calls to Herder's
+     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
+     * in PendingEnvelopes.
+     */
+    void addTxSet(Hash hash, TxSetFramePtr txset);
+
+    /**
+     * Check if @p txset identified by @p hash was requested before from peers.
+     * If not, ignores that @p txset. If it was requested, calls
+     * @see addTxSet.
+     */
     void recvTxSet(Hash hash, TxSetFramePtr txset);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,

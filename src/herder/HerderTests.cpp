@@ -458,11 +458,17 @@ TEST_CASE("SCP Driver", "[herder]")
         auto addToCandidates = [&](TxSetFramePtr txSet, uint64_t closeTime)
         {
             txSet->sortForHash();
-            herder.recvTxSet(txSet->getContentsHash(), *txSet);
+            auto sv = StellarValue{txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0};
+            auto v = xdr::xdr_to_opaque(sv);
+            candidates.emplace(v);
 
-            StellarValue sv(txSet->getContentsHash(), closeTime,
-                            emptyUpgradeSteps, 0);
-            candidates.emplace(xdr::xdr_to_opaque(sv));
+            // herder must want the TxSet before receiving it, so we are sending it fake envelope
+            auto envelope = SCPEnvelope{};
+            envelope.statement.slotIndex = herder.getCurrentLedgerSeq();
+            envelope.statement.pledges.type(SCP_ST_PREPARE);
+            envelope.statement.pledges.prepare().ballot.value = v;
+            herder.recvSCPEnvelope(envelope);
+            herder.recvTxSet(txSet->getContentsHash(), *txSet);
         };
         auto addTransactions = [&](TxSetFramePtr txSet, int n)
         {

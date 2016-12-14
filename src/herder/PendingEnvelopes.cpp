@@ -22,8 +22,8 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     : mApp(app)
     , mHerder(herder)
     , mQsetCache(QSET_CACHE_SIZE)
-    , mTxSetFetcher(app)
-    , mQuorumSetFetcher(app)
+    , mTxSetFetcher(app, [](Peer::pointer peer, Hash hash){ peer->sendGetTxSet(hash); })
+    , mQuorumSetFetcher(app, [](Peer::pointer peer, Hash hash){ peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
     , mPendingEnvelopesSize(
@@ -54,20 +54,44 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 }
 
 void
-PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
-    CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
+    CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
+
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
     mQsetCache.put(hash, qset);
     mQuorumSetFetcher.recv(hash);
 }
 
 void
+PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+{
+    CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
+
+    if (mQuorumSetFetcher.isFetching(hash))
+    {
+        addSCPQuorumSet(hash, q);
+    }
+}
+
+void
+PendingEnvelopes::addTxSet(Hash hash, TxSetFramePtr txset)
+{
+    CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
+
+    mTxSetCache.put(hash, txset);
+    mTxSetFetcher.recv(hash);
+}
+
+void
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
-    mTxSetCache.put(hash, txset);
-    mTxSetFetcher.recv(hash);
+
+    if (mTxSetFetcher.isFetching(hash))
+    {
+        addTxSet(hash, txset);
+    }
 }
 
 bool
