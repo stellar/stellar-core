@@ -8,9 +8,56 @@ include $(srcdir)/src.mk
 noinst_HEADERS = $(SRC_H_FILES)
 
 stellar_core_SOURCES = $(SRC_CXX_FILES)
-stellar_core_LDADD = -L$(top_builddir)/lib $(soci_LIBS)			\
-	$(libmedida_LIBS) -l3rdparty $(sqlite3_LIBS) $(libpq_LIBS)	\
-	$(xdrpp_LIBS) $(libsodium_LIBS)
+stellar_core_LDADD = -L$(top_builddir)/lib \
+    $(top_builddir)/lib/lib3rdparty.a      \
+    $(top_builddir)/lib/libsoci.a          \
+    $(libpq_LIBS)
+
+# The stellar_core_LDADD variable is a little tricky, see bug 832
+# https://github.com/stellar/stellar-core/issues/832 and relevant
+# text in the automake manual on Libraries.
+#
+# In https://www.gnu.org/software/automake/manual/html_node/Linking.html
+#
+#   "We recommend that you avoid using -l options in LDADD or prog_LDADD
+#    when referring to libraries built by your package. Instead, write the
+#    file name of the library explicitly as in the above cpio example. Use
+#    -l only to list third-party libraries. If you follow this rule, the
+#    default value of prog_DEPENDENCIES will list all your local libraries
+#    and omit the other ones."
+#
+# Essentially, if you list foo.a files in an _LDADD variable, you'll get
+# dependency-tracking in-tree, but if you list -lfoo linker arguments
+# they'll just get stripped out and you'll have no dependency-tracking (but
+# this might be necessary to link against something out-of-tree).
+#
+# Since our choice between internal and external libraries is made at
+# configure-time, we compose our _LDADD variable via automake conditionals
+# predicated on those configuration choices.
+
+if SQLITE3_INTERNAL
+# if internal, sqlite3 is built into lib3rdparty.a
+else
+stellar_core_LDADD += $(sqlite3_LIBS)
+endif
+
+if LIBMEDIDA_INTERNAL
+stellar_core_LDADD += $(top_builddir)/lib/libmedida.a
+else
+stellar_core_LDADD += $(libmedida_LIBS)
+endif
+
+if LIBSODIUM_INTERNAL
+stellar_core_LDADD += $(top_builddir)/lib/libsodium/src/libsodium/.libs/libsodium.a
+else
+stellar_core_LDADD += $(libsodium_LIBS)
+endif
+
+if XDRPP_INTERNAL
+stellar_core_LDADD += $(top_builddir)/lib/xdrpp/xdrpp/libxdrpp.a
+else
+stellar_core_LDADD += $(xdrpp_LIBS)
+endif
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) StellarCoreVersion.h
 
