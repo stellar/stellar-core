@@ -46,17 +46,6 @@ lessThanXored(Hash const& l, Hash const& r, Hash const& x)
     return v1 < v2;
 }
 
-uint256
-makePublicKey(uint256 const& b)
-{
-    // SANITY pub from private
-    uint256 ret;
-    ret[0] = b[0];
-    ret[1] = b[1];
-    ret[2] = b[2];
-    return (ret);
-}
-
 bool
 isString32Valid(std::string const& str)
 {

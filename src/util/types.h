@@ -19,8 +19,6 @@ Hash& operator^=(Hash& l, Hash const& r);
 // returns true if ( l ^ x ) < ( r ^ x)
 bool lessThanXored(Hash const& l, Hash const& r, Hash const& x);
 
-uint256 makePublicKey(uint256 const& b);
-
 // returns true if the passed string32 is valid
 bool isString32Valid(std::string const& str);
 
