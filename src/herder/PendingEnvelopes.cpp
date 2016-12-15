@@ -364,6 +364,28 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
             break;
     }
 
+    for (auto iter = mDiscardedEnvelopes.begin();
+         iter != mDiscardedEnvelopes.end();)
+    {
+        if (iter->first < slotIndex)
+        {
+            iter = mDiscardedEnvelopes.erase(iter);
+        }
+        else
+            break;
+    }
+
+    for (auto iter = mProcessedEnvelopes.begin();
+         iter != mProcessedEnvelopes.end();)
+    {
+        if (iter->first < slotIndex)
+        {
+            iter = mProcessedEnvelopes.erase(iter);
+        }
+        else
+            break;
+    }
+
     for (auto iter = mFetchingEnvelopes.begin();
          iter != mFetchingEnvelopes.end();)
     {
