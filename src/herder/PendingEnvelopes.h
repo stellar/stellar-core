@@ -21,22 +21,25 @@ namespace stellar
 
 class HerderImpl;
 
+struct SlotEnvelopes
+{
+    // list of envelopes we have processed already
+    std::vector<SCPEnvelope> mProcessedEnvelopes;
+    // list of envelopes we have discarded already
+    std::set<SCPEnvelope> mDiscardedEnvelopes;
+    // list of envelopes we are fetching right now
+    std::set<SCPEnvelope> mFetchingEnvelopes;
+    // list of envelopes that haven't been sent to SCP yet
+    std::vector<SCPEnvelope> mPendingEnvelopes;
+};
+
 class PendingEnvelopes
 {
     Application& mApp;
     HerderImpl& mHerder;
 
-    // ledger# and list of envelopes we have processed already
-    std::map<uint64, std::vector<SCPEnvelope>> mProcessedEnvelopes;
-
-    // ledger# and list of envelopes we have discarded already
-    std::map<uint64, std::set<SCPEnvelope>> mDiscardedEnvelopes;
-
-    // ledger# and list of envelopes we are fetching right now
-    std::map<uint64, std::set<SCPEnvelope>> mFetchingEnvelopes;
-
-    // ledger# and list of envelopes that haven't been sent to SCP yet
-    std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
+    // ledger# and list of envelopes in various states
+    std::map<uint64, SlotEnvelopes> mEnvelopes;
 
     using SCPQuorumSetCacheItem = std::pair<uint64, SCPQuorumSetPtr>;
     // all the quorum sets we have learned about
