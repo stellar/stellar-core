@@ -29,6 +29,9 @@ class PendingEnvelopes
     // ledger# and list of envelopes we have processed already
     std::map<uint64, std::vector<SCPEnvelope>> mProcessedEnvelopes;
 
+    // ledger# and list of envelopes we have discarded already
+    std::map<uint64, std::set<SCPEnvelope>> mDiscardedEnvelopes;
+
     // ledger# and list of envelopes we are fetching right now
     std::map<uint64, std::set<SCPEnvelope>> mFetchingEnvelopes;
 
@@ -89,10 +92,12 @@ class PendingEnvelopes
      * @see addTxSet.
      */
     void recvTxSet(Hash hash, TxSetFramePtr txset);
+    void discardSCPEnvelope(SCPEnvelope const& envelope);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
+    bool isDiscarded(SCPEnvelope const& envelope) const;
     bool isFullyFetched(SCPEnvelope const& envelope);
     void startFetch(SCPEnvelope const& envelope);
     void stopFetch(SCPEnvelope const& envelope);

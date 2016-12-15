@@ -145,12 +145,18 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         return;
     }
 
+    // did we discard this envelope?
     // do we already have this envelope?
     // do we have the qset
     // do we have the txset
 
     try
     {
+        if (isDiscarded(envelope))
+        {
+            return;
+        }
+
         auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
         auto& processedList = mProcessedEnvelopes[envelope.statement.slotIndex];
 
@@ -190,6 +196,46 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             << "PendingEnvelopes::recvSCPEnvelope got corrupt message: "
             << e.what();
     }
+}
+
+void
+PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
+{
+    try
+    {
+        if (isDiscarded(envelope))
+        {
+            return;
+        }
+
+        auto& discardedSet = mDiscardedEnvelopes[envelope.statement.slotIndex];
+        discardedSet.insert(envelope);
+
+        auto& fetchingSet = mFetchingEnvelopes[envelope.statement.slotIndex];
+        fetchingSet.erase(envelope);
+
+        stopFetch(envelope);
+    }
+    catch (xdr::xdr_runtime_error& e)
+    {
+        CLOG(TRACE, "Herder")
+            << "PendingEnvelopes::discardSCPEnvelope got corrupt message: "
+            << e.what();
+    }
+}
+
+bool
+PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
+{
+    auto discardedSlots = mDiscardedEnvelopes.find(envelope.statement.slotIndex);
+    if (discardedSlots == mDiscardedEnvelopes.end())
+    {
+        return false;
+    }
+
+    auto& discardedSet = discardedSlots->second;
+    auto discarded = find(discardedSet.begin(), discardedSet.end(), envelope);
+    return discarded != discardedSet.end();
 }
 
 void
@@ -347,6 +393,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mPendingEnvelopes.erase(slotIndex);
 
         mProcessedEnvelopes.erase(slotIndex);
+        mDiscardedEnvelopes.erase(slotIndex);
         mFetchingEnvelopes.erase(slotIndex);
 
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
