@@ -94,8 +94,7 @@ class PendingEnvelopes
                         Peer::pointer peer);
 
     bool isFullyFetched(SCPEnvelope const& envelope);
-    // returns true if already fetched
-    bool startFetch(SCPEnvelope const& envelope);
+    void startFetch(SCPEnvelope const& envelope);
 
     void envelopeReady(SCPEnvelope const& envelope);
 
