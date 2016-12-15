@@ -88,6 +88,11 @@ class Tracker
     void listen(const SCPEnvelope& env);
 
     /**
+     * Stops tracking envelope @p env.
+     */
+    void discard(const SCPEnvelope& env);
+
+    /**
      * Stop the timer, stop requesting the item as we have it.
      */
     void cancel();

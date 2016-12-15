@@ -46,6 +46,26 @@ ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
     }
 }
 
+void
+ItemFetcher::stopFetch(Hash itemHash, const SCPEnvelope& envelope)
+{
+    CLOG(TRACE, "Overlay") << "stopFetch " << hexAbbrev(itemHash);
+    const auto& iter = mTrackers.find(itemHash);
+    if (iter != mTrackers.end())
+    {
+        auto const &tracker = iter->second;
+
+        CLOG(TRACE, "Overlay") << "stopFetch " << hexAbbrev(itemHash) << " : "
+                               << tracker->size();
+        tracker->discard(envelope);
+        if (tracker->empty())
+        {
+            // stop the timer, stop requesting the item as no one is waiting for it
+            tracker->cancel();
+        }
+    }
+}
+
 uint64
 ItemFetcher::getLastSeenSlotIndex(Hash itemHash) const
 {
