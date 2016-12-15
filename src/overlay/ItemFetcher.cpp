@@ -78,6 +78,22 @@ ItemFetcher::getLastSeenSlotIndex(Hash itemHash) const
     return iter->second->getLastSeenSlotIndex();
 }
 
+std::vector<SCPEnvelope>
+ItemFetcher::fetchingFor(Hash itemHash) const
+{
+    auto result = std::vector<SCPEnvelope>{};
+    auto iter = mTrackers.find(itemHash);
+    if (iter == mTrackers.end())
+    {
+        return result;
+    }
+
+    auto const& waiting = iter->second->waitingEnvelopes();
+    std::transform(std::begin(waiting), std::end(waiting), std::back_inserter(result),
+                   [](std::pair<Hash, SCPEnvelope> const &x){ return x.second; });
+    return result;
+}
+
 void
 ItemFetcher::stopFetchingBelow(uint64 slotIndex)
 {

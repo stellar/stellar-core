@@ -8,6 +8,7 @@
 #include <scp/Slot.h>
 #include "herder/TxSetFrame.h"
 #include "main/Config.h"
+#include "scp/QuorumSetUtils.h"
 
 using namespace std;
 
@@ -56,6 +57,8 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 void
 PendingEnvelopes::addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex, const SCPQuorumSet& q)
 {
+    assert(isQuorumSetSane(q, false));
+
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
@@ -71,8 +74,25 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
     if (lastSeenSlotIndex > 0)
     {
-        addSCPQuorumSet(hash, lastSeenSlotIndex, q);
+        if (isQuorumSetSane(q, false))
+        {
+            addSCPQuorumSet(hash, lastSeenSlotIndex, q);
+        }
+        else
+        {
+            discardSCPEnvelopesWithQSet(hash);
+        }
     }
+}
+
+void
+PendingEnvelopes::discardSCPEnvelopesWithQSet(Hash hash)
+{
+    CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet " << hexAbbrev(hash);
+
+    auto envelopes = mQuorumSetFetcher.fetchingFor(hash);
+    for (auto& envelope : envelopes)
+        discardSCPEnvelope(envelope);
 }
 
 void

@@ -68,6 +68,11 @@ class ItemFetcher : private NonMovableOrCopyable
     uint64 getLastSeenSlotIndex(Hash itemHash) const;
 
     /**
+     * Return envelopes that require data identified by @p hash.
+     */
+    std::vector<SCPEnvelope> fetchingFor(Hash itemHash) const;
+
+    /**
      * Called periodically to remove old envelopes from list (with ledger id
      * below some @p slotIndex). Can also remove @see Tracker instances when
      * non needed anymore.

@@ -79,6 +79,13 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         peer->sendGetQuorumSet(hash);
     });
 
+    auto checkFetchingFor = [&itemFetcher](Hash hash, std::vector<SCPEnvelope> envelopes) {
+        auto fetchingFor = itemFetcher.fetchingFor(hash);
+        std::sort(std::begin(envelopes), std::end(envelopes));
+        std::sort(std::begin(fetchingFor), std::end(fetchingFor));
+        REQUIRE(fetchingFor == envelopes);
+    };
+
     auto zero = sha256(ByteSlice("zero"));
     auto ten = sha256(ByteSlice("ten"));
     auto twelve = sha256(ByteSlice("twelve"));
@@ -97,10 +104,16 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
     REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
 
+    checkFetchingFor(zero, {});
+    checkFetchingFor(ten, {tenEnvelope});
+    checkFetchingFor(twelve, {twelveEnvelope1, twelveEnvelope2});
+    checkFetchingFor(fourteen, {});
+
     SECTION("stop one")
     {
         itemFetcher.stopFetch(twelve, twelveEnvelope1);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
+        checkFetchingFor(twelve, {twelveEnvelope2});
 
         itemFetcher.recv(twelve);
         itemFetcher.recv(ten);
@@ -112,6 +125,11 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+
+        checkFetchingFor(zero, {});
+        checkFetchingFor(ten, {});
+        checkFetchingFor(twelve, {});
+        checkFetchingFor(fourteen, {});
     }
 
     SECTION("stop all")
@@ -119,6 +137,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.stopFetch(twelve, twelveEnvelope1);
         itemFetcher.stopFetch(twelve, twelveEnvelope2);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+        checkFetchingFor(twelve, {});
 
         itemFetcher.recv(twelve);
         itemFetcher.recv(ten);
@@ -130,6 +149,11 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+
+        checkFetchingFor(zero, {});
+        checkFetchingFor(ten, {});
+        checkFetchingFor(twelve, {});
+        checkFetchingFor(fourteen, {});
     }
 
     SECTION("dont stop")
@@ -144,6 +168,11 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+
+        checkFetchingFor(zero, {});
+        checkFetchingFor(ten, {});
+        checkFetchingFor(twelve, {});
+        checkFetchingFor(fourteen, {});
 
         SECTION("no cache")
         {
@@ -161,6 +190,11 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
             REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
             REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
             REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+
+            checkFetchingFor(zero, {zeroEnvelope2});
+            checkFetchingFor(ten, {});
+            checkFetchingFor(twelve, {});
+            checkFetchingFor(fourteen, {});
         }
 
         SECTION("asks peers in turn")

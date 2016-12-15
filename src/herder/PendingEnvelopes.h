@@ -57,6 +57,10 @@ class PendingEnvelopes
     // returns true if we think that the node is in quorum
     bool isNodeInQuorum(NodeID const& node);
 
+    // discards all SCP envelopes thats use QSet with given hash,
+    // as it is not sane QSet
+    void discardSCPEnvelopesWithQSet(Hash hash);
+
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
