@@ -27,7 +27,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     , mQuorumSetFetcher(app, [](Peer::pointer peer, Hash hash){ peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
     , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
-    , mPendingEnvelopesSize(
+    , mReadyEnvelopesSize(
           app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
 {
 }
@@ -266,7 +266,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     msg.envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
-    mEnvelopes[envelope.statement.slotIndex].mPendingEnvelopes.push_back(envelope);
+    mEnvelopes[envelope.statement.slotIndex].mReadyEnvelopes.push_back(envelope);
 
     CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
@@ -345,7 +345,7 @@ PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
     auto it = mEnvelopes.begin();
     while (it != mEnvelopes.end() && slotIndex >= it->first)
     {
-        auto& v = it->second.mPendingEnvelopes;
+        auto& v = it->second.mReadyEnvelopes;
         if (v.size() != 0)
         {
             ret = v.back();
@@ -364,7 +364,7 @@ PendingEnvelopes::readySlots()
     vector<uint64> result;
     for (auto const& entry : mEnvelopes)
     {
-        if (!entry.second.mPendingEnvelopes.empty())
+        if (!entry.second.mReadyEnvelopes.empty())
             result.push_back(entry.first);
     }
     return result;
@@ -449,10 +449,10 @@ PendingEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
                     slot.append(mHerder.getSCP().envToStr(e));
                 }
             }
-            if (it->second.mPendingEnvelopes.size() != 0)
+            if (it->second.mReadyEnvelopes.size() != 0)
             {
                 Json::Value& slot = q[std::to_string(it->first)]["pending"];
-                for (auto const& e : it->second.mPendingEnvelopes)
+                for (auto const& e : it->second.mReadyEnvelopes)
                 {
                     slot.append(mHerder.getSCP().envToStr(e));
                 }
