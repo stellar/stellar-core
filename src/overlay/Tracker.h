@@ -64,6 +64,11 @@ class Tracker
     bool empty() const { return mWaitingEnvelopes.empty(); }
 
     /**
+     * Return list of envelopes this tracker is waiting for.
+     */
+    const std::vector<std::pair<Hash, SCPEnvelope>> & waitingEnvelopes() const { return mWaitingEnvelopes; }
+
+    /**
      * Return count of envelopes it is waiting for.
      */
     size_t size() const { return mWaitingEnvelopes.size(); }
