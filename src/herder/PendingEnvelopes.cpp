@@ -177,8 +177,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             return;
         }
 
-        auto& set = mFetchingEnvelopes[envelope.statement.slotIndex];
-        auto& processedList = mProcessedEnvelopes[envelope.statement.slotIndex];
+        auto& set = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
+        auto& processedList = mEnvelopes[envelope.statement.slotIndex].mProcessedEnvelopes;
 
         auto fetching = find(set.begin(), set.end(), envelope);
 
@@ -228,10 +228,10 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
             return;
         }
 
-        auto& discardedSet = mDiscardedEnvelopes[envelope.statement.slotIndex];
+        auto& discardedSet = mEnvelopes[envelope.statement.slotIndex].mDiscardedEnvelopes;
         discardedSet.insert(envelope);
 
-        auto& fetchingSet = mFetchingEnvelopes[envelope.statement.slotIndex];
+        auto& fetchingSet = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
         fetchingSet.erase(envelope);
 
         stopFetch(envelope);
@@ -247,14 +247,14 @@ PendingEnvelopes::discardSCPEnvelope(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope) const
 {
-    auto discardedSlots = mDiscardedEnvelopes.find(envelope.statement.slotIndex);
-    if (discardedSlots == mDiscardedEnvelopes.end())
+    auto envelopes = mEnvelopes.find(envelope.statement.slotIndex);
+    if (envelopes == mEnvelopes.end())
     {
         return false;
     }
 
-    auto& discardedSet = discardedSlots->second;
-    auto discarded = find(discardedSet.begin(), discardedSet.end(), envelope);
+    auto& discardedSet = envelopes->second.mDiscardedEnvelopes;
+    auto discarded = std::find(std::begin(discardedSet), std::end(discardedSet), envelope);
     return discarded != discardedSet.end();
 }
 
@@ -266,7 +266,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
     msg.envelope() = envelope;
     mApp.getOverlayManager().broadcastMessage(msg);
 
-    mPendingEnvelopes[envelope.statement.slotIndex].push_back(envelope);
+    mEnvelopes[envelope.statement.slotIndex].mPendingEnvelopes.push_back(envelope);
 
     CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
@@ -342,10 +342,10 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::pop(uint64 slotIndex, SCPEnvelope& ret)
 {
-    auto it = mPendingEnvelopes.begin();
-    while (it != mPendingEnvelopes.end() && slotIndex >= it->first)
+    auto it = mEnvelopes.begin();
+    while (it != mEnvelopes.end() && slotIndex >= it->first)
     {
-        auto& v = it->second;
+        auto& v = it->second.mPendingEnvelopes;
         if (v.size() != 0)
         {
             ret = v.back();
@@ -362,9 +362,9 @@ vector<uint64>
 PendingEnvelopes::readySlots()
 {
     vector<uint64> result;
-    for (auto const& entry : mPendingEnvelopes)
+    for (auto const& entry : mEnvelopes)
     {
-        if (!entry.second.empty())
+        if (!entry.second.mPendingEnvelopes.empty())
             result.push_back(entry.first);
     }
     return result;
@@ -373,45 +373,12 @@ PendingEnvelopes::readySlots()
 void
 PendingEnvelopes::eraseBelow(uint64 slotIndex)
 {
-    for (auto iter = mPendingEnvelopes.begin();
-         iter != mPendingEnvelopes.end();)
+    for (auto iter = mEnvelopes.begin();
+         iter != mEnvelopes.end();)
     {
         if (iter->first < slotIndex)
         {
-            iter = mPendingEnvelopes.erase(iter);
-        }
-        else
-            break;
-    }
-
-    for (auto iter = mDiscardedEnvelopes.begin();
-         iter != mDiscardedEnvelopes.end();)
-    {
-        if (iter->first < slotIndex)
-        {
-            iter = mDiscardedEnvelopes.erase(iter);
-        }
-        else
-            break;
-    }
-
-    for (auto iter = mProcessedEnvelopes.begin();
-         iter != mProcessedEnvelopes.end();)
-    {
-        if (iter->first < slotIndex)
-        {
-            iter = mProcessedEnvelopes.erase(iter);
-        }
-        else
-            break;
-    }
-
-    for (auto iter = mFetchingEnvelopes.begin();
-         iter != mFetchingEnvelopes.end();)
-    {
-        if (iter->first < slotIndex)
-        {
-            iter = mFetchingEnvelopes.erase(iter);
+            iter = mEnvelopes.erase(iter);
         }
         else
             break;
@@ -432,11 +399,7 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
     {
         slotIndex -= Herder::MAX_SLOTS_TO_REMEMBER;
 
-        mPendingEnvelopes.erase(slotIndex);
-
-        mProcessedEnvelopes.erase(slotIndex);
-        mDiscardedEnvelopes.erase(slotIndex);
-        mFetchingEnvelopes.erase(slotIndex);
+        mEnvelopes.erase(slotIndex);
 
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
         mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
@@ -474,30 +437,22 @@ PendingEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
     Json::Value& q = ret["queue"];
 
     {
-        auto it = mFetchingEnvelopes.rbegin();
+        auto it = mEnvelopes.rbegin();
         size_t l = limit;
-        while (it != mFetchingEnvelopes.rend() && l-- != 0)
+        while (it != mEnvelopes.rend() && l-- != 0)
         {
-            if (it->second.size() != 0)
+            if (it->second.mFetchingEnvelopes.size() != 0)
             {
                 Json::Value& slot = q[std::to_string(it->first)]["fetching"];
-                for (auto const& e : it->second)
+                for (auto const& e : it->second.mFetchingEnvelopes)
                 {
                     slot.append(mHerder.getSCP().envToStr(e));
                 }
             }
-            it++;
-        }
-    }
-    {
-        auto it = mPendingEnvelopes.rbegin();
-        size_t l = limit;
-        while (it != mPendingEnvelopes.rend() && l-- != 0)
-        {
-            if (it->second.size() != 0)
+            if (it->second.mPendingEnvelopes.size() != 0)
             {
                 Json::Value& slot = q[std::to_string(it->first)]["pending"];
-                for (auto const& e : it->second)
+                for (auto const& e : it->second.mPendingEnvelopes)
                 {
                     slot.append(mHerder.getSCP().envToStr(e));
                 }
