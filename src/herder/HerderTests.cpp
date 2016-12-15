@@ -449,38 +449,53 @@ TEST_CASE("SCP Driver", "[herder]")
     auto root = TestAccount::createRoot(*app);
     SecretKey a1 = getAccount("A");
 
+    using TxPair = std::pair<Value, TxSetFramePtr>;
+    auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime){
+        txSet->sortForHash();
+        auto sv = StellarValue{txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0};
+        auto v = xdr::xdr_to_opaque(sv);
+
+        return TxPair{v, txSet};
+    };
+    auto makeEnvelope = [](TxPair const& p, uint64_t slotIndex){
+        // herder must want the TxSet before receiving it, so we are sending it fake envelope
+        auto envelope = SCPEnvelope{};
+        envelope.statement.slotIndex = slotIndex;
+        envelope.statement.pledges.type(SCP_ST_PREPARE);
+        envelope.statement.pledges.prepare().ballot.value = p.first;
+        return envelope;
+    };
+    auto addTransactions = [&](TxSetFramePtr txSet, int n)
+    {
+        txSet->mTransactions.resize(n);
+        std::generate(std::begin(txSet->mTransactions), std::end(txSet->mTransactions),
+                      [&](){
+                          return createCreateAccountTx(networkID, root, a1, root.nextSequenceNumber(), 10000000);
+                      });
+    };
+    auto makeTransactions = [&](Hash hash, int n)
+    {
+        auto result = std::make_shared<TxSetFrame>(hash);
+        addTransactions(result, n);
+        return result;
+    };
+
     SECTION("combineCandidates")
     {
-        auto& herder = *static_cast<HerderImpl*>(&app->getHerder());
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
 
         std::set<Value> candidates;
 
-        auto addToCandidates = [&](TxSetFramePtr txSet, uint64_t closeTime)
+        auto addToCandidates = [&](TxPair const& p)
         {
-            txSet->sortForHash();
-            auto sv = StellarValue{txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0};
-            auto v = xdr::xdr_to_opaque(sv);
-            candidates.emplace(v);
-
-            // herder must want the TxSet before receiving it, so we are sending it fake envelope
-            auto envelope = SCPEnvelope{};
-            envelope.statement.slotIndex = herder.getCurrentLedgerSeq();
-            envelope.statement.pledges.type(SCP_ST_PREPARE);
-            envelope.statement.pledges.prepare().ballot.value = v;
+            candidates.emplace(p.first);
+            auto envelope = makeEnvelope(p, herder.getCurrentLedgerSeq());
             herder.recvSCPEnvelope(envelope);
-            herder.recvTxSet(txSet->getContentsHash(), *txSet);
-        };
-        auto addTransactions = [&](TxSetFramePtr txSet, int n)
-        {
-            for (int i = 0; i < n; i++)
-            {
-                txSet->mTransactions.emplace_back(createCreateAccountTx(
-                    networkID, root, a1, root.nextSequenceNumber(), 10000000));
-            }
+            herder.recvTxSet(p.second->getContentsHash(), *p.second);
         };
 
-        TxSetFramePtr txSet0 = std::make_shared<TxSetFrame>(lcl.hash);
-        addToCandidates(txSet0, 100);
+        TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0);
+        addToCandidates(makeTxPair(txSet0, 100));
 
         Value v;
         StellarValue sv;
@@ -490,19 +505,17 @@ TEST_CASE("SCP Driver", "[herder]")
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
 
-        TxSetFramePtr txSet1 = std::make_shared<TxSetFrame>(lcl.hash);
-        addTransactions(txSet1, 10);
+        TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10);
 
-        addToCandidates(txSet1, 10);
+        addToCandidates(makeTxPair(txSet1, 10));
         v = herder.combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
 
-        TxSetFramePtr txSet2 = std::make_shared<TxSetFrame>(lcl.hash);
-        addTransactions(txSet2, 5);
+        TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5);
 
-        addToCandidates(txSet2, 1000);
+        addToCandidates(makeTxPair(txSet2, 1000));
         v = herder.combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
