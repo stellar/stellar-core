@@ -95,6 +95,7 @@ class PendingEnvelopes
 
     bool isFullyFetched(SCPEnvelope const& envelope);
     void startFetch(SCPEnvelope const& envelope);
+    void stopFetch(SCPEnvelope const& envelope);
 
     void envelopeReady(SCPEnvelope const& envelope);
 
