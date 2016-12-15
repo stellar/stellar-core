@@ -228,18 +228,14 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
     return true;
 }
 
-// returns true if already fetched
-bool
+void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
-    bool ret = true;
-
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
 
     if (!mQsetCache.exists(h))
     {
         mQuorumSetFetcher.fetch(h, envelope);
-        ret = false;
     }
 
     std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
@@ -251,13 +247,11 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         if (!mTxSetCache.exists(wb.txSetHash))
         {
             mTxSetFetcher.fetch(wb.txSetHash, envelope);
-            ret = false;
         }
     }
 
     CLOG(TRACE, "Herder") << "StartFetch i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
-    return ret;
 }
 
 bool
