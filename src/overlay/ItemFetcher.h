@@ -55,6 +55,13 @@ class ItemFetcher : private NonMovableOrCopyable
     void fetch(Hash itemHash, const SCPEnvelope& envelope);
 
     /**
+     * Stops fetching data identified by @p hash for @p envelope. If other
+     * envelopes requires this data, it is still being fetched, but
+     * @p envelope will not be notified about it.
+     */
+    void stopFetch(Hash itemHash, const SCPEnvelope& envelope);
+
+    /**
      * Return biggest slot index seen for given hash. If 0, then given hash
      * is not being fetched.
      */

@@ -97,79 +97,118 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
     REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
 
-    itemFetcher.recv(twelve);
-    itemFetcher.recv(ten);
-
-    auto expectedReceived = std::vector<int>{12, 12, 10};
-    REQUIRE(app.getHerder().received == expectedReceived);
-
-    REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
-    REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
-    REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
-    REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
-
-    SECTION("no cache")
+    SECTION("stop one")
     {
-        auto zeroEnvelope1 = makeEnvelope(0);
-        itemFetcher.fetch(zero, zeroEnvelope1);
-        itemFetcher.recv(zero);
+        itemFetcher.stopFetch(twelve, twelveEnvelope1);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
 
-        auto zeroEnvelope2 = makeEnvelope(0);
-        itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current implementation, will re-fetch
+        itemFetcher.recv(twelve);
+        itemFetcher.recv(ten);
 
-        expectedReceived = std::vector<int>{12, 12, 10, 0};
+        auto expectedReceived = std::vector<int>{12, 10};
         REQUIRE(app.getHerder().received == expectedReceived);
 
-        REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) != 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
     }
 
-    SECTION("asks peers in turn")
+    SECTION("stop all")
     {
-        auto other1 = Application::create(clock, getTestConfig(1));
-        auto other2 = Application::create(clock, getTestConfig(2));
-        LoopbackPeerConnection connection1(app, *other1);
-        LoopbackPeerConnection connection2(app, *other2);
-        auto peer1 = connection1.getInitiator();
-        auto peer2 = connection2.getInitiator();
+        itemFetcher.stopFetch(twelve, twelveEnvelope1);
+        itemFetcher.stopFetch(twelve, twelveEnvelope2);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
 
-        SECTION("fetching once works")
-        {
-            auto zeroEnvelope1 = makeEnvelope(0);
-            itemFetcher.fetch(zero, zeroEnvelope1);
-        }
-        SECTION("fetching twice does not trigger any additional network activity")
-        {
-            auto zeroEnvelope1 = makeEnvelope(0);
-            auto zeroEnvelope2 = makeEnvelope(0);
-            itemFetcher.fetch(zero, zeroEnvelope1);
-            itemFetcher.fetch(zero, zeroEnvelope2);
-        }
-        REQUIRE(asked.size() == 0);
+        itemFetcher.recv(twelve);
+        itemFetcher.recv(ten);
 
-        while (asked.size() < 4)
-        {
-            clock.crank(true);
-        }
+        auto expectedReceived = std::vector<int>{10};
+        REQUIRE(app.getHerder().received == expectedReceived);
 
-        itemFetcher.recv(zero);
-
-        while (clock.crank(false) > 0)
-        {
-        }
-
-        REQUIRE(asked.size() == 4);
-
-        REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
-        REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
     }
 
-    SECTION("ignore not asked items")
+    SECTION("dont stop")
     {
-        itemFetcher.recv(zero);
-        REQUIRE(app.getHerder().received == expectedReceived); // no new data received
+        itemFetcher.recv(twelve);
+        itemFetcher.recv(ten);
+
+        auto expectedReceived = std::vector<int>{12, 12, 10};
+        REQUIRE(app.getHerder().received == expectedReceived);
+
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+
+        SECTION("no cache")
+        {
+            auto zeroEnvelope1 = makeEnvelope(0);
+            itemFetcher.fetch(zero, zeroEnvelope1);
+            itemFetcher.recv(zero);
+
+            auto zeroEnvelope2 = makeEnvelope(0);
+            itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current implementation, will re-fetch
+
+            expectedReceived = std::vector<int>{12, 12, 10, 0};
+            REQUIRE(app.getHerder().received == expectedReceived);
+
+            REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) != 0);
+            REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
+            REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+            REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
+        }
+
+        SECTION("asks peers in turn")
+        {
+            auto other1 = Application::create(clock, getTestConfig(1));
+            auto other2 = Application::create(clock, getTestConfig(2));
+            LoopbackPeerConnection connection1(app, *other1);
+            LoopbackPeerConnection connection2(app, *other2);
+            auto peer1 = connection1.getInitiator();
+            auto peer2 = connection2.getInitiator();
+
+            SECTION("fetching once works")
+            {
+                auto zeroEnvelope1 = makeEnvelope(0);
+                itemFetcher.fetch(zero, zeroEnvelope1);
+            }
+            SECTION("fetching twice does not trigger any additional network activity")
+            {
+                auto zeroEnvelope1 = makeEnvelope(0);
+                auto zeroEnvelope2 = makeEnvelope(0);
+                itemFetcher.fetch(zero, zeroEnvelope1);
+                itemFetcher.fetch(zero, zeroEnvelope2);
+            }
+            REQUIRE(asked.size() == 0);
+
+            while (asked.size() < 4)
+            {
+                clock.crank(true);
+            }
+
+            itemFetcher.recv(zero);
+
+            while (clock.crank(false) > 0)
+            {
+            }
+
+            REQUIRE(asked.size() == 4);
+
+            REQUIRE(std::count(asked.begin(), asked.end(), peer1) == 2);
+            REQUIRE(std::count(asked.begin(), asked.end(), peer2) == 2);
+        }
+
+        SECTION("ignore not asked items")
+        {
+            itemFetcher.recv(zero);
+            REQUIRE(app.getHerder().received == expectedReceived); // no new data received
+        }
     }
 }
+
 }
