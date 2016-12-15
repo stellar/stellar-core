@@ -29,8 +29,8 @@ struct SlotEnvelopes
     std::set<SCPEnvelope> mDiscardedEnvelopes;
     // list of envelopes we are fetching right now
     std::set<SCPEnvelope> mFetchingEnvelopes;
-    // list of envelopes that haven't been sent to SCP yet
-    std::vector<SCPEnvelope> mPendingEnvelopes;
+    // list of ready envelopes that haven't been sent to SCP yet
+    std::vector<SCPEnvelope> mReadyEnvelopes;
 };
 
 class PendingEnvelopes
@@ -55,7 +55,7 @@ class PendingEnvelopes
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
-    medida::Counter& mPendingEnvelopesSize;
+    medida::Counter& mReadyEnvelopesSize;
 
     // returns true if we think that the node is in quorum
     bool isNodeInQuorum(NodeID const& node);
