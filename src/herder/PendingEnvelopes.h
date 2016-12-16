@@ -6,6 +6,7 @@
 #include <util/optional.h>
 #include <set>
 #include <xdr/Stellar-SCP.h>
+#include "herder/Herder.h"
 #include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
@@ -68,7 +69,12 @@ class PendingEnvelopes
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
-    void recvSCPEnvelope(SCPEnvelope const& envelope);
+    /**
+     * Process received @p envelope.
+     *
+     * Return status of received envelope.
+     */
+    Herder::EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope);
 
     /**
      * Add @p qset identified by @p hash to local cache. Notifies

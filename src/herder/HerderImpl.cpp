@@ -946,12 +946,12 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     return TX_STATUS_PENDING;
 }
 
-void
+Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     if (mApp.getConfig().MANUAL_CLOSE)
     {
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     if (Logging::logDebug("Herder"))
@@ -966,7 +966,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     if (envelope.statement.nodeID == mSCP.getLocalNode()->getNodeID())
     {
         CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     mSCPMetrics.mEnvelopeReceive.Mark();
@@ -998,10 +998,10 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    mPendingEnvelopes.recvSCPEnvelope(envelope);
+    return mPendingEnvelopes.recvSCPEnvelope(envelope);
 }
 
 void
