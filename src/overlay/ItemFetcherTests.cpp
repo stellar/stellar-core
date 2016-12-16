@@ -28,9 +28,10 @@ public:
     std::vector<int> received;
 
 private:
-    void recvSCPEnvelope(SCPEnvelope const& envelope) override
+    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override
     {
         received.push_back(envelope.statement.pledges.confirm().nPrepared);
+        return Herder::ENVELOPE_STATUS_PROCESSED;
     }
 };
 

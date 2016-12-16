@@ -160,7 +160,7 @@ PendingEnvelopes::isNodeInQuorum(NodeID const& node)
 }
 
 // called from Peer and when an Item tracker completes
-void
+Herder::EnvelopeStatus
 PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     auto const& nodeID = envelope.statement.nodeID;
@@ -169,7 +169,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         CLOG(DEBUG, "Herder") << "Dropping envelope from "
                               << mApp.getConfig().toShortString(nodeID)
                               << " (not in quorum)";
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     // did we discard this envelope?
@@ -181,7 +181,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     {
         if (isDiscarded(envelope))
         {
-            return;
+            return Herder::ENVELOPE_STATUS_DISCARDED;
         }
 
         auto& set = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
@@ -201,27 +201,29 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             else
             {
                 // we already have this one
-                fetching = set.end();
+                return Herder::ENVELOPE_STATUS_PROCESSED;
             }
         }
 
-        if (fetching != set.end())
-        { // we are fetching this envelope
-            // check if we are done fetching it
-            if (isFullyFetched(envelope))
-            {
-                // move the item from fetching to processed
-                processedList.emplace_back(*fetching);
-                set.erase(fetching);
-                envelopeReady(envelope);
-            } // else just keep waiting for it to come in
-        }
+        // we are fetching this envelope
+        // check if we are done fetching it
+        if (isFullyFetched(envelope))
+        {
+            // move the item from fetching to processed
+            processedList.emplace_back(*fetching);
+            set.erase(fetching);
+            envelopeReady(envelope);
+            return Herder::ENVELOPE_STATUS_READY;
+        } // else just keep waiting for it to come in
+
+        return Herder::ENVELOPE_STATUS_FETCHING;
     }
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(TRACE, "Herder")
             << "PendingEnvelopes::recvSCPEnvelope got corrupt message: "
             << e.what();
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 }
 
