@@ -279,8 +279,6 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 
     CLOG(TRACE, "Herder") << "Envelope ready i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
-
-    mHerder.processSCPQueue();
 }
 
 bool
