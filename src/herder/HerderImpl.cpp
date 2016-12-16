@@ -1001,7 +1001,12 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    return mPendingEnvelopes.recvSCPEnvelope(envelope);
+    auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
+    if (status == Herder::ENVELOPE_STATUS_READY)
+    {
+        processSCPQueue();
+    }
+    return status;
 }
 
 void
