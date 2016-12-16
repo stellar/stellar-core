@@ -261,8 +261,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             // inject the message
             herder.recvSCPEnvelope(envelope);
 
-            herder.recvTxSet(txSet.getContentsHash(), txSet);
-            herder.recvSCPQuorumSet(qSetHash, qset);
+            REQUIRE(herder.recvTxSet(txSet.getContentsHash(), txSet));
+            REQUIRE(herder.recvSCPQuorumSet(qSetHash, qset));
 
         };
 

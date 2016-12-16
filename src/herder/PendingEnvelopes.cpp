@@ -66,22 +66,26 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex, const SCP
     mQuorumSetFetcher.recv(hash);
 }
 
-void
+bool
 PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
-    if (lastSeenSlotIndex > 0)
+    if (lastSeenSlotIndex <= 0)
     {
-        if (isQuorumSetSane(q, false))
-        {
-            addSCPQuorumSet(hash, lastSeenSlotIndex, q);
-        }
-        else
-        {
-            discardSCPEnvelopesWithQSet(hash);
-        }
+        return false;
+    }
+
+    if (isQuorumSetSane(q, false))
+    {
+        addSCPQuorumSet(hash, lastSeenSlotIndex, q);
+        return true;
+    }
+    else
+    {
+        discardSCPEnvelopesWithQSet(hash);
+        return false;
     }
 }
 
@@ -104,16 +108,19 @@ PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr tx
     mTxSetFetcher.recv(hash);
 }
 
-void
+bool
 PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);
-    if (lastSeenSlotIndex > 0)
+    if (lastSeenSlotIndex == 0)
     {
-        addTxSet(hash, lastSeenSlotIndex, txset);
+        return false;
     }
+
+    addTxSet(hash, lastSeenSlotIndex, txset);
+    return true;
 }
 
 bool

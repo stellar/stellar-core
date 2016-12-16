@@ -100,8 +100,8 @@ class HerderImpl : public Herder, public SCPDriver
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
-    void recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
-    void recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
+    bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
+    bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         PeerPtr peer) override;
     TxSetFramePtr getTxSet(Hash const& hash) override;

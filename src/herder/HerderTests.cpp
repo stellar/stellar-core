@@ -457,12 +457,14 @@ TEST_CASE("SCP Driver", "[herder]")
 
         return TxPair{v, txSet};
     };
-    auto makeEnvelope = [](TxPair const& p, uint64_t slotIndex){
+    auto makeEnvelope = [&root](TxPair const& p, Hash qSetHash, uint64_t slotIndex){
         // herder must want the TxSet before receiving it, so we are sending it fake envelope
         auto envelope = SCPEnvelope{};
         envelope.statement.slotIndex = slotIndex;
         envelope.statement.pledges.type(SCP_ST_PREPARE);
         envelope.statement.pledges.prepare().ballot.value = p.first;
+        envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
+        envelope.signature = root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
     auto addTransactions = [&](TxSetFramePtr txSet, int n)
@@ -489,9 +491,9 @@ TEST_CASE("SCP Driver", "[herder]")
         auto addToCandidates = [&](TxPair const& p)
         {
             candidates.emplace(p.first);
-            auto envelope = makeEnvelope(p, herder.getCurrentLedgerSeq());
+            auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
             herder.recvSCPEnvelope(envelope);
-            herder.recvTxSet(p.second->getContentsHash(), *p.second);
+            REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0);
@@ -520,6 +522,135 @@ TEST_CASE("SCP Driver", "[herder]")
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
+    }
+
+    SECTION("accept qset and txset")
+    {
+        auto makePublicKey = [](int i){
+            auto hash = sha256("NODE_SEED_" + std::to_string(i));
+            auto secretKey = SecretKey::fromSeed(hash);
+            return secretKey.getPublicKey();
+        };
+
+        auto makeSingleton = [](const PublicKey &key){
+            auto result = SCPQuorumSet{};
+            result.threshold = 1;
+            result.validators.push_back(key);
+            return result;
+        };
+
+        auto keys = std::vector<PublicKey>{};
+        for (auto i = 0; i < 1001; i++)
+        {
+            keys.push_back(makePublicKey(i));
+        }
+
+        auto saneQSet1 = makeSingleton(keys[0]);
+        auto saneQSet1Hash = sha256(xdr::xdr_to_opaque(saneQSet1));
+        auto saneQSet2 = makeSingleton(keys[1]);
+        auto saneQSet2Hash = sha256(xdr::xdr_to_opaque(saneQSet2));
+
+        auto bigQSet = SCPQuorumSet{};
+        bigQSet.threshold = 1;
+        bigQSet.validators.push_back(keys[0]);
+        for (auto i = 0; i < 10; i++)
+        {
+            bigQSet.innerSets.push_back({});
+            bigQSet.innerSets.back().threshold = 1;
+            for (auto j = i * 100 + 1; j <= (i + 1) * 100; j++)
+                bigQSet.innerSets.back().validators.push_back(keys[j]);
+        }
+        auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
+
+        auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto transactions1 = makeTransactions(lcl.hash, 50);
+        auto transactions2 = makeTransactions(lcl.hash, 40);
+        auto p1 = makeTxPair(transactions1, 10);
+        auto p2 = makeTxPair(transactions1, 10);
+        auto saneEnvelopeQ1T1 = makeEnvelope(p1, saneQSet1Hash, herder.getCurrentLedgerSeq());
+        auto saneEnvelopeQ1T2 = makeEnvelope(p2, saneQSet1Hash, herder.getCurrentLedgerSeq());
+        auto saneEnvelopeQ2T1 = makeEnvelope(p1, saneQSet2Hash, herder.getCurrentLedgerSeq());
+        auto bigEnvelope = makeEnvelope(p1, bigQSetHash, herder.getCurrentLedgerSeq());
+
+        SECTION("only accepts qset once")
+        {
+            herder.recvSCPEnvelope(saneEnvelopeQ1T1);
+            REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+
+            SECTION("when re-receiving the same envelope")
+            {
+                herder.recvSCPEnvelope(saneEnvelopeQ1T1);
+                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            }
+
+            SECTION("when receiving different envelope with the same qset")
+            {
+                herder.recvSCPEnvelope(saneEnvelopeQ1T2);
+                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            }
+        }
+
+        SECTION("only accepts txset once")
+        {
+            herder.recvSCPEnvelope(saneEnvelopeQ1T1);
+            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+
+            SECTION("when re-receiving the same envelope")
+            {
+                herder.recvSCPEnvelope(saneEnvelopeQ1T1);
+                REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            }
+
+            SECTION("when receiving different envelope with the same txset")
+            {
+                herder.recvSCPEnvelope(saneEnvelopeQ2T1);
+                REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            }
+        }
+
+        SECTION("do not accept unasked qset")
+        {
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet2Hash, saneQSet2));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+        }
+
+        SECTION("do not accept unasked txset")
+        {
+            REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(!herder.recvTxSet(p2.second->getContentsHash(), *p2.second));
+        }
+
+        SECTION("do not accept not sane qset")
+        {
+            herder.recvSCPEnvelope(bigEnvelope);
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+        }
+
+        SECTION("do not accept txset from envelope discarded because of unsane qset")
+        {
+            herder.recvSCPEnvelope(bigEnvelope);
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+        }
+
+        SECTION("accept txset from envelope with unsane qset before receiving qset")
+        {
+            herder.recvSCPEnvelope(bigEnvelope);
+            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+        }
+
+        SECTION("accept txset from envelopes with both valid and unsane qset")
+        {
+            herder.recvSCPEnvelope(saneEnvelopeQ1T1);
+            herder.recvSCPEnvelope(bigEnvelope);
+
+            REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+        }
     }
 }
 

@@ -82,8 +82,10 @@ class PendingEnvelopes
      * Check if @p qset identified by @p hash was requested before from peers.
      * If not, ignores that @p qset. If it was requested, calls
      * @see addSCPQuorumSet.
+     *
+     * Return true if SCPQuorumSet is sane and useful (was asked for).
      */
-    void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    bool recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
 
     /**
      * Add @p txset identified by @p hash to local cache. Notifies
@@ -97,8 +99,10 @@ class PendingEnvelopes
      * Check if @p txset identified by @p hash was requested before from peers.
      * If not, ignores that @p txset. If it was requested, calls
      * @see addTxSet.
+     *
+     * Return true if TxSet useful (was asked for).
      */
-    void recvTxSet(Hash hash, TxSetFramePtr txset);
+    bool recvTxSet(Hash hash, TxSetFramePtr txset);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,

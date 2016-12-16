@@ -1211,17 +1211,17 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
     }
 }
 
-void
+bool
 HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
-    mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
-void
+bool
 HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
 {
     TxSetFramePtr txset(new TxSetFrame(t));
-    mPendingEnvelopes.recvTxSet(hash, txset);
+    return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
 void
