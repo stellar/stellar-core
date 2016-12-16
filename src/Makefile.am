@@ -8,9 +8,9 @@ include $(srcdir)/src.mk
 noinst_HEADERS = $(SRC_H_FILES)
 
 stellar_core_SOURCES = $(SRC_CXX_FILES)
-stellar_core_LDADD = -L$(top_builddir)/lib $(soci_LIBS)			\
-	$(libmedida_LIBS) -l3rdparty $(sqlite3_LIBS) $(libpq_LIBS)	\
-	$(xdrpp_LIBS) $(libsodium_LIBS)
+stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
+	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
+	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
 
 BUILT_SOURCES = $(SRC_X_FILES:.x=.h) StellarCoreVersion.h
 

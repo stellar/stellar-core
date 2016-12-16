@@ -29,7 +29,7 @@
 #           PKG_CHECK_MODULES(subproject, subproject)
 #       and return.  Otherwise...
 #
-#     - Set subproject_INTERNAL=true
+#     - Set subproject_INTERNAL=yes
 #
 #     - Call AC_CONFIG_SUBDIRS(path/to/subproject)
 #

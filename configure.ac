@@ -139,6 +139,9 @@ AC_SUBST(sqlite3_CFLAGS)
 AC_SUBST(sqlite3_LIBS)
 
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
+if test -n "$libsodium_INTERNAL"; then
+   libsodium_LIBS='$(top_builddir)/lib/libsodium/src/libsodium/libsodium.la'
+fi
 
 AX_PKGCONFIG_SUBDIR(lib/xdrpp)
 AC_MSG_CHECKING(for xdrc)
@@ -160,7 +163,7 @@ mkdir -p src/xdr
 
 if test -s "$srcdir/lib/medida.mk"; then
    libmedida_CFLAGS='-I$(top_srcdir)/lib/libmedida/src'
-   libmedida_LIBS=-lmedida
+   libmedida_LIBS='$(top_builddir)/lib/libmedida.a'
    libmedida_INTERNAL=yes
 else
    PKG_CHECK_MODULES(libmedida, libmedida)
@@ -172,7 +175,7 @@ AC_SUBST(libmedida_LIBS)
 
 soci_CFLAGS='-I$(top_srcdir)/lib/soci/src/core'
 soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/sqlite3'
-soci_LIBS='-lsoci'
+soci_LIBS='$(top_builddir)/lib/libsoci.a'
 AC_SUBST(soci_CFLAGS)
 AC_SUBST(soci_LIBS)
 
