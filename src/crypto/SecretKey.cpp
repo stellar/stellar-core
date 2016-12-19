@@ -332,9 +332,9 @@ PubKeyUtils::getHint(PublicKey const& pk)
 }
 
 bool
-PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
+PubKeyUtils::doesHintMatch(PublicKey const& pk, SignatureHint const& hint)
 {
-    return SignatureUtils::hasHint(pk.ed25519(), hint);
+    return SignatureUtils::doesHintMatch(pk.ed25519(), hint);
 }
 
 PublicKey
