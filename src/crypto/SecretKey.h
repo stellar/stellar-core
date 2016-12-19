@@ -105,7 +105,7 @@ void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
 // returns hint from key
 SignatureHint getHint(PublicKey const& pk);
 // returns true if the hint matches the key
-bool hasHint(PublicKey const& pk, SignatureHint const& hint);
+bool doesHintMatch(PublicKey const& pk, SignatureHint const& hint);
 
 PublicKey random();
 }

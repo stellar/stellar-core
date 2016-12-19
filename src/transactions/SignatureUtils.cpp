@@ -28,7 +28,7 @@ bool
 verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    if (!PubKeyUtils::hasHint(pubKey, sig.hint))
+    if (!PubKeyUtils::doesHintMatch(pubKey, sig.hint))
         return false;
 
     return PubKeyUtils::verifySig(pubKey, sig.signature, hash);
@@ -49,7 +49,7 @@ signHashX(const ByteSlice &x)
 bool
 verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
 {
-    if (!hasHint(signerKey.hashX(), sig.hint))
+    if (!doesHintMatch(signerKey.hashX(), sig.hint))
         return false;
 
     return signerKey.hashX() == sha256(sig.signature);
@@ -63,7 +63,7 @@ SignatureHint getHint(ByteSlice const& bs)
 }
 
 bool
-hasHint(ByteSlice const& bs, SignatureHint const& hint)
+doesHintMatch(ByteSlice const& bs, SignatureHint const& hint)
 {
     if (bs.size() < hint.size())
     {
