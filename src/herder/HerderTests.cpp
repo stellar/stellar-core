@@ -521,9 +521,21 @@ TEST_CASE("SCP State", "[herder]")
 
     Config nodeCfgs[3];
 
+    // Normally ledger should externalize in EXP_LEDGER_TIMESPAN_SECONDS
+    // but for "Force SCP" test there are 3 nodes and only 2 have previous
+    // ledger state. However it is possible that nomination protocol will
+    // choose last node as leader for first few rounds. New ledger will only
+    // be externalized when first or second node are choosen as round leaders.
+    // It some cases it can take more time than expected. Probability of that
+    // is pretty low, but high enough that it forced us to rerun tests from
+    // time to time to pass that one case.
+    //
+    // After changing node ids generated here from random to deterministics
+    // this problem goes away, as the leader selection protocol uses node id
+    // and round id for selecting leader.
     for (int i = 0; i < 3; i++)
     {
-        nodeKeys[i] = SecretKey::random();
+        nodeKeys[i] = SecretKey::fromSeed(sha256("node_" + std::to_string(i)));
         nodeIDs[i] = nodeKeys[i].getPublicKey();
         nodeCfgs[i] =
             getTestConfig(i + 1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
