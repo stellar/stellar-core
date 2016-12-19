@@ -34,19 +34,19 @@ TEST_CASE("resolve node id", "[config]")
     SECTION("empty node id")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("", publicKey));
     }
 
     SECTION("@")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("@", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("@", publicKey));
     }
 
     SECTION("$")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("@", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("@", publicKey));
     }
 
     SECTION("unique uppercase abbrevated id")
@@ -105,24 +105,24 @@ TEST_CASE("resolve node id", "[config]")
     SECTION("abbrevated node id without prefix")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("GDKXE2OZMJIPOSLNA6N6F2BVCI3O7", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("GDKXE2OZMJIPOSLNA6N6F2BVCI3O7", publicKey));
     }
 
     SECTION("existing lowercase full node id")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("gdkxe2ozmjiposlna6n6f2bvci3o777i2ooc4bv7voyuehyx7rtrya7y", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("gdkxe2ozmjiposlna6n6f2bvci3o777i2ooc4bv7voyuehyx7rtrya7y", publicKey));
     }
 
     SECTION("non existing full node id")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("SDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("SDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey));
     }
 
     SECTION("invalid key type")
     {
         auto publicKey = PublicKey{};
-        REQUIRE_THROWS_AS(cfg.resolveNodeID("TDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey), std::invalid_argument);
+        REQUIRE(!cfg.resolveNodeID("TDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey));
     }
 }
