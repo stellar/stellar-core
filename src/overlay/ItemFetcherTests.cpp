@@ -54,13 +54,12 @@ private:
     std::shared_ptr<HerderStub> mHerder;
 };
 
-
 SCPEnvelope makeEnvelope(int id)
 {
     static int slotIndex {0};
 
     auto result = SCPEnvelope{};
-    result.statement.slotIndex = slotIndex++;
+    result.statement.slotIndex = ++slotIndex;
     result.statement.pledges.type(SCP_ST_CONFIRM);
     result.statement.pledges.confirm().nPrepared = id;
     return result;
@@ -93,10 +92,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     itemFetcher.fetch(twelve, twelveEnvelope1);
     itemFetcher.fetch(twelve, twelveEnvelope2);
 
-    REQUIRE(!itemFetcher.isFetching(zero));
-    REQUIRE(itemFetcher.isFetching(ten));
-    REQUIRE(itemFetcher.isFetching(twelve));
-    REQUIRE(!itemFetcher.isFetching(fourteen));
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) != 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) != 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
 
     itemFetcher.recv(twelve);
     itemFetcher.recv(ten);
@@ -104,10 +103,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
     auto expectedReceived = std::vector<int>{12, 12, 10};
     REQUIRE(app.getHerder().received == expectedReceived);
 
-    REQUIRE(!itemFetcher.isFetching(zero));
-    REQUIRE(!itemFetcher.isFetching(ten));
-    REQUIRE(!itemFetcher.isFetching(twelve));
-    REQUIRE(!itemFetcher.isFetching(fourteen));
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+    REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
 
     SECTION("no cache")
     {
@@ -121,10 +120,10 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         expectedReceived = std::vector<int>{12, 12, 10, 0};
         REQUIRE(app.getHerder().received == expectedReceived);
 
-        REQUIRE(itemFetcher.isFetching(zero));
-        REQUIRE(!itemFetcher.isFetching(ten));
-        REQUIRE(!itemFetcher.isFetching(twelve));
-        REQUIRE(!itemFetcher.isFetching(fourteen));
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) != 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(twelve) == 0);
+        REQUIRE(itemFetcher.getLastSeenSlotIndex(fourteen) == 0);
     }
 
     SECTION("asks peers in turn")

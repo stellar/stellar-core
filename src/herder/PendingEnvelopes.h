@@ -35,14 +35,16 @@ class PendingEnvelopes
     // ledger# and list of envelopes that haven't been sent to SCP yet
     std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
 
+    using SCPQuorumSetCacheItem = std::pair<uint64, SCPQuorumSetPtr>;
     // all the quorum sets we have learned about
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
+    cache::lru_cache<Hash, SCPQuorumSetCacheItem> mQsetCache;
 
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
+    using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
     // all the txsets we have learned about per ledger#
-    cache::lru_cache<Hash, TxSetFramePtr> mTxSetCache;
+    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
 
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
@@ -64,7 +66,7 @@ class PendingEnvelopes
      * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
      * in PendingEnvelopes.
      */
-    void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    void addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex, const SCPQuorumSet& qset);
 
     /**
      * Check if @p qset identified by @p hash was requested before from peers.
@@ -79,7 +81,7 @@ class PendingEnvelopes
      * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
      * in PendingEnvelopes.
      */
-    void addTxSet(Hash hash, TxSetFramePtr txset);
+    void addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr txset);
 
     /**
      * Check if @p txset identified by @p hash was requested before from peers.
