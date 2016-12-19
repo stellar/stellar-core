@@ -20,7 +20,7 @@ sign(SecretKey const& secretKey, Hash const& hash)
 {
     DecoratedSignature result;
     result.signature = secretKey.sign(hash);
-    result.hint = PubKeyUtils::getHint(secretKey.getPublicKey());
+    result.hint = getHint(secretKey.getPublicKey().ed25519());
     return result;
 }
 
@@ -28,7 +28,7 @@ bool
 verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
-    if (!PubKeyUtils::doesHintMatch(pubKey, sig.hint))
+    if (!doesHintMatch(pubKey.ed25519(), sig.hint))
         return false;
 
     return PubKeyUtils::verifySig(pubKey, sig.signature, hash);

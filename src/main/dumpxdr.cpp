@@ -2,6 +2,7 @@
 #include "util/Fs.h"
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
+#include "transactions/SignatureUtils.h"
 #include <xdrpp/printer.h>
 #include <regex>
 #include <iostream>
@@ -210,7 +211,7 @@ signtxn(std::string const& filename)
 
         SecretKey sk(SecretKey::fromStrKeySeed(
                          readSecret("Secret key seed: ", txn_stdin)));
-        txenv.signatures.emplace_back(PubKeyUtils::getHint(sk.getPublicKey()),
+        txenv.signatures.emplace_back(SignatureUtils::getHint(sk.getPublicKey().ed25519()),
                                       sk.sign(xdr::xdr_to_opaque(txenv.tx)));
 
         auto out = xdr::xdr_to_opaque(txenv);
