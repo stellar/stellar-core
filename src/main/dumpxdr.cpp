@@ -2,6 +2,7 @@
 #include "util/Fs.h"
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
+#include "transactions/SignatureUtils.h"
 #include <xdrpp/printer.h>
 #include <regex>
 #include <iostream>
@@ -226,7 +227,7 @@ signtxn(std::string const& filename)
         payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
         payload.taggedTransaction.tx() = txenv.tx;
         txenv.signatures.emplace_back(
-            PubKeyUtils::getHint(sk.getPublicKey()),
+            SignatureUtils::getHint(sk.getPublicKey().ed25519()),
             sk.sign(sha256(xdr::xdr_to_opaque(payload))));
 
         auto out = xdr::xdr_to_opaque(txenv);
