@@ -325,18 +325,6 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     return ok;
 }
 
-SignatureHint
-PubKeyUtils::getHint(PublicKey const& pk)
-{
-    return SignatureUtils::getHint(pk.ed25519());
-}
-
-bool
-PubKeyUtils::doesHintMatch(PublicKey const& pk, SignatureHint const& hint)
-{
-    return SignatureUtils::doesHintMatch(pk.ed25519(), hint);
-}
-
 PublicKey
 PubKeyUtils::random()
 {
