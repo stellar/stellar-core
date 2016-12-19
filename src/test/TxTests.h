@@ -113,17 +113,16 @@ void applyCreditPaymentTx(Application& app, SecretKey const&from,
                           int64_t amount);
 
 TransactionFramePtr createPathPaymentTx(Hash const& networkID, SecretKey const&from,
-                                        SecretKey const&to, Asset const& sendCur,
+                                        PublicKey const&to, Asset const& sendCur,
                                         int64_t sendMax, Asset const& destCur,
                                         int64_t destAmount, SequenceNumber seq,
-                                        std::vector<Asset>* path = nullptr);
+                                        std::vector<Asset> const& path);
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const&from, SecretKey const&to,
+applyPathPaymentTx(Application& app, SecretKey const&from, PublicKey const&to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                    int64_t destAmount, SequenceNumber seq,
-                   PathPaymentResultCode result = PATH_PAYMENT_SUCCESS,
-                   std::vector<Asset>* path = nullptr);
+                   std::vector<Asset> const& path, Asset *noIssuer = nullptr);
 
 TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
                                   SecretKey const&source, Asset const& selling,
@@ -157,8 +156,7 @@ TransactionFramePtr createSetOptions(Hash const& networkID, SecretKey const&sour
 void applySetOptions(Application& app, SecretKey const&source, SequenceNumber seq,
                      AccountID* inflationDest, uint32_t* setFlags,
                      uint32_t* clearFlags, ThresholdSetter* thrs,
-                     Signer* signer, std::string* homeDomain,
-                     SetOptionsResultCode targetResult = SET_OPTIONS_SUCCESS);
+                     Signer* signer, std::string* homeDomain);
 
 TransactionFramePtr createInflation(Hash const& networkID, SecretKey const&from,
                                     SequenceNumber seq);
@@ -167,11 +165,10 @@ OperationResult applyInflation(Application& app, SecretKey const&from,
                                InflationResultCode targetResult = INFLATION_SUCCESS);
 
 TransactionFramePtr createAccountMerge(Hash const& networkID, SecretKey const&source,
-                                       SecretKey const&dest, SequenceNumber seq);
+                                       PublicKey const&dest, SequenceNumber seq);
 
-void applyAccountMerge(Application& app, SecretKey const&source, SecretKey const&dest,
-                       SequenceNumber seq,
-                       AccountMergeResultCode targetResult = ACCOUNT_MERGE_SUCCESS);
+void applyAccountMerge(Application& app, SecretKey const&source, PublicKey const&dest,
+                       SequenceNumber seq);
 
 
 TransactionFramePtr createManageData(Hash const& networkID, SecretKey const&source,

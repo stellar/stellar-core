@@ -305,7 +305,7 @@ TEST_CASE("payment", "[tx][payment]")
             }
             SECTION("missing issuer")
             {
-                applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                gateway.merge(root);
                 // cannot send to an account that is not the issuer
                 REQUIRE_THROWS_AS(a1.pay(b1, idrCur, 40), ex_PAYMENT_NO_ISSUER);
                 // should be able to send back credits to issuer
@@ -341,8 +341,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
-        applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr, &setFlags,
-                        nullptr, nullptr, nullptr, nullptr);
+        gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr, nullptr);
 
         a1.changeTrust(idrCur, trustLineLimit);
 
@@ -368,9 +367,9 @@ TEST_CASE("payment", "[tx][payment]")
     {
         SECTION("send XLM with path (not enough offers)")
         {
-            applyPathPaymentTx(app, gateway, a1, idrCur, morePayment * 10,
-                               xlmCur, morePayment, gateway.nextSequenceNumber(),
-                               PATH_PAYMENT_TOO_FEW_OFFERS);
+            REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, morePayment * 10,
+                                          xlmCur, morePayment, {}),
+                              ex_PATH_PAYMENT_TOO_FEW_OFFERS);
         }
 
         // setup a1
@@ -411,9 +410,8 @@ TEST_CASE("payment", "[tx][payment]")
             // A1: try to send 100 IDR to B1
             // using 149 USD
 
-            auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 149 * assetMultiplier, idrCur,
-                100 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_OVER_SENDMAX);
+            REQUIRE_THROWS_AS(a1.pay(b1, usdCur, 149 * assetMultiplier,
+                              idrCur, 100 * assetMultiplier, {}), ex_PATH_PAYMENT_OVER_SENDMAX);
         }
 
         SECTION("send with path (success)")
@@ -422,9 +420,8 @@ TEST_CASE("payment", "[tx][payment]")
             // should cost 150 (C's offer taken entirely) +
             //  50 (1/4 of B's offer)=200 USD
 
-            auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
-                125 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_SUCCESS);
+            auto res = a1.pay(b1, usdCur, 250 * assetMultiplier,
+                              idrCur, 125 * assetMultiplier, {});
 
             auto const& multi = res.success();
 
@@ -472,34 +469,29 @@ TEST_CASE("payment", "[tx][payment]")
                 SECTION("last")
                 {
                     // gateway issued idrCur
-                    applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                    gateway.merge(root);
 
-                    auto res = applyPathPaymentTx(
-                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
-                        125 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_NO_ISSUER);
-                    REQUIRE(res.noIssuer() == idrCur);
+                    REQUIRE_THROWS_AS(a1.pay(b1, usdCur, 250 * assetMultiplier,
+                                             idrCur, 125 * assetMultiplier, {}, &idrCur),
+                                      ex_PATH_PAYMENT_NO_ISSUER);
                 }
                 SECTION("first")
                 {
                     // gateway2 issued usdCur
-                    applyAccountMerge(app, gateway2, root, gateway2.nextSequenceNumber());
+                    gateway2.merge(root);
 
-                    auto res = applyPathPaymentTx(
-                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
-                        125 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_NO_ISSUER);
-                    REQUIRE(res.noIssuer() == usdCur);
+                    REQUIRE_THROWS_AS(a1.pay(b1, usdCur, 250 * assetMultiplier,
+                                             idrCur, 125 * assetMultiplier, {}, &usdCur),
+                                      ex_PATH_PAYMENT_NO_ISSUER);
                 }
                 SECTION("mid")
                 {
-                    std::vector<Asset> path;
                     SecretKey missing = getAccount("missing");
                     Asset btcCur = makeAsset(missing, "BTC");
-                    path.emplace_back(btcCur);
-                    auto res = applyPathPaymentTx(
-                        app, a1, b1, usdCur, 250 * assetMultiplier, idrCur,
-                        125 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_NO_ISSUER,
-                        &path);
-                    REQUIRE(res.noIssuer() == btcCur);
+                    std::vector<Asset> path{btcCur};
+                    REQUIRE_THROWS_AS(a1.pay(b1, usdCur, 250 * assetMultiplier,
+                                             idrCur, 125 * assetMultiplier, path, &btcCur),
+                                      ex_PATH_PAYMENT_NO_ISSUER);
                 }
             }
             SECTION("dest is issuer")
@@ -509,12 +501,10 @@ TEST_CASE("payment", "[tx][payment]")
                 SECTION("cannot take offers on the way")
                 {
                     // gateway issued idrCur
-                    applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+                    gateway.merge(root);
 
-                    auto res = applyPathPaymentTx(
-                        app, a1, gateway, usdCur, 250 * assetMultiplier, idrCur,
-                        125 * assetMultiplier, a1.nextSequenceNumber(),
-                        PATH_PAYMENT_NO_DESTINATION);
+                    REQUIRE_THROWS_AS(a1.pay(gateway, usdCur, 250 * assetMultiplier,
+                                             idrCur, 125 * assetMultiplier, {}), ex_PATH_PAYMENT_NO_DESTINATION);
                 }
             }
         }
@@ -529,9 +519,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             // A1: try to send 100 USD to B1 using XLM
 
-            applyPathPaymentTx(app, a1, b1, xlmCur, 100 * assetMultiplier,
-                               usdCur, 100 * assetMultiplier, a1.nextSequenceNumber(),
-                               PATH_PAYMENT_OFFER_CROSS_SELF);
+            REQUIRE_THROWS_AS(a1.pay(b1, xlmCur, 100 * assetMultiplier,
+                                     usdCur, 100 * assetMultiplier, {}), ex_PATH_PAYMENT_OFFER_CROSS_SELF);
         }
 
         SECTION("send with path (offer participant reaching limit)")
@@ -543,9 +532,8 @@ TEST_CASE("payment", "[tx][payment]")
             // cost 120 (C's offer maxed out at 4/5th of published amount)
             //  50 (1/4 of B's offer)=170 USD
 
-            auto res = applyPathPaymentTx(
-                app, a1, b1, usdCur, 400 * assetMultiplier, idrCur,
-                105 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_SUCCESS);
+            auto res = a1.pay(b1, usdCur, 400 * assetMultiplier,
+                              idrCur, 105 * assetMultiplier, {});
 
             auto& multi = res.success();
 
@@ -595,9 +583,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             auto checkBalances = [&]()
             {
-                auto res = applyPathPaymentTx(
-                    app, a1, b1, usdCur, 200 * assetMultiplier, idrCur,
-                    25 * assetMultiplier, a1.nextSequenceNumber(), PATH_PAYMENT_SUCCESS);
+                auto res = a1.pay(b1, usdCur, 200 * assetMultiplier,
+                                  idrCur, 25 * assetMultiplier, {});
 
                 auto& multi = res.success();
 
@@ -668,7 +655,42 @@ TEST_CASE("payment", "[tx][payment]")
 
         auto path = std::vector<Asset>{};
         // bug, it should succeed
-        applyPathPaymentTx(app, source, destination, xlmCur, 1382068965, cnyCur, 2 * assetMultiplier, source.nextSequenceNumber(), PATH_PAYMENT_TOO_FEW_OFFERS, &path);
+        REQUIRE_THROWS_AS(source.pay(destination, xlmCur, 1382068965, cnyCur, 2 * assetMultiplier, path), ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+    }
+
+    SECTION("path with bogus offer, bogus offer shows on offers trail")
+    {
+        auto paymentToReceive = 24 * assetMultiplier;
+        auto offerSize = paymentToReceive / 2;
+        auto initialBalance = app.getLedgerManager().getMinBalance(10) + txfee * 10 + 100 * assetMultiplier;
+        auto mm = root.create("mm", initialBalance);
+        auto source = root.create("source", initialBalance);
+        auto destination = root.create("destination", initialBalance);
+        mm.changeTrust(idrCur, trustLineLimit);
+        mm.changeTrust(usdCur, trustLineLimit);
+        destination.changeTrust(idrCur, trustLineLimit);
+        gateway.pay(mm, idrCur, 100 * assetMultiplier);
+        gateway2.pay(mm, usdCur, 100 * assetMultiplier);
+
+        auto idrCurCheapOfferID = mm.manageOffer(0, idrCur, usdCur, Price{3, 12}, offerSize);
+        auto idrCurMidBogusOfferID = mm.manageOffer(0, idrCur, usdCur, Price{4, 12}, 1);
+        auto idrCurExpensiveOfferID = mm.manageOffer(0, idrCur, usdCur, Price{6, 12}, offerSize);
+        auto usdCurOfferID = mm.manageOffer(0, usdCur, xlmCur, Price{1, 2}, 2 * offerSize);
+
+        auto path = std::vector<Asset>{xlmCur, usdCur};
+        auto res = source.pay(destination, xlmCur, 8 * paymentToReceive,
+                              idrCur, paymentToReceive, path);
+
+        auto const& offers = res.success().offers;
+        REQUIRE(offers.size() == 4);
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurCheapOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurMidBogusOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == idrCurExpensiveOfferID; }) != std::end(offers));
+        REQUIRE(std::find_if(std::begin(offers), std::end(offers),
+                             [&](ClaimOfferAtom const& x){ return x.offerID == usdCurOfferID; }) != std::end(offers));
     }
 
     SECTION("path payment with cycle")
@@ -744,7 +766,7 @@ TEST_CASE("payment", "[tx][payment]")
             const std::string &name,
             const Price &price,
             int maxMultipler,
-            PathPaymentResultCode result)
+            bool overSendMax)
         {
             SECTION(name)
             {
@@ -760,13 +782,16 @@ TEST_CASE("payment", "[tx][payment]")
                     auto path = std::vector<Asset>{assets[1], assets[2]};
                     SECTION(std::string{"send with path ("} + assetPathToString(assets) + ")")
                     {
-                        auto destinationMultiplier = result == PATH_PAYMENT_SUCCESS ? 1 : 0;
-                        auto sellerMultipler = result == PATH_PAYMENT_SUCCESS ? Price{1, 1} : Price{0, 1};
+                        auto destinationMultiplier = overSendMax ? 0 : 1;
+                        auto sellerMultipler = overSendMax ? Price{0, 1} : Price{1, 1};
                         auto buyerMultipler = sellerMultipler * price;
 
-                        auto res = applyPathPaymentTx(
-                            app, source, destination, assets[0], maxMultipler * paymentAmount, assets[0],
-                            paymentAmount, source.nextSequenceNumber(), result, &path);
+                        if (overSendMax)
+                            REQUIRE_THROWS_AS(source.pay(destination, assets[0], maxMultipler * paymentAmount,
+                                                         assets[0], paymentAmount, path), ex_PATH_PAYMENT_OVER_SENDMAX);
+                        else
+                            source.pay(destination, assets[0], maxMultipler * paymentAmount,
+                                       assets[0], paymentAmount, path);
 
                         for (size_t j = 0; j < pathSize; j++)
                         {
@@ -792,11 +817,11 @@ TEST_CASE("payment", "[tx][payment]")
         };
 
         // cycle with every asset on path costing half as much as previous - 8 times gain
-        testPath("arbitrage", Price(1, 2), 1, PATH_PAYMENT_SUCCESS);
+        testPath("arbitrage", Price(1, 2), 1, false);
         // cycle with every asset on path costing twice as much as previous - 8 times loss - unacceptable
-        testPath("anti-arbitrage", Price(2, 1), 1, PATH_PAYMENT_OVER_SENDMAX);
+        testPath("anti-arbitrage", Price(2, 1), 1, true);
         // cycle with every asset on path costing twice as much as previous - 8 times loss - acceptable (but not wise to do)
-        testPath("anti-arbitrage with big sendmax", Price(2, 1), 8, PATH_PAYMENT_SUCCESS);
+        testPath("anti-arbitrage with big sendmax", Price(2, 1), 8, false);
     }
 }
 

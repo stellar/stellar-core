@@ -645,10 +645,10 @@ applyCreditPaymentTx(Application& app, SecretKey const& from, PublicKey const& t
 }
 
 TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
+createPathPaymentTx(Hash const& networkID, SecretKey const& from, PublicKey const& to,
                     Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                     int64_t destAmount, SequenceNumber seq,
-                    std::vector<Asset>* path)
+                    std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -657,23 +657,17 @@ createPathPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey cons
     ppop.sendMax = sendMax;
     ppop.destAsset = destCur;
     ppop.destAmount = destAmount;
-    ppop.destination = to.getPublicKey();
-    if (path)
-    {
-        for (auto const& cur : *path)
-        {
-            ppop.path.push_back(cur);
-        }
-    }
+    ppop.destination = to;
+    std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
 
     return transactionFromOperation(networkID, from, seq, op);
 }
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
+applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
-                   int64_t destAmount, SequenceNumber seq,
-                   PathPaymentResultCode result, std::vector<Asset>* path)
+                   int64_t destAmount, SequenceNumber seq, std::vector<Asset> const& path,
+                   Asset *noIssuer)
 {
     TransactionFramePtr txFrame;
 
@@ -682,15 +676,53 @@ applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
 
-    PathPaymentResult res = firstResult.tr().pathPaymentResult();
-    auto resCode = res.code();
-    REQUIRE(resCode == result);
+    auto res = firstResult.tr().pathPaymentResult();
+    auto result = res.code();
+
+    if (result != PATH_PAYMENT_NO_ISSUER)
+    {
+        REQUIRE(!noIssuer);
+    }
+
+    switch (result)
+    {
+        case PATH_PAYMENT_MALFORMED:
+            throw ex_PATH_PAYMENT_MALFORMED{};
+        case PATH_PAYMENT_UNDERFUNDED:
+            throw ex_PATH_PAYMENT_UNDERFUNDED{};
+        case PATH_PAYMENT_SRC_NO_TRUST:
+            throw ex_PATH_PAYMENT_SRC_NO_TRUST{};
+        case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PATH_PAYMENT_NO_DESTINATION:
+            throw ex_PATH_PAYMENT_NO_DESTINATION{};
+        case PATH_PAYMENT_NO_TRUST:
+            throw ex_PATH_PAYMENT_NO_TRUST{};
+        case PATH_PAYMENT_NOT_AUTHORIZED:
+            throw ex_PATH_PAYMENT_NOT_AUTHORIZED{};
+        case PATH_PAYMENT_LINE_FULL:
+            throw ex_PATH_PAYMENT_LINE_FULL{};
+        case PATH_PAYMENT_NO_ISSUER:
+            REQUIRE(noIssuer);
+            REQUIRE(*noIssuer == res.noIssuer());
+            throw ex_PATH_PAYMENT_NO_ISSUER{};
+        case PATH_PAYMENT_TOO_FEW_OFFERS:
+            throw ex_PATH_PAYMENT_TOO_FEW_OFFERS{};
+        case PATH_PAYMENT_OFFER_CROSS_SELF:
+            throw ex_PATH_PAYMENT_OFFER_CROSS_SELF{};
+        case PATH_PAYMENT_OVER_SENDMAX:
+            throw ex_PATH_PAYMENT_OVER_SENDMAX{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PATH_PAYMENT_SUCCESS);
     return res;
 }
 
@@ -1013,7 +1045,7 @@ void
 applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
                 AccountID* inflationDest, uint32_t* setFlags,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                std::string* homeDomain, SetOptionsResultCode result)
+                std::string* homeDomain)
 {
     TransactionFramePtr txFrame;
 
@@ -1022,11 +1054,36 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(SetOptionsOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+    auto result = SetOptionsOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+
+    switch (result)
+    {
+        case SET_OPTIONS_LOW_RESERVE:
+            throw ex_SET_OPTIONS_LOW_RESERVE{};
+        case SET_OPTIONS_TOO_MANY_SIGNERS:
+            throw ex_SET_OPTIONS_TOO_MANY_SIGNERS{};
+        case SET_OPTIONS_BAD_FLAGS:
+            throw ex_SET_OPTIONS_BAD_FLAGS{};
+        case SET_OPTIONS_INVALID_INFLATION:
+            throw ex_SET_OPTIONS_INVALID_INFLATION{};
+        case SET_OPTIONS_CANT_CHANGE:
+            throw ex_SET_OPTIONS_CANT_CHANGE{};
+        case SET_OPTIONS_UNKNOWN_FLAG:
+            throw ex_SET_OPTIONS_UNKNOWN_FLAG{};
+        case SET_OPTIONS_THRESHOLD_OUT_OF_RANGE:
+            throw ex_SET_OPTIONS_THRESHOLD_OUT_OF_RANGE{};
+        case SET_OPTIONS_BAD_SIGNER:
+            throw ex_SET_OPTIONS_BAD_SIGNER{};
+        case SET_OPTIONS_INVALID_HOME_DOMAIN:
+            throw ex_SET_OPTIONS_INVALID_HOME_DOMAIN{};
+        default:
+            break;
+    }
+
+    REQUIRE(SET_OPTIONS_SUCCESS == result);
 }
 
 TransactionFramePtr
@@ -1060,29 +1117,43 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
 }
 
 TransactionFramePtr
-createAccountMerge(Hash const& networkID, SecretKey const& source, SecretKey const& dest,
+createAccountMerge(Hash const& networkID, SecretKey const& source, PublicKey const& dest,
                    SequenceNumber seq)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
-    op.body.destination() = dest.getPublicKey();
+    op.body.destination() = dest;
 
     return transactionFromOperation(networkID, source, seq, op);
 }
 
 void
-applyAccountMerge(Application& app, SecretKey const& source, SecretKey const& dest,
-                  SequenceNumber seq, AccountMergeResultCode targetResult)
+applyAccountMerge(Application& app, SecretKey const& source, PublicKey const& dest,
+                  SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
         createAccountMerge(app.getNetworkID(), source, dest, seq);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
-    REQUIRE(MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == targetResult);
+    auto result = MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ACCOUNT_MERGE_MALFORMED:
+            throw ex_ACCOUNT_MERGE_MALFORMED{};
+        case ACCOUNT_MERGE_NO_ACCOUNT:
+            throw ex_ACCOUNT_MERGE_NO_ACCOUNT{};
+        case ACCOUNT_MERGE_IMMUTABLE_SET:
+            throw ex_ACCOUNT_MERGE_IMMUTABLE_SET{};
+        case ACCOUNT_MERGE_HAS_SUB_ENTRIES:
+            throw ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
 }
 
 TransactionFramePtr

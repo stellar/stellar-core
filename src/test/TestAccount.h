@@ -14,6 +14,11 @@ namespace stellar
 
 class Application;
 
+namespace txtest
+{
+    struct ThresholdSetter;
+}
+
 class TestAccount
 {
 public:
@@ -27,10 +32,15 @@ public:
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);
+    void merge(PublicKey const& into);
 
     void changeTrust(Asset const &asset, int64_t limit);
     void allowTrust(Asset const &asset, PublicKey const& trustor);
     void denyTrust(Asset const &asset, PublicKey const& trustor);
+
+    void setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                    uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
+                    Signer* signer, std::string* homeDomain);
 
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
@@ -41,6 +51,8 @@ public:
                                 Price const& price, int64_t amount, ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
     void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling, int64_t amount);
+    PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur, int64_t sendMax,
+                          Asset const& destCur, int64_t destAmount, std::vector<Asset> const& path, Asset *noIssuer = nullptr);
 
     operator SecretKey () const { return getSecretKey(); }
     operator PublicKey () const { return getPublicKey(); }

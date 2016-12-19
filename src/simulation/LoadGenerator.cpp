@@ -1050,8 +1050,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             assetPath.pop_back();
             auto sendMax = mAmount * 10;
             txs.emplace_back(txtest::createPathPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey, sendAsset, sendMax,
-                recvAsset, mAmount, mFrom->mSeq + 1, &assetPath));
+                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), sendAsset, sendMax,
+                recvAsset, mAmount, mFrom->mSeq + 1, assetPath));
         }
     }
     break;

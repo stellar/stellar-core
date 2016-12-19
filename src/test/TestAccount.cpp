@@ -35,6 +35,12 @@ TestAccount::create(std::string const& name, uint64_t initialBalance)
 }
 
 void
+TestAccount::merge(PublicKey const& into)
+{
+    applyAccountMerge(mApp, getSecretKey(), into, nextSequenceNumber());
+}
+
+void
 TestAccount::changeTrust(Asset const &asset, int64_t limit)
 {
     auto assetCode = std::string{};
@@ -42,18 +48,32 @@ TestAccount::changeTrust(Asset const &asset, int64_t limit)
     applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer, nextSequenceNumber(), assetCode, limit);
 }
 
-void TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
+void
+TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
     applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, true);
 }
 
-void TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
+void
+TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
     applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, false);
+}
+
+
+void
+TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                        uint32_t* clearFlags, ThresholdSetter* thrs,
+                        Signer* signer, std::string* homeDomain)
+{
+    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(),
+                    inflationDest, setFlags,
+                    clearFlags, thrs,
+                    signer, homeDomain);
 }
 
 OfferFrame::pointer
@@ -93,6 +113,15 @@ void
 TestAccount::pay(PublicKey const& destination, Asset const& selling, int64_t amount)
 {
     applyCreditPaymentTx(mApp, getSecretKey(), destination, selling, nextSequenceNumber(), amount);
+}
+
+PathPaymentResult
+TestAccount::pay(PublicKey const& destination, Asset const& sendCur, int64_t sendMax,
+                 Asset const& destCur, int64_t destAmount, std::vector<Asset> const& path,
+                 Asset *noIssuer)
+{
+    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur, sendMax,
+                              destCur, destAmount, nextSequenceNumber(), path, noIssuer);
 }
 
 };
