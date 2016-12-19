@@ -52,9 +52,7 @@ verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
     if (!hasHint(signerKey.hashX(), sig.hint))
         return false;
 
-    auto x = std::string{sig.signature.begin(), sig.signature.end()};
-    auto hash = sha256(x);
-    return signerKey.hashX() == hash;
+    return signerKey.hashX() == sha256(sig.signature);
 }
 
 SignatureHint getHint(ByteSlice const& bs)

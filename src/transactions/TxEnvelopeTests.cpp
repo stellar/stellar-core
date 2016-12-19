@@ -215,7 +215,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             std::function<void(TransactionFrame &)> sign;
         };
 
-        auto x = randomBytes(32);
+        // ensue that hash(x) supports 0 inside 'x'
+        auto x = std::vector<uint8_t>{
+            'a', 'b', 'c', 0, 'd', 'e', 'f', 0,
+            0, 0, 'g', 'h', 'i', 'j', 'k', 'l',
+            'A', 'B', 'C', 0, 'D', 'E', 'F', 0,
+            0, 0, 'G', 'H', 'I', 'J', 'K', 'L'};
         auto alternatives = std::vector<AltSignature>{
             AltSignature{
                 "hash tx",
