@@ -18,6 +18,27 @@ Levels:
 
 namespace stellar
 {
+
+namespace
+{
+
+static const std::vector<std::string> loggers = {
+    "Fs",
+    "SCP",
+    "Bucket",
+    "Database",
+    "History",
+    "Process",
+    "Ledger",
+    "Overlay",
+    "Herder",
+    "Tx",
+    "LoadGen",
+    "Work"
+};
+
+}
+
 el::Configurations Logging::gDefaultConf;
 
 void
@@ -44,18 +65,10 @@ Logging::init()
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
 
-    el::Loggers::getLogger("Fs");
-    el::Loggers::getLogger("SCP");
-    el::Loggers::getLogger("Bucket");
-    el::Loggers::getLogger("Database");
-    el::Loggers::getLogger("History");
-    el::Loggers::getLogger("Process");
-    el::Loggers::getLogger("Ledger");
-    el::Loggers::getLogger("Overlay");
-    el::Loggers::getLogger("Herder");
-    el::Loggers::getLogger("Tx");
-    el::Loggers::getLogger("LoadGen");
-    el::Loggers::getLogger("Work");
+    for (auto const& logger : loggers)
+    {
+        el::Loggers::getLogger(logger);
+    }
 
     gDefaultConf.setToDefault();
     gDefaultConf.setGlobally(el::ConfigurationType::ToStandardOutput, "true");
@@ -217,4 +230,15 @@ Logging::getLLfromString(std::string const& levelName)
 
     return el::Level::Info;
 }
+
+void
+Logging::rotate()
+{
+    el::Loggers::getLogger("default")->reconfigure();
+    for (auto const& logger : loggers)
+    {
+        el::Loggers::getLogger(logger)->reconfigure();
+    }
+}
+
 }
