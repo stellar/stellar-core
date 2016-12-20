@@ -46,7 +46,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
 
-    LOG_FILE_PATH = "stellar-core.log";
+    LOG_FILE_PATH = "stellar-core.%datetime{%Y.%M.%d-%H:%m:%s}.log";
     BUCKET_DIR_PATH = "buckets";
 
     DESIRED_BASE_FEE = 100;

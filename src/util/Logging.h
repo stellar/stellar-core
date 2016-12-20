@@ -28,5 +28,6 @@ class Logging
     static std::string getStringFromLL(el::Level);
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
+    static void rotate();
 };
 }
