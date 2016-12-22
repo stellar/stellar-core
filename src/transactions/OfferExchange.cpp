@@ -57,7 +57,7 @@ canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::poi
 }
 
 ExchangeResult
-exchange(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
 {
     auto result = ExchangeResult{};
     result.reduced = wheatReceived > maxWheatReceive;
@@ -124,7 +124,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         sellingWheatOffer.getOffer().amount
     });
     sellingWheatOffer.getOffer().amount = numWheatReceived;
-    auto exchangeResult = exchange(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
+    auto exchangeResult = exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
