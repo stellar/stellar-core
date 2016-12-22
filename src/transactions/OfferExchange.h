@@ -34,7 +34,7 @@ struct ExchangeResult
     }
 };
 
-ExchangeResult exchange(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend);
+ExchangeResult exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend);
 
 class OfferExchange
 {

@@ -1017,7 +1017,7 @@ TEST_CASE("Exchange", "[offers]")
     auto validate = [](int64_t maxWheatReceived, Price price,
                        int64_t maxWheatReceive, int64_t maxSheepSend,
                        ExchangeResult const &expected, ReducedCheck reducedCheck = REDUCED_CHECK_STRICT){
-        auto actual = exchange(maxWheatReceived, price, maxWheatReceive, maxSheepSend);
+        auto actual = exchangeV2(maxWheatReceived, price, maxWheatReceive, maxSheepSend);
         REQUIRE(actual.type() == ExchangeResultType::NORMAL);
         REQUIRE(actual.numWheatReceived == expected.numWheatReceived);
         REQUIRE(actual.numSheepSend == expected.numSheepSend);
@@ -1063,16 +1063,16 @@ TEST_CASE("Exchange", "[offers]")
 
             SECTION("1")
             {
-                REQUIRE(exchange(0, Price{3, 2}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{3, 2}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
                 validate(1, Price{1, 1}, INT64_MAX, INT64_MAX, {1, 1, false});
-                REQUIRE(exchange(1, Price{2, 3}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(1, Price{2, 3}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("0")
             {
-                REQUIRE(exchange(0, Price{3, 2}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
-                REQUIRE(exchange(0, Price{1, 1}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
-                REQUIRE(exchange(0, Price{2, 3}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{3, 2}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{1, 1}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{2, 3}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
         }
 
@@ -1139,9 +1139,9 @@ TEST_CASE("Exchange", "[offers]")
 
             SECTION("2 limited to 1")
             {
-                REQUIRE(exchange(2, Price{3, 2}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(2, Price{3, 2}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
                 validate(2, Price{1, 1}, 1, INT64_MAX, {1, 1, true});
-                REQUIRE(exchange(2, Price{2, 3}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(2, Price{2, 3}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
             }
         }
     }
@@ -1153,17 +1153,17 @@ TEST_CASE("Exchange", "[offers]")
             validate(1000, Price{INT32_MAX, 1}, INT64_MAX, INT64_MAX, {1000, 1000ull * INT32_MAX, false});
             validate(999, Price{INT32_MAX, 1}, INT64_MAX, INT64_MAX, {999, 999ull * INT32_MAX, false});
             validate(1, Price{INT32_MAX, 1}, INT64_MAX, INT64_MAX, {1, INT32_MAX, false});
-            REQUIRE(exchange(2, Price{2, 3}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+            REQUIRE(exchangeV2(2, Price{2, 3}, 1, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
         }
 
         SECTION("send limits")
         {
             SECTION("750")
             {
-                REQUIRE(exchange(1000, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(999, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(1, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(0, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(1000, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(999, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(1, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(0, Price{INT32_MAX, 1}, INT64_MAX, 750).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("INT32_MAX")
@@ -1171,7 +1171,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000, Price{INT32_MAX, 1}, INT64_MAX, INT32_MAX, {1, INT32_MAX, true});
                 validate(999, Price{INT32_MAX, 1}, INT64_MAX, INT32_MAX, {1, INT32_MAX, true});
                 validate(1, Price{INT32_MAX, 1}, INT64_MAX, INT32_MAX, {1, INT32_MAX, false});
-                REQUIRE(exchange(0, Price{INT32_MAX, 1}, INT64_MAX, INT32_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{INT32_MAX, 1}, INT64_MAX, INT32_MAX).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("750 * INT32_MAX")
@@ -1179,7 +1179,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000, Price{INT32_MAX, 1}, INT64_MAX, 750ull * INT32_MAX, {750, 750ull * INT32_MAX, true});
                 validate(999, Price{INT32_MAX, 1}, INT64_MAX, 750ull * INT32_MAX, {750, 750ull * INT32_MAX, true});
                 validate(1, Price{INT32_MAX, 1}, INT64_MAX, 750ull * INT32_MAX, {1, INT32_MAX, false});
-                REQUIRE(exchange(0, Price{INT32_MAX, 1}, INT64_MAX, 750ull * INT32_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{INT32_MAX, 1}, INT64_MAX, 750ull * INT32_MAX).type() == ExchangeResultType::BOGUS);
             }
         }
 
@@ -1190,7 +1190,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000, Price{INT32_MAX, 1}, 750, INT64_MAX, {750, 750ull * INT32_MAX, true});
                 validate(999, Price{INT32_MAX, 1}, 750, INT64_MAX, {750, 750ull * INT32_MAX, true});
                 validate(1, Price{INT32_MAX, 1}, 750, INT64_MAX, {1, INT32_MAX, false});
-                REQUIRE(exchange(0, Price{INT32_MAX, 1}, 750, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{INT32_MAX, 1}, 750, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("INT32_MAX")
@@ -1198,7 +1198,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000, Price{INT32_MAX, 1}, INT32_MAX, INT64_MAX, {1000, 1000ull * INT32_MAX, false});
                 validate(999, Price{INT32_MAX, 1}, INT32_MAX, INT64_MAX, {999, 999ull * INT32_MAX, false});
                 validate(1, Price{INT32_MAX, 1}, INT32_MAX, INT64_MAX, {1, INT32_MAX, false});
-                REQUIRE(exchange(0, Price{INT32_MAX, 1}, INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{INT32_MAX, 1}, INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
         }
     }
@@ -1210,7 +1210,7 @@ TEST_CASE("Exchange", "[offers]")
             validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT64_MAX, {1000ull * INT32_MAX, 1000, false});
             validate(999ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT64_MAX, {999ull * INT32_MAX, 999, false});
             validate(INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT64_MAX, {INT32_MAX, 1, false});
-            REQUIRE(exchange(0, Price{1, INT32_MAX}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+            REQUIRE(exchangeV2(0, Price{1, INT32_MAX}, INT64_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
         }
 
         SECTION("send limits")
@@ -1220,7 +1220,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, 750, {750ull * INT32_MAX, 750, true});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, 750, {750ull * INT32_MAX, 750, true});
                 validate(INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, 750, {INT32_MAX, 1, false});
-                REQUIRE(exchange(0, Price{1, INT32_MAX}, INT64_MAX, 750).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{1, INT32_MAX}, INT64_MAX, 750).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("INT32_MAX")
@@ -1228,7 +1228,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX, {1000ull * INT32_MAX, 1000, false});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX, {999ul * INT32_MAX, 999, false});
                 validate(INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX, {INT32_MAX, 1, false});
-                REQUIRE(exchange(0, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(0, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX).type() == ExchangeResultType::BOGUS);
             }
         }
 
@@ -1236,10 +1236,10 @@ TEST_CASE("Exchange", "[offers]")
         {
             SECTION("750")
             {
-                REQUIRE(exchange(1000ull * INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(999ull * INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
-                REQUIRE(exchange(750, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(1000ull * INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(999ull * INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(INT32_MAX, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::REDUCED_TO_ZERO);
+                REQUIRE(exchangeV2(750, Price{1, INT32_MAX}, 750, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("INT32_MAX")
@@ -1247,7 +1247,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, 750ull * INT32_MAX, INT64_MAX, {750ull * INT32_MAX, 750, true});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX}, 750ull * INT32_MAX, INT64_MAX, {750ull * INT32_MAX, 750, true});
                 validate(INT32_MAX, Price{1, INT32_MAX}, 750ull * INT32_MAX, INT64_MAX, {INT32_MAX, 1, false});
-                REQUIRE(exchange(750, Price{1, INT32_MAX}, 750ull * INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(750, Price{1, INT32_MAX}, 750ull * INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
 
             SECTION("750 * INT32_MAX")
@@ -1255,7 +1255,7 @@ TEST_CASE("Exchange", "[offers]")
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, 750ul * INT32_MAX, INT64_MAX, {750ull * INT32_MAX, 750, true});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX}, 750ul * INT32_MAX, INT64_MAX, {750ull * INT32_MAX, 750, true});
                 validate(INT32_MAX, Price{1, INT32_MAX}, 750ul * INT32_MAX, INT64_MAX, {INT32_MAX, 1, false});
-                REQUIRE(exchange(750, Price{1, INT32_MAX}, 750ul * INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
+                REQUIRE(exchangeV2(750, Price{1, INT32_MAX}, 750ul * INT32_MAX, INT64_MAX).type() == ExchangeResultType::BOGUS);
             }
         }
     }
