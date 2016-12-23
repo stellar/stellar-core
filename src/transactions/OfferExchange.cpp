@@ -39,7 +39,6 @@ canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
 int64_t
 canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::pointer trustLine, LedgerManager &ledgerManager)
 {
-    int64_t result;
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         // can only send above the minimum balance
@@ -73,6 +72,34 @@ exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
     result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
     // bias towards seller (this cannot overflow at this point)
     result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n, ROUND_DOWN);
+
+    return result;
+}
+
+ExchangeResult
+exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+{
+    auto result = ExchangeResult{};
+    result.reduced = wheatReceived > maxWheatReceive;
+    result.numWheatReceived = std::min(wheatReceived, maxWheatReceive);
+
+    // this guy can get X wheat to you. How many sheep does that get him?
+    // bias towards seller
+    if (!bigDivide(result.numSheepSend, result.numWheatReceived, price.n, price.d, ROUND_UP))
+    {
+        result.reduced = true;
+        result.numSheepSend = INT64_MAX;
+    }
+
+    result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
+    result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
+
+    auto newWheatReceived = int64_t{};
+    if (!bigDivide(newWheatReceived, result.numSheepSend, price.d, price.n, ROUND_DOWN))
+    {
+        newWheatReceived = INT64_MAX;
+    }
+    result.numWheatReceived = std::min(result.numWheatReceived, newWheatReceived);
 
     return result;
 }
