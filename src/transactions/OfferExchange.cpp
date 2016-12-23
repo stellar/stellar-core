@@ -28,7 +28,7 @@ canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
         trustLine ? trustLine->getMaxAmountReceive() : 0;
 
     auto result = int64_t{};
-    if (!bigDivide(result, sellerMaxSheep, price.d, price.n))
+    if (!bigDivide(result, sellerMaxSheep, price.d, price.n, ROUND_DOWN))
     {
         result = INT64_MAX;
     }
@@ -64,7 +64,7 @@ exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
     wheatReceived = std::min(wheatReceived, maxWheatReceive);
 
     // this guy can get X wheat to you. How many sheep does that get him?
-    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d))
+    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d, ROUND_DOWN))
     {
         result.numSheepSend = INT64_MAX;
     }
@@ -72,7 +72,7 @@ exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
     result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
     result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
     // bias towards seller (this cannot overflow at this point)
-    result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n);
+    result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n, ROUND_DOWN);
 
     return result;
 }
