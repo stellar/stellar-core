@@ -541,7 +541,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // offers
                 int64_t usdRecv = 1010 * assetMultiplier;
 
-                int64_t idrSend = bigDivide(usdRecv, 2, 3);
+                int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
 
                 for (int i = 0; i < nbOffers; i++)
                 {
@@ -606,7 +606,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // offers
                 int64_t usdRecv = 10 * assetMultiplier;
 
-                int64_t idrSend = bigDivide(usdRecv, 2, 3);
+                int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
 
                 for (int j = 0; j < 10; j++)
                 {
@@ -691,7 +691,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 // USD
                 // @ 1.5
                 int64_t usdRecv = 150 * assetMultiplier * nbOffers;
-                int64_t idrSend = bigDivide(usdRecv, 2, 3);
+                int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
 
                 int64_t expected = usdBalanceForSale - usdRecv;
 

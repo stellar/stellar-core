@@ -212,7 +212,7 @@ ManageOfferOpFrame::doApply(Application& app,
         {
             int64_t maxSheepBasedOnWheat;
             if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
-                           sheepPrice.n))
+                           sheepPrice.n, ROUND_DOWN))
             {
                 maxSheepBasedOnWheat = INT64_MAX;
             }

@@ -169,12 +169,12 @@ compareAsset(Asset const& first, Asset const& second)
 
 // calculates A*B/C when A*B overflows 64bits
 bool
-bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)
+bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
 {
     bool res;
     assert((A >= 0) && (B >= 0) && (C > 0));
     uint64_t r2;
-    res = bigDivide(r2, (uint64_t)A, (uint64_t)B, (uint64_t)C);
+    res = bigDivide(r2, (uint64_t)A, (uint64_t)B, (uint64_t)C, rounding);
     if (res)
     {
         res = r2 <= INT64_MAX;
@@ -184,13 +184,15 @@ bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C)
 }
 
 bool
-bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C)
+bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C, Rounding rounding)
 {
     // update when moving to (signed) int128
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);
-    uint128_t x = (a * b) / c;
+    uint128_t x = rounding == ROUND_DOWN
+            ? (a * b) / c
+            : (a * b + c - 1) / c;
 
     result = (uint64_t)x;
 
@@ -198,10 +200,10 @@ bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C)
 }
 
 int64_t
-bigDivide(int64_t A, int64_t B, int64_t C)
+bigDivide(int64_t A, int64_t B, int64_t C, Rounding rounding)
 {
     int64_t res;
-    if (!bigDivide(res, A, B, C))
+    if (!bigDivide(res, A, B, C, rounding))
     {
         throw std::overflow_error("overflow while performing bigDivide");
     }
