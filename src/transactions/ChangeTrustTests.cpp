@@ -73,7 +73,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
         {
             root.changeTrust(idrCur, 100);
             // Merge gateway back into root (the trustline still exists)
-            applyAccountMerge(app, gateway, root, gateway.nextSequenceNumber());
+            gateway.merge(root);
 
             REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99), ex_CHANGE_TRUST_NO_ISSUER);
         }

@@ -15,6 +15,7 @@
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
 #include "ledger/LedgerDelta.h"
+#include "util/TestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -32,8 +33,7 @@ TEST_CASE("merge", "[tx][merge]")
     Config cfg(getTestConfig());
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app(clock, cfg);
     app.start();
     upgradeToCurrentLedgerVersion(app);
 
@@ -88,25 +88,35 @@ TEST_CASE("merge", "[tx][merge]")
         }
         SECTION("account has offer")
         {
-            gateway.pay(a1, usdCur, trustLineBalance);
-            Asset xlmCur;
-            xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
-
-            const Price somePrice(3, 2);
-            for (int i = 0; i < 4; i++)
+            for (auto v : std::vector<int>{2, 3})
             {
-                a1.manageOffer(0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
-            }
-            // empty out balance
-            a1.pay(gateway, usdCur, trustLineBalance);
-            // delete the trust line
-            a1.changeTrust(usdCur, 0);
+                SECTION("protocol version " + std::to_string(v))
+                {
+                    app.getLedgerManager().setCurrentLedgerVersion(v);
 
-            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                    gateway.pay(a1, usdCur, trustLineBalance);
+                    Asset xlmCur;
+                    xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
+
+                    const Price somePrice(3, 2);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        a1.manageOffer(0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
+                    }
+                    // empty out balance
+                    a1.pay(gateway, usdCur, trustLineBalance);
+                    // delete the trust line
+                    a1.changeTrust(usdCur, 0);
+
+                    REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                }
+            }
         }
 
         SECTION("account has data")
         {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
             // delete the trust line
             a1.changeTrust(usdCur, 0);
 
