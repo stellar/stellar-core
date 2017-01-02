@@ -151,7 +151,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         sellingWheatOffer.getOffer().amount
     });
     sellingWheatOffer.getOffer().amount = numWheatReceived;
-    auto exchangeResult = exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
+    auto exchangeResult = mLedgerManager.getCurrentLedgerVersion() < 3
+        ? exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend)
+        : exchangeV3(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
