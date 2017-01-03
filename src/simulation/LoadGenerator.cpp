@@ -4,7 +4,7 @@
 
 #include "simulation/LoadGenerator.h"
 #include "main/Config.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
@@ -1026,7 +1026,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey, assetPath.front(),
+                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), assetPath.front(),
                 mFrom->mSeq + 1, mAmount));
         }
         else

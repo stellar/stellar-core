@@ -13,7 +13,8 @@
 #include "simulation/Simulation.h"
 #include "overlay/OverlayManager.h"
 #include "simulation/Topologies.h"
-#include "transactions/TxTests.h"
+#include "test/TestAccount.h"
+#include "test/TxTests.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerDelta.h"
 #include "herder/HerderImpl.h"
@@ -52,7 +53,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
         const int nbTx = 100;
 
-        SecretKey root = getRoot(networkID);
+        auto root = TestAccount::createRoot(*app0);
         auto rootA =
             AccountFrame::loadAccount(root.getPublicKey(), app0->getDatabase());
 
@@ -79,7 +80,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             }
         }
 
-        expectedSeq = getAccountSeqNum(root, *app0) + 1;
+        expectedSeq = root.getLastSequenceNumber() + 1;
 
         // enough for connections to be made
         simulation->crankForAtLeast(std::chrono::seconds(1), false);

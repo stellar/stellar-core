@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "TxTests.h"
+
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
@@ -9,11 +11,11 @@
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/ByteSlice.h"
-#include "transactions/TxTests.h"
 #include "util/types.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/DataFrame.h"
+#include "test/TestExceptions.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -98,6 +100,21 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     delta.checkAgainstDatabase(app);
 
     return res;
+}
+
+bool
+throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+{
+    auto r = applyCheck(tx, delta, app);
+    switch (tx->getResultCode())
+    {
+        case txNO_ACCOUNT:
+            throw ex_txNO_ACCOUNT{};
+        default:
+            // ignore rest for now
+            break;
+    }
+    return r;
 }
 
 void
@@ -259,10 +276,10 @@ requireNoAccount(SecretKey const& k, Application& app)
 }
 
 OfferFrame::pointer
-loadOffer(SecretKey const& k, uint64 offerID, Application& app, bool mustExist)
+loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
 {
     OfferFrame::pointer res =
-        OfferFrame::loadOffer(k.getPublicKey(), offerID, app.getDatabase());
+        OfferFrame::loadOffer(k, offerID, app.getDatabase());
     if (mustExist)
     {
         REQUIRE(res);
@@ -316,7 +333,7 @@ checkTransaction(TransactionFrame& txFrame)
 }
 
 TransactionFramePtr
-transactionFromOperation(Hash const& networkID, SecretKey& from,
+transactionFromOperation(Hash const& networkID, SecretKey const& from,
                          SequenceNumber seq, Operation const& op)
 {
     TransactionEnvelope e;
@@ -335,7 +352,7 @@ transactionFromOperation(Hash const& networkID, SecretKey& from,
 }
 
 TransactionFramePtr
-transactionFromOperations(Hash const& networkID, SecretKey& from,
+transactionFromOperations(Hash const& networkID, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation> &ops)
 {
     TransactionEnvelope e;
@@ -354,7 +371,7 @@ transactionFromOperations(Hash const& networkID, SecretKey& from,
 }
 
 TransactionFramePtr
-createChangeTrust(Hash const& networkID, SecretKey& from, SecretKey& to,
+createChangeTrust(Hash const& networkID, SecretKey const& from, PublicKey const& to,
                   SequenceNumber seq, std::string const& assetCode,
                   int64_t limit)
 {
@@ -365,20 +382,20 @@ createChangeTrust(Hash const& networkID, SecretKey& from, SecretKey& to,
     op.body.changeTrustOp().line.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.changeTrustOp().line.alphaNum4().assetCode,
                    assetCode);
-    op.body.changeTrustOp().line.alphaNum4().issuer = to.getPublicKey();
+    op.body.changeTrustOp().line.alphaNum4().issuer = to;
 
     return transactionFromOperation(networkID, from, seq, op);
 }
 
 TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey& from, SecretKey& trustor,
+createAllowTrust(Hash const& networkID, SecretKey const& from, PublicKey const& trustor,
                  SequenceNumber seq, std::string const& assetCode,
                  bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
-    op.body.allowTrustOp().trustor = trustor.getPublicKey();
+    op.body.allowTrustOp().trustor = trustor;
     op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(op.body.allowTrustOp().asset.assetCode4(), assetCode);
     op.body.allowTrustOp().authorize = authorize;
@@ -387,9 +404,9 @@ createAllowTrust(Hash const& networkID, SecretKey& from, SecretKey& trustor,
 }
 
 void
-applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
+applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trustor,
                 SequenceNumber seq, std::string const& assetCode,
-                bool authorize, AllowTrustResultCode result)
+                bool authorize)
 {
     TransactionFramePtr txFrame;
     txFrame = createAllowTrust(app.getNetworkID(), from, trustor, seq,
@@ -397,15 +414,32 @@ applyAllowTrust(Application& app, SecretKey& from, SecretKey& trustor,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(AllowTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto result = AllowTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ALLOW_TRUST_MALFORMED:
+            throw ex_ALLOW_TRUST_MALFORMED{};
+        case ALLOW_TRUST_NO_TRUST_LINE:
+            throw ex_ALLOW_TRUST_NO_TRUST_LINE{};
+        case ALLOW_TRUST_TRUST_NOT_REQUIRED:
+            throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
+        case ALLOW_TRUST_CANT_REVOKE:
+            throw ex_ALLOW_TRUST_CANT_REVOKE{};
+        case ALLOW_TRUST_SELF_NOT_ALLOWED:
+            throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == ALLOW_TRUST_SUCCESS);
 }
 
 TransactionFramePtr
-createCreateAccountTx(Hash const& networkID, SecretKey& from, SecretKey& to,
+createCreateAccountTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
                       SequenceNumber seq, int64_t amount)
 {
     Operation op;
@@ -417,9 +451,8 @@ createCreateAccountTx(Hash const& networkID, SecretKey& from, SecretKey& to,
 }
 
 void
-applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
-                     SequenceNumber seq, int64_t amount,
-                     CreateAccountResultCode result)
+applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const& to,
+                     SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -432,20 +465,17 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
-    auto innerCode =
+    auto result =
         CreateAccountOpFrame::getInnerCode(txResult.result.results()[0]);
-    REQUIRE(innerCode == result);
-
-    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
     AccountFrame::pointer toAccountAfter;
     toAccountAfter = loadAccount(to, app, false);
 
-    if (innerCode != CREATE_ACCOUNT_SUCCESS)
+    if (result != CREATE_ACCOUNT_SUCCESS)
     {
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
@@ -458,9 +488,26 @@ applyCreateAccountTx(Application& app, SecretKey& from, SecretKey& to,
     {
         REQUIRE(toAccountAfter);
     }
+    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
+
+    switch (result)
+    {
+        case CREATE_ACCOUNT_MALFORMED:
+            throw ex_CREATE_ACCOUNT_MALFORMED{};
+        case CREATE_ACCOUNT_UNDERFUNDED:
+            throw ex_CREATE_ACCOUNT_UNDERFUNDED{};
+        case CREATE_ACCOUNT_LOW_RESERVE:
+            throw ex_CREATE_ACCOUNT_LOW_RESERVE{};
+        case CREATE_ACCOUNT_ALREADY_EXIST:
+            throw ex_CREATE_ACCOUNT_ALREADY_EXIST{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == CREATE_ACCOUNT_SUCCESS);
 }
 
-Operation createPaymentOp(SecretKey* from, SecretKey& to, int64_t amount)
+Operation createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -475,15 +522,15 @@ Operation createPaymentOp(SecretKey* from, SecretKey& to, int64_t amount)
 }
 
 TransactionFramePtr
-createPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
+createPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
                 SequenceNumber seq, int64_t amount)
 {
     return transactionFromOperation(networkID, from, seq, createPaymentOp(nullptr, to, amount));
 }
 
 void
-applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-               SequenceNumber seq, int64_t amount, PaymentResultCode result)
+applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
+               SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -496,19 +543,18 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
-    auto innerCode = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
-    REQUIRE(innerCode == result);
+    auto result = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
 
     REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
 
     AccountFrame::pointer toAccountAfter;
     toAccountAfter = loadAccount(to, app, false);
 
-    if (innerCode != PAYMENT_SUCCESS)
+    if (result != PAYMENT_SUCCESS)
     {
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
@@ -522,12 +568,38 @@ applyPaymentTx(Application& app, SecretKey& from, SecretKey& to,
         REQUIRE(toAccount);
         REQUIRE(toAccountAfter);
     }
+
+    switch (result)
+    {
+        case PAYMENT_MALFORMED:
+            throw ex_PAYMENT_MALFORMED{};
+        case PAYMENT_UNDERFUNDED:
+            throw ex_PAYMENT_UNDERFUNDED{};
+        case PAYMENT_SRC_NO_TRUST:
+            throw ex_PAYMENT_SRC_NO_TRUST{};
+        case PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PAYMENT_NO_DESTINATION:
+            throw ex_PAYMENT_NO_DESTINATION{};
+        case PAYMENT_NO_TRUST:
+            throw ex_PAYMENT_NO_TRUST{};
+        case PAYMENT_NOT_AUTHORIZED:
+            throw ex_PAYMENT_NOT_AUTHORIZED{};
+        case PAYMENT_LINE_FULL:
+            throw ex_PAYMENT_LINE_FULL{};
+        case PAYMENT_NO_ISSUER:
+            throw ex_PAYMENT_NO_ISSUER{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PAYMENT_SUCCESS);
 }
 
 void
-applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
+applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
                  SequenceNumber seq, std::string const& assetCode,
-                 int64_t limit, ChangeTrustResultCode result)
+                 int64_t limit)
 {
     TransactionFramePtr txFrame;
 
@@ -536,28 +608,45 @@ applyChangeTrust(Application& app, SecretKey& from, SecretKey& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
-    REQUIRE(ChangeTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
+
+    auto result = ChangeTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case CHANGE_TRUST_MALFORMED:
+            throw ex_CHANGE_TRUST_MALFORMED{};
+        case CHANGE_TRUST_NO_ISSUER:
+            throw ex_CHANGE_TRUST_NO_ISSUER{};
+        case CHANGE_TRUST_INVALID_LIMIT:
+            throw ex_CHANGE_TRUST_INVALID_LIMIT{};
+        case CHANGE_TRUST_LOW_RESERVE:
+            throw ex_CHANGE_TRUST_LOW_RESERVE{};
+        case CHANGE_TRUST_SELF_NOT_ALLOWED:
+            throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == CHANGE_TRUST_SUCCESS);
 }
 
 TransactionFramePtr
-createCreditPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
-                      Asset& asset, SequenceNumber seq, int64_t amount)
+createCreditPaymentTx(Hash const& networkID, SecretKey const& from, PublicKey const& to,
+                      Asset const& asset, SequenceNumber seq, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().asset = asset;
-    op.body.paymentOp().destination = to.getPublicKey();
+    op.body.paymentOp().destination = to;
 
     return transactionFromOperation(networkID, from, seq, op);
 }
 
 Asset
-makeAsset(SecretKey& issuer, std::string const& code)
+makeAsset(SecretKey const& issuer, std::string const& code)
 {
     Asset asset;
     asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
@@ -566,10 +655,9 @@ makeAsset(SecretKey& issuer, std::string const& code)
     return asset;
 }
 
-PaymentResult
-applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
-                     Asset& ci, SequenceNumber seq, int64_t amount,
-                     PaymentResultCode result)
+void
+applyCreditPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
+                     Asset const& ci, SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
 
@@ -578,20 +666,44 @@ applyCreditPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
 
-    PaymentResult res = firstResult.tr().paymentResult();
-    auto resCode = res.code();
-    REQUIRE(resCode == result);
-    return res;
+    auto res = firstResult.tr().paymentResult();
+    auto result = res.code();
+
+    switch (result)
+    {
+        case PAYMENT_MALFORMED:
+            throw ex_PAYMENT_MALFORMED{};
+        case PAYMENT_UNDERFUNDED:
+            throw ex_PAYMENT_UNDERFUNDED{};
+        case PAYMENT_SRC_NO_TRUST:
+            throw ex_PAYMENT_SRC_NO_TRUST{};
+        case PAYMENT_SRC_NOT_AUTHORIZED:
+            throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
+        case PAYMENT_NO_DESTINATION:
+            throw ex_PAYMENT_NO_DESTINATION{};
+        case PAYMENT_NO_TRUST:
+            throw ex_PAYMENT_NO_TRUST{};
+        case PAYMENT_NOT_AUTHORIZED:
+            throw ex_PAYMENT_NOT_AUTHORIZED{};
+        case PAYMENT_LINE_FULL:
+            throw ex_PAYMENT_LINE_FULL{};
+        case PAYMENT_NO_ISSUER:
+            throw ex_PAYMENT_NO_ISSUER{};
+        default:
+            break;
+    }
+
+    REQUIRE(result == PAYMENT_SUCCESS);
 }
 
 TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
+createPathPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
                     Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                     int64_t destAmount, SequenceNumber seq,
                     std::vector<Asset>* path)
@@ -616,7 +728,7 @@ createPathPaymentTx(Hash const& networkID, SecretKey& from, SecretKey& to,
 }
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
+applyPathPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                    int64_t destAmount, SequenceNumber seq,
                    PathPaymentResultCode result, std::vector<Asset>* path)
@@ -641,8 +753,8 @@ applyPathPaymentTx(Application& app, SecretKey& from, SecretKey& to,
 }
 
 TransactionFramePtr
-createPassiveOfferOp(Hash const& networkID, SecretKey& source, Asset& selling,
-                     Asset& buying, Price const& price, int64_t amount,
+createPassiveOfferOp(Hash const& networkID, SecretKey const& source, Asset const& selling,
+                     Asset const& buying, Price const& price, int64_t amount,
                      SequenceNumber seq)
 {
     Operation op;
@@ -656,8 +768,8 @@ createPassiveOfferOp(Hash const& networkID, SecretKey& source, Asset& selling,
 }
 
 TransactionFramePtr
-manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey& source,
-              Asset& selling, Asset& buying, Price const& price, int64_t amount,
+manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
+              Asset const& selling, Asset const& buying, Price const& price, int64_t amount,
               SequenceNumber seq)
 {
     Operation op;
@@ -672,11 +784,14 @@ manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey& source,
 }
 
 static ManageOfferResult
-applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
-                       SecretKey& source, Asset& selling, Asset& buying,
+applyCreateOfferHelper(Application& app, uint64 offerId,
+                       SecretKey const& source, Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount, SequenceNumber seq)
 {
-    uint64_t expectedOfferID = delta.getHeaderFrame().getLastGeneratedID() + 1;
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto expectedOfferID = lastGeneratedID + 1;
     if (offerId != 0)
     {
         expectedOfferID = offerId;
@@ -687,9 +802,18 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
     txFrame = manageOfferOp(app.getNetworkID(), offerId, source, selling,
                             buying, price, amount, seq);
 
-    applyCheck(txFrame, delta, app);
+    try
+    {
+        throwingApplyCheck(txFrame, delta, app);
+    }
+    catch (...)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        throw;
+    }
 
     checkTransaction(*txFrame);
+    delta.commit();
 
     auto& results = txFrame->getResult().result.results();
 
@@ -708,7 +832,7 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer = loadOffer(source, expectedOfferID, app);
+            offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
             auto& offerEntry = offer->getOffer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
@@ -717,50 +841,175 @@ applyCreateOfferHelper(Application& app, LedgerDelta& delta, uint64 offerId,
         }
         break;
         case MANAGE_OFFER_DELETED:
-            REQUIRE(!loadOffer(source, expectedOfferID, app, false));
+            REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
             break;
         default:
             abort();
         }
+    }
+    else
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
     }
 
     return manageOfferResult;
 }
 
 uint64_t
-applyCreateOffer(Application& app, LedgerDelta& delta, uint64 offerId,
-                 SecretKey& source, Asset& selling, Asset& buying,
-                 Price const& price, int64_t amount, SequenceNumber seq)
+applyManageOffer(Application& app, uint64 offerId,
+                 SecretKey const& source, Asset const& selling, Asset const& buying,
+                 Price const& price, int64_t amount, SequenceNumber seq, ManageOfferEffect expectedEffect)
 {
     ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, selling, buying, price, amount, seq);
+        app, offerId, source, selling, buying, price, amount, seq);
+
+    switch (createOfferRes.code())
+    {
+        case MANAGE_OFFER_MALFORMED:
+            throw ex_MANAGE_OFFER_MALFORMED{};
+        case MANAGE_OFFER_SELL_NO_TRUST:
+            throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
+        case MANAGE_OFFER_BUY_NO_TRUST:
+            throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
+        case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_LINE_FULL:
+            throw ex_MANAGE_OFFER_LINE_FULL{};
+        case MANAGE_OFFER_UNDERFUNDED:
+            throw ex_MANAGE_OFFER_UNDERFUNDED{};
+        case MANAGE_OFFER_CROSS_SELF:
+            throw ex_MANAGE_OFFER_CROSS_SELF{};
+        case MANAGE_OFFER_SELL_NO_ISSUER:
+            throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
+        case MANAGE_OFFER_BUY_NO_ISSUER:
+            throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
+        case MANAGE_OFFER_NOT_FOUND:
+            throw ex_MANAGE_OFFER_NOT_FOUND{};
+        case MANAGE_OFFER_LOW_RESERVE:
+            throw ex_MANAGE_OFFER_LOW_RESERVE{};
+        default:
+            break;
+    }
 
     REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
 
     auto& success = createOfferRes.success().offer;
 
-    REQUIRE(success.effect() == MANAGE_OFFER_CREATED);
+    REQUIRE(success.effect() == expectedEffect);
 
-    return success.offer().offerID;
+    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID : 0;
 }
 
-ManageOfferResult
-applyCreateOfferWithResult(Application& app, LedgerDelta& delta, uint64 offerId,
-                           SecretKey& source, Asset& selling, Asset& buying,
-                           Price const& price, int64_t amount,
-                           SequenceNumber seq, ManageOfferResultCode result)
+uint64_t
+applyCreatePassiveOffer(Application& app,
+                        SecretKey const&source, Asset const& selling, Asset const& buying,
+                        Price const& price, int64_t amount,
+                        SequenceNumber seq, ManageOfferEffect expectedEffect)
 {
-    ManageOfferResult const& manageOfferRes = applyCreateOfferHelper(
-        app, delta, offerId, source, selling, buying, price, amount, seq);
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto expectedOfferID = lastGeneratedID + 1;
 
-    auto res = manageOfferRes.code();
-    REQUIRE(res == result);
+    TransactionFramePtr txFrame;
+    txFrame = createPassiveOfferOp(app.getNetworkID(), source, selling,
+                            buying, price, amount, seq);
 
-    return manageOfferRes;
+    try
+    {
+        throwingApplyCheck(txFrame, delta, app);
+    }
+    catch (...)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        throw;
+    }
+
+    checkTransaction(*txFrame);
+    delta.commit();
+
+    auto& results = txFrame->getResult().result.results();
+
+    REQUIRE(results.size() == 1);
+
+    auto& createPassiveOfferResult = results[0].tr().manageOfferResult();
+
+    if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
+    {
+        OfferFrame::pointer offer;
+
+        auto& offerResult = createPassiveOfferResult.success().offer;
+
+        switch (offerResult.effect())
+        {
+        case MANAGE_OFFER_CREATED:
+        case MANAGE_OFFER_UPDATED:
+        {
+            offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
+            auto& offerEntry = offer->getOffer();
+            REQUIRE(offerEntry == offerResult.offer());
+            REQUIRE(offerEntry.price == price);
+            REQUIRE(offerEntry.selling == selling);
+            REQUIRE(offerEntry.buying == buying);
+            REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
+        }
+        break;
+        case MANAGE_OFFER_DELETED:
+            REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+            break;
+        default:
+            abort();
+        }
+    }
+
+    if (createPassiveOfferResult.code() != MANAGE_OFFER_SUCCESS)
+    {
+        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+    }
+
+    switch (createPassiveOfferResult.code())
+    {
+        case MANAGE_OFFER_MALFORMED:
+            throw ex_MANAGE_OFFER_MALFORMED{};
+        case MANAGE_OFFER_SELL_NO_TRUST:
+            throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
+        case MANAGE_OFFER_BUY_NO_TRUST:
+            throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
+        case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
+            throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
+        case MANAGE_OFFER_LINE_FULL:
+            throw ex_MANAGE_OFFER_LINE_FULL{};
+        case MANAGE_OFFER_UNDERFUNDED:
+            throw ex_MANAGE_OFFER_UNDERFUNDED{};
+        case MANAGE_OFFER_CROSS_SELF:
+            throw ex_MANAGE_OFFER_CROSS_SELF{};
+        case MANAGE_OFFER_SELL_NO_ISSUER:
+            throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
+        case MANAGE_OFFER_BUY_NO_ISSUER:
+            throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
+        case MANAGE_OFFER_NOT_FOUND:
+            throw ex_MANAGE_OFFER_NOT_FOUND{};
+        case MANAGE_OFFER_LOW_RESERVE:
+            throw ex_MANAGE_OFFER_LOW_RESERVE{};
+        default:
+            break;
+    }
+
+    REQUIRE(createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS);
+
+    auto& success = createPassiveOfferResult.success().offer;
+
+    REQUIRE(success.effect() == expectedEffect);
+
+    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID : 0;
 }
 
 TransactionFramePtr
-createSetOptions(Hash const& networkID, SecretKey& source, SequenceNumber seq,
+createSetOptions(Hash const& networkID, SecretKey const& source, SequenceNumber seq,
                  AccountID* inflationDest, uint32_t* setFlags,
                  uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
                  std::string* homeDomain)
@@ -819,7 +1068,7 @@ createSetOptions(Hash const& networkID, SecretKey& source, SequenceNumber seq,
 }
 
 void
-applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
+applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
                 AccountID* inflationDest, uint32_t* setFlags,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
                 std::string* homeDomain, SetOptionsResultCode result)
@@ -839,7 +1088,7 @@ applySetOptions(Application& app, SecretKey& source, SequenceNumber seq,
 }
 
 TransactionFramePtr
-createInflation(Hash const& networkID, SecretKey& from, SequenceNumber seq)
+createInflation(Hash const& networkID, SecretKey const& from, SequenceNumber seq)
 {
     Operation op;
     op.body.type(INFLATION);
@@ -848,7 +1097,7 @@ createInflation(Hash const& networkID, SecretKey& from, SequenceNumber seq)
 }
 
 OperationResult
-applyInflation(Application& app, SecretKey& from, SequenceNumber seq,
+applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
                InflationResultCode result)
 {
     TransactionFramePtr txFrame =
@@ -869,7 +1118,7 @@ applyInflation(Application& app, SecretKey& from, SequenceNumber seq,
 }
 
 TransactionFramePtr
-createAccountMerge(Hash const& networkID, SecretKey& source, SecretKey& dest,
+createAccountMerge(Hash const& networkID, SecretKey const& source, SecretKey const& dest,
                    SequenceNumber seq)
 {
     Operation op;
@@ -880,7 +1129,7 @@ createAccountMerge(Hash const& networkID, SecretKey& source, SecretKey& dest,
 }
 
 void
-applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
+applyAccountMerge(Application& app, SecretKey const& source, SecretKey const& dest,
                   SequenceNumber seq, AccountMergeResultCode targetResult)
 {
     TransactionFramePtr txFrame =
@@ -895,7 +1144,7 @@ applyAccountMerge(Application& app, SecretKey& source, SecretKey& dest,
 }
 
 TransactionFramePtr
-createManageData(Hash const& networkID, SecretKey& source,
+createManageData(Hash const& networkID, SecretKey const& source,
     std::string& name, DataValue* value, SequenceNumber seq)
 {
     Operation op;
@@ -909,7 +1158,7 @@ createManageData(Hash const& networkID, SecretKey& source,
 
 void
 applyManageData( Application& app,
-    SecretKey& source, std::string& name, DataValue* value,
+    SecretKey const& source, std::string& name, DataValue* value,
     SequenceNumber seq, ManageDataResultCode targetResult)
 {
     TransactionFramePtr txFrame =
@@ -963,7 +1212,7 @@ getFirstOperation(TransactionFrame& tx)
 }
 
 void
-reSignTransaction(TransactionFrame& tx, SecretKey& source)
+reSignTransaction(TransactionFrame& tx, SecretKey const& source)
 {
     tx.getEnvelope().signatures.clear();
     tx.addSignature(source);

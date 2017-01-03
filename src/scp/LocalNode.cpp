@@ -208,7 +208,7 @@ LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
     {
         if (qsetNode == nodeID)
         {
-            bigDivide(res, UINT64_MAX, n, d);
+            bigDivide(res, UINT64_MAX, n, d, ROUND_DOWN);
             return res;
         }
     }
@@ -218,7 +218,7 @@ LocalNode::getNodeWeight(NodeID const& nodeID, SCPQuorumSet const& qset)
         uint64 leafW = getNodeWeight(nodeID, q);
         if (leafW)
         {
-            bigDivide(res, leafW, n, d);
+            bigDivide(res, leafW, n, d, ROUND_DOWN);
             return res;
         }
     }

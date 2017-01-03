@@ -10,7 +10,7 @@
 #include "util/Logging.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerHeaderFrame.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "database/Database.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"

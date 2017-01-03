@@ -12,7 +12,7 @@
 #include "util/Timer.h"
 #include "crypto/SHA.h"
 #include "medida/medida.h"
-#include "transactions/TxTests.h"
+#include "test/TxTests.h"
 #include "xdr/Stellar-types.h"
 #include "simulation/LoadGenerator.h"
 
