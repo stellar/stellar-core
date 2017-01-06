@@ -23,8 +23,11 @@ class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
+    size_t mSizeLimit;
 
   public:
+    XDRInputFileStream(size_t sizeLimit = 0) : mSizeLimit{sizeLimit} {}
+
     void
     close()
     {
@@ -72,6 +75,10 @@ class XDRInputFileStream
         sz <<= 8;
         sz |= static_cast<uint8_t>(szBuf[3]);
 
+        if (mSizeLimit != 0 && sz > mSizeLimit)
+        {
+            return false;
+        }
         if (sz > mBuf.size())
         {
             mBuf.resize(sz);
