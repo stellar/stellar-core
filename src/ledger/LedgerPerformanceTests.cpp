@@ -176,7 +176,8 @@ TEST_CASE("ledger performance test", "[performance][hide]")
     Timer& ledgerTimer = sim.mApp->getMetrics().NewTimer(
         {"performance-test", "ledger", "close"});
     Timer& mergeTimer = sim.mApp->getBucketManager().getMergeTimer();
-    for (int iAccounts = 1000000; iAccounts <= nAccounts; iAccounts *= 10)
+    // use uint64_t for iAccounts to prevent overflows
+    for (uint64_t iAccounts = 1000000; iAccounts <= nAccounts; iAccounts *= 10)
     {
         ledgerTimer.Clear();
         mergeTimer.Clear();
