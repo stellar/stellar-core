@@ -54,7 +54,7 @@ fuzz-testcases: stellar-core
 
 fuzz: fuzz-testcases stellar-core
 	mkdir -p fuzz-findings
-	afl-fuzz -m 8000 -i fuzz-testcases -o fuzz-findings \
+	afl-fuzz -m 8000 -t 250 -i fuzz-testcases -o fuzz-findings \
 	    ./stellar-core --fuzz @@
 
 fuzz-clean: always
