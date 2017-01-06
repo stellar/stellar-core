@@ -16,9 +16,6 @@
 #include "main/Config.h"
 #include "util/GlobalChecks.h"
 
-#define MAX_UNAUTH_MESSAGE_SIZE 0x1000
-#define MAX_MESSAGE_SIZE 0x1000000
-
 using namespace soci;
 
 namespace stellar
