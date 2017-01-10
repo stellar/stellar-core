@@ -128,14 +128,14 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
 
     // 1% annual inflation on a weekly basis
     // 0.000190721
-    int64 coinsToDole = bigDivide(totCoins, 190721, 1000000000);
+    int64 coinsToDole = bigDivide(totCoins, 190721, 1000000000, ROUND_DOWN);
     coinsToDole += totFees;
     int64 leftToDole = coinsToDole;
 
     for (auto w : winners)
     {
         // computes the share of this guy
-        int64 toDoleToThis = bigDivide(coinsToDole, votes.at(w), totVotes);
+        int64 toDoleToThis = bigDivide(coinsToDole, votes.at(w), totVotes, ROUND_DOWN);
         if (balances[w] >= 0)
         {
             balances[w] += toDoleToThis;
@@ -331,7 +331,7 @@ TEST_CASE("inflation", "[tx][inflation]")
     const int64 minVote = 1000000000LL;
     // .05% of all coins
     const int64 winnerVote = bigDivide(
-        app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 5, 10000);
+        app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 5, 10000, ROUND_DOWN);
 
     SECTION("inflation scenarios")
     {
@@ -417,7 +417,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             expectedWinners = 2;
             const int midPoint = nbAccounts / 2;
 
-            const int64 each = bigDivide(winnerVote, 2, nbAccounts) + minVote;
+            const int64 each = bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
 
             voteFunc = [&](int n)
             {
@@ -449,7 +449,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             expectedWinners = 1;
             const int midPoint = nbAccounts / 2;
 
-            const int64 each = bigDivide(winnerVote, 2, nbAccounts) + minVote;
+            const int64 each = bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
 
             voteFunc = [&](int n)
             {

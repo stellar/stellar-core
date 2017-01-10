@@ -12,6 +12,98 @@
 namespace stellar
 {
 
+namespace
+{
+
+int64_t
+canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return INT64_MAX;
+    }
+
+    // compute value based on what the account can receive
+    auto sellerMaxSheep =
+        trustLine ? trustLine->getMaxAmountReceive() : 0;
+
+    auto result = int64_t{};
+    if (!bigDivide(result, sellerMaxSheep, price.d, price.n, ROUND_DOWN))
+    {
+        result = INT64_MAX;
+    }
+
+    return result;
+}
+
+int64_t
+canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::pointer trustLine, LedgerManager &ledgerManager)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        // can only send above the minimum balance
+        return account->getBalanceAboveReserve(ledgerManager);
+    }
+
+    if (trustLine && trustLine->isAuthorized())
+    {
+        return trustLine->getBalance();
+    }
+
+    return 0;
+}
+
+}
+
+ExchangeResult
+exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+{
+    auto result = ExchangeResult{};
+    result.reduced = wheatReceived > maxWheatReceive;
+    wheatReceived = std::min(wheatReceived, maxWheatReceive);
+
+    // this guy can get X wheat to you. How many sheep does that get him?
+    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d, ROUND_DOWN))
+    {
+        result.numSheepSend = INT64_MAX;
+    }
+
+    result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
+    result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
+    // bias towards seller (this cannot overflow at this point)
+    result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n, ROUND_DOWN);
+
+    return result;
+}
+
+ExchangeResult
+exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+{
+    auto result = ExchangeResult{};
+    result.reduced = wheatReceived > maxWheatReceive;
+    result.numWheatReceived = std::min(wheatReceived, maxWheatReceive);
+
+    // this guy can get X wheat to you. How many sheep does that get him?
+    // bias towards seller
+    if (!bigDivide(result.numSheepSend, result.numWheatReceived, price.n, price.d, ROUND_UP))
+    {
+        result.reduced = true;
+        result.numSheepSend = INT64_MAX;
+    }
+
+    result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
+    result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
+
+    auto newWheatReceived = int64_t{};
+    if (!bigDivide(newWheatReceived, result.numSheepSend, price.d, price.n, ROUND_DOWN))
+    {
+        newWheatReceived = INT64_MAX;
+    }
+    result.numWheatReceived = std::min(result.numWheatReceived, newWheatReceived);
+
+    return result;
+}
+
 OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
     : mDelta(delta), mLedgerManager(ledgerManager)
 {
@@ -47,112 +139,39 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     TrustFrame::pointer sheepLineAccountB;
-
-    if (sheep.type() == ASSET_TYPE_NATIVE)
-    {
-        numWheatReceived = INT64_MAX;
-    }
-    else
+    if (sheep.type() != ASSET_TYPE_NATIVE)
     {
         sheepLineAccountB =
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
-
-        // compute numWheatReceived based on what the account can receive
-        int64_t sellerMaxSheep =
-            sheepLineAccountB ? sheepLineAccountB->getMaxAmountReceive() : 0;
-
-        if (!bigDivide(numWheatReceived, sellerMaxSheep,
-                       sellingWheatOffer.getOffer().price.d,
-                       sellingWheatOffer.getOffer().price.n))
-        {
-            numWheatReceived = INT64_MAX;
-        }
     }
 
-    // adjust numWheatReceived with what the seller has
-    {
-        int64_t wheatCanSell;
-        if (wheat.type() == ASSET_TYPE_NATIVE)
-        {
-            // can only send above the minimum balance
-            wheatCanSell = accountB->getBalanceAboveReserve(mLedgerManager);
-        }
-        else
-        {
-            if (wheatLineAccountB && wheatLineAccountB->isAuthorized())
-            {
-                wheatCanSell = wheatLineAccountB->getBalance();
-            }
-            else
-            {
-                wheatCanSell = 0;
-            }
-        }
-        if (numWheatReceived > wheatCanSell)
-        {
-            numWheatReceived = wheatCanSell;
-        }
-    }
-    // you can receive the lesser of the amount of wheat offered or
-    // the amount the guy has
+    numWheatReceived = std::min({
+        canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price),
+        canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
+        sellingWheatOffer.getOffer().amount
+    });
+    sellingWheatOffer.getOffer().amount = numWheatReceived;
+    auto exchangeResult = mLedgerManager.getCurrentLedgerVersion() < 3
+        ? exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend)
+        : exchangeV3(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
 
-    if (numWheatReceived >= sellingWheatOffer.getOffer().amount)
-    {
-        numWheatReceived = sellingWheatOffer.getOffer().amount;
-    }
-    else
-    {
-        // update the offer based on the balance (to determine if it should be
-        // deleted or not)
-        // note that we don't need to write into the db at this point as the
-        // actual update
-        // is done further down
-        sellingWheatOffer.getOffer().amount = numWheatReceived;
-    }
-
-    bool reducedOffer = false;
-
-    if (numWheatReceived > maxWheatReceived)
-    {
-        numWheatReceived = maxWheatReceived;
-        reducedOffer = true;
-    }
-
-    // this guy can get X wheat to you. How many sheep does that get him?
-    if (!bigDivide(numSheepSend, numWheatReceived,
-                   sellingWheatOffer.getOffer().price.n,
-                   sellingWheatOffer.getOffer().price.d))
-    {
-        numSheepSend = INT64_MAX;
-    }
-
-    if (numSheepSend > maxSheepSend)
-    {
-        // reduce the number even more if there is a limit on Sheep
-        numSheepSend = maxSheepSend;
-        reducedOffer = true;
-    }
-
-    // bias towards seller (this cannot overflow at this point)
-    numWheatReceived =
-        bigDivide(numSheepSend, sellingWheatOffer.getOffer().price.d,
-                  sellingWheatOffer.getOffer().price.n);
+    numWheatReceived = exchangeResult.numWheatReceived;
+    numSheepSend = exchangeResult.numSheepSend;
 
     bool offerTaken = false;
 
-    if (numWheatReceived == 0 || numSheepSend == 0)
+    switch (exchangeResult.type())
     {
-        if (reducedOffer)
-        {
+        case ExchangeResultType::REDUCED_TO_ZERO:
             return eOfferCantConvert;
-        }
-        else
-        {
+        case ExchangeResultType::BOGUS:
             // force delete the offer as it represents a bogus offer
             numWheatReceived = 0;
             numSheepSend = 0;
             offerTaken = true;
-        }
+            break;
+        default:
+            break;
     }
 
     offerTaken =
