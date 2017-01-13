@@ -12,7 +12,7 @@ Build Dependencies
        * https://www.visualstudio.com/en-us/downloads/visual-studio-2015-downloads-vs.aspx
        * http://blogs.msdn.com/b/visualstudio/archive/2015/11/30/visual-studio-update-1-rtm.aspx
 
-- Download and install PostgreSQL 9.4.1 from http://www.postgresql.org/download/windows/
+- Download and install PostgreSQL 9.4.8 from https://www.enterprisedb.com/download-postgresql-binaries
   The default project file defines USE_POSTGRES and links against it.
        * Pick a directory for the database
        * Set an admin password for the database
@@ -24,6 +24,7 @@ Build Dependencies
 
   If the installation fails, look into `%TEMP%\install-postgresql.log` for hints.
 
+- OR if you don't want to use postgres you can select `DebugNoPostgres` as the build target.
 
 - In order to compile xdrc and run the binary you will need to either
        * Download and install MinGW from http://sourceforge.net/projects/mingw/files/

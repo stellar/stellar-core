@@ -267,9 +267,6 @@
     <ClCompile Include="..\..\src\transactions\OfferTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\transactions\TxTests.cpp">
-      <Filter>transactions\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
@@ -432,9 +429,6 @@
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp">
       <Filter>herder</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
-      <Filter>scp</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\lib\util\crc16.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -551,6 +545,24 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp">
       <Filter>main</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TestAccount.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TxTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\QuorumSetUtils.cpp">
+      <Filter>scp</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\QuorumSetTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
+      <Filter>scp\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\Tracker.cpp">
+      <Filter>overlay</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -700,9 +712,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\crypto\SecretKey.h">
       <Filter>crypto</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\transactions\TxTests.h">
-      <Filter>transactions\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\lib\util\format.h">
       <Filter>lib\util</Filter>
@@ -955,6 +964,21 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestAccount.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestExceptions.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TxTests.h">
+      <Filter>transactions\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\scp\QuorumSetUtils.h">
+      <Filter>scp</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\Tracker.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

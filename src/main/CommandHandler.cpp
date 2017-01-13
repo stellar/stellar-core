@@ -349,8 +349,8 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
 
 enum class Requirement
 {
-    OPTIONAL,
-    REQUIRED
+    OPTIONAL_REQ,
+    REQUIRED_REQ
 };
 
 template <typename T>
@@ -371,7 +371,7 @@ parseNumParam(std::map<std::string, std::string> const& map,
         }
         return true;
     }
-    return requirement == Requirement::OPTIONAL;
+    return requirement == Requirement::OPTIONAL_REQ;
 }
 
 void
@@ -390,10 +390,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
-        if (!parseNumParam(map, "accounts", nAccounts, retStr, Requirement::OPTIONAL))
+        if (!parseNumParam(map, "accounts", nAccounts, retStr, Requirement::OPTIONAL_REQ))
             return;
 
-        if (!parseNumParam(map, "txs", nTxs, retStr, Requirement::OPTIONAL))
+        if (!parseNumParam(map, "txs", nTxs, retStr, Requirement::OPTIONAL_REQ))
             return;
 
         {
@@ -402,7 +402,7 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             {
                 autoRate = true;
             }
-            else if (!parseNumParam(map, "txrate", txRate, retStr, Requirement::OPTIONAL))
+            else if (!parseNumParam(map, "txrate", txRate, retStr, Requirement::OPTIONAL_REQ))
                 return;
         }
 
@@ -939,7 +939,7 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
 
     uint32 cursor;
 
-    if (!parseNumParam(map, "cursor", cursor, retStr, Requirement::REQUIRED))
+    if (!parseNumParam(map, "cursor", cursor, retStr, Requirement::REQUIRED_REQ))
     {
         retStr = "Invalid cursor";
         return;
