@@ -7,13 +7,15 @@
 namespace stellar
 {
 
-struct SignerKey;
+class ByteSlice;
 class TransactionFrame;
+struct SignerKey;
 
 namespace SignerKeyUtils
 {
 
 SignerKey hashTxKey(TransactionFrame const &tx);
+SignerKey hashXKey(ByteSlice const &bs);
 
 }
 

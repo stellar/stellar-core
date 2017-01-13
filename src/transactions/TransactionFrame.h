@@ -27,12 +27,12 @@ class Application;
 class OperationFrame;
 class LedgerDelta;
 class SecretKey;
+class SignatureChecker;
 class XDROutputFileStream;
 class SHA256;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
-using UsedOneTimeSignerKeys = std::map<AccountID, std::set<SignerKey>>;
 
 class TransactionFrame
 {
@@ -41,8 +41,6 @@ class TransactionFrame
     TransactionResult mResult;
 
     AccountFrame::pointer mSigningAccount;
-    std::vector<bool> mUsedSignatures;
-    UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -52,14 +50,14 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     bool loadAccount(LedgerDelta* delta, Database& app);
-    bool commonValid(Application& app, LedgerDelta* delta,
+    bool commonValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta,
                      SequenceNumber current);
 
-    void resetSignatureTracker();
+    void resetSigningAccount();
     void resetResults();
     bool checkAllSignaturesUsed();
-    void removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager);
-    void removeUsedOneTimeSignerKeys(const AccountID &accountId, LedgerDelta& delta, LedgerManager& ledgerManager) const;
+    void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker, LedgerDelta& delta, LedgerManager& ledgerManager);
+    void removeUsedOneTimeSignerKeys(const AccountID &accountId, const std::set<SignerKey> &keys, LedgerDelta& delta, LedgerManager& ledgerManager) const;
     bool removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const;
     void markResultFailed();
 
@@ -138,8 +136,9 @@ class TransactionFrame
     double getFeeRatio(LedgerManager const& lm) const;
 
     void addSignature(SecretKey const& secretKey);
+    void addSignature(DecoratedSignature const& signature);
 
-    bool checkSignature(AccountFrame& account, int32_t neededWeight);
+    bool checkSignature(SignatureChecker& signatureChecker, AccountFrame& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
 

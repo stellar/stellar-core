@@ -25,7 +25,9 @@ KeyFunctions<SignerKey>::getKeyVersionIsSupported(strKey::StrKeyVersionByte keyV
     {
     case strKey::STRKEY_PUBKEY_ED25519:
         return true;
-    case strKey::STRKEY_PUBKEY_HASH_TX:
+    case strKey::STRKEY_HASH_TX:
+        return true;
+    case strKey::STRKEY_HASH_X:
         return true;
     default:
         return false;
@@ -39,8 +41,10 @@ KeyFunctions<SignerKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
     {
     case strKey::STRKEY_PUBKEY_ED25519:
         return SignerKeyType::SIGNER_KEY_TYPE_ED25519;
-    case strKey::STRKEY_PUBKEY_HASH_TX:
+    case strKey::STRKEY_HASH_TX:
         return SignerKeyType::SIGNER_KEY_TYPE_HASH_TX;
+    case strKey::STRKEY_HASH_X:
+        return SignerKeyType::SIGNER_KEY_TYPE_HASH_X;
     default:
         throw std::invalid_argument("invalid signer key type");
     }
@@ -54,7 +58,9 @@ KeyFunctions<SignerKey>::toKeyVersion(SignerKeyType keyType)
     case SignerKeyType::SIGNER_KEY_TYPE_ED25519:
         return strKey::STRKEY_PUBKEY_ED25519;
     case SignerKeyType::SIGNER_KEY_TYPE_HASH_TX:
-        return strKey::STRKEY_PUBKEY_HASH_TX;
+        return strKey::STRKEY_HASH_TX;
+    case SignerKeyType::SIGNER_KEY_TYPE_HASH_X:
+        return strKey::STRKEY_HASH_X;
     default:
         throw std::invalid_argument("invalid signer key type");
     }
@@ -69,6 +75,8 @@ KeyFunctions<SignerKey>::getKeyValue(SignerKey &key)
         return key.ed25519();
     case SIGNER_KEY_TYPE_HASH_TX:
         return key.hashTx();
+    case SIGNER_KEY_TYPE_HASH_X:
+        return key.hashX();
     default:
         throw std::invalid_argument("invalid signer key type");
     }
@@ -83,6 +91,8 @@ KeyFunctions<SignerKey>::getKeyValue(SignerKey const &key)
         return key.ed25519();
     case SIGNER_KEY_TYPE_HASH_TX:
         return key.hashTx();
+    case SIGNER_KEY_TYPE_HASH_X:
+        return key.hashX();
     default:
         throw std::invalid_argument("invalid signer key type");
     }

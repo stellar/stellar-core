@@ -14,6 +14,7 @@
 #include "util/HashOfHash.h"
 #include <mutex>
 #include "main/Config.h"
+#include "transactions/SignatureUtils.h"
 #include "util/lrucache.hpp"
 
 namespace stellar
@@ -322,21 +323,6 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
         gVerifySigCache.put(cacheKey, ok);
     }
     return ok;
-}
-
-SignatureHint
-PubKeyUtils::getHint(PublicKey const& pk)
-{
-    SignatureHint res;
-    memcpy(res.data(), &pk.ed25519().back() - res.size() + 1, res.size());
-    return res;
-}
-
-bool
-PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
-{
-    return memcmp(&pk.ed25519().back() - hint.size() + 1, hint.data(),
-                  hint.size()) == 0;
 }
 
 PublicKey

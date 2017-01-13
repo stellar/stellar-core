@@ -13,11 +13,12 @@
 #include "util/XDRStream.h"
 #include "ledger/LedgerDelta.h"
 #include "crypto/SHA.h"
-#include "crypto/SecretKey.h"
-#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "crypto/Hex.h"
+#include "crypto/SignerKey.h"
+#include "transactions/SignatureChecker.h"
+#include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 
 #include "medida/meter.h"
@@ -125,69 +126,27 @@ void
 TransactionFrame::addSignature(SecretKey const& secretKey)
 {
     clearCached();
-    DecoratedSignature sig;
-    sig.signature = secretKey.sign(getContentsHash());
-    sig.hint = PubKeyUtils::getHint(secretKey.getPublicKey());
-    mEnvelope.signatures.push_back(sig);
+    auto sig = SignatureUtils::sign(secretKey, getContentsHash());
+    addSignature(sig);
+}
+
+void
+TransactionFrame::addSignature(DecoratedSignature const& signature)
+{
+    mEnvelope.signatures.push_back(signature);
 }
 
 bool
-TransactionFrame::checkSignature(AccountFrame& account, int32_t neededWeight)
+TransactionFrame::checkSignature(SignatureChecker& signatureChecker, AccountFrame& account, int32_t neededWeight)
 {
-    vector<Signer> keyWeightsV;
+    std::vector<Signer> signers;
     if (account.getAccount().thresholds[0])
-        keyWeightsV.push_back(
+        signers.push_back(
             Signer(KeyUtils::convertKey<SignerKey>(account.getID()), account.getAccount().thresholds[0]));
-
-    keyWeightsV.insert(keyWeightsV.end(), account.getAccount().signers.begin(),
+    signers.insert(signers.end(), account.getAccount().signers.begin(),
                       account.getAccount().signers.end());
 
-    auto keyWeights = split(keyWeightsV, [](const Signer &s){ return s.key.type(); });
-
-    Hash const& contentsHash = getContentsHash();
-
-    // calculate the weight of the signatures
-    int totalWeight = 0;
-
-    // compare all available SIGNER_KEY_TYPE_HASH_TX with current transaction hash
-    // current transaction hash is not stored in getEnvelope().signatures - it is
-    // computed with getContentsHash() method
-    for (auto const &signerKey : keyWeights[SIGNER_KEY_TYPE_HASH_TX])
-    {
-        if (signerKey.key.hashTx() == contentsHash)
-        {
-            mUsedOneTimeSignerKeys[account.getID()].insert(signerKey.key);
-            totalWeight += signerKey.weight;
-            if (totalWeight >= neededWeight)
-                return true;
-        }
-    }
-
-    auto &accountkeyWeights = keyWeights[SIGNER_KEY_TYPE_ED25519];
-    for (size_t i = 0; i < getEnvelope().signatures.size(); i++)
-    {
-        auto const& sig = getEnvelope().signatures[i];
-
-        for (auto it = accountkeyWeights.begin(); it != accountkeyWeights.end(); ++it)
-        {
-            auto &signerKey = *it;
-            auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey.key);
-            if (PubKeyUtils::hasHint(pubKey, sig.hint) &&
-                PubKeyUtils::verifySig(pubKey, sig.signature,
-                                       contentsHash))
-            {
-                mUsedSignatures[i] = true;
-                totalWeight += signerKey.weight;
-                if (totalWeight >= neededWeight)
-                    return true;
-
-                accountkeyWeights.erase(it);
-                break;
-            }
-        }
-    }
-
-    return false;
+    return signatureChecker.checkSignature(account.getID(), signers, neededWeight);
 }
 
 AccountFrame::pointer
@@ -242,7 +201,7 @@ TransactionFrame::resetResults()
 }
 
 bool
-TransactionFrame::commonValid(Application& app, LedgerDelta* delta,
+TransactionFrame::commonValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta,
                               SequenceNumber current)
 {
     bool applying = (delta != nullptr);
@@ -318,7 +277,7 @@ TransactionFrame::commonValid(Application& app, LedgerDelta* delta,
         }
     }
 
-    if (!checkSignature(*mSigningAccount, mSigningAccount->getLowThreshold()))
+    if (!checkSignature(signatureChecker, *mSigningAccount, mSigningAccount->getLowThreshold()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")
@@ -346,7 +305,7 @@ void
 TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
                                    LedgerManager& ledgerManager)
 {
-    resetSignatureTracker();
+    resetSigningAccount();
     resetResults();
 
     if (!loadAccount(&delta, ledgerManager.getDatabase()))
@@ -392,40 +351,22 @@ TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
 }
 
 void
-TransactionFrame::resetSignatureTracker()
+TransactionFrame::resetSigningAccount()
 {
     mSigningAccount.reset();
-    mUsedSignatures = std::vector<bool>(mEnvelope.signatures.size());
-    mUsedOneTimeSignerKeys.clear();
-}
-
-bool
-TransactionFrame::checkAllSignaturesUsed()
-{
-    for (auto sigb : mUsedSignatures)
-    {
-        if (!sigb)
-        {
-            getResult().result.code(txBAD_AUTH_EXTRA);
-            return false;
-        }
-    }
-    return true;
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(LedgerDelta& delta, LedgerManager& ledgerManager)
+TransactionFrame::removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker, LedgerDelta& delta, LedgerManager& ledgerManager)
 {
-    for (auto const &usedAccount : mUsedOneTimeSignerKeys)
+    for (auto const &usedAccount : signatureChecker.usedOneTimeSignerKeys())
     {
-        removeUsedOneTimeSignerKeys(usedAccount.first, delta, ledgerManager);
+        removeUsedOneTimeSignerKeys(usedAccount.first, usedAccount.second, delta, ledgerManager);
     }
-
-    mUsedOneTimeSignerKeys.clear();
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, LedgerDelta& delta, LedgerManager& ledgerManager) const
+TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, const std::set<SignerKey> &keys, LedgerDelta& delta, LedgerManager& ledgerManager) const
 {
     auto account = AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
     if (!account)
@@ -433,7 +374,6 @@ TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, Ledger
         return; // probably account was removed due to merge operation
     }
 
-    auto const &keys = mUsedOneTimeSignerKeys.at(accountId);
     auto changed = std::accumulate(std::begin(keys), std::end(keys), false, [&](bool r, const SignerKey &signerKey){
         return r || removeAccountSigner(account, signerKey, ledgerManager);
     });
@@ -466,14 +406,15 @@ TransactionFrame::removeAccountSigner(const AccountFrame::pointer &account, cons
 bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
-    resetSignatureTracker();
+    resetSigningAccount();
     resetResults();
-    bool res = commonValid(app, nullptr, current);
+    SignatureChecker signatureChecker{getContentsHash(), mEnvelope.signatures};
+    bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(app))
+            if (!op->checkValid(signatureChecker, app))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -486,9 +427,10 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
-        res = checkAllSignaturesUsed();
+        res = signatureChecker.checkAllSignaturesUsed();
         if (!res)
         {
+            getResult().result.code(txBAD_AUTH_EXTRA);
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "bad-auth-extra"},
                           "transaction")
@@ -531,8 +473,9 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
-    resetSignatureTracker();
-    if (!commonValid(app, &delta, 0))
+    resetSigningAccount();
+    SignatureChecker signatureChecker{getContentsHash(), mEnvelope.signatures};
+    if (!commonValid(signatureChecker, app, &delta, 0))
     {
         return false;
     }
@@ -552,7 +495,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
         {
             auto time = opTimer.TimeScope();
             LedgerDelta opDelta(thisTxDelta);
-            bool txRes = op->apply(opDelta, app);
+            bool txRes = op->apply(signatureChecker, opDelta, app);
 
             if (!txRes)
             {
@@ -564,15 +507,16 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 
         if (!errorEncountered)
         {
-            if (!checkAllSignaturesUsed())
+            if (!signatureChecker.checkAllSignaturesUsed())
             {
+                getResult().result.code(txBAD_AUTH_EXTRA);
                 // this should never happen: malformed transaction should not be
                 // accepted by nodes
                 return false;
             }
 
             // if an error occured, it is responsibility of account's owner to remove that signer
-            removeUsedOneTimeSignerKeys(thisTxDelta, app.getLedgerManager());
+            removeUsedOneTimeSignerKeys(signatureChecker, thisTxDelta, app.getLedgerManager());
             sqlTx.commit();
             thisTxDelta.commit();
         }
