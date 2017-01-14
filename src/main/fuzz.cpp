@@ -9,6 +9,7 @@
 #include "StellarCoreVersion.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/LoopbackPeer.h"
+#include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
@@ -129,7 +130,7 @@ restart:
         clock.crank(true);
     }
 
-    XDRInputFileStream in;
+    XDRInputFileStream in{MAX_MESSAGE_SIZE};
     in.open(filename);
     StellarMessage msg;
     size_t i = 0;

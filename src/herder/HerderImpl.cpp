@@ -1036,7 +1036,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
         minSeq = maxSeq = ledgerSeq;
     }
 
-    for (uint32 seq = minSeq; seq <= maxSeq; seq++)
+    // use uint64_t for seq to prevent overflows
+    for (uint64_t seq = minSeq; seq <= maxSeq; seq++)
     {
         auto const& envelopes = mSCP.getCurrentState(seq);
 
