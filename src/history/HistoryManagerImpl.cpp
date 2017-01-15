@@ -34,6 +34,7 @@
 
 #include <fstream>
 #include <system_error>
+#include <algorithm>
 
 namespace stellar
 {
@@ -202,11 +203,20 @@ HistoryManager::checkSensibleConfig(Config const& cfg)
     return true;
 }
 
+HistoryBucketCache& HistoryManagerImpl::getBucketCache()
+{
+    if (!mBucketCache) {
+        mBucketCache = make_unique<HistoryBucketCache>(*this);
+    }
+    return *mBucketCache;
+}
+
 HistoryManagerImpl::HistoryManagerImpl(Application& app)
     : mApp(app)
     , mWorkDir(nullptr)
     , mPublishWork(nullptr)
     , mCatchupWork(nullptr)
+    , mBucketCache(nullptr)
 
     , mPublishSkip(
           app.getMetrics().NewMeter({"history", "publish", "skip"}, "event"))
@@ -503,6 +513,8 @@ HistoryManagerImpl::queueCurrentHistory()
     st.define_and_bind();
     st.execute(true);
 
+    getBucketCache().referenceBucketes(has);
+
     // We have now written the current HAS to the database, so
     // it's "safe" to crash (at least after the enclosing tx commits);
     // but that HAS might have merges running and if we throw it
@@ -523,6 +535,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
         mPublishDelay.Mark();
         return;
     }
+    getBucketCache().prepairPublish(has);
     auto ledgerSeq = has.currentLedger;
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
@@ -534,6 +547,10 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 size_t
 HistoryManagerImpl::publishQueuedHistory()
 {
+    if (getBucketCache().loadIfEmpty()) {
+        return 0;
+    }
+
     std::string state;
 
     auto prep = mApp.getDatabase().getPreparedStatement(
@@ -545,7 +562,7 @@ HistoryManagerImpl::publishQueuedHistory()
     st.define_and_bind();
     st.execute(true);
     if (st.got_data() && stateIndicator == soci::indicator::i_ok)
-    {
+    {        
         HistoryArchiveState has;
         has.fromString(state);
         takeSnapshotAndPublish(has);
@@ -554,6 +571,7 @@ HistoryManagerImpl::publishQueuedHistory()
     return 0;
 }
 
+//to limit caller
 std::vector<HistoryArchiveState>
 HistoryManagerImpl::getPublishQueueStates()
 {
@@ -574,17 +592,27 @@ HistoryManagerImpl::getPublishQueueStates()
     return states;
 }
 
-std::vector<std::string>
-HistoryManagerImpl::getBucketsReferencedByPublishQueue()
+std::vector<Hash>
+HistoryManagerImpl::getBucketsUnreferencedByPublishQueue(std::set<Hash>& buckets)
 {
-    auto states = getPublishQueueStates();
-    std::set<std::string> buckets;
-    for (auto const& s : states)
+    auto& refmap = getBucketCache().mUnpublishedBucketRefCounts;
+    std::vector<Hash> retkeys;
+
+    //reference implementation of std::set_difference(buckets, refmap.keys, retkeys)
+    auto first1 = buckets.begin();
+    auto last1 = buckets.end();
+    auto first2 = refmap.begin();
+    auto last2 = refmap.end();
+
+    while (first1!=last1 && first2!=last2)
     {
-        auto sb = s.allBuckets();
-        buckets.insert(sb.begin(), sb.end());
+      if (*first1<first2->first) { retkeys.push_back(*first1); ++first1; }
+      else if (first2->first<*first1) ++first2;
+      else { ++first1; ++first2; }
     }
-    return std::vector<std::string>(buckets.begin(), buckets.end());
+    retkeys.insert(retkeys.end(), first1, last1);
+
+    return retkeys;
 }
 
 std::vector<std::string>
@@ -603,6 +631,7 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
 void
 HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
 {
+    getBucketCache().confirmPublished(ledgerSeq, success);
     if (success)
     {
         this->mPublishSuccess.Mark();
@@ -746,4 +775,73 @@ HistoryManagerImpl::getCatchupFailureCount()
 {
     return mCatchupFailure.count();
 }
+
+bool HistoryBucketCache::loadIfEmpty() {
+    bool stillEmpty=false;
+    if (mUnpublishedBucketRefCounts.empty()
+            && mPublishingBuckets.empty()) {
+        stillEmpty=true;
+        for (auto state :mManager.getPublishQueueStates()) {
+            stillEmpty = false;
+            referenceBucketes(state);
+        }
+    }
+    return stillEmpty;
+}
+
+void HistoryBucketCache::referenceBucketes(HistoryArchiveState &har)
+{
+    for (auto hashstr :har.allBuckets()) {
+        auto hash = hexToBin256(hashstr);
+        auto hit = mUnpublishedBucketRefCounts.find(hash);
+        if (hit == mUnpublishedBucketRefCounts.end()) {
+            mUnpublishedBucketRefCounts[hash] = 1;
+        }
+        else {
+            hit->second = hit->second + 1;
+        }
+    }
+}
+
+void HistoryBucketCache::dereferenceSingleBucket(Hash const& hash) {
+
+    auto hit = mUnpublishedBucketRefCounts.find(hash);
+    if (hit == mUnpublishedBucketRefCounts.end()) {
+        assert("unmatched deference");
+    }
+    else if (hit->second == 1) {
+        mUnpublishedBucketRefCounts.erase(hit);
+    }
+    else if (hit->second > 1){
+        hit->second = hit->second - 1;
+    }
+    else {
+        assert("imposible path");
+    }
+}
+
+void HistoryBucketCache::prepairPublish(HistoryArchiveState const& har) {
+    for (auto bucket :har.allBuckets()) {
+        mPublishingBuckets.push_back(std::make_pair(har.currentLedger, hexToBin256(bucket)));
+    }
+}
+
+void HistoryBucketCache::confirmPublished(uint32_t ledgerSeq, bool success) {
+    auto iter = mPublishingBuckets.begin();
+    while (iter != mPublishingBuckets.end())
+    {
+        if (iter->first == ledgerSeq)
+        {
+            if (success) {
+                dereferenceSingleBucket(iter->second);
+            }
+            iter = mPublishingBuckets.erase(iter);
+        }
+        else
+        {
+            ++iter;
+        }
+    }
+}
+
 }

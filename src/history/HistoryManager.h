@@ -9,6 +9,8 @@
 #include "history/HistoryArchive.h"
 #include <functional>
 #include <memory>
+#include <set>
+#include <crypto/Hex.h>
 
 /**
  * The history module is responsible for storing and retrieving "historical
@@ -316,7 +318,7 @@ class HistoryManager
 
     // Return the set of buckets referenced by the persistent (DB) publish
     // queue.
-    virtual std::vector<std::string> getBucketsReferencedByPublishQueue() = 0;
+    virtual std::vector<Hash> getBucketsUnreferencedByPublishQueue(std::set<Hash>& buckets) = 0;
 
     // Callback from Publication, indicates that a given snapshot was
     // published. The `success` parameter indicates whether _all_ the
