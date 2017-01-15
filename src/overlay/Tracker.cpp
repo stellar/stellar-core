@@ -6,6 +6,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/Herder.h"
 #include "main/Application.h"
 #include "medida/medida.h"
 #include "overlay/OverlayManager.h"
@@ -34,7 +35,7 @@ Tracker::Tracker(Application& app, Hash const& hash, AskPeer &askPeer)
 
 Tracker::~Tracker()
 {
-    mTimer.cancel();
+    cancel();
 }
 
 SCPEnvelope
@@ -182,9 +183,22 @@ Tracker::listen(const SCPEnvelope& env)
 }
 
 void
+Tracker::discard(const SCPEnvelope& env)
+{
+    using xdr::operator==;
+    auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x){
+        return x.second == env;
+    };
+    mWaitingEnvelopes.erase(std::remove_if(std::begin(mWaitingEnvelopes), std::end(mWaitingEnvelopes),
+                                    matchEnvelope),
+                    std::end(mWaitingEnvelopes));
+}
+
+void
 Tracker::cancel()
 {
     mTimer.cancel();
+    mLastSeenSlotIndex = 0;
 }
 
 }

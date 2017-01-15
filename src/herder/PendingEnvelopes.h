@@ -6,6 +6,7 @@
 #include <util/optional.h>
 #include <set>
 #include <xdr/Stellar-SCP.h>
+#include "herder/Herder.h"
 #include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
@@ -21,19 +22,25 @@ namespace stellar
 
 class HerderImpl;
 
+struct SlotEnvelopes
+{
+    // list of envelopes we have processed already
+    std::vector<SCPEnvelope> mProcessedEnvelopes;
+    // list of envelopes we have discarded already
+    std::set<SCPEnvelope> mDiscardedEnvelopes;
+    // list of envelopes we are fetching right now
+    std::set<SCPEnvelope> mFetchingEnvelopes;
+    // list of ready envelopes that haven't been sent to SCP yet
+    std::vector<SCPEnvelope> mReadyEnvelopes;
+};
+
 class PendingEnvelopes
 {
     Application& mApp;
     HerderImpl& mHerder;
 
-    // ledger# and list of envelopes we have processed already
-    std::map<uint64, std::vector<SCPEnvelope>> mProcessedEnvelopes;
-
-    // ledger# and list of envelopes we are fetching right now
-    std::map<uint64, std::set<SCPEnvelope>> mFetchingEnvelopes;
-
-    // ledger# and list of envelopes that haven't been sent to SCP yet
-    std::map<uint64, std::vector<SCPEnvelope>> mPendingEnvelopes;
+    // ledger# and list of envelopes in various states
+    std::map<uint64, SlotEnvelopes> mEnvelopes;
 
     using SCPQuorumSetCacheItem = std::pair<uint64, SCPQuorumSetPtr>;
     // all the quorum sets we have learned about
@@ -49,16 +56,25 @@ class PendingEnvelopes
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
-    medida::Counter& mPendingEnvelopesSize;
+    medida::Counter& mReadyEnvelopesSize;
 
     // returns true if we think that the node is in quorum
     bool isNodeInQuorum(NodeID const& node);
+
+    // discards all SCP envelopes thats use QSet with given hash,
+    // as it is not sane QSet
+    void discardSCPEnvelopesWithQSet(Hash hash);
 
   public:
     PendingEnvelopes(Application& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
-    void recvSCPEnvelope(SCPEnvelope const& envelope);
+    /**
+     * Process received @p envelope.
+     *
+     * Return status of received envelope.
+     */
+    Herder::EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope);
 
     /**
      * Add @p qset identified by @p hash to local cache. Notifies
@@ -72,8 +88,10 @@ class PendingEnvelopes
      * Check if @p qset identified by @p hash was requested before from peers.
      * If not, ignores that @p qset. If it was requested, calls
      * @see addSCPQuorumSet.
+     *
+     * Return true if SCPQuorumSet is sane and useful (was asked for).
      */
-    void recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    bool recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
 
     /**
      * Add @p txset identified by @p hash to local cache. Notifies
@@ -87,15 +105,19 @@ class PendingEnvelopes
      * Check if @p txset identified by @p hash was requested before from peers.
      * If not, ignores that @p txset. If it was requested, calls
      * @see addTxSet.
+     *
+     * Return true if TxSet useful (was asked for).
      */
-    void recvTxSet(Hash hash, TxSetFramePtr txset);
+    bool recvTxSet(Hash hash, TxSetFramePtr txset);
+    void discardSCPEnvelope(SCPEnvelope const& envelope);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,
                         Peer::pointer peer);
 
+    bool isDiscarded(SCPEnvelope const& envelope) const;
     bool isFullyFetched(SCPEnvelope const& envelope);
-    // returns true if already fetched
-    bool startFetch(SCPEnvelope const& envelope);
+    void startFetch(SCPEnvelope const& envelope);
+    void stopFetch(SCPEnvelope const& envelope);
 
     void envelopeReady(SCPEnvelope const& envelope);
 

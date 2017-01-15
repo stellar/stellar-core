@@ -25,6 +25,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "main/ExternalQueue.h"
 #include "main/NtpSynchronizationChecker.h"
 #include "medida/metrics_registry.h"
@@ -245,7 +246,7 @@ ApplicationImpl::start()
     {
         throw std::invalid_argument("Quorum not configured");
     }
-    if (!mHerder->isQuorumSetSane(mConfig.QUORUM_SET, !mConfig.UNSAFE_QUORUM))
+    if (!isQuorumSetSane(mConfig.QUORUM_SET, !mConfig.UNSAFE_QUORUM))
     {
         std::string err("Invalid QUORUM_SET: duplicate entry or bad threshold "
                         "(should be between ");

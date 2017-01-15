@@ -72,6 +72,20 @@ class Herder
         TX_STATUS_COUNT
     };
 
+    enum EnvelopeStatus
+    {
+        // for some reason this envelope was discarded - either is was invalid,
+        // used unsane qset or was coming from node that is not in quorum
+        ENVELOPE_STATUS_DISCARDED,
+        // envelope data is currently being fetched
+        ENVELOPE_STATUS_FETCHING,
+        // current call to recvSCPEnvelope() was the first when the envelope
+        // was fully fetched so it is ready for processing
+        ENVELOPE_STATUS_READY,
+        // envelope was already processed
+        ENVELOPE_STATUS_PROCESSED,
+    };
+
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
@@ -84,9 +98,9 @@ class Herder
     // restores SCP state based on the last messages saved on disk
     virtual void restoreSCPState() = 0;
 
-    virtual void recvSCPQuorumSet(Hash const& hash,
+    virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;
-    virtual void recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
+    virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
@@ -95,7 +109,7 @@ class Herder
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.
-    virtual void recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
+    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
@@ -109,11 +123,6 @@ class Herder
     virtual SequenceNumber getMaxSeqInPendingTxs(AccountID const&) = 0;
 
     virtual void triggerNextLedger(uint32_t ledgerSeqToTrigger) = 0;
-
-    // returns if the quorum set passes basic sanity checks
-    // if extraChecks is set, performs additional checks
-    virtual bool isQuorumSetSane(SCPQuorumSet const& qSet,
-                                 bool extraChecks) = 0;
 
     // lookup a nodeID in config and in SCP messages
     virtual bool resolveNodeID(std::string const& s, PublicKey& retKey) = 0;

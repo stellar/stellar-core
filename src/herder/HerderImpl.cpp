@@ -947,12 +947,12 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     return TX_STATUS_PENDING;
 }
 
-void
+Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     if (mApp.getConfig().MANUAL_CLOSE)
     {
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     if (Logging::logDebug("Herder"))
@@ -967,7 +967,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     if (envelope.statement.nodeID == mSCP.getLocalNode()->getNodeID())
     {
         CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
     mSCPMetrics.mEnvelopeReceive.Mark();
@@ -999,10 +999,15 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
-        return;
+        return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    mPendingEnvelopes.recvSCPEnvelope(envelope);
+    auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
+    if (status == Herder::ENVELOPE_STATUS_READY)
+    {
+        processSCPQueue();
+    }
+    return status;
 }
 
 void
@@ -1032,7 +1037,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
         minSeq = maxSeq = ledgerSeq;
     }
 
-    for (uint32 seq = minSeq; seq <= maxSeq; seq++)
+    // use uint64_t for seq to prevent overflows
+    for (uint64_t seq = minSeq; seq <= maxSeq; seq++)
     {
         auto const& envelopes = mSCP.getCurrentState(seq);
 
@@ -1212,17 +1218,17 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
     }
 }
 
-void
+bool
 HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
 {
-    mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
 }
 
-void
+bool
 HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
 {
     TxSetFramePtr txset(new TxSetFrame(t));
-    mPendingEnvelopes.recvTxSet(hash, txset);
+    return mPendingEnvelopes.recvTxSet(hash, txset);
 }
 
 void
@@ -1401,12 +1407,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     Value prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
 
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
-}
-
-bool
-HerderImpl::isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
-{
-    return LocalNode::isQuorumSetSane(qSet, extraChecks);
 }
 
 bool

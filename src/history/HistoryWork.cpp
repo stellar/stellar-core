@@ -1946,7 +1946,8 @@ FetchRecentQsetsWork::onSuccess()
     }
 
     // Phase 3: extract the qsets.
-    for (auto i = firstSeq; i <= lastSeq; i += step)
+    // use uint64_t for i to prevent overflows
+    for (uint64_t i = firstSeq; i <= lastSeq; i += step)
     {
         CLOG(INFO, "History") << "Scanning for QSets in checkpoint: " << i;
         XDRInputFileStream in;

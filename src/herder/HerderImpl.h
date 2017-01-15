@@ -96,12 +96,12 @@ class HerderImpl : public Herder, public SCPDriver
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    void recvSCPEnvelope(SCPEnvelope const& envelope) override;
+    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
-    void recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
-    void recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
+    bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
+    bool recvTxSet(Hash const& hash, const TxSetFrame& txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         PeerPtr peer) override;
     TxSetFramePtr getTxSet(Hash const& hash) override;
@@ -114,8 +114,6 @@ class HerderImpl : public Herder, public SCPDriver
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
-
-    bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks) override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 

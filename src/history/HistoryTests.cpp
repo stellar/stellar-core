@@ -451,7 +451,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // externalize anything we haven't yet published, of course.
     uint32_t nextBlockStart =
         app.getHistoryManager().nextCheckpointLedger(initLedger);
-    for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
+    // use uint64_t for n to prevent overflows
+    for (uint64_t n = initLedger; n <= nextBlockStart; ++n)
     {
         // Remember the vectors count from 2, not 0.
         if (n - 2 >= mLedgerCloseDatas.size())

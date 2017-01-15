@@ -113,10 +113,6 @@ NominationProtocol::isSane(SCPStatement const& st)
     res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
     res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
 
-    res = res &&
-          mSlot.getLocalNode()->isQuorumSetSane(
-              *mSlot.getQuorumSetFromStatement(st), false);
-
     return res;
 }
 
