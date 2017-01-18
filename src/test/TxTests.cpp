@@ -26,6 +26,7 @@
 #include "transactions/InflationOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
+#include "util/TestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -159,23 +160,6 @@ checkAccount(AccountID const& id, Application& app)
         res->getAccount().signers.size() + retLines.size() + retOffers.size() + retDatas.size();
 
     REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
-}
-
-time_t
-getTestDate(int day, int month, int year)
-{
-    std::tm tm = {0};
-    tm.tm_hour = 0;
-    tm.tm_min = 0;
-    tm.tm_sec = 0;
-    tm.tm_mday = day;
-    tm.tm_mon = month - 1; // 0 based
-    tm.tm_year = year - 1900;
-
-    VirtualClock::time_point tp = VirtualClock::tmToPoint(tm);
-    time_t t = VirtualClock::to_time_t(tp);
-
-    return t;
 }
 
 TxSetResultMeta

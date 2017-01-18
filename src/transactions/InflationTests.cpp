@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "util/TestUtils.h"
 #include "transactions/InflationOpFrame.h"
 #include <functional>
 

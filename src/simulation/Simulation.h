@@ -63,6 +63,7 @@ class Simulation : public LoadGenerator
     void crankUntilSync(VirtualClock::duration timeout, bool finalCrank);
     void crankUntil(std::function<bool()> const& fn,
                     VirtualClock::duration timeout, bool finalCrank);
+    void crankUntil(VirtualClock::time_point timePoint, bool finalCrank);
 
     //////////
 
@@ -78,6 +79,7 @@ class Simulation : public LoadGenerator
     std::string metricsSummary(std::string domain = "");
 
     void addConnection(NodeID initiator, NodeID acceptor);
+    Config newConfig(); // generates a new config
 
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
@@ -92,7 +94,6 @@ class Simulation : public LoadGenerator
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 
-    Config newConfig();                 // generates a new config
     std::function<Config()> mConfigGen; // config generator
 };
 }

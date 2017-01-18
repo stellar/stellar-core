@@ -219,6 +219,9 @@ class HerderImpl : public Herder, public SCPDriver
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);
 
+    // create upgrades for given ledger
+    std::vector<LedgerUpgrade> prepareUpgrades(const LedgerHeader &header) const;
+
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
     // indeterminate mode

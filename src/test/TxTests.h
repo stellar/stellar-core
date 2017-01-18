@@ -38,8 +38,6 @@ bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 void checkEntry(LedgerEntry const& le, Application& app);
 void checkAccount(AccountID const& id, Application& app);
 
-time_t getTestDate(int day, int month, int year);
-
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
                               TransactionFramePtr tx = nullptr);
