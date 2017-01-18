@@ -5,7 +5,6 @@
 #include "main/Application.h"
 #include "ledger/LedgerManager.h"
 #include "util/Timer.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "AccountFrame.h"
@@ -17,6 +16,7 @@
 #include "crypto/SecretKey.h"
 #include "ledger/LedgerTestUtils.h"
 #include "database/Database.h"
+#include "test/test.h"
 #include <utility>
 #include <memory>
 #include <unordered_map>

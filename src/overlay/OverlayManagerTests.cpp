@@ -6,12 +6,12 @@
 #include "main/ApplicationImpl.h"
 #include "main/Config.h"
 
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "util/Timer.h"
 #include "database/Database.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "util/SociNoWarnings.h"

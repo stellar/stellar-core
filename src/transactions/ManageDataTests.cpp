@@ -5,11 +5,11 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
 #include "test/TestAccount.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "xdrpp/marshal.h"
 

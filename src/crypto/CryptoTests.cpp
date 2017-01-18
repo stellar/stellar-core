@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/test.h"
 #include "util/Logging.h"
 #include "lib/catch.hpp"
 #include "crypto/Hex.h"
@@ -11,6 +10,7 @@
 #include "crypto/SecretKey.h"
 #include "crypto/Random.h"
 #include "crypto/StrKey.h"
+#include "test/test.h"
 #include "util/basen.h"
 #include <autocheck/autocheck.hpp>
 #include <sodium.h>

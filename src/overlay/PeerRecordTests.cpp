@@ -8,7 +8,7 @@
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "main/Application.h"
-#include "main/test.h"
+#include "test/test.h"
 #include "util/SociNoWarnings.h"
 
 namespace stellar
