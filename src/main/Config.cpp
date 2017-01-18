@@ -592,6 +592,14 @@ Config::load(std::string const& filename)
                 }
                 NTP_SERVER = item.second->as<std::string>()->value();
             }
+            else if (item.first == "PREFERRED_UPGRADE_DATETIME")
+            {
+                if (!item.second->as<std::tm>())
+                {
+                    throw std::invalid_argument("invalid PREFERRED_UPGRADE_DATETIME");
+                }
+                PREFERRED_UPGRADE_DATETIME = make_optional<std::tm>(item.second->as<std::tm>()->value());
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");

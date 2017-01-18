@@ -334,6 +334,33 @@ Simulation::crankUntil(function<bool()> const& predicate,
 }
 
 void
+Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
+{
+    bool stop = false;
+    auto stopIt = [&](asio::error_code const& error)
+    {
+        if (!error)
+            stop = true;
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_at(timePoint);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            std::this_thread::sleep_for(chrono::milliseconds(50));
+    }
+
+    if (finalCrank)
+    {
+        stopAllNodes();
+    }
+}
+
+void
 Simulation::execute(TxInfo transaction)
 {
     // Execute on the first node
