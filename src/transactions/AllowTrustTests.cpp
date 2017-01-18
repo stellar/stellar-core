@@ -4,11 +4,11 @@
 
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "main/test.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "test/TxTests.h"
-#include "util/TestUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;

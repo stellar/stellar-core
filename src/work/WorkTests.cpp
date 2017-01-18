@@ -4,9 +4,9 @@
 
 #include "main/Application.h"
 #include "work/WorkManager.h"
-#include "main/test.h"
 #include "main/Config.h"
 #include "lib/catch.hpp"
+#include "test/test.h"
 #include "util/Fs.h"
 #include "process/ProcessManager.h"
 

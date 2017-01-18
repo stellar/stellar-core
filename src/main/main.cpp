@@ -10,7 +10,6 @@
 #include "lib/util/getopt.h"
 #include "main/dumpxdr.h"
 #include "main/fuzz.h"
-#include "main/test.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/Hex.h"
@@ -21,6 +20,7 @@
 #include <sodium.h>
 #include "database/Database.h"
 #include "bucket/Bucket.h"
+#include "test/test.h"
 #include "util/optional.h"
 #include <locale>
 

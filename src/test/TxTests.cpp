@@ -7,7 +7,6 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/ByteSlice.h"
@@ -16,6 +15,8 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/DataFrame.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -26,7 +27,6 @@
 #include "transactions/InflationOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/ManageDataOpFrame.h"
-#include "util/TestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

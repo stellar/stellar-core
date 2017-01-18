@@ -7,10 +7,10 @@
 #include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"
-#include "main/test.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
+#include "test/test.h"
 #include "util/asio.h"
 #include "xdr/Stellar-types.h"
 
