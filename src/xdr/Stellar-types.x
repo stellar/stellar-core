@@ -30,7 +30,7 @@ enum SignerKeyType
 {
     SIGNER_KEY_TYPE_ED25519 = KEY_TYPE_ED25519,
     SIGNER_KEY_TYPE_HASH_TX = KEY_TYPE_HASH_TX,
-    SIGNER_KEY_TYPE_HASH_X = KEY_TYPE_HASH_X,
+    SIGNER_KEY_TYPE_HASH_X = KEY_TYPE_HASH_X
 };
 
 union PublicKey switch (PublicKeyType type)
