@@ -1355,26 +1355,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
                                   0);
 
-    std::vector<LedgerUpgrade> upgrades;
-
     // see if we need to include some upgrades
-    if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
-        upgrades.back().newLedgerVersion() =
-            mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    }
-    if (lcl.header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
-        upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
-    }
-    if (lcl.header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        upgrades.back().newMaxTxSetSize() =
-            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
-    }
+    auto upgrades = prepareUpgrades(lcl.header);
 
     for (auto const& upgrade : upgrades)
     {
@@ -1407,6 +1389,37 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     Value prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
 
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
+}
+
+std::vector<LedgerUpgrade>
+HerderImpl::prepareUpgrades(const LedgerHeader &header) const
+{
+    auto result = std::vector<LedgerUpgrade>{};
+
+    if (header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
+    {
+        auto timeForUpgrade = !mApp.getConfig().PREFERRED_UPGRADE_DATETIME ||
+            VirtualClock::tmToPoint(*mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <= mApp.getClock().now();
+        if (timeForUpgrade)
+        {
+            result.emplace_back(LEDGER_UPGRADE_VERSION);
+            result.back().newLedgerVersion() =
+                mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+        }
+    }
+    if (header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
+    {
+        result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
+        result.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+    if (header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
+    {
+        result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        result.back().newMaxTxSetSize() =
+            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
+    }
+
+    return result;
 }
 
 bool

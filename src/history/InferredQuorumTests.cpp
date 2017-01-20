@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/InferredQuorum.h"
-#include "main/test.h"
 #include "main/Config.h"
 #include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "crypto/Hex.h"
 #include "lib/catch.hpp"
+#include "test/test.h"
 #include "util/Logging.h"
 #include <xdrpp/autocheck.h>
 

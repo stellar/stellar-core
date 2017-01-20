@@ -6,7 +6,7 @@
 #include "crypto/SHA.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "main/test.h"
+#include "test/test.h"
 #include "overlay/Tracker.h"
 
 namespace stellar

@@ -7,8 +7,8 @@
 #include "herder/PendingEnvelopes.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "main/test.h"
 #include "test/TestAccount.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "xdrpp/marshal.h"
 

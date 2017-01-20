@@ -8,10 +8,11 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
 #include "herder/LedgerCloseData.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "test/TestAccount.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "transactions/InflationOpFrame.h"
 #include <functional>

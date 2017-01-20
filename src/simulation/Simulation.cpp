@@ -7,9 +7,9 @@
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "main/test.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
+#include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
@@ -330,6 +330,33 @@ Simulation::crankUntil(function<bool()> const& predicate,
         }
         if (timedOut)
             throw runtime_error("Simulation timed out");
+    }
+}
+
+void
+Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
+{
+    bool stop = false;
+    auto stopIt = [&](asio::error_code const& error)
+    {
+        if (!error)
+            stop = true;
+    };
+
+    VirtualTimer checkTimer(*mIdleApp);
+
+    checkTimer.expires_at(timePoint);
+    checkTimer.async_wait(stopIt);
+
+    while (!stop)
+    {
+        if (crankAllNodes() == 0)
+            std::this_thread::sleep_for(chrono::milliseconds(50));
+    }
+
+    if (finalCrank)
+    {
+        stopAllNodes();
     }
 }
 

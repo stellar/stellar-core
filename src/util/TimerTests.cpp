@@ -6,8 +6,8 @@
 #include "autocheck/autocheck.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
+#include "test/test.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include <chrono>

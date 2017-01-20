@@ -6,7 +6,6 @@
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "test/TxTests.h"
@@ -15,9 +14,10 @@
 #include "ledger/LedgerDelta.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
-#include "util/TestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

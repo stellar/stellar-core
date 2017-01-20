@@ -31,4 +31,7 @@ class ApplicationEditableVersion : public ApplicationImpl
 
 };
 
+time_t getTestDate(int day, int month, int year);
+std::tm getTestDateTime(int day, int month, int year, int hour, int minute, int second);
+
 }

@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "autocheck/autocheck.hpp"
-#include "main/test.h"
 #include "lib/catch.hpp"
+#include "test/test.h"
 #include "util/Logging.h"
 #include "lib/util/uint128_t.h"
 #include <limits>

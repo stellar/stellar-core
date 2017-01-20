@@ -9,6 +9,7 @@
 #include <map>
 #include "crypto/SecretKey.h"
 #include "lib/util/cpptoml.h"
+#include "util/optional.h"
 
 #define DEFAULT_PEER_PORT 11625
 
@@ -114,6 +115,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool UNSAFE_QUORUM;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
+    optional<std::tm> PREFERRED_UPGRADE_DATETIME;
 
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled

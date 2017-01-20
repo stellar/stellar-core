@@ -41,4 +41,28 @@ ApplicationEditableVersion::getLedgerManager()
     return static_cast<LedgerManagerEditableVersion&>(*mLedgerManager);
 }
 
+time_t
+getTestDate(int day, int month, int year)
+{
+    auto tm = getTestDateTime(day, month, year, 0, 0, 0);
+
+    VirtualClock::time_point tp = VirtualClock::tmToPoint(tm);
+    time_t t = VirtualClock::to_time_t(tp);
+
+    return t;
+}
+
+std::tm
+getTestDateTime(int day, int month, int year, int hour, int minute, int second)
+{
+    std::tm tm = {0};
+    tm.tm_hour = hour;
+    tm.tm_min = minute;
+    tm.tm_sec = second;
+    tm.tm_mday = day;
+    tm.tm_mon = month - 1; // 0 based
+    tm.tm_year = year - 1900;
+    return tm;
+}
+
 }

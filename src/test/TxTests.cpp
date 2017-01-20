@@ -7,7 +7,6 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/ByteSlice.h"
@@ -16,6 +15,8 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/DataFrame.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -159,23 +160,6 @@ checkAccount(AccountID const& id, Application& app)
         res->getAccount().signers.size() + retLines.size() + retOffers.size() + retDatas.size();
 
     REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
-}
-
-time_t
-getTestDate(int day, int month, int year)
-{
-    std::tm tm = {0};
-    tm.tm_hour = 0;
-    tm.tm_min = 0;
-    tm.tm_sec = 0;
-    tm.tm_mday = day;
-    tm.tm_mon = month - 1; // 0 based
-    tm.tm_year = year - 1900;
-
-    VirtualClock::time_point tp = VirtualClock::tmToPoint(tm);
-    time_t t = VirtualClock::to_time_t(tp);
-
-    return t;
 }
 
 TxSetResultMeta

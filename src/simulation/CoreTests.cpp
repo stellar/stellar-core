@@ -9,7 +9,6 @@
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
 #include "crypto/SHA.h"
-#include "main/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include "util/Math.h"
@@ -25,6 +24,7 @@
 #include "ledger/LedgerManager.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerTestUtils.h"
+#include "test/test.h"
 #include "xdrpp/autocheck.h"
 #include <sstream>
 

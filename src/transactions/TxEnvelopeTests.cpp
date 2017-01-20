@@ -9,7 +9,6 @@
 #include "util/Timer.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "lib/json/json.h"
@@ -17,13 +16,14 @@
 #include "ledger/LedgerDelta.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/SignatureUtils.h"
-#include "util/TestUtils.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
