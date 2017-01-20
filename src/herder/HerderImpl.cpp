@@ -1515,11 +1515,17 @@ HerderImpl::persistSCPState(uint64 slot)
             StellarValue wb;
             xdr::xdr_from_opaque(v, wb);
             TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(wb.txSetHash);
-            txSets.insert(std::make_pair(wb.txSetHash, txSet));
+            if (txSet)
+            {
+                txSets.insert(std::make_pair(wb.txSetHash, txSet));
+            }
         }
         Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
         SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
-        quorumSets.insert(std::make_pair(qsHash, qSet));
+        if (qSet)
+        {
+            quorumSets.insert(std::make_pair(qsHash, qSet));
+        }
     }
 
     xdr::xvector<TransactionSet> latestTxSets;

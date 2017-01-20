@@ -271,8 +271,15 @@ LocalNode::isQuorum(
         std::vector<NodeID> fNodes(pNodes.size());
         auto quorumFilter = [&](NodeID nodeID) -> bool
         {
-            return isQuorumSlice(*qfun(map.find(nodeID)->second.statement),
-                                 pNodes);
+            auto qSetPtr = qfun(map.find(nodeID)->second.statement);
+            if (qSetPtr)
+            {
+                return isQuorumSlice(*qSetPtr, pNodes);
+            }
+            else
+            {
+                return false;
+            }
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), fNodes.begin(),
                                quorumFilter);
