@@ -5,6 +5,7 @@
 #include "main/Application.h"
 #include "work/WorkManager.h"
 #include "herder/TxSetFrame.h"
+#include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "bucket/Bucket.h"
@@ -104,7 +105,8 @@ class GunzipFileWork : public RunCommandWork
 
   public:
     GunzipFileWork(Application& app, WorkParent& parent,
-                   std::string const& filenameGz, bool keepExisting = false);
+                   std::string const& filenameGz, bool keepExisting = false,
+                   size_t maxRetries = Work::RETRY_A_FEW);
     void onReset() override;
 };
 
@@ -187,6 +189,28 @@ class PutHistoryArchiveStateWork : public Work
     void onReset() override;
     void onRun() override;
     Work::State onSuccess() override;
+};
+
+class GetAndUnzipRemoteFileWork : public Work
+{
+    std::shared_ptr<Work> mGetRemoteFileWork;
+    std::shared_ptr<Work> mGunzipFileWork;
+
+    FileTransferInfo mFt;
+    std::shared_ptr<HistoryArchive const> mArchive;
+
+  public:
+    // Passing `nullptr` for the archive argument will cause the work to
+    // select a new readable history archive at random each time it runs /
+    // retries.
+    GetAndUnzipRemoteFileWork(Application& app, WorkParent& parent,
+                              FileTransferInfo ft,
+                              std::shared_ptr<HistoryArchive const> archive = nullptr,
+                              size_t maxRetries = Work::RETRY_A_FEW);
+    std::string getStatus() const override;
+    void onReset() override;
+    Work::State onSuccess() override;
+    void onFailureRaise() override;
 };
 
 class BucketDownloadWork : public Work
