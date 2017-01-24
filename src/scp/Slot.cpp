@@ -312,7 +312,10 @@ Slot::dumpInfo(Json::Value& ret)
         Hash const& qSetHash =
             getCompanionQuorumSetHashFromStatement(item.first);
         auto qSet = getSCPDriver().getQSet(qSetHash);
-        qSetsUsed.insert(std::make_pair(qSetHash, qSet));
+        if (qSet)
+        {
+            qSetsUsed.insert(std::make_pair(qSetHash, qSet));
+        }
     }
 
     auto& qSets = slotValue["quorum_sets"];
