@@ -230,11 +230,11 @@ Work::advance()
                             << " successful, scheduling run";
         scheduleRun();
     }
-    else if (anyChildRaiseFailure())
+    else if (anyChildRaiseFailure() && allChildrenDone())
     {
         CLOG(DEBUG, "Work") << "some of " << mChildren.size()
                             << " children of " << getUniqueName()
-                            << " successful, scheduling failure";
+                            << " failed, scheduling failure";
         scheduleFailure();
     }
 }
