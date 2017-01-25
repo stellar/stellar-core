@@ -226,14 +226,14 @@ callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
     {
         if (rmdir(name) != 0)
         {
-            throw std::runtime_error("rmdir failed");
+            throw std::runtime_error(std::string{"rmdir of "} + name + " failed");
         }
     }
     else
     {
         if (std::remove(name) != 0)
         {
-            throw std::runtime_error("std::remove failed");
+            throw std::runtime_error(std::string{"std::remove of "} + name + " failed");
         }
     }
     return 0;
@@ -244,7 +244,7 @@ deltree(std::string const& d)
 {
     if (nftw(d.c_str(), callback, FOPEN_MAX, FTW_DEPTH) != 0)
     {
-        throw std::runtime_error("nftw failed in deltree");
+        throw std::runtime_error("nftw failed in deltree for " + d);
     }
 }
 
