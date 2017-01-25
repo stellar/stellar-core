@@ -186,16 +186,6 @@ TEST_CASE("payment", "[tx][payment]")
                 (rootAccount->getBalance() - morePayment - txfee));
     }
 
-    SECTION("send to self")
-    {
-        root.pay(root, morePayment);
-
-        AccountFrame::pointer rootAccount2;
-        rootAccount2 = loadAccount(root, app);
-        REQUIRE(rootAccount2->getBalance() ==
-                (rootAccount->getBalance() - txfee));
-    }
-
     SECTION("send XLM to a new account (no destination)")
     {
         REQUIRE_THROWS_AS(root.pay(getAccount("B"), app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 2),
@@ -361,11 +351,158 @@ TEST_CASE("payment", "[tx][payment]")
         a1.pay(gateway, idrCur,
                              trustLineStartingBalance);
     }
+
     for (auto v : std::vector<int>{2, 3})
     {
         SECTION("protocol version " + std::to_string(v))
         {
             app.getLedgerManager().setCurrentLedgerVersion(v);
+
+            SECTION("send to self")
+            {
+                auto sendToSelf = root.create("send to self", minBalance2);
+
+                SECTION("native")
+                {
+                    SECTION("few")
+                    {
+                        sendToSelf.pay(sendToSelf, 1);
+                    }
+                    SECTION("all")
+                    {
+                        sendToSelf.pay(sendToSelf, minBalance2);
+                    }
+                    SECTION("more than have")
+                    {
+                        sendToSelf.pay(sendToSelf, INT64_MAX);
+                    }
+                    auto account = loadAccount(sendToSelf, app);
+                    REQUIRE(account->getBalance() == minBalance2 - txfee);
+                }
+
+                auto fakeCur = makeAsset(gateway, "fake");
+                auto fakeWithFakeAccountCur = makeAsset(getAccount("fake account"), "fake");
+
+                using Pay = std::function<void(Asset const&, int64_t)>;
+                using Data = struct {
+                    std::string name;
+                    Asset asset;
+                    Pay payWithoutTrustline;
+                    Pay payWithTrustLine;
+                    Pay payWithTrustLineFull;
+                };
+
+                Pay payOk = [&sendToSelf](Asset const& asset, int amount){ sendToSelf.pay(sendToSelf, asset, amount); };
+                Pay payNoTrust = [&sendToSelf](Asset const& asset, int amount){ REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount), ex_PAYMENT_NO_TRUST); };
+                Pay payLineFull = [&sendToSelf](Asset const& asset, int amount){ REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount), ex_PAYMENT_LINE_FULL); };
+                Pay payNoIssuer = [&sendToSelf](Asset const& asset, int amount){ REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount), ex_PAYMENT_NO_ISSUER); };
+
+                if (v == 2) // in ledger version 2 each of these payment succeeds
+                {
+                    payNoTrust = payOk;
+                    payLineFull = payOk;
+                    payNoIssuer = payOk;
+                }
+
+                auto withoutTrustLine = std::vector<Data>{
+                    Data{"existing asset", idrCur, payNoTrust, payOk, payLineFull},
+                    Data{"non existing asset with existing issuer", fakeCur, payNoTrust, payOk, payLineFull},
+                    Data{"non existing asset with non existing issuer", fakeWithFakeAccountCur, payNoIssuer, payNoIssuer, payNoIssuer}
+                };
+
+                for (auto const& data : withoutTrustLine)
+                {
+                    SECTION(data.name)
+                    {
+                        SECTION("without trustline")
+                        {
+                            data.payWithoutTrustline(data.asset, 1);
+
+                            auto account = loadAccount(sendToSelf, app);
+                            REQUIRE(account->getBalance() == minBalance2 - txfee);
+                            REQUIRE(!loadTrustLine(sendToSelf, data.asset, app, false));
+                        }
+                    }
+                }
+
+                auto withTrustLine = withoutTrustLine;
+                withTrustLine.resize(2);
+
+                sendToSelf.changeTrust(idrCur, 1000);
+                sendToSelf.changeTrust(fakeCur, 1000);
+                REQUIRE_THROWS_AS(sendToSelf.changeTrust(fakeWithFakeAccountCur, 1000), ex_CHANGE_TRUST_NO_ISSUER);
+
+                for (auto const& data : withTrustLine)
+                {
+                    SECTION(data.name)
+                    {
+                        SECTION("with trustline and 0 balance")
+                        {
+                            SECTION("few")
+                            {
+                                data.payWithTrustLine(data.asset, 1);
+                            }
+                            SECTION("all")
+                            {
+                                data.payWithTrustLine(data.asset, 1000);
+                            }
+                            SECTION("more than have")
+                            {
+                                data.payWithTrustLineFull(data.asset, 2000);
+                            }
+                            auto account = loadAccount(sendToSelf, app);
+                            REQUIRE(account->getBalance() == minBalance2 - 4 * txfee);
+                            auto trustline = loadTrustLine(sendToSelf, data.asset, app, true);
+                            REQUIRE(trustline->getBalance() == 0);
+                        }
+
+                        SECTION("with trustline and half balance")
+                        {
+                            gateway.pay(sendToSelf, data.asset, 500);
+
+                            SECTION("few")
+                            {
+                                data.payWithTrustLine(data.asset, 1);
+                            }
+                            SECTION("to full")
+                            {
+                                data.payWithTrustLine(data.asset, 500);
+                            }
+                            SECTION("more than have")
+                            {
+                                data.payWithTrustLineFull(data.asset, 2000);
+                            }
+                            auto account = loadAccount(sendToSelf, app);
+                            REQUIRE(account->getBalance() == minBalance2 - 4 * txfee);
+                            auto trustline = loadTrustLine(sendToSelf, data.asset, app, true);
+                            REQUIRE(trustline->getBalance() == 500);
+                        }
+
+                        SECTION("with trustline and full balance")
+                        {
+                            gateway.pay(sendToSelf, data.asset, 1000);
+
+                            SECTION("few")
+                            {
+                                data.payWithTrustLineFull(data.asset, 1);
+                            }
+                            SECTION("all")
+                            {
+                                data.payWithTrustLineFull(data.asset, 1000);
+                            }
+                            SECTION("more than have")
+                            {
+                                data.payWithTrustLineFull(data.asset, 2000);
+                            }
+                            auto account = loadAccount(sendToSelf, app);
+                            REQUIRE(account->getBalance() == minBalance2 - 4 * txfee);
+                            auto trustline = loadTrustLine(sendToSelf, data.asset, app, true);
+                            REQUIRE(trustline->getBalance() == 1000);
+                        }
+                    }
+                }
+
+            }
 
             SECTION("payment through path")
             {
