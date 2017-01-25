@@ -593,7 +593,7 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
