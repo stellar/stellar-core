@@ -188,12 +188,102 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("send to self")
     {
-        root.pay(root, morePayment);
+        auto sendToSelf = root.create("send to self", minBalance2);
 
-        AccountFrame::pointer rootAccount2;
-        rootAccount2 = loadAccount(root, app);
-        REQUIRE(rootAccount2->getBalance() ==
-                (rootAccount->getBalance() - txfee));
+        SECTION("native")
+        {
+            SECTION("few")
+            {
+                sendToSelf.pay(sendToSelf, 1);
+            }
+            SECTION("all")
+            {
+                sendToSelf.pay(sendToSelf, minBalance2);
+            }
+            SECTION("more than have")
+            {
+                sendToSelf.pay(sendToSelf, INT64_MAX);
+            }
+            auto account = loadAccount(sendToSelf, app);
+            REQUIRE(account->getBalance() == minBalance2 - txfee);
+        }
+
+        auto fakeCur = makeAsset(gateway, "fake");
+        auto fakeWithFakeAccountCur = makeAsset(getAccount("fake account"), "fake");
+        auto assetsWithoutTrustline = std::vector<std::pair<std::string, Asset>>{
+            std::make_pair("existing asset", idrCur),
+            std::make_pair("non existing asset with existing issuer", fakeCur),
+            std::make_pair("non existing asset with non existing issuer", fakeWithFakeAccountCur)
+        };
+
+        for (auto const& asset : assetsWithoutTrustline)
+        {
+            SECTION(asset.first)
+            {
+                SECTION("without trustline")
+                {
+                    sendToSelf.pay(sendToSelf, asset.second, 1);
+                    auto account = loadAccount(sendToSelf, app);
+                    REQUIRE(account->getBalance() == minBalance2 - txfee);
+                    REQUIRE(!loadTrustLine(sendToSelf, asset.second, app, false));
+                }
+            }
+        }
+
+        auto assetsWithTrustline = assetsWithoutTrustline;
+        assetsWithTrustline.resize(2);
+
+        sendToSelf.changeTrust(idrCur, 1000);
+        sendToSelf.changeTrust(fakeCur, 1000);
+        REQUIRE_THROWS_AS(sendToSelf.changeTrust(fakeWithFakeAccountCur, 1000), ex_CHANGE_TRUST_NO_ISSUER);
+
+        for (auto const& asset : assetsWithTrustline)
+        {
+            SECTION(asset.first)
+            {
+                SECTION("with trustline and 0 balance")
+                {
+                    SECTION("few")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 1);
+                    }
+                    SECTION("all")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 1000);
+                    }
+                    SECTION("more than have")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 2000);
+                    }
+                    auto account = loadAccount(sendToSelf, app);
+                    REQUIRE(account->getBalance() == minBalance2 - 4 * txfee);
+                    auto trustline = loadTrustLine(sendToSelf, idrCur, app, true);
+                    REQUIRE(trustline->getBalance() == 0);
+                }
+
+                SECTION("with trustline and some balance")
+                {
+                    gateway.pay(sendToSelf, idrCur, 1000);
+
+                    SECTION("few")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 1);
+                    }
+                    SECTION("all")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 1000);
+                    }
+                    SECTION("more than have")
+                    {
+                        sendToSelf.pay(sendToSelf, idrCur, 2000);
+                    }
+                    auto account = loadAccount(sendToSelf, app);
+                    REQUIRE(account->getBalance() == minBalance2 - 4 * txfee);
+                    auto trustline = loadTrustLine(sendToSelf, idrCur, app, true);
+                    REQUIRE(trustline->getBalance() == 1000);
+                }
+            }
+        }
     }
 
     SECTION("send XLM to a new account (no destination)")
