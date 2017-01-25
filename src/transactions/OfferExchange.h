@@ -12,6 +12,30 @@
 namespace stellar
 {
 
+enum class ExchangeResultType
+{
+    NORMAL,
+    REDUCED_TO_ZERO,
+    BOGUS
+};
+
+struct ExchangeResult
+{
+    int64_t numWheatReceived;
+    int64_t numSheepSend;
+    bool reduced;
+
+    ExchangeResultType type() const
+    {
+        if (numWheatReceived != 0 && numSheepSend != 0)
+            return ExchangeResultType::NORMAL;
+        else
+            return reduced ? ExchangeResultType::REDUCED_TO_ZERO : ExchangeResultType::BOGUS;
+    }
+};
+
+ExchangeResult exchange(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend);
+
 class OfferExchange
 {
 
