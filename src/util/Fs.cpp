@@ -218,8 +218,11 @@ mkdir(std::string const& name)
     return b;
 }
 
+namespace
+{
+
 int
-callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
+nftw_deltree_callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
 {
     CLOG(DEBUG, "Fs") << "deleting: " << name;
     if (flag == FTW_DP)
@@ -239,10 +242,12 @@ callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
     return 0;
 }
 
+}
+
 void
 deltree(std::string const& d)
 {
-    if (nftw(d.c_str(), callback, FOPEN_MAX, FTW_DEPTH) != 0)
+    if (nftw(d.c_str(), nftw_deltree_callback, FOPEN_MAX, FTW_DEPTH) != 0)
     {
         throw std::runtime_error("nftw failed in deltree for " + d);
     }
