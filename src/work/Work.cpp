@@ -234,7 +234,7 @@ Work::advance()
     {
         CLOG(DEBUG, "Work") << "some of " << mChildren.size()
                             << " children of " << getUniqueName()
-                            << " successful, scheduling failure";
+                            << " failed, scheduling failure";
         scheduleFailure();
     }
 }
