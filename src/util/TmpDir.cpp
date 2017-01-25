@@ -45,12 +45,22 @@ TmpDir::getName() const
 
 TmpDir::~TmpDir()
 {
-    if (mPath)
+    if (!mPath)
+    {
+        return;
+    }
+
+    try
     {
         fs::deltree(*mPath);
         LOG(DEBUG) << "TmpDir deleted: " << *mPath;
-        mPath.reset();
     }
+    catch (std::runtime_error& e)
+    {
+        LOG(ERROR) << "Failed to delete TmpDir: " << *mPath << ", because: " << e.what();
+    }
+
+    mPath.reset();
 }
 
 TmpDirManager::TmpDirManager(std::string const& root) : mRoot(root)
