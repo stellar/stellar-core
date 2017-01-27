@@ -31,12 +31,12 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
     // calculate the weight of the signatures
     int totalWeight = 0;
 
-    // compare all available SIGNER_KEY_TYPE_HASH_TX with current transaction hash
+    // compare all available SIGNER_KEY_TYPE_PRE_AUTH_TX with current transaction hash
     // current transaction hash is not stored in getEnvelope().signatures - it is
     // computed with getContentsHash() method
-    for (auto const &signerKey : signers[SIGNER_KEY_TYPE_HASH_TX])
+    for (auto const &signerKey : signers[SIGNER_KEY_TYPE_PRE_AUTH_TX])
     {
-        if (signerKey.key.hashTx() == mContentsHash)
+        if (signerKey.key.preAuthTx() == mContentsHash)
         {
             mUsedOneTimeSignerKeys[accountID].insert(signerKey.key);
             totalWeight += signerKey.weight;

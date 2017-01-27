@@ -17,7 +17,7 @@ typedef enum
     // version bytes - 5 bits only
     STRKEY_PUBKEY_ED25519 = 6, // 'G'
     STRKEY_SEED_ED25519 = 18,  // 'S'
-    STRKEY_HASH_TX = 19, // 'T',
+    STRKEY_PRE_AUTH_TX = 19, // 'T',
     STRKEY_HASH_X = 23 // 'X'
 } StrKeyVersionByte;
 

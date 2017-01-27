@@ -17,7 +17,7 @@ KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
     case strKey::STRKEY_PUBKEY_ED25519:
     case strKey::STRKEY_SEED_ED25519:
         return crypto_sign_PUBLICKEYBYTES;
-    case strKey::STRKEY_HASH_TX:
+    case strKey::STRKEY_PRE_AUTH_TX:
     case strKey::STRKEY_HASH_X:
         return 32U;
     default:

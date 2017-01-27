@@ -14,11 +14,11 @@ namespace SignerKeyUtils
 {
 
 SignerKey
-hashTxKey(TransactionFrame const &tx)
+preAuthTxKey(TransactionFrame const &tx)
 {
     SignerKey sk;
-    sk.type(SIGNER_KEY_TYPE_HASH_TX);
-    sk.hashTx() = tx.getContentsHash();
+    sk.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+    sk.preAuthTx() = tx.getContentsHash();
     return sk;
 }
 
