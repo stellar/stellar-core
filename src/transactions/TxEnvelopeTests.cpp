@@ -225,7 +225,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             AltSignature{
                 "hash tx",
                 true,
-                [](TransactionFrame const& tx){ return SignerKeyUtils::hashTxKey(tx); },
+                [](TransactionFrame const& tx){ return SignerKeyUtils::preAuthTxKey(tx); },
                 [](TransactionFrame &){}
             },
             AltSignature{

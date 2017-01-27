@@ -100,7 +100,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // add signer 3 - non account, will fail for old ledger
             SignerKey s3;
-            s3.type(SIGNER_KEY_TYPE_HASH_TX);
+            s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
             REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
                                             nullptr, &sk3, nullptr),
@@ -180,7 +180,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // add signer 3 - non account
             SignerKey s3;
-            s3.type(SIGNER_KEY_TYPE_HASH_TX);
+            s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
             a1.setOptions(nullptr, nullptr, nullptr,
                           nullptr, &sk3, nullptr);
