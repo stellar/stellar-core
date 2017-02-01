@@ -107,6 +107,9 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-1.log";
     cfg1.BUCKET_DIR_PATH = "fuzz-buckets-1";
+    cfg1.QUORUM_SET.threshold = 1;
+    cfg1.QUORUM_SET.validators.clear();
+    cfg1.QUORUM_SET.validators.push_back(SecretKey::fromSeed(sha256("a")).getPublicKey());
 
     cfg2.RUN_STANDALONE = true;
     cfg1.HTTP_PORT = 0;
@@ -114,6 +117,9 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
     cfg1.LOG_FILE_PATH = "fuzz-app-2.log";
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
+    cfg2.QUORUM_SET.threshold = 1;
+    cfg2.QUORUM_SET.validators.clear();
+    cfg2.QUORUM_SET.validators.push_back(SecretKey::fromSeed(sha256("b")).getPublicKey());
 
     CfgDirGuard g1(cfg1);
     CfgDirGuard g2(cfg2);
