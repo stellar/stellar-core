@@ -561,11 +561,13 @@
     <None Include="..\..\docs\db-schema.md" />
     <None Include="..\..\docs\fuzzing.md" />
     <None Include="..\..\docs\history.md" />
-    <None Include="..\..\docs\learn\admin.md" />
-    <None Include="..\..\docs\learn\commands.md" />
-    <None Include="..\..\docs\learn\testnet.md" />
+    <None Include="..\..\docs\integration.md" />
     <None Include="..\..\docs\ledger.md" />
     <None Include="..\..\docs\readme.md" />
+    <None Include="..\..\docs\software\admin.md" />
+    <None Include="..\..\docs\software\commands.md" />
+    <None Include="..\..\docs\software\core-data-flow.pdf" />
+    <None Include="..\..\docs\software\testnet.md" />
     <None Include="..\..\docs\stellar-core_example.cfg" />
     <None Include="..\..\docs\stellar-core_standalone.cfg" />
     <None Include="..\..\docs\stellar-core_testnet.cfg" />

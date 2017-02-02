@@ -94,6 +94,9 @@
     <Filter Include="work">
       <UniqueIdentifier>{5b7c914e-a53b-4ac8-9d59-4eb0a63d4e64}</UniqueIdentifier>
     </Filter>
+    <Filter Include="docs\software">
+      <UniqueIdentifier>{afbf3c43-0e10-4e2c-9763-46118da6f8cc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -1033,6 +1036,9 @@
     <None Include="..\..\docs\history.md">
       <Filter>docs</Filter>
     </None>
+    <None Include="..\..\docs\integration.md">
+      <Filter>docs</Filter>
+    </None>
     <None Include="..\..\docs\ledger.md">
       <Filter>docs</Filter>
     </None>
@@ -1054,14 +1060,17 @@
     <None Include="..\..\docs\versioning.md">
       <Filter>docs</Filter>
     </None>
-    <None Include="..\..\docs\learn\admin.md">
-      <Filter>docs</Filter>
+    <None Include="..\..\docs\software\admin.md">
+      <Filter>docs\software</Filter>
     </None>
-    <None Include="..\..\docs\learn\commands.md">
-      <Filter>docs</Filter>
+    <None Include="..\..\docs\software\commands.md">
+      <Filter>docs\software</Filter>
     </None>
-    <None Include="..\..\docs\learn\testnet.md">
-      <Filter>docs</Filter>
+    <None Include="..\..\docs\software\core-data-flow.pdf">
+      <Filter>docs\software</Filter>
+    </None>
+    <None Include="..\..\docs\software\testnet.md">
+      <Filter>docs\software</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
