@@ -18,7 +18,7 @@ stellar-core generates two types of data that can be queried by applications.
 Unless otherwise noted, data stored is `validated`, ie data is only persisted
 after consensus is reached on the network.
 
-An overview of how the data flows within stellar-core is [this data flow presentation](learn/core-data-flow.pdf)
+An overview of how the data flows within stellar-core is [this data flow presentation](software/core-data-flow.pdf)
 
 ### SQL tables
 This includes near real time version of the changes that occured in the network
@@ -31,7 +31,7 @@ properly registered by updating its cursor so that stellar-core can safely
 garbage collect data no longer needed.
 By default stellar-core only keeps track of its internal state and will
  therefore delete data it does not need anymore.
-See `setcursor` in [`learn/commands.md#http-commands`](learn/commands.md#http-commands)
+See `setcursor` in [`software/commands.md#http-commands`](software/commands.md#http-commands)
 
 Advantages of consuming SQL tables for a dependent service:
  * data is available as soon as the network closes a ledger.
@@ -56,4 +56,4 @@ See [`history.md`](history.md) for more detail.
   stellar-core exposes a simple HTTP based API for performing various
   types of operations on stellar-core itself or on entities in the network
   (such as submitting transactions).
-  See [`learn/commands.md`](learn/commands.md) for more information.
+  See [`software/commands.md`](software/commands.md) for more information.
