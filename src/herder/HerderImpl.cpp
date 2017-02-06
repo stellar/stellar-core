@@ -4,6 +4,7 @@
 
 #include "herder/HerderImpl.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "herder/TxSetFrame.h"
 #include "herder/LedgerCloseData.h"
@@ -938,7 +939,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID) << " for "
-                              << PubKeyUtils::toShortString(acc);
+                              << KeyUtils::toShortString(acc);
 
     auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);
@@ -1354,26 +1355,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
                                   0);
 
-    std::vector<LedgerUpgrade> upgrades;
-
     // see if we need to include some upgrades
-    if (lcl.header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_VERSION);
-        upgrades.back().newLedgerVersion() =
-            mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    }
-    if (lcl.header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_BASE_FEE);
-        upgrades.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
-    }
-    if (lcl.header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
-    {
-        upgrades.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        upgrades.back().newMaxTxSetSize() =
-            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
-    }
+    auto upgrades = prepareUpgrades(lcl.header);
 
     for (auto const& upgrade : upgrades)
     {
@@ -1408,6 +1391,37 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
+std::vector<LedgerUpgrade>
+HerderImpl::prepareUpgrades(const LedgerHeader &header) const
+{
+    auto result = std::vector<LedgerUpgrade>{};
+
+    if (header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
+    {
+        auto timeForUpgrade = !mApp.getConfig().PREFERRED_UPGRADE_DATETIME ||
+            VirtualClock::tmToPoint(*mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <= mApp.getClock().now();
+        if (timeForUpgrade)
+        {
+            result.emplace_back(LEDGER_UPGRADE_VERSION);
+            result.back().newLedgerVersion() =
+                mApp.getConfig().LEDGER_PROTOCOL_VERSION;
+        }
+    }
+    if (header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
+    {
+        result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
+        result.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
+    }
+    if (header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
+    {
+        result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
+        result.back().newMaxTxSetSize() =
+            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
+    }
+
+    return result;
+}
+
 bool
 HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
 {
@@ -1427,7 +1441,7 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
             auto const& envelopes = mSCP.getCurrentState(seq);
             for (auto const& e : envelopes)
             {
-                std::string curK = PubKeyUtils::toStrKey(e.statement.nodeID);
+                std::string curK = KeyUtils::toStrKey(e.statement.nodeID);
                 if (curK.compare(0, arg.size(), arg) == 0)
                 {
                     retKey = e.statement.nodeID;
@@ -1719,7 +1733,7 @@ HerderImpl::saveSCPHistory(uint64 index)
             usedQSets.insert(std::make_pair(qHash, getQSet(qHash)));
 
             std::string nodeIDStrKey =
-                PubKeyUtils::toStrKey(e.statement.nodeID);
+                KeyUtils::toStrKey(e.statement.nodeID);
 
             auto envelopeBytes(xdr::xdr_to_opaque(e));
 

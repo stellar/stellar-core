@@ -7,7 +7,6 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "crypto/ByteSlice.h"
@@ -16,6 +15,8 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/DataFrame.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -41,6 +42,9 @@ namespace txtest
 bool
 applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 {
+    // TODO: maybe we should just close ledger with tx instead of checking all of
+    // that manually?
+
     bool check = tx->checkValid(app, 0);
     TransactionResult checkResult = tx->getResult();
 
@@ -94,6 +98,7 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
+    delta.checkAgainstDatabase(app);
 
     return res;
 }
@@ -155,23 +160,6 @@ checkAccount(AccountID const& id, Application& app)
         res->getAccount().signers.size() + retLines.size() + retOffers.size() + retDatas.size();
 
     REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
-}
-
-time_t
-getTestDate(int day, int month, int year)
-{
-    std::tm tm = {0};
-    tm.tm_hour = 0;
-    tm.tm_min = 0;
-    tm.tm_sec = 0;
-    tm.tm_mday = day;
-    tm.tm_mon = month - 1; // 0 based
-    tm.tm_year = year - 1900;
-
-    VirtualClock::time_point tp = VirtualClock::tmToPoint(tm);
-    time_t t = VirtualClock::to_time_t(tp);
-
-    return t;
 }
 
 TxSetResultMeta
@@ -312,6 +300,14 @@ getAccountBalance(SecretKey const& k, Application& app)
     return account->getBalance();
 }
 
+xdr::xvector<Signer,20>
+getAccountSigners(SecretKey const& k, Application& app)
+{
+    AccountFrame::pointer account;
+    account = loadAccount(k, app);
+    return account->getAccount().signers;
+}
+
 void
 checkTransaction(TransactionFrame& txFrame)
 {
@@ -330,6 +326,25 @@ transactionFromOperation(Hash const& networkID, SecretKey const& from,
     e.tx.fee = 100;
     e.tx.seqNum = seq;
     e.tx.operations.push_back(op);
+
+    TransactionFramePtr res =
+        TransactionFrame::makeTransactionFromWire(networkID, e);
+
+    res->addSignature(from);
+
+    return res;
+}
+
+TransactionFramePtr
+transactionFromOperations(Hash const& networkID, SecretKey const& from,
+                          SequenceNumber seq, const std::vector<Operation> &ops)
+{
+    TransactionEnvelope e;
+
+    e.tx.sourceAccount = from.getPublicKey();
+    e.tx.fee = ops.size() * 100;
+    e.tx.seqNum = seq;
+    std::copy(std::begin(ops), std::end(ops), std::back_inserter(e.tx.operations));
 
     TransactionFramePtr res =
         TransactionFrame::makeTransactionFromWire(networkID, e);
@@ -386,6 +401,24 @@ applyAllowTrust(Application& app, SecretKey const& from, PublicKey const& trusto
     throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
+
+    auto result = AllowTrustOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
+    switch (result)
+    {
+        case ALLOW_TRUST_MALFORMED:
+            throw ex_ALLOW_TRUST_MALFORMED{};
+        case ALLOW_TRUST_NO_TRUST_LINE:
+            throw ex_ALLOW_TRUST_NO_TRUST_LINE{};
+        case ALLOW_TRUST_TRUST_NOT_REQUIRED:
+            throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
+        case ALLOW_TRUST_CANT_REVOKE:
+            throw ex_ALLOW_TRUST_CANT_REVOKE{};
+        case ALLOW_TRUST_SELF_NOT_ALLOWED:
+            throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
+        default:
+            break;
+    }
+
     REQUIRE(AllowTrustOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == ALLOW_TRUST_SUCCESS);
 }
@@ -459,9 +492,7 @@ applyCreateAccountTx(Application& app, SecretKey const& from, SecretKey const& t
     REQUIRE(result == CREATE_ACCOUNT_SUCCESS);
 }
 
-TransactionFramePtr
-createPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
-                SequenceNumber seq, int64_t amount)
+Operation createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -469,7 +500,17 @@ createPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& t
     op.body.paymentOp().destination = to.getPublicKey();
     op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
 
-    return transactionFromOperation(networkID, from, seq, op);
+    if (from)
+        op.sourceAccount.activate() = from->getPublicKey();
+
+    return op;
+}
+
+TransactionFramePtr
+createPaymentTx(Hash const& networkID, SecretKey const& from, SecretKey const& to,
+                SequenceNumber seq, int64_t amount)
+{
+    return transactionFromOperation(networkID, from, seq, createPaymentOp(nullptr, to, amount));
 }
 
 void
@@ -552,7 +593,7 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
     checkTransaction(*txFrame);
 
@@ -567,6 +608,8 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
             throw ex_CHANGE_TRUST_INVALID_LIMIT{};
         case CHANGE_TRUST_LOW_RESERVE:
             throw ex_CHANGE_TRUST_LOW_RESERVE{};
+        case CHANGE_TRUST_SELF_NOT_ALLOWED:
+            throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
         default:
             break;
     }
@@ -1158,7 +1201,7 @@ applyAccountMerge(Application& app, SecretKey const& source, PublicKey const& de
 
 TransactionFramePtr
 createManageData(Hash const& networkID, SecretKey const& source,
-    std::string& name, DataValue* value, SequenceNumber seq)
+                 std::string& name, DataValue* value, SequenceNumber seq)
 {
     Operation op;
     op.body.type(MANAGE_DATA);

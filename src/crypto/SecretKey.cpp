@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/StrKey.h"
 #include "crypto/Hex.h"
@@ -13,6 +14,7 @@
 #include "util/HashOfHash.h"
 #include <mutex>
 #include "main/Config.h"
+#include "transactions/SignatureUtils.h"
 #include "util/lrucache.hpp"
 
 namespace stellar
@@ -43,6 +45,8 @@ static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
                   ByteSlice const& bin)
 {
+    assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
+
     gHasher->reset();
     gHasher->add(key.ed25519());
     gHasher->add(signature);
@@ -50,7 +54,7 @@ verifySigCacheKey(PublicKey const& key, Signature const& signature,
     return gHasher->finish();
 }
 
-SecretKey::SecretKey() : mKeyType(KEY_TYPE_ED25519)
+SecretKey::SecretKey() : mKeyType(PUBLIC_KEY_TYPE_ED25519)
 {
     static_assert(crypto_sign_PUBLICKEYBYTES == sizeof(uint256),
                   "Unexpected public key length");
@@ -77,7 +81,7 @@ SecretKey::getPublicKey() const
 {
     PublicKey pk;
 
-    assert(mKeyType == KEY_TYPE_ED25519);
+    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     if (crypto_sign_ed25519_sk_to_pk(pk.ed25519().data(), mSecretKey.data()) !=
         0)
@@ -90,7 +94,7 @@ SecretKey::getPublicKey() const
 SecretKey::Seed
 SecretKey::getSeed() const
 {
-    assert(mKeyType == KEY_TYPE_ED25519);
+    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     Seed seed;
     seed.mKeyType = mKeyType;
@@ -105,7 +109,7 @@ SecretKey::getSeed() const
 std::string
 SecretKey::getStrKeySeed() const
 {
-    assert(mKeyType == KEY_TYPE_ED25519);
+    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     return strKey::toStrKey(strKey::STRKEY_SEED_ED25519, getSeed().mSeed);
 }
@@ -113,7 +117,7 @@ SecretKey::getStrKeySeed() const
 std::string
 SecretKey::getStrKeyPublic() const
 {
-    return PubKeyUtils::toStrKey(getPublicKey());
+    return KeyUtils::toStrKey(getPublicKey());
 }
 
 bool
@@ -132,7 +136,7 @@ SecretKey::isZero() const
 Signature
 SecretKey::sign(ByteSlice const& bin) const
 {
-    assert(mKeyType == KEY_TYPE_ED25519);
+    assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     Signature out(crypto_sign_BYTES, 0);
     if (crypto_sign_detached(out.data(), NULL, bin.data(), bin.size(),
@@ -148,7 +152,7 @@ SecretKey::random()
 {
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPE_ED25519);
+    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
     if (crypto_sign_keypair(pk.ed25519().data(), sk.mSecretKey.data()) != 0)
     {
         throw std::runtime_error("error generating random secret key");
@@ -161,7 +165,7 @@ SecretKey::fromSeed(ByteSlice const& seed)
 {
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPE_ED25519);
+    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
 
     if (seed.size() != crypto_sign_SEEDBYTES)
     {
@@ -190,7 +194,7 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
 
     PublicKey pk;
     SecretKey sk;
-    assert(sk.mKeyType == KEY_TYPE_ED25519);
+    assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
     if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
                                  seed.data()) != 0)
     {
@@ -219,10 +223,78 @@ PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
     gVerifyCacheIgnore = 0;
 }
 
+std::string
+KeyFunctions<PublicKey>::getKeyTypeName()
+{
+    return "public key";
+}
+
+bool
+KeyFunctions<PublicKey>::getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion)
+{
+    switch (keyVersion)
+    {
+    case strKey::STRKEY_PUBKEY_ED25519:
+        return true;
+    default:
+        return false;
+    }
+}
+
+PublicKeyType
+KeyFunctions<PublicKey>::toKeyType(strKey::StrKeyVersionByte keyVersion)
+{
+    switch (keyVersion)
+    {
+    case strKey::STRKEY_PUBKEY_ED25519:
+        return PublicKeyType::PUBLIC_KEY_TYPE_ED25519;
+    default:
+        throw std::invalid_argument("invalid public key type");
+    }
+}
+
+strKey::StrKeyVersionByte
+KeyFunctions<PublicKey>::toKeyVersion(PublicKeyType keyType)
+{
+    switch (keyType)
+    {
+    case PublicKeyType::PUBLIC_KEY_TYPE_ED25519:
+        return strKey::STRKEY_PUBKEY_ED25519;
+    default:
+        throw std::invalid_argument("invalid public key type");
+    }
+}
+
+uint256 &
+KeyFunctions<PublicKey>::getKeyValue(PublicKey &key)
+{
+    switch (key.type())
+    {
+    case SIGNER_KEY_TYPE_ED25519:
+        return key.ed25519();
+    default:
+        throw std::invalid_argument("invalid public key type");
+    }
+}
+
+uint256 const&
+KeyFunctions<PublicKey>::getKeyValue(PublicKey const &key)
+{
+    switch (key.type())
+    {
+    case SIGNER_KEY_TYPE_ED25519:
+        return key.ed25519();
+    default:
+        throw std::invalid_argument("invalid public key type");
+    }
+}
+
 bool
 PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
+    assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
+
     bool shouldCache = shouldCacheVerifySig(key, signature, bin);
     Hash cacheKey;
 
@@ -253,55 +325,11 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
     return ok;
 }
 
-std::string
-PubKeyUtils::toShortString(PublicKey const& pk)
-{
-    return toStrKey(pk).substr(0, 5);
-}
-
-std::string
-PubKeyUtils::toStrKey(PublicKey const& pk)
-{
-    return strKey::toStrKey(strKey::STRKEY_PUBKEY_ED25519, pk.ed25519());
-}
-
-PublicKey
-PubKeyUtils::fromStrKey(std::string const& s)
-{
-    PublicKey pk;
-    uint8_t ver;
-    std::vector<uint8_t> k;
-    if (!strKey::fromStrKey(s, ver, k) ||
-        (ver != strKey::STRKEY_PUBKEY_ED25519) ||
-        (k.size() != crypto_sign_PUBLICKEYBYTES) ||
-        (s.size() != strKey::getStrKeySize(crypto_sign_PUBLICKEYBYTES)))
-    {
-        throw std::invalid_argument("bad public key");
-    }
-    std::copy(k.begin(), k.end(), pk.ed25519().begin());
-    return pk;
-}
-
-SignatureHint
-PubKeyUtils::getHint(PublicKey const& pk)
-{
-    SignatureHint res;
-    memcpy(res.data(), &pk.ed25519().back() - res.size() + 1, res.size());
-    return res;
-}
-
-bool
-PubKeyUtils::hasHint(PublicKey const& pk, SignatureHint const& hint)
-{
-    return memcmp(&pk.ed25519().back() - hint.size() + 1, hint.data(),
-                  hint.size()) == 0;
-}
-
 PublicKey
 PubKeyUtils::random()
 {
     PublicKey pk;
-    pk.type(KEY_TYPE_ED25519);
+    pk.type(PUBLIC_KEY_TYPE_ED25519);
     pk.ed25519().resize(crypto_sign_PUBLICKEYBYTES);
     randombytes_buf(pk.ed25519().data(), pk.ed25519().size());
     return pk;
@@ -311,7 +339,7 @@ static void
 logPublicKey(std::ostream& s, PublicKey const& pk)
 {
     s << "PublicKey:" << std::endl
-      << "  strKey: " << PubKeyUtils::toStrKey(pk) << std::endl
+      << "  strKey: " << KeyUtils::toStrKey(pk) << std::endl
       << "  hex: " << binToHex(pk.ed25519()) << std::endl;
 }
 
@@ -331,7 +359,7 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
     {
         uint256 data = hexToBin256(key);
         PublicKey pk;
-        pk.type(KEY_TYPE_ED25519);
+        pk.type(PUBLIC_KEY_TYPE_ED25519);
         pk.ed25519() = data;
         logPublicKey(s, pk);
 
@@ -346,7 +374,7 @@ StrKeyUtils::logKey(std::ostream& s, std::string const& key)
     // see if it's a public key
     try
     {
-        PublicKey pk = PubKeyUtils::fromStrKey(key);
+        PublicKey pk = KeyUtils::fromStrKey<PublicKey>(key);
         logPublicKey(s, pk);
         return;
     }
@@ -381,6 +409,8 @@ namespace std
 size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const& k) const
     noexcept
 {
+    assert(k.type() == stellar::PUBLIC_KEY_TYPE_ED25519);
+
     return std::hash<stellar::uint256>()(k.ed25519());
 }
 }

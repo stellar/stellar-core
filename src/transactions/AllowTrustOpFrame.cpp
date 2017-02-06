@@ -29,6 +29,17 @@ bool
 AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
+    if (ledgerManager.getCurrentLedgerVersion() > 2)
+    {
+        if (mAllowTrust.trustor == getSourceID())
+        { // since version 3 it is not allowed to use ALLOW_TRUST on self
+            app.getMetrics().NewMeter({"op-allow-trust", "failure", "trust-self"},
+                             "operation").Mark();
+            innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
+            return false;
+        }
+    }
+
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to hold credit
         app.getMetrics().NewMeter({"op-allow-trust", "failure", "not-required"},

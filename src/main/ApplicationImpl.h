@@ -96,6 +96,10 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
+  protected:
+    std::unique_ptr<LedgerManager> mLedgerManager; // allow to change that for tests
+    std::unique_ptr<Herder> mHerder; // allow to change that for tests
+
   private:
     VirtualClock& mVirtualClock;
     Config mConfig;
@@ -117,8 +121,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
-    std::unique_ptr<LedgerManager> mLedgerManager;
-    std::unique_ptr<Herder> mHerder;
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::shared_ptr<ProcessManager> mProcessManager;

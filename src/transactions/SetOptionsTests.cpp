@@ -2,16 +2,18 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SignerKey.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestUtils.h"
+#include "test/test.h"
 #include "test/TxTests.h"
 #include "transactions/TransactionFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -33,8 +35,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app(clock, cfg);
     app.start();
 
     // set up world
@@ -44,7 +45,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     SECTION("Signers")
     {
         SecretKey s1 = getAccount("S1");
-        Signer sk1(s1.getPublicKey(), 1); // low right account
+        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 1); // low right account
 
         ThresholdSetter th;
 
@@ -62,14 +63,16 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("can't use master key as alternate signer")
         {
-            Signer sk(a1.getPublicKey(), 100);
+            Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
             REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr,
                                             nullptr, nullptr,
                                             &sk, nullptr), ex_SET_OPTIONS_BAD_SIGNER);
         }
 
-        SECTION("multiple signers")
+        SECTION("multiple signers for protocol version 2")
         {
+            app.getLedgerManager().setCurrentLedgerVersion(2);
+
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
 
@@ -78,19 +81,33 @@ TEST_CASE("set options", "[tx][setoptions]")
             AccountFrame::pointer a1Account;
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             {
                 Signer& a_sk1 = a1Account->getAccount().signers[0];
-                REQUIRE(a_sk1.pubKey == sk1.pubKey);
+                REQUIRE(a_sk1.key == sk1.key);
                 REQUIRE(a_sk1.weight == sk1.weight);
             }
 
             // add signer 2
             SecretKey s2 = getAccount("S2");
-            Signer sk2(s2.getPublicKey(), 100);
+            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+
+            // add signer 3 - non account, will fail for old ledger
+            SignerKey s3;
+            s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+            Signer sk3(s3, 100);
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
+                                            nullptr, &sk3, nullptr),
+                              ex_SET_OPTIONS_BAD_SIGNER);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
             // update signer 2
@@ -101,21 +118,115 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk1.weight = 11;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
+            // remove signer 1
             sk1.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
-            // remove signer 1
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk2.pubKey == sk2.pubKey);
+            REQUIRE(a_sk2.key == sk2.key);
             REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 3 - non account, not added, because of old ledger
+            sk3.weight = 0;
+            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
+                                            nullptr, &sk3, nullptr),
+                              ex_SET_OPTIONS_BAD_SIGNER);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
 
             // remove signer 2
             sk2.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
             a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 0);
+            REQUIRE(a1Account->getAccount().signers.size() == 0);
+        }
+
+        SECTION("multiple signers for protocol version 3")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(3);
+
+            // add some funds
+            root.pay(a1, app.getLedgerManager().getMinBalance(2));
+            a1.setOptions(nullptr, nullptr, nullptr, &th,
+                          &sk1, nullptr);
+
+            AccountFrame::pointer a1Account;
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            {
+                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                REQUIRE(a_sk1.key == sk1.key);
+                REQUIRE(a_sk1.weight == sk1.weight);
+            }
+
+            // add signer 2
+            SecretKey s2 = getAccount("S2");
+            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+
+            // add signer 3 - non account
+            SignerKey s3;
+            s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
+            Signer sk3(s3, 100);
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk3, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 3);
+            REQUIRE(a1Account->getAccount().signers.size() == 3);
+
+            // update signer 2
+            sk2.weight = 11;
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk2, nullptr);
+
+            // update signer 1
+            sk1.weight = 11;
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk1, nullptr);
+
+            // remove signer 1
+            sk1.weight = 0;
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk1, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 2);
+            REQUIRE(a1Account->getAccount().signers.size() == 2);
+            Signer& a_sk2 = a1Account->getAccount().signers[0];
+            REQUIRE(a_sk2.key == sk2.key);
+            REQUIRE(a_sk2.weight == sk2.weight);
+
+            // remove signer 3 - non account
+            sk3.weight = 0;
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk3, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 1);
+            REQUIRE(a1Account->getAccount().signers.size() == 1);
+
+            // remove signer 2
+            sk2.weight = 0;
+            a1.setOptions(nullptr, nullptr, nullptr,
+                          nullptr, &sk2, nullptr);
+
+            a1Account = loadAccount(a1, app);
+            REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
         }
     }

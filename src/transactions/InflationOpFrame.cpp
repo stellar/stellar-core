@@ -58,7 +58,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     int64_t totalVotes = lcl.totalCoins;
     int64_t minBalance =
-        bigDivide(totalVotes, INFLATION_WIN_MIN_PERCENT, TRILLION);
+        bigDivide(totalVotes, INFLATION_WIN_MIN_PERCENT, TRILLION, ROUND_DOWN);
 
     std::vector<AccountFrame::InflationVotes> winners;
     auto& db = ledgerManager.getDatabase();
@@ -76,7 +76,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         INFLATION_NUM_WINNERS, db);
 
     int64 amountToDole =
-        bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS, TRILLION);
+        bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS, TRILLION, ROUND_DOWN);
     amountToDole += lcl.feePool;
 
     lcl.feePool = 0;
@@ -92,7 +92,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
     {
         AccountFrame::pointer winner;
 
-        int64 toDoleThisWinner = bigDivide(amountToDole, w.mVotes, totalVotes);
+        int64 toDoleThisWinner = bigDivide(amountToDole, w.mVotes, totalVotes, ROUND_DOWN);
 
         if (toDoleThisWinner == 0)
             continue;

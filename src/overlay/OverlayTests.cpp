@@ -5,15 +5,16 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "main/Config.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/TCPPeer.h"
+#include "test/test.h"
 #include "BanManager.h"
 
 #include "medida/metrics_registry.h"
@@ -129,7 +130,7 @@ TEST_CASE("accept preferred peer even when strict", "[overlay]")
 
     cfg2.PREFERRED_PEERS_ONLY = true;
     cfg2.PREFERRED_PEER_KEYS.push_back(
-        PubKeyUtils::toStrKey(cfg1.NODE_SEED.getPublicKey()));
+        KeyUtils::toStrKey(cfg1.NODE_SEED.getPublicKey()));
 
     auto app1 = Application::create(clock, cfg1);
     auto app2 = Application::create(clock, cfg2);

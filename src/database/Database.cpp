@@ -119,6 +119,8 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 4:
         BanManager::dropAll(*this);
+        mSession << "ALTER TABLE accountdata ADD lastmodified INT NOT NULL DEFAULT 0;";
+        mSession << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
         break;
 
     default:

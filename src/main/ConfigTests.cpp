@@ -5,7 +5,7 @@
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
 #include "main/Config.h"
-#include "main/test.h"
+#include "test/test.h"
 
 using namespace stellar;
 
@@ -14,7 +14,7 @@ namespace
 
 bool keyMatches(PublicKey &key, const std::vector<std::string> &keys)
 {
-    auto keyStr = PubKeyUtils::toStrKey(key);
+    auto keyStr = KeyUtils::toStrKey<PublicKey>(key);
     return std::any_of(std::begin(keys), std::end(keys), [&](const std::string &x){ return keyStr == x; });
 }
 

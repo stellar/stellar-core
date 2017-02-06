@@ -9,7 +9,6 @@
 #include "crypto/SHA.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
-#include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryWork.h"
 #include "history/StateSnapshot.h"
@@ -87,7 +86,7 @@ RunCommandWork::onRun()
 
 GetRemoteFileWork::GetRemoteFileWork(
     Application& app, WorkParent& parent, std::string const& remote,
-    std::string const& local, std::shared_ptr<HistoryArchive const> archive,
+    std::string const& local,std::shared_ptr<HistoryArchive const> archive,
     size_t maxRetries)
     : RunCommandWork(app, parent, std::string("get-remote-file ") + remote,
                      maxRetries)
@@ -208,8 +207,8 @@ GzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 }
 
 GunzipFileWork::GunzipFileWork(Application& app, WorkParent& parent,
-                               std::string const& filenameGz, bool keepExisting)
-    : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz)
+                               std::string const& filenameGz, bool keepExisting, size_t maxRetries)
+    : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz, maxRetries)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
 {
@@ -690,22 +689,13 @@ BatchDownloadWork::addNextDownloadWorker()
         CLOG(DEBUG, "History") << "already have " << mFileType
             << " for checkpoint " << mNext;
     }
-    else if (fs::exists(ft.localPath_gz()))
-    {
-        CLOG(DEBUG, "History") << "Unzipping " << mFileType
-            << " for checkpoint " << mNext;
-        auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
-        assert(mRunning.find(gunzip->getUniqueName()) == mRunning.end());
-        mRunning.insert(std::make_pair(gunzip->getUniqueName(), mNext));
-    }
     else
     {
-        CLOG(DEBUG, "History") << "Downloading " << mFileType
-                               << " for checkpoint " << mNext;
-        auto gunzip = addWork<GunzipFileWork>(ft.localPath_gz());
-        gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
-        assert(mRunning.find(gunzip->getUniqueName()) == mRunning.end());
-        mRunning.insert(std::make_pair(gunzip->getUniqueName(), mNext));
+        CLOG(DEBUG, "History") << "Downloading and unzipping " << mFileType
+            << " for checkpoint " << mNext;
+        auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
+        assert(mRunning.find(getAndUnzip->getUniqueName()) == mRunning.end());
+        mRunning.insert(std::make_pair(getAndUnzip->getUniqueName(), mNext));
     }
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
 }
@@ -1123,6 +1113,101 @@ ApplyLedgerChainWork::onSuccess()
 }
 
 ///////////////////////////////////////////////////////////////////////////
+// Get and unzip
+///////////////////////////////////////////////////////////////////////////
+
+GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
+    Application& app, WorkParent& parent, FileTransferInfo ft, std::shared_ptr<HistoryArchive const> archive,
+    size_t maxRetries)
+    : Work(app, parent, std::string("get-and-unzip-remote-file ") + ft.remoteName(),
+           maxRetries)
+    , mFt(std::move(ft))
+    , mArchive(archive)
+{
+}
+
+std::string
+GetAndUnzipRemoteFileWork::getStatus() const
+{
+    if (mState == WORK_PENDING)
+    {
+        if (mGunzipFileWork)
+        {
+            return mGunzipFileWork->getStatus();
+        }
+        else if (mGetRemoteFileWork)
+        {
+            return mGetRemoteFileWork->getStatus();
+        }
+    }
+    return Work::getStatus();
+}
+
+void
+GetAndUnzipRemoteFileWork::onReset()
+{
+    clearChildren();
+    mGetRemoteFileWork.reset();
+    mGunzipFileWork.reset();
+
+    CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName() << ": downloading";
+    mGetRemoteFileWork = addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp());
+}
+
+Work::State
+GetAndUnzipRemoteFileWork::onSuccess()
+{
+    if (mGunzipFileWork)
+    {
+        if (!fs::exists(mFt.localPath_nogz()))
+        {
+            CLOG(ERROR, "History") << "Downloading and unzipping " << mFt.remoteName() << ": .xdr not found";
+            return WORK_FAILURE_RETRY;
+        }
+        else
+        {
+            return WORK_SUCCESS;
+        }
+    }
+
+    if (fs::exists(mFt.localPath_gz_tmp()))
+    {
+        CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName() << ": renaming .gz.tmp to .gz";
+        if (fs::exists(mFt.localPath_gz()) && std::remove(mFt.localPath_gz().c_str()))
+        {
+            CLOG(ERROR, "History") << "Downloading and unzipping " << mFt.remoteName() << ": failed to remove .gz";
+            return WORK_FAILURE_RETRY;
+        }
+
+        if (std::rename(mFt.localPath_gz_tmp().c_str(), mFt.localPath_gz().c_str()))
+        {
+            CLOG(ERROR, "History") << "Downloading and unzipping " << mFt.remoteName() << ": failed to rename .gz.tmp to .gz";
+            return WORK_FAILURE_RETRY;
+        }
+
+        CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName() << ": renamed .gz.tmp to .gz";
+    }
+
+    if (!fs::exists(mFt.localPath_gz()))
+    {
+        CLOG(ERROR, "History") << "Downloading and unzipping " << mFt.remoteName() << ": .gz not found";
+        return WORK_FAILURE_RETRY;
+    }
+
+    CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName() << ": unzipping";
+    mGunzipFileWork = addWork<GunzipFileWork>(mFt.localPath_gz(), false, 1);
+    return WORK_PENDING;
+}
+
+void
+GetAndUnzipRemoteFileWork::onFailureRaise()
+{
+    std::remove(mFt.localPath_nogz().c_str());
+    std::remove(mFt.localPath_gz().c_str());
+    std::remove(mFt.localPath_gz_tmp().c_str());
+}
+
+///////////////////////////////////////////////////////////////////////////
 // Base class for Catchup and Repair
 ///////////////////////////////////////////////////////////////////////////
 
@@ -1174,7 +1259,6 @@ CatchupWork::nextLedger() const
         ? mInitLedger
         : mApp.getHistoryManager().nextCheckpointLedger(mInitLedger);
 }
-
 
 uint32_t
 CatchupWork::lastCheckpointSeq() const
@@ -1298,9 +1382,7 @@ CatchupMinimalWork::onSuccess()
 
             auto verify = mDownloadBucketsWork->addWork<VerifyBucketWork>(
                 mBuckets, ft.localPath_nogz(), hexToBin256(hash));
-            auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-            gunzip->addWork<GetRemoteFileWork>(ft.remoteName(),
-                                               ft.localPath_gz());
+            verify->addWork<GetAndUnzipRemoteFileWork>(ft);
         }
         return WORK_PENDING;
     }
@@ -1730,8 +1812,7 @@ RepairMissingBucketsWork::onReset()
         // Each bucket gets its own work-chain of download->gunzip->verify
         auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
                                                 hexToBin256(hash));
-        auto gunzip = verify->addWork<GunzipFileWork>(ft.localPath_gz());
-        gunzip->addWork<GetRemoteFileWork>(ft.remoteName(), ft.localPath_gz());
+        verify->addWork<GetAndUnzipRemoteFileWork>(ft);
     }
 }
 

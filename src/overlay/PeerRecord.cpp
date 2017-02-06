@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerRecord.h"
-#include <soci.h>
 #include <vector>
 #include <cmath>
 #include "util/Logging.h"
 #include "util/must_use.h"
+#include "util/SociNoWarnings.h"
 #include "overlay/StellarXDR.h"
 #include "main/Application.h"
 #include "lib/util/format.h"

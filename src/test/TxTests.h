@@ -38,8 +38,6 @@ bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 void checkEntry(LedgerEntry const& le, Application& app);
 void checkAccount(AccountID const& id, Application& app);
 
-time_t getTestDate(int day, int month, int year);
-
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
                               TransactionFramePtr tx = nullptr);
@@ -70,6 +68,13 @@ SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
 
 int64_t getAccountBalance(SecretKey const& k, Application& app);
 
+xdr::xvector<Signer,20> getAccountSigners(SecretKey const& k, Application& app);
+
+TransactionFramePtr transactionFromOperation(Hash const& networkID, SecretKey const& from,
+                                             SequenceNumber seq, Operation const& op);
+TransactionFramePtr transactionFromOperations(Hash const& networkID, SecretKey const& from,
+                                              SequenceNumber seq, const std::vector<Operation> &ops);
+
 TransactionFramePtr createChangeTrust(Hash const& networkID, SecretKey const&from,
                                       SecretKey const&to, SequenceNumber seq,
                                       std::string const& assetCode,
@@ -95,6 +100,8 @@ TransactionFramePtr createCreateAccountTx(Hash const& networkID,
 void
 applyCreateAccountTx(Application& app, SecretKey const&from, SecretKey const&to,
                      SequenceNumber seq, int64_t amount);
+
+Operation createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount);
 
 TransactionFramePtr createPaymentTx(Hash const& networkID, SecretKey const&from,
                                     SecretKey const&to, SequenceNumber seq,

@@ -10,16 +10,17 @@
 #include "lib/util/getopt.h"
 #include "main/dumpxdr.h"
 #include "main/fuzz.h"
-#include "main/test.h"
 #include "main/Config.h"
 #include "lib/http/HttpClient.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "history/HistoryManager.h"
 #include "main/PersistentState.h"
 #include <sodium.h>
 #include "database/Database.h"
 #include "bucket/Bucket.h"
+#include "test/test.h"
 #include "util/optional.h"
 #include <locale>
 
@@ -509,7 +510,7 @@ main(int argc, char* const* argv)
             throw std::invalid_argument(s);
         }
         Logging::setFmt(
-            PubKeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
+            KeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 
         if (command.size())

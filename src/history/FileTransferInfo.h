@@ -72,6 +72,11 @@ class FileTransferInfo
     {
         return mLocalPath + ".gz";
     }
+    std::string
+    localPath_gz_tmp() const
+    {
+        return mLocalPath + ".gz.tmp";
+    }
 
     std::string
     baseName_nogz() const
@@ -82,6 +87,11 @@ class FileTransferInfo
     baseName_gz() const
     {
         return baseName_nogz() + ".gz";
+    }
+    std::string
+    baseName_gz_tmp() const
+    {
+        return baseName_nogz() + ".gz.tmp";
     }
 
     std::string

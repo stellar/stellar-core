@@ -212,7 +212,7 @@ ManageOfferOpFrame::doApply(Application& app,
         {
             int64_t maxSheepBasedOnWheat;
             if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
-                           sheepPrice.n))
+                           sheepPrice.n, ROUND_DOWN))
             {
                 maxSheepBasedOnWheat = INT64_MAX;
             }
@@ -395,6 +395,13 @@ ManageOfferOpFrame::doCheckValid(Application& app)
                     {"op-manage-offer", "invalid", "negative-or-zero-values"},
                     "operation").Mark();
         innerResult().code(MANAGE_OFFER_MALFORMED);
+        return false;
+    }
+    if (app.getLedgerManager().getCurrentLedgerVersion() > 2 && mManageOffer.offerID == 0 && mManageOffer.amount == 0)
+    { // since version 3 of ledger you cannot send offer operation with id and amount both equal to 0
+        app.getMetrics().NewMeter({"op-manage-offer", "invalid", "create-with-zero"},
+                         "operation").Mark();
+        innerResult().code(MANAGE_OFFER_NOT_FOUND);
         return false;
     }
 

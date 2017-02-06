@@ -57,7 +57,7 @@ stripControlCharacters(T& s)
 static bool
 signerEqual(Signer const& s1, Signer const& s2)
 {
-    return s1.pubKey == s2.pubKey;
+    return s1.key == s2.key;
 }
 
 void

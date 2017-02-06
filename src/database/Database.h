@@ -6,11 +6,11 @@
 
 #include <string>
 #include <set>
-#include <soci.h>
 #include "overlay/StellarXDR.h"
 #include "medida/timer_context.h"
 #include "util/NonCopyable.h"
 #include "util/lrucache.hpp"
+#include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 
 namespace medida

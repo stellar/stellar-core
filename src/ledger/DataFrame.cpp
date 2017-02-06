@@ -5,6 +5,7 @@
 #include "ledger/DataFrame.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
 #include "LedgerDelta.h"
@@ -19,14 +20,14 @@ namespace stellar
 const char* DataFrame::kSQLCreateStatement1 =
     "CREATE TABLE accountdata"
     "("
-        "accountid  VARCHAR(56)  NOT NULL,"
-        "dataname     VARCHAR(64) NOT NULL,"
+        "accountid    VARCHAR(56)  NOT NULL,"
+        "dataname     VARCHAR(64)  NOT NULL,"
         "datavalue    VARCHAR(112) NOT NULL,"
         "PRIMARY KEY  (accountid, dataname)"
     ");";
 
 static const char* dataColumnSelector =
-    "SELECT accountid,dataname,datavalue FROM accountdata";
+    "SELECT accountid,dataname,datavalue,lastmodified FROM accountdata";
 
 DataFrame::DataFrame() : EntryFrame(DATA), mData(mEntry.data.data())
 {
@@ -79,7 +80,7 @@ DataFrame::loadData(AccountID const& accountID, std::string dataName,
 {
     DataFrame::pointer retData;
 
-    std::string actIDStrKey = PubKeyUtils::toStrKey(accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(accountID);
 
     std::string sql = dataColumnSelector;
     sql += " WHERE accountid = :id AND dataname = :dataname";
@@ -115,11 +116,12 @@ DataFrame::loadData(StatementContext& prep,
     st.exchange(into(actIDStrKey));
     st.exchange(into(dataName, dataNameIndicator));
     st.exchange(into(dataValue, dataValueIndicator));
+    st.exchange(into(le.lastModifiedLedgerSeq));
     st.define_and_bind();
     st.execute(true);
     while (st.got_data())
     {
-        oe.accountID = PubKeyUtils::fromStrKey(actIDStrKey);
+        oe.accountID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
         
         if((dataNameIndicator != soci::i_ok) ||
             (dataValueIndicator != soci::i_ok))
@@ -142,7 +144,7 @@ DataFrame::loadAccountsData(AccountID const& accountID,
                        Database& db)
 {
     std::string actIDStrKey;
-    actIDStrKey = PubKeyUtils::toStrKey(accountID);
+    actIDStrKey = KeyUtils::toStrKey(accountID);
 
     std::string sql = dataColumnSelector;
     sql += " WHERE accountid = :id";
@@ -177,7 +179,7 @@ DataFrame::loadAllData(Database& db)
 bool
 DataFrame::exists(Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.data().accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
     int exists = 0;
     auto timer = db.getSelectTimer("data-exists");
@@ -210,7 +212,7 @@ DataFrame::storeDelete(LedgerDelta& delta, Database& db) const
 void
 DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 {
-    std::string actIDStrKey = PubKeyUtils::toStrKey(key.data().accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
     auto timer = db.getDeleteTimer("data");
     auto prep = db.getPreparedStatement("DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
@@ -240,7 +242,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 {
     touch(delta);
 
-    std::string actIDStrKey = PubKeyUtils::toStrKey(mData.accountID);
+    std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
     std::string dataName = mData.dataName;
     std::string dataValue = bn::encode_b64(mData.dataValue);
    
@@ -250,12 +252,12 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 
     if (insert)
     {
-        sql = "INSERT INTO accountdata (accountid,dataname,datavalue)"
-               " VALUES (:aid,:dn,:dv)";
+        sql = "INSERT INTO accountdata (accountid,dataname,datavalue,lastmodified)"
+               " VALUES (:aid,:dn,:dv,:lm)";
     }
     else
     {
-        sql = "UPDATE accountdata SET datavalue=:dv "
+        sql = "UPDATE accountdata SET datavalue=:dv,lastmodified=:lm "
               " WHERE accountid=:aid AND dataname=:dn";
     }
 
@@ -266,6 +268,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     st.exchange(use(actIDStrKey, "aid"));
     st.exchange(use(dataName, "dn"));
     st.exchange(use(dataValue, "dv"));
+    st.exchange(use(getLastModified(), "lm"));
 
     st.define_and_bind();
     st.execute(true);

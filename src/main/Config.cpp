@@ -9,6 +9,7 @@
 #include "util/Logging.h"
 #include "util/types.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "scp/LocalNode.h"
 
 #include <functional>
@@ -24,7 +25,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     FORCE_SCP = false;
-    LEDGER_PROTOCOL_VERSION = 2;
+    LEDGER_PROTOCOL_VERSION = 3;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 5;
     OVERLAY_PROTOCOL_VERSION = 5;
@@ -591,6 +592,14 @@ Config::load(std::string const& filename)
                 }
                 NTP_SERVER = item.second->as<std::string>()->value();
             }
+            else if (item.first == "PREFERRED_UPGRADE_DATETIME")
+            {
+                if (!item.second->as<std::tm>())
+                {
+                    throw std::invalid_argument("invalid PREFERRED_UPGRADE_DATETIME");
+                }
+                PREFERRED_UPGRADE_DATETIME = make_optional<std::tm>(item.second->as<std::tm>()->value());
+            }
             else
             {
                 std::string err("Unknown configuration entry: '");
@@ -620,7 +629,7 @@ Config::load(std::string const& filename)
                     PublicKey nodeID;
                     parseNodeID(v->as<std::string>()->value(), nodeID);
                     PREFERRED_PEER_KEYS.push_back(
-                        PubKeyUtils::toStrKey(nodeID));
+                        KeyUtils::toStrKey(nodeID));
                 }
             }
         }
@@ -756,7 +765,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
         }
         else
         {
-            retKey = PubKeyUtils::fromStrKey(nodestr);
+            retKey = KeyUtils::fromStrKey<PublicKey>(nodestr);
         }
 
         if (iss)
@@ -787,7 +796,7 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
 std::string
 Config::toShortString(PublicKey const& pk) const
 {
-    std::string ret = PubKeyUtils::toStrKey(pk);
+    std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
         return ret.substr(0, 5);
@@ -798,7 +807,7 @@ Config::toShortString(PublicKey const& pk) const
 std::string
 Config::toStrKey(PublicKey const& pk, bool& isAlias) const
 {
-    std::string ret = PubKeyUtils::toStrKey(pk);
+    std::string ret = KeyUtils::toStrKey(pk);
     auto it = VALIDATOR_NAMES.find(ret);
     if (it == VALIDATOR_NAMES.end())
     {
@@ -830,7 +839,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 
     try
     {
-        retKey = PubKeyUtils::fromStrKey(expanded);
+        retKey = KeyUtils::fromStrKey<PublicKey>(expanded);
     }
     catch (std::invalid_argument &)
     {

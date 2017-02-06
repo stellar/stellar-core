@@ -5,7 +5,6 @@
 #include "main/Application.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
-#include "main/test.h"
 #include "lib/catch.hpp"
 #include "util/Logging.h"
 #include "ledger/LedgerManager.h"
@@ -16,10 +15,11 @@
 #include "main/PersistentState.h"
 #include "simulation/Simulation.h"
 #include "herder/LedgerCloseData.h"
-#include <soci.h>
 #include "bucket/BucketManager.h"
+#include "test/test.h"
 #include "util/optional.h"
 #include "util/Math.h"
+#include "util/SociNoWarnings.h"
 
 using namespace stellar;
 using namespace std;

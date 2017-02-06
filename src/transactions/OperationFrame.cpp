@@ -76,10 +76,10 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-OperationFrame::apply(LedgerDelta& delta, Application& app)
+OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta, Application& app)
 {
     bool res;
-    res = checkValid(app, &delta);
+    res = checkValid(signatureChecker, app, &delta);
     if (res)
     {
         res = doApply(app, delta, app.getLedgerManager());
@@ -95,9 +95,9 @@ OperationFrame::getNeededThreshold() const
 }
 
 bool
-OperationFrame::checkSignature() const
+OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
 {
-    return mParentTx.checkSignature(*mSourceAccount, getNeededThreshold());
+    return mParentTx.checkSignature(signatureChecker, *mSourceAccount, getNeededThreshold());
 }
 
 AccountID const&
@@ -125,9 +125,8 @@ OperationFrame::getResultCode() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(Application& app, LedgerDelta* delta)
+OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta)
 {
-    
     bool forApply = (delta != nullptr);
     if (!loadAccount(delta, app.getDatabase()))
     {
@@ -146,7 +145,7 @@ OperationFrame::checkValid(Application& app, LedgerDelta* delta)
         }
     }
 
-    if (!checkSignature())
+    if (!checkSignature(signatureChecker))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")

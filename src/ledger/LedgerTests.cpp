@@ -4,7 +4,6 @@
 
 #include "util/Timer.h"
 #include "main/Application.h"
-#include "main/test.h"
 #include "main/Config.h"
 #include "lib/catch.hpp"
 #include "database/Database.h"
@@ -12,6 +11,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/EntryFrame.h"
 #include "ledger/AccountFrame.h"
+#include "test/test.h"
 #include "util/Logging.h"
 #include "util/types.h"
 #include <xdrpp/autocheck.h>
