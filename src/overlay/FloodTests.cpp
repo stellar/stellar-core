@@ -2,22 +2,22 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
 #include "TCPPeer.h"
+#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
+#include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "overlay/PeerDoor.h"
 #include "main/Config.h"
-#include "util/Logging.h"
-#include "simulation/Simulation.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PeerDoor.h"
+#include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
-#include "test/test.h"
 #include "test/TxTests.h"
-#include "herder/Herder.h"
-#include "ledger/LedgerDelta.h"
-#include "herder/HerderImpl.h"
+#include "test/test.h"
+#include "util/Logging.h"
+#include "util/Timer.h"
 
 namespace stellar
 {
@@ -29,8 +29,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
     Simulation::pointer simulation;
 
     // make closing very slow
-    auto cfgGen = []()
-    {
+    auto cfgGen = []() {
         static int cfgNum = 1;
         Config cfg = getTestConfig(cfgNum++);
         cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 10000;
@@ -44,8 +43,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
     std::vector<std::shared_ptr<Application>> nodes;
 
     auto test = [&](std::function<void(int)> inject,
-                    std::function<bool(std::shared_ptr<Application>)> acked)
-    {
+                    std::function<bool(std::shared_ptr<Application>)> acked) {
         simulation->startAllNodes();
 
         nodes = simulation->getNodes();
@@ -95,8 +93,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
         LOG(DEBUG) << "Done injecting work";
 
-        auto checkSim = [&]()
-        {
+        auto checkSim = [&]() {
             bool res = true;
             for (auto n : simulation->getNodes())
             {
@@ -132,8 +129,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
     SECTION("transaction flooding")
     {
-        auto injectTransaction = [&](int i)
-        {
+        auto injectTransaction = [&](int i) {
             const int64 txAmount = 10000000;
 
             SecretKey dest = SecretKey::random();
@@ -152,8 +148,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
         };
 
-        auto ackedTransactions = [&](std::shared_ptr<Application> app)
-        {
+        auto ackedTransactions = [&](std::shared_ptr<Application> app) {
             // checks if an app received all transactions or not
             size_t okCount = 0;
             for (auto const& s : sourcesPub)
@@ -210,8 +205,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         // a quorum set
         // a valid transaction set
 
-        auto injectSCP = [&](int i)
-        {
+        auto injectSCP = [&](int i) {
             const int64 txAmount = 10000000;
 
             SecretKey dest = SecretKey::random();
@@ -259,14 +253,14 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
 
             // inject the message
-            REQUIRE(herder.recvSCPEnvelope(envelope) == Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(herder.recvSCPEnvelope(envelope) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(txSet.getContentsHash(), txSet));
             REQUIRE(herder.recvSCPQuorumSet(qSetHash, qset));
 
         };
 
-        auto ackedSCP = [&](std::shared_ptr<Application> app)
-        {
+        auto ackedSCP = [&](std::shared_ptr<Application> app) {
             // checks if an app received and processed all SCP messages
             size_t okCount = 0;
             auto const& lcl =
@@ -278,8 +272,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             for (auto const& s : sourcesPub)
             {
                 if (std::find_if(state.begin(), state.end(),
-                                 [&](SCPEnvelope const& e)
-                                 {
+                                 [&](SCPEnvelope const& e) {
                                      return e.statement.nodeID == s;
                                  }) != state.end())
                 {

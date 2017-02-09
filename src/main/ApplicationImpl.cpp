@@ -9,33 +9,33 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "ledger/LedgerManager.h"
-#include "herder/Herder.h"
-#include "overlay/BanManager.h"
-#include "overlay/OverlayManager.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
-#include "history/HistoryManager.h"
-#include "database/Database.h"
-#include "process/ProcessManager.h"
-#include "main/CommandHandler.h"
-#include "util/StatusManager.h"
-#include "work/WorkManager.h"
-#include "simulation/LoadGenerator.h"
-#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
-#include "scp/LocalNode.h"
-#include "scp/QuorumSetUtils.h"
+#include "crypto/SecretKey.h"
+#include "database/Database.h"
+#include "herder/Herder.h"
+#include "history/HistoryManager.h"
+#include "ledger/LedgerManager.h"
+#include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/NtpSynchronizationChecker.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/reporting/console_reporter.h"
-#include "medida/meter.h"
-#include "medida/counter.h"
 #include "medida/timer.h"
+#include "overlay/BanManager.h"
+#include "overlay/OverlayManager.h"
+#include "process/ProcessManager.h"
+#include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
+#include "simulation/LoadGenerator.h"
+#include "util/StatusManager.h"
+#include "work/WorkManager.h"
 
-#include "util/TmpDir.h"
 #include "util/Logging.h"
+#include "util/TmpDir.h"
 #include "util/make_unique.h"
 
 #include <set>
@@ -74,15 +74,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     unsigned t = std::thread::hardware_concurrency();
     LOG(DEBUG) << "Application constructing "
                << "(worker threads: " << t << ")";
-    mStopSignals.async_wait([this](asio::error_code const& ec, int sig)
-                            {
-                                if (!ec)
-                                {
-                                    LOG(INFO) << "got signal " << sig
-                                              << ", shutting down";
-                                    this->gracefulStop();
-                                }
-                            });
+    mStopSignals.async_wait([this](asio::error_code const& ec, int sig) {
+        if (!ec)
+        {
+            LOG(INFO) << "got signal " << sig << ", shutting down";
+            this->gracefulStop();
+        }
+    });
 
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
@@ -103,15 +101,13 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 
     if (!cfg.NTP_SERVER.empty())
     {
-        mNtpSynchronizationChecker = std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
+        mNtpSynchronizationChecker =
+            std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
     }
 
     while (t--)
     {
-        mWorkerThreads.emplace_back([this, t]()
-                                    {
-                                        this->runWorkerThread(t);
-                                    });
+        mWorkerThreads.emplace_back([this, t]() { this->runWorkerThread(t); });
     }
 
     LOG(DEBUG) << "Application constructed";
@@ -264,11 +260,11 @@ ApplicationImpl::start()
 
     bool done = false;
     mLedgerManager->loadLastKnownLedger(
-        [this, &done](asio::error_code const& ec)
-        {
+        [this, &done](asio::error_code const& ec) {
             if (ec)
             {
-                throw std::runtime_error("Unable to restore last-known ledger state");
+                throw std::runtime_error(
+                    "Unable to restore last-known ledger state");
             }
 
             // restores the SCP state before starting overlay
@@ -416,13 +412,11 @@ ApplicationImpl::getLoadGenerator()
 void
 ApplicationImpl::checkDB()
 {
-    getClock().getIOService().post(
-        [this]
-        {
-            checkDBAgainstBuckets(this->getMetrics(), this->getBucketManager(),
-                                  this->getDatabase(),
-                                  this->getBucketManager().getBucketList());
-        });
+    getClock().getIOService().post([this] {
+        checkDBAgainstBuckets(this->getMetrics(), this->getBucketManager(),
+                              this->getDatabase(),
+                              this->getBucketManager().getBucketList());
+    });
 }
 
 void
@@ -533,8 +527,8 @@ ApplicationImpl::syncOwnMetrics()
         .Mark(vhit + vmiss + vignore);
 
     // Similarly, flush global process-table stats.
-    mMetrics->NewCounter({"process", "memory", "handles"}).set_count(
-        mProcessManager->getNumRunningProcesses());
+    mMetrics->NewCounter({"process", "memory", "handles"})
+        .set_count(mProcessManager->getNumRunningProcesses());
 }
 
 void

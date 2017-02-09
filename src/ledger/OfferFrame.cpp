@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/OfferFrame.h"
-#include "transactions/ManageOfferOpFrame.h"
-#include "database/Database.h"
-#include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
-#include "crypto/SHA.h"
 #include "LedgerDelta.h"
+#include "crypto/KeyUtils.h"
+#include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
+#include "database/Database.h"
+#include "transactions/ManageOfferOpFrame.h"
 #include "util/types.h"
 
 using namespace std;
@@ -64,7 +64,8 @@ OfferFrame::OfferFrame(OfferFrame const& from) : OfferFrame(from.mEntry)
 {
 }
 
-OfferFrame& OfferFrame::operator=(OfferFrame const& other)
+OfferFrame&
+OfferFrame::operator=(OfferFrame const& other)
 {
     if (&other != this)
     {
@@ -144,10 +145,9 @@ OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db,
     st.exchange(use(offerID));
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(prep, [&retOffer](LedgerEntry const& offer)
-               {
-                   retOffer = make_shared<OfferFrame>(offer);
-               });
+    loadOffers(prep, [&retOffer](LedgerEntry const& offer) {
+        retOffer = make_shared<OfferFrame>(offer);
+    });
 
     if (delta && retOffer)
     {
@@ -305,14 +305,12 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
         if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
         {
             assetCodeToStr(buying.alphaNum4().assetCode, buyingAssetCode);
-            buyingIssuerStrKey =
-                KeyUtils::toStrKey(buying.alphaNum4().issuer);
+            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum4().issuer);
         }
         else if (buying.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
         {
             assetCodeToStr(buying.alphaNum12().assetCode, buyingAssetCode);
-            buyingIssuerStrKey =
-                KeyUtils::toStrKey(buying.alphaNum12().issuer);
+            buyingIssuerStrKey = KeyUtils::toStrKey(buying.alphaNum12().issuer);
         }
         else
         {
@@ -346,10 +344,9 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     st.exchange(use(offset));
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(prep, [&retOffers](LedgerEntry const& of)
-               {
-                   retOffers.emplace_back(make_shared<OfferFrame>(of));
-               });
+    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
+        retOffers.emplace_back(make_shared<OfferFrame>(of));
+    });
 }
 
 void
@@ -367,10 +364,9 @@ OfferFrame::loadOffers(AccountID const& accountID,
     st.exchange(use(actIDStrKey));
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(prep, [&retOffers](LedgerEntry const& of)
-               {
-                   retOffers.emplace_back(make_shared<OfferFrame>(of));
-               });
+    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
+        retOffers.emplace_back(make_shared<OfferFrame>(of));
+    });
 }
 
 std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
@@ -382,11 +378,10 @@ OfferFrame::loadAllOffers(Database& db)
     auto prep = db.getPreparedStatement(sql);
 
     auto timer = db.getSelectTimer("offer");
-    loadOffers(prep, [&retOffers](LedgerEntry const& of)
-               {
-                   auto& thisUserOffers = retOffers[of.data.offer().sellerID];
-                   thisUserOffers.emplace_back(make_shared<OfferFrame>(of));
-               });
+    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
+        auto& thisUserOffers = retOffers[of.data.offer().sellerID];
+        thisUserOffers.emplace_back(make_shared<OfferFrame>(of));
+    });
     return retOffers;
 }
 

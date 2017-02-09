@@ -2,20 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "crypto/StrKey.h"
 #include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
-#include <sodium.h>
-#include <type_traits>
-#include <memory>
-#include "util/make_unique.h"
-#include "util/HashOfHash.h"
-#include <mutex>
+#include "crypto/StrKey.h"
 #include "main/Config.h"
 #include "transactions/SignatureUtils.h"
+#include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
+#include "util/make_unique.h"
+#include <memory>
+#include <mutex>
+#include <sodium.h>
+#include <type_traits>
 
 namespace stellar
 {
@@ -230,7 +230,8 @@ KeyFunctions<PublicKey>::getKeyTypeName()
 }
 
 bool
-KeyFunctions<PublicKey>::getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion)
+KeyFunctions<PublicKey>::getKeyVersionIsSupported(
+    strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
     {
@@ -265,8 +266,8 @@ KeyFunctions<PublicKey>::toKeyVersion(PublicKeyType keyType)
     }
 }
 
-uint256 &
-KeyFunctions<PublicKey>::getKeyValue(PublicKey &key)
+uint256&
+KeyFunctions<PublicKey>::getKeyValue(PublicKey& key)
 {
     switch (key.type())
     {
@@ -278,7 +279,7 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey &key)
 }
 
 uint256 const&
-KeyFunctions<PublicKey>::getKeyValue(PublicKey const &key)
+KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
 {
     switch (key.type())
     {
@@ -406,8 +407,8 @@ HashUtils::random()
 
 namespace std
 {
-size_t hash<stellar::PublicKey>::operator()(stellar::PublicKey const& k) const
-    noexcept
+size_t
+hash<stellar::PublicKey>::operator()(stellar::PublicKey const& k) const noexcept
 {
     assert(k.type() == stellar::PUBLIC_KEY_TYPE_ED25519);
 

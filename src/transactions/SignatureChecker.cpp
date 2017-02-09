@@ -5,8 +5,8 @@
 #include "SignatureChecker.h"
 
 #include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
@@ -14,27 +14,34 @@
 namespace stellar
 {
 
-using xdr::operator < ;
-using xdr::operator == ;
+using xdr::operator<;
+using xdr::operator==;
 
-SignatureChecker::SignatureChecker(Hash const &contentsHash, xdr::xvector<DecoratedSignature,20> const &signatures) :
-    mContentsHash(contentsHash),
-    mSignatures(signatures)
+SignatureChecker::SignatureChecker(
+    Hash const& contentsHash,
+    xdr::xvector<DecoratedSignature, 20> const& signatures)
+    : mContentsHash(contentsHash), mSignatures(signatures)
 {
     mUsedSignatures.resize(mSignatures.size());
 }
 
-bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Signer> const &signersV, int neededWeight)
+bool
+SignatureChecker::checkSignature(AccountID const& accountID,
+                                 std::vector<Signer> const& signersV,
+                                 int neededWeight)
 {
-    auto signers = split(signersV, [](const Signer &s){ return s.key.type(); });
+    auto signers =
+        split(signersV, [](const Signer& s) { return s.key.type(); });
 
     // calculate the weight of the signatures
     int totalWeight = 0;
 
-    // compare all available SIGNER_KEY_TYPE_PRE_AUTH_TX with current transaction hash
-    // current transaction hash is not stored in getEnvelope().signatures - it is
+    // compare all available SIGNER_KEY_TYPE_PRE_AUTH_TX with current
+    // transaction hash
+    // current transaction hash is not stored in getEnvelope().signatures - it
+    // is
     // computed with getContentsHash() method
-    for (auto const &signerKey : signers[SIGNER_KEY_TYPE_PRE_AUTH_TX])
+    for (auto const& signerKey : signers[SIGNER_KEY_TYPE_PRE_AUTH_TX])
     {
         if (signerKey.key.preAuthTx() == mContentsHash)
         {
@@ -45,15 +52,16 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
         }
     }
 
-    using VerifyT = std::function<bool(DecoratedSignature const&, Signer const&)>;
-    auto verifyAll = [&](std::vector<Signer> &signers, VerifyT verify){
+    using VerifyT =
+        std::function<bool(DecoratedSignature const&, Signer const&)>;
+    auto verifyAll = [&](std::vector<Signer>& signers, VerifyT verify) {
         for (size_t i = 0; i < mSignatures.size(); i++)
         {
             auto const& sig = mSignatures[i];
 
             for (auto it = signers.begin(); it != signers.end(); ++it)
             {
-                auto &signerKey = *it;
+                auto& signerKey = *it;
                 if (verify(sig, signerKey))
                 {
                     mUsedSignatures[i] = true;
@@ -70,17 +78,21 @@ bool SignatureChecker::checkSignature(AccountID const &accountID, std::vector<Si
         return false;
     };
 
-    auto verified = verifyAll(signers[SIGNER_KEY_TYPE_HASH_X], [&](DecoratedSignature const& sig, Signer const& signerKey){
-        return SignatureUtils::verifyHashX(sig, signerKey.key);
-    });
+    auto verified =
+        verifyAll(signers[SIGNER_KEY_TYPE_HASH_X],
+                  [&](DecoratedSignature const& sig, Signer const& signerKey) {
+                      return SignatureUtils::verifyHashX(sig, signerKey.key);
+                  });
     if (verified)
     {
         return true;
     }
 
-    verified = verifyAll(signers[SIGNER_KEY_TYPE_ED25519], [&](DecoratedSignature const& sig, Signer const& signerKey){
-        return SignatureUtils::verify(sig, signerKey.key, mContentsHash);
-    });
+    verified = verifyAll(
+        signers[SIGNER_KEY_TYPE_ED25519],
+        [&](DecoratedSignature const& sig, Signer const& signerKey) {
+            return SignatureUtils::verify(sig, signerKey.key, mContentsHash);
+        });
     if (verified)
     {
         return true;
@@ -102,10 +114,9 @@ SignatureChecker::checkAllSignaturesUsed() const
     return true;
 }
 
-const UsedOneTimeSignerKeys &
+const UsedOneTimeSignerKeys&
 SignatureChecker::usedOneTimeSignerKeys() const
 {
     return mUsedOneTimeSignerKeys;
 }
-
 };

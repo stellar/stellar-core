@@ -11,5 +11,4 @@ struct SCPQuorumSet;
 
 bool isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks);
 void normalizeQSet(SCPQuorumSet& qSet);
-
 }

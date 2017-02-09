@@ -4,14 +4,15 @@
 
 #include "TestUtils.h"
 
-#include "herder/LedgerCloseData.h"
 #include "herder/HerderImpl.h"
+#include "herder/LedgerCloseData.h"
 #include "util/make_unique.h"
 
 namespace stellar
 {
 
-LedgerManagerEditableVersion::LedgerManagerEditableVersion(Application& app) : LedgerManagerImpl(app)
+LedgerManagerEditableVersion::LedgerManagerEditableVersion(Application& app)
+    : LedgerManagerImpl(app)
 {
 }
 
@@ -22,12 +23,14 @@ LedgerManagerEditableVersion::getCurrentLedgerVersion() const
 }
 
 void
-LedgerManagerEditableVersion::setCurrentLedgerVersion(uint32_t currentLedgerVersion)
+LedgerManagerEditableVersion::setCurrentLedgerVersion(
+    uint32_t currentLedgerVersion)
 {
     mCurrentLedgerVersion = currentLedgerVersion;
 }
 
-ApplicationEditableVersion::ApplicationEditableVersion(VirtualClock& clock, Config const& cfg)
+ApplicationEditableVersion::ApplicationEditableVersion(VirtualClock& clock,
+                                                       Config const& cfg)
     : ApplicationImpl(clock, cfg)
 {
     mLedgerManager = make_unique<LedgerManagerEditableVersion>(*this);
@@ -64,5 +67,4 @@ getTestDateTime(int day, int month, int year, int hour, int minute, int second)
     tm.tm_year = year - 1900;
     return tm;
 }
-
 }

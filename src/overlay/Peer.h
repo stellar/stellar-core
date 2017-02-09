@@ -5,11 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "xdrpp/message.h"
-#include "overlay/StellarXDR.h"
-#include "util/Timer.h"
 #include "database/Database.h"
+#include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include "util/Timer.h"
+#include "xdrpp/message.h"
 
 namespace medida
 {

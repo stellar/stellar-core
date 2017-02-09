@@ -7,30 +7,30 @@
 // else.
 #include "util/asio.h"
 
-#include "main/Application.h"
-#include "main/Config.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "ledger/LedgerManager.h"
-#include "overlay/StellarXDR.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "herder/HerderImpl.h"
+#include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManagerImpl.h"
 #include "history/HistoryWork.h"
 #include "history/StateSnapshot.h"
-#include "herder/HerderImpl.h"
-#include "history/FileTransferInfo.h"
-#include "process/ProcessManager.h"
-#include "util/make_unique.h"
-#include "util/Logging.h"
-#include "util/TmpDir.h"
-#include "crypto/SHA.h"
-#include "crypto/Hex.h"
+#include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
-#include "medida/metrics_registry.h"
+#include "main/Application.h"
+#include "main/Config.h"
 #include "medida/meter.h"
-#include "xdrpp/marshal.h"
+#include "medida/metrics_registry.h"
+#include "overlay/StellarXDR.h"
+#include "process/ProcessManager.h"
+#include "util/Logging.h"
 #include "util/Math.h"
 #include "util/StatusManager.h"
+#include "util/TmpDir.h"
+#include "util/make_unique.h"
+#include "xdrpp/marshal.h"
 
 #include <fstream>
 #include <system_error>
@@ -69,10 +69,10 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
 
     // First check that there's no existing HAS in the archive
     HistoryArchiveState existing;
-    CLOG(INFO, "History") << "Probing history archive '" << arch << "' for existing state";
-    auto getHas = wm.addWork<GetHistoryArchiveStateWork>(existing, 0,
-                                                         std::chrono::seconds(0),
-                                                         i->second, 0);
+    CLOG(INFO, "History") << "Probing history archive '" << arch
+                          << "' for existing state";
+    auto getHas = wm.addWork<GetHistoryArchiveStateWork>(
+        existing, 0, std::chrono::seconds(0), i->second, 0);
     wm.advanceChildren();
     while (!wm.allChildrenDone())
     {
@@ -80,10 +80,12 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     if (getHas->getState() == Work::WORK_SUCCESS)
     {
-        CLOG(ERROR, "History") << "History archive '" << arch << "' already initialized!";
+        CLOG(ERROR, "History") << "History archive '" << arch
+                               << "' already initialized!";
         return false;
     }
-    CLOG(INFO, "History") << "History archive '" << arch << "' appears uninitialized";
+    CLOG(INFO, "History") << "History archive '" << arch
+                          << "' appears uninitialized";
 
     HistoryArchiveState has;
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
@@ -300,11 +302,13 @@ HistoryManagerImpl::logAndUpdateStatus(bool contiguous)
     if (mCatchupWork || mPublishWork)
     {
         auto current = stateStr.str();
-        auto existing = mApp.getStatusManager().getStatusMessage(StatusCategory::HISTORY);
+        auto existing =
+            mApp.getStatusManager().getStatusMessage(StatusCategory::HISTORY);
         if (existing != current)
         {
             CLOG(INFO, "History") << current;
-            mApp.getStatusManager().setStatusMessage(StatusCategory::HISTORY, current);
+            mApp.getStatusManager().setStatusMessage(StatusCategory::HISTORY,
+                                                     current);
         }
     }
     else
@@ -619,10 +623,8 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
         this->mPublishFailure.Mark();
     }
     mPublishWork.reset();
-    mApp.getClock().getIOService().post([this]()
-                                        {
-                                            this->publishQueuedHistory();
-                                        });
+    mApp.getClock().getIOService().post(
+        [this]() { this->publishQueuedHistory(); });
 }
 
 void
@@ -646,7 +648,8 @@ void
 HistoryManagerImpl::catchupHistory(
     uint32_t initLedger, CatchupMode mode,
     std::function<void(asio::error_code const& ec, CatchupMode mode,
-                       LedgerHeaderHistoryEntry const& lastClosed)> handler,
+                       LedgerHeaderHistoryEntry const& lastClosed)>
+        handler,
     bool manualCatchup)
 {
     // To repair buckets, call `downloadMissingBuckets()` instead.
@@ -663,13 +666,11 @@ HistoryManagerImpl::catchupHistory(
     // us to an earlier state of the ledger than the LCL; in that case
     // we're close enough to the network to just run CATCHUP_COMPLETE.
     auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mode == CATCHUP_RECENT &&
-        (initLedger > lcl.header.ledgerSeq) &&
+    if (mode == CATCHUP_RECENT && (initLedger > lcl.header.ledgerSeq) &&
         (initLedger - lcl.header.ledgerSeq) <= mApp.getConfig().CATCHUP_RECENT)
     {
         mode = HistoryManager::CATCHUP_COMPLETE;
     }
-
 
     if (mode == CATCHUP_MINIMAL)
     {

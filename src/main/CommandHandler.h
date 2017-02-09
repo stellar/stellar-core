@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <string>
 #include "lib/http/server.hpp"
+#include <string>
 
 /*
 handler functions for the http commands this server supports

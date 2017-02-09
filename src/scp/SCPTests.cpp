@@ -3,17 +3,17 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "util/asio.h"
 
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "lib/catch.hpp"
+#include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
+#include "simulation/Simulation.h"
+#include "util/Logging.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
-#include "crypto/Hex.h"
-#include "crypto/SHA.h"
-#include "util/Logging.h"
-#include "simulation/Simulation.h"
-#include "scp/LocalNode.h"
 
 namespace stellar
 {
@@ -38,15 +38,11 @@ class TestSCP : public SCPDriver
             bool isValidator = true)
         : mSCP(*this, secretKey, isValidator, qSetLocal)
     {
-        mPriorityLookup = [&](NodeID const& n)
-        {
+        mPriorityLookup = [&](NodeID const& n) {
             return (n == secretKey.getPublicKey()) ? 1000 : 1;
         };
 
-        mHashValueCalculator = [&](Value const& v)
-        {
-            return 0;
-        };
+        mHashValueCalculator = [&](Value const& v) { return 0; };
 
         auto localQSet =
             std::make_shared<SCPQuorumSet>(mSCP.getLocalQuorumSet());
@@ -206,10 +202,9 @@ class TestSCP : public SCPDriver
     getCurrentEnvelope(uint64 index, NodeID const& id)
     {
         auto r = getEntireState(index);
-        auto it = std::find_if(r.begin(), r.end(), [&](SCPEnvelope const& e)
-                               {
-                                   return e.statement.nodeID == id;
-                               });
+        auto it = std::find_if(r.begin(), r.end(), [&](SCPEnvelope const& e) {
+            return e.statement.nodeID == id;
+        });
         if (it != r.end())
         {
             return *it;
@@ -401,8 +396,7 @@ TEST_CASE("v-blocking distance", "[scp]")
     qSet.validators.push_back(v2NodeID);
 
     auto check = [&](SCPQuorumSet const& qSetCheck, std::set<NodeID> const& s,
-                     int expected)
-    {
+                     int expected) {
         auto r = LocalNode::findClosestVBlocking(qSetCheck, s, nullptr);
         REQUIRE(expected == r.size());
     };
@@ -534,8 +528,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     CLOG(INFO, "SCP") << "";
     CLOG(INFO, "SCP") << "BEGIN TEST";
 
-    auto recvVBlockingChecks = [&](genEnvelope gen, bool withChecks)
-    {
+    auto recvVBlockingChecks = [&](genEnvelope gen, bool withChecks) {
         SCPEnvelope e1 = gen(v1SecretKey);
         SCPEnvelope e2 = gen(v2SecretKey);
 
@@ -556,9 +549,8 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     auto recvVBlocking = std::bind(recvVBlockingChecks, _1, true);
 
-    auto recvQuorumChecks =
-        [&](genEnvelope gen, bool withChecks, bool delayedQuorum)
-    {
+    auto recvQuorumChecks = [&](genEnvelope gen, bool withChecks,
+                                bool delayedQuorum) {
         SCPEnvelope e1 = gen(v1SecretKey);
         SCPEnvelope e2 = gen(v2SecretKey);
         SCPEnvelope e3 = gen(v3SecretKey);
@@ -581,8 +573,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     };
     auto recvQuorum = std::bind(recvQuorumChecks, _1, true, false);
 
-    auto nodesAllPledgeToCommit = [&]()
-    {
+    auto nodesAllPledgeToCommit = [&]() {
         SCPBallot b(1, xValue);
         SCPEnvelope prepare1 = makePrepare(v1SecretKey, qSetHash, 0, b);
         SCPEnvelope prepare2 = makePrepare(v2SecretKey, qSetHash, 0, b);
@@ -2119,8 +2110,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
                 // tests if nomination proceeds like normal
                 // nominates x
-                auto nominationRestore = [&]()
-                {
+                auto nominationRestore = [&]() {
                     // restores from the previous state
                     scp2.mSCP.setStateFromEnvelope(
                         0, makeNominate(v0SecretKey, qSetHash0, 0, votes,
@@ -2261,8 +2251,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
-        scp.mPriorityLookup = [&](NodeID const& n)
-        {
+        scp.mPriorityLookup = [&](NodeID const& n) {
             return (n == v1NodeID) ? 1000 : 1;
         };
 
@@ -2286,8 +2275,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
         valuesHash.emplace_back(yValue);
         valuesHash.emplace_back(zValue);
 
-        scp.mHashValueCalculator = [&](Value const& v)
-        {
+        scp.mHashValueCalculator = [&](Value const& v) {
             auto pos = std::find(valuesHash.begin(), valuesHash.end(), v);
             if (pos == valuesHash.end())
             {
@@ -2350,8 +2338,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
             SECTION("v0 is new top node")
             {
-                scp.mPriorityLookup = [&](NodeID const& n)
-                {
+                scp.mPriorityLookup = [&](NodeID const& n) {
                     return (n == v0NodeID) ? 1000 : 1;
                 };
 
@@ -2362,8 +2349,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             }
             SECTION("v2 is new top node")
             {
-                scp.mPriorityLookup = [&](NodeID const& n)
-                {
+                scp.mPriorityLookup = [&](NodeID const& n) {
                     return (n == v2NodeID) ? 1000 : 1;
                 };
 
@@ -2374,8 +2360,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             }
             SECTION("v3 is new top node")
             {
-                scp.mPriorityLookup = [&](NodeID const& n)
-                {
+                scp.mPriorityLookup = [&](NodeID const& n) {
                     return (n == v3NodeID) ? 1000 : 1;
                 };
                 // nothing happens, we don't have any message for v3

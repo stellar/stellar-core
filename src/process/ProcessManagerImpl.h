@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "process/ProcessManager.h"
-#include <mutex>
 #include <deque>
+#include <mutex>
 
 namespace medida
 {

@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "OfferExchange.h"
+#include "database/Database.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/TrustFrame.h"
-#include "database/Database.h"
 #include "util/Logging.h"
-#include "ledger/LedgerDelta.h"
 
 namespace stellar
 {
@@ -16,7 +16,7 @@ namespace
 {
 
 int64_t
-canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
+canBuyAtMost(const Asset& asset, TrustFrame::pointer trustLine, Price& price)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -24,8 +24,7 @@ canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
     }
 
     // compute value based on what the account can receive
-    auto sellerMaxSheep =
-        trustLine ? trustLine->getMaxAmountReceive() : 0;
+    auto sellerMaxSheep = trustLine ? trustLine->getMaxAmountReceive() : 0;
 
     auto result = int64_t{};
     if (!bigDivide(result, sellerMaxSheep, price.d, price.n, ROUND_DOWN))
@@ -37,7 +36,8 @@ canBuyAtMost(const Asset &asset, TrustFrame::pointer trustLine, Price &price)
 }
 
 int64_t
-canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::pointer trustLine, LedgerManager &ledgerManager)
+canSellAtMost(AccountFrame::pointer account, const Asset& asset,
+              TrustFrame::pointer trustLine, LedgerManager& ledgerManager)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -52,18 +52,19 @@ canSellAtMost(AccountFrame::pointer account, const Asset &asset, TrustFrame::poi
 
     return 0;
 }
-
 }
 
 ExchangeResult
-exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
+           int64_t maxSheepSend)
 {
     auto result = ExchangeResult{};
     result.reduced = wheatReceived > maxWheatReceive;
     wheatReceived = std::min(wheatReceived, maxWheatReceive);
 
     // this guy can get X wheat to you. How many sheep does that get him?
-    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d, ROUND_DOWN))
+    if (!bigDivide(result.numSheepSend, wheatReceived, price.n, price.d,
+                   ROUND_DOWN))
     {
         result.numSheepSend = INT64_MAX;
     }
@@ -71,13 +72,15 @@ exchangeV2(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
     result.reduced = result.reduced || (result.numSheepSend > maxSheepSend);
     result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
     // bias towards seller (this cannot overflow at this point)
-    result.numWheatReceived = bigDivide(result.numSheepSend, price.d, price.n, ROUND_DOWN);
+    result.numWheatReceived =
+        bigDivide(result.numSheepSend, price.d, price.n, ROUND_DOWN);
 
     return result;
 }
 
 ExchangeResult
-exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t maxSheepSend)
+exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
+           int64_t maxSheepSend)
 {
     auto result = ExchangeResult{};
     result.reduced = wheatReceived > maxWheatReceive;
@@ -85,7 +88,8 @@ exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
 
     // this guy can get X wheat to you. How many sheep does that get him?
     // bias towards seller
-    if (!bigDivide(result.numSheepSend, result.numWheatReceived, price.n, price.d, ROUND_UP))
+    if (!bigDivide(result.numSheepSend, result.numWheatReceived, price.n,
+                   price.d, ROUND_UP))
     {
         result.reduced = true;
         result.numSheepSend = INT64_MAX;
@@ -95,11 +99,13 @@ exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive, int64_t 
     result.numSheepSend = std::min(result.numSheepSend, maxSheepSend);
 
     auto newWheatReceived = int64_t{};
-    if (!bigDivide(newWheatReceived, result.numSheepSend, price.d, price.n, ROUND_DOWN))
+    if (!bigDivide(newWheatReceived, result.numSheepSend, price.d, price.n,
+                   ROUND_DOWN))
     {
         newWheatReceived = INT64_MAX;
     }
-    result.numWheatReceived = std::min(result.numWheatReceived, newWheatReceived);
+    result.numWheatReceived =
+        std::min(result.numWheatReceived, newWheatReceived);
 
     return result;
 }
@@ -145,15 +151,18 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
     }
 
-    numWheatReceived = std::min({
-        canBuyAtMost(sheep, sheepLineAccountB, sellingWheatOffer.getOffer().price),
-        canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
-        sellingWheatOffer.getOffer().amount
-    });
+    numWheatReceived = std::min(
+        {canBuyAtMost(sheep, sheepLineAccountB,
+                      sellingWheatOffer.getOffer().price),
+         canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
+         sellingWheatOffer.getOffer().amount});
     sellingWheatOffer.getOffer().amount = numWheatReceived;
-    auto exchangeResult = mLedgerManager.getCurrentLedgerVersion() < 3
-        ? exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend)
-        : exchangeV3(numWheatReceived, sellingWheatOffer.getOffer().price, maxWheatReceived, maxSheepSend);
+    auto exchangeResult =
+        mLedgerManager.getCurrentLedgerVersion() < 3
+            ? exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price,
+                         maxWheatReceived, maxSheepSend)
+            : exchangeV3(numWheatReceived, sellingWheatOffer.getOffer().price,
+                         maxWheatReceived, maxSheepSend);
 
     numWheatReceived = exchangeResult.numWheatReceived;
     numSheepSend = exchangeResult.numSheepSend;
@@ -162,16 +171,16 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     switch (exchangeResult.type())
     {
-        case ExchangeResultType::REDUCED_TO_ZERO:
-            return eOfferCantConvert;
-        case ExchangeResultType::BOGUS:
-            // force delete the offer as it represents a bogus offer
-            numWheatReceived = 0;
-            numSheepSend = 0;
-            offerTaken = true;
-            break;
-        default:
-            break;
+    case ExchangeResultType::REDUCED_TO_ZERO:
+        return eOfferCantConvert;
+    case ExchangeResultType::BOGUS:
+        // force delete the offer as it represents a bogus offer
+        numWheatReceived = 0;
+        numSheepSend = 0;
+        offerTaken = true;
+        break;
+    default:
+        break;
     }
 
     offerTaken =

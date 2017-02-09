@@ -6,8 +6,8 @@
 
 #include "main/Application.h"
 #include "util/Timer.h"
-#include "work/WorkParent.h"
 #include "work/Work.h"
+#include "work/WorkParent.h"
 #include <string>
 
 namespace stellar

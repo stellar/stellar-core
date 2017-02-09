@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "StrKey.h"
-#include "util/crc16.h"
 #include "util/basen.h"
+#include "util/crc16.h"
 
 namespace stellar
 {

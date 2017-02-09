@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/TrustFrame.h"
-#include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
-#include "crypto/SHA.h"
-#include "database/Database.h"
 #include "LedgerDelta.h"
+#include "crypto/KeyUtils.h"
+#include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
+#include "database/Database.h"
 #include "util/types.h"
 
 using namespace std;
@@ -49,7 +49,8 @@ TrustFrame::TrustFrame(TrustFrame const& from) : TrustFrame(from.mEntry)
 {
 }
 
-TrustFrame& TrustFrame::operator=(TrustFrame const& other)
+TrustFrame&
+TrustFrame::operator=(TrustFrame const& other)
 {
     if (&other != this)
     {
@@ -397,10 +398,9 @@ TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
 
     pointer retLine;
     auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLine](LedgerEntry const& trust)
-              {
-                  retLine = make_shared<TrustFrame>(trust);
-              });
+    loadLines(prep, [&retLine](LedgerEntry const& trust) {
+        retLine = make_shared<TrustFrame>(trust);
+    });
 
     if (retLine)
     {
@@ -460,7 +460,8 @@ TrustFrame::loadLines(StatementContext& prep,
         tl.asset.type((AssetType)assetType);
         if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
         {
-            tl.asset.alphaNum4().issuer = KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
+            tl.asset.alphaNum4().issuer =
+                KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
             strToAssetCode(tl.asset.alphaNum4().assetCode, assetCode);
         }
         else if (assetType == ASSET_TYPE_CREDIT_ALPHANUM12)
@@ -495,10 +496,9 @@ TrustFrame::loadLines(AccountID const& accountID,
     st.exchange(use(actIDStrKey));
 
     auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLines](LedgerEntry const& cur)
-              {
-                  retLines.emplace_back(make_shared<TrustFrame>(cur));
-              });
+    loadLines(prep, [&retLines](LedgerEntry const& cur) {
+        retLines.emplace_back(make_shared<TrustFrame>(cur));
+    });
 }
 
 std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
@@ -511,12 +511,10 @@ TrustFrame::loadAllLines(Database& db)
     auto prep = db.getPreparedStatement(query);
 
     auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLines](LedgerEntry const& cur)
-              {
-                  auto& thisUserLines =
-                      retLines[cur.data.trustLine().accountID];
-                  thisUserLines.emplace_back(make_shared<TrustFrame>(cur));
-              });
+    loadLines(prep, [&retLines](LedgerEntry const& cur) {
+        auto& thisUserLines = retLines[cur.data.trustLine().accountID];
+        thisUserLines.emplace_back(make_shared<TrustFrame>(cur));
+    });
     return retLines;
 }
 

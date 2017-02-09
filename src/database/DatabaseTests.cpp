@@ -4,14 +4,14 @@
 
 #include "util/asio.h"
 #include "database/Database.h"
+#include "crypto/Hex.h"
+#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "crypto/Hex.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
-#include "lib/catch.hpp"
 #include <random>
 
 using namespace stellar;

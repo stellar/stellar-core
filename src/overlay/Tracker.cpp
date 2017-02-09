@@ -19,7 +19,7 @@ namespace stellar
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 static int const MAX_REBUILD_FETCH_LIST = 1000;
 
-Tracker::Tracker(Application& app, Hash const& hash, AskPeer &askPeer)
+Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
     : mAskPeer(askPeer)
     , mApp(app)
     , mNumListRebuild(0)
@@ -90,9 +90,10 @@ Tracker::tryNextPeer()
     // response saying they don't have it
     Peer::pointer peer;
 
-    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash) << " last: "
-                           << (mLastAskedPeer ? mLastAskedPeer->toString()
-                                              : "<none>");
+    CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
+                           << " last: " << (mLastAskedPeer
+                                                ? mLastAskedPeer->toString()
+                                                : "<none>");
 
     // if we don't have a list of peers to ask and we're not
     // currently asking peers, build a new list
@@ -154,20 +155,16 @@ Tracker::tryNextPeer()
     else
     {
         mLastAskedPeer = peer;
-        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash) << " to "
-                               << peer->toString();
+        CLOG(TRACE, "Overlay") << "Asking for " << hexAbbrev(mItemHash)
+                               << " to " << peer->toString();
         mTryNextPeer.Mark();
         mAskPeer(peer, mItemHash);
         nextTry = MS_TO_WAIT_FOR_FETCH_REPLY;
     }
 
     mTimer.expires_from_now(nextTry);
-    mTimer.async_wait(
-        [this]()
-        {
-            this->tryNextPeer();
-        },
-        VirtualTimer::onFailureNoop);
+    mTimer.async_wait([this]() { this->tryNextPeer(); },
+                      VirtualTimer::onFailureNoop);
 }
 
 void
@@ -186,12 +183,13 @@ void
 Tracker::discard(const SCPEnvelope& env)
 {
     using xdr::operator==;
-    auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x){
+    auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x) {
         return x.second == env;
     };
-    mWaitingEnvelopes.erase(std::remove_if(std::begin(mWaitingEnvelopes), std::end(mWaitingEnvelopes),
-                                    matchEnvelope),
-                    std::end(mWaitingEnvelopes));
+    mWaitingEnvelopes.erase(std::remove_if(std::begin(mWaitingEnvelopes),
+                                           std::end(mWaitingEnvelopes),
+                                           matchEnvelope),
+                            std::end(mWaitingEnvelopes));
 }
 
 void
@@ -200,5 +198,4 @@ Tracker::cancel()
     mTimer.cancel();
     mLastSeenSlotIndex = 0;
 }
-
 }

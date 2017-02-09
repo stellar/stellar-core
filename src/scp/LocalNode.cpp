@@ -4,16 +4,16 @@
 
 #include "LocalNode.h"
 
+#include "crypto/Hex.h"
+#include "crypto/KeyUtils.h"
+#include "crypto/SHA.h"
+#include "lib/json/json.h"
+#include "scp/QuorumSetUtils.h"
+#include "util/Logging.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
-#include "util/Logging.h"
-#include "crypto/KeyUtils.h"
-#include "crypto/Hex.h"
-#include "crypto/SHA.h"
 #include <algorithm>
-#include "lib/json/json.h"
 #include <unordered_set>
-#include "scp/QuorumSetUtils.h"
 
 namespace stellar
 {
@@ -98,14 +98,13 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
                        std::function<void(NodeID const&)> proc)
 {
     std::set<NodeID> done;
-    forAllNodesInternal(qset, [&](NodeID const& n)
-                        {
-                            auto ins = done.insert(n);
-                            if (ins.second)
-                            {
-                                proc(n);
-                            }
-                        });
+    forAllNodesInternal(qset, [&](NodeID const& n) {
+        auto ins = done.insert(n);
+        if (ins.second)
+        {
+            proc(n);
+        }
+    });
 }
 
 // if a validator is repeated multiple times its weight is only the
@@ -270,8 +269,7 @@ LocalNode::isQuorum(
     {
         count = pNodes.size();
         std::vector<NodeID> fNodes(pNodes.size());
-        auto quorumFilter = [&](NodeID nodeID) -> bool
-        {
+        auto quorumFilter = [&](NodeID nodeID) -> bool {
             auto qSetPtr = qfun(map.find(nodeID)->second.statement);
             if (qSetPtr)
             {
@@ -343,8 +341,8 @@ LocalNode::findClosestVBlocking(SCPQuorumSet const& qset,
 
     struct orderBySize
     {
-        bool operator()(std::vector<NodeID> const& v1,
-                        std::vector<NodeID> const& v2)
+        bool
+        operator()(std::vector<NodeID> const& v1, std::vector<NodeID> const& v2)
         {
             return v1.size() < v2.size();
         }
@@ -469,13 +467,12 @@ LocalNode::isNodeInQuorum(
                 continue;
             }
             // see if we need to explore further
-            forAllNodes(*qset, [&](NodeID const& n)
-                        {
-                            if (visited.find(n) == visited.end())
-                            {
-                                backlog.insert(n);
-                            }
-                        });
+            forAllNodes(*qset, [&](NodeID const& n) {
+                if (visited.find(n) == visited.end())
+                {
+                    backlog.insert(n);
+                }
+            });
         }
     }
     return res;

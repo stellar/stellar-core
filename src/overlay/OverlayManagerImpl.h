@@ -4,19 +4,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "LoadManager.h"
 #include "Peer.h"
 #include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerRecord.h"
-#include "LoadManager.h"
-#include "overlay/ItemFetcher.h"
-#include "overlay/Floodgate.h"
-#include <vector>
-#include <set>
-#include "overlay/StellarXDR.h"
-#include "overlay/OverlayManager.h"
-#include "util/Timer.h"
 #include "herder/TxSetFrame.h"
+#include "overlay/Floodgate.h"
+#include "overlay/ItemFetcher.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/StellarXDR.h"
+#include "util/Timer.h"
+#include <set>
+#include <vector>
 
 namespace medida
 {

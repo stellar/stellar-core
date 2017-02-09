@@ -2,16 +2,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/asio.h"
+#include "overlay/ItemFetcher.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"
-#include "overlay/ItemFetcher.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
 #include "test/test.h"
-#include "util/asio.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar
@@ -22,13 +22,14 @@ namespace
 
 class HerderStub : public HerderImpl
 {
-public:
-    HerderStub(Application& app) : HerderImpl(app) {};
+  public:
+    HerderStub(Application& app) : HerderImpl(app){};
 
     std::vector<int> received;
 
-private:
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override
+  private:
+    EnvelopeStatus
+    recvSCPEnvelope(SCPEnvelope const& envelope) override
     {
         received.push_back(envelope.statement.pledges.confirm().nPrepared);
         return Herder::ENVELOPE_STATUS_PROCESSED;
@@ -37,7 +38,7 @@ private:
 
 class ApplicationStub : public ApplicationImpl
 {
-public:
+  public:
     ApplicationStub(VirtualClock& clock, Config const& cfg)
         : ApplicationImpl(clock, cfg)
     {
@@ -51,13 +52,14 @@ public:
         return *mHerder;
     }
 
-private:
+  private:
     std::shared_ptr<HerderStub> mHerder;
 };
 
-SCPEnvelope makeEnvelope(int id)
+SCPEnvelope
+makeEnvelope(int id)
 {
-    static int slotIndex {0};
+    static int slotIndex{0};
 
     auto result = SCPEnvelope{};
     result.statement.slotIndex = ++slotIndex;
@@ -65,7 +67,6 @@ SCPEnvelope makeEnvelope(int id)
     result.statement.pledges.confirm().nPrepared = id;
     return result;
 }
-
 }
 
 TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
@@ -75,12 +76,13 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
     std::vector<Peer::pointer> asked;
     std::vector<Hash> received;
-    ItemFetcher itemFetcher(app, [&](Peer::pointer peer, Hash hash){
+    ItemFetcher itemFetcher(app, [&](Peer::pointer peer, Hash hash) {
         asked.push_back(peer);
         peer->sendGetQuorumSet(hash);
     });
 
-    auto checkFetchingFor = [&itemFetcher](Hash hash, std::vector<SCPEnvelope> envelopes) {
+    auto checkFetchingFor = [&itemFetcher](Hash hash,
+                                           std::vector<SCPEnvelope> envelopes) {
         auto fetchingFor = itemFetcher.fetchingFor(hash);
         std::sort(std::begin(envelopes), std::end(envelopes));
         std::sort(std::begin(fetchingFor), std::end(fetchingFor));
@@ -182,7 +184,9 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
             itemFetcher.recv(zero);
 
             auto zeroEnvelope2 = makeEnvelope(0);
-            itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current implementation, will re-fetch
+            itemFetcher.fetch(zero, zeroEnvelope2); // no cache in current
+                                                    // implementation, will
+                                                    // re-fetch
 
             expectedReceived = std::vector<int>{12, 12, 10, 0};
             REQUIRE(app.getHerder().received == expectedReceived);
@@ -212,7 +216,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                 auto zeroEnvelope1 = makeEnvelope(0);
                 itemFetcher.fetch(zero, zeroEnvelope1);
             }
-            SECTION("fetching twice does not trigger any additional network activity")
+            SECTION("fetching twice does not trigger any additional network "
+                    "activity")
             {
                 auto zeroEnvelope1 = makeEnvelope(0);
                 auto zeroEnvelope2 = makeEnvelope(0);
@@ -241,9 +246,9 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         SECTION("ignore not asked items")
         {
             itemFetcher.recv(zero);
-            REQUIRE(app.getHerder().received == expectedReceived); // no new data received
+            REQUIRE(app.getHerder().received ==
+                    expectedReceived); // no new data received
         }
     }
 }
-
 }

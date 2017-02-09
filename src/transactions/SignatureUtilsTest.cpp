@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "crypto/SecretKey.h"
-#include "crypto/SignerKeyUtils.h"
-#include "crypto/SignerKey.h"
-#include "crypto/SHA.h"
-#include "lib/catch.hpp"
 #include "transactions/SignatureUtils.h"
+#include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
+#include "crypto/SignerKey.h"
+#include "crypto/SignerKeyUtils.h"
+#include "lib/catch.hpp"
 #include "xdr/Stellar-transaction.h"
 
 using namespace stellar;
@@ -16,12 +16,17 @@ TEST_CASE("Pubkey signature", "[signature]")
 {
     for (auto i = 0; i < 10; i++)
     {
-        auto secretKey = SecretKey::fromSeed(sha256(std::string{"NODE_SEED_"} + std::to_string(i)));
+        auto secretKey = SecretKey::fromSeed(
+            sha256(std::string{"NODE_SEED_"} + std::to_string(i)));
         for (auto j = 0; j < 10; j++)
         {
-            auto hash = sha256(std::string{"HASH_"} + std::to_string(i) + std::to_string(j));
+            auto hash = sha256(std::string{"HASH_"} + std::to_string(i) +
+                               std::to_string(j));
             auto signature = SignatureUtils::sign(secretKey, hash);
-            REQUIRE(SignatureUtils::verify(signature, KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()), hash));
+            REQUIRE(SignatureUtils::verify(
+                signature,
+                KeyUtils::convertKey<SignerKey>(secretKey.getPublicKey()),
+                hash));
         }
     }
 }

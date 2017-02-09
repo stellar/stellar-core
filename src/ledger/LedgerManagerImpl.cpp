@@ -2,6 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerManagerImpl.h"
+#include "DataFrame.h"
+#include "OfferFrame.h"
+#include "TrustFrame.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -9,26 +13,22 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
-#include "herder/TxSetFrame.h"
 #include "herder/LedgerCloseData.h"
+#include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
-#include "ledger/LedgerManagerImpl.h"
-#include "TrustFrame.h"
-#include "OfferFrame.h"
-#include "DataFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "util/format.h"
+#include "util/make_unique.h"
 
+#include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "medida/counter.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
@@ -216,8 +216,8 @@ LedgerManagerImpl::loadLastKnownLedger(
             HistoryArchiveState has;
             has.fromString(hasString);
 
-            auto continuation = [this, handler, has](asio::error_code const& ec)
-            {
+            auto continuation = [this, handler,
+                                 has](asio::error_code const& ec) {
                 if (ec)
                 {
                     handler(ec);
@@ -363,8 +363,8 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                     setState(LM_SYNCED_STATE);
                 }
                 closeLedger(ledgerData);
-                CLOG(INFO, "Ledger")
-                    << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
+                CLOG(INFO, "Ledger") << "Closed ledger: "
+                                     << ledgerAbbrev(mLastClosedLedger);
             }
             else
             {
@@ -782,7 +782,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     hm.logAndUpdateStatus(true);
 
     // step 4
-    if (getState() != LM_CATCHING_UP_STATE) {
+    if (getState() != LM_CATCHING_UP_STATE)
+    {
         mApp.getBucketManager().forgetUnreferencedBuckets();
     }
 }
@@ -807,7 +808,6 @@ LedgerManagerImpl::checkDbState()
     std::unordered_map<AccountID, std::vector<DataFrame::pointer>> datas;
     datas = DataFrame::loadAllData(getDatabase());
 
-
     for (auto& i : aData)
     {
         auto const& a = i.second->getAccount();
@@ -826,7 +826,7 @@ LedgerManagerImpl::checkDbState()
         }
 
         auto itDatas = datas.find(i.first);
-        if(itDatas != datas.end())
+        if (itDatas != datas.end())
         {
             actualSubEntries += itDatas->second.size();
         }

@@ -12,8 +12,7 @@
 namespace stellar
 {
 
-NtpClient::NtpClient(asio::io_service& ioService,
-                     std::string server,
+NtpClient::NtpClient(asio::io_service& ioService, std::string server,
                      std::function<void(long)> successCallback,
                      std::function<void()> failureCallback)
     : mIoService(ioService)
@@ -35,14 +34,17 @@ void
 NtpClient::getTime()
 {
     asio::ip::udp::resolver::query query(mServer, "ntp");
-    std::weak_ptr<NtpClient> weak = std::static_pointer_cast<NtpClient>(shared_from_this());
-    mResolver.async_resolve(query, [weak](asio::error_code ec, asio::ip::udp::resolver::iterator it){
-        auto self = weak.lock();
-        if (self)
-        {
-            self->onServerResolved(ec, it);
-        }
-    });
+    std::weak_ptr<NtpClient> weak =
+        std::static_pointer_cast<NtpClient>(shared_from_this());
+    mResolver.async_resolve(
+        query,
+        [weak](asio::error_code ec, asio::ip::udp::resolver::iterator it) {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->onServerResolved(ec, it);
+            }
+        });
 }
 
 void
@@ -66,7 +68,8 @@ NtpClient::failure()
 }
 
 void
-NtpClient::onServerResolved(asio::error_code ec, asio::ip::udp::resolver::iterator it)
+NtpClient::onServerResolved(asio::error_code ec,
+                            asio::ip::udp::resolver::iterator it)
 {
     if (ec || (it == asio::ip::udp::resolver::iterator{}))
     {
@@ -76,8 +79,9 @@ NtpClient::onServerResolved(asio::error_code ec, asio::ip::udp::resolver::iterat
 
     mSocket = make_unique<asio::ip::udp::socket>(mIoService);
 
-    std::weak_ptr<NtpClient> weak = std::static_pointer_cast<NtpClient>(shared_from_this());
-    mSocket->async_connect(it->endpoint(), [weak](asio::error_code ec){
+    std::weak_ptr<NtpClient> weak =
+        std::static_pointer_cast<NtpClient>(shared_from_this());
+    mSocket->async_connect(it->endpoint(), [weak](asio::error_code ec) {
         auto self = weak.lock();
         if (self)
         {
@@ -95,15 +99,17 @@ NtpClient::onConnectFinished(asio::error_code ec)
         return;
     }
 
-    const auto SEND_PACKET = packet<char> { 010 };
-    std::weak_ptr<NtpClient> weak = std::static_pointer_cast<NtpClient>(shared_from_this());
-    mSocket->async_send(asio::buffer(SEND_PACKET), [weak](asio::error_code ec, std::size_t){
-        auto self = weak.lock();
-        if (self)
-        {
-            self->onWriteFinished(ec);
-        }
-    });
+    const auto SEND_PACKET = packet<char>{010};
+    std::weak_ptr<NtpClient> weak =
+        std::static_pointer_cast<NtpClient>(shared_from_this());
+    mSocket->async_send(asio::buffer(SEND_PACKET),
+                        [weak](asio::error_code ec, std::size_t) {
+                            auto self = weak.lock();
+                            if (self)
+                            {
+                                self->onWriteFinished(ec);
+                            }
+                        });
 }
 
 void
@@ -115,14 +121,16 @@ NtpClient::onWriteFinished(asio::error_code ec)
         return;
     }
 
-    std::weak_ptr<NtpClient> weak = std::static_pointer_cast<NtpClient>(shared_from_this());
-    mSocket->async_receive(asio::buffer(mReadBuffer), [weak](asio::error_code ec, std::size_t){
-        auto self = weak.lock();
-        if (self)
-        {
-            self->onReadFinished(ec);
-        }
-    });
+    std::weak_ptr<NtpClient> weak =
+        std::static_pointer_cast<NtpClient>(shared_from_this());
+    mSocket->async_receive(asio::buffer(mReadBuffer),
+                           [weak](asio::error_code ec, std::size_t) {
+                               auto self = weak.lock();
+                               if (self)
+                               {
+                                   self->onReadFinished(ec);
+                               }
+                           });
 }
 
 void
@@ -134,8 +142,8 @@ NtpClient::onReadFinished(asio::error_code ec)
         return;
     }
 
-    // 2208988800U is difference between first second of NTP time and first second of unix epoch
+    // 2208988800U is difference between first second of NTP time and first
+    // second of unix epoch
     success(ntohl((time_t)mReadBuffer[4]) - 2208988800U);
 }
-
 }

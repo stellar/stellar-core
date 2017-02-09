@@ -4,13 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <string>
-#include <fstream>
-#include <vector>
-#include "xdrpp/marshal.h"
-#include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
+#include "crypto/SHA.h"
 #include "util/Logging.h"
+#include "xdrpp/marshal.h"
+#include <fstream>
+#include <string>
+#include <vector>
 
 namespace stellar
 {
@@ -26,7 +26,9 @@ class XDRInputFileStream
     int mSizeLimit;
 
   public:
-    XDRInputFileStream(int sizeLimit = 0) : mSizeLimit{sizeLimit} {}
+    XDRInputFileStream(int sizeLimit = 0) : mSizeLimit{sizeLimit}
+    {
+    }
 
     void
     close()

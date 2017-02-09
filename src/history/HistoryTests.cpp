@@ -2,33 +2,33 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "util/asio.h"
-#include "main/Application.h"
-#include "history/HistoryManager.h"
-#include "history/HistoryArchive.h"
-#include "history/HistoryWork.h"
-#include "main/ExternalQueue.h"
-#include "main/Config.h"
-#include "main/PersistentState.h"
-#include "bucket/BucketManager.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "herder/LedgerCloseData.h"
+#include "history/HistoryArchive.h"
+#include "history/HistoryManager.h"
+#include "history/HistoryWork.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
+#include "main/Config.h"
+#include "main/ExternalQueue.h"
+#include "main/PersistentState.h"
+#include "process/ProcessManager.h"
+#include "test/TxTests.h"
+#include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
-#include "test/test.h"
-#include "test/TxTests.h"
-#include "ledger/LedgerManager.h"
-#include "process/ProcessManager.h"
-#include "util/NonCopyable.h"
-#include "herder/LedgerCloseData.h"
 #include "work/WorkManager.h"
 #include "work/WorkParent.h"
 #include <cstdio>
-#include <xdrpp/autocheck.h>
 #include <fstream>
 #include <random>
+#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -41,7 +41,11 @@ class Configurator : NonCopyable
 {
   public:
     virtual Config& configure(Config& cfg, bool writable) const = 0;
-    virtual std::string getArchiveDirName() const { return ""; }
+    virtual std::string
+    getArchiveDirName() const
+    {
+        return "";
+    }
 };
 
 class TmpDirConfigurator : public Configurator
@@ -54,7 +58,8 @@ class TmpDirConfigurator : public Configurator
     {
     }
 
-    std::string getArchiveDirName() const override
+    std::string
+    getArchiveDirName() const override
     {
         return mDir.getName();
     }
@@ -381,8 +386,7 @@ Application::pointer
 HistoryTests::catchupNewApplication(uint32_t initLedger,
                                     Config::TestDbMode dbMode,
                                     HistoryManager::CatchupMode resumeMode,
-                                    std::string const& appName,
-                                    uint32_t recent)
+                                    std::string const& appName, uint32_t recent)
 {
 
     CLOG(INFO, "History") << "****";
@@ -427,8 +431,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
         // 192 (the first entry in block 4) and externalize that value, so that
         // the catchup can see a {192}.prevHash to knit up block 3 against.
 
-        CLOG(INFO, "History")
-            << "force-starting catchup at initLedger=" << initLedger;
+        CLOG(INFO, "History") << "force-starting catchup at initLedger="
+                              << initLedger;
         lm.startCatchUp(initLedger, resumeMode);
     }
 
@@ -1023,8 +1027,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
  * Test a variety of orderings of CATCHUP_RECENT mode, to shake out boundary
  * cases.
  */
-TEST_CASE_METHOD(HistoryTests, "Catchup recent",
-                 "[history][catchuprecent]")
+TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 {
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
     auto catchupMode = HistoryManager::CATCHUP_RECENT;
@@ -1038,21 +1041,15 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent",
 
     // Check that isolated catchups work at a variety of boundary
     // conditions relative to the size of a checkpoint:
-    std::vector<uint32_t> recents =
-        {
-            0, 1, 2,
-            31, 32, 33,
-            62, 63, 64, 65, 66,
-            126, 127, 128, 129, 130,
-            190, 191, 192, 193, 194,
-            1000
-        };
+    std::vector<uint32_t> recents = {0,   1,   2,   31,  32,  33,  62,  63,
+                                     64,  65,  66,  126, 127, 128, 129, 130,
+                                     190, 191, 192, 193, 194, 1000};
 
     for (auto r : recents)
     {
         auto name = std::string("catchup-recent-") + std::to_string(r);
-        apps.push_back(catchupNewApplication(initLedger, dbMode,
-                                             catchupMode, name, r));
+        apps.push_back(
+            catchupNewApplication(initLedger, dbMode, catchupMode, name, r));
     }
 
     // Now push network along a little bit and see that they can all still

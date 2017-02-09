@@ -44,7 +44,8 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (!otherAccount)
     {
-        app.getMetrics().NewMeter({"op-merge", "failure", "no-account"}, "operation")
+        app.getMetrics()
+            .NewMeter({"op-merge", "failure", "no-account"}, "operation")
             .Mark();
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
@@ -52,7 +53,8 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (mSourceAccount->isImmutableAuth())
     {
-        app.getMetrics().NewMeter({"op-merge", "failure", "static-auth"}, "operation")
+        app.getMetrics()
+            .NewMeter({"op-merge", "failure", "static-auth"}, "operation")
             .Mark();
         innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
         return false;
@@ -61,8 +63,9 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
     auto const& sourceAccount = mSourceAccount->getAccount();
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
-        app.getMetrics().NewMeter({"op-merge", "failure", "has-sub-entries"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-merge", "failure", "has-sub-entries"}, "operation")
+            .Mark();
         innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
         return false;
     }
@@ -72,7 +75,9 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 
-    app.getMetrics().NewMeter({"op-merge", "success", "apply"}, "operation").Mark();
+    app.getMetrics()
+        .NewMeter({"op-merge", "success", "apply"}, "operation")
+        .Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     innerResult().sourceAccountBalance() = sourceBalance;
     return true;
@@ -84,8 +89,10 @@ MergeOpFrame::doCheckValid(Application& app)
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())
     {
-        app.getMetrics().NewMeter({"op-merge", "invalid", "malformed-self-merge"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-merge", "invalid", "malformed-self-merge"},
+                      "operation")
+            .Mark();
         innerResult().code(ACCOUNT_MERGE_MALFORMED);
         return false;
     }

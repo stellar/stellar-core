@@ -4,13 +4,13 @@
 
 #include "util/asio.h"
 #include "TxSetFrame.h"
-#include "xdrpp/marshal.h"
-#include "crypto/SHA.h"
-#include "util/Logging.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "database/Database.h"
+#include "util/Logging.h"
+#include "xdrpp/marshal.h"
 #include <algorithm>
 
 #include "xdrpp/printer.h"
@@ -66,8 +66,9 @@ struct ApplyTxSorter
     {
     }
 
-    bool operator()(TransactionFramePtr const& tx1,
-                    TransactionFramePtr const& tx2) const
+    bool
+    operator()(TransactionFramePtr const& tx1,
+               TransactionFramePtr const& tx2) const
     {
         // need to use the hash of whole tx here since multiple txs could have
         // the same Contents
@@ -139,8 +140,8 @@ struct SurgeSorter
     {
     }
 
-    bool operator()(TransactionFramePtr const& tx1,
-                    TransactionFramePtr const& tx2)
+    bool
+    operator()(TransactionFramePtr const& tx1, TransactionFramePtr const& tx2)
     {
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();

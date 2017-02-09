@@ -6,13 +6,13 @@
 
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
+#include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
-#include "util/HashOfHash.h"
 
+#include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "medida/meter.h"
 
 #include "util/Timer.h"
 

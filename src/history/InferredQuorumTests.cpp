@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/InferredQuorum.h"
-#include "main/Config.h"
-#include "xdrpp/marshal.h"
-#include "crypto/SHA.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "lib/catch.hpp"
+#include "main/Config.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include "xdrpp/marshal.h"
 #include <xdrpp/autocheck.h>
 
 using namespace stellar;
@@ -29,10 +29,10 @@ TEST_CASE("InferredQuorum intersection", "[history][inferredquorum]")
     PublicKey pkD = skD.getPublicKey();
 
     xdr::xvector<SCPQuorumSet> emptySet;
-    SCPQuorumSet qsA(2, xdr::xvector<PublicKey>({ pkB, pkC, pkD }), emptySet);
-    SCPQuorumSet qsB(2, xdr::xvector<PublicKey>({ pkA, pkC, pkD }), emptySet);
-    SCPQuorumSet qsC(2, xdr::xvector<PublicKey>({ pkA, pkB, pkD }), emptySet);
-    SCPQuorumSet qsD(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC }), emptySet);
+    SCPQuorumSet qsA(2, xdr::xvector<PublicKey>({pkB, pkC, pkD}), emptySet);
+    SCPQuorumSet qsB(2, xdr::xvector<PublicKey>({pkA, pkC, pkD}), emptySet);
+    SCPQuorumSet qsC(2, xdr::xvector<PublicKey>({pkA, pkB, pkD}), emptySet);
+    SCPQuorumSet qsD(2, xdr::xvector<PublicKey>({pkA, pkB, pkC}), emptySet);
 
     Hash qshA = sha256(xdr::xdr_to_opaque(qsA));
     Hash qshB = sha256(xdr::xdr_to_opaque(qsB));
@@ -58,7 +58,8 @@ TEST_CASE("InferredQuorum intersection", "[history][inferredquorum]")
     CHECK(iq.checkQuorumIntersection(cfg));
 }
 
-TEST_CASE("InferredQuorum intersection w/ subquorums", "[history][inferredquorum][subquorum]")
+TEST_CASE("InferredQuorum intersection w/ subquorums",
+          "[history][inferredquorum][subquorum]")
 {
     InferredQuorum iq;
 
@@ -79,29 +80,35 @@ TEST_CASE("InferredQuorum intersection w/ subquorums", "[history][inferredquorum
     xdr::xvector<PublicKey> noKeys;
     xdr::xvector<SCPQuorumSet> emptySet;
 
-    SCPQuorumSet qsABC(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC }), emptySet);
-    SCPQuorumSet qsABD(2, xdr::xvector<PublicKey>({ pkA, pkB, pkD }), emptySet);
-    SCPQuorumSet qsABE(2, xdr::xvector<PublicKey>({ pkA, pkB, pkE }), emptySet);
-    SCPQuorumSet qsABF(2, xdr::xvector<PublicKey>({ pkA, pkB, pkF }), emptySet);
+    SCPQuorumSet qsABC(2, xdr::xvector<PublicKey>({pkA, pkB, pkC}), emptySet);
+    SCPQuorumSet qsABD(2, xdr::xvector<PublicKey>({pkA, pkB, pkD}), emptySet);
+    SCPQuorumSet qsABE(2, xdr::xvector<PublicKey>({pkA, pkB, pkE}), emptySet);
+    SCPQuorumSet qsABF(2, xdr::xvector<PublicKey>({pkA, pkB, pkF}), emptySet);
 
-    SCPQuorumSet qsACD(2, xdr::xvector<PublicKey>({ pkA, pkC, pkD }), emptySet);
-    SCPQuorumSet qsACE(2, xdr::xvector<PublicKey>({ pkA, pkC, pkE }), emptySet);
-    SCPQuorumSet qsACF(2, xdr::xvector<PublicKey>({ pkA, pkC, pkF }), emptySet);
+    SCPQuorumSet qsACD(2, xdr::xvector<PublicKey>({pkA, pkC, pkD}), emptySet);
+    SCPQuorumSet qsACE(2, xdr::xvector<PublicKey>({pkA, pkC, pkE}), emptySet);
+    SCPQuorumSet qsACF(2, xdr::xvector<PublicKey>({pkA, pkC, pkF}), emptySet);
 
-    SCPQuorumSet qsADE(2, xdr::xvector<PublicKey>({ pkA, pkD, pkE }), emptySet);
-    SCPQuorumSet qsADF(2, xdr::xvector<PublicKey>({ pkA, pkD, pkF }), emptySet);
+    SCPQuorumSet qsADE(2, xdr::xvector<PublicKey>({pkA, pkD, pkE}), emptySet);
+    SCPQuorumSet qsADF(2, xdr::xvector<PublicKey>({pkA, pkD, pkF}), emptySet);
 
-    SCPQuorumSet qsBDC(2, xdr::xvector<PublicKey>({ pkB, pkD, pkC }), emptySet);
-    SCPQuorumSet qsBDE(2, xdr::xvector<PublicKey>({ pkB, pkD, pkE }), emptySet);
-    SCPQuorumSet qsCDE(2, xdr::xvector<PublicKey>({ pkC, pkD, pkE }), emptySet);
+    SCPQuorumSet qsBDC(2, xdr::xvector<PublicKey>({pkB, pkD, pkC}), emptySet);
+    SCPQuorumSet qsBDE(2, xdr::xvector<PublicKey>({pkB, pkD, pkE}), emptySet);
+    SCPQuorumSet qsCDE(2, xdr::xvector<PublicKey>({pkC, pkD, pkE}), emptySet);
 
-    SCPQuorumSet qsA(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsBDC, qsBDE, qsCDE }));
-    SCPQuorumSet qsB(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsACD, qsACE, qsACF }));
-    SCPQuorumSet qsC(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABD, qsABE, qsABF }));
+    SCPQuorumSet qsA(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsBDC, qsBDE, qsCDE}));
+    SCPQuorumSet qsB(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsACD, qsACE, qsACF}));
+    SCPQuorumSet qsC(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABD, qsABE, qsABF}));
 
-    SCPQuorumSet qsD(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABC, qsABE, qsABF }));
-    SCPQuorumSet qsE(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABC, qsABD, qsABF }));
-    SCPQuorumSet qsF(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABC, qsABD, qsABE }));
+    SCPQuorumSet qsD(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABC, qsABE, qsABF}));
+    SCPQuorumSet qsE(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABC, qsABD, qsABF}));
+    SCPQuorumSet qsF(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABC, qsABD, qsABE}));
 
     Hash qshA = sha256(xdr::xdr_to_opaque(qsA));
     Hash qshB = sha256(xdr::xdr_to_opaque(qsB));
@@ -135,7 +142,6 @@ TEST_CASE("InferredQuorum intersection w/ subquorums", "[history][inferredquorum
     CHECK(iq.checkQuorumIntersection(cfg));
 }
 
-
 TEST_CASE("InferredQuorum non-intersection", "[history][inferredquorum]")
 {
     InferredQuorum iq;
@@ -155,12 +161,18 @@ TEST_CASE("InferredQuorum non-intersection", "[history][inferredquorum]")
     PublicKey pkF = skF.getPublicKey();
 
     xdr::xvector<SCPQuorumSet> emptySet;
-    SCPQuorumSet qsA(2, xdr::xvector<PublicKey>({ pkB, pkC, pkD, pkE, pkF }), emptySet);
-    SCPQuorumSet qsB(2, xdr::xvector<PublicKey>({ pkA, pkC, pkD, pkE, pkF }), emptySet);
-    SCPQuorumSet qsC(2, xdr::xvector<PublicKey>({ pkA, pkB, pkD, pkE, pkF }), emptySet);
-    SCPQuorumSet qsD(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC, pkE, pkF }), emptySet);
-    SCPQuorumSet qsE(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC, pkD, pkF }), emptySet);
-    SCPQuorumSet qsF(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC, pkD, pkE }), emptySet);
+    SCPQuorumSet qsA(2, xdr::xvector<PublicKey>({pkB, pkC, pkD, pkE, pkF}),
+                     emptySet);
+    SCPQuorumSet qsB(2, xdr::xvector<PublicKey>({pkA, pkC, pkD, pkE, pkF}),
+                     emptySet);
+    SCPQuorumSet qsC(2, xdr::xvector<PublicKey>({pkA, pkB, pkD, pkE, pkF}),
+                     emptySet);
+    SCPQuorumSet qsD(2, xdr::xvector<PublicKey>({pkA, pkB, pkC, pkE, pkF}),
+                     emptySet);
+    SCPQuorumSet qsE(2, xdr::xvector<PublicKey>({pkA, pkB, pkC, pkD, pkF}),
+                     emptySet);
+    SCPQuorumSet qsF(2, xdr::xvector<PublicKey>({pkA, pkB, pkC, pkD, pkE}),
+                     emptySet);
 
     Hash qshA = sha256(xdr::xdr_to_opaque(qsA));
     Hash qshB = sha256(xdr::xdr_to_opaque(qsB));
@@ -194,8 +206,8 @@ TEST_CASE("InferredQuorum non-intersection", "[history][inferredquorum]")
     CHECK(!iq.checkQuorumIntersection(cfg));
 }
 
-
-TEST_CASE("InferredQuorum non-intersection w/ subquorums", "[history][inferredquorum][subquorum]")
+TEST_CASE("InferredQuorum non-intersection w/ subquorums",
+          "[history][inferredquorum][subquorum]")
 {
     InferredQuorum iq;
 
@@ -216,31 +228,37 @@ TEST_CASE("InferredQuorum non-intersection w/ subquorums", "[history][inferredqu
     xdr::xvector<PublicKey> noKeys;
     xdr::xvector<SCPQuorumSet> emptySet;
 
-    SCPQuorumSet qsABC(2, xdr::xvector<PublicKey>({ pkA, pkB, pkC }), emptySet);
-    SCPQuorumSet qsABD(2, xdr::xvector<PublicKey>({ pkA, pkB, pkD }), emptySet);
-    SCPQuorumSet qsABE(2, xdr::xvector<PublicKey>({ pkA, pkB, pkE }), emptySet);
-    SCPQuorumSet qsABF(2, xdr::xvector<PublicKey>({ pkA, pkB, pkF }), emptySet);
+    SCPQuorumSet qsABC(2, xdr::xvector<PublicKey>({pkA, pkB, pkC}), emptySet);
+    SCPQuorumSet qsABD(2, xdr::xvector<PublicKey>({pkA, pkB, pkD}), emptySet);
+    SCPQuorumSet qsABE(2, xdr::xvector<PublicKey>({pkA, pkB, pkE}), emptySet);
+    SCPQuorumSet qsABF(2, xdr::xvector<PublicKey>({pkA, pkB, pkF}), emptySet);
 
-    SCPQuorumSet qsACD(2, xdr::xvector<PublicKey>({ pkA, pkC, pkD }), emptySet);
-    SCPQuorumSet qsACE(2, xdr::xvector<PublicKey>({ pkA, pkC, pkE }), emptySet);
-    SCPQuorumSet qsACF(2, xdr::xvector<PublicKey>({ pkA, pkC, pkF }), emptySet);
+    SCPQuorumSet qsACD(2, xdr::xvector<PublicKey>({pkA, pkC, pkD}), emptySet);
+    SCPQuorumSet qsACE(2, xdr::xvector<PublicKey>({pkA, pkC, pkE}), emptySet);
+    SCPQuorumSet qsACF(2, xdr::xvector<PublicKey>({pkA, pkC, pkF}), emptySet);
 
-    SCPQuorumSet qsADE(2, xdr::xvector<PublicKey>({ pkA, pkD, pkE }), emptySet);
-    SCPQuorumSet qsADF(2, xdr::xvector<PublicKey>({ pkA, pkD, pkF }), emptySet);
+    SCPQuorumSet qsADE(2, xdr::xvector<PublicKey>({pkA, pkD, pkE}), emptySet);
+    SCPQuorumSet qsADF(2, xdr::xvector<PublicKey>({pkA, pkD, pkF}), emptySet);
 
-    SCPQuorumSet qsBDC(2, xdr::xvector<PublicKey>({ pkB, pkD, pkC }), emptySet);
-    SCPQuorumSet qsBDE(2, xdr::xvector<PublicKey>({ pkB, pkD, pkE }), emptySet);
-    SCPQuorumSet qsBDF(2, xdr::xvector<PublicKey>({ pkB, pkD, pkF }), emptySet);
-    SCPQuorumSet qsCDE(2, xdr::xvector<PublicKey>({ pkC, pkD, pkE }), emptySet);
-    SCPQuorumSet qsCDF(2, xdr::xvector<PublicKey>({ pkC, pkD, pkF }), emptySet);
+    SCPQuorumSet qsBDC(2, xdr::xvector<PublicKey>({pkB, pkD, pkC}), emptySet);
+    SCPQuorumSet qsBDE(2, xdr::xvector<PublicKey>({pkB, pkD, pkE}), emptySet);
+    SCPQuorumSet qsBDF(2, xdr::xvector<PublicKey>({pkB, pkD, pkF}), emptySet);
+    SCPQuorumSet qsCDE(2, xdr::xvector<PublicKey>({pkC, pkD, pkE}), emptySet);
+    SCPQuorumSet qsCDF(2, xdr::xvector<PublicKey>({pkC, pkD, pkF}), emptySet);
 
-    SCPQuorumSet qsA(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABC, qsABD, qsABE }));
-    SCPQuorumSet qsB(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsBDC, qsABD, qsABF }));
-    SCPQuorumSet qsC(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsACD, qsACD, qsACF }));
+    SCPQuorumSet qsA(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABC, qsABD, qsABE}));
+    SCPQuorumSet qsB(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsBDC, qsABD, qsABF}));
+    SCPQuorumSet qsC(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsACD, qsACD, qsACF}));
 
-    SCPQuorumSet qsD(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsCDE, qsADE, qsBDE }));
-    SCPQuorumSet qsE(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsCDE, qsADE, qsBDE }));
-    SCPQuorumSet qsF(2, noKeys, xdr::xvector<SCPQuorumSet>({ qsABF, qsADF, qsBDF }));
+    SCPQuorumSet qsD(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsCDE, qsADE, qsBDE}));
+    SCPQuorumSet qsE(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsCDE, qsADE, qsBDE}));
+    SCPQuorumSet qsF(2, noKeys,
+                     xdr::xvector<SCPQuorumSet>({qsABF, qsADF, qsBDF}));
 
     Hash qshA = sha256(xdr::xdr_to_opaque(qsA));
     Hash qshB = sha256(xdr::xdr_to_opaque(qsB));

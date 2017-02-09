@@ -1,6 +1,6 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
-VisualStudioVersion = 14.0.25420.1
+VisualStudioVersion = 14.0.24720.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "stellar-core", "stellar-core.vcxproj", "{916B91AB-A300-422C-B9C2-D683924DC109}"
 EndProject
@@ -40,14 +40,14 @@ Global
 		{A185B162-6CB6-4502-B03F-B56F7699A8D9}.Release|x64.Build.0 = ReleaseLTCG|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Debug|x64.ActiveCfg = Debug|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Debug|x64.Build.0 = Debug|x64
-		{79708037-97A3-4B19-8E9E-252D00E2E007}.DebugNoPostgres|x64.ActiveCfg = DebugNoPostgres|x64
-		{79708037-97A3-4B19-8E9E-252D00E2E007}.DebugNoPostgres|x64.Build.0 = DebugNoPostgres|x64
+		{79708037-97A3-4B19-8E9E-252D00E2E007}.DebugNoPostgres|x64.ActiveCfg = Debug|x64
+		{79708037-97A3-4B19-8E9E-252D00E2E007}.DebugNoPostgres|x64.Build.0 = Debug|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Release|x64.ActiveCfg = Release|x64
 		{79708037-97A3-4B19-8E9E-252D00E2E007}.Release|x64.Build.0 = Release|x64
 		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.Debug|x64.ActiveCfg = Debug|x64
 		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.Debug|x64.Build.0 = Debug|x64
-		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.DebugNoPostgres|x64.ActiveCfg = DebugNoPostgres|x64
-		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.DebugNoPostgres|x64.Build.0 = DebugNoPostgres|x64
+		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.DebugNoPostgres|x64.ActiveCfg = Debug|x64
+		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.DebugNoPostgres|x64.Build.0 = Debug|x64
 		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.Release|x64.ActiveCfg = Release|x64
 		{E85843D9-B9E8-447B-BDD8-0CF9347229A4}.Release|x64.Build.0 = Release|x64
 		{D16EE391-36CC-4A74-8F91-C6DE95AB1CC5}.Debug|x64.ActiveCfg = Debug|x64

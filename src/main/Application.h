@@ -4,9 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "xdr/Stellar-types.h"
 #include <memory>
 #include <string>
-#include "xdr/Stellar-types.h"
 
 namespace asio
 {
@@ -188,7 +188,7 @@ class Application
     virtual CommandHandler& getCommandHandler() = 0;
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
-    virtual StatusManager &getStatusManager() = 0;
+    virtual StatusManager& getStatusManager() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
 #include "work/Work.h"
-#include "work/WorkParent.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "util/Math.h"
+#include "util/make_unique.h"
+#include "work/WorkParent.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -121,8 +121,7 @@ Work::callComplete()
 {
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
-    return [weak](asio::error_code const& ec)
-    {
+    return [weak](asio::error_code const& ec) {
         auto self = weak.lock();
         if (!self)
         {
@@ -138,15 +137,14 @@ Work::scheduleRun()
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
-    mApp.getClock().getIOService().post([weak]()
-                                        {
-                                            auto self = weak.lock();
-                                            if (!self)
-                                            {
-                                                return;
-                                            }
-                                            self->run();
-                                        });
+    mApp.getClock().getIOService().post([weak]() {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->run();
+    });
 }
 
 void
@@ -155,15 +153,14 @@ Work::scheduleComplete(asio::error_code ec)
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
-    mApp.getClock().getIOService().post([weak, ec]()
-                                        {
-                                            auto self = weak.lock();
-                                            if (!self)
-                                            {
-                                                return;
-                                            }
-                                            self->complete(ec);
-                                        });
+    mApp.getClock().getIOService().post([weak, ec]() {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+        self->complete(ec);
+    });
 }
 
 void
@@ -186,13 +183,12 @@ Work::scheduleRetry()
         std::static_pointer_cast<Work>(shared_from_this()));
     auto t = getRetryDelay();
     mRetryTimer->expires_from_now(t);
-    CLOG(WARNING, "Work") << "Scheduling retry #" << (mRetries + 1) << "/"
-                          << mMaxRetries << " in "
-                          << std::chrono::duration_cast<std::chrono::seconds>(t)
-                                 .count() << " sec, for " << getUniqueName();
+    CLOG(WARNING, "Work")
+        << "Scheduling retry #" << (mRetries + 1) << "/" << mMaxRetries
+        << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
+        << " sec, for " << getUniqueName();
     mRetryTimer->async_wait(
-        [weak]()
-        {
+        [weak]() {
             auto self = weak.lock();
             if (!self)
             {
@@ -225,16 +221,14 @@ Work::advance()
     advanceChildren();
     if (allChildrenSuccessful())
     {
-        CLOG(DEBUG, "Work") << "all " << mChildren.size()
-                            << " children of " << getUniqueName()
-                            << " successful, scheduling run";
+        CLOG(DEBUG, "Work") << "all " << mChildren.size() << " children of "
+                            << getUniqueName() << " successful, scheduling run";
         scheduleRun();
     }
     else if (anyChildRaiseFailure())
     {
-        CLOG(DEBUG, "Work") << "some of " << mChildren.size()
-                            << " children of " << getUniqueName()
-                            << " failed, scheduling failure";
+        CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
+                            << getUniqueName() << " failed, scheduling failure";
         scheduleFailure();
     }
 }
@@ -276,8 +270,8 @@ Work::complete(asio::error_code const& ec)
     {
     case WORK_SUCCESS:
         succ.Mark();
-        CLOG(DEBUG, "Work")
-            << "notifying parent of successful " << getUniqueName();
+        CLOG(DEBUG, "Work") << "notifying parent of successful "
+                            << getUniqueName();
         notifyParent();
         break;
 
@@ -290,8 +284,7 @@ Work::complete(asio::error_code const& ec)
     case WORK_FAILURE_RAISE:
         fail.Mark();
         onFailureRaise();
-        CLOG(DEBUG, "Work")
-            << "notifying parent of failed " << getUniqueName();
+        CLOG(DEBUG, "Work") << "notifying parent of failed " << getUniqueName();
         notifyParent();
         break;
 

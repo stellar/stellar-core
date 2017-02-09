@@ -5,9 +5,9 @@
 #include "PeerRecord.h"
 #include "database/Database.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
-#include "main/Application.h"
 #include "test/test.h"
 #include "util/SociNoWarnings.h"
 
@@ -120,57 +120,82 @@ TEST_CASE("parse peer rercord", "[overlay][PeerRecord]")
 
     SECTION("empty")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("", *app),
+                          std::runtime_error);
     }
 
     SECTION("random string")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("random string", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("random string", *app),
+                          std::runtime_error);
     }
 
     SECTION("invalid ipv4")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.256", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("256.256.256.256", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.256", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("256.256.256.256", *app),
+                          std::runtime_error);
     }
 
     SECTION("ipv4 mask instead of address")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/8", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/16", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/24", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/8", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/16", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.1/24", *app),
+                          std::runtime_error);
     }
 
     SECTION("valid ipv6")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:0db8:0a0b:12f0:0000:0000:0000:0001", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort(
+                              "2001:0db8:0a0b:12f0:0000:0000:0000:0001", *app),
+                          std::runtime_error);
     }
 
     SECTION("invalid ipv6")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("10000:db8:a0b:12f0::1", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:0db8:0a0b:12f0:0000:10000:0000:0001", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(
+            PeerRecord::parseIPPort("10000:db8:a0b:12f0::1", *app),
+            std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort(
+                              "2001:0db8:0a0b:12f0:0000:10000:0000:0001", *app),
+                          std::runtime_error);
     }
 
     SECTION("ipv6 mask instead of address")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/16", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/32", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/64", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(
+            PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/16", *app),
+            std::runtime_error);
+        REQUIRE_THROWS_AS(
+            PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/32", *app),
+            std::runtime_error);
+        REQUIRE_THROWS_AS(
+            PeerRecord::parseIPPort("2001:db8:a0b:12f0::1/64", *app),
+            std::runtime_error);
     }
 
     SECTION("valid ipv4 with empty port")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:", *app),
+                          std::runtime_error);
     }
 
     SECTION("valid ipv4 with invalid port")
     {
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:-1", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:0", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65536", *app), std::runtime_error);
-        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65537", *app), std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:-1", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:0", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65536", *app),
+                          std::runtime_error);
+        REQUIRE_THROWS_AS(PeerRecord::parseIPPort("127.0.0.2:65537", *app),
+                          std::runtime_error);
     }
 
     SECTION("valid ipv4 with default port")

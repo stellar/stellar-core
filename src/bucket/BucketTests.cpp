@@ -10,15 +10,18 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "bucket/LedgerCmp.h"
 #include "bucket/BucketManagerImpl.h"
-#include "database/Database.h"
+#include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
-#include "ledger/LedgerManager.h"
+#include "database/Database.h"
 #include "herder/LedgerCloseData.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "ledger/LedgerTestUtils.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -26,9 +29,6 @@
 #include "util/TmpDir.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include "medida/meter.h"
 #include <algorithm>
 #include <future>
 
@@ -554,31 +554,23 @@ clearFutures(Application::pointer app, BucketList& bl)
     size_t waiting = 0, finished = 0;
     for (size_t i = 0; i < n; ++i)
     {
-        app->getWorkerIOService().post(
-            [&]
+        app->getWorkerIOService().post([&] {
+            std::unique_lock<std::mutex> lock(mutex);
+            if (++waiting == n)
             {
-                std::unique_lock<std::mutex> lock(mutex);
-                if (++waiting == n)
-                {
-                    cv.notify_all();
-                }
-                else
-                {
-                    cv.wait(lock, [&]
-                            {
-                                return waiting == n;
-                            });
-                }
-                ++finished;
-                cv2.notify_one();
-            });
+                cv.notify_all();
+            }
+            else
+            {
+                cv.wait(lock, [&] { return waiting == n; });
+            }
+            ++finished;
+            cv2.notify_one();
+        });
     }
     {
         std::unique_lock<std::mutex> lock(mutex);
-        cv2.wait(lock, [&]
-                 {
-                     return finished == n;
-                 });
+        cv2.wait(lock, [&] { return finished == n; });
     }
 }
 
@@ -867,8 +859,9 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
         {
             clock.crank(false);
         }
-        REQUIRE(m.NewMeter({"bucket", "checkdb", "object-compare"},
-                           "comparison").count() >= 10);
+        REQUIRE(
+            m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison")
+                .count() >= 10);
     }
 
     SECTION("failing checkdb")

@@ -8,29 +8,29 @@
 // else.
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
-#include "bucket/BucketManager.h"
 #include "bucket/BucketList.h"
+#include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "database/Database.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/DataFrame.h"
+#include "ledger/EntryFrame.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
+#include "medida/medida.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
 #include "xdrpp/message.h"
-#include "database/Database.h"
-#include "ledger/EntryFrame.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/TrustFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
-#include "medida/medida.h"
-#include "lib/util/format.h"
 #include <cassert>
 #include <future>
 
@@ -58,8 +58,8 @@ Bucket::Bucket(std::string const& filename, Hash const& hash)
     assert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
     {
-        CLOG(TRACE, "Bucket")
-            << "Bucket::Bucket() created, file exists : " << mFilename;
+        CLOG(TRACE, "Bucket") << "Bucket::Bucket() created, file exists : "
+                              << mFilename;
     }
 }
 
@@ -497,7 +497,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
 
     // Step 3: scan the superbucket, checking each object against the DB and
     // counting objects along the way.
-    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData=0;
+    uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
     {
         auto& meter = metrics.NewMeter({"bucket", "checkdb", "object-compare"},
                                        "comparison");
