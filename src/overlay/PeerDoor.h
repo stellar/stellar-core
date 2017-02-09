@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include <memory>
 #include "TCPPeer.h"
+#include <memory>
 
 /*
 listens for peer connections.

@@ -213,8 +213,7 @@ void
 Simulation::crankForAtMost(VirtualClock::duration seconds, bool finalCrank)
 {
     bool stop = false;
-    auto stopIt = [&](asio::error_code const& error)
-    {
+    auto stopIt = [&](asio::error_code const& error) {
         if (!error)
             stop = true;
     };
@@ -242,8 +241,7 @@ void
 Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
 {
     bool stop = false;
-    auto stopIt = [&](asio::error_code const& error)
-    {
+    auto stopIt = [&](asio::error_code const& error) {
         if (!error)
             stop = true;
     };
@@ -268,12 +266,8 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
 void
 Simulation::crankUntilSync(VirtualClock::duration timeout, bool finalCrank)
 {
-    crankUntil(
-        [&]()
-        {
-            return this->accountsOutOfSyncWithDb().empty();
-        },
-        timeout, finalCrank);
+    crankUntil([&]() { return this->accountsOutOfSyncWithDb().empty(); },
+               timeout, finalCrank);
 }
 
 void
@@ -287,8 +281,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
     bool done = false;
 
     VirtualTimer checkTimer(*mIdleApp);
-    function<void()> checkDone = [&]()
-    {
+    function<void()> checkDone = [&]() {
         if (predicate())
             done = true;
         else
@@ -299,8 +292,7 @@ Simulation::crankUntil(function<bool()> const& predicate,
     };
 
     timeoutTimer.async_wait(
-        [&]()
-        {
+        [&]() {
             checkDone();
             timedOut = true;
         },
@@ -337,8 +329,7 @@ void
 Simulation::crankUntil(VirtualClock::time_point timePoint, bool finalCrank)
 {
     bool stop = false;
-    auto stopIt = [&](asio::error_code const& error)
-    {
+    auto stopIt = [&](asio::error_code const& error) {
         if (!error)
             stop = true;
     };

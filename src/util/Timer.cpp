@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Timer.h"
-#include <chrono>
 #include "main/Application.h"
-#include "util/Logging.h"
-#include <thread>
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
+#include <chrono>
+#include <thread>
 
 namespace stellar
 {
@@ -47,23 +47,23 @@ VirtualClock::maybeSetRealtimer()
         if (nextp != mRealTimer.expires_at())
         {
             mRealTimer.expires_at(nextp);
-            mRealTimer.async_wait([this](asio::error_code const& ec)
-                                  {
-                                      if (ec == asio::error::operation_aborted)
-                                      {
-                                          ++this->nRealTimerCancelEvents;
-                                      }
-                                      else
-                                      {
-                                          this->advanceToNow();
-                                      }
-                                  });
+            mRealTimer.async_wait([this](asio::error_code const& ec) {
+                if (ec == asio::error::operation_aborted)
+                {
+                    ++this->nRealTimerCancelEvents;
+                }
+                else
+                {
+                    this->advanceToNow();
+                }
+            });
         }
     }
 }
 
-bool VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
-                                          shared_ptr<VirtualClockEvent> b)
+bool
+VirtualClockEventCompare::operator()(shared_ptr<VirtualClockEvent> a,
+                                     shared_ptr<VirtualClockEvent> b)
 {
     return *a < *b;
 }
@@ -95,7 +95,8 @@ VirtualClock::to_time_t(time_point point)
 {
     return static_cast<std::time_t>(
         std::chrono::duration_cast<std::chrono::seconds>(
-            point.time_since_epoch()).count());
+            point.time_since_epoch())
+            .count());
 }
 
 #ifdef _WIN32
@@ -386,8 +387,7 @@ VirtualClock::advanceToNext()
 }
 
 VirtualClockEvent::VirtualClockEvent(
-    VirtualClock::time_point when,
-    size_t seq,
+    VirtualClock::time_point when, size_t seq,
     std::function<void(asio::error_code)> callback)
     : mCallback(callback), mTriggered(false), mWhen(when), mSeq(seq)
 {
@@ -420,7 +420,8 @@ VirtualClockEvent::cancel()
     }
 }
 
-bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
+bool
+VirtualClockEvent::operator<(VirtualClockEvent const& other) const
 {
     // For purposes of priority queue, a timer is "less than"
     // another timer if it occurs in the future (has a higher
@@ -429,8 +430,7 @@ bool VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     // events were enqueued) we add an event-sequence number as well,
     // such that a higher sequence number makes an event "less than"
     // another.
-    return mWhen > other.mWhen || (mWhen == other.mWhen &&
-                                   mSeq > other.mSeq);
+    return mWhen > other.mWhen || (mWhen == other.mWhen && mSeq > other.mSeq);
 }
 
 VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
@@ -514,9 +514,7 @@ VirtualTimer::async_wait(std::function<void()> const& onSuccess,
     {
         assert(!mDeleting);
         auto ve = make_shared<VirtualClockEvent>(
-            mExpiryTime, seq(),
-            [onSuccess, onFailure](asio::error_code error)
-            {
+            mExpiryTime, seq(), [onSuccess, onFailure](asio::error_code error) {
                 if (error)
                     onFailure(error);
                 else

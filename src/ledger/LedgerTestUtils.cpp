@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "LedgerTestUtils.h"
-#include "ledger/AccountFrame.h"
 #include "crypto/SecretKey.h"
+#include "ledger/AccountFrame.h"
 #include "util/types.h"
-#include <string>
 #include <cctype>
+#include <string>
 #include <xdrpp/autocheck.h>
 
 namespace stellar
@@ -35,7 +35,8 @@ clampHigh(T high, T& v)
     }
 }
 
-template <typename T> void
+template <typename T>
+void
 stripControlCharacters(T& s)
 {
     std::locale loc("C");
@@ -124,8 +125,7 @@ makeValid(DataEntry& d)
 }
 
 static auto validLedgerEntryGenerator = autocheck::map(
-    [](LedgerEntry&& le, size_t s)
-    {
+    [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
         switch (led.type())
         {
@@ -150,24 +150,21 @@ static auto validLedgerEntryGenerator = autocheck::map(
     autocheck::generator<LedgerEntry>());
 
 static auto validAccountEntryGenerator = autocheck::map(
-    [](AccountEntry&& ae, size_t s)
-    {
+    [](AccountEntry&& ae, size_t s) {
         makeValid(ae);
         return ae;
     },
     autocheck::generator<AccountEntry>());
 
 static auto validTrustLineEntryGenerator = autocheck::map(
-    [](TrustLineEntry&& tl, size_t s)
-    {
+    [](TrustLineEntry&& tl, size_t s) {
         makeValid(tl);
         return tl;
     },
     autocheck::generator<TrustLineEntry>());
 
 static auto validOfferEntryGenerator = autocheck::map(
-    [](OfferEntry&& o, size_t s)
-    {
+    [](OfferEntry&& o, size_t s) {
         makeValid(o);
         return o;
     },

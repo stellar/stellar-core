@@ -2,15 +2,15 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
+#include "lib/catch.hpp"
+#include "lib/json/json.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
-#include "util/make_unique.h"
-#include "lib/catch.hpp"
-#include "util/Logging.h"
-#include "lib/json/json.h"
 #include "test/TestAccount.h"
-#include "test/test.h"
 #include "test/TxTests.h"
+#include "test/test.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
 #include "xdrpp/marshal.h"
 
 using namespace stellar;
@@ -37,17 +37,17 @@ TEST_CASE("manage data", "[tx][managedata]")
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    const int64_t minBalance = app.getLedgerManager().getMinBalance(3)-100;
+    const int64_t minBalance = app.getLedgerManager().getMinBalance(3) - 100;
 
     auto gateway = root.create("gw", minBalance);
 
-    DataValue value,value2;
+    DataValue value, value2;
     value.resize(64);
     value2.resize(64);
-    for(int n = 0; n < 64; n++)
+    for (int n = 0; n < 64; n++)
     {
-        value[n] = (unsigned char) n;
-        value2[n] = (unsigned char) n + 3;
+        value[n] = (unsigned char)n;
+        value2[n] = (unsigned char)n + 3;
     }
 
     std::string t1("test");
@@ -58,7 +58,8 @@ TEST_CASE("manage data", "[tx][managedata]")
     applyManageData(app, gateway, t1, &value, gateway.nextSequenceNumber());
     applyManageData(app, gateway, t2, &value, gateway.nextSequenceNumber());
     // try to add too much data
-    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber(), MANAGE_DATA_LOW_RESERVE);
+    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber(),
+                    MANAGE_DATA_LOW_RESERVE);
 
     // modify an existing data entry
     applyManageData(app, gateway, t1, &value2, gateway.nextSequenceNumber());
@@ -70,6 +71,6 @@ TEST_CASE("manage data", "[tx][managedata]")
     applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber());
 
     // fail to remove data entry that isn't present
-    applyManageData(app, gateway, t4, nullptr, gateway.nextSequenceNumber(), MANAGE_DATA_NAME_NOT_FOUND);
-
+    applyManageData(app, gateway, t4, nullptr, gateway.nextSequenceNumber(),
+                    MANAGE_DATA_NAME_NOT_FOUND);
 }

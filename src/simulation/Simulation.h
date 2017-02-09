@@ -5,16 +5,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Config.h"
+#include "crypto/SHA.h"
 #include "main/Application.h"
+#include "main/Config.h"
+#include "medida/medida.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/StellarXDR.h"
-#include "util/Timer.h"
-#include "crypto/SHA.h"
-#include "medida/medida.h"
-#include "test/TxTests.h"
-#include "xdr/Stellar-types.h"
 #include "simulation/LoadGenerator.h"
+#include "test/TxTests.h"
+#include "util/Timer.h"
+#include "xdr/Stellar-types.h"
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("NODE_SEED_" #N);                          \

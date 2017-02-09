@@ -3,13 +3,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/StellarXDR.h"
-#include <string>
-#include <memory>
-#include <map>
 #include "crypto/SecretKey.h"
 #include "lib/util/cpptoml.h"
+#include "overlay/StellarXDR.h"
 #include "util/optional.h"
+#include <map>
+#include <memory>
+#include <string>
 
 #define DEFAULT_PEER_PORT 11625
 
@@ -127,9 +127,9 @@ class Config : public std::enable_shared_from_this<Config>
     uint32_t DESIRED_BASE_FEE;     // in stroops
     uint32_t DESIRED_BASE_RESERVE; // in stroops
     uint32_t DESIRED_MAX_TX_PER_LEDGER;
-    unsigned short HTTP_PORT;       // what port to listen for commands
-    bool PUBLIC_HTTP_PORT;          // if you accept commands from not localhost
-    int HTTP_MAX_CLIENT;  // maximum number of http clients, i.e backlog
+    unsigned short HTTP_PORT; // what port to listen for commands
+    bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
+    int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog
     std::string NETWORK_PASSPHRASE; // identifier for the network
 
     // overlay config

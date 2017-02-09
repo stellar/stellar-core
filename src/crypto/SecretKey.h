@@ -59,7 +59,9 @@ class SecretKey
 
     // Decode a secret key from a provided StrKey seed value.
     static SecretKey fromStrKeySeed(std::string const& strKeySeed);
-    static SecretKey fromStrKeySeed(std::string &&strKeySeed) {
+    static SecretKey
+    fromStrKeySeed(std::string&& strKeySeed)
+    {
         SecretKey ret = fromStrKeySeed(strKeySeed);
         for (std::size_t i = 0; i < strKeySeed.size(); ++i)
             strKeySeed[i] = 0;
@@ -69,14 +71,14 @@ class SecretKey
     // Decode a secret key from a binary seed value.
     static SecretKey fromSeed(ByteSlice const& seed);
 
-    bool operator==(SecretKey const& rh)
+    bool
+    operator==(SecretKey const& rh)
     {
         return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
     }
 };
 
-template<>
-struct KeyFunctions<PublicKey>
+template <> struct KeyFunctions<PublicKey>
 {
     struct getKeyTypeEnum
     {
@@ -87,8 +89,8 @@ struct KeyFunctions<PublicKey>
     static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
     static PublicKeyType toKeyType(strKey::StrKeyVersionByte keyVersion);
     static strKey::StrKeyVersionByte toKeyVersion(PublicKeyType keyType);
-    static uint256 & getKeyValue(PublicKey &key);
-    static uint256 const& getKeyValue(PublicKey const &key);
+    static uint256& getKeyValue(PublicKey& key);
+    static uint256 const& getKeyValue(PublicKey const& key);
 };
 
 // public key utility functions

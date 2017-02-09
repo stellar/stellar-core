@@ -14,9 +14,7 @@ struct SignerKey;
 namespace SignerKeyUtils
 {
 
-SignerKey preAuthTxKey(TransactionFrame const &tx);
-SignerKey hashXKey(ByteSlice const &bs);
-
+SignerKey preAuthTxKey(TransactionFrame const& tx);
+SignerKey hashXKey(ByteSlice const& bs);
 }
-
 }

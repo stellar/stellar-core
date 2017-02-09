@@ -3,16 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/ItemFetcher.h"
-#include "main/Application.h"
-#include "overlay/OverlayManager.h"
-#include "util/Logging.h"
-#include "medida/metrics_registry.h"
-#include "herder/TxSetFrame.h"
-#include "overlay/StellarXDR.h"
-#include "overlay/Tracker.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
+#include "herder/TxSetFrame.h"
+#include "main/Application.h"
+#include "medida/metrics_registry.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/StellarXDR.h"
+#include "overlay/Tracker.h"
+#include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
@@ -33,7 +33,8 @@ ItemFetcher::fetch(Hash itemHash, const SCPEnvelope& envelope)
     auto entryIt = mTrackers.find(itemHash);
     if (entryIt == mTrackers.end())
     { // not being tracked
-        TrackerPtr tracker = std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
+        TrackerPtr tracker =
+            std::make_shared<Tracker>(mApp, itemHash, mAskPeer);
         mTrackers[itemHash] = tracker;
         mItemMapSize.inc();
 
@@ -53,14 +54,15 @@ ItemFetcher::stopFetch(Hash itemHash, const SCPEnvelope& envelope)
     const auto& iter = mTrackers.find(itemHash);
     if (iter != mTrackers.end())
     {
-        auto const &tracker = iter->second;
+        auto const& tracker = iter->second;
 
         CLOG(TRACE, "Overlay") << "stopFetch " << hexAbbrev(itemHash) << " : "
                                << tracker->size();
         tracker->discard(envelope);
         if (tracker->empty())
         {
-            // stop the timer, stop requesting the item as no one is waiting for it
+            // stop the timer, stop requesting the item as no one is waiting for
+            // it
             tracker->cancel();
         }
     }
@@ -89,8 +91,9 @@ ItemFetcher::fetchingFor(Hash itemHash) const
     }
 
     auto const& waiting = iter->second->waitingEnvelopes();
-    std::transform(std::begin(waiting), std::end(waiting), std::back_inserter(result),
-                   [](std::pair<Hash, SCPEnvelope> const &x){ return x.second; });
+    std::transform(
+        std::begin(waiting), std::end(waiting), std::back_inserter(result),
+        [](std::pair<Hash, SCPEnvelope> const& x) { return x.second; });
     return result;
 }
 
@@ -100,10 +103,7 @@ ItemFetcher::stopFetchingBelow(uint64 slotIndex)
     // only perform this cleanup from the top of the stack as it causes
     // all sorts of evil side effects
     mApp.getClock().getIOService().post(
-        [this, slotIndex]()
-        {
-            stopFetchingBelowInternal(slotIndex);
-        });
+        [this, slotIndex]() { stopFetchingBelowInternal(slotIndex); });
 }
 
 void
@@ -157,5 +157,4 @@ ItemFetcher::recv(Hash itemHash)
         tracker->cancel();
     }
 }
-
 }

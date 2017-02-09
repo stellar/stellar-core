@@ -4,16 +4,16 @@
 
 #include "util/asio.h"
 #include "transactions/PaymentOpFrame.h"
-#include "transactions/PathPaymentOpFrame.h"
-#include "util/Logging.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/TrustFrame.h"
-#include "ledger/OfferFrame.h"
-#include "database/Database.h"
 #include "OfferExchange.h"
+#include "database/Database.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
+#include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "main/Application.h"
+#include "transactions/PathPaymentOpFrame.h"
+#include "util/Logging.h"
 #include <algorithm>
 
 namespace stellar
@@ -32,14 +32,17 @@ bool
 PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                         LedgerManager& ledgerManager)
 {
-    // if sending to self XLM directly, just mark as success, else we need at least to check trustlines
+    // if sending to self XLM directly, just mark as success, else we need at
+    // least to check trustlines
     // in ledger version 2 it would work for any asset type
     auto instantSuccess = app.getLedgerManager().getCurrentLedgerVersion() > 2
-            ? mPayment.destination == getSourceID() && mPayment.asset.type() == ASSET_TYPE_NATIVE
-            : mPayment.destination == getSourceID();
+                              ? mPayment.destination == getSourceID() &&
+                                    mPayment.asset.type() == ASSET_TYPE_NATIVE
+                              : mPayment.destination == getSourceID();
     if (instantSuccess)
     {
-        app.getMetrics().NewMeter({"op-payment", "success", "apply"}, "operation")
+        app.getMetrics()
+            .NewMeter({"op-payment", "success", "apply"}, "operation")
             .Mark();
         innerResult().code(PAYMENT_SUCCESS);
         return true;
@@ -76,43 +79,55 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         switch (PathPaymentOpFrame::getInnerCode(ppayment.getResult()))
         {
         case PATH_PAYMENT_UNDERFUNDED:
-            app.getMetrics().NewMeter({"op-payment", "failure", "underfunded"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "underfunded"}, "operation")
+                .Mark();
             res = PAYMENT_UNDERFUNDED;
             break;
         case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
-            app.getMetrics().NewMeter({"op-payment", "failure", "src-not-authorized"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "src-not-authorized"},
+                          "operation")
+                .Mark();
             res = PAYMENT_SRC_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_SRC_NO_TRUST:
-            app.getMetrics().NewMeter({"op-payment", "failure", "src-no-trust"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "src-no-trust"},
+                          "operation")
+                .Mark();
             res = PAYMENT_SRC_NO_TRUST;
             break;
         case PATH_PAYMENT_NO_DESTINATION:
-            app.getMetrics().NewMeter({"op-payment", "failure", "no-destination"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "no-destination"},
+                          "operation")
+                .Mark();
             res = PAYMENT_NO_DESTINATION;
             break;
         case PATH_PAYMENT_NO_TRUST:
-            app.getMetrics().NewMeter({"op-payment", "failure", "no-trust"}, "operation")
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "no-trust"}, "operation")
                 .Mark();
             res = PAYMENT_NO_TRUST;
             break;
         case PATH_PAYMENT_NOT_AUTHORIZED:
-            app.getMetrics().NewMeter({"op-payment", "failure", "not-authorized"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "not-authorized"},
+                          "operation")
+                .Mark();
             res = PAYMENT_NOT_AUTHORIZED;
             break;
         case PATH_PAYMENT_LINE_FULL:
-            app.getMetrics().NewMeter({"op-payment", "failure", "line-full"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "line-full"}, "operation")
+                .Mark();
             res = PAYMENT_LINE_FULL;
             break;
         case PATH_PAYMENT_NO_ISSUER:
-            app.getMetrics().NewMeter({"op-payment", "failure", "no-issuer"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-payment", "failure", "no-issuer"}, "operation")
+                .Mark();
             res = PAYMENT_NO_ISSUER;
             break;
         default:
@@ -125,7 +140,9 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     assert(PathPaymentOpFrame::getInnerCode(ppayment.getResult()) ==
            PATH_PAYMENT_SUCCESS);
 
-    app.getMetrics().NewMeter({"op-payment", "success", "apply"}, "operation").Mark();
+    app.getMetrics()
+        .NewMeter({"op-payment", "success", "apply"}, "operation")
+        .Mark();
     innerResult().code(PAYMENT_SUCCESS);
 
     return true;
@@ -136,15 +153,19 @@ PaymentOpFrame::doCheckValid(Application& app)
 {
     if (mPayment.amount <= 0)
     {
-        app.getMetrics().NewMeter({"op-payment", "invalid", "malformed-negative-amount"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-payment", "invalid", "malformed-negative-amount"},
+                      "operation")
+            .Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }
     if (!isAssetValid(mPayment.asset))
     {
-        app.getMetrics().NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
+                      "operation")
+            .Mark();
         innerResult().code(PAYMENT_MALFORMED);
         return false;
     }

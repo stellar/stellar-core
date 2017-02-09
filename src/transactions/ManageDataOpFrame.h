@@ -10,7 +10,6 @@ namespace stellar
 {
 class ManageDataOpFrame : public OperationFrame
 {
-  
 
     ManageDataResult&
     innerResult()
@@ -20,11 +19,9 @@ class ManageDataOpFrame : public OperationFrame
 
     ManageDataOp const& mManageData;
 
- 
-
   public:
-      ManageDataOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    ManageDataOpFrame(Operation const& op, OperationResult& res,
+                      TransactionFrame& parentTx);
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

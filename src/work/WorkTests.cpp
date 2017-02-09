@@ -2,18 +2,18 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
-#include "work/WorkManager.h"
-#include "main/Config.h"
 #include "lib/catch.hpp"
+#include "main/Application.h"
+#include "main/Config.h"
+#include "process/ProcessManager.h"
 #include "test/test.h"
 #include "util/Fs.h"
-#include "process/ProcessManager.h"
+#include "work/WorkManager.h"
 
 #include <cstdio>
-#include <xdrpp/autocheck.h>
 #include <fstream>
 #include <random>
+#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 

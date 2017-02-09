@@ -4,11 +4,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
 #include "database/Database.h"
-#include <string>
-#include "util/optional.h"
 #include "main/Config.h"
+#include "util/Timer.h"
+#include "util/optional.h"
+#include <string>
 
 namespace stellar
 {
@@ -34,15 +34,17 @@ class PeerRecord
     PeerRecord(string const& ip, unsigned short port,
                VirtualClock::time_point nextAttempt, uint32_t fails = 0);
 
-    bool operator==(PeerRecord& other)
+    bool
+    operator==(PeerRecord& other)
     {
         return mIP == other.mIP && mPort == other.mPort &&
                mNextAttempt == other.mNextAttempt &&
                mNumFailures == other.mNumFailures;
     }
 
-    static PeerRecord parseIPPort(std::string const& ipPort, Application& app,
-                                  unsigned short defaultPort = DEFAULT_PEER_PORT);
+    static PeerRecord
+    parseIPPort(std::string const& ipPort, Application& app,
+                unsigned short defaultPort = DEFAULT_PEER_PORT);
 
     /**
      * Load PeerRecord from database. If preconditions are not met - exception
@@ -55,8 +57,16 @@ class PeerRecord
     static void loadPeerRecords(Database& db, uint32_t max,
                                 VirtualClock::time_point nextAttemptCutoff,
                                 vector<PeerRecord>& retList);
-    const std::string & ip() const { return mIP; };
-    unsigned short port() const { return mPort; };
+    const std::string&
+    ip() const
+    {
+        return mIP;
+    };
+    unsigned short
+    port() const
+    {
+        return mPort;
+    };
 
     bool isSelfAddressAndPort(std::string const& ip, unsigned short port) const;
     bool isPrivateAddress() const;

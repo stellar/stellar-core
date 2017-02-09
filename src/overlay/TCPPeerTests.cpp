@@ -2,16 +2,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
 #include "TCPPeer.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "overlay/PeerDoor.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/PeerDoor.h"
+#include "simulation/Simulation.h"
 #include "test/test.h"
 #include "util/Logging.h"
-#include "simulation/Simulation.h"
-#include "overlay/OverlayManager.h"
+#include "util/Timer.h"
 
 namespace stellar
 {

@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
-#include <string>
 #include "util/NonCopyable.h"
+#include <string>
 
 namespace medida
 {

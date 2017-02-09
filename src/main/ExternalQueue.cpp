@@ -4,12 +4,12 @@
 
 #include "ExternalQueue.h"
 
-#include "database/Database.h"
 #include "Application.h"
+#include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "util/Logging.h"
-#include <regex>
 #include <limits>
+#include <regex>
 
 namespace stellar
 {

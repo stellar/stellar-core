@@ -85,7 +85,8 @@ class HistoryManagerImpl : public HistoryManager
     void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)> handler,
+                           LedgerHeaderHistoryEntry const& lastClosed)>
+            handler,
         bool manualCatchup) override;
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;

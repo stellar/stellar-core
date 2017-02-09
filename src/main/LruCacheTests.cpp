@@ -84,7 +84,7 @@ TEST_CASE("erase_if removes some nodes", "[lru_cache]")
     c.put(2, 2);
     c.put(3, 3);
     c.put(4, 4);
-    c.erase_if([](int i){ return i % 2 == 0; });
+    c.erase_if([](int i) { return i % 2 == 0; });
 
     REQUIRE(c.size() == 2);
     REQUIRE(!c.exists(0));
@@ -102,7 +102,7 @@ TEST_CASE("erase_if removes no nodes", "[lru_cache]")
     c.put(2, 2);
     c.put(3, 3);
     c.put(4, 4);
-    c.erase_if([](int){ return false; });
+    c.erase_if([](int) { return false; });
 
     REQUIRE(c.size() == 5);
     REQUIRE(c.exists(0));
@@ -120,7 +120,7 @@ TEST_CASE("erase_if removes all nodes", "[lru_cache]")
     c.put(2, 2);
     c.put(3, 3);
     c.put(4, 4);
-    c.erase_if([](int){ return true; });
+    c.erase_if([](int) { return true; });
 
     REQUIRE(c.size() == 0);
     REQUIRE(!c.exists(0));
@@ -129,5 +129,4 @@ TEST_CASE("erase_if removes all nodes", "[lru_cache]")
     REQUIRE(!c.exists(3));
     REQUIRE(!c.exists(4));
 }
-
 }

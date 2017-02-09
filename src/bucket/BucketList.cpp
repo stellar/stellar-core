@@ -3,16 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "BucketList.h"
-#include "main/Application.h"
-#include "util/Logging.h"
-#include "util/types.h"
-#include "crypto/SHA.h"
-#include "crypto/Hex.h"
-#include "crypto/Random.h"
-#include "util/XDRStream.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "bucket/LedgerCmp.h"
+#include "crypto/Hex.h"
+#include "crypto/Random.h"
+#include "crypto/SHA.h"
+#include "main/Application.h"
+#include "util/Logging.h"
+#include "util/XDRStream.h"
+#include "util/types.h"
 #include <cassert>
 
 namespace stellar

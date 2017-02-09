@@ -50,15 +50,22 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     bool loadAccount(LedgerDelta* delta, Database& app);
-    bool commonValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta,
-                     SequenceNumber current);
+    bool commonValid(SignatureChecker& signatureChecker, Application& app,
+                     LedgerDelta* delta, SequenceNumber current);
 
     void resetSigningAccount();
     void resetResults();
     bool checkAllSignaturesUsed();
-    void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker, LedgerDelta& delta, LedgerManager& ledgerManager);
-    void removeUsedOneTimeSignerKeys(const AccountID &accountId, const std::set<SignerKey> &keys, LedgerDelta& delta, LedgerManager& ledgerManager) const;
-    bool removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const;
+    void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
+                                     LedgerDelta& delta,
+                                     LedgerManager& ledgerManager);
+    void removeUsedOneTimeSignerKeys(const AccountID& accountId,
+                                     const std::set<SignerKey>& keys,
+                                     LedgerDelta& delta,
+                                     LedgerManager& ledgerManager) const;
+    bool removeAccountSigner(const AccountFrame::pointer& account,
+                             const SignerKey& signerKey,
+                             LedgerManager& ledgerManager) const;
     void markResultFailed();
 
   public:
@@ -138,7 +145,8 @@ class TransactionFrame
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
-    bool checkSignature(SignatureChecker& signatureChecker, AccountFrame& account, int32_t neededWeight);
+    bool checkSignature(SignatureChecker& signatureChecker,
+                        AccountFrame& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
 

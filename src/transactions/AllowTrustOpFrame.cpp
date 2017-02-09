@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/AllowTrustOpFrame.h"
+#include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/TrustFrame.h"
-#include "database/Database.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -32,18 +32,25 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
     if (ledgerManager.getCurrentLedgerVersion() > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
-        { // since version 3 it is not allowed to use ALLOW_TRUST on self
-            app.getMetrics().NewMeter({"op-allow-trust", "failure", "trust-self"},
-                             "operation").Mark();
+        { // since version 3 it is not
+            // allowed to use ALLOW_TRUST on
+            // self
+            app.getMetrics()
+                .NewMeter({"op-allow-trust", "failure", "trust-self"},
+                          "operation")
+                .Mark();
             innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
             return false;
         }
     }
 
     if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
-    { // this account doesn't require authorization to hold credit
-        app.getMetrics().NewMeter({"op-allow-trust", "failure", "not-required"},
-                         "operation").Mark();
+    { // this account doesn't require authorization to
+        // hold credit
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "failure", "not-required"},
+                      "operation")
+            .Mark();
         innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
         return false;
     }
@@ -51,8 +58,9 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
     if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
         !mAllowTrust.authorize)
     {
-        app.getMetrics().NewMeter({"op-allow-trust", "failure", "cant-revoke"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "failure", "cant-revoke"}, "operation")
+            .Mark();
         innerResult().code(ALLOW_TRUST_CANT_REVOKE);
         return false;
     }
@@ -76,13 +84,16 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (!trustLine)
     {
-        app.getMetrics().NewMeter({"op-allow-trust", "failure", "no-trust-line"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "failure", "no-trust-line"},
+                      "operation")
+            .Mark();
         innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
         return false;
     }
 
-    app.getMetrics().NewMeter({"op-allow-trust", "success", "apply"}, "operation")
+    app.getMetrics()
+        .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
@@ -98,9 +109,10 @@ AllowTrustOpFrame::doCheckValid(Application& app)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {
-        app.getMetrics().NewMeter(
-                    {"op-allow-trust", "invalid", "malformed-non-alphanum"},
-                    "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "invalid", "malformed-non-alphanum"},
+                      "operation")
+            .Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }
@@ -119,9 +131,10 @@ AllowTrustOpFrame::doCheckValid(Application& app)
 
     if (!isAssetValid(ci))
     {
-        app.getMetrics().NewMeter(
-                    {"op-allow-trust", "invalid", "malformed-invalid-asset"},
-                    "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "invalid", "malformed-invalid-asset"},
+                      "operation")
+            .Mark();
         innerResult().code(ALLOW_TRUST_MALFORMED);
         return false;
     }

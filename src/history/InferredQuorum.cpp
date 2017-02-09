@@ -1,12 +1,13 @@
 #include "history/InferredQuorum.h"
-#include <sstream>
-#include <fstream>
-#include "xdrpp/marshal.h"
 #include "crypto/SHA.h"
 #include "util/BitsetEnumerator.h"
 #include "util/Logging.h"
+#include "xdrpp/marshal.h"
+#include <fstream>
+#include <sstream>
 
-namespace stellar {
+namespace stellar
+{
 
 void
 InferredQuorum::noteSCPHistory(SCPHistoryEntry const& hist)
@@ -99,8 +100,7 @@ makeQsetEnumerator(SCPQuorumSet const& qset,
 }
 
 static std::shared_ptr<BitsetEnumerator>
-makeSliceEnumerator(InferredQuorum const& iq,
-                    PublicKey const& pk,
+makeSliceEnumerator(InferredQuorum const& iq, PublicKey const& pk,
                     std::unordered_map<PublicKey, size_t> const& nodeNumbers)
 {
     // Enumerating a slice is the cartesian product enumeration of a
@@ -122,11 +122,9 @@ makeSliceEnumerator(InferredQuorum const& iq,
     return std::make_shared<CartesianProductEnumerator>(innerEnums);
 }
 
-static bool
-isQuorum(std::bitset<64> const& q,
-         InferredQuorum const& iq,
-         std::unordered_map<PublicKey, size_t> const& nodeNumbers,
-         std::vector<PublicKey> const& revNodeNumbers)
+static bool isQuorum(std::bitset<64> const& q, InferredQuorum const& iq,
+                     std::unordered_map<PublicKey, size_t> const& nodeNumbers,
+                     std::vector<PublicKey> const& revNodeNumbers)
 {
     for (size_t i = 0; i < q.size(); ++i)
     {
@@ -207,8 +205,7 @@ InferredQuorum::checkQuorumIntersection(Config const& cfg) const
     uint64_t lim = 1ULL << nodeEnumerators.size();
     CLOG(INFO, "History") << "Scanning: " << lim
                           << " possible node subsets (of "
-                          << nodeEnumerators.size()
-                          << " nodes with qsets)";
+                          << nodeEnumerators.size() << " nodes with qsets)";
 
     // Enumerate all the quorums, de-duplicating into a hashset
     std::unordered_set<uint64_t> allQuorums;
@@ -228,13 +225,13 @@ InferredQuorum::checkQuorumIntersection(Config const& cfg) const
     {
         if (mQsetHashes.find(pk.first) == mQsetHashes.end())
         {
-            CLOG(WARNING, "History")
-                << "Node without qset: " << cfg.toShortString(pk.first);
+            CLOG(WARNING, "History") << "Node without qset: "
+                                     << cfg.toShortString(pk.first);
         }
     }
     CLOG(INFO, "History") << "Found " << nodeNumbers.size() << " nodes total";
-    CLOG(INFO, "History") << "Found "
-                          << nodeEnumerators.size() << " nodes with qsets";
+    CLOG(INFO, "History") << "Found " << nodeEnumerators.size()
+                          << " nodes with qsets";
     CLOG(INFO, "History") << "Found " << allQuorums.size() << " quorums";
 
     bool allOk = true;
@@ -249,12 +246,9 @@ InferredQuorum::checkQuorumIntersection(Config const& cfg) const
                     allOk = false;
                     CLOG(WARNING, "History")
                         << "Warning: found pair of non-intersecting quorums";
-                    CLOG(WARNING, "History")
-                        << std::bitset<64>(q);
-                    CLOG(WARNING, "History")
-                        << "vs.";
-                    CLOG(WARNING, "History")
-                        << std::bitset<64>(v);
+                    CLOG(WARNING, "History") << std::bitset<64>(q);
+                    CLOG(WARNING, "History") << "vs.";
+                    CLOG(WARNING, "History") << std::bitset<64>(v);
                 }
             }
         }
@@ -267,8 +261,9 @@ InferredQuorum::checkQuorumIntersection(Config const& cfg) const
     }
     else
     {
-        CLOG(WARNING, "History") << "Network of " << nodeEnumerators.size()
-                                 << " nodes DOES NOT enjoy quorum intersection: ";
+        CLOG(WARNING, "History")
+            << "Network of " << nodeEnumerators.size()
+            << " nodes DOES NOT enjoy quorum intersection: ";
     }
     for (auto n : nodesWithQsets)
     {
@@ -276,13 +271,13 @@ InferredQuorum::checkQuorumIntersection(Config const& cfg) const
         auto name = cfg.toStrKey(revNodeNumbers.at(n), isAlias);
         if (allOk)
         {
-            CLOG(INFO, "History")
-                << "  \"" << (isAlias ? "$" : "") << name << '"';
+            CLOG(INFO, "History") << "  \"" << (isAlias ? "$" : "") << name
+                                  << '"';
         }
         else
         {
-            CLOG(WARNING, "History")
-                << "  \"" << (isAlias ? "$" : "") << name << '"';
+            CLOG(WARNING, "History") << "  \"" << (isAlias ? "$" : "") << name
+                                     << '"';
         }
     }
     return allOk;
@@ -310,9 +305,8 @@ InferredQuorum::toString(Config const& cfg) const
         if (pair.second < thresh)
         {
             out << "# skipping unreliable "
-                << "(" << pair.second << "/" << thresh << ") node: "
-                << '"' << (isAlias ? "$" : "") << name << '"'
-                << std::endl;
+                << "(" << pair.second << "/" << thresh << ") node: " << '"'
+                << (isAlias ? "$" : "") << name << '"' << std::endl;
         }
     }
 
@@ -355,22 +349,19 @@ InferredQuorum::writeQuorumGraph(Config const& cfg,
             auto src = cfg.toShortString(pkq.first);
             for (auto const& dst : qp->second.validators)
             {
-                out << src << " -> "
-                    << cfg.toShortString(dst)
-                    << ";" << std::endl;
+                out << src << " -> " << cfg.toShortString(dst) << ";"
+                    << std::endl;
             }
             for (auto const& iqs : qp->second.innerSets)
             {
                 for (auto const& dst : iqs.validators)
                 {
-                    out << src << " -> "
-                        << cfg.toShortString(dst)
-                        << ";" << std::endl;
+                    out << src << " -> " << cfg.toShortString(dst) << ";"
+                        << std::endl;
                 }
             }
         }
     }
     out << "}" << std::endl;
 }
-
 }

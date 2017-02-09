@@ -4,14 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <vector>
-#include <deque>
-#include <unordered_map>
-#include <memory>
+#include "PendingEnvelopes.h"
 #include "herder/Herder.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
-#include "PendingEnvelopes.h"
+#include <deque>
+#include <memory>
+#include <unordered_map>
+#include <vector>
 
 namespace medida
 {
@@ -220,7 +220,8 @@ class HerderImpl : public Herder, public SCPDriver
     void persistSCPState(uint64 slot);
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> prepareUpgrades(const LedgerHeader &header) const;
+    std::vector<LedgerUpgrade>
+    prepareUpgrades(const LedgerHeader& header) const;
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into

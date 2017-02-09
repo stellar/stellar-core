@@ -7,9 +7,9 @@
 // else.
 #include "util/asio.h"
 
-#include "bucket/FutureBucket.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
+#include "bucket/FutureBucket.h"
 #include "crypto/Hex.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -283,9 +283,8 @@ FutureBucket::startMerge(Application& app)
     BucketManager& bm = app.getBucketManager();
 
     using task_t = std::packaged_task<std::shared_ptr<Bucket>()>;
-    std::shared_ptr<task_t> task = std::make_shared<task_t>(
-        [curr, snap, &bm, shadows, keepDeadEntries]()
-        {
+    std::shared_ptr<task_t> task =
+        std::make_shared<task_t>([curr, snap, &bm, shadows, keepDeadEntries]() {
             CLOG(TRACE, "Bucket")
                 << "Worker merging curr=" << hexAbbrev(curr->getHash())
                 << " with snap=" << hexAbbrev(snap->getHash());

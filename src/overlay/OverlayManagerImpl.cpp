@@ -2,20 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "overlay/OverlayManagerImpl.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/OverlayManagerImpl.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
-#include "medida/metrics_registry.h"
-#include "medida/meter.h"
 #include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
 
 #include <random>
 
@@ -90,8 +90,7 @@ OverlayManagerImpl::start()
     if (!mApp.getConfig().RUN_STANDALONE)
     {
         mTimer.async_wait(
-            [this]()
-            {
+            [this]() {
                 storeConfigPeers();
                 this->tick();
             },
@@ -107,7 +106,7 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
         auto pr = PeerRecord::parseIPPort(peerStr, mApp);
         connectTo(pr);
     }
-    catch (const std::runtime_error &)
+    catch (const std::runtime_error&)
     {
         CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
     }
@@ -150,7 +149,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
                 pr.insertIfNew(mApp.getDatabase());
             }
         }
-        catch (std::runtime_error &)
+        catch (std::runtime_error&)
         {
             CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
         }
@@ -173,9 +172,10 @@ OverlayManagerImpl::storeConfigPeers()
                 ppeers.push_back(*r.first);
             }
         }
-        catch (std::runtime_error &)
+        catch (std::runtime_error&)
         {
-            CLOG(ERROR, "Overlay") << "Unable to add preferred peer '" << s << "'";
+            CLOG(ERROR, "Overlay") << "Unable to add preferred peer '" << s
+                                   << "'";
         }
     }
 
@@ -228,12 +228,7 @@ OverlayManagerImpl::tick()
     }
 
     mTimer.expires_from_now(std::chrono::seconds(2));
-    mTimer.async_wait(
-        [this]()
-        {
-            this->tick();
-        },
-        VirtualTimer::onFailureNoop);
+    mTimer.async_wait([this]() { this->tick(); }, VirtualTimer::onFailureNoop);
 }
 
 Peer::pointer
@@ -355,8 +350,7 @@ OverlayManagerImpl::getRandomPeers()
 {
     std::vector<std::shared_ptr<Peer>> goodPeers(mPeers.size());
     auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),
-                           [](std::shared_ptr<Peer> const& p)
-                           {
+                           [](std::shared_ptr<Peer> const& p) {
                                return p && p->isAuthenticated();
                            });
     goodPeers.resize(std::distance(goodPeers.begin(), it));

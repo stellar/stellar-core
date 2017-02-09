@@ -4,16 +4,16 @@
 
 #include "Slot.h"
 
-#include <functional>
-#include "util/types.h"
-#include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "util/Logging.h"
-#include "scp/LocalNode.h"
 #include "lib/json/json.h"
-#include "util/make_unique.h"
+#include "scp/LocalNode.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
+#include "util/types.h"
+#include "xdrpp/marshal.h"
+#include <functional>
 
 namespace stellar
 {
@@ -195,8 +195,7 @@ Slot::isNodeInQuorum(NodeID const& node)
     }
     return mSCP.getLocalNode()->isNodeInQuorum(
         node,
-        [this](SCPStatement const& st)
-        {
+        [this](SCPStatement const& st) {
             // uses the companion set here as we want to consider
             // nodes that were used up to EXTERNALIZE
             Hash h = getCompanionQuorumSetHashFromStatement(st);
@@ -350,8 +349,7 @@ Slot::federatedAccept(StatementPredicate voted, StatementPredicate accepted,
 
     // Checks if the set of nodes that accepted or voted for it form a quorum
 
-    auto ratifyFilter = [this, &voted, &accepted](SCPStatement const& st)
-    {
+    auto ratifyFilter = [this, &voted, &accepted](SCPStatement const& st) {
         bool res;
         res = accepted(st) || voted(st);
         return res;

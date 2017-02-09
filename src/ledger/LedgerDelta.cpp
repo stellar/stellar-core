@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerDelta.h"
-#include "xdr/Stellar-ledger.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/metrics_registry.h"
 #include "medida/meter.h"
+#include "medida/metrics_registry.h"
+#include "xdr/Stellar-ledger.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -134,10 +134,10 @@ LedgerDelta::deleteEntry(LedgerKey const& k)
     }
     else
     {
-        if(mDelete.find(k) == mDelete.end())
+        if (mDelete.find(k) == mDelete.end())
         {
             mDelete.insert(k);
-        }// else already being deleted
+        } // else already being deleted
 
         mMod.erase(k);
     }
@@ -355,7 +355,7 @@ LedgerDelta::markMeters(Application& app) const
             break;
         case DATA:
             app.getMetrics()
-                .NewMeter({ "ledger", "data", "add" }, "entry")
+                .NewMeter({"ledger", "data", "add"}, "entry")
                 .Mark();
             break;
         }
@@ -382,7 +382,7 @@ LedgerDelta::markMeters(Application& app) const
             break;
         case DATA:
             app.getMetrics()
-                .NewMeter({ "ledger", "data", "modify" }, "entry")
+                .NewMeter({"ledger", "data", "modify"}, "entry")
                 .Mark();
             break;
         }
@@ -409,7 +409,7 @@ LedgerDelta::markMeters(Application& app) const
             break;
         case DATA:
             app.getMetrics()
-                .NewMeter({ "ledger", "data", "delete" }, "entry")
+                .NewMeter({"ledger", "data", "delete"}, "entry")
                 .Mark();
             break;
         }

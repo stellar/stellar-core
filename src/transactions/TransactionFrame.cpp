@@ -5,21 +5,21 @@
 #include "util/asio.h"
 #include "TransactionFrame.h"
 #include "OperationFrame.h"
-#include "main/Application.h"
-#include "xdrpp/marshal.h"
-#include <string>
-#include "util/basen.h"
-#include "util/Logging.h"
-#include "util/XDRStream.h"
-#include "ledger/LedgerDelta.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
-#include "crypto/Hex.h"
-#include "crypto/SignerKey.h"
+#include "ledger/LedgerDelta.h"
+#include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
+#include "util/Logging.h"
+#include "util/XDRStream.h"
+#include "util/basen.h"
+#include "xdrpp/marshal.h"
+#include <string>
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -137,16 +137,19 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 }
 
 bool
-TransactionFrame::checkSignature(SignatureChecker& signatureChecker, AccountFrame& account, int32_t neededWeight)
+TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
+                                 AccountFrame& account, int32_t neededWeight)
 {
     std::vector<Signer> signers;
     if (account.getAccount().thresholds[0])
         signers.push_back(
-            Signer(KeyUtils::convertKey<SignerKey>(account.getID()), account.getAccount().thresholds[0]));
+            Signer(KeyUtils::convertKey<SignerKey>(account.getID()),
+                   account.getAccount().thresholds[0]));
     signers.insert(signers.end(), account.getAccount().signers.begin(),
-                      account.getAccount().signers.end());
+                   account.getAccount().signers.end());
 
-    return signatureChecker.checkSignature(account.getID(), signers, neededWeight);
+    return signatureChecker.checkSignature(account.getID(), signers,
+                                           neededWeight);
 }
 
 AccountFrame::pointer
@@ -201,7 +204,8 @@ TransactionFrame::resetResults()
 }
 
 bool
-TransactionFrame::commonValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta,
+TransactionFrame::commonValid(SignatureChecker& signatureChecker,
+                              Application& app, LedgerDelta* delta,
                               SequenceNumber current)
 {
     bool applying = (delta != nullptr);
@@ -277,7 +281,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker, Application& a
         }
     }
 
-    if (!checkSignature(signatureChecker, *mSigningAccount, mSigningAccount->getLowThreshold()))
+    if (!checkSignature(signatureChecker, *mSigningAccount,
+                        mSigningAccount->getLowThreshold()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")
@@ -357,26 +362,34 @@ TransactionFrame::resetSigningAccount()
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker, LedgerDelta& delta, LedgerManager& ledgerManager)
+TransactionFrame::removeUsedOneTimeSignerKeys(
+    SignatureChecker& signatureChecker, LedgerDelta& delta,
+    LedgerManager& ledgerManager)
 {
-    for (auto const &usedAccount : signatureChecker.usedOneTimeSignerKeys())
+    for (auto const& usedAccount : signatureChecker.usedOneTimeSignerKeys())
     {
-        removeUsedOneTimeSignerKeys(usedAccount.first, usedAccount.second, delta, ledgerManager);
+        removeUsedOneTimeSignerKeys(usedAccount.first, usedAccount.second,
+                                    delta, ledgerManager);
     }
 }
 
 void
-TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, const std::set<SignerKey> &keys, LedgerDelta& delta, LedgerManager& ledgerManager) const
+TransactionFrame::removeUsedOneTimeSignerKeys(
+    const AccountID& accountId, const std::set<SignerKey>& keys,
+    LedgerDelta& delta, LedgerManager& ledgerManager) const
 {
-    auto account = AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
+    auto account =
+        AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
     if (!account)
     {
         return; // probably account was removed due to merge operation
     }
 
-    auto changed = std::accumulate(std::begin(keys), std::end(keys), false, [&](bool r, const SignerKey &signerKey){
-        return r || removeAccountSigner(account, signerKey, ledgerManager);
-    });
+    auto changed = std::accumulate(
+        std::begin(keys), std::end(keys), false,
+        [&](bool r, const SignerKey& signerKey) {
+            return r || removeAccountSigner(account, signerKey, ledgerManager);
+        });
 
     if (changed)
     {
@@ -386,12 +399,14 @@ TransactionFrame::removeUsedOneTimeSignerKeys(const AccountID &accountId, const 
 }
 
 bool
-TransactionFrame::removeAccountSigner(const AccountFrame::pointer &account, const SignerKey &signerKey, LedgerManager& ledgerManager) const
+TransactionFrame::removeAccountSigner(const AccountFrame::pointer& account,
+                                      const SignerKey& signerKey,
+                                      LedgerManager& ledgerManager) const
 {
-    auto &signers = account->getAccount().signers;
-    auto it = std::find_if(std::begin(signers), std::end(signers), [&signerKey](Signer const &signer){
-        return signer.key == signerKey;
-    });
+    auto& signers = account->getAccount().signers;
+    auto it = std::find_if(
+        std::begin(signers), std::end(signers),
+        [&signerKey](Signer const& signer) { return signer.key == signerKey; });
     if (it != std::end(signers))
     {
         auto removed = account->addNumEntries(-1, ledgerManager);
@@ -515,8 +530,10 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 return false;
             }
 
-            // if an error occured, it is responsibility of account's owner to remove that signer
-            removeUsedOneTimeSignerKeys(signatureChecker, thisTxDelta, app.getLedgerManager());
+            // if an error occured, it is responsibility of account's owner to
+            // remove that signer
+            removeUsedOneTimeSignerKeys(signatureChecker, thisTxDelta,
+                                        app.getLedgerManager());
             sqlTx.commit();
             thisTxDelta.commit();
         }

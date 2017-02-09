@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <bitset>
-#include <vector>
 #include <memory>
+#include <vector>
 
 namespace stellar
 {
@@ -14,7 +14,7 @@ namespace stellar
 // Abstract enumerator type for sets-of-bitsets.
 class BitsetEnumerator
 {
-public:
+  public:
     virtual void reset() = 0;
     virtual void operator++() = 0;
     virtual std::bitset<64> operator*() const = 0;
@@ -26,7 +26,8 @@ class ConstantEnumerator : public BitsetEnumerator
 {
     std::bitset<64> const mBits;
     bool mDone;
-public:
+
+  public:
     ConstantEnumerator(std::bitset<64> bits);
     void reset() override;
     operator bool() const override;
@@ -67,14 +68,13 @@ class PermutationEnumerator : public BitsetEnumerator
     uint64_t mCur;     // Current permutation of bits.
     size_t const mSet; // Number of bits that should be set.
     size_t const mTot; // Number of bits to select from.
-public:
+  public:
     PermutationEnumerator(size_t nSet, size_t nTotal);
     void reset() override;
     operator bool() const override;
     std::bitset<64> operator*() const override;
     void operator++() override;
 };
-
 
 /*
  * Enumerates the nonempty powerset of a number of bits. This is
@@ -85,14 +85,13 @@ class PowersetEnumerator : public BitsetEnumerator
 {
     uint64_t mCur;       // Current permutation of bits.
     uint64_t const mLim; // One past the last set to emit.
-public:
+  public:
     PowersetEnumerator(size_t nBits);
     void reset() override;
     operator bool() const override;
     std::bitset<64> operator*() const override;
     void operator++() override;
 };
-
 
 /*
  * Enumerates the cartesion product of N enumerators, OR-ing together the
@@ -120,7 +119,8 @@ public:
 class CartesianProductEnumerator : public BitsetEnumerator
 {
     std::vector<std::shared_ptr<BitsetEnumerator>> mInnerEnums;
-public:
+
+  public:
     CartesianProductEnumerator(
         std::vector<std::shared_ptr<BitsetEnumerator>> innerEnums);
     void reset() override;
@@ -214,11 +214,11 @@ class SelectionEnumerator : public BitsetEnumerator
     std::shared_ptr<BitsetEnumerator> mIndexEnum;
     CartesianProductEnumerator mProduct;
 
-    static CartesianProductEnumerator select(
-        std::shared_ptr<BitsetEnumerator> index,
-        std::vector<std::shared_ptr<BitsetEnumerator>> const& from);
+    static CartesianProductEnumerator
+    select(std::shared_ptr<BitsetEnumerator> index,
+           std::vector<std::shared_ptr<BitsetEnumerator>> const& from);
 
-public:
+  public:
     SelectionEnumerator(
         std::shared_ptr<BitsetEnumerator> index,
         std::vector<std::shared_ptr<BitsetEnumerator>> const& innerEnums);
@@ -227,8 +227,7 @@ public:
     operator bool() const override;
     void operator++() override;
 
-    static std::shared_ptr<BitsetEnumerator>
-    bitNumbers(size_t nSel, std::vector<size_t> ns);
+    static std::shared_ptr<BitsetEnumerator> bitNumbers(size_t nSel,
+                                                        std::vector<size_t> ns);
 };
-
 }

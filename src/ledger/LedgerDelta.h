@@ -4,12 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <map>
-#include <set>
+#include "bucket/LedgerCmp.h"
 #include "ledger/EntryFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
-#include "bucket/LedgerCmp.h"
 #include "xdrpp/marshal.h"
+#include <map>
+#include <set>
 
 namespace stellar
 {

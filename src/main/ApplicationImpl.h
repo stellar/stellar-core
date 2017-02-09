@@ -4,12 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
 #include "Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
-#include <thread>
 #include "medida/timer_context.h"
+#include "util/Timer.h"
+#include <thread>
 
 namespace medida
 {
@@ -97,7 +97,8 @@ class ApplicationImpl : public Application
     virtual Hash const& getNetworkID() const override;
 
   protected:
-    std::unique_ptr<LedgerManager> mLedgerManager; // allow to change that for tests
+    std::unique_ptr<LedgerManager>
+        mLedgerManager;              // allow to change that for tests
     std::unique_ptr<Herder> mHerder; // allow to change that for tests
 
   private:

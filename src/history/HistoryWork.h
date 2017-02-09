@@ -2,19 +2,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
-#include "work/WorkManager.h"
+#include "bucket/Bucket.h"
+#include "bucket/BucketApplicator.h"
+#include "bucket/BucketList.h"
 #include "herder/TxSetFrame.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
-#include "bucket/Bucket.h"
-#include "bucket/BucketList.h"
-#include "bucket/BucketApplicator.h"
+#include "main/Application.h"
 #include "util/TmpDir.h"
+#include "work/WorkManager.h"
 
-#include <memory>
 #include <map>
+#include <memory>
 #include <string>
 
 /*
@@ -203,10 +203,10 @@ class GetAndUnzipRemoteFileWork : public Work
     // Passing `nullptr` for the archive argument will cause the work to
     // select a new readable history archive at random each time it runs /
     // retries.
-    GetAndUnzipRemoteFileWork(Application& app, WorkParent& parent,
-                              FileTransferInfo ft,
-                              std::shared_ptr<HistoryArchive const> archive = nullptr,
-                              size_t maxRetries = Work::RETRY_A_FEW);
+    GetAndUnzipRemoteFileWork(
+        Application& app, WorkParent& parent, FileTransferInfo ft,
+        std::shared_ptr<HistoryArchive const> archive = nullptr,
+        size_t maxRetries = Work::RETRY_A_FEW);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
@@ -252,9 +252,10 @@ class CatchupWork : public BucketDownloadWork
 class CatchupMinimalWork : public CatchupWork
 {
   public:
-    typedef std::function<void(
-        asio::error_code const& ec, HistoryManager::CatchupMode mode,
-        LedgerHeaderHistoryEntry const& lastClosed)> handler;
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& lastClosed)>
+        handler;
 
   protected:
     std::shared_ptr<Work> mDownloadLedgersWork;
@@ -306,9 +307,10 @@ class BatchDownloadWork : public Work
 class CatchupCompleteWork : public CatchupWork
 {
 
-    typedef std::function<void(
-        asio::error_code const& ec, HistoryManager::CatchupMode mode,
-        LedgerHeaderHistoryEntry const& lastClosed)> handler;
+    typedef std::function<void(asio::error_code const& ec,
+                               HistoryManager::CatchupMode mode,
+                               LedgerHeaderHistoryEntry const& lastClosed)>
+        handler;
 
     std::shared_ptr<Work> mDownloadLedgersWork;
     std::shared_ptr<Work> mDownloadTransactionsWork;
@@ -334,7 +336,8 @@ class CatchupRecentWork : public Work
   public:
     typedef std::function<void(asio::error_code const& ec,
                                HistoryManager::CatchupMode mode,
-                               LedgerHeaderHistoryEntry const& ledger)> handler;
+                               LedgerHeaderHistoryEntry const& ledger)>
+        handler;
 
   protected:
     std::shared_ptr<Work> mCatchupMinimalWork;
@@ -349,9 +352,8 @@ class CatchupRecentWork : public Work
     handler writeLastApplied();
 
   public:
-    CatchupRecentWork(Application& app, WorkParent& parent,
-                      uint32_t initLedger, bool manualCatchup,
-                      handler endHandler);
+    CatchupRecentWork(Application& app, WorkParent& parent, uint32_t initLedger,
+                      bool manualCatchup, handler endHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
@@ -491,11 +493,9 @@ class FetchRecentQsetsWork : public Work
 
   public:
     FetchRecentQsetsWork(Application& app, WorkParent& parent,
-                         InferredQuorum& iq,
-                         handler endHandler);
+                         InferredQuorum& iq, handler endHandler);
     void onReset() override;
     void onFailureRaise() override;
     Work::State onSuccess() override;
 };
-
 }

@@ -2,20 +2,20 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
-#include "main/Config.h"
-#include "util/Timer.h"
-#include "overlay/LoopbackPeer.h"
-#include "util/make_unique.h"
 #include "lib/catch.hpp"
-#include "util/Logging.h"
+#include "main/Application.h"
+#include "main/Config.h"
+#include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
-#include "test/test.h"
 #include "test/TxTests.h"
-#include "ledger/LedgerDelta.h"
+#include "test/test.h"
+#include "util/Logging.h"
+#include "util/Timer.h"
+#include "util/make_unique.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -60,7 +60,8 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("merge into non existent account")
     {
-        REQUIRE_THROWS_AS(a1.merge(getAccount("B").getPublicKey()), ex_ACCOUNT_MERGE_NO_ACCOUNT);
+        REQUIRE_THROWS_AS(a1.merge(getAccount("B").getPublicKey()),
+                          ex_ACCOUNT_MERGE_NO_ACCOUNT);
     }
 
     auto b1 = root.create("B", minBalance);
@@ -101,14 +102,16 @@ TEST_CASE("merge", "[tx][merge]")
                     const Price somePrice(3, 2);
                     for (int i = 0; i < 4; i++)
                     {
-                        a1.manageOffer(0, xlmCur, usdCur, somePrice, 100 * assetMultiplier);
+                        a1.manageOffer(0, xlmCur, usdCur, somePrice,
+                                       100 * assetMultiplier);
                     }
                     // empty out balance
                     a1.pay(gateway, usdCur, trustLineBalance);
                     // delete the trust line
                     a1.changeTrust(usdCur, 0);
 
-                    REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                    REQUIRE_THROWS_AS(a1.merge(b1),
+                                      ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
                 }
             }
         }
@@ -122,7 +125,7 @@ TEST_CASE("merge", "[tx][merge]")
 
             DataValue value;
             value.resize(20);
-            for(int n = 0; n < 20; n++)
+            for (int n = 0; n < 20; n++)
             {
                 value[n] = (unsigned char)n;
             }
@@ -144,9 +147,10 @@ TEST_CASE("merge", "[tx][merge]")
         }
         SECTION("success, invalidates dependent tx")
         {
-            auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1, a1.nextSequenceNumber());
-            auto tx2 =
-                createPaymentTx(app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 100);
+            auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1,
+                                          a1.nextSequenceNumber());
+            auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
+                                       a1.nextSequenceNumber(), 100);
             TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
                 app.getLedgerManager().getLastClosedLedgerHeader().hash);
             txSet->add(tx1);

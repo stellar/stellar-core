@@ -94,5 +94,4 @@ WorkParent::app() const
 {
     return mApp;
 }
-
 }

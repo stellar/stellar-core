@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "PeerDoor.h"
-#include <memory>
+#include "Peer.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "Peer.h"
 #include "overlay/OverlayManager.h"
-#include "util/Logging.h"
 #include "overlay/TCPPeer.h"
+#include "util/Logging.h"
+#include <memory>
 
 namespace stellar
 {
@@ -60,8 +60,7 @@ PeerDoor::acceptNextPeer()
     auto sock =
         make_shared<TCPPeer::SocketType>(mApp.getClock().getIOService());
     mAcceptor.async_accept(sock->next_layer(),
-                           [this, sock](asio::error_code const& ec)
-                           {
+                           [this, sock](asio::error_code const& ec) {
                                if (ec)
                                    this->acceptNextPeer();
                                else

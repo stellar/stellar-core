@@ -6,13 +6,13 @@
 
 #include <algorithm>
 
-#include "xdrpp/marshal.h"
+#include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
-#include "util/Logging.h"
-#include "crypto/Hex.h"
 #include "util/GlobalChecks.h"
+#include "util/Logging.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {

@@ -6,15 +6,15 @@
 #include "main/ApplicationImpl.h"
 #include "main/Config.h"
 
+#include "database/Database.h"
 #include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "util/Timer.h"
-#include "database/Database.h"
-#include "test/test.h"
 #include "test/TxTests.h"
+#include "test/test.h"
 #include "transactions/TransactionFrame.h"
 #include "util/SociNoWarnings.h"
+#include "util/Timer.h"
 
 using namespace stellar;
 using namespace std;
