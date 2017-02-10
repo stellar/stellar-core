@@ -42,16 +42,15 @@ bool mkpath(std::string const& path);
 
 class PathSplitter
 {
-public:
+  public:
     explicit PathSplitter(std::string path);
 
     std::string next();
     bool hasNext() const;
 
-private:
+  private:
     std::string mPath;
     std::string::size_type mPos;
-
 };
 
 ////

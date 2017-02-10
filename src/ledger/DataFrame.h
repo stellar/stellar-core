@@ -20,9 +20,8 @@ class StatementContext;
 
 class DataFrame : public EntryFrame
 {
-    static void
-    loadData(StatementContext& prep,
-               std::function<void(LedgerEntry const&)> dataProcessor);
+    static void loadData(StatementContext& prep,
+                         std::function<void(LedgerEntry const&)> dataProcessor);
 
     DataEntry& mData;
 
@@ -32,7 +31,6 @@ class DataFrame : public EntryFrame
 
   public:
     typedef std::shared_ptr<DataFrame> pointer;
-
 
     DataFrame();
     DataFrame(LedgerEntry const& from);
@@ -50,13 +48,13 @@ class DataFrame : public EntryFrame
     AccountID const& getAccountID() const;
 
     DataEntry const&
-        getData() const
+    getData() const
     {
         return mData;
     }
 
     DataEntry&
-        getData()
+    getData()
     {
         return mData;
     }
@@ -74,12 +72,11 @@ class DataFrame : public EntryFrame
 
     // database utilities
     static pointer loadData(AccountID const& accountID, std::string dataName,
-                             Database& db);
-
+                            Database& db);
 
     static void loadAccountsData(AccountID const& accountID,
-                           std::vector<DataFrame::pointer>& retData,
-                           Database& db);
+                                 std::vector<DataFrame::pointer>& retData,
+                                 Database& db);
 
     // load all data entries from the database (very slow)
     static std::unordered_map<AccountID, std::vector<DataFrame::pointer>>

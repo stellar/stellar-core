@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
-#include "util/XDRStream.h"
 #include "database/Database.h"
+#include "util/XDRStream.h"
 #include <memory>
 
 namespace stellar

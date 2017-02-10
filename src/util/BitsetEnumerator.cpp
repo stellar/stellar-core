@@ -13,8 +13,7 @@ namespace stellar
 ///////////////////////////////////////////////////////////////////////////
 
 ConstantEnumerator::ConstantEnumerator(std::bitset<64> bits)
-    : mBits(bits)
-    , mDone(false)
+    : mBits(bits), mDone(false)
 {
 }
 
@@ -49,14 +48,12 @@ ConstantEnumerator::operator bool() const
     return !mDone;
 }
 
-std::bitset<64>
-ConstantEnumerator::operator*() const
+std::bitset<64> ConstantEnumerator::operator*() const
 {
     return mBits;
 }
 
-void
-ConstantEnumerator::operator++()
+void ConstantEnumerator::operator++()
 {
     mDone = true;
 }
@@ -66,9 +63,7 @@ ConstantEnumerator::operator++()
 ///////////////////////////////////////////////////////////////////////////
 
 PermutationEnumerator::PermutationEnumerator(size_t nSet, size_t nTotal)
-    : mCur(0)
-    , mSet(nSet)
-    , mTot(nTotal)
+    : mCur(0), mSet(nSet), mTot(nTotal)
 {
     assert(mSet <= mTot);
     assert(mSet > 0 && mSet <= 64);
@@ -98,8 +93,7 @@ PermutationEnumerator::operator bool() const
     return !(mCur & ~((one << mTot) - 1));
 }
 
-std::bitset<64>
-PermutationEnumerator::operator*() const
+std::bitset<64> PermutationEnumerator::operator*() const
 {
     std::bitset<64> bits(mCur);
     assert(bits.count() == mSet);
@@ -115,8 +109,7 @@ uneg(uint64_t const& n)
     return (~n) + 1;
 }
 
-void
-PermutationEnumerator::operator++()
+void PermutationEnumerator::operator++()
 {
     // Next bit-permutation. See:
     // https://graphics.stanford.edu/~seander/bithacks.html#NextBitPermutation
@@ -128,9 +121,7 @@ PermutationEnumerator::operator++()
 // PowersetEnumerator
 ///////////////////////////////////////////////////////////////////////////
 
-PowersetEnumerator::PowersetEnumerator(size_t nBits)
-    : mCur(1)
-    , mLim(1 << nBits)
+PowersetEnumerator::PowersetEnumerator(size_t nBits) : mCur(1), mLim(1 << nBits)
 {
     assert(nBits < 64);
 }
@@ -146,14 +137,12 @@ PowersetEnumerator::operator bool() const
     return mCur < mLim;
 }
 
-std::bitset<64>
-PowersetEnumerator::operator*() const
+std::bitset<64> PowersetEnumerator::operator*() const
 {
     return std::bitset<64>(mCur);
 }
 
-void
-PowersetEnumerator::operator++()
+void PowersetEnumerator::operator++()
 {
     ++mCur;
 }
@@ -193,8 +182,7 @@ CartesianProductEnumerator::operator bool() const
     return false;
 }
 
-std::bitset<64>
-CartesianProductEnumerator::operator*() const
+std::bitset<64> CartesianProductEnumerator::operator*() const
 {
     std::bitset<64> tmp;
     for (auto const& e : mInnerEnums)
@@ -204,8 +192,7 @@ CartesianProductEnumerator::operator*() const
     return tmp;
 }
 
-void
-CartesianProductEnumerator::operator++()
+void CartesianProductEnumerator::operator++()
 {
     // Want to walk along the array looking for the first
     // element that wasn't done, but becomes done when we
@@ -231,7 +218,7 @@ CartesianProductEnumerator::operator++()
             // "carry" the advance to the next one, and if it
             // remains live after the carry, reset enumerator i and
             // all the previous ones.
-            for (size_t carry = i+1; carry < mInnerEnums.size(); ++carry)
+            for (size_t carry = i + 1; carry < mInnerEnums.size(); ++carry)
             {
                 auto next = mInnerEnums[carry];
                 ++(*next);
@@ -256,8 +243,8 @@ SelectionEnumerator::SelectionEnumerator(
     std::shared_ptr<BitsetEnumerator> index,
     std::vector<std::shared_ptr<BitsetEnumerator>> const& innerEnums)
     : mInnerEnums(innerEnums)
-    , mIndexEnum(index),
-      mProduct(select(index, mInnerEnums))
+    , mIndexEnum(index)
+    , mProduct(select(index, mInnerEnums))
 {
     for (auto const& e : mInnerEnums)
     {
@@ -294,8 +281,7 @@ SelectionEnumerator::select(
     return CartesianProductEnumerator(active);
 }
 
-std::bitset<64>
-SelectionEnumerator::operator*() const
+std::bitset<64> SelectionEnumerator::operator*() const
 {
     return *mProduct;
 }
@@ -312,8 +298,7 @@ SelectionEnumerator::operator bool() const
     return mProduct || *mIndexEnum;
 }
 
-void
-SelectionEnumerator::operator++()
+void SelectionEnumerator::operator++()
 {
     if (mProduct)
     {

@@ -3,24 +3,24 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "crypto/SHA.h"
-#include "crypto/Hex.h"
-#include "main/Application.h"
 #include "StellarCoreVersion.h"
-#include "overlay/OverlayManager.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "main/Application.h"
+#include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
+#include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
-#include "util/Fs.h"
-#include "main/Config.h"
 
 #include "main/fuzz.h"
 
+#include <signal.h>
 #include <xdrpp/autocheck.h>
 #include <xdrpp/printer.h>
-#include <signal.h>
 
 /**
  * This is a very simple fuzzer _stub_. It's intended to be run under an
@@ -109,7 +109,8 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.BUCKET_DIR_PATH = "fuzz-buckets-1";
     cfg1.QUORUM_SET.threshold = 1;
     cfg1.QUORUM_SET.validators.clear();
-    cfg1.QUORUM_SET.validators.push_back(SecretKey::fromSeed(sha256("a")).getPublicKey());
+    cfg1.QUORUM_SET.validators.push_back(
+        SecretKey::fromSeed(sha256("a")).getPublicKey());
 
     cfg2.RUN_STANDALONE = true;
     cfg1.HTTP_PORT = 0;
@@ -119,7 +120,8 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
     cfg2.QUORUM_SET.threshold = 1;
     cfg2.QUORUM_SET.validators.clear();
-    cfg2.QUORUM_SET.validators.push_back(SecretKey::fromSeed(sha256("b")).getPublicKey());
+    cfg2.QUORUM_SET.validators.push_back(
+        SecretKey::fromSeed(sha256("b")).getPublicKey());
 
     CfgDirGuard g1(cfg1);
     CfgDirGuard g2(cfg2);
@@ -146,10 +148,8 @@ restart:
         LOG(INFO) << "Fuzzer injecting message " << i << ": "
                   << msgSummary(msg);
         auto peer = loop.getInitiator();
-        clock.getIOService().post([peer, msg]()
-                                  {
-                                      peer->Peer::sendMessage(msg);
-                                  });
+        clock.getIOService().post(
+            [peer, msg]() { peer->Peer::sendMessage(msg); });
     }
     while (loop.getAcceptor()->isConnected())
     {

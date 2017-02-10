@@ -11,11 +11,13 @@
 
 #include <iostream>
 
-namespace stellar {
+namespace stellar
+{
 
 std::chrono::hours const NtpSynchronizationChecker::CHECK_FREQUENCY(24);
 
-NtpSynchronizationChecker::NtpSynchronizationChecker(Application& app, std::string ntpServer)
+NtpSynchronizationChecker::NtpSynchronizationChecker(Application& app,
+                                                     std::string ntpServer)
     : WorkParent(app)
     , mCheckTimer(app)
     , mNtpServer(std::move(ntpServer))
@@ -42,30 +44,35 @@ NtpSynchronizationChecker::notify(const std::string&)
 void
 NtpSynchronizationChecker::updateStatusManager()
 {
-    auto &statusManager = app().getStatusManager();
+    auto& statusManager = app().getStatusManager();
     if (mNtpWork->isSynchronized())
     {
         statusManager.removeStatusMessage(StatusCategory::NTP);
     }
     else
     {
-        statusManager.setStatusMessage(StatusCategory::NTP, "Local time is not synchronized with NTP time.");
+        statusManager.setStatusMessage(
+            StatusCategory::NTP,
+            "Local time is not synchronized with NTP time.");
     }
 }
 
 void
 NtpSynchronizationChecker::scheduleNextCheck()
 {
-    std::weak_ptr<NtpSynchronizationChecker> weak = std::static_pointer_cast<NtpSynchronizationChecker>(shared_from_this());
+    std::weak_ptr<NtpSynchronizationChecker> weak =
+        std::static_pointer_cast<NtpSynchronizationChecker>(shared_from_this());
     mCheckTimer.expires_from_now(CHECK_FREQUENCY);
-    mCheckTimer.async_wait([weak](){
-        auto self = weak.lock();
-        if (!self)
-        {
-            return;
-        }
-        self->start();
-    }, &VirtualTimer::onFailureNoop);
+    mCheckTimer.async_wait(
+        [weak]() {
+            auto self = weak.lock();
+            if (!self)
+            {
+                return;
+            }
+            self->start();
+        },
+        &VirtualTimer::onFailureNoop);
 }
 
 void
@@ -92,5 +99,4 @@ NtpSynchronizationChecker::shutdown()
     clearChildren();
     mNtpWork.reset();
 }
-
 }

@@ -11,11 +11,11 @@
 #include "util/NonCopyable.h"
 
 #include <chrono>
-#include <queue>
+#include <ctime>
+#include <functional>
 #include <map>
 #include <memory>
-#include <functional>
-#include <ctime>
+#include <queue>
 
 namespace stellar
 {
@@ -162,8 +162,7 @@ class VirtualClockEvent : public NonMovableOrCopyable
   public:
     VirtualClock::time_point mWhen;
     size_t mSeq;
-    VirtualClockEvent(VirtualClock::time_point when,
-                      size_t seq,
+    VirtualClockEvent(VirtualClock::time_point when, size_t seq,
                       std::function<void(asio::error_code)> callback);
     bool getTriggered();
     void trigger();

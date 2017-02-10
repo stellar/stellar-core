@@ -4,8 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/StellarXDR.h"
 #include "ledger/EntryFrame.h"
+#include "overlay/StellarXDR.h"
 
 namespace stellar
 {
@@ -29,8 +29,9 @@ using xdr::operator<;
 struct LedgerEntryIdCmp
 {
     template <typename T, typename U>
-    auto operator()(T const& a, U const& b) const -> decltype(a.type(),
-                                                              b.type(), bool())
+    auto
+    operator()(T const& a, U const& b) const
+        -> decltype(a.type(), b.type(), bool())
     {
         LedgerEntryType aty = a.type();
         LedgerEntryType bty = b.type();
@@ -74,9 +75,9 @@ struct LedgerEntryIdCmp
         {
             auto const& ad = a.data();
             auto const& bd = b.data();
-            if(ad.accountID < bd.accountID)
+            if (ad.accountID < bd.accountID)
                 return true;
-            if(bd.accountID < ad.accountID)
+            if (bd.accountID < ad.accountID)
                 return false;
             {
                 return ad.dataName < bd.dataName;
@@ -87,14 +88,16 @@ struct LedgerEntryIdCmp
     }
 
     template <typename T>
-    bool operator()(T const& a, LedgerEntry const& b) const
+    bool
+    operator()(T const& a, LedgerEntry const& b) const
     {
         return (*this)(a, b.data);
     }
 
     template <typename T, typename = typename std::enable_if<
                               !std::is_same<T, LedgerEntry>::value>::type>
-    bool operator()(LedgerEntry const& a, T const& b) const
+    bool
+    operator()(LedgerEntry const& a, T const& b) const
     {
         return (*this)(a.data, b);
     }
@@ -108,7 +111,8 @@ struct LedgerEntryIdCmp
 struct BucketEntryIdCmp
 {
     LedgerEntryIdCmp mCmp;
-    bool operator()(BucketEntry const& a, BucketEntry const& b) const
+    bool
+    operator()(BucketEntry const& a, BucketEntry const& b) const
     {
         BucketEntryType aty = a.type();
         BucketEntryType bty = b.type();

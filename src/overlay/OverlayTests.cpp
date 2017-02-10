@@ -2,24 +2,24 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
-#include "overlay/LoopbackPeer.h"
-#include "util/make_unique.h"
-#include "lib/catch.hpp"
-#include "util/Logging.h"
-#include "util/Timer.h"
+#include "BanManager.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
+#include "lib/catch.hpp"
+#include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/PeerRecord.h"
+#include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
 #include "test/test.h"
-#include "BanManager.h"
+#include "util/Logging.h"
+#include "util/Timer.h"
+#include "util/make_unique.h"
 
+#include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
-#include "medida/meter.h"
 
 using namespace stellar;
 
@@ -52,7 +52,7 @@ TEST_CASE("loopback peer hello", "[overlay]")
 TEST_CASE("loopback peer with 0 port", "[overlay]")
 {
     VirtualClock clock;
-    auto const &cfg1 = getTestConfig(0);
+    auto const& cfg1 = getTestConfig(0);
     auto cfg2 = getTestConfig(1);
     cfg2.PEER_PORT = 0;
 
@@ -69,8 +69,8 @@ TEST_CASE("loopback peer with 0 port", "[overlay]")
 TEST_CASE("loopback peer send auth before hello", "[overlay]")
 {
     VirtualClock clock;
-    auto const &cfg1 = getTestConfig(0);
-    auto const &cfg2 = getTestConfig(1);
+    auto const& cfg1 = getTestConfig(0);
+    auto const& cfg2 = getTestConfig(1);
     auto app1 = Application::create(clock, cfg1);
     auto app2 = Application::create(clock, cfg2);
 
@@ -228,8 +228,7 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
 {
     Config const& cfg1 = getTestConfig(0);
 
-    auto doVersionCheck = [&](uint32 version)
-    {
+    auto doVersionCheck = [&](uint32 version) {
         VirtualClock clock;
         Config cfg2 = getTestConfig(1);
 
@@ -319,14 +318,12 @@ injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
     if (clock.now() < end && sendPeer->isConnected())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
-        timer.async_wait([&](asio::error_code const& ec)
-                         {
-                             if (!ec)
-                             {
-                                 injectSendPeersAndReschedule(end, clock, timer,
-                                                              sendPeer);
-                             }
-                         });
+        timer.async_wait([&](asio::error_code const& ec) {
+            if (!ec)
+            {
+                injectSendPeersAndReschedule(end, clock, timer, sendPeer);
+            }
+        });
     }
 }
 

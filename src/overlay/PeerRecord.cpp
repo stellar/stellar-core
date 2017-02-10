@@ -3,16 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerRecord.h"
-#include <vector>
-#include <cmath>
-#include "util/Logging.h"
-#include "util/must_use.h"
-#include "util/SociNoWarnings.h"
-#include "overlay/StellarXDR.h"
-#include "main/Application.h"
 #include "lib/util/format.h"
-#include <regex>
+#include "main/Application.h"
+#include "overlay/StellarXDR.h"
+#include "util/Logging.h"
+#include "util/SociNoWarnings.h"
+#include "util/must_use.h"
 #include <algorithm>
+#include <cmath>
+#include <regex>
+#include <vector>
 
 #define SECONDS_PER_BACKOFF 10
 #define MAX_BACKOFF_EXPONENT 10
@@ -71,8 +71,8 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app,
 
     if (!std::regex_search(ipPort, m, re) || m.empty())
     {
-        throw std::runtime_error(fmt::format(
-            "Cannot parse peer address '{}'", ipPort));
+        throw std::runtime_error(
+            fmt::format("Cannot parse peer address '{}'", ipPort));
     }
 
     asio::ip::tcp::resolver::query::flags resolveflags;
@@ -95,11 +95,9 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app,
     asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
     if (ec)
     {
-        LOG(DEBUG) << "Could not resolve '" << ipPort
-                    << "' : " << ec.message();
-        throw std::runtime_error(fmt::format(
-            "Could not resolve '{}': {}", ipPort,
-            ec.message()));
+        LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
+        throw std::runtime_error(
+            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
     }
 
     string ip;
@@ -115,9 +113,8 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app,
     }
     if (ip.empty())
     {
-        throw std::runtime_error(fmt::format(
-            "Could not resolve '{}': {}", ipPort,
-            ec.message()));
+        throw std::runtime_error(
+            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
     }
 
     unsigned short port = defaultPort;
@@ -126,9 +123,8 @@ PeerRecord::parseIPPort(string const& ipPort, Application& app,
         int parsedPort = atoi(m[3].str().c_str());
         if (parsedPort <= 0 || parsedPort > UINT16_MAX)
         {
-            throw std::runtime_error(fmt::format(
-                "Could not resolve '{}': {}", ipPort,
-                ec.message()));
+            throw std::runtime_error(fmt::format("Could not resolve '{}': {}",
+                                                 ipPort, ec.message()));
         }
         port = static_cast<unsigned short>(parsedPort);
     }
@@ -151,9 +147,8 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     // SOCI only support signed short, using intermediate int avoids ending up
     // with negative numbers in the database
     uint32_t numFailures;
-    auto prep =
-        db.getPreparedStatement("SELECT nextattempt, numfailures FROM "
-                                "peers WHERE ip = :v1 AND port = :v2");
+    auto prep = db.getPreparedStatement("SELECT nextattempt, numfailures FROM "
+                                        "peers WHERE ip = :v1 AND port = :v2");
     auto& st = prep.statement();
     st.exchange(into(tm));
     st.exchange(into(numFailures));
@@ -167,9 +162,8 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     }
     if (st.got_data())
     {
-        return make_optional<PeerRecord>(
-            ip, port,
-            VirtualClock::tmToPoint(tm), numFailures);
+        return make_optional<PeerRecord>(ip, port, VirtualClock::tmToPoint(tm),
+                                         numFailures);
     }
     else
     {
@@ -210,12 +204,9 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
         {
             if (!ip.empty() && lport > 0)
             {
-                auto pr = PeerRecord{
-                    ip,
-                    static_cast<unsigned short>(lport),
-                    VirtualClock::tmToPoint(nextAttempt),
-                    numFailures
-                };
+                auto pr = PeerRecord{ip, static_cast<unsigned short>(lport),
+                                     VirtualClock::tmToPoint(nextAttempt),
+                                     numFailures};
                 retList.push_back(pr);
                 st.fetch();
             }

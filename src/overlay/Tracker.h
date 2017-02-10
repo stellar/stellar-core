@@ -48,30 +48,42 @@ class Tracker
     Hash mItemHash;
     medida::Meter& mTryNextPeerReset;
     medida::Meter& mTryNextPeer;
-    uint64 mLastSeenSlotIndex {0};
+    uint64 mLastSeenSlotIndex{0};
 
   public:
     /**
      * Create Tracker that tracks data identified by @p hash. @p askPeer
      * delegate is used to fetch the data.
      */
-    explicit Tracker(Application& app, Hash const& hash, AskPeer &askPeer);
+    explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer);
     virtual ~Tracker();
 
     /**
      * Return true if does not wait for any envelope.
      */
-    bool empty() const { return mWaitingEnvelopes.empty(); }
+    bool
+    empty() const
+    {
+        return mWaitingEnvelopes.empty();
+    }
 
     /**
      * Return list of envelopes this tracker is waiting for.
      */
-    const std::vector<std::pair<Hash, SCPEnvelope>> & waitingEnvelopes() const { return mWaitingEnvelopes; }
+    const std::vector<std::pair<Hash, SCPEnvelope>>&
+    waitingEnvelopes() const
+    {
+        return mWaitingEnvelopes;
+    }
 
     /**
      * Return count of envelopes it is waiting for.
      */
-    size_t size() const { return mWaitingEnvelopes.size(); }
+    size_t
+    size() const
+    {
+        return mWaitingEnvelopes.size();
+    }
 
     /**
      * Pop envelope from stack.
@@ -117,13 +129,19 @@ class Tracker
     /**
      * Return biggest slot index seen since last reset.
      */
-    uint64 getLastSeenSlotIndex() const { return mLastSeenSlotIndex; }
+    uint64
+    getLastSeenSlotIndex() const
+    {
+        return mLastSeenSlotIndex;
+    }
 
     /**
      * Reset value of biggest slot index seen.
      */
-    void resetLastSeenSlotIndex() { mLastSeenSlotIndex = 0; }
-
+    void
+    resetLastSeenSlotIndex()
+    {
+        mLastSeenSlotIndex = 0;
+    }
 };
-
 }

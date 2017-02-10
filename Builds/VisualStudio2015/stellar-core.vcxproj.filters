@@ -97,6 +97,9 @@
     <Filter Include="docs\software">
       <UniqueIdentifier>{afbf3c43-0e10-4e2c-9763-46118da6f8cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="test">
+      <UniqueIdentifier>{632e2a38-59c9-4c6f-8ae3-7e302688207e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -302,9 +305,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryTests.cpp">
       <Filter>history\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\main\test.cpp">
-      <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
       <Filter>ledger\tests</Filter>
@@ -567,6 +567,30 @@
     <ClCompile Include="..\..\src\overlay\Tracker.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\test.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TestUtils.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SignerKey.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\SignerKeyUtils.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\KeyUtils.cpp">
+      <Filter>crypto</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -733,9 +757,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h">
       <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\main\test.h">
-      <Filter>main\tests</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\TmpDir.h">
       <Filter>util</Filter>
@@ -982,6 +1003,27 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Tracker.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\test.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestUtils.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SignerKey.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\SignerKeyUtils.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\crypto\KeyUtils.h">
+      <Filter>crypto</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SignatureChecker.h">
+      <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\SignatureUtils.h">
+      <Filter>transactions</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

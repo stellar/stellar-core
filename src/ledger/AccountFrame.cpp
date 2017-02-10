@@ -3,16 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "AccountFrame.h"
+#include "LedgerDelta.h"
+#include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
-#include "crypto/Hex.h"
 #include "database/Database.h"
-#include "LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "lib/util/format.h"
 #include "util/basen.h"
 #include "util/types.h"
-#include "lib/util/format.h"
 #include <algorithm>
 
 using namespace soci;
@@ -417,8 +417,7 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 
     if (mAccountEntry.inflationDest)
     {
-        inflationDestStrKey =
-            KeyUtils::toStrKey(*mAccountEntry.inflationDest);
+        inflationDestStrKey = KeyUtils::toStrKey(*mAccountEntry.inflationDest);
         inflation_ind = soci::i_ok;
     }
 
@@ -506,8 +505,7 @@ AccountFrame::applySigners(Database& db, bool insert)
         {
             if (it_new->weight != it_old->weight)
             {
-                std::string signerStrKey =
-                    KeyUtils::toStrKey(it_new->key);
+                std::string signerStrKey = KeyUtils::toStrKey(it_new->key);
                 auto timer = db.getUpdateTimer("signer");
                 auto prep2 = db.getPreparedStatement(
                     "UPDATE signers set weight=:v1 WHERE "
@@ -639,7 +637,8 @@ AccountFrame::checkDB(Database& db)
         st.execute(true);
         while (st.got_data())
         {
-            state.insert(std::make_pair(KeyUtils::fromStrKey<PublicKey>(id), nullptr));
+            state.insert(
+                std::make_pair(KeyUtils::fromStrKey<PublicKey>(id), nullptr));
             st.fetch();
         }
     }

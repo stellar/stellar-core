@@ -2,14 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "overlay/LoadManager.h"
 #include "database/Database.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "lib/util/format.h"
 
 #include <chrono>
 
@@ -187,8 +187,9 @@ LoadManager::PeerContext::~PeerContext()
         if (Logging::logTrace("Overlay"))
             CLOG(TRACE, "Overlay")
                 << "Debiting peer " << mApp.getConfig().toShortString(mNode)
-                << " time:" << timeMag(time.count()) << " send:" << byteMag(send)
-                << " recv:" << byteMag(recv) << " query:" << query;
+                << " time:" << timeMag(time.count())
+                << " send:" << byteMag(send) << " recv:" << byteMag(recv)
+                << " query:" << query;
         pc->mTimeSpent.Mark(time.count());
         pc->mBytesSend.Mark(send);
         pc->mBytesRecv.Mark(recv);

@@ -5,15 +5,15 @@
 #include "util/asio.h"
 #include "LedgerHeaderFrame.h"
 #include "LedgerManager.h"
-#include "util/XDRStream.h"
-#include "util/Logging.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "xdrpp/marshal.h"
 #include "database/Database.h"
-#include "util/types.h"
-#include <util/basen.h>
+#include "util/Logging.h"
+#include "util/XDRStream.h"
 #include "util/format.h"
+#include "util/types.h"
+#include "xdrpp/marshal.h"
+#include <util/basen.h>
 
 namespace stellar
 {

@@ -3,17 +3,17 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "main/Config.h"
-#include "main/Application.h"
-#include "xdrpp/autocheck.h"
 #include "lib/catch.hpp"
+#include "lib/util/format.h"
+#include "main/Application.h"
+#include "main/Config.h"
+#include "process/ProcessManager.h"
 #include "test/test.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "lib/util/format.h"
-#include "util/Fs.h"
+#include "xdrpp/autocheck.h"
 #include <future>
-#include "process/ProcessManager.h"
 
 using namespace stellar;
 
@@ -25,17 +25,15 @@ TEST_CASE("subprocess", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname");
     bool exited = false;
     bool failed = false;
-    evt.async_wait([&](asio::error_code ec)
-                   {
-                       CLOG(DEBUG, "Process") << "process exited: " << ec;
-                       if (ec)
-                       {
-                           CLOG(DEBUG, "Process")
-                               << "error code: " << ec.message();
-                       }
-                       failed = !!ec;
-                       exited = true;
-                   });
+    evt.async_wait([&](asio::error_code ec) {
+        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        if (ec)
+        {
+            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+        }
+        failed = !!ec;
+        exited = true;
+    });
 
     while (!exited && !clock.getIOService().stopped())
     {
@@ -52,17 +50,15 @@ TEST_CASE("subprocess fails", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     bool exited = false;
     bool failed = false;
-    evt.async_wait([&](asio::error_code ec)
-                   {
-                       CLOG(DEBUG, "Process") << "process exited: " << ec;
-                       if (ec)
-                       {
-                           CLOG(DEBUG, "Process")
-                               << "error code: " << ec.message();
-                       }
-                       failed = !!ec;
-                       exited = true;
-                   });
+    evt.async_wait([&](asio::error_code ec) {
+        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        if (ec)
+        {
+            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+        }
+        failed = !!ec;
+        exited = true;
+    });
 
     while (!exited && !clock.getIOService().stopped())
     {
@@ -80,16 +76,14 @@ TEST_CASE("subprocess redirect to file", "[process]")
     std::string filename("hostname.txt");
     auto evt = app.getProcessManager().runProcess("hostname", filename);
     bool exited = false;
-    evt.async_wait([&](asio::error_code ec)
-                   {
-                       CLOG(DEBUG, "Process") << "process exited: " << ec;
-                       if (ec)
-                       {
-                           CLOG(DEBUG, "Process")
-                               << "error code: " << ec.message();
-                       }
-                       exited = true;
-                   });
+    evt.async_wait([&](asio::error_code ec) {
+        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        if (ec)
+        {
+            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+        }
+        exited = true;
+    });
 
     while (!exited && !clock.getIOService().stopped())
     {
@@ -130,16 +124,14 @@ TEST_CASE("subprocess storm", "[process]")
             out << i;
         }
         auto evt = app.getProcessManager().runProcess("mv " + src + " " + dst);
-        evt.async_wait([&](asio::error_code ec)
-                       {
-                           CLOG(INFO, "Process") << "process exited: " << ec;
-                           if (ec)
-                           {
-                               CLOG(DEBUG, "Process")
-                                   << "error code: " << ec.message();
-                           }
-                           ++completed;
-                       });
+        evt.async_wait([&](asio::error_code ec) {
+            CLOG(INFO, "Process") << "process exited: " << ec;
+            if (ec)
+            {
+                CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            }
+            ++completed;
+        });
     }
 
     size_t last = 0;
@@ -147,7 +139,8 @@ TEST_CASE("subprocess storm", "[process]")
     {
         clock.crank(false);
         size_t n2 = app.getProcessManager().getNumRunningProcesses();
-        if (last != n2) {
+        if (last != n2)
+        {
             CLOG(INFO, "Process") << "running subprocess count: " << n2;
         }
         last = n2;

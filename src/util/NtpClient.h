@@ -30,8 +30,7 @@ namespace stellar
 class NtpClient : public std::enable_shared_from_this<NtpClient>
 {
   public:
-    explicit NtpClient(asio::io_service &ioService,
-                       std::string server,
+    explicit NtpClient(asio::io_service& ioService, std::string server,
                        std::function<void(long)> successCallback,
                        std::function<void()> failureCallback);
     ~NtpClient();
@@ -44,10 +43,9 @@ class NtpClient : public std::enable_shared_from_this<NtpClient>
 
   private:
     const static auto PACKET_SIZE = 48;
-    template<typename T>
-    using packet = std::array<T, PACKET_SIZE / sizeof(T)>;
+    template <typename T> using packet = std::array<T, PACKET_SIZE / sizeof(T)>;
 
-    asio::io_service &mIoService;
+    asio::io_service& mIoService;
     std::string mServer;
     std::function<void(long)> mSuccessCallback;
     std::function<void()> mFailureCallback;
@@ -60,10 +58,10 @@ class NtpClient : public std::enable_shared_from_this<NtpClient>
     void success(long time);
     void failure();
 
-    void onServerResolved(asio::error_code ec, asio::ip::udp::resolver::iterator it);
+    void onServerResolved(asio::error_code ec,
+                          asio::ip::udp::resolver::iterator it);
     void onConnectFinished(asio::error_code ec);
     void onWriteFinished(asio::error_code ec);
     void onReadFinished(asio::error_code ec);
 };
-
 }

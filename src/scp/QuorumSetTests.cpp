@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/Hex.h"
-#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
 #include "scp/QuorumSetUtils.h"
 #include "xdr/Stellar-SCP.h"
@@ -14,13 +14,13 @@ namespace stellar
 
 TEST_CASE("sane quorum set", "[scp][quorumset]")
 {
-    auto makePublicKey = [](int i){
+    auto makePublicKey = [](int i) {
         auto hash = sha256("NODE_SEED_" + std::to_string(i));
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getPublicKey();
     };
 
-    auto makeSingleton = [](const PublicKey &key){
+    auto makeSingleton = [](const PublicKey& key) {
         auto result = SCPQuorumSet{};
         result.threshold = 1;
         result.validators.push_back(key);
@@ -34,8 +34,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     }
 
     auto check = [&](SCPQuorumSet const& qSetCheck, bool expected,
-                     SCPQuorumSet const& expectedSelfQSet)
-    {
+                     SCPQuorumSet const& expectedSelfQSet) {
         // first, without normalization
         REQUIRE(expected == isQuorumSetSane(qSetCheck, false));
 
@@ -93,7 +92,8 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, true, qSelfSet);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1 }, { t: 2, v2 } } -> { t:1, v0, v1, { t: 2, v2 } }")
+    SECTION("{ t: 1, v0, { t: 1, v1 }, { t: 2, v2 } } -> { t:1, v0, v1, { t: "
+            "2, v2 } }")
     {
         auto qSet = SCPQuorumSet{};
         qSet.threshold = 1;
@@ -133,12 +133,14 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     validMultipleNodesNormalized.innerSets.back().validators.push_back(keys[2]);
     validMultipleNodesNormalized.innerSets.back().validators.push_back(keys[3]);
 
-    SECTION("{ t: 1, v0, { t: 1, v1 }, { t: 1, v2, v3 } } -> { t:1, v0, v1, { t: 1, v2, v3 } }")
+    SECTION("{ t: 1, v0, { t: 1, v1 }, { t: 1, v2, v3 } } -> { t:1, v0, v1, { "
+            "t: 1, v2, v3 } }")
     {
         check(validMultipleNodes, true, validMultipleNodesNormalized);
     }
 
-    SECTION("{ t: 1, { t: 1, v0, { t: 1, v1 }, { t: 1, v2, v3 } } } -> { t:1, v0, v1, { t: 1, v2, v3 } }")
+    SECTION("{ t: 1, { t: 1, v0, { t: 1, v1 }, { t: 1, v2, v3 } } } -> { t:1, "
+            "v0, v1, { t: 1, v2, v3 } }")
     {
         auto containingSet = SCPQuorumSet{};
         containingSet.threshold = 1;
@@ -147,7 +149,8 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(containingSet, true, validMultipleNodesNormalized);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 } } } -> { t: 1, v0, { t: 1, v1, v2 } }")
+    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 } } } -> { t: 1, v0, { t: 1, "
+            "v1, v2 } }")
     {
         auto qSet = makeSingleton(keys[0]);
         auto qSet1 = makeSingleton(keys[1]);
@@ -166,7 +169,8 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, true, qSelfSet);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 } } } } -> too deep")
+    SECTION(
+        "{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 } } } } -> too deep")
     {
         auto qSet = makeSingleton(keys[0]);
         auto qSet1 = makeSingleton(keys[1]);
@@ -184,8 +188,10 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         qSelfSet.innerSets.back().validators.push_back(keys[1]);
         qSelfSet.innerSets.back().innerSets.push_back({});
         qSelfSet.innerSets.back().innerSets.back().threshold = 1;
-        qSelfSet.innerSets.back().innerSets.back().validators.push_back(keys[2]);
-        qSelfSet.innerSets.back().innerSets.back().validators.push_back(keys[3]);
+        qSelfSet.innerSets.back().innerSets.back().validators.push_back(
+            keys[2]);
+        qSelfSet.innerSets.back().innerSets.back().validators.push_back(
+            keys[3]);
 
         check(qSet, false, qSelfSet);
     }
@@ -210,7 +216,8 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, false, qSet);
     }
 
-    SECTION("{ t: 1, v0, { t: 1, v1..v100 }, { t: 1, v101..v200} ... { t: 1, v901..v1000} -> too big")
+    SECTION("{ t: 1, v0, { t: 1, v1..v100 }, { t: 1, v101..v200} ... { t: 1, "
+            "v901..v1000} -> too big")
     {
         auto qSet = SCPQuorumSet{};
         qSet.threshold = 1;
@@ -226,5 +233,4 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, false, qSet);
     }
 }
-
 }

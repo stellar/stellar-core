@@ -14,8 +14,7 @@
 namespace stellar
 {
 
-template<typename T>
-struct KeyFunctions
+template <typename T> struct KeyFunctions
 {
     struct getKeyTypeEnum
     {
@@ -23,34 +22,36 @@ struct KeyFunctions
 
     static std::string getKeyTypeName();
     static bool getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion);
-    static typename getKeyTypeEnum::type toKeyType(strKey::StrKeyVersionByte keyVersion);
-    static strKey::StrKeyVersionByte toKeyVersion(typename getKeyTypeEnum::type keyType);
-    static uint256 & getKeyValue(T &key);
-    static uint256 const& getKeyValue(T const &key);
+    static typename getKeyTypeEnum::type
+    toKeyType(strKey::StrKeyVersionByte keyVersion);
+    static strKey::StrKeyVersionByte
+    toKeyVersion(typename getKeyTypeEnum::type keyType);
+    static uint256& getKeyValue(T& key);
+    static uint256 const& getKeyValue(T const& key);
 };
 
 // signer key utility functions
 namespace KeyUtils
 {
 
-template<typename T>
+template <typename T>
 std::string
 toStrKey(T const& key)
 {
-    return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()), KeyFunctions<T>::getKeyValue(key));
+    return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
+                            KeyFunctions<T>::getKeyValue(key));
 }
 
-template<typename T>
+template <typename T>
 std::string
 toShortString(T const& key)
 {
     return toStrKey(key).substr(0, 5);
 }
 
-std::size_t
-getKeyVersionSize(strKey::StrKeyVersionByte keyVersion);
+std::size_t getKeyVersionSize(strKey::StrKeyVersionByte keyVersion);
 
-template<typename T>
+template <typename T>
 T
 fromStrKey(std::string const& s)
 {
@@ -62,7 +63,8 @@ fromStrKey(std::string const& s)
         throw std::invalid_argument("bad " + KeyFunctions<T>::getKeyTypeName());
     }
 
-    strKey::StrKeyVersionByte ver = static_cast<strKey::StrKeyVersionByte>(verByte);
+    strKey::StrKeyVersionByte ver =
+        static_cast<strKey::StrKeyVersionByte>(verByte);
     if (!KeyFunctions<T>::getKeyVersionIsSupported(ver) ||
         (k.size() != getKeyVersionSize(ver)) ||
         (s.size() != strKey::getStrKeySize(getKeyVersionSize(ver))))
@@ -75,23 +77,23 @@ fromStrKey(std::string const& s)
     return key;
 }
 
-template<typename T, typename F>
+template <typename T, typename F>
 bool
-canConvert(F const &fromKey)
+canConvert(F const& fromKey)
 {
-    return KeyFunctions<T>::getKeyVersionIsSupported(KeyFunctions<F>::toKeyVersion(fromKey.type()));
+    return KeyFunctions<T>::getKeyVersionIsSupported(
+        KeyFunctions<F>::toKeyVersion(fromKey.type()));
 }
 
-template<typename T, typename F>
+template <typename T, typename F>
 T
-convertKey(F const &fromKey)
+convertKey(F const& fromKey)
 {
     T toKey;
-    toKey.type(KeyFunctions<T>::toKeyType(KeyFunctions<F>::toKeyVersion(fromKey.type())));
+    toKey.type(KeyFunctions<T>::toKeyType(
+        KeyFunctions<F>::toKeyVersion(fromKey.type())));
     KeyFunctions<T>::getKeyValue(toKey) = KeyFunctions<F>::getKeyValue(fromKey);
     return toKey;
 }
-
 }
-
 }

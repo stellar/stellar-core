@@ -4,19 +4,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <map>
+#include "overlay/Peer.h"
+#include "util/HashOfHash.h"
+#include "util/NonCopyable.h"
+#include "util/Timer.h"
+#include "xdr/Stellar-SCP.h"
 #include <deque>
 #include <functional>
-#include "xdr/Stellar-SCP.h"
-#include "overlay/Peer.h"
-#include "util/Timer.h"
-#include "util/NonCopyable.h"
+#include <map>
 #include <util/optional.h>
-#include "util/HashOfHash.h"
 
 namespace medida
 {
-    class Counter;
+class Counter;
 }
 
 namespace stellar
@@ -107,5 +107,4 @@ class ItemFetcher : private NonMovableOrCopyable
   private:
     AskPeer mAskPeer;
 };
-
 }

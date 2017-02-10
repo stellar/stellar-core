@@ -2,8 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
 #include "util/StatusManager.h"
+#include "lib/catch.hpp"
 
 using namespace stellar;
 
@@ -38,7 +38,8 @@ TEST_CASE("status add two different", "[status-manager]")
     REQUIRE(statusManager.begin() != statusManager.end());
     REQUIRE(statusManager.size() == 2);
     REQUIRE(statusManager.getStatusMessage(StatusCategory::NTP) == "ntp");
-    REQUIRE(statusManager.getStatusMessage(StatusCategory::HISTORY) == "history");
+    REQUIRE(statusManager.getStatusMessage(StatusCategory::HISTORY) ==
+            "history");
 }
 
 TEST_CASE("status should be replaced", "[status-manager]")

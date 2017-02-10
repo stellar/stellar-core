@@ -4,9 +4,9 @@
 
 #include "autocheck/autocheck.hpp"
 #include "lib/catch.hpp"
+#include "lib/util/uint128_t.h"
 #include "test/test.h"
 #include "util/Logging.h"
-#include "lib/util/uint128_t.h"
 #include <limits>
 #include <ostream>
 
@@ -40,7 +40,8 @@ toNative(bool x)
 struct gen128
 {
     typedef unsigned __int128 result_type;
-    result_type operator()(size_t size = 0)
+    result_type
+    operator()(size_t size = 0)
     {
         std::uniform_int_distribution<uint64_t> dist(1, full);
         auto a = dist(autocheck::rng());
@@ -51,7 +52,8 @@ struct gen128
 
 namespace std
 {
-std::ostream& operator<<(std::ostream& out, unsigned __int128 const& x)
+std::ostream&
+operator<<(std::ostream& out, unsigned __int128 const& x)
 {
     return out << std::hex << "0x" << uint64_t(x >> 64) << uint64_t(x);
 }
@@ -61,26 +63,25 @@ TEST_CASE("uint128_t", "[uint128]")
 {
     auto arb = autocheck::make_arbitrary(gen128(), gen128());
     autocheck::check<unsigned __int128, unsigned __int128>(
-        [](unsigned __int128 x, unsigned __int128 y)
-        {
+        [](unsigned __int128 x, unsigned __int128 y) {
             bool b = true;
 #define BINOP(op)                                                              \
     (b = b && ((x op y) == toNative(fromNative(x) op fromNative(y))));
             BINOP(+);
             BINOP(-);
             BINOP(*);
-            BINOP(/ );
+            BINOP(/);
             BINOP (^);
             BINOP(&);
-            BINOP(| );
-            BINOP(% );
-            BINOP(< );
-            BINOP(<= );
-            BINOP(== );
-            BINOP(!= );
-            BINOP(>= );
-            BINOP(> );
-            BINOP(|| );
+            BINOP(|);
+            BINOP(%);
+            BINOP(<);
+            BINOP(<=);
+            BINOP(==);
+            BINOP(!=);
+            BINOP(>=);
+            BINOP(>);
+            BINOP(||);
             BINOP(&&);
             return b;
         },

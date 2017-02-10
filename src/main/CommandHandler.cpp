@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/CommandHandler.h"
+#include "StellarCoreVersion.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -10,24 +12,22 @@
 #include "lib/json/json.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
-#include "main/CommandHandler.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "util/StatusManager.h"
-#include "StellarCoreVersion.h"
+#include "util/make_unique.h"
 
-#include "util/basen.h"
 #include "medida/reporting/json_reporter.h"
+#include "util/basen.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 
 #include "ExternalQueue.h"
 
-#include <regex>
 #include "test/TxTests.h"
+#include <regex>
 using namespace stellar::txtest;
 
 using std::placeholders::_1;
@@ -54,7 +54,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
         mServer = stellar::make_unique<http::server::server>(
-            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT, httpMaxClient);
+            app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT,
+            httpMaxClient);
     }
     else
     {
@@ -64,8 +65,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
-    mServer->addRoute("bans",
-                      std::bind(&CommandHandler::bans, this, _1, _2));
+    mServer->addRoute("bans", std::bind(&CommandHandler::bans, this, _1, _2));
     mServer->addRoute("catchup",
                       std::bind(&CommandHandler::catchup, this, _1, _2));
     mServer->addRoute("checkdb",
@@ -101,8 +101,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
-    mServer->addRoute("unban",
-                      std::bind(&CommandHandler::unban, this, _1, _2));
+    mServer->addRoute("unban", std::bind(&CommandHandler::unban, this, _1, _2));
 }
 
 void
@@ -391,7 +390,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
-        if (!parseNumParam(map, "accounts", nAccounts, retStr, Requirement::OPTIONAL_REQ))
+        if (!parseNumParam(map, "accounts", nAccounts, retStr,
+                           Requirement::OPTIONAL_REQ))
             return;
 
         if (!parseNumParam(map, "txs", nTxs, retStr, Requirement::OPTIONAL_REQ))
@@ -403,7 +403,8 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             {
                 autoRate = true;
             }
-            else if (!parseNumParam(map, "txrate", txRate, retStr, Requirement::OPTIONAL_REQ))
+            else if (!parseNumParam(map, "txrate", txRate, retStr,
+                                    Requirement::OPTIONAL_REQ))
                 return;
         }
 
@@ -758,8 +759,9 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
     }
     catch (std::exception& e)
     {
-        retStr = (fmt::MemoryWriter() << "{\"exception\": \"" << e.what()
-                                      << "\"}").str();
+        retStr =
+            (fmt::MemoryWriter() << "{\"exception\": \"" << e.what() << "\"}")
+                .str();
     }
     catch (...)
     {
@@ -940,7 +942,8 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
 
     uint32 cursor;
 
-    if (!parseNumParam(map, "cursor", cursor, retStr, Requirement::REQUIRED_REQ))
+    if (!parseNumParam(map, "cursor", cursor, retStr,
+                       Requirement::REQUIRED_REQ))
     {
         retStr = "Invalid cursor";
         return;

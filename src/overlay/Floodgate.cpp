@@ -3,14 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Floodgate.h"
-#include "crypto/SHA.h"
-#include "main/Application.h"
-#include "overlay/OverlayManager.h"
-#include "herder/Herder.h"
-#include "util/Logging.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
+#include "herder/Herder.h"
+#include "main/Application.h"
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
+#include "overlay/OverlayManager.h"
+#include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar

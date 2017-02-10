@@ -3,24 +3,24 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketManagerImpl.h"
-#include "overlay/StellarXDR.h"
+#include "bucket/BucketList.h"
+#include "crypto/Hex.h"
+#include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "bucket/BucketList.h"
-#include "history/HistoryManager.h"
+#include "overlay/StellarXDR.h"
 #include "util/Fs.h"
-#include "util/make_unique.h"
-#include "util/TmpDir.h"
 #include "util/Logging.h"
+#include "util/TmpDir.h"
+#include "util/make_unique.h"
 #include "util/types.h"
-#include "crypto/Hex.h"
 #include <fstream>
 #include <map>
 #include <set>
 
-#include "medida/metrics_registry.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
+#include "medida/metrics_registry.h"
 #include "medida/timer.h"
 
 namespace stellar
@@ -326,8 +326,7 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
     std::vector<std::string> buckets = has.allBuckets();
     std::vector<std::string> result;
     std::copy_if(buckets.begin(), buckets.end(), std::back_inserter(result),
-                 [&](std::string b)
-                 {
+                 [&](std::string b) {
                      auto filename = bucketFilename(b);
                      return !isZero(hexToBin256(b)) && !fs::exists(filename);
                  });

@@ -23,7 +23,8 @@ TestAccount::createRoot(Application& app)
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(), initialBalance);
+    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(),
+                         initialBalance);
     auto sequenceNumber = getAccountSeqNum(secretKey, mApp);
     return TestAccount{mApp, secretKey, sequenceNumber};
 }
@@ -41,39 +42,39 @@ TestAccount::merge(PublicKey const& into)
 }
 
 void
-TestAccount::changeTrust(Asset const &asset, int64_t limit)
+TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer, nextSequenceNumber(), assetCode, limit);
+    applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer,
+                     nextSequenceNumber(), assetCode, limit);
 }
 
 void
-TestAccount::allowTrust(Asset const &asset, PublicKey const& trustor)
+TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, true);
+    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
+                    assetCode, true);
 }
 
 void
-TestAccount::denyTrust(Asset const &asset, PublicKey const& trustor)
+TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
     auto assetCode = std::string{};
     assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(), assetCode, false);
+    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
+                    assetCode, false);
 }
-
 
 void
 TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
-    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(),
-                    inflationDest, setFlags,
-                    clearFlags, thrs,
-                    signer, homeDomain);
+    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(), inflationDest,
+                    setFlags, clearFlags, thrs, signer, homeDomain);
 }
 
 OfferFrame::pointer
@@ -89,39 +90,47 @@ TestAccount::hasOffer(uint64_t offerID) const
 }
 
 uint64_t
-TestAccount::manageOffer(uint64_t offerID,
-                         Asset const& selling, Asset const& buying,
-                         Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
+TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
+                         Asset const& buying, Price const& price,
+                         int64_t amount, ManageOfferEffect expectedEffect)
 {
-    return applyManageOffer(mApp, offerID, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
+    return applyManageOffer(mApp, offerID, getSecretKey(), selling, buying,
+                            price, amount, nextSequenceNumber(),
+                            expectedEffect);
 }
 
 uint64_t
 TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
-                                Price const& price, int64_t amount, ManageOfferEffect expectedEffect)
+                                Price const& price, int64_t amount,
+                                ManageOfferEffect expectedEffect)
 {
-    return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price, amount, nextSequenceNumber(), expectedEffect);
+    return applyCreatePassiveOffer(mApp, getSecretKey(), selling, buying, price,
+                                   amount, nextSequenceNumber(),
+                                   expectedEffect);
 }
 
 void
 TestAccount::pay(SecretKey const& destination, int64_t amount)
 {
-    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(), amount);
+    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(),
+                   amount);
 }
 
 void
-TestAccount::pay(PublicKey const& destination, Asset const& selling, int64_t amount)
+TestAccount::pay(PublicKey const& destination, Asset const& selling,
+                 int64_t amount)
 {
-    applyCreditPaymentTx(mApp, getSecretKey(), destination, selling, nextSequenceNumber(), amount);
+    applyCreditPaymentTx(mApp, getSecretKey(), destination, selling,
+                         nextSequenceNumber(), amount);
 }
 
 PathPaymentResult
-TestAccount::pay(PublicKey const& destination, Asset const& sendCur, int64_t sendMax,
-                 Asset const& destCur, int64_t destAmount, std::vector<Asset> const& path,
-                 Asset *noIssuer)
+TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
+                 int64_t sendMax, Asset const& destCur, int64_t destAmount,
+                 std::vector<Asset> const& path, Asset* noIssuer)
 {
-    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur, sendMax,
-                              destCur, destAmount, nextSequenceNumber(), path, noIssuer);
+    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur,
+                              sendMax, destCur, destAmount,
+                              nextSequenceNumber(), path, noIssuer);
 }
-
 };

@@ -4,12 +4,12 @@
 
 #include "util/asio.h"
 #include "transactions/CreateAccountOpFrame.h"
-#include "util/Logging.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/TrustFrame.h"
-#include "ledger/OfferFrame.h"
-#include "database/Database.h"
 #include "OfferExchange.h"
+#include "database/Database.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
+#include "util/Logging.h"
 #include <algorithm>
 
 #include "main/Application.h"
@@ -31,8 +31,8 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app,
-                              LedgerDelta& delta, LedgerManager& ledgerManager)
+CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
+                              LedgerManager& ledgerManager)
 {
     AccountFrame::pointer destAccount;
 
@@ -44,8 +44,10 @@ CreateAccountOpFrame::doApply(Application& app,
     {
         if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
         { // not over the minBalance to make an account
-            app.getMetrics().NewMeter({"op-create-account", "failure", "low-reserve"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-create-account", "failure", "low-reserve"},
+                          "operation")
+                .Mark();
             innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
             return false;
         }
@@ -57,9 +59,10 @@ CreateAccountOpFrame::doApply(Application& app,
             if ((mSourceAccount->getAccount().balance - minBalance) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
-                app.getMetrics().NewMeter(
-                            {"op-create-account", "failure", "underfunded"},
-                            "operation").Mark();
+                app.getMetrics()
+                    .NewMeter({"op-create-account", "failure", "underfunded"},
+                              "operation")
+                    .Mark();
                 innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
                 return false;
             }
@@ -75,16 +78,20 @@ CreateAccountOpFrame::doApply(Application& app,
 
             destAccount->storeAdd(delta, db);
 
-            app.getMetrics().NewMeter({"op-create-account", "success", "apply"},
-                             "operation").Mark();
+            app.getMetrics()
+                .NewMeter({"op-create-account", "success", "apply"},
+                          "operation")
+                .Mark();
             innerResult().code(CREATE_ACCOUNT_SUCCESS);
             return true;
         }
     }
     else
     {
-        app.getMetrics().NewMeter({"op-create-account", "failure", "already-exist"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-create-account", "failure", "already-exist"},
+                      "operation")
+            .Mark();
         innerResult().code(CREATE_ACCOUNT_ALREADY_EXIST);
         return false;
     }
@@ -95,18 +102,22 @@ CreateAccountOpFrame::doCheckValid(Application& app)
 {
     if (mCreateAccount.startingBalance <= 0)
     {
-        app.getMetrics().NewMeter({"op-create-account", "invalid",
-                          "malformed-negative-balance"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter(
+                {"op-create-account", "invalid", "malformed-negative-balance"},
+                "operation")
+            .Mark();
         innerResult().code(CREATE_ACCOUNT_MALFORMED);
         return false;
     }
 
     if (mCreateAccount.destination == getSourceID())
     {
-        app.getMetrics().NewMeter({"op-create-account", "invalid",
-                          "malformed-destination-equals-source"},
-                         "operation").Mark();
+        app.getMetrics()
+            .NewMeter({"op-create-account", "invalid",
+                       "malformed-destination-equals-source"},
+                      "operation")
+            .Mark();
         innerResult().code(CREATE_ACCOUNT_MALFORMED);
         return false;
     }

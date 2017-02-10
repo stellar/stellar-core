@@ -7,21 +7,21 @@
 // else.
 #include "util/asio.h"
 #include "history/HistoryArchive.h"
+#include "StellarCoreVersion.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "history/HistoryManager.h"
 #include "history/FileTransferInfo.h"
-#include "process/ProcessManager.h"
-#include "main/Application.h"
-#include "util/Fs.h"
-#include "util/make_unique.h"
-#include "util/Logging.h"
-#include "StellarCoreVersion.h"
-#include <cereal/cereal.hpp>
-#include <cereal/archives/json.hpp>
-#include <cereal/types/vector.hpp>
+#include "history/HistoryManager.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
+#include "process/ProcessManager.h"
+#include "util/Fs.h"
+#include "util/Logging.h"
+#include "util/make_unique.h"
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
+#include <cereal/types/vector.hpp>
 
 #include <chrono>
 #include <fstream>
@@ -116,8 +116,8 @@ HistoryArchiveState::load(std::string const& inFile)
     serialize(ar);
     if (version != HISTORY_ARCHIVE_STATE_VERSION)
     {
-        CLOG(ERROR, "History")
-            << "unexpected history archive state version: " << version;
+        CLOG(ERROR, "History") << "unexpected history archive state version: "
+                               << version;
         throw std::runtime_error("unexpected history archive state version");
     }
     assert(futuresAllResolved());

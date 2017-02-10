@@ -1,16 +1,16 @@
 ﻿#pragma once
-#include <autocheck/function.hpp>
-#include <queue>
-#include <map>
-#include <medida/medida.h>
-#include <util/optional.h>
-#include <set>
-#include <xdr/Stellar-SCP.h>
+#include "crypto/SecretKey.h"
 #include "herder/Herder.h"
-#include "overlay/ItemFetcher.h"
 #include "lib/json/json.h"
 #include "lib/util/lrucache.hpp"
-#include "crypto/SecretKey.h"
+#include "overlay/ItemFetcher.h"
+#include <autocheck/function.hpp>
+#include <map>
+#include <medida/medida.h>
+#include <queue>
+#include <set>
+#include <util/optional.h>
+#include <xdr/Stellar-SCP.h>
 
 /*
 SCP messages that you have received but are waiting to get the info of
@@ -82,7 +82,8 @@ class PendingEnvelopes
      * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
      * in PendingEnvelopes.
      */
-    void addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex, const SCPQuorumSet& qset);
+    void addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex,
+                         const SCPQuorumSet& qset);
 
     /**
      * Check if @p qset identified by @p hash was requested before from peers.
