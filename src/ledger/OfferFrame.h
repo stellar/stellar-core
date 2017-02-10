@@ -28,8 +28,6 @@ class OfferFrame : public EntryFrame
 
     OfferEntry& mOffer;
 
-    OfferFrame(OfferFrame const& from);
-
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
   public:
@@ -42,13 +40,14 @@ class OfferFrame : public EntryFrame
 
     OfferFrame();
     OfferFrame(LedgerEntry const& from);
+    OfferFrame(OfferFrame const& from);
 
     OfferFrame& operator=(OfferFrame const& other);
 
     EntryFrame::pointer
     copy() const override
     {
-        return EntryFrame::pointer(new OfferFrame(*this));
+        return std::make_shared<OfferFrame>(*this);
     }
 
     Price const& getPrice() const;

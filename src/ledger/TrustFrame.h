@@ -42,17 +42,17 @@ class TrustFrame : public EntryFrame
     static TrustFrame::pointer createIssuerFrame(Asset const& issuer);
     bool mIsIssuer; // the TrustFrame fakes an infinite trustline for issuers
 
-    TrustFrame(TrustFrame const& from);
     TrustFrame& operator=(TrustFrame const& other);
 
   public:
     TrustFrame();
     TrustFrame(LedgerEntry const& from);
+    TrustFrame(TrustFrame const& from);
 
     EntryFrame::pointer
     copy() const override
     {
-        return EntryFrame::pointer(new TrustFrame(*this));
+        return std::make_shared<TrustFrame>(*this);
     }
 
     // Instance-based overrides of EntryFrame.

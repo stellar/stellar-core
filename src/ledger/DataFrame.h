@@ -25,8 +25,6 @@ class DataFrame : public EntryFrame
 
     DataEntry& mData;
 
-    DataFrame(DataFrame const& from);
-
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
   public:
@@ -34,13 +32,14 @@ class DataFrame : public EntryFrame
 
     DataFrame();
     DataFrame(LedgerEntry const& from);
+    DataFrame(DataFrame const& from);
 
     DataFrame& operator=(DataFrame const& other);
 
     EntryFrame::pointer
     copy() const override
     {
-        return EntryFrame::pointer(new DataFrame(*this));
+        return std::make_shared<DataFrame>(*this);
     }
 
     std::string const& getName() const;

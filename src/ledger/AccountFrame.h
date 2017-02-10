@@ -31,8 +31,6 @@ class AccountFrame : public EntryFrame
 
     void normalize();
 
-    AccountFrame(AccountFrame const& from);
-
     bool isValid();
 
     static std::vector<Signer> loadSigners(Database& db,
@@ -44,6 +42,7 @@ class AccountFrame : public EntryFrame
 
     AccountFrame();
     AccountFrame(LedgerEntry const& from);
+    AccountFrame(AccountFrame const& from);
     AccountFrame(AccountID const& id);
 
     // builds an accountFrame for the sole purpose of authentication
@@ -52,7 +51,7 @@ class AccountFrame : public EntryFrame
     EntryFrame::pointer
     copy() const override
     {
-        return EntryFrame::pointer(new AccountFrame(*this));
+        return std::make_shared<AccountFrame>(*this);
     }
 
     void
