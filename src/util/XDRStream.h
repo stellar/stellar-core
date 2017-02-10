@@ -23,10 +23,10 @@ class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
-    size_t mSizeLimit;
+    int mSizeLimit;
 
   public:
-    XDRInputFileStream(size_t sizeLimit = 0) : mSizeLimit{sizeLimit} {}
+    XDRInputFileStream(int sizeLimit = 0) : mSizeLimit{sizeLimit} {}
 
     void
     close()

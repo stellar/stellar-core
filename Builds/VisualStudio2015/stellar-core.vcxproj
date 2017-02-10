@@ -229,9 +229,12 @@
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp" />
     <ClCompile Include="..\..\src\crypto\ECDH.cpp" />
     <ClCompile Include="..\..\src\crypto\Hex.cpp" />
+    <ClCompile Include="..\..\src\crypto\KeyUtils.cpp" />
     <ClCompile Include="..\..\src\crypto\Random.cpp" />
     <ClCompile Include="..\..\src\crypto\SHA.cpp" />
     <ClCompile Include="..\..\src\crypto\SecretKey.cpp" />
+    <ClCompile Include="..\..\src\crypto\SignerKey.cpp" />
+    <ClCompile Include="..\..\src\crypto\SignerKeyUtils.cpp" />
     <ClCompile Include="..\..\src\crypto\StrKey.cpp" />
     <ClCompile Include="..\..\src\database\Database.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
@@ -352,7 +355,9 @@
     <ClCompile Include="..\..\src\simulation\LoadGenerator.cpp" />
     <ClCompile Include="..\..\src\simulation\Simulation.cpp" />
     <ClCompile Include="..\..\src\simulation\Topologies.cpp" />
+    <ClCompile Include="..\..\src\test\test.cpp" />
     <ClCompile Include="..\..\src\test\TestAccount.cpp" />
+    <ClCompile Include="..\..\src\test\TestUtils.cpp" />
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp" />
@@ -373,6 +378,9 @@
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
+    <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
+    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp" />
@@ -392,7 +400,6 @@
     <ClCompile Include="..\..\src\main\CommandHandler.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
-    <ClCompile Include="..\..\src\main\test.cpp" />
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp" />
     <ClCompile Include="..\..\src\overlay\LoopbackPeer.cpp" />
@@ -424,9 +431,12 @@
     <ClInclude Include="..\..\src\crypto\ByteSlice.h" />
     <ClInclude Include="..\..\src\crypto\ECDH.h" />
     <ClInclude Include="..\..\src\crypto\Hex.h" />
+    <ClInclude Include="..\..\src\crypto\KeyUtils.h" />
     <ClInclude Include="..\..\src\crypto\Random.h" />
     <ClInclude Include="..\..\src\crypto\SHA.h" />
     <ClInclude Include="..\..\src\crypto\SecretKey.h" />
+    <ClInclude Include="..\..\src\crypto\SignerKey.h" />
+    <ClInclude Include="..\..\src\crypto\SignerKeyUtils.h" />
     <ClInclude Include="..\..\src\crypto\StrKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\history\HistoryWork.h" />
@@ -481,7 +491,6 @@
     <ClInclude Include="..\..\src\main\dumpxdr.h" />
     <ClInclude Include="..\..\src\main\fuzz.h" />
     <ClInclude Include="..\..\src\main\PersistentState.h" />
-    <ClInclude Include="..\..\src\main\test.h" />
     <ClInclude Include="..\..\src\overlay\Floodgate.h" />
     <ClInclude Include="..\..\src\overlay\ItemFetcher.h" />
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
@@ -504,8 +513,10 @@
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
+    <ClInclude Include="..\..\src\test\test.h" />
     <ClInclude Include="..\..\src\test\TestAccount.h" />
     <ClInclude Include="..\..\src\test\TestExceptions.h" />
+    <ClInclude Include="..\..\src\test\TestUtils.h" />
     <ClInclude Include="..\..\src\test\TxTests.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
@@ -519,6 +530,8 @@
     <ClInclude Include="..\..\src\transactions\PathPaymentOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\PaymentOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\SetOptionsOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\SignatureChecker.h" />
+    <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
     <ClInclude Include="..\..\src\util\asio.h" />
