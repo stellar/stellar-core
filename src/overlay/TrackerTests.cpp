@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "overlay/Tracker.h"
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/test.h"
-#include "overlay/Tracker.h"
 
 namespace stellar
 {
@@ -15,7 +15,8 @@ namespace stellar
 namespace
 {
 
-SCPEnvelope makeEnvelope(int slotIndex)
+SCPEnvelope
+makeEnvelope(int slotIndex)
 {
     auto result = SCPEnvelope{};
     result.statement.slotIndex = slotIndex;
@@ -23,7 +24,6 @@ SCPEnvelope makeEnvelope(int slotIndex)
     result.statement.pledges.confirm().nPrepared = slotIndex;
     return result;
 }
-
 }
 
 TEST_CASE("Tracker works", "[overlay][Tracker]")
@@ -33,7 +33,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
     auto app = Application::create(clock, cfg);
 
     auto hash = sha256(ByteSlice{"hash"});
-    auto nullAskPeer = AskPeer{[](Peer::pointer, Hash){}};
+    auto nullAskPeer = AskPeer{[](Peer::pointer, Hash) {}};
 
     SECTION("empty tracker")
     {
@@ -111,7 +111,6 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
             REQUIRE(env5 == t.pop());
         }
 
-
         SECTION("properly removes all old envelopes")
         {
             REQUIRE(!t.clearEnvelopesBelow(6));
@@ -119,5 +118,4 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
         }
     }
 }
-
 }

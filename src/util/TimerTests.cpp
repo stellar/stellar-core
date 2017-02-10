@@ -4,9 +4,9 @@
 
 #include "util/Timer.h"
 #include "autocheck/autocheck.hpp"
+#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "lib/catch.hpp"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -98,44 +98,40 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     size_t eventsDispatched = 0;
 
     timer1.expires_from_now(std::chrono::milliseconds(1));
-    timer1.async_wait(
-        [&](asio::error_code const& e)
-        {
-            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          clock.now().time_since_epoch()).count();
-            CHECK(ns == 1);
-            CHECK(eventsDispatched++ == 0);
-        });
+    timer1.async_wait([&](asio::error_code const& e) {
+        auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      clock.now().time_since_epoch())
+                      .count();
+        CHECK(ns == 1);
+        CHECK(eventsDispatched++ == 0);
+    });
 
     timer20.expires_from_now(std::chrono::milliseconds(20));
-    timer20.async_wait(
-        [&](asio::error_code const& e)
-        {
-            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          clock.now().time_since_epoch()).count();
-            CHECK(ns == 20);
-            CHECK(eventsDispatched++ == 1);
-        });
+    timer20.async_wait([&](asio::error_code const& e) {
+        auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      clock.now().time_since_epoch())
+                      .count();
+        CHECK(ns == 20);
+        CHECK(eventsDispatched++ == 1);
+    });
 
     timer21.expires_from_now(std::chrono::milliseconds(21));
-    timer21.async_wait(
-        [&](asio::error_code const& e)
-        {
-            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          clock.now().time_since_epoch()).count();
-            CHECK(ns == 21);
-            CHECK(eventsDispatched++ == 2);
-        });
+    timer21.async_wait([&](asio::error_code const& e) {
+        auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      clock.now().time_since_epoch())
+                      .count();
+        CHECK(ns == 21);
+        CHECK(eventsDispatched++ == 2);
+    });
 
     timer200.expires_from_now(std::chrono::milliseconds(200));
-    timer200.async_wait(
-        [&](asio::error_code const& e)
-        {
-            auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          clock.now().time_since_epoch()).count();
-            CHECK(ns == 200);
-            CHECK(eventsDispatched++ == 3);
-        });
+    timer200.async_wait([&](asio::error_code const& e) {
+        auto ns = std::chrono::duration_cast<std::chrono::milliseconds>(
+                      clock.now().time_since_epoch())
+                      .count();
+        CHECK(ns == 200);
+        CHECK(eventsDispatched++ == 3);
+    });
 
     while (clock.crank(false) > 0)
         ;
@@ -156,10 +152,7 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     auto& io = clock.getIOService();
 
     // Fire one event on the app's queue
-    io.post([&]()
-            {
-                ++app1Event;
-            });
+    io.post([&]() { ++app1Event; });
     clock.crank(false);
     CHECK(app1Event == 1);
     CHECK(app2Event == 0);
@@ -168,29 +161,17 @@ TEST_CASE("shared virtual time advances only when all apps idle",
     // Fire one timer
     VirtualTimer timer(*app1);
     timer.expires_from_now(std::chrono::seconds(1));
-    timer.async_wait([&](asio::error_code const& e)
-                     {
-                         ++timerFired;
-                     });
+    timer.async_wait([&](asio::error_code const& e) { ++timerFired; });
     clock.crank(false);
     CHECK(app1Event == 1);
     CHECK(app2Event == 0);
     CHECK(timerFired == 1);
 
     // Queue 2 new events and 1 new timer
-    io.post([&]()
-            {
-                ++app1Event;
-            });
-    io.post([&]()
-            {
-                ++app2Event;
-            });
+    io.post([&]() { ++app1Event; });
+    io.post([&]() { ++app2Event; });
     timer.expires_from_now(std::chrono::seconds(1));
-    timer.async_wait([&](asio::error_code const& e)
-                     {
-                         ++timerFired;
-                     });
+    timer.async_wait([&](asio::error_code const& e) { ++timerFired; });
 
     // Check that cranking the clock advances both events and does not fire the
     // timer.
@@ -219,24 +200,22 @@ TEST_CASE("timer cancels", "[timer]")
         timers.push_back(make_unique<VirtualTimer>(*app));
         timers.back()->expires_from_now(std::chrono::seconds(i));
         timers.back()->async_wait(
-            [&timerFired, &timerCancelled, i](asio::error_code const& ec)
-            {
+            [&timerFired, &timerCancelled, i](asio::error_code const& ec) {
                 if (ec)
                     ++timerCancelled;
                 else
                     ++timerFired;
             });
     }
-    timers[5]->async_wait([&](asio::error_code const& ec)
-                          {
-                              if (!ec)
-                              {
-                                  timers[4]->cancel();
-                                  timers[5]->cancel();
-                                  timers[6]->cancel();
-                                  timers[7]->cancel();
-                              }
-                          });
+    timers[5]->async_wait([&](asio::error_code const& ec) {
+        if (!ec)
+        {
+            timers[4]->cancel();
+            timers[5]->cancel();
+            timers[6]->cancel();
+            timers[7]->cancel();
+        }
+    });
     while (clock.crank(false) > 0)
         ;
     REQUIRE(timerFired == 8);

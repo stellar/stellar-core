@@ -12,33 +12,39 @@
 namespace stellar
 {
 
-using xdr::operator <;
+using xdr::operator<;
 
 namespace
 {
 
 class QuorumSetSanityChecker
 {
-public:
+  public:
     explicit QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks);
-    bool isSane() const { return mIsSane; }
+    bool
+    isSane() const
+    {
+        return mIsSane;
+    }
 
-private:
+  private:
     bool mExtraChecks;
     std::set<NodeID> mKnownNodes;
     bool mIsSane;
-    int mCount {0};
+    int mCount{0};
 
     bool checkSanity(SCPQuorumSet const& qSet, int depth);
 };
 
-QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet, bool extraChecks) :
-    mExtraChecks{extraChecks}
+QuorumSetSanityChecker::QuorumSetSanityChecker(SCPQuorumSet const& qSet,
+                                               bool extraChecks)
+    : mExtraChecks{extraChecks}
 {
     mIsSane = checkSanity(qSet, 0) && mCount >= 1 && mCount <= 1000;
 }
 
-bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
+bool
+QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
 {
     if (depth > 2)
         return false;
@@ -80,7 +86,6 @@ bool QuorumSetSanityChecker::checkSanity(SCPQuorumSet const& qSet, int depth)
 
     return true;
 }
-
 }
 
 bool
@@ -127,5 +132,4 @@ normalizeQSet(SCPQuorumSet& qSet)
         qSet = t;
     }
 }
-
 }

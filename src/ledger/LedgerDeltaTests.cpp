@@ -2,14 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/Timer.h"
-#include "lib/catch.hpp"
 #include "ledger/LedgerDelta.h"
-#include "main/Application.h"
 #include "LedgerTestUtils.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerManager.h"
+#include "lib/catch.hpp"
+#include "main/Application.h"
 #include "test/test.h"
+#include "util/Timer.h"
 
 using namespace stellar;
 
@@ -103,9 +103,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
 
         MapAccounts accountsByKey;
 
-        auto addEntries =
-            [&](size_t start, size_t end, LedgerDelta& d, MapAccounts& aKeys)
-        {
+        auto addEntries = [&](size_t start, size_t end, LedgerDelta& d,
+                              MapAccounts& aKeys) {
             for (size_t i = start; i < end; i++)
             {
                 auto a = accounts.at(i);
@@ -115,9 +114,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             }
         };
 
-        auto modEntries =
-            [&](size_t start, size_t end, LedgerDelta& d, MapAccounts& aKeys)
-        {
+        auto modEntries = [&](size_t start, size_t end, LedgerDelta& d,
+                              MapAccounts& aKeys) {
             for (size_t i = start; i < end; i++)
             {
                 auto a = accounts.at(i);
@@ -137,9 +135,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             }
         };
 
-        auto delEntries =
-            [&](size_t start, size_t end, LedgerDelta& d, MapAccounts& aKeys)
-        {
+        auto delEntries = [&](size_t start, size_t end, LedgerDelta& d,
+                              MapAccounts& aKeys) {
             for (size_t i = start; i < end; i++)
             {
                 auto a = accounts.at(i);
@@ -169,10 +166,9 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
         delEntries(nbAccountsGroupSize * 2, nbAccountsGroupSize * 3, delta,
                    accountsByKey);
 
-        auto checkChanges =
-            [&](LedgerDelta& d, size_t nbAdds, size_t nbMods, size_t nbDels,
-                size_t nbStates, MapAccounts const& orgData)
-        {
+        auto checkChanges = [&](LedgerDelta& d, size_t nbAdds, size_t nbMods,
+                                size_t nbDels, size_t nbStates,
+                                MapAccounts const& orgData) {
             auto changes = d.getChanges();
             size_t expectedChanges = nbAdds + nbMods + nbDels + nbStates;
             size_t adds = 0, mods = 0, dels = 0, states = 0;

@@ -28,10 +28,9 @@ class ApplicationEditableVersion : public ApplicationImpl
     ApplicationEditableVersion(VirtualClock& clock, Config const& cfg);
 
     virtual LedgerManagerEditableVersion& getLedgerManager() override;
-
 };
 
 time_t getTestDate(int day, int month, int year);
-std::tm getTestDateTime(int day, int month, int year, int hour, int minute, int second);
-
+std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
+                        int second);
 }

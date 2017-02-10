@@ -2,24 +2,24 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
-#include "ledger/LedgerManager.h"
-#include "util/Timer.h"
-#include "lib/catch.hpp"
-#include "util/Logging.h"
 #include "AccountFrame.h"
-#include "TrustFrame.h"
-#include "OfferFrame.h"
 #include "LedgerDelta.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/autocheck.h"
+#include "OfferFrame.h"
+#include "TrustFrame.h"
 #include "crypto/SecretKey.h"
-#include "ledger/LedgerTestUtils.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerTestUtils.h"
+#include "lib/catch.hpp"
+#include "main/Application.h"
 #include "test/test.h"
-#include <utility>
+#include "util/Logging.h"
+#include "util/Timer.h"
+#include "xdrpp/autocheck.h"
+#include "xdrpp/marshal.h"
 #include <memory>
 #include <unordered_map>
+#include <utility>
 
 using namespace stellar;
 
@@ -86,83 +86,74 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
         autocheck::generator<uint8_t> intGen;
 
         auto entriesProcessor =
-            [&](std::function<void(LedgerEntry&)> accountProc)
-        {
-            for (auto& l : accountsMap)
-            {
-                accountProc(l.second);
-
-                AccountFrame::pointer af =
-                    std::make_shared<AccountFrame>(l.second);
-                af->storeChange(delta, db);
-                auto fromDb = AccountFrame::loadAccount(af->getID(), db);
-                REQUIRE(af->getAccount() == fromDb->getAccount());
-            }
-        };
-
-        auto trustLineProcessor = [&](std::function<int(LedgerEntry&)> proc)
-        {
-            entriesProcessor(
-                [&](LedgerEntry& account)
+            [&](std::function<void(LedgerEntry&)> accountProc) {
+                for (auto& l : accountsMap)
                 {
-                    AccountEntry& newA = account.data.account();
-                    uint8_t nbLines = intGen() % 64;
-                    for (uint8_t i = 0; i < nbLines; i++)
-                    {
-                        LedgerEntry le;
-                        le.data.type(TRUSTLINE);
-                        auto& tl = le.data.trustLine();
-                        tl = LedgerTestUtils::generateValidTrustLineEntry(5);
-                        tl.accountID = newA.accountID;
-                        newA.numSubEntries += proc(le);
-                    }
-                });
+                    accountProc(l.second);
+
+                    AccountFrame::pointer af =
+                        std::make_shared<AccountFrame>(l.second);
+                    af->storeChange(delta, db);
+                    auto fromDb = AccountFrame::loadAccount(af->getID(), db);
+                    REQUIRE(af->getAccount() == fromDb->getAccount());
+                }
+            };
+
+        auto trustLineProcessor = [&](std::function<int(LedgerEntry&)> proc) {
+            entriesProcessor([&](LedgerEntry& account) {
+                AccountEntry& newA = account.data.account();
+                uint8_t nbLines = intGen() % 64;
+                for (uint8_t i = 0; i < nbLines; i++)
+                {
+                    LedgerEntry le;
+                    le.data.type(TRUSTLINE);
+                    auto& tl = le.data.trustLine();
+                    tl = LedgerTestUtils::generateValidTrustLineEntry(5);
+                    tl.accountID = newA.accountID;
+                    newA.numSubEntries += proc(le);
+                }
+            });
         };
 
         // create a bunch of trust lines
-        trustLineProcessor(
-            [&](LedgerEntry& le)
+        trustLineProcessor([&](LedgerEntry& le) {
+            auto& lines = trustLinesMap[le.data.trustLine().accountID];
+
+            LedgerKey thisKey = LedgerEntryKey(le);
+
+            if (std::find_if(lines.begin(), lines.end(),
+                             [&thisKey](TrustFrame::pointer tf) {
+                                 return thisKey == tf->getKey();
+                             }) == lines.end())
             {
-                auto& lines = trustLinesMap[le.data.trustLine().accountID];
-
-                LedgerKey thisKey = LedgerEntryKey(le);
-
-                if (std::find_if(lines.begin(), lines.end(),
-                                 [&thisKey](TrustFrame::pointer tf)
-                                 {
-                                     return thisKey == tf->getKey();
-                                 }) == lines.end())
-                {
-                    auto tfp = std::make_shared<TrustFrame>(le);
-                    tfp->storeAdd(delta, db);
-                    lines.emplace_back(tfp);
-                    return 1;
-                }
-                return 0;
-            });
+                auto tfp = std::make_shared<TrustFrame>(le);
+                tfp->storeAdd(delta, db);
+                lines.emplace_back(tfp);
+                return 1;
+            }
+            return 0;
+        });
 
         app->getLedgerManager().checkDbState();
 
         // modify trust lines
-        trustLineProcessor(
-            [&](LedgerEntry& le)
+        trustLineProcessor([&](LedgerEntry& le) {
+            auto& lines = trustLinesMap[le.data.trustLine().accountID];
+            if (lines.size() != 0)
             {
-                auto& lines = trustLinesMap[le.data.trustLine().accountID];
-                if (lines.size() != 0)
-                {
-                    size_t indexToChange = intGen() % lines.size();
-                    auto tfp = lines[indexToChange];
-                    // change all but the asset
-                    le.data.trustLine().asset = tfp->getTrustLine().asset;
-                    tfp->mEntry = le;
-                    tfp->storeChange(delta, db);
-                    auto& thisTL = tfp->getTrustLine();
-                    auto fromDb = TrustFrame::loadTrustLine(thisTL.accountID,
-                                                            thisTL.asset, db);
-                    REQUIRE(thisTL == fromDb->getTrustLine());
-                }
-                return 0;
-            });
+                size_t indexToChange = intGen() % lines.size();
+                auto tfp = lines[indexToChange];
+                // change all but the asset
+                le.data.trustLine().asset = tfp->getTrustLine().asset;
+                tfp->mEntry = le;
+                tfp->storeChange(delta, db);
+                auto& thisTL = tfp->getTrustLine();
+                auto fromDb = TrustFrame::loadTrustLine(thisTL.accountID,
+                                                        thisTL.asset, db);
+                REQUIRE(thisTL == fromDb->getTrustLine());
+            }
+            return 0;
+        });
 
         app->getLedgerManager().checkDbState();
 
@@ -170,73 +161,67 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             offerMap;
         std::unordered_set<uint64> offerIDs;
 
-        auto offerProcessor = [&](std::function<int(LedgerEntry&)> proc)
-        {
-            entriesProcessor(
-                [&](LedgerEntry& account)
+        auto offerProcessor = [&](std::function<int(LedgerEntry&)> proc) {
+            entriesProcessor([&](LedgerEntry& account) {
+                AccountEntry& newA = account.data.account();
+                uint8_t nbOffers = intGen() % 64;
+                for (uint8_t i = 0; i < nbOffers; i++)
                 {
-                    AccountEntry& newA = account.data.account();
-                    uint8_t nbOffers = intGen() % 64;
-                    for (uint8_t i = 0; i < nbOffers; i++)
-                    {
-                        LedgerEntry le;
-                        le.data.type(OFFER);
-                        auto& of = le.data.offer();
-                        of = LedgerTestUtils::generateValidOfferEntry(5000);
-                        of.sellerID = newA.accountID;
-                        newA.numSubEntries += proc(le);
-                    }
-                });
+                    LedgerEntry le;
+                    le.data.type(OFFER);
+                    auto& of = le.data.offer();
+                    of = LedgerTestUtils::generateValidOfferEntry(5000);
+                    of.sellerID = newA.accountID;
+                    newA.numSubEntries += proc(le);
+                }
+            });
         };
 
         // create a bunch of offers
-        offerProcessor(
-            [&](LedgerEntry& le)
+        offerProcessor([&](LedgerEntry& le) {
+            auto& offers = offerMap[le.data.offer().sellerID];
+
+            LedgerKey thisKey = LedgerEntryKey(le);
+
+            if (std::find(offerIDs.begin(), offerIDs.end(),
+                          le.data.offer().offerID) == offerIDs.end())
             {
-                auto& offers = offerMap[le.data.offer().sellerID];
-
-                LedgerKey thisKey = LedgerEntryKey(le);
-
-                if (std::find(offerIDs.begin(), offerIDs.end(),
-                              le.data.offer().offerID) == offerIDs.end())
-                {
-                    auto off = std::make_shared<OfferFrame>(le);
-                    off->storeAdd(delta, db);
-                    offers.emplace_back(off);
-                    offerIDs.insert(off->getOfferID());
-                    return 1;
-                }
-                return 0;
-            });
+                auto off = std::make_shared<OfferFrame>(le);
+                off->storeAdd(delta, db);
+                offers.emplace_back(off);
+                offerIDs.insert(off->getOfferID());
+                return 1;
+            }
+            return 0;
+        });
 
         app->getLedgerManager().checkDbState();
 
         // modify offers
-        offerProcessor([&](LedgerEntry& le)
-                       {
-                           auto& offers = offerMap[le.data.offer().sellerID];
-                           if (offers.size() != 0)
-                           {
-                               size_t indexToChange = intGen() % offers.size();
-                               auto off = offers[indexToChange];
-                               // change all but sellerID and OfferID
+        offerProcessor([&](LedgerEntry& le) {
+            auto& offers = offerMap[le.data.offer().sellerID];
+            if (offers.size() != 0)
+            {
+                size_t indexToChange = intGen() % offers.size();
+                auto off = offers[indexToChange];
+                // change all but sellerID and OfferID
 
-                               auto& newO = le.data.offer();
+                auto& newO = le.data.offer();
 
-                               auto& thisO = off->getOffer();
+                auto& thisO = off->getOffer();
 
-                               newO.offerID = thisO.offerID;
-                               newO.sellerID = thisO.sellerID;
+                newO.offerID = thisO.offerID;
+                newO.sellerID = thisO.sellerID;
 
-                               thisO = newO;
+                thisO = newO;
 
-                               off->storeChange(delta, db);
-                               auto fromDb = OfferFrame::loadOffer(
-                                   thisO.sellerID, thisO.offerID, db);
-                               REQUIRE(thisO == fromDb->getOffer());
-                           }
-                           return 0;
-                       });
+                off->storeChange(delta, db);
+                auto fromDb =
+                    OfferFrame::loadOffer(thisO.sellerID, thisO.offerID, db);
+                REQUIRE(thisO == fromDb->getOffer());
+            }
+            return 0;
+        });
 
         app->getLedgerManager().checkDbState();
 

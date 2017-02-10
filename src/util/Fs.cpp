@@ -3,11 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Fs.h"
-#include "util/Logging.h"
 #include "crypto/Hex.h"
 #include "lib/util/format.h"
-#include <regex>
+#include "util/Logging.h"
 #include <map>
+#include <regex>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -24,8 +24,8 @@ namespace fs
 {
 
 #ifdef _WIN32
-#include <Windows.h>
 #include <Shellapi.h>
+#include <Windows.h>
 #include <psapi.h>
 
 static std::map<std::string, HANDLE> lockMap;
@@ -73,7 +73,8 @@ exists(std::string const& name)
 
     if (GetFileAttributes(name.c_str()) == INVALID_FILE_ATTRIBUTES)
     {
-        if (GetLastError() == ERROR_FILE_NOT_FOUND || GetLastError() == ERROR_PATH_NOT_FOUND)
+        if (GetLastError() == ERROR_FILE_NOT_FOUND ||
+            GetLastError() == ERROR_PATH_NOT_FOUND)
         {
             return false;
         }
@@ -140,13 +141,13 @@ processExists(long pid)
 }
 
 #else
-#include <ftw.h>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/file.h>
-#include <sys/types.h>
-#include <fcntl.h>
 #include <cerrno>
+#include <fcntl.h>
+#include <ftw.h>
+#include <sys/file.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 static std::map<std::string, int> lockMap;
 
@@ -222,26 +223,28 @@ namespace
 {
 
 int
-nftw_deltree_callback(char const* name, struct stat const* st, int flag, struct FTW* ftw)
+nftw_deltree_callback(char const* name, struct stat const* st, int flag,
+                      struct FTW* ftw)
 {
     CLOG(DEBUG, "Fs") << "deleting: " << name;
     if (flag == FTW_DP)
     {
         if (rmdir(name) != 0)
         {
-            throw std::runtime_error(std::string{"rmdir of "} + name + " failed");
+            throw std::runtime_error(std::string{"rmdir of "} + name +
+                                     " failed");
         }
     }
     else
     {
         if (std::remove(name) != 0)
         {
-            throw std::runtime_error(std::string{"std::remove of "} + name + " failed");
+            throw std::runtime_error(std::string{"std::remove of "} + name +
+                                     " failed");
         }
     }
     return 0;
 }
-
 }
 
 void
@@ -267,9 +270,7 @@ processExists(long pid)
 
 #endif
 
-PathSplitter::PathSplitter(std::string path) :
-    mPath{std::move(path)},
-    mPos{0}
+PathSplitter::PathSplitter(std::string path) : mPath{std::move(path)}, mPos{0}
 {
 }
 
@@ -295,7 +296,7 @@ PathSplitter::hasNext() const
 }
 
 bool
-mkpath(const std::string &path)
+mkpath(const std::string& path)
 {
     auto splitter = PathSplitter{path};
     while (splitter.hasNext())

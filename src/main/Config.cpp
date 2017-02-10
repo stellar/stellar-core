@@ -4,13 +4,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "history/HistoryArchive.h"
 #include "StellarCoreVersion.h"
-#include "util/Logging.h"
-#include "util/types.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "history/HistoryArchive.h"
 #include "scp/LocalNode.h"
+#include "util/Logging.h"
+#include "util/types.h"
 
 #include <functional>
 #include <sstream>
@@ -360,7 +360,9 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "TMP_DIR_PATH")
             {
-                throw std::invalid_argument("TMP_DIR_PATH is not supported anymore - tmp data is now kept in BUCKET_DIR_PATH/tmp");
+                throw std::invalid_argument("TMP_DIR_PATH is not supported "
+                                            "anymore - tmp data is now kept in "
+                                            "BUCKET_DIR_PATH/tmp");
             }
             else if (item.first == "BUCKET_DIR_PATH")
             {
@@ -596,9 +598,11 @@ Config::load(std::string const& filename)
             {
                 if (!item.second->as<std::tm>())
                 {
-                    throw std::invalid_argument("invalid PREFERRED_UPGRADE_DATETIME");
+                    throw std::invalid_argument(
+                        "invalid PREFERRED_UPGRADE_DATETIME");
                 }
-                PREFERRED_UPGRADE_DATETIME = make_optional<std::tm>(item.second->as<std::tm>()->value());
+                PREFERRED_UPGRADE_DATETIME =
+                    make_optional<std::tm>(item.second->as<std::tm>()->value());
             }
             else
             {
@@ -628,8 +632,7 @@ Config::load(std::string const& filename)
                     }
                     PublicKey nodeID;
                     parseNodeID(v->as<std::string>()->value(), nodeID);
-                    PREFERRED_PEER_KEYS.push_back(
-                        KeyUtils::toStrKey(nodeID));
+                    PREFERRED_PEER_KEYS.push_back(KeyUtils::toStrKey(nodeID));
                 }
             }
         }
@@ -658,10 +661,8 @@ void
 Config::validateConfig()
 {
     std::set<NodeID> nodes;
-    LocalNode::forAllNodes(QUORUM_SET, [&](NodeID const& n)
-                           {
-                               nodes.insert(n);
-                           });
+    LocalNode::forAllNodes(QUORUM_SET,
+                           [&](NodeID const& n) { nodes.insert(n); });
 
     if (nodes.size() == 0)
     {
@@ -781,8 +782,9 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                     throw std::invalid_argument("name already used");
                 }
 
-                if (!VALIDATOR_NAMES.emplace(std::make_pair(nodestr,
-                                                            commonName)).second)
+                if (!VALIDATOR_NAMES
+                         .emplace(std::make_pair(nodestr, commonName))
+                         .second)
                 {
                     std::stringstream msg;
                     msg << "naming node twice: " << commonName;
@@ -841,7 +843,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
     {
         retKey = KeyUtils::fromStrKey<PublicKey>(expanded);
     }
-    catch (std::invalid_argument &)
+    catch (std::invalid_argument&)
     {
         return false;
     }
@@ -849,7 +851,7 @@ Config::resolveNodeID(std::string const& s, PublicKey& retKey) const
 }
 
 std::string
-Config::expandNodeID(const std::string &s) const
+Config::expandNodeID(const std::string& s) const
 {
     if (s.length() < 2)
     {
@@ -860,13 +862,21 @@ Config::expandNodeID(const std::string &s) const
         return s;
     }
 
-    using validatorMatcher_t = std::function<bool(std::pair<std::string, std::string> const&)>;
+    using validatorMatcher_t =
+        std::function<bool(std::pair<std::string, std::string> const&)>;
     auto arg = s.substr(1);
-    auto validatorMatcher = s[0] == '$'
-            ? validatorMatcher_t{[&](std::pair<std::string, std::string> const& p) { return p.second == arg; }}
-            : validatorMatcher_t{[&](std::pair<std::string, std::string> const& p) { return p.first.compare(0, arg.size(), arg) == 0; }};
+    auto validatorMatcher =
+        s[0] == '$' ? validatorMatcher_t{[&](
+                          std::pair<std::string, std::string> const& p) {
+            return p.second == arg;
+        }}
+                    : validatorMatcher_t{
+                          [&](std::pair<std::string, std::string> const& p) {
+                              return p.first.compare(0, arg.size(), arg) == 0;
+                          }};
 
-    auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(), validatorMatcher);
+    auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
+                           validatorMatcher);
     if (it != VALIDATOR_NAMES.end())
     {
         return it->first;
@@ -876,5 +886,4 @@ Config::expandNodeID(const std::string &s) const
         return {};
     }
 }
-
 }

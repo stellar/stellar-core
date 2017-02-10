@@ -14,7 +14,7 @@ namespace SignerKeyUtils
 {
 
 SignerKey
-preAuthTxKey(TransactionFrame const &tx)
+preAuthTxKey(TransactionFrame const& tx)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
@@ -23,14 +23,12 @@ preAuthTxKey(TransactionFrame const &tx)
 }
 
 SignerKey
-hashXKey(ByteSlice const &bs)
+hashXKey(ByteSlice const& bs)
 {
     SignerKey sk;
     sk.type(SIGNER_KEY_TYPE_HASH_X);
     sk.hashX() = sha256(bs);
     return sk;
 }
-
 }
-
 }

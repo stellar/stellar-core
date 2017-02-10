@@ -3,13 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/TmpDir.h"
+#include "crypto/Hex.h"
+#include "crypto/Random.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
-#include "crypto/Random.h"
-#include "crypto/Hex.h"
-#include "util/Fs.h"
 
 namespace stellar
 {
@@ -57,7 +57,8 @@ TmpDir::~TmpDir()
     }
     catch (std::runtime_error& e)
     {
-        LOG(ERROR) << "Failed to delete TmpDir: " << *mPath << ", because: " << e.what();
+        LOG(ERROR) << "Failed to delete TmpDir: " << *mPath
+                   << ", because: " << e.what();
     }
 
     mPath.reset();

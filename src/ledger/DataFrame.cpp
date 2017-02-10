@@ -3,14 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/DataFrame.h"
-#include "transactions/ManageDataOpFrame.h"
-#include "database/Database.h"
-#include "crypto/KeyUtils.h"
-#include "crypto/SecretKey.h"
-#include "crypto/SHA.h"
 #include "LedgerDelta.h"
-#include "util/types.h"
+#include "crypto/KeyUtils.h"
+#include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
+#include "database/Database.h"
+#include "transactions/ManageDataOpFrame.h"
 #include "util/basen.h"
+#include "util/types.h"
 
 using namespace std;
 using namespace soci;
@@ -20,10 +20,10 @@ namespace stellar
 const char* DataFrame::kSQLCreateStatement1 =
     "CREATE TABLE accountdata"
     "("
-        "accountid    VARCHAR(56)  NOT NULL,"
-        "dataname     VARCHAR(64)  NOT NULL,"
-        "datavalue    VARCHAR(112) NOT NULL,"
-        "PRIMARY KEY  (accountid, dataname)"
+    "accountid    VARCHAR(56)  NOT NULL,"
+    "dataname     VARCHAR(64)  NOT NULL,"
+    "datavalue    VARCHAR(112) NOT NULL,"
+    "PRIMARY KEY  (accountid, dataname)"
     ");";
 
 static const char* dataColumnSelector =
@@ -42,7 +42,8 @@ DataFrame::DataFrame(DataFrame const& from) : DataFrame(from.mEntry)
 {
 }
 
-DataFrame& DataFrame::operator=(DataFrame const& other)
+DataFrame&
+DataFrame::operator=(DataFrame const& other)
 {
     if (&other != this)
     {
@@ -71,12 +72,9 @@ DataFrame::getAccountID() const
     return mData.accountID;
 }
 
-
-
-
 DataFrame::pointer
 DataFrame::loadData(AccountID const& accountID, std::string dataName,
-    Database& db)
+                    Database& db)
 {
     DataFrame::pointer retData;
 
@@ -90,21 +88,20 @@ DataFrame::loadData(AccountID const& accountID, std::string dataName,
     st.exchange(use(dataName));
 
     auto timer = db.getSelectTimer("data");
-    loadData(prep, [&retData](LedgerEntry const& data)
-               {
-                   retData = make_shared<DataFrame>(data);
-               });
+    loadData(prep, [&retData](LedgerEntry const& data) {
+        retData = make_shared<DataFrame>(data);
+    });
 
     return retData;
 }
 
 void
 DataFrame::loadData(StatementContext& prep,
-                       std::function<void(LedgerEntry const&)> dataProcessor)
+                    std::function<void(LedgerEntry const&)> dataProcessor)
 {
     string actIDStrKey;
-   
-    std::string dataName,dataValue;
+
+    std::string dataName, dataValue;
 
     soci::indicator dataNameIndicator, dataValueIndicator;
 
@@ -122,8 +119,8 @@ DataFrame::loadData(StatementContext& prep,
     while (st.got_data())
     {
         oe.accountID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        
-        if((dataNameIndicator != soci::i_ok) ||
+
+        if ((dataNameIndicator != soci::i_ok) ||
             (dataValueIndicator != soci::i_ok))
         {
             throw std::runtime_error("bad database state");
@@ -136,12 +133,10 @@ DataFrame::loadData(StatementContext& prep,
     }
 }
 
-
-
 void
 DataFrame::loadAccountsData(AccountID const& accountID,
-                       std::vector<DataFrame::pointer>& retData,
-                       Database& db)
+                            std::vector<DataFrame::pointer>& retData,
+                            Database& db)
 {
     std::string actIDStrKey;
     actIDStrKey = KeyUtils::toStrKey(accountID);
@@ -153,10 +148,9 @@ DataFrame::loadAccountsData(AccountID const& accountID,
     st.exchange(use(actIDStrKey));
 
     auto timer = db.getSelectTimer("data");
-    loadData(prep, [&retData](LedgerEntry const& of)
-               {
-                   retData.emplace_back(make_shared<DataFrame>(of));
-               });
+    loadData(prep, [&retData](LedgerEntry const& of) {
+        retData.emplace_back(make_shared<DataFrame>(of));
+    });
 }
 
 std::unordered_map<AccountID, std::vector<DataFrame::pointer>>
@@ -168,11 +162,10 @@ DataFrame::loadAllData(Database& db)
     auto prep = db.getPreparedStatement(sql);
 
     auto timer = db.getSelectTimer("data");
-    loadData(prep, [&retData](LedgerEntry const& of)
-               {
-                   auto& thisUserData = retData[of.data.data().accountID];
-                   thisUserData.emplace_back(make_shared<DataFrame>(of));
-               });
+    loadData(prep, [&retData](LedgerEntry const& of) {
+        auto& thisUserData = retData[of.data.data().accountID];
+        thisUserData.emplace_back(make_shared<DataFrame>(of));
+    });
     return retData;
 }
 
@@ -215,7 +208,8 @@ DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     std::string actIDStrKey = KeyUtils::toStrKey(key.data().accountID);
     std::string dataName = key.data().dataName;
     auto timer = db.getDeleteTimer("data");
-    auto prep = db.getPreparedStatement("DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
+    auto prep = db.getPreparedStatement(
+        "DELETE FROM accountdata WHERE accountid=:id AND dataname=:s");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(dataName));
@@ -223,7 +217,6 @@ DataFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
     st.execute(true);
     delta.deleteEntry(key);
 }
-
 
 void
 DataFrame::storeChange(LedgerDelta& delta, Database& db)
@@ -245,15 +238,14 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
     std::string dataName = mData.dataName;
     std::string dataValue = bn::encode_b64(mData.dataValue);
-   
-  
 
     string sql;
 
     if (insert)
     {
-        sql = "INSERT INTO accountdata (accountid,dataname,datavalue,lastmodified)"
-               " VALUES (:aid,:dn,:dv,:lm)";
+        sql = "INSERT INTO accountdata "
+              "(accountid,dataname,datavalue,lastmodified)"
+              " VALUES (:aid,:dn,:dv,:lm)";
     }
     else
     {
@@ -264,7 +256,6 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
     auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
 
-    
     st.exchange(use(actIDStrKey, "aid"));
     st.exchange(use(dataName, "dn"));
     st.exchange(use(dataValue, "dv"));

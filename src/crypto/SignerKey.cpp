@@ -19,7 +19,8 @@ KeyFunctions<SignerKey>::getKeyTypeName()
 }
 
 bool
-KeyFunctions<SignerKey>::getKeyVersionIsSupported(strKey::StrKeyVersionByte keyVersion)
+KeyFunctions<SignerKey>::getKeyVersionIsSupported(
+    strKey::StrKeyVersionByte keyVersion)
 {
     switch (keyVersion)
     {
@@ -66,8 +67,8 @@ KeyFunctions<SignerKey>::toKeyVersion(SignerKeyType keyType)
     }
 }
 
-uint256 &
-KeyFunctions<SignerKey>::getKeyValue(SignerKey &key)
+uint256&
+KeyFunctions<SignerKey>::getKeyValue(SignerKey& key)
 {
     switch (key.type())
     {
@@ -83,7 +84,7 @@ KeyFunctions<SignerKey>::getKeyValue(SignerKey &key)
 }
 
 uint256 const&
-KeyFunctions<SignerKey>::getKeyValue(SignerKey const &key)
+KeyFunctions<SignerKey>::getKeyValue(SignerKey const& key)
 {
     switch (key.type())
     {
@@ -97,5 +98,4 @@ KeyFunctions<SignerKey>::getKeyValue(SignerKey const &key)
         throw std::invalid_argument("invalid signer key type");
     }
 }
-
 }

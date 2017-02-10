@@ -4,9 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/StellarXDR.h"
-#include "history/InferredQuorum.h"
 #include "history/HistoryArchive.h"
+#include "history/InferredQuorum.h"
+#include "overlay/StellarXDR.h"
 #include <functional>
 #include <memory>
 
@@ -345,7 +345,8 @@ class HistoryManager
     virtual void catchupHistory(
         uint32_t initLedger, CatchupMode mode,
         std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)> handler,
+                           LedgerHeaderHistoryEntry const& lastClosed)>
+            handler,
         bool manualCatchup = false) = 0;
 
     // Return the HistoryArchiveState of the LedgerManager's LCL

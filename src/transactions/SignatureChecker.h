@@ -20,20 +20,23 @@ using UsedOneTimeSignerKeys = std::map<AccountID, std::set<SignerKey>>;
 
 class SignatureChecker
 {
-public:
-    explicit SignatureChecker(Hash const &contentsHash, xdr::xvector<DecoratedSignature,20> const &signatures);
+  public:
+    explicit SignatureChecker(
+        Hash const& contentsHash,
+        xdr::xvector<DecoratedSignature, 20> const& signatures);
 
-    bool checkSignature(AccountID const &accountID, std::vector<Signer> const &signersV, int32_t neededWeight);
+    bool checkSignature(AccountID const& accountID,
+                        std::vector<Signer> const& signersV,
+                        int32_t neededWeight);
     bool checkAllSignaturesUsed() const;
 
-    const UsedOneTimeSignerKeys & usedOneTimeSignerKeys() const;
+    const UsedOneTimeSignerKeys& usedOneTimeSignerKeys() const;
 
-private:
-    Hash const &mContentsHash;
-    xdr::xvector<DecoratedSignature,20> const &mSignatures;
+  private:
+    Hash const& mContentsHash;
+    xdr::xvector<DecoratedSignature, 20> const& mSignatures;
 
     std::vector<bool> mUsedSignatures;
     UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;
 };
-
 };

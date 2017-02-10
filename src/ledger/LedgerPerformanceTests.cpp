@@ -2,24 +2,24 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "main/Application.h"
-#include "util/Timer.h"
-#include "util/make_unique.h"
-#include "lib/catch.hpp"
-#include "util/Logging.h"
-#include "ledger/LedgerManager.h"
-#include "ledger/LedgerHeaderFrame.h"
-#include "test/TxTests.h"
+#include "bucket/BucketManager.h"
 #include "database/Database.h"
+#include "herder/LedgerCloseData.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerManager.h"
+#include "lib/catch.hpp"
+#include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "simulation/Simulation.h"
-#include "herder/LedgerCloseData.h"
-#include "bucket/BucketManager.h"
+#include "test/TxTests.h"
 #include "test/test.h"
-#include "util/optional.h"
+#include "util/Logging.h"
 #include "util/Math.h"
 #include "util/SociNoWarnings.h"
+#include "util/Timer.h"
+#include "util/make_unique.h"
+#include "util/optional.h"
 
 using namespace stellar;
 using namespace std;

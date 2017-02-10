@@ -2,27 +2,27 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/StateSnapshot.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "database/Database.h"
 #include "herder/Herder.h"
+#include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
-#include "history/FileTransferInfo.h"
-#include "history/StateSnapshot.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "database/Database.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "util/SociNoWarnings.h"
 #include "util/XDRStream.h"
+#include "util/make_unique.h"
 
-#include "medida/metrics_registry.h"
 #include "medida/counter.h"
+#include "medida/metrics_registry.h"
 
 namespace stellar
 {

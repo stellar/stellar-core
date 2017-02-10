@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <cstdlib>
-#include <stdexcept>
 #include <random>
+#include <stdexcept>
 
 namespace stellar
 {

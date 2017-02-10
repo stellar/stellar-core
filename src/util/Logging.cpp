@@ -23,20 +23,8 @@ namespace
 {
 
 static const std::vector<std::string> loggers = {
-    "Fs",
-    "SCP",
-    "Bucket",
-    "Database",
-    "History",
-    "Process",
-    "Ledger",
-    "Overlay",
-    "Herder",
-    "Tx",
-    "LoadGen",
-    "Work"
-};
-
+    "Fs",     "SCP",     "Bucket", "Database", "History", "Process",
+    "Ledger", "Overlay", "Herder", "Tx",       "LoadGen", "Work"};
 }
 
 el::Configurations Logging::gDefaultConf;
@@ -240,5 +228,4 @@ Logging::rotate()
         el::Loggers::getLogger(logger)->reconfigure();
     }
 }
-
 }

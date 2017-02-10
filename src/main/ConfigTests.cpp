@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/Config.h"
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
-#include "main/Config.h"
 #include "test/test.h"
 
 using namespace stellar;
@@ -12,20 +12,24 @@ using namespace stellar;
 namespace
 {
 
-bool keyMatches(PublicKey &key, const std::vector<std::string> &keys)
+bool
+keyMatches(PublicKey& key, const std::vector<std::string>& keys)
 {
     auto keyStr = KeyUtils::toStrKey<PublicKey>(key);
-    return std::any_of(std::begin(keys), std::end(keys), [&](const std::string &x){ return keyStr == x; });
+    return std::any_of(std::begin(keys), std::end(keys),
+                       [&](const std::string& x) { return keyStr == x; });
 }
-
 }
 
 TEST_CASE("resolve node id", "[config]")
 {
     auto cfg = getTestConfig(0);
-    auto validator1Key = std::string{"GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y"};
-    auto validator2Key = std::string{"GCUCJTIYXSOXKBSNFGNFWW5MUQ54HKRPGJUTQFJ5RQXZXNOLNXYDHRAP"};
-    auto validator3Key = std::string{"GC2V2EFSXN6SQTWVYA5EPJPBWWIMSD2XQNKUOHGEKB535AQE2I6IXV2Z"};
+    auto validator1Key =
+        std::string{"GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y"};
+    auto validator2Key =
+        std::string{"GCUCJTIYXSOXKBSNFGNFWW5MUQ54HKRPGJUTQFJ5RQXZXNOLNXYDHRAP"};
+    auto validator3Key =
+        std::string{"GC2V2EFSXN6SQTWVYA5EPJPBWWIMSD2XQNKUOHGEKB535AQE2I6IXV2Z"};
 
     cfg.VALIDATOR_NAMES.emplace(std::make_pair(validator1Key, "core-testnet1"));
     cfg.VALIDATOR_NAMES.emplace(std::make_pair(validator2Key, "core-testnet2"));
@@ -97,7 +101,9 @@ TEST_CASE("resolve node id", "[config]")
     SECTION("existing full node id")
     {
         auto publicKey = PublicKey{};
-        auto result = cfg.resolveNodeID("GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y", publicKey);
+        auto result = cfg.resolveNodeID(
+            "GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y",
+            publicKey);
         REQUIRE(result);
         REQUIRE(keyMatches(publicKey, {validator1Key}));
     }
@@ -111,18 +117,24 @@ TEST_CASE("resolve node id", "[config]")
     SECTION("existing lowercase full node id")
     {
         auto publicKey = PublicKey{};
-        REQUIRE(!cfg.resolveNodeID("gdkxe2ozmjiposlna6n6f2bvci3o777i2ooc4bv7voyuehyx7rtrya7y", publicKey));
+        REQUIRE(!cfg.resolveNodeID(
+            "gdkxe2ozmjiposlna6n6f2bvci3o777i2ooc4bv7voyuehyx7rtrya7y",
+            publicKey));
     }
 
     SECTION("non existing full node id")
     {
         auto publicKey = PublicKey{};
-        REQUIRE(!cfg.resolveNodeID("SDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey));
+        REQUIRE(!cfg.resolveNodeID(
+            "SDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ",
+            publicKey));
     }
 
     SECTION("invalid key type")
     {
         auto publicKey = PublicKey{};
-        REQUIRE(!cfg.resolveNodeID("TDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ", publicKey));
+        REQUIRE(!cfg.resolveNodeID(
+            "TDTTOKJOEJXDBLATFZNTQRVA5MSCECMPOPC7CCCGL6AE5DKA7YCBJYJQ",
+            publicKey));
     }
 }

@@ -4,15 +4,15 @@
 
 #include "ledger/EntryFrame.h"
 #include "LedgerManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
-#include "xdrpp/printer.h"
-#include "xdrpp/marshal.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/DataFrame.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
+#include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -70,7 +70,7 @@ EntryFrame::storeLoad(LedgerKey const& key, Database& db)
     {
         auto const& data = key.data();
         res = std::static_pointer_cast<EntryFrame>(
-            DataFrame::loadData(data.accountID,data.dataName, db));
+            DataFrame::loadData(data.accountID, data.dataName, db));
     }
     break;
     }

@@ -50,5 +50,4 @@ class NtpSynchronizationChecker : public WorkParent
     void updateStatusManager();
     void scheduleNextCheck();
 };
-
 }

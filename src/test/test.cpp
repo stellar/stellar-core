@@ -2,14 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <cstdlib>
 #include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"
-#include "util/make_unique.h"
-#include <time.h>
 #include "util/Logging.h"
 #include "util/TmpDir.h"
+#include "util/make_unique.h"
+#include <cstdlib>
+#include <time.h>
 
 #ifdef _WIN32
 #include <process.h>
@@ -95,7 +95,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.NETWORK_PASSPHRASE = "(V) (;,,;) (V)";
 
         // disable NTP - travis-ci does not allow network access:
-        // The container-based, OSX, and GCE (both Precise and Trusty) builds do not currently have IPv6 connectivity.
+        // The container-based, OSX, and GCE (both Precise and Trusty) builds do
+        // not currently have IPv6 connectivity.
         thisConfig.NTP_SERVER.clear();
 
         std::ostringstream dbname;

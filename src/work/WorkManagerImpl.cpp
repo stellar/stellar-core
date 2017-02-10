@@ -3,9 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/Work.h"
-#include "work/WorkParent.h"
 #include "work/WorkManager.h"
 #include "work/WorkManagerImpl.h"
+#include "work/WorkParent.h"
 
 #include "lib/util/format.h"
 #include "util/Logging.h"

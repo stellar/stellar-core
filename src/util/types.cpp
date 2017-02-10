@@ -4,8 +4,8 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
-#include <locale>
 #include <algorithm>
+#include <locale>
 
 namespace stellar
 {
@@ -23,13 +23,11 @@ isZero(uint256 const& b)
     return true;
 }
 
-Hash& operator^=(Hash& l, Hash const& r)
+Hash&
+operator^=(Hash& l, Hash const& r)
 {
     std::transform(l.begin(), l.end(), r.begin(), l.begin(),
-                   [](uint8_t a, uint8_t b)
-                   {
-                       return a ^ b;
-                   });
+                   [](uint8_t a, uint8_t b) { return a ^ b; });
     return l;
 }
 
@@ -173,15 +171,14 @@ bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
 }
 
 bool
-bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C, Rounding rounding)
+bigDivide(uint64_t& result, uint64_t A, uint64_t B, uint64_t C,
+          Rounding rounding)
 {
     // update when moving to (signed) int128
     uint128_t a(A);
     uint128_t b(B);
     uint128_t c(C);
-    uint128_t x = rounding == ROUND_DOWN
-            ? (a * b) / c
-            : (a * b + c - 1) / c;
+    uint128_t x = rounding == ROUND_DOWN ? (a * b) / c : (a * b + c - 1) / c;
 
     result = (uint64_t)x;
 
@@ -211,7 +208,8 @@ iequals(std::string const& a, std::string const& b)
     return true;
 }
 
-bool operator>=(Price const& a, Price const& b)
+bool
+operator>=(Price const& a, Price const& b)
 {
     uint128_t l(a.n);
     uint128_t r(a.d);
@@ -220,7 +218,8 @@ bool operator>=(Price const& a, Price const& b)
     return l >= r;
 }
 
-bool operator>(Price const& a, Price const& b)
+bool
+operator>(Price const& a, Price const& b)
 {
     uint128_t l(a.n);
     uint128_t r(a.d);
@@ -229,7 +228,8 @@ bool operator>(Price const& a, Price const& b)
     return l > r;
 }
 
-bool operator==(Price const& a, Price const& b)
+bool
+operator==(Price const& a, Price const& b)
 {
     return (a.n == b.n) && (a.d == b.d);
 }

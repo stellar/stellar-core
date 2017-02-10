@@ -5,14 +5,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "util/asio.h"
 
-#include <string>
-#include "ledger/LedgerManager.h"
-#include "ledger/LedgerHeaderFrame.h"
-#include "main/PersistentState.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerManager.h"
+#include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-ledger.h"
+#include <string>
 
 /*
 Holds the current ledger

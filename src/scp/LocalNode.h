@@ -5,8 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <memory>
-#include <vector>
 #include <set>
+#include <vector>
 
 #include "scp/SCP.h"
 #include "util/HashOfHash.h"
@@ -70,13 +70,11 @@ class LocalNode
 
     // `isVBlocking` tests if the filtered nodes V are a v-blocking set for
     // this node.
-    static bool isVBlocking(SCPQuorumSet const& qSet,
-                            std::map<NodeID, SCPEnvelope> const& map,
-                            std::function<bool(SCPStatement const&)> const&
-                                filter = [](SCPStatement const&)
-                            {
-                                return true;
-                            });
+    static bool
+    isVBlocking(SCPQuorumSet const& qSet,
+                std::map<NodeID, SCPEnvelope> const& map,
+                std::function<bool(SCPStatement const&)> const& filter =
+                    [](SCPStatement const&) { return true; });
 
     // `isQuorum` tests if the filtered nodes V form a quorum
     // (meaning for each v \in V there is q \in Q(v)
@@ -87,10 +85,7 @@ class LocalNode
     isQuorum(SCPQuorumSet const& qSet, std::map<NodeID, SCPEnvelope> const& map,
              std::function<SCPQuorumSetPtr(SCPStatement const&)> const& qfun,
              std::function<bool(SCPStatement const&)> const& filter =
-                 [](SCPStatement const&)
-             {
-                 return true;
-             });
+                 [](SCPStatement const&) { return true; });
 
     // computes the distance to the set of v-blocking sets given
     // a set of nodes that agree (but can fail)
@@ -102,10 +97,7 @@ class LocalNode
     static std::vector<NodeID> findClosestVBlocking(
         SCPQuorumSet const& qset, std::map<NodeID, SCPEnvelope> const& map,
         std::function<bool(SCPStatement const&)> const& filter =
-            [](SCPStatement const&)
-        {
-            return true;
-        },
+            [](SCPStatement const&) { return true; },
         NodeID const* excluded = nullptr);
 
     void toJson(SCPQuorumSet const& qSet, Json::Value& value) const;

@@ -21,8 +21,8 @@ KeyUtils::getKeyVersionSize(strKey::StrKeyVersionByte keyVersion)
     case strKey::STRKEY_HASH_X:
         return 32U;
     default:
-        throw std::invalid_argument("invalid key version: " + std::to_string(keyVersion));
+        throw std::invalid_argument("invalid key version: " +
+                                    std::to_string(keyVersion));
     }
 }
-
 }

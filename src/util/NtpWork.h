@@ -16,32 +16,39 @@ namespace stellar
 /**
  * Work item for checking NTP time synchronization.
  *
- * This work is configured to be retry forever - in case of failure its restarted
- * by work manager. In case of success value of check is obtainable by isSynchronized
- * getter. Acceptable difference in seconds is passed as a constructor paremeter tolerance.
+ * This work is configured to be retry forever - in case of failure its
+ * restarted
+ * by work manager. In case of success value of check is obtainable by
+ * isSynchronized
+ * getter. Acceptable difference in seconds is passed as a constructor paremeter
+ * tolerance.
  *
  * This class takes care of timeouts of NtpClient.
  */
 class NtpWork : public Work
 {
-public:
+  public:
     /**
-     * Costructor accepts address of ntp server to use in form of domain address or string
+     * Costructor accepts address of ntp server to use in form of domain address
+     * or string
      * representation of ip address.
-     * Acceptable tolerance is passed as number of seconds. If value of tolerance is less than zero
+     * Acceptable tolerance is passed as number of seconds. If value of
+     * tolerance is less than zero
      * then behavior of this constructor is undefined.
      */
-    explicit NtpWork(Application& app, WorkParent& parent, std::string ntpServer, std::chrono::seconds tolerance);
+    explicit NtpWork(Application& app, WorkParent& parent,
+                     std::string ntpServer, std::chrono::seconds tolerance);
     virtual ~NtpWork();
 
     /**
-     * If work is successfull, returns if difference between local time and NTP time is
+     * If work is successfull, returns if difference between local time and NTP
+     * time is
      * within acceptable tolerance (passed in constructor).
      * If work is unfinished or unsuccessfull, true is returned.
      */
     bool isSynchronized() const;
 
-private:
+  private:
     std::string mNtpServer;
     std::chrono::seconds mTolerance;
     VirtualTimer mTimeoutTimer;
@@ -53,5 +60,4 @@ private:
     void onNtpClientSuccess(long time);
     void onNtpClientFailure();
 };
-
 }

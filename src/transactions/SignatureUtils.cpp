@@ -4,8 +4,8 @@
 
 #include "transactions/SignatureUtils.h"
 
-#include "crypto/SecretKey.h"
 #include "crypto/SHA.h"
+#include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -25,7 +25,8 @@ sign(SecretKey const& secretKey, Hash const& hash)
 }
 
 bool
-verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash const& hash)
+verify(DecoratedSignature const& sig, SignerKey const& signerKey,
+       Hash const& hash)
 {
     auto pubKey = KeyUtils::convertKey<PublicKey>(signerKey);
     if (!doesHintMatch(pubKey.ed25519(), sig.hint))
@@ -35,7 +36,7 @@ verify(DecoratedSignature const& sig, SignerKey const& signerKey, Hash const& ha
 }
 
 DecoratedSignature
-signHashX(const ByteSlice &x)
+signHashX(const ByteSlice& x)
 {
     DecoratedSignature result;
     Signature out(0, 0);
@@ -55,7 +56,8 @@ verifyHashX(DecoratedSignature const& sig, SignerKey const& signerKey)
     return signerKey.hashX() == sha256(sig.signature);
 }
 
-SignatureHint getHint(ByteSlice const& bs)
+SignatureHint
+getHint(ByteSlice const& bs)
 {
     SignatureHint res;
     memcpy(res.data(), bs.end() - res.size(), res.size());
@@ -70,10 +72,7 @@ doesHintMatch(ByteSlice const& bs, SignatureHint const& hint)
         return false;
     }
 
-    return memcmp(bs.end() - hint.size(), hint.data(),
-                  hint.size()) == 0;
+    return memcmp(bs.end() - hint.size(), hint.data(), hint.size()) == 0;
 }
-
 }
-
 }

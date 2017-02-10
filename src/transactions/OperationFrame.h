@@ -4,11 +4,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <memory>
-#include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
+#include <memory>
 
 namespace medida
 {
@@ -76,9 +76,11 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(SignatureChecker& signatureChecker, Application& app, LedgerDelta* delta = nullptr);
+    bool checkValid(SignatureChecker& signatureChecker, Application& app,
+                    LedgerDelta* delta = nullptr);
 
-    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta, Application& app);
+    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
+               Application& app);
 
     Operation const&
     getOperation() const

@@ -78,8 +78,8 @@ BanManagerImpl::getBans()
     std::vector<std::string> result;
     std::string nodeIDString;
     auto timer = mApp.getDatabase().getSelectTimer("ban");
-    auto prep = mApp.getDatabase().getPreparedStatement(
-        "SELECT nodeid FROM ban");
+    auto prep =
+        mApp.getDatabase().getPreparedStatement("SELECT nodeid FROM ban");
     auto& st = prep.statement();
     st.exchange(soci::into(nodeIDString));
     st.define_and_bind();

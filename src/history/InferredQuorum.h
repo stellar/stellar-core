@@ -4,14 +4,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include <unordered_map>
-#include <string>
-#include "overlay/StellarXDR.h"
 #include "crypto/SecretKey.h"
-#include "util/HashOfHash.h"
 #include "main/Config.h"
+#include "overlay/StellarXDR.h"
+#include "util/HashOfHash.h"
+#include <string>
+#include <unordered_map>
 
-namespace stellar {
+namespace stellar
+{
 
 struct InferredQuorum
 {
@@ -23,9 +24,7 @@ struct InferredQuorum
     void noteQsetHash(PublicKey const& pk, Hash const& hash);
     void notePubKey(PublicKey const& pk);
     std::string toString(Config const& cfg) const;
-    void writeQuorumGraph(Config const& cfg,
-                          std::string const& filename) const;
+    void writeQuorumGraph(Config const& cfg, std::string const& filename) const;
     bool checkQuorumIntersection(Config const& cfg) const;
 };
-
 }

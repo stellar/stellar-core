@@ -3,37 +3,37 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
-#include "main/Config.h"
-#include "test/TxTests.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerManager.h"
+#include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "test/TxTests.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/types.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include "util/types.h"
 
 #include "database/Database.h"
 
-#include "transactions/TransactionFrame.h"
-#include "transactions/PathPaymentOpFrame.h"
-#include "transactions/PaymentOpFrame.h"
+#include "transactions/AllowTrustOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
-#include "transactions/AllowTrustOpFrame.h"
+#include "transactions/PathPaymentOpFrame.h"
+#include "transactions/PaymentOpFrame.h"
+#include "transactions/TransactionFrame.h"
 
-#include "xdrpp/printer.h"
 #include "xdrpp/marshal.h"
+#include "xdrpp/printer.h"
 
-#include "medida/metrics_registry.h"
 #include "medida/meter.h"
+#include "medida/metrics_registry.h"
 
-#include <set>
-#include <iomanip>
 #include <cmath>
+#include <iomanip>
+#include <set>
 
 namespace stellar
 {
@@ -93,31 +93,27 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     if (app.getState() == Application::APP_SYNCED_STATE)
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate, autoRate](
-            asio::error_code const& error)
-                               {
-                                   if (!error)
-                                   {
-                                       this->generateLoad(app, nAccounts, nTxs,
-                                                          txRate, autoRate);
-                                   }
-                               });
+        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
+                                autoRate](asio::error_code const& error) {
+            if (!error)
+            {
+                this->generateLoad(app, nAccounts, nTxs, txRate, autoRate);
+            }
+        });
     }
     else
     {
         CLOG(WARNING, "LoadGen")
             << "Application is not in sync, load generation inhibited.";
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait(
-            [this, &app, nAccounts, nTxs, txRate, autoRate](
-                asio::error_code const& error)
+        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
+                                autoRate](asio::error_code const& error) {
+            if (!error)
             {
-                if (!error)
-                {
-                    this->scheduleLoadGeneration(app, nAccounts, nTxs, txRate,
-                                                 autoRate);
-                }
-            });
+                this->scheduleLoadGeneration(app, nAccounts, nTxs, txRate,
+                                             autoRate);
+            }
+        });
     }
 }
 
@@ -478,8 +474,7 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
     auto accountName = "Account-" + to_string(i);
     return make_shared<AccountInfo>(
         i, txtest::getAccount(accountName.c_str()), 0,
-        (static_cast<SequenceNumber>(ledgerNum) << 32),
-        ledgerNum, *this);
+        (static_cast<SequenceNumber>(ledgerNum) << 32), ledgerNum, *this);
 }
 
 vector<LoadGenerator::AccountInfoPtr>
@@ -724,8 +719,12 @@ LoadGenerator::AccountInfo::AccountInfo(size_t id, SecretKey key,
                                         int64_t balance, SequenceNumber seq,
                                         uint32_t lastChangedLedger,
                                         LoadGenerator& loadGen)
-    : mId(id), mKey(key), mBalance(balance), mSeq(seq),
-      mLastChangedLedger(lastChangedLedger), mLoadGen(loadGen)
+    : mId(id)
+    , mKey(key)
+    , mBalance(balance)
+    , mSeq(seq)
+    , mLastChangedLedger(lastChangedLedger)
+    , mLoadGen(loadGen)
 {
 }
 
@@ -746,16 +745,16 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
     account.seqNum = ((SequenceNumber)ledger) << 32;
     a.touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());;
+                      app.getDatabase());
+    ;
     a.storeAdd(delta, app.getDatabase());
 }
 
 void
-LoadGenerator::AccountInfo::debitDirectly(Application& app,
-                                          int64_t debitAmount)
+LoadGenerator::AccountInfo::debitDirectly(Application& app, int64_t debitAmount)
 {
-    auto existing = AccountFrame::loadAccount(mKey.getPublicKey(),
-                                              app.getDatabase());
+    auto existing =
+        AccountFrame::loadAccount(mKey.getPublicKey(), app.getDatabase());
     if (!existing)
     {
         return;
@@ -769,7 +768,8 @@ LoadGenerator::AccountInfo::debitDirectly(Application& app,
     account.seqNum++;
     existing->touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());;
+                      app.getDatabase());
+    ;
     existing->storeChange(delta, app.getDatabase());
 }
 
@@ -1026,8 +1026,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), assetPath.front(),
-                mFrom->mSeq + 1, mAmount));
+                networkID, mFrom->mKey, mTo->mKey.getPublicKey(),
+                assetPath.front(), mFrom->mSeq + 1, mAmount));
         }
         else
         {
@@ -1050,8 +1050,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             assetPath.pop_back();
             auto sendMax = mAmount * 10;
             txs.emplace_back(txtest::createPathPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), sendAsset, sendMax,
-                recvAsset, mAmount, mFrom->mSeq + 1, assetPath));
+                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), sendAsset,
+                sendMax, recvAsset, mAmount, mFrom->mSeq + 1, assetPath));
         }
     }
     break;

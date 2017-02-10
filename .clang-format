@@ -44,6 +44,18 @@ PointerAlignment: Left
 SpacesBeforeTrailingComments: 1
 Cpp11BracedListStyle: true
 Standard:        Cpp11
+IncludeCategories:
+  - Regex:           '^"util/asio\.h'
+    Priority:        -1
+  - Regex:           '^".*'
+    Priority:        1
+  - Regex:           '^"lib/.*'
+    Priority:        2
+  - Regex:           '^<.*'
+    Priority:        3
+  - Regex:           '.\*'
+    Priority:        4
+SortIncludes: true
 IndentWidth:     4
 TabWidth:        8
 UseTab:          Never
