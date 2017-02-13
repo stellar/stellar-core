@@ -33,7 +33,7 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
+bool applyCheck(TransactionFramePtr tx, Application& app);
 
 void checkEntry(LedgerEntry const& le, Application& app);
 void checkAccount(AccountID const& id, Application& app);

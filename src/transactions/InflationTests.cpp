@@ -211,9 +211,7 @@ doInflation(Application& app, int nbAccounts,
 
     // perform actual inflation
     {
-        LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
-        REQUIRE(applyCheck(txFrame, delta, app));
-        delta.commit();
+        REQUIRE(applyCheck(txFrame, app));
     }
 
     // verify ledger state

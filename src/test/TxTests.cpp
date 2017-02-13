@@ -40,11 +40,14 @@ namespace txtest
 {
 
 bool
-applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+applyCheck(TransactionFramePtr tx, Application& app)
 {
     // TODO: maybe we should just close ledger with tx instead of checking all
     // of
     // that manually?
+
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
 
     bool check = tx->checkValid(app, 0);
     TransactionResult checkResult = tx->getResult();
@@ -107,14 +110,15 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     // validates db state
     app.getLedgerManager().checkDbState();
     delta.checkAgainstDatabase(app);
+    delta.commit();
 
     return res;
 }
 
 bool
-throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+throwingApplyCheck(TransactionFramePtr tx, Application& app)
 {
-    auto r = applyCheck(tx, delta, app);
+    auto r = applyCheck(tx, app);
     switch (tx->getResultCode())
     {
     case txNO_ACCOUNT:
@@ -389,9 +393,7 @@ applyAllowTrust(Application& app, SecretKey const& from,
     txFrame = createAllowTrust(app.getNetworkID(), from, trustor, seq,
                                assetCode, authorize);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
 
@@ -443,9 +445,7 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
 
     txFrame = createCreateAccountTx(app.getNetworkID(), from, to, seq, amount);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
@@ -523,9 +523,7 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     txFrame = createPaymentTx(app.getNetworkID(), from, to, seq, amount);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
@@ -588,9 +586,7 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
     txFrame =
         createChangeTrust(app.getNetworkID(), from, to, seq, assetCode, limit);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
 
@@ -649,9 +645,7 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
     txFrame =
         createCreditPaymentTx(app.getNetworkID(), from, to, ci, seq, amount);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
 
@@ -717,9 +711,7 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
     txFrame = createPathPaymentTx(app.getNetworkID(), from, to, sendCur,
                                   sendMax, destCur, destAmount, seq, path);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
 
@@ -806,9 +798,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
                        Asset const& buying, Price const& price, int64_t amount,
                        SequenceNumber seq)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto lastGeneratedID =
+        app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
     if (offerId != 0)
     {
@@ -822,16 +813,16 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     try
     {
-        throwingApplyCheck(txFrame, delta, app);
+        throwingApplyCheck(txFrame, app);
     }
     catch (...)
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                lastGeneratedID);
         throw;
     }
 
     checkTransaction(*txFrame);
-    delta.commit();
 
     auto& results = txFrame->getResult().result.results();
 
@@ -857,6 +848,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
             REQUIRE(offerEntry.price == price);
             REQUIRE(offerEntry.selling == selling);
             REQUIRE(offerEntry.buying == buying);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                    expectedOfferID);
         }
         break;
         case MANAGE_OFFER_DELETED:
@@ -869,7 +862,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     }
     else
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                lastGeneratedID);
     }
 
     return manageOfferResult;
@@ -930,9 +924,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto lastGeneratedID =
+        app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
     TransactionFramePtr txFrame;
@@ -941,16 +934,16 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     try
     {
-        throwingApplyCheck(txFrame, delta, app);
+        throwingApplyCheck(txFrame, app);
     }
     catch (...)
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                lastGeneratedID);
         throw;
     }
 
     checkTransaction(*txFrame);
-    delta.commit();
 
     auto& results = txFrame->getResult().result.results();
 
@@ -977,6 +970,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
             REQUIRE(offerEntry.selling == selling);
             REQUIRE(offerEntry.buying == buying);
             REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                    expectedOfferID);
         }
         break;
         case MANAGE_OFFER_DELETED:
@@ -990,7 +985,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     if (createPassiveOfferResult.code() != MANAGE_OFFER_SUCCESS)
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
+                lastGeneratedID);
     }
 
     switch (createPassiveOfferResult.code())
@@ -1103,9 +1099,7 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
     txFrame = createSetOptions(app.getNetworkID(), source, seq, inflationDest,
                                setFlags, clearFlags, thrs, signer, homeDomain);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
     auto result = SetOptionsOpFrame::getInnerCode(
@@ -1155,17 +1149,11 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
     TransactionFramePtr txFrame =
         createInflation(app.getNetworkID(), from, seq);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    bool res = applyCheck(txFrame, delta, app);
+    applyCheck(txFrame, app);
 
     checkTransaction(*txFrame);
     REQUIRE(InflationOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) == result);
-    if (res)
-    {
-        delta.commit();
-    }
     return getFirstResult(*txFrame);
 }
 
@@ -1187,9 +1175,7 @@ applyAccountMerge(Application& app, SecretKey const& source,
     TransactionFramePtr txFrame =
         createAccountMerge(app.getNetworkID(), source, dest, seq);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     auto result =
         MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
@@ -1230,9 +1216,7 @@ applyManageData(Application& app, SecretKey const& source,
     TransactionFramePtr txFrame =
         createManageData(app.getNetworkID(), source, name, value, seq);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, app);
 
     auto result = ManageDataOpFrame::getInnerCode(
         txFrame->getResult().result.results()[0]);

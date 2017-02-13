@@ -147,9 +147,6 @@ TEST_CASE("payment", "[tx][payment]")
     REQUIRE(rootAccount->getBalance() == (1000000000000000000 - paymentAmount -
                                           gatewayPayment * 2 - txfee * 3));
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-
     SECTION("Create account")
     {
         SECTION("Success")
@@ -219,7 +216,7 @@ TEST_CASE("payment", "[tx][payment]")
         // verify that the account can't do anything
         auto tx = createPaymentTx(app.getNetworkID(), b1, root,
                                   b1.nextSequenceNumber(), 1);
-        REQUIRE(!applyCheck(tx, delta, app));
+        REQUIRE(!applyCheck(tx, app));
         REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
         // top up the account to unblock it
