@@ -703,10 +703,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // first, charge fees
     processFeesSeqNums(txs, ledgerDelta);
 
-    TransactionResultSet txResultSet;
-    txResultSet.results.reserve(txs.size());
-
-    applyTransactions(txs, ledgerDelta, txResultSet);
+    auto txResultSet = applyTransactions(txs, ledgerDelta);
 
     ledgerDelta.getHeader().txSetResultHash =
         sha256(xdr::xdr_to_opaque(txResultSet));
@@ -900,11 +897,13 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
     }
 }
 
-void
+TransactionResultSet
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
-                                     LedgerDelta& ledgerDelta,
-                                     TransactionResultSet& txResultSet)
+                                     LedgerDelta& ledgerDelta)
 {
+    auto txResultSet = TransactionResultSet{};
+    txResultSet.results.reserve(txs.size());
+
     CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
                       << mCurrentLedger->mHeader.ledgerSeq;
     int index = 0;
@@ -943,6 +942,8 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         }
         tx->storeTransaction(*this, tm, ++index, txResultSet);
     }
+
+    return txResultSet;
 }
 
 void

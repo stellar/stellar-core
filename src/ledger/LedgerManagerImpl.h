@@ -57,9 +57,9 @@ class LedgerManagerImpl : public LedgerManager
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
                             LedgerDelta& delta);
-    void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           LedgerDelta& ledgerDelta,
-                           TransactionResultSet& txResultSet);
+    TransactionResultSet
+    applyTransactions(std::vector<TransactionFramePtr>& txs,
+                      LedgerDelta& ledgerDelta);
 
     void closeLedgerHelper(LedgerDelta const& delta);
     void advanceLedgerPointers();
