@@ -321,7 +321,7 @@ HistoryTests::generateRandomLedger()
 
     StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
-    lm.closeLedger(mLedgerCloseDatas.back(), checkAgainstDatabase);
+    lm.closeLedger(mLedgerCloseDatas.back(), app.getLedgerDeltaChecks());
 
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);

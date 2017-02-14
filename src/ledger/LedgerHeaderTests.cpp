@@ -39,7 +39,8 @@ TEST_CASE("ledgerheader", "[ledger]")
         // close this ledger
         StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-        app->getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
+        app->getLedgerManager().closeLedger(ledgerData,
+                                            app->getLedgerDeltaChecks());
 
         saved = app->getLedgerManager().getLastClosedLedgerHeader().hash;
     }
@@ -81,7 +82,7 @@ TEST_CASE("ledgerheader", "[ledger]")
 
             LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
             app->getLedgerManager().closeLedger(ledgerData,
-                                                checkAgainstDatabase);
+                                                app->getLedgerDeltaChecks());
 
             auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -99,7 +100,7 @@ TEST_CASE("ledgerheader", "[ledger]")
 
             LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
             app->getLedgerManager().closeLedger(ledgerData,
-                                                checkAgainstDatabase);
+                                                app->getLedgerDeltaChecks());
 
             auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
 

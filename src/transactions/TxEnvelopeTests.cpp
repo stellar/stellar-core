@@ -780,7 +780,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         // close this ledger
         StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(1, txSet, sv);
-        app.getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
+        app.getLedgerManager().closeLedger(ledgerData,
+                                           app.getLedgerDeltaChecks());
 
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 

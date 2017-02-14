@@ -419,10 +419,6 @@ LedgerDelta::markMeters(Application& app) const
 void
 LedgerDelta::checkAgainstDatabase(Application const& app) const
 {
-    if (!app.getConfig().PARANOID_MODE)
-    {
-        return;
-    }
     auto& db = app.getDatabase();
     auto live = getLiveEntries();
     for (auto const& l : live)

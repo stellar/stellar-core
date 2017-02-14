@@ -362,7 +362,7 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                 {
                     setState(LM_SYNCED_STATE);
                 }
-                closeLedger(ledgerData, checkAgainstDatabase);
+                closeLedger(ledgerData, mApp.getLedgerDeltaChecks());
                 CLOG(INFO, "Ledger") << "Closed ledger: "
                                      << ledgerAbbrev(mLastClosedLedger);
             }
@@ -579,7 +579,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << ", prev=" << hexAbbrev(lcd.mTxSet->previousLedgerHash())
                     << ", tx_count=" << lcd.mTxSet->size()
                     << ", sv: " << stellarValueToString(lcd.mValue) << "]";
-                closeLedger(lcd, checkAgainstDatabase);
+                closeLedger(lcd, mApp.getLedgerDeltaChecks());
             }
             else
             {
@@ -655,10 +655,8 @@ during replays.
 
 */
 void
-LedgerManagerImpl::closeLedger(
-    LedgerCloseData const& ledgerData,
-    std::function<void(LedgerDelta const& delta, Application const& app)> const&
-        additionalChecks)
+LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData,
+                               CheckLedgerDelta const& additionalChecks)
 {
     DBTimeExcluder qtExclude(mApp);
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
@@ -749,7 +747,7 @@ LedgerManagerImpl::closeLedger(
 
     if (additionalChecks)
     {
-        additionalChecks(ledgerDelta, mApp);
+        additionalChecks(ledgerDelta);
     }
 
     ledgerDelta.commit();

@@ -23,6 +23,7 @@ namespace stellar
 class VirtualClock;
 class Config;
 class TmpDirManager;
+class LedgerDelta;
 class LedgerManager;
 class BucketManager;
 class HistoryManager;
@@ -36,6 +37,8 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+
+using CheckLedgerDelta = std::function<void(LedgerDelta const&)>;
 
 /*
  * State of a single instance of the stellar-core application.
@@ -246,6 +249,8 @@ class Application
     virtual Hash const& getNetworkID() const = 0;
 
     virtual void newDB() = 0;
+
+    virtual CheckLedgerDelta getLedgerDeltaChecks() const = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.

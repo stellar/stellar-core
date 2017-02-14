@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -198,6 +199,19 @@ Hash const&
 ApplicationImpl::getNetworkID() const
 {
     return mNetworkID;
+}
+
+CheckLedgerDelta
+ApplicationImpl::getLedgerDeltaChecks() const
+{
+    if (!getConfig().PARANOID_MODE)
+    {
+        return {};
+    }
+
+    return [this](LedgerDelta const& ledgerDelta) {
+        ledgerDelta.checkAgainstDatabase(*this);
+    };
 }
 
 ApplicationImpl::~ApplicationImpl()

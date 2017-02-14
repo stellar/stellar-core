@@ -1057,7 +1057,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     }
 
     LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
-    lm.closeLedger(closeData, checkAgainstDatabase);
+    lm.closeLedger(closeData, mApp.getLedgerDeltaChecks());
 
     CLOG(DEBUG, "History") << "LedgerManager LCL:\n"
                            << xdr::xdr_to_string(

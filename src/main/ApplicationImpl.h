@@ -96,6 +96,8 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
+    virtual CheckLedgerDelta getLedgerDeltaChecks() const override;
+
   protected:
     std::unique_ptr<LedgerManager>
         mLedgerManager;              // allow to change that for tests

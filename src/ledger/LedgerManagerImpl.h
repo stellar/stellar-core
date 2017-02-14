@@ -100,9 +100,7 @@ class LedgerManagerImpl : public LedgerManager
     HistoryManager::VerifyHashStatus
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
     void closeLedger(LedgerCloseData const& ledgerData,
-                     std::function<void(LedgerDelta const& delta,
-                                        Application const& app)> const&
-                         additionalChecks) override;
+                     CheckLedgerDelta const& additionalChecks) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq) override;
     void checkDbState() override;
 };

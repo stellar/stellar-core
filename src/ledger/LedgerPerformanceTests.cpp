@@ -142,7 +142,8 @@ class LedgerPerformanceTests : public Simulation
         LedgerCloseData ledgerData(mApp->getLedgerManager().getLedgerNum(),
                                    txSet, sv);
 
-        mApp->getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
+        mApp->getLedgerManager().closeLedger(ledgerData,
+                                             mApp->getLedgerDeltaChecks());
     }
 };
 }
