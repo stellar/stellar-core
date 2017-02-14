@@ -245,7 +245,7 @@ TEST_CASE("payment", "[tx][payment]")
         txSet->sortForHash();
         REQUIRE(txSet->checkValid(app));
         int64 rootBalance = getAccountBalance(root, app);
-        auto r = closeLedgerOn(app, 2, getTestDate(1, 1, 2015), txSet);
+        auto r = closeLedgerOn(app, getTestDate(1, 1, 2015), txSet);
         checkTx(0, r, txSUCCESS);
         checkTx(1, r, txINSUFFICIENT_BALANCE);
 

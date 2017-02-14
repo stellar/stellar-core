@@ -158,7 +158,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(txSet->checkValid(app));
             int64 a1Balance = getAccountBalance(a1, app);
             int64 b1Balance = getAccountBalance(b1, app);
-            auto r = closeLedgerOn(app, 2, getTestDate(1, 1, 2015), txSet);
+            auto r = closeLedgerOn(app, getTestDate(1, 1, 2015), txSet);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txNO_ACCOUNT);
 

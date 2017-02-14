@@ -284,19 +284,19 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     SECTION("not time")
     {
-        closeLedgerOn(app, 2, getTestDate(30, 6, 2014));
+        closeLedgerOn(app, getTestDate(30, 6, 2014));
         applyInflation(app, root, root.nextSequenceNumber(),
                        INFLATION_NOT_TIME);
 
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 0);
 
-        closeLedgerOn(app, 3, getTestDate(1, 7, 2014));
+        closeLedgerOn(app, getTestDate(1, 7, 2014));
 
         auto txFrame = createInflation(app.getNetworkID(), root,
                                        root.nextSequenceNumber());
 
-        closeLedgerOn(app, 4, getTestDate(7, 7, 2014), txFrame);
+        closeLedgerOn(app, getTestDate(7, 7, 2014), txFrame);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
@@ -305,23 +305,23 @@ TEST_CASE("inflation", "[tx][inflation]")
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
-        closeLedgerOn(app, 5, getTestDate(8, 7, 2014));
+        closeLedgerOn(app, getTestDate(8, 7, 2014));
         applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
-        closeLedgerOn(app, 6, getTestDate(14, 7, 2014));
+        closeLedgerOn(app, getTestDate(14, 7, 2014));
         applyInflation(app, root, root.nextSequenceNumber(),
                        INFLATION_NOT_TIME);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
-        closeLedgerOn(app, 7, getTestDate(15, 7, 2014));
+        closeLedgerOn(app, getTestDate(15, 7, 2014));
         applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 3);
 
-        closeLedgerOn(app, 8, getTestDate(21, 7, 2014));
+        closeLedgerOn(app, getTestDate(21, 7, 2014));
         applyInflation(app, root, root.nextSequenceNumber(),
                        INFLATION_NOT_TIME);
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
@@ -345,7 +345,7 @@ TEST_CASE("inflation", "[tx][inflation]")
             if (nbAccounts != 0)
             {
                 createTestAccounts(app, nbAccounts, balanceFunc, voteFunc);
-                closeLedgerOn(app, 2, getTestDate(21, 7, 2014));
+                closeLedgerOn(app, getTestDate(21, 7, 2014));
 
                 doInflation(app, nbAccounts, balanceFunc, voteFunc,
                             expectedWinners);
