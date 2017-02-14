@@ -41,8 +41,16 @@ void checkAccount(AccountID const& id, Application& app);
 TxSetResultMeta closeLedgerOn(Application& app, uint64 closeTime,
                               TransactionFramePtr tx = nullptr);
 
+TxSetResultMeta closeLedgerOn(Application& app,
+                              CheckLedgerDelta const& ledgerDeltaChecks,
+                              uint64 closeTime, TransactionFramePtr tx);
+
 TxSetResultMeta closeLedgerOn(Application& app, uint64 closeTime,
                               TxSetFramePtr txSet);
+
+TxSetResultMeta closeLedgerOn(Application& app,
+                              CheckLedgerDelta const& ledgerDeltaChecks,
+                              uint64 closeTime, TxSetFramePtr txSet);
 
 SecretKey getRoot(Hash const& networkID);
 

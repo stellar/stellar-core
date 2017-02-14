@@ -39,59 +39,21 @@ using xdr::operator==;
 namespace txtest
 {
 
-bool
-applyCheck(TransactionFramePtr tx, Application& app)
+void
+applyNoAccountTx(TransactionFramePtr tx, Application& app)
 {
-    // TODO: maybe we should just close ledger with tx instead of checking all
-    // of
-    // that manually?
+    auto checkResult = tx->getResult();
+    LedgerDelta delta{app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase()};
+    auto result = tx->apply(delta, app);
+    REQUIRE(!result);
+    REQUIRE(checkResult == tx->getResult());
+    REQUIRE(delta.getChanges().empty());
+}
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-
-    bool check = tx->checkValid(app, 0);
-    TransactionResult checkResult = tx->getResult();
-
-    REQUIRE((!check || checkResult.result.code() == txSUCCESS));
-
-    bool doApply;
-    // valid transaction sets ensure that
-    {
-        auto code = checkResult.result.code();
-        if (code != txNO_ACCOUNT && code != txBAD_SEQ)
-        {
-            tx->processFeeSeqNum(delta, app.getLedgerManager());
-        }
-        doApply = (code != txBAD_SEQ);
-    }
-
-    bool res = false;
-
-    if (doApply)
-    {
-        try
-        {
-            res = tx->apply(delta, app);
-        }
-        catch (...)
-        {
-            tx->getResult().result.code(txINTERNAL_ERROR);
-        }
-
-        REQUIRE((!res || tx->getResultCode() == txSUCCESS));
-
-        if (!check)
-        {
-            REQUIRE(checkResult == tx->getResult());
-        }
-    }
-    else
-    {
-        res = check;
-    }
-
-    // verify modified accounts invariants
-    auto const& changes = delta.getChanges();
+void
+checkDeltaChanges(LedgerEntryChanges const& changes, Application& app)
+{
     for (auto const& c : changes)
     {
         switch (c.type())
@@ -106,12 +68,50 @@ applyCheck(TransactionFramePtr tx, Application& app)
             break;
         }
     }
+}
 
-    // validates db state
+bool
+applyValidTx(TransactionFramePtr tx, Application& app)
+{
+    auto checkResult = tx->getResult();
+    auto ledgerDeltaChecks = [&app](LedgerDelta const& ledgerDelta) {
+        checkDeltaChanges(ledgerDelta.getChanges(), app);
+        ledgerDelta.checkAgainstDatabase(app.getDatabase());
+    };
+    auto results = closeLedgerOn(app, ledgerDeltaChecks,
+                                 app.getLedgerManager().getCloseTime(), tx);
+    if (checkResult.result.code() != txSUCCESS)
+    {
+        // same result from checkValid and apply in case of failure
+        REQUIRE(checkResult == results[0].first.result);
+    }
+
+    return tx->getResultCode() == txSUCCESS;
+}
+
+bool
+applyTx(TransactionFramePtr tx, Application& app)
+{
+    switch (tx->getResultCode())
+    {
+    case txNO_ACCOUNT:
+        applyNoAccountTx(tx, app);
+        return false;
+    case txBAD_SEQ:
+        return false;
+    default:
+        return applyValidTx(tx, app);
+    }
+}
+
+bool
+applyCheck(TransactionFramePtr tx, Application& app)
+{
+    auto check = tx->checkValid(app, 0);
+    auto checkResult = tx->getResult();
+    REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+    auto res = applyTx(tx, app);
     app.getLedgerManager().checkDbState();
-    delta.checkAgainstDatabase(app.getDatabase());
-    delta.commit();
-
     return res;
 }
 
@@ -180,6 +180,13 @@ checkAccount(AccountID const& id, Application& app)
 TxSetResultMeta
 closeLedgerOn(Application& app, uint64 closeTime, TransactionFramePtr tx)
 {
+    return closeLedgerOn(app, app.getLedgerDeltaChecks(), closeTime, tx);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, CheckLedgerDelta const& ledgerDeltaChecks,
+              uint64 closeTime, TransactionFramePtr tx)
+{
     TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 
@@ -189,16 +196,23 @@ closeLedgerOn(Application& app, uint64 closeTime, TransactionFramePtr tx)
         txSet->sortForHash();
     }
 
-    return closeLedgerOn(app, closeTime, txSet);
+    return closeLedgerOn(app, ledgerDeltaChecks, closeTime, txSet);
 }
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint64 closeTime, TxSetFramePtr txSet)
 {
+    return closeLedgerOn(app, app.getLedgerDeltaChecks(), closeTime, txSet);
+}
+
+TxSetResultMeta
+closeLedgerOn(Application& app, CheckLedgerDelta const& ledgerDeltaChecks,
+              uint64 closeTime, TxSetFramePtr txSet)
+{
     auto ledgerSeq = app.getLedgerManager().getLedgerNum();
     StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
-    app.getLedgerManager().closeLedger(ledgerData, app.getLedgerDeltaChecks());
+    app.getLedgerManager().closeLedger(ledgerData, ledgerDeltaChecks);
 
     auto z1 = TransactionFrame::getTransactionHistoryResults(app.getDatabase(),
                                                              ledgerSeq);
