@@ -109,7 +109,7 @@ applyCheck(TransactionFramePtr tx, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
-    delta.checkAgainstDatabase(app);
+    delta.checkAgainstDatabase(app.getDatabase());
     delta.commit();
 
     return res;

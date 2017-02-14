@@ -93,6 +93,6 @@ class LedgerDelta
     LedgerEntryChanges getChanges() const;
 
     // performs sanity checks against the local state
-    void checkAgainstDatabase(Application const& app) const;
+    void checkAgainstDatabase(Database& db) const;
 };
 }

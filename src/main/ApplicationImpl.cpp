@@ -210,7 +210,7 @@ ApplicationImpl::getLedgerDeltaChecks() const
     }
 
     return [this](LedgerDelta const& ledgerDelta) {
-        ledgerDelta.checkAgainstDatabase(*this);
+        ledgerDelta.checkAgainstDatabase(*mDatabase);
     };
 }
 

@@ -417,9 +417,8 @@ LedgerDelta::markMeters(Application& app) const
 }
 
 void
-LedgerDelta::checkAgainstDatabase(Application const& app) const
+LedgerDelta::checkAgainstDatabase(Database& db) const
 {
-    auto& db = app.getDatabase();
     auto live = getLiveEntries();
     for (auto const& l : live)
     {
