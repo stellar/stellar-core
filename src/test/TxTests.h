@@ -38,12 +38,12 @@ bool applyCheck(TransactionFramePtr tx, Application& app);
 void checkEntry(LedgerEntry const& le, Application& app);
 void checkAccount(AccountID const& id, Application& app);
 
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year,
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
+                              uint64 closeTime,
                               TransactionFramePtr tx = nullptr);
 
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year, TxSetFramePtr txSet);
+TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq,
+                              uint64 closeTime, TxSetFramePtr txSet);
 
 SecretKey getRoot(Hash const& networkID);
 

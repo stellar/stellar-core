@@ -825,7 +825,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame->getEnvelope().tx.timeBounds.activate() =
                     TimeBounds(start + 1000, start + 10000);
 
-                closeLedgerOn(app, 3, 1, 7, 2014);
+                closeLedgerOn(app, 3, getTestDate(1, 7, 2014));
                 applyCheck(txFrame, app);
 
                 REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
@@ -836,7 +836,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame->getEnvelope().tx.timeBounds.activate() =
                     TimeBounds(1000, start + 300000);
 
-                closeLedgerOn(app, 4, 2, 7, 2014);
+                closeLedgerOn(app, 4, getTestDate(2, 7, 2014));
                 applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
@@ -846,7 +846,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 txFrame->getEnvelope().tx.timeBounds.activate() =
                     TimeBounds(1000, start);
 
-                closeLedgerOn(app, 5, 3, 7, 2014);
+                closeLedgerOn(app, 5, getTestDate(3, 7, 2014));
                 applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txTOO_LATE);
             }
