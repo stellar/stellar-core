@@ -82,7 +82,7 @@ class OverlayManagerTests
             newDB();
         }
         virtual OverlayManagerStub&
-        getOverlayManager() override
+        getOverlayManager() const override
         {
             return *mOverlayManager;
         }
