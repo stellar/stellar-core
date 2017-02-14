@@ -4,6 +4,7 @@
 
 #include "util/asio.h"
 #include "herder/LedgerCloseData.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -38,7 +39,7 @@ TEST_CASE("ledgerheader", "[ledger]")
         // close this ledger
         StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-        app->getLedgerManager().closeLedger(ledgerData);
+        app->getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
 
         saved = app->getLedgerManager().getLastClosedLedgerHeader().hash;
     }
@@ -79,7 +80,8 @@ TEST_CASE("ledgerheader", "[ledger]")
             }
 
             LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-            app->getLedgerManager().closeLedger(ledgerData);
+            app->getLedgerManager().closeLedger(ledgerData,
+                                                checkAgainstDatabase);
 
             auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
 
@@ -96,7 +98,8 @@ TEST_CASE("ledgerheader", "[ledger]")
             }
 
             LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
-            app->getLedgerManager().closeLedger(ledgerData);
+            app->getLedgerManager().closeLedger(ledgerData,
+                                                checkAgainstDatabase);
 
             auto& newLCL = app->getLedgerManager().getLastClosedLedgerHeader();
 

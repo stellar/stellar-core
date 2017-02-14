@@ -417,7 +417,7 @@ LedgerDelta::markMeters(Application& app) const
 }
 
 void
-LedgerDelta::checkAgainstDatabase(Application& app) const
+LedgerDelta::checkAgainstDatabase(Application const& app) const
 {
     if (!app.getConfig().PARANOID_MODE)
     {

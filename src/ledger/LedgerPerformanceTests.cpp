@@ -5,6 +5,7 @@
 #include "bucket/BucketManager.h"
 #include "database/Database.h"
 #include "herder/LedgerCloseData.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -141,7 +142,7 @@ class LedgerPerformanceTests : public Simulation
         LedgerCloseData ledgerData(mApp->getLedgerManager().getLedgerNum(),
                                    txSet, sv);
 
-        mApp->getLedgerManager().closeLedger(ledgerData);
+        mApp->getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
     }
 };
 }

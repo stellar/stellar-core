@@ -10,9 +10,10 @@
 namespace stellar
 {
 
-class LedgerHeaderFrame;
-class LedgerCloseData;
 class Database;
+class LedgerCloseData;
+class LedgerDelta;
+class LedgerHeaderFrame;
 
 /**
  * LedgerManager maintains, in memory, a logical pair of ledgers:
@@ -165,7 +166,10 @@ class LedgerManager
     // changes.  This is normally done automatically as part of
     // `externalizeValue()`; this method is present in the public interface to
     // permit testing.
-    virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
+    virtual void closeLedger(LedgerCloseData const& ledgerData,
+                             std::function<void(LedgerDelta const& delta,
+                                                Application const& app)> const&
+                                 additionalChecks) = 0;
 
     // deletes old entries stored in the database
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq) = 0;

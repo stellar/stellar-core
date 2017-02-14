@@ -198,7 +198,7 @@ closeLedgerOn(Application& app, uint64 closeTime, TxSetFramePtr txSet)
     auto ledgerSeq = app.getLedgerManager().getLedgerNum();
     StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);
     LedgerCloseData ledgerData(ledgerSeq, txSet, sv);
-    app.getLedgerManager().closeLedger(ledgerData);
+    app.getLedgerManager().closeLedger(ledgerData, checkAgainstDatabase);
 
     auto z1 = TransactionFrame::getTransactionHistoryResults(app.getDatabase(),
                                                              ledgerSeq);

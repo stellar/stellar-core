@@ -12,6 +12,7 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
 #include "history/StateSnapshot.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Config.h"
@@ -1056,7 +1057,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     }
 
     LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
-    lm.closeLedger(closeData);
+    lm.closeLedger(closeData, checkAgainstDatabase);
 
     CLOG(DEBUG, "History") << "LedgerManager LCL:\n"
                            << xdr::xdr_to_string(

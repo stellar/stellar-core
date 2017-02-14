@@ -9,6 +9,7 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryWork.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -320,7 +321,7 @@ HistoryTests::generateRandomLedger()
 
     StellarValue sv(txSet->getContentsHash(), closeTime, emptyUpgradeSteps, 0);
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
-    lm.closeLedger(mLedgerCloseDatas.back());
+    lm.closeLedger(mLedgerCloseDatas.back(), checkAgainstDatabase);
 
     mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
