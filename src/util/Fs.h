@@ -73,5 +73,9 @@ std::string remoteDir(std::string const& type, std::string const& hexStr);
 // Construct the string <type>/hexdir(hexStr)/<type>-<hexstr>.<suffix>
 std::string remoteName(std::string const& type, std::string const& hexStr,
                        std::string const& suffix);
+
+void checkGzipSuffix(std::string const& filename);
+
+void checkNoGzipSuffix(std::string const& filename);
 }
 }
