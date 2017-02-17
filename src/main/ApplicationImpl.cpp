@@ -97,6 +97,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mLedgerManager = LedgerManager::create(*this);
     mHerder = Herder::create(*this);
     mBucketManager = BucketManager::create(*this);
+    mCatchupManager = CatchupManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariants = make_unique<Invariants>(enabledInvariants());
     mProcessManager = ProcessManager::create(*this);
@@ -559,6 +560,12 @@ BucketManager&
 ApplicationImpl::getBucketManager()
 {
     return *mBucketManager;
+}
+
+CatchupManager&
+ApplicationImpl::getCatchupManager()
+{
+    return *mCatchupManager;
 }
 
 HistoryManager&

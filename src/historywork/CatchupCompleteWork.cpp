@@ -121,9 +121,9 @@ CatchupCompleteWork::onSuccess()
     CLOG(INFO, "History") << "Completed catchup COMPLETE to state "
                           << LedgerManager::ledgerAbbrev(mLastApplied)
                           << " for nextLedger=" << nextLedger();
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
+    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE, mLastApplied);
 
     return WORK_SUCCESS;
 }
@@ -131,8 +131,8 @@ CatchupCompleteWork::onSuccess()
 void
 CatchupCompleteWork::onFailureRaise()
 {
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE, mLastVerified);
 }
 }

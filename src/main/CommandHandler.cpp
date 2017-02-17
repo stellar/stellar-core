@@ -490,7 +490,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         break;
     }
 
-    HistoryManager::CatchupMode mode = HistoryManager::CATCHUP_MINIMAL;
+    CatchupManager::CatchupMode mode = CatchupManager::CATCHUP_MINIMAL;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -517,15 +517,15 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     {
         if (modeP->second == std::string("complete"))
         {
-            mode = HistoryManager::CATCHUP_COMPLETE;
+            mode = CatchupManager::CATCHUP_COMPLETE;
         }
         else if (modeP->second == std::string("minimal"))
         {
-            mode = HistoryManager::CATCHUP_MINIMAL;
+            mode = CatchupManager::CATCHUP_MINIMAL;
         }
         else if (modeP->second == std::string("recent"))
         {
-            mode = HistoryManager::CATCHUP_RECENT;
+            mode = CatchupManager::CATCHUP_RECENT;
         }
         else
         {
@@ -537,9 +537,9 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     mApp.getLedgerManager().startCatchUp(ledger, mode, true);
     retStr = (std::string("Started catchup to ledger ") +
               std::to_string(ledger) + std::string(" in mode ") +
-              std::string(mode == HistoryManager::CATCHUP_COMPLETE
+              std::string(mode == CatchupManager::CATCHUP_COMPLETE
                               ? "CATCHUP_COMPLETE"
-                              : (mode == HistoryManager::CATCHUP_RECENT
+                              : (mode == CatchupManager::CATCHUP_RECENT
                                      ? "CATCHUP_RECENT"
                                      : "CATCHUP_MINIMAL")));
 }

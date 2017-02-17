@@ -25,6 +25,7 @@ class Config;
 class TmpDirManager;
 class LedgerManager;
 class BucketManager;
+class CatchupManager;
 class HistoryManager;
 class ProcessManager;
 class Herder;
@@ -180,6 +181,7 @@ class Application
     virtual TmpDirManager& getTmpDirManager() = 0;
     virtual LedgerManager& getLedgerManager() = 0;
     virtual BucketManager& getBucketManager() = 0;
+    virtual CatchupManager& getCatchupManager() = 0;
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessManager& getProcessManager() = 0;
     virtual Herder& getHerder() = 0;

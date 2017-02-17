@@ -7,6 +7,7 @@
 #include "historywork/CatchupMinimalWork.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -55,7 +56,7 @@ CatchupRecentWork::writeFirstVerified()
 {
     std::weak_ptr<CatchupRecentWork> weak =
         std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
-    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+    return [weak](asio::error_code const& ec, CatchupManager::CatchupMode mode,
                   LedgerHeaderHistoryEntry const& ledger) {
         auto self = weak.lock();
         if (!self)
@@ -71,7 +72,7 @@ CatchupRecentWork::writeLastApplied()
 {
     std::weak_ptr<CatchupRecentWork> weak =
         std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
-    return [weak](asio::error_code const& ec, HistoryManager::CatchupMode mode,
+    return [weak](asio::error_code const& ec, CatchupManager::CatchupMode mode,
                   LedgerHeaderHistoryEntry const& ledger) {
         auto self = weak.lock();
         if (!self)
@@ -104,7 +105,7 @@ CatchupRecentWork::onSuccess()
         // CATCHUP_MINIMAL LCL we just got through to the LM, and prepare
         // it for the upcoming CATCHUP_COMPLETE replay.
         asio::error_code ec;
-        mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
+        mEndHandler(ec, CatchupManager::CATCHUP_RECENT, mFirstVerified);
 
         CLOG(INFO, "History")
             << "CATCHUP_RECENT starting inner CATCHUP_COMPLETE";
@@ -130,17 +131,17 @@ CatchupRecentWork::onSuccess()
 
     CLOG(INFO, "History") << "CATCHUP_RECENT finished inner CATCHUP_COMPLETE";
     // The second callback we make is CATCHUP_COMPLETE
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
+    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE, mLastApplied);
     return WORK_SUCCESS;
 }
 
 void
 CatchupRecentWork::onFailureRaise()
 {
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, HistoryManager::CATCHUP_RECENT, mFirstVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_RECENT, mFirstVerified);
 }
 }

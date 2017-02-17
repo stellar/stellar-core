@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "history/HistoryManager.h"
+#include "history/CatchupManager.h"
 #include "historywork/CatchupWork.h"
 
 namespace stellar
@@ -14,7 +14,7 @@ class CatchupCompleteWork : public CatchupWork
 {
 
     typedef std::function<void(asio::error_code const& ec,
-                               HistoryManager::CatchupMode mode,
+                               CatchupManager::CatchupMode mode,
                                LedgerHeaderHistoryEntry const& lastClosed)>
         handler;
 
