@@ -35,6 +35,12 @@ class CatchupManager
     // CATCHUP_RECENT is a hybrid mode that does a CATCHUP_MINIMAL to a point
     // in the recent past, then runs CATCHUP_COMPLETE from there forward to
     // the present.
+    //
+    // CATCHUP_COMPLETE_IMMEDIATE is a version of CATCHUP_COMPLETE that does not
+    // wait for next ledger checkpoint - it uses last checkpoint available in
+    // history. It is not usable in normal mode of stellar-core, but can be used
+    // to download and apply history without joining to SCP. It can be called by
+    // executing `stellar-core --catchup-complete`.
     enum CatchupMode
     {
         CATCHUP_COMPLETE,
