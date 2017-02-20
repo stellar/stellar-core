@@ -10,6 +10,8 @@
 namespace stellar
 {
 
+class CatchupTransactionsWork;
+
 class CatchupCompleteImmediateWork : public CatchupWork
 {
 
@@ -18,13 +20,7 @@ class CatchupCompleteImmediateWork : public CatchupWork
                                LedgerHeaderHistoryEntry const& lastClosed)>
         handler;
 
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<Work> mVerifyWork;
-    std::shared_ptr<Work> mApplyWork;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
+    std::shared_ptr<CatchupTransactionsWork> mCatchupTransactionsWork;
     handler mEndHandler;
     virtual uint32_t archiveStateSeq() const override;
     virtual uint32_t firstCheckpointSeq() const override;
