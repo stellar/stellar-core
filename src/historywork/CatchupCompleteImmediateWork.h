@@ -22,6 +22,9 @@ class CatchupCompleteImmediateWork : public CatchupWork
     std::shared_ptr<Work> mDownloadTransactionsWork;
     std::shared_ptr<Work> mVerifyWork;
     std::shared_ptr<Work> mApplyWork;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastVerified;
+    LedgerHeaderHistoryEntry mLastApplied;
     handler mEndHandler;
     virtual uint32_t archiveStateSeq() const override;
     virtual uint32_t firstCheckpointSeq() const override;

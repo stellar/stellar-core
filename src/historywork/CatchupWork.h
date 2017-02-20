@@ -13,9 +13,6 @@ class CatchupWork : public BucketDownloadWork
 {
   protected:
     HistoryArchiveState mRemoteState;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
     uint32_t const mInitLedger;
     bool const mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;

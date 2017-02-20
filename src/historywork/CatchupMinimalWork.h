@@ -23,6 +23,9 @@ class CatchupMinimalWork : public CatchupWork
     std::shared_ptr<Work> mVerifyLedgersWork;
     std::shared_ptr<Work> mDownloadBucketsWork;
     std::shared_ptr<Work> mApplyWork;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastVerified;
+    LedgerHeaderHistoryEntry mLastApplied;
     handler mEndHandler;
     virtual uint32_t firstCheckpointSeq() const override;
 
