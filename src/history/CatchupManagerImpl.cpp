@@ -7,6 +7,7 @@
 // else.
 #include "util/asio.h"
 #include "history/CatchupManagerImpl.h"
+#include "historywork/CatchupCompleteImmediateWork.h"
 #include "historywork/CatchupCompleteWork.h"
 #include "historywork/CatchupMinimalWork.h"
 #include "historywork/CatchupRecentWork.h"
@@ -86,12 +87,22 @@ CatchupManagerImpl::catchupHistory(
         mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
             initLedger, manualCatchup, handler);
     }
-    else
+    else if (mode == CATCHUP_COMPLETE)
     {
-        assert(mode == CATCHUP_COMPLETE);
         CLOG(INFO, "History") << "Starting CatchupCompleteWork";
         mCatchupWork = mApp.getWorkManager().addWork<CatchupCompleteWork>(
             initLedger, manualCatchup, handler);
+    }
+    else if (mode == CATCHUP_COMPLETE_IMMEDIATE)
+    {
+        CLOG(INFO, "History") << "Starting CatchupCompleteImmediateWork";
+        mCatchupWork =
+            mApp.getWorkManager().addWork<CatchupCompleteImmediateWork>(
+                initLedger, manualCatchup, handler);
+    }
+    else
+    {
+        assert(false);
     }
     mApp.getWorkManager().advanceChildren();
 }

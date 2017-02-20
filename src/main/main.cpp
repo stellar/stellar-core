@@ -8,7 +8,9 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
+#include "ledger/LedgerManager.h"
 #include "lib/http/HttpClient.h"
 #include "lib/util/getopt.h"
 #include "main/Application.h"
@@ -33,6 +35,7 @@ using namespace std;
 
 enum opttag
 {
+    OPT_CATCHUP_COMPLETE,
     OPT_CMD,
     OPT_CONF,
     OPT_CONVERTID,
@@ -61,6 +64,7 @@ enum opttag
 };
 
 static const struct option stellar_core_options[] = {
+    {"catchup-complete", no_argument, nullptr, OPT_CATCHUP_COMPLETE},
     {"c", required_argument, nullptr, OPT_CMD},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
@@ -95,45 +99,51 @@ usage(int err = 1)
     os << "usage: stellar-core [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
           "      --base64        Use base64 for --printtxn and --signtxn\n"
-          "      --c             Send a command to local stellar-core. try "
+          "      --catchup-complete Do a complete catchup, then quit\n"
+          "      --c                Send a command to local stellar-core. try "
           "'--c help' for more information\n"
-          "      --conf FILE     Specify a config file ('-' for STDIN, "
+          "      --conf FILE        Specify a config file ('-' for STDIN, "
           "default 'stellar-core.cfg')\n"
-          "      --convertid ID  Displays ID in all known forms\n"
-          "      --dumpxdr FILE  Dump an XDR file, for debugging\n"
-          "      --loadxdr FILE  Load an XDR bucket file, for testing\n"
-          "      --forcescp      Next time stellar-core is run, SCP will start "
+          "      --convertid ID     Displays ID in all known forms\n"
+          "      --dumpxdr FILE     Dump an XDR file, for debugging\n"
+          "      --loadxdr FILE     Load an XDR bucket file, for testing\n"
+          "      --forcescp         Next time stellar-core is run, SCP will "
+          "start "
           "with the local ledger rather than waiting to hear from the "
           "network.\n"
-          "      --fuzz FILE     Run a single fuzz input and exit\n"
-          "      --genfuzz FILE  Generate a random fuzzer input file\n"
-          "      --genseed       Generate and print a random node seed\n"
-          "      --help          Display this string\n"
-          "      --inferquorum   Print a quorum set inferred from history\n"
-          "      --checkquorum   Check quorum intersection from history\n"
-          "      --graphquorum   Print a quorum set graph from history\n"
-          "      --offlineinfo   Return information for an offline instance\n"
-          "      --ll LEVEL      Set the log level. (redundant with --c ll but "
+          "      --fuzz FILE        Run a single fuzz input and exit\n"
+          "      --genfuzz FILE     Generate a random fuzzer input file\n"
+          "      --genseed          Generate and print a random node seed\n"
+          "      --help             Display this string\n"
+          "      --inferquorum      Print a quorum set inferred from history\n"
+          "      --checkquorum      Check quorum intersection from history\n"
+          "      --graphquorum      Print a quorum set graph from history\n"
+          "      --offlineinfo      Return information for an offline "
+          "instance\n"
+          "      --ll LEVEL         Set the log level. (redundant with --c ll "
+          "but "
           "you need this form for the tests.)\n"
-          "                      LEVEL can be: trace, debug, info, error, "
+          "                         LEVEL can be: trace, debug, info, error, "
           "fatal\n"
-          "      --metric METRIC Report metric METRIC on exit\n"
-          "      --newdb         Creates or restores the DB to the genesis "
+          "      --metric METRIC    Report metric METRIC on exit\n"
+          "      --newdb            Creates or restores the DB to the genesis "
           "ledger\n"
-          "      --newhist ARCH  Initialize the named history archive ARCH\n"
-          "      --printtxn FILE Pretty-print one transaction envelope,"
+          "      --newhist ARCH     Initialize the named history archive ARCH\n"
+          "      --printtxn FILE    Pretty-print one transaction envelope,"
           " then quit\n"
-          "      --signtxn FILE  Add signature to transaction envelope,"
+          "      --signtxn FILE     Add signature to transaction envelope,"
           " then quit\n"
-          "                      (Key is read from stdin or terminal, as"
+          "                         (Key is read from stdin or terminal, as"
           " appropriate.)\n"
-          "      --sec2pub       Print the public key corresponding to a "
+          "      --sec2pub          Print the public key corresponding to a "
           "secret key\n"
-          "      --netid STRING  Specify network ID for subsequent signtxn\n"
-          "                      (Default is STELLAR_NETWORK_ID environment"
+          "      --netid STRING     Specify network ID for subsequent signtxn\n"
+          "                         (Default is STELLAR_NETWORK_ID environment"
+          "      --netid STRING     Specify network ID for subsequent signtxn\n"
+          "                         (Default is STELLAR_NETWORK_ID environment"
           "variable)\n"
-          "      --test          Run self-tests\n"
-          "      --version       Print version information\n";
+          "      --test             Run self-tests\n"
+          "      --version          Print version information\n";
     exit(err);
 }
 
@@ -210,6 +220,55 @@ checkInitialized(Application::pointer app)
         return false;
     }
     return true;
+}
+
+static void
+catchup(Config const& cfg)
+{
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    if (checkInitialized(app))
+    {
+        app->applyCfgCommands();
+        auto done = false;
+        app->getLedgerManager().loadLastKnownLedger(
+            [&done](asio::error_code const& ec) {
+                if (ec)
+                {
+                    throw std::runtime_error(
+                        "Unable to restore last-known ledger state");
+                }
+
+                done = true;
+            });
+        while (!done)
+        {
+            clock.crank(true);
+        }
+        app->getCatchupManager().catchupHistory(
+            0, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
+            [&app](asio::error_code const& ec, CatchupManager::CatchupMode,
+                   LedgerHeaderHistoryEntry const&) {
+                if (ec)
+                {
+                    throw std::runtime_error(
+                        "Unable to perform complete catchup");
+                }
+                LOG(INFO) << "*";
+                LOG(INFO) << "* Catchup complete finished.";
+                LOG(INFO) << "*";
+                app->gracefulStop();
+            },
+            true);
+
+        auto& io = clock.getIOService();
+        asio::io_service::work mainWork(io);
+        while (!io.stopped())
+        {
+            clock.crank();
+        }
+    }
 }
 
 static void
@@ -401,6 +460,7 @@ main(int argc, char* const* argv)
 
     optional<bool> forceSCP = nullptr;
     bool base64 = false;
+    bool catchupComplete = false;
     bool inferQuorum = false;
     bool checkQuorum = false;
     bool graphQuorum = false;
@@ -418,6 +478,9 @@ main(int argc, char* const* argv)
         {
         case OPT_BASE64:
             base64 = true;
+            break;
+        case OPT_CATCHUP_COMPLETE:
+            catchupComplete = true;
             break;
         case 'c':
         case OPT_CMD:
@@ -540,11 +603,13 @@ main(int argc, char* const* argv)
         cfg.REPORT_METRICS = metrics;
 
         if (forceSCP || newDB || getOfflineInfo || !loadXdrBucket.empty() ||
-            inferQuorum || graphQuorum || checkQuorum)
+            inferQuorum || graphQuorum || checkQuorum || catchupComplete)
         {
             setNoListen(cfg);
             if (newDB)
                 initializeDatabase(cfg);
+            if (catchupComplete)
+                catchup(cfg);
             if (forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
             if (getOfflineInfo)

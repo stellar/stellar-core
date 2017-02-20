@@ -31,6 +31,12 @@ CatchupWork::nextLedger() const
 }
 
 uint32_t
+CatchupWork::archiveStateSeq() const
+{
+    return firstCheckpointSeq();
+}
+
+uint32_t
 CatchupWork::lastCheckpointSeq() const
 {
     return nextLedger() - 1;
@@ -45,6 +51,6 @@ CatchupWork::onReset()
                        : mApp.getHistoryManager().nextCheckpointCatchupProbe(
                              lastCheckpointSeq());
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        mRemoteState, firstCheckpointSeq(), std::chrono::seconds(sleepSeconds));
+        mRemoteState, archiveStateSeq(), std::chrono::seconds(sleepSeconds));
 }
 }

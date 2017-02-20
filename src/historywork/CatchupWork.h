@@ -21,8 +21,9 @@ class CatchupWork : public BucketDownloadWork
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
 
     uint32_t nextLedger() const;
+    virtual uint32_t archiveStateSeq() const;
     virtual uint32_t firstCheckpointSeq() const = 0;
-    uint32_t lastCheckpointSeq() const;
+    virtual uint32_t lastCheckpointSeq() const;
 
   public:
     CatchupWork(Application& app, WorkParent& parent, uint32_t initLedger,

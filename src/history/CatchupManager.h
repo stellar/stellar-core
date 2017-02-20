@@ -38,6 +38,7 @@ class CatchupManager
     enum CatchupMode
     {
         CATCHUP_COMPLETE,
+        CATCHUP_COMPLETE_IMMEDIATE,
         CATCHUP_MINIMAL,
         CATCHUP_RECENT
     };
