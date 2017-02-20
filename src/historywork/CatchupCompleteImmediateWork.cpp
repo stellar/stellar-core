@@ -78,12 +78,36 @@ CatchupCompleteImmediateWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
+    auto firstSeq = firstCheckpointSeq();
+    auto lastSeq = lastCheckpointSeq();
+
+    // current ledger can be larger than next checkpoint if stellar-core is
+    // synced
+    // (or was recently synced) and got a few new ledgers by normal consensus
+    // protocol
+    // as COMPLETE_IMMEDIATE catchup does not wait for next checkpoint, the
+    // lastSeq
+    // may be smaller that currently known ledger
+    if (firstSeq > lastSeq)
+    {
+        CLOG(INFO, "History")
+            << "Last known ledger is later than current checkpoint: "
+            << mLocalState.currentLedger << " > " << lastSeq;
+        CLOG(INFO, "History") << "Wait until next checkpoint before retrying";
+        CLOG(ERROR, "History") << "Nothing to catchup to in COMPLETE_IMMEDIATE";
+
+        mApp.getCatchupManager().historyCaughtup();
+        asio::error_code ec = std::make_error_code(std::errc::invalid_argument);
+        mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
+                    LedgerHeaderHistoryEntry{});
+    }
+
     // Phase 2: do the catchup.
     if (!mCatchupTransactionsWork)
     {
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
-            *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
-            mManualCatchup, "COMPLETE_IMMEDIATE", "complete-immediate",
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup,
+            "COMPLETE_IMMEDIATE", "complete-immediate",
             0); // never retry
         return WORK_PENDING;
     }
