@@ -8,7 +8,6 @@
 #include "historywork/ApplyLedgerChainWork.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/VerifyLedgerChainWork.h"
-#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 
@@ -107,10 +106,6 @@ CatchupTransactionsWork::onSuccess()
                                                    mLastSeq, mLastApplied);
         return WORK_PENDING;
     }
-
-    CLOG(INFO, "History") << "Completed catchup " << mCatchupTypeName
-                          << " to state "
-                          << LedgerManager::ledgerAbbrev(mLastApplied);
 
     return WORK_SUCCESS;
 }

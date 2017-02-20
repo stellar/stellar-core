@@ -5,6 +5,7 @@
 #include "historywork/CatchupCompleteImmediateWork.h"
 #include "history/HistoryManager.h"
 #include "historywork/CatchupTransactionsWork.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 
@@ -87,6 +88,9 @@ CatchupCompleteImmediateWork::onSuccess()
         return WORK_PENDING;
     }
 
+    CLOG(INFO, "History") << "Completed catchup COMPLETE_IMMEDIATE to state "
+                          << LedgerManager::ledgerAbbrev(
+                                 mCatchupTransactionsWork->getLastApplied());
     mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
