@@ -46,9 +46,32 @@ static const int SHUTDOWN_DELAY_SECONDS = 1;
 namespace stellar
 {
 
+namespace
+{
+
+Application::NetworkType
+computeNetworkType(Config const& cfg)
+{
+    if (cfg.NETWORK_PASSPHRASE ==
+        std::string{"Public Global Stellar Network ; September 2015"})
+    {
+        return Application::NETWORK_PUBLIC;
+    }
+
+    if (cfg.NETWORK_PASSPHRASE ==
+        std::string{"Test SDF Network ; September 2015"})
+    {
+        return Application::NETWORK_TEST;
+    }
+
+    return Application::NETWORK_PRIVATE;
+}
+}
+
 ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
+    , mNetworkType(computeNetworkType(mConfig))
     , mWorkerIOService(std::thread::hardware_concurrency())
     , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
     , mWorkerThreads()
@@ -440,6 +463,12 @@ Config const&
 ApplicationImpl::getConfig()
 {
     return mConfig;
+}
+
+Application::NetworkType
+ApplicationImpl::getNetworkType()
+{
+    return mNetworkType;
 }
 
 Application::State

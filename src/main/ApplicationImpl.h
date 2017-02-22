@@ -39,6 +39,7 @@ class ApplicationImpl : public Application
     virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;
+    virtual NetworkType getNetworkType() override;
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
@@ -104,6 +105,7 @@ class ApplicationImpl : public Application
   private:
     VirtualClock& mVirtualClock;
     Config mConfig;
+    NetworkType const mNetworkType;
 
     // NB: The io_service should come first, then the 'manager' sub-objects,
     // then the threads. Do not reorder these fields.
