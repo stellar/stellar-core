@@ -52,7 +52,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 4;
+static unsigned long const SCHEMA_VERSION = 5;
 
 static void
 setSerializable(soci::session& sess)
@@ -119,9 +119,22 @@ Database::applySchemaUpgrade(unsigned long vers)
 
     case 4:
         BanManager::dropAll(*this);
-        mSession << "ALTER TABLE accountdata ADD lastmodified INT NOT NULL "
-                    "DEFAULT 0;";
         mSession << "CREATE INDEX scpquorumsbyseq ON scpquorums(lastledgerseq)";
+        break;
+
+    case 5:
+        try
+        {
+            mSession << "ALTER TABLE accountdata ADD lastmodified INT NOT NULL "
+                        "DEFAULT 0;";
+        }
+        catch (soci::soci_error& e)
+        {
+            if (std::string(e.what()).find("lastmodified") == std::string::npos)
+            {
+                throw;
+            }
+        }
         break;
 
     default:
