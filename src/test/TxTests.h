@@ -45,8 +45,6 @@ TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year, TxSetFramePtr txSet);
 
-void upgradeToCurrentLedgerVersion(Application& app);
-
 SecretKey getRoot(Hash const& networkID);
 
 SecretKey getAccount(const char* n);
@@ -190,12 +188,13 @@ void applyAccountMerge(Application& app, SecretKey const& source,
                        PublicKey const& dest, SequenceNumber seq);
 
 TransactionFramePtr createManageData(Hash const& networkID,
-                                     SecretKey const& source, std::string& name,
-                                     DataValue* value, SequenceNumber seq);
+                                     SecretKey const& source,
+                                     std::string const& name, DataValue* value,
+                                     SequenceNumber seq);
 
 void applyManageData(Application& app, SecretKey const& source,
-                     std::string& name, DataValue* value, SequenceNumber seq,
-                     ManageDataResultCode targetResult = MANAGE_DATA_SUCCESS);
+                     std::string const& name, DataValue* value,
+                     SequenceNumber seq);
 
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 

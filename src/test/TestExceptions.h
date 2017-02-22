@@ -14,6 +14,10 @@ class ex_txNO_ACCOUNT
 {
 };
 
+class ex_txINERNAL_ERROR
+{
+};
+
 class ex_ACCOUNT_MERGE_MALFORMED
 {
 };
@@ -69,6 +73,19 @@ class ex_CHANGE_TRUST_LOW_RESERVE
 {
 };
 class ex_CHANGE_TRUST_SELF_NOT_ALLOWED
+{
+};
+
+class ex_MANAGE_DATA_NOT_SUPPORTED_YET
+{
+};
+class ex_MANAGE_DATA_NAME_NOT_FOUND
+{
+};
+class ex_MANAGE_DATA_LOW_RESERVE
+{
+};
+class ex_MANAGE_DATA_INVALID_NAME
 {
 };
 
