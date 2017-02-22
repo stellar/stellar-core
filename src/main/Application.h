@@ -145,6 +145,14 @@ class Application
         APP_NUM_STATE
     };
 
+    // Type of network
+    enum NetworkType
+    {
+        NETWORK_TEST,
+        NETWORK_PUBLIC,
+        NETWORK_PRIVATE
+    };
+
     virtual ~Application(){};
 
     // Return the time in seconds since the POSIX epoch, according to the
@@ -154,6 +162,9 @@ class Application
     // Return a reference to the Application-local copy of the Config object
     // that the Application was constructed with.
     virtual Config const& getConfig() = 0;
+
+    // Return type of network this Application is connected to.
+    virtual NetworkType getNetworkType() = 0;
 
     // Gets the current execution-state of the Application
     // (derived from the state of other modules

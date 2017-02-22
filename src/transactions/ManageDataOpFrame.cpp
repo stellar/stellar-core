@@ -30,6 +30,17 @@ bool
 ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
+    // Workaround for invalid ledger database on live servers. These databases
+    // were not upgraded properly at the time of ledger 9224665 (no lastmodified
+    // field in accountdata table), so MANAGE_DATA operation failed with
+    // txINTERNAL_ERROR error. This result must be replicated on each catchup.
+    if (app.getNetworkType() == Application::NETWORK_PUBLIC &&
+        ledgerManager.getCurrentLedgerHeader().ledgerSeq == 9224665)
+    {
+        throw std::runtime_error(
+            "MANAGE_DATA on ledger 9224665 must fail in pubnet");
+    }
+
     Database& db = ledgerManager.getDatabase();
 
     auto dataFrame =
