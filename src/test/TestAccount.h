@@ -41,6 +41,8 @@ class TestAccount
                     uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
                     Signer* signer, std::string* homeDomain);
 
+    void manageData(std::string const& name, DataValue* value);
+
     OfferFrame::pointer loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
     uint64_t

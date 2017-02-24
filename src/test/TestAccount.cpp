@@ -77,6 +77,12 @@ TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                     setFlags, clearFlags, thrs, signer, homeDomain);
 }
 
+void
+TestAccount::manageData(std::string const& name, DataValue* value)
+{
+    applyManageData(mApp, getSecretKey(), name, value, nextSequenceNumber());
+}
+
 OfferFrame::pointer
 TestAccount::loadOffer(uint64_t offerID) const
 {

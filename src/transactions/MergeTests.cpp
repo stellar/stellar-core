@@ -35,7 +35,6 @@ TEST_CASE("merge", "[tx][merge]")
     VirtualClock clock;
     ApplicationEditableVersion app(clock, cfg);
     app.start();
-    upgradeToCurrentLedgerVersion(app);
 
     // set up world
     // set up world
@@ -118,7 +117,7 @@ TEST_CASE("merge", "[tx][merge]")
 
         SECTION("account has data")
         {
-            app.getLedgerManager().setCurrentLedgerVersion(3);
+            app.getLedgerManager().setCurrentLedgerVersion(4);
 
             // delete the trust line
             a1.changeTrust(usdCur, 0);
@@ -159,7 +158,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(txSet->checkValid(app));
             int64 a1Balance = getAccountBalance(a1, app);
             int64 b1Balance = getAccountBalance(b1, app);
-            auto r = closeLedgerOn(app, 3, 1, 1, 2015, txSet);
+            auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txNO_ACCOUNT);
 

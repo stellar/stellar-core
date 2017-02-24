@@ -62,11 +62,18 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         doApply = (code != txBAD_SEQ);
     }
 
-    bool res;
+    bool res = false;
 
     if (doApply)
     {
-        res = tx->apply(delta, app);
+        try
+        {
+            res = tx->apply(delta, app);
+        }
+        catch (...)
+        {
+            tx->getResult().result.code(txINTERNAL_ERROR);
+        }
 
         REQUIRE((!res || tx->getResultCode() == txSUCCESS));
 
@@ -112,6 +119,8 @@ throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     {
     case txNO_ACCOUNT:
         throw ex_txNO_ACCOUNT{};
+    case txINTERNAL_ERROR:
+        throw ex_txINERNAL_ERROR{};
     default:
         // ignore rest for now
         break;
@@ -205,24 +214,6 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
                    });
 
     return res;
-}
-
-void
-upgradeToCurrentLedgerVersion(Application& app)
-{
-    auto const& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    auto const& lastHash = lcl.hash;
-    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(lastHash);
-
-    LedgerUpgrade upgrade(LEDGER_UPGRADE_VERSION);
-    upgrade.newLedgerVersion() = app.getConfig().LEDGER_PROTOCOL_VERSION;
-    xdr::xvector<UpgradeType, 6> upgrades;
-    Value v(xdr::xdr_to_opaque(upgrade));
-    upgrades.emplace_back(v.begin(), v.end());
-
-    StellarValue sv(txSet->getContentsHash(), 1, upgrades, 0);
-    LedgerCloseData ledgerData(1, txSet, sv);
-    app.getLedgerManager().closeLedger(ledgerData);
 }
 
 SecretKey
@@ -1221,7 +1212,7 @@ applyAccountMerge(Application& app, SecretKey const& source,
 
 TransactionFramePtr
 createManageData(Hash const& networkID, SecretKey const& source,
-                 std::string& name, DataValue* value, SequenceNumber seq)
+                 std::string const& name, DataValue* value, SequenceNumber seq)
 {
     Operation op;
     op.body.type(MANAGE_DATA);
@@ -1233,33 +1224,42 @@ createManageData(Hash const& networkID, SecretKey const& source,
 }
 
 void
-applyManageData(Application& app, SecretKey const& source, std::string& name,
-                DataValue* value, SequenceNumber seq,
-                ManageDataResultCode targetResult)
+applyManageData(Application& app, SecretKey const& source,
+                std::string const& name, DataValue* value, SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
         createManageData(app.getNetworkID(), source, name, value, seq);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
+    throwingApplyCheck(txFrame, delta, app);
 
-    REQUIRE(ManageDataOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == targetResult);
-
-    if (targetResult == MANAGE_DATA_SUCCESS)
+    auto result = ManageDataOpFrame::getInnerCode(
+        txFrame->getResult().result.results()[0]);
+    switch (result)
     {
-        auto dataFrame =
-            DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
-        if (value)
-        {
-            REQUIRE(dataFrame != nullptr);
-            REQUIRE(dataFrame->getData().dataValue == *value);
-        }
-        else
-        {
-            REQUIRE(dataFrame == nullptr);
-        }
+    case MANAGE_DATA_NOT_SUPPORTED_YET:
+        throw ex_MANAGE_DATA_NOT_SUPPORTED_YET{};
+    case MANAGE_DATA_NAME_NOT_FOUND:
+        throw ex_MANAGE_DATA_NAME_NOT_FOUND{};
+    case MANAGE_DATA_LOW_RESERVE:
+        throw ex_MANAGE_DATA_LOW_RESERVE{};
+    case MANAGE_DATA_INVALID_NAME:
+        throw ex_MANAGE_DATA_INVALID_NAME{};
+    default:
+        break;
+    }
+
+    auto dataFrame =
+        DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
+    if (value)
+    {
+        REQUIRE(dataFrame != nullptr);
+        REQUIRE(dataFrame->getData().dataValue == *value);
+    }
+    else
+    {
+        REQUIRE(dataFrame == nullptr);
     }
 }
 

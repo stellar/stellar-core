@@ -30,6 +30,12 @@ bool
 ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
+    if (app.getLedgerManager().getCurrentLedgerVersion() == 3)
+    {
+        throw std::runtime_error(
+            "MANAGE_DATA not supported on ledger version 3");
+    }
+
     Database& db = ledgerManager.getDatabase();
 
     auto dataFrame =

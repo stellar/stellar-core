@@ -7,6 +7,8 @@
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
+#include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -28,11 +30,10 @@ TEST_CASE("manage data", "[tx][managedata]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    ApplicationEditableVersion app{clock, cfg};
+    auto& db = app.getDatabase();
 
     app.start();
-    upgradeToCurrentLedgerVersion(app);
 
     // set up world
     auto root = TestAccount::createRoot(app);
@@ -55,22 +56,78 @@ TEST_CASE("manage data", "[tx][managedata]")
     std::string t3("test3");
     std::string t4("test4");
 
-    applyManageData(app, gateway, t1, &value, gateway.nextSequenceNumber());
-    applyManageData(app, gateway, t2, &value, gateway.nextSequenceNumber());
-    // try to add too much data
-    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber(),
-                    MANAGE_DATA_LOW_RESERVE);
+    SECTION("protocol version 1")
+    {
+        app.getLedgerManager().setCurrentLedgerVersion(1);
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
+        REQUIRE_THROWS_AS(gateway.manageData(t2, &value),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
+        // try to add too much data
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
 
-    // modify an existing data entry
-    applyManageData(app, gateway, t1, &value2, gateway.nextSequenceNumber());
+        // modify an existing data entry
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value2),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
 
-    // clear an existing data entry
-    applyManageData(app, gateway, t1, nullptr, gateway.nextSequenceNumber());
+        // clear an existing data entry
+        REQUIRE_THROWS_AS(gateway.manageData(t1, nullptr),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
 
-    // can now add test3 since test was removed
-    applyManageData(app, gateway, t3, &value, gateway.nextSequenceNumber());
+        // can now add test3 since test was removed
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
 
-    // fail to remove data entry that isn't present
-    applyManageData(app, gateway, t4, nullptr, gateway.nextSequenceNumber(),
-                    MANAGE_DATA_NAME_NOT_FOUND);
+        // fail to remove data entry that isn't present
+        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
+                          ex_MANAGE_DATA_NOT_SUPPORTED_YET);
+    }
+
+    for (auto v : {2, 4})
+    {
+        SECTION("protocol version " + std::to_string(v))
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(v);
+            gateway.manageData(t1, &value);
+            gateway.manageData(t2, &value);
+            // try to add too much data
+            REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
+                              ex_MANAGE_DATA_LOW_RESERVE);
+
+            // modify an existing data entry
+            gateway.manageData(t1, &value2);
+
+            // clear an existing data entry
+            gateway.manageData(t1, nullptr);
+
+            // can now add test3 since test was removed
+            gateway.manageData(t3, &value);
+
+            // fail to remove data entry that isn't present
+            REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
+                              ex_MANAGE_DATA_NAME_NOT_FOUND);
+        }
+    }
+
+    SECTION("protocol version 3")
+    {
+        app.getLedgerManager().setCurrentLedgerVersion(3);
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINERNAL_ERROR);
+        // try to add too much data
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINERNAL_ERROR);
+
+        // modify an existing data entry
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value2), ex_txINERNAL_ERROR);
+
+        // clear an existing data entry
+        REQUIRE_THROWS_AS(gateway.manageData(t1, nullptr), ex_txINERNAL_ERROR);
+
+        // can now add test3 since test was removed
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINERNAL_ERROR);
+
+        // fail to remove data entry that isn't present
+        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINERNAL_ERROR);
+    }
 }
