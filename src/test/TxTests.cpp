@@ -120,7 +120,7 @@ throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     case txNO_ACCOUNT:
         throw ex_txNO_ACCOUNT{};
     case txINTERNAL_ERROR:
-        throw ex_txINERNAL_ERROR{};
+        throw ex_txINTERNAL_ERROR{};
     default:
         // ignore rest for now
         break;
