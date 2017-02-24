@@ -15,8 +15,8 @@ namespace stellar
 NtpWork::NtpWork(Application& app, WorkParent& parent, std::string ntpServer,
                  std::chrono::seconds tolerance)
     : Work(app, parent, "ntp-work", RETRY_FOREVER)
-    , mTolerance(tolerance)
     , mNtpServer(std::move(ntpServer))
+    , mTolerance(tolerance)
     , mTimeoutTimer(app)
     , mIsSynchronized(true)
 {
