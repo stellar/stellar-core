@@ -113,21 +113,21 @@ TEST_CASE("manage data", "[tx][managedata]")
     SECTION("protocol version 3")
     {
         app.getLedgerManager().setCurrentLedgerVersion(3);
-        REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINERNAL_ERROR);
-        REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINTERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINTERNAL_ERROR);
         // try to add too much data
-        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINTERNAL_ERROR);
 
         // modify an existing data entry
-        REQUIRE_THROWS_AS(gateway.manageData(t1, &value2), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t1, &value2), ex_txINTERNAL_ERROR);
 
         // clear an existing data entry
-        REQUIRE_THROWS_AS(gateway.manageData(t1, nullptr), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t1, nullptr), ex_txINTERNAL_ERROR);
 
         // can now add test3 since test was removed
-        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value), ex_txINTERNAL_ERROR);
 
         // fail to remove data entry that isn't present
-        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINERNAL_ERROR);
+        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINTERNAL_ERROR);
     }
 }

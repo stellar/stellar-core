@@ -14,7 +14,7 @@ class ex_txNO_ACCOUNT
 {
 };
 
-class ex_txINERNAL_ERROR
+class ex_txINTERNAL_ERROR
 {
 };
 
