@@ -337,13 +337,9 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     mQuorumSetFetcher.stopFetch(h, envelope);
 
-    std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
-    for (auto const& v : vals)
+    for (auto const& h : getTxSetHashes(envelope))
     {
-        StellarValue wb;
-        xdr::xdr_from_opaque(v, wb);
-
-        mTxSetFetcher.stopFetch(wb.txSetHash, envelope);
+        mTxSetFetcher.stopFetch(h, envelope);
     }
 
     CLOG(TRACE, "Herder") << "StopFetch i:" << envelope.statement.slotIndex
