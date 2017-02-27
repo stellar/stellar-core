@@ -357,15 +357,11 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
         item.first = std::max(item.first, envelope.statement.slotIndex);
     }
 
-    auto vals = Slot::getStatementValues(envelope.statement);
-    for (auto const& v : vals)
+    for (auto const& h : getTxSetHashes(envelope))
     {
-        StellarValue wb;
-        xdr::xdr_from_opaque(v, wb);
-
-        if (mTxSetCache.exists(wb.txSetHash))
+        if (mTxSetCache.exists(h))
         {
-            auto& item = mTxSetCache.get(wb.txSetHash);
+            auto& item = mTxSetCache.get(h);
             item.first = std::max(item.first, envelope.statement.slotIndex);
         }
     }
