@@ -319,15 +319,11 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         mQuorumSetFetcher.fetch(h, envelope);
     }
 
-    std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
-    for (auto const& v : vals)
+    for (auto const& h : getTxSetHashes(envelope))
     {
-        StellarValue wb;
-        xdr::xdr_from_opaque(v, wb);
-
-        if (!mTxSetCache.exists(wb.txSetHash))
+        if (!mTxSetCache.exists(h))
         {
-            mTxSetFetcher.fetch(wb.txSetHash, envelope);
+            mTxSetFetcher.fetch(h, envelope);
         }
     }
 
