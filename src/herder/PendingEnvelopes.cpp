@@ -2,6 +2,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include "herder/HerderUtils.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -301,17 +302,11 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
             Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
         return false;
 
-    std::vector<Value> vals = Slot::getStatementValues(envelope.statement);
-    for (auto const& v : vals)
-    {
-        StellarValue wb;
-        xdr::xdr_from_opaque(v, wb);
-
-        if (!mTxSetCache.exists(wb.txSetHash))
-            return false;
-    }
-
-    return true;
+    auto txSetHashes = getTxSetHashes(envelope);
+    return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
+                       [this](Hash const& txSetHash) {
+                           return mTxSetCache.exists(txSetHash);
+                       });
 }
 
 void
