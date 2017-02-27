@@ -1,5 +1,6 @@
 ﻿#include "PendingEnvelopes.h"
 #include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
@@ -189,6 +190,8 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             return Herder::ENVELOPE_STATUS_DISCARDED;
         }
 
+        touchFetchCache(envelope);
+
         auto& set = mEnvelopes[envelope.statement.slotIndex].mFetchingEnvelopes;
         auto& processedList =
             mEnvelopes[envelope.statement.slotIndex].mProcessedEnvelopes;
@@ -354,6 +357,31 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 
     CLOG(TRACE, "Herder") << "StopFetch i:" << envelope.statement.slotIndex
                           << " t:" << envelope.statement.pledges.type();
+}
+
+void
+PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
+{
+    auto qsetHash =
+        Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
+    if (mQsetCache.exists(qsetHash))
+    {
+        auto& item = mQsetCache.get(qsetHash);
+        item.first = std::max(item.first, envelope.statement.slotIndex);
+    }
+
+    auto vals = Slot::getStatementValues(envelope.statement);
+    for (auto const& v : vals)
+    {
+        StellarValue wb;
+        xdr::xdr_from_opaque(v, wb);
+
+        if (mTxSetCache.exists(wb.txSetHash))
+        {
+            auto& item = mTxSetCache.get(wb.txSetHash);
+            item.first = std::max(item.first, envelope.statement.slotIndex);
+        }
+    }
 }
 
 bool
