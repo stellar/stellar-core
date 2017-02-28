@@ -173,8 +173,8 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         }
     }
 
-    SECTION("return READY when receiving envelope with quorum set and tx that "
-            "were manually added before")
+    SECTION("return READY when receiving envelope with quorum set and tx set "
+            "that were manually added before")
     {
         SECTION("as not-removable")
         {
@@ -219,6 +219,44 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
                     Herder::ENVELOPE_STATUS_DISCARDED);
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_DISCARDED);
+        }
+    }
+
+    SECTION("envelopes from different slots asking for the same quorum set and "
+            "tx set")
+    {
+        auto saneEnvelope2 =
+            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 5);
+        auto saneEnvelope3 =
+            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 9);
+
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                Herder::ENVELOPE_STATUS_FETCHING);
+        REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+        REQUIRE(
+            pendingEnvelopes.recvTxSet(p.second->getContentsHash(), p.second));
+        REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
+                Herder::ENVELOPE_STATUS_READY);
+
+        SECTION("with slotIndex difference less or equal than "
+                "MAX_SLOTS_TO_REMEMBER")
+        {
+            pendingEnvelopes.eraseBelow(saneEnvelope2.statement.slotIndex -
+                                        Herder::MAX_SLOTS_TO_REMEMBER);
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope2) ==
+                    Herder::ENVELOPE_STATUS_READY);
+            pendingEnvelopes.eraseBelow(saneEnvelope3.statement.slotIndex -
+                                        Herder::MAX_SLOTS_TO_REMEMBER);
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
+                    Herder::ENVELOPE_STATUS_READY);
+        }
+
+        SECTION("with slotIndex difference bigger than MAX_SLOTS_TO_REMEMBER")
+        {
+            pendingEnvelopes.eraseBelow(saneEnvelope3.statement.slotIndex -
+                                        Herder::MAX_SLOTS_TO_REMEMBER);
+            REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope3) ==
+                    Herder::ENVELOPE_STATUS_FETCHING);
         }
     }
 }
