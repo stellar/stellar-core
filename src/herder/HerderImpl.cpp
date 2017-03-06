@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
+#include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
@@ -1524,15 +1525,12 @@ HerderImpl::persistSCPState(uint64 slot)
         latestEnvs.emplace_back(e);
 
         // saves transaction sets referred by the statement
-        std::vector<Value> vals = Slot::getStatementValues(e.statement);
-        for (auto const& v : vals)
+        for (auto const& h : getTxSetHashes(e))
         {
-            StellarValue wb;
-            xdr::xdr_from_opaque(v, wb);
-            TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(wb.txSetHash);
+            auto txSet = mPendingEnvelopes.getTxSet(h);
             if (txSet)
             {
-                txSets.insert(std::make_pair(wb.txSetHash, txSet));
+                txSets.insert(std::make_pair(h, txSet));
             }
         }
         Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
