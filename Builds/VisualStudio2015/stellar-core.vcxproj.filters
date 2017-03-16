@@ -591,6 +591,9 @@
     <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1024,6 +1027,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h">
       <Filter>transactions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderUtils.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
