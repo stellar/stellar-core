@@ -222,7 +222,7 @@ class BallotProtocol
                                  SCPStatement const& st);
 
     // basic sanity check on statement
-    bool isStatementSane(SCPStatement const& st, bool self);
+    static bool isStatementSane(SCPStatement const& st, bool self);
 
     // records the statement in the state machine
     void recordEnvelope(SCPEnvelope const& env);
