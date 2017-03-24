@@ -344,19 +344,6 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
 }
 
 void
-TransactionFrame::setSourceAccountPtr(AccountFrame::pointer signingAccount)
-{
-    if (!signingAccount)
-    {
-        if (!(mEnvelope.tx.sourceAccount == signingAccount->getID()))
-        {
-            throw std::invalid_argument("wrong account");
-        }
-    }
-    mSigningAccount = signingAccount;
-}
-
-void
 TransactionFrame::resetSigningAccount()
 {
     mSigningAccount.reset();

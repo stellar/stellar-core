@@ -87,8 +87,6 @@ class TransactionFrame
         return mSigningAccount;
     }
 
-    void setSourceAccountPtr(AccountFrame::pointer signingAccount);
-
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {
