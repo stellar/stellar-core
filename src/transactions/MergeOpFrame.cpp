@@ -22,10 +22,10 @@ MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
 {
 }
 
-int32_t
-MergeOpFrame::getNeededThreshold() const
+ThresholdLevel
+MergeOpFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getHighThreshold();
+    return ThresholdLevel::HIGH;
 }
 
 // make sure the deleted Account hasn't issued credit

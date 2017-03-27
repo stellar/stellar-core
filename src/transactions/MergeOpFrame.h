@@ -16,7 +16,7 @@ class MergeOpFrame : public OperationFrame
         return mResult.tr().accountMergeResult();
     }
 
-    int32_t getNeededThreshold() const override;
+    ThresholdLevel getThresholdLevel() const override;
 
   public:
     MergeOpFrame(Operation const& op, OperationResult& res,

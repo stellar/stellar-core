@@ -19,10 +19,10 @@ AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
 {
 }
 
-int32_t
-AllowTrustOpFrame::getNeededThreshold() const
+ThresholdLevel
+AllowTrustOpFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getLowThreshold();
+    return ThresholdLevel::LOW;
 }
 
 bool
