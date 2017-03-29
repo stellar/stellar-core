@@ -56,6 +56,7 @@ class TestAccount
     createPassiveOffer(Asset const& selling, Asset const& buying,
                        Price const& price, int64_t amount,
                        ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
+
     void pay(SecretKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling,
              int64_t amount);
@@ -83,6 +84,13 @@ class TestAccount
     {
         return getSecretKey().getPublicKey();
     }
+
+    void
+    setSequenceNumber(SequenceNumber sn)
+    {
+        mSn = sn;
+    }
+
     SequenceNumber
     getLastSequenceNumber()
     {

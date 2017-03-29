@@ -356,12 +356,12 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
 }
 
 Operation
-createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount)
+createPaymentOp(SecretKey const* from, PublicKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
-    op.body.paymentOp().destination = to.getPublicKey();
+    op.body.paymentOp().destination = to;
     op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
 
     if (from)
@@ -372,7 +372,7 @@ createPaymentOp(SecretKey const* from, SecretKey const& to, int64_t amount)
 
 TransactionFramePtr
 createPaymentTx(Hash const& networkID, SecretKey const& from,
-                SecretKey const& to, SequenceNumber seq, int64_t amount)
+                PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
     return transactionFromOperation(networkID, from, seq,
                                     createPaymentOp(nullptr, to, amount));
@@ -389,7 +389,7 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     fromAccount = loadAccount(from, app);
 
-    txFrame = createPaymentTx(app.getNetworkID(), from, to, seq, amount);
+    txFrame = createPaymentTx(app.getNetworkID(), from, to.getPublicKey(), seq, amount);
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());

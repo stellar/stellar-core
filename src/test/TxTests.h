@@ -96,11 +96,11 @@ void applyCreateAccountTx(Application& app, SecretKey const& from,
                           SecretKey const& to, SequenceNumber seq,
                           int64_t amount);
 
-Operation createPaymentOp(SecretKey const* from, SecretKey const& to,
+Operation createPaymentOp(SecretKey const* from, PublicKey const& to,
                           int64_t amount);
 
 TransactionFramePtr createPaymentTx(Hash const& networkID,
-                                    SecretKey const& from, SecretKey const& to,
+                                    SecretKey const& from, PublicKey const& to,
                                     SequenceNumber seq, int64_t amount);
 
 void applyPaymentTx(Application& app, SecretKey const& from,

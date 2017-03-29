@@ -21,7 +21,7 @@ TestAccount::loadSequenceNumber() const
 void
 TestAccount::updateSequenceNumber()
 {
-    if (mSn == 0)
+    if (mSn == 0 && loadAccount(getSecretKey(), mApp, false))
     {
         mSn = loadSequenceNumber();
     }

@@ -10,6 +10,7 @@
 #include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
@@ -138,23 +139,21 @@ class OverlayManagerTests
         pm.storePeerList(threePeers);
         pm.connectToMorePeers(5);
         REQUIRE(pm.mPeers.size() == 5);
-        SecretKey a = getAccount("a");
-        SecretKey b = getAccount("b");
-        SecretKey c = getAccount("c");
-        SecretKey d = getAccount("d");
+        auto a = TestAccount{app, getAccount("a")};
+        auto b = TestAccount{app, getAccount("b")};
+        auto c = TestAccount{app, getAccount("c")};
+        auto d = TestAccount{app, getAccount("d")};
 
         Hash const& networkID = app.getNetworkID();
 
-        StellarMessage AtoC =
-            createPaymentTx(networkID, a, b, 1, 10)->toStellarMessage();
+        StellarMessage AtoC = a.tx({createPaymentOp(nullptr, b, 10)})->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
         pm.broadcastMessage(AtoC);
         vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD =
-            createPaymentTx(networkID, c, d, 1, 10)->toStellarMessage();
+        StellarMessage CtoD = c.tx({createPaymentOp(nullptr, d, 10)})->toStellarMessage();
         pm.broadcastMessage(CtoD);
         vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);

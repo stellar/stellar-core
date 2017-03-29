@@ -1007,7 +1007,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
     case TxInfo::TX_TRANSFER_NATIVE:
         txm.mPayment.Mark();
         txm.mNativePayment.Mark();
-        txs.push_back(txtest::createPaymentTx(networkID, mFrom->mKey, mTo->mKey,
+        txs.push_back(txtest::createPaymentTx(networkID, mFrom->mKey, mTo->mKey.getPublicKey(),
                                               mFrom->mSeq + 1, mAmount));
         break;
 

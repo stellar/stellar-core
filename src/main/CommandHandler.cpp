@@ -194,9 +194,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         }
         else
         {
-            txFrame = createPaymentTx(networkID, fromAccount, toAccount,
-                                      fromAccount.nextSequenceNumber(),
-                                      paymentAmount);
+            txFrame = fromAccount.tx({createPaymentOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))

@@ -229,10 +229,9 @@ TEST_CASE("merge", "[tx][merge]")
             for_all_versions(app, [&]{
                 auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1,
                                             a1.nextSequenceNumber());
-                auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
-                                        a1.nextSequenceNumber(), 100);
-                int64 a1Balance = a1.getBalance();
-                int64 b1Balance = b1.getBalance();
+                auto tx2 = a1.tx({createPaymentOp(nullptr, root, 100)});
+                auto a1Balance = a1.getBalance();
+                auto b1Balance = b1.getBalance();
                 auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
                 checkTx(0, r, txSUCCESS);
                 checkTx(1, r, txNO_ACCOUNT);
