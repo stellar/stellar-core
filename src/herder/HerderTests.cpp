@@ -72,10 +72,8 @@ TEST_CASE("standalone", "[herder]")
 
         auto setup = [&](asio::error_code const& error) {
             // create accounts
-            TransactionFramePtr txFrameA1 = createCreateAccountTx(
-                networkID, root, a1, root.nextSequenceNumber(), paymentAmount);
-            TransactionFramePtr txFrameA2 = createCreateAccountTx(
-                networkID, root, b1, root.nextSequenceNumber(), paymentAmount);
+            auto txFrameA1 = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
+            auto txFrameA2 = root.tx({createCreateAccountOp(nullptr, b1.getPublicKey(), paymentAmount)});
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
                     Herder::TX_STATUS_PENDING);
@@ -191,9 +189,8 @@ TEST_CASE("txset", "[herder]")
         {
             if (j == 0)
             {
-                transactions[i].emplace_back(createCreateAccountTx(
-                    networkID, sourceAccount, accounts[i],
-                    sourceAccount.nextSequenceNumber(), paymentAmount));
+                transactions[i].emplace_back(
+                    sourceAccount.tx({createCreateAccountOp(nullptr, accounts[i].getPublicKey(), paymentAmount)}));
             }
             else
             {
@@ -473,11 +470,8 @@ TEST_CASE("SCP Driver", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions), [&]() {
-                          return createCreateAccountTx(
-                              networkID, root, a1, root.nextSequenceNumber(),
-                              10000000);
-                      });
+                      std::end(txSet->mTransactions),
+                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

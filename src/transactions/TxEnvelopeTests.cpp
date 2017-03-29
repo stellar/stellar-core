@@ -55,15 +55,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("outer envelope")
     {
-        TransactionFramePtr txFrame;
         LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                         app.getDatabase());
-        txFrame =
-            createCreateAccountTx(app.getNetworkID(), root, a1,
-                                root.nextSequenceNumber(), paymentAmount);
 
         SECTION("no signature")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures.clear();
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -78,6 +75,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("bad signature")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -92,6 +90,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("bad signature (wrong hint)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -106,6 +105,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("too many signatures (signed twice)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->addSignature(a1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -120,6 +120,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("too many signatures (unused signature)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
@@ -914,9 +915,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     //  1. B funds C
                     //  2. send from C -> root
 
-                    TransactionFramePtr tx = createCreateAccountTx(
-                        app.getNetworkID(), b1, c1, b1.nextSequenceNumber(),
-                        paymentAmount / 2);
+                    auto tx = b1.tx({createCreateAccountOp(nullptr, c1.getPublicKey(), paymentAmount / 2)});
 
                     TransactionFramePtr tx_c =
                         createPaymentTx(app.getNetworkID(), c1, root, 0, 1000);
@@ -962,9 +961,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         TransactionFramePtr txFrame;
 
-        txFrame =
-            createCreateAccountTx(app.getNetworkID(), root, a1,
-                                  root.nextSequenceNumber(), paymentAmount);
+        txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
         txSet->add(txFrame);
 
         // close this ledger

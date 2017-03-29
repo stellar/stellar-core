@@ -89,6 +89,7 @@ class TestAccount
         updateSequenceNumber();
         return mSn;
     }
+
     SequenceNumber
     nextSequenceNumber()
     {

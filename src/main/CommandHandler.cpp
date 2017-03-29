@@ -26,6 +26,7 @@
 
 #include "ExternalQueue.h"
 
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include <regex>
 using namespace stellar::txtest;
@@ -114,18 +115,6 @@ CommandHandler::manualCmd(std::string const& cmd)
     LOG(INFO) << cmd << " -> " << reply.content;
 }
 
-SequenceNumber
-getSeq(SecretKey const& k, Application& app)
-{
-    AccountFrame::pointer account;
-    account = AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
-    if (account)
-    {
-        return account->getSeqNum();
-    }
-    return 0;
-}
-
 void
 CommandHandler::testAcc(std::string const& params, std::string& retStr)
 {
@@ -178,24 +167,14 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
     {
         Hash const& networkID = mApp.getNetworkID();
 
-        SecretKey toKey, fromKey;
-        if (to->second == "root")
-        {
-            toKey = getRoot(networkID);
-        }
-        else
-        {
-            toKey = getAccount(to->second.c_str());
-        }
-
-        if (from->second == "root")
-        {
-            fromKey = getRoot(networkID);
-        }
-        else
-        {
-            fromKey = getAccount(from->second.c_str());
-        }
+        auto toAccount =
+            to->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(to->second.c_str())};
+        auto fromAccount =
+            from->second == "root"
+                ? TestAccount{mApp, getRoot(networkID)}
+                : TestAccount{mApp, getAccount(from->second.c_str())};
 
         uint64_t paymentAmount = 0;
         std::istringstream iss(amount->second);
@@ -203,22 +182,20 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
 
         root["from_name"] = from->second;
         root["to_name"] = to->second;
-        root["from_id"] = KeyUtils::toStrKey(fromKey.getPublicKey());
-        root["to_id"] = KeyUtils::toStrKey(toKey.getPublicKey());
+        root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
+        root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
         ;
         root["amount"] = (Json::UInt64)paymentAmount;
-
-        SequenceNumber fromSeq = getSeq(fromKey, mApp) + 1;
 
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame = createCreateAccountTx(networkID, fromKey, toKey, fromSeq,
-                                            paymentAmount);
+            txFrame = fromAccount.tx({createCreateAccountOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
         }
         else
         {
-            txFrame = createPaymentTx(networkID, fromKey, toKey, fromSeq,
+            txFrame = createPaymentTx(networkID, fromAccount, toAccount,
+                                      fromAccount.nextSequenceNumber(),
                                       paymentAmount);
         }
 
