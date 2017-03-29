@@ -318,9 +318,8 @@ TransactionFramePtr
 createCreateAccountTx(Hash const& networkID, SecretKey const& from,
                       SecretKey const& to, SequenceNumber seq, int64_t amount)
 {
-    Operation op = createCreateAccountOp(nullptr, to.getPublicKey(), amount);
-
-    return transactionFromOperation(networkID, from, seq, op);
+    return transactionFromOperation(networkID, from, seq,
+                                    createCreateAccountOp(nullptr, to.getPublicKey(), amount));
 }
 
 void

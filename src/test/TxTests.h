@@ -66,7 +66,7 @@ TransactionFramePtr transactionFromOperation(Hash const& networkID,
 TransactionFramePtr
 transactionFromOperations(Hash const& networkID, SecretKey const& from,
                           SequenceNumber seq,
-                          const std::vector<Operation>& ops);
+                          std::vector<Operation> const& ops);
 
 TransactionFramePtr createChangeTrust(Hash const& networkID,
                                       SecretKey const& from,
@@ -151,6 +151,10 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  Price const& price, int64_t amount,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
+Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
+                             uint32_t* clearFlags, ThresholdSetter* thrs,
+                             Signer* signer, std::string* homeDomain);
+
 Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
                              uint32_t* clearFlags, ThresholdSetter* thrs,
                              Signer* signer, std::string* homeDomain);
