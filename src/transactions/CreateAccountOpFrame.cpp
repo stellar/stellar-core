@@ -22,15 +22,28 @@ namespace stellar
 using namespace std;
 using xdr::operator==;
 
+namespace
+{
+
+OperationResult
+makeResult(CreateAccountResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(CREATE_ACCOUNT);
+    result.tr().createAccountResult().code(code);
+    return result;
+}
+}
+
 CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
-                                           OperationResult& res,
                                            TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
     , mCreateAccount(mOperation.body.createAccountOp())
 {
 }
 
-bool
+OperationResult
 CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                               LedgerManager& ledgerManager)
 {
@@ -48,8 +61,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-create-account", "failure", "low-reserve"},
                           "operation")
                 .Mark();
-            innerResult().code(CREATE_ACCOUNT_LOW_RESERVE);
-            return false;
+            return makeResult(CREATE_ACCOUNT_LOW_RESERVE);
         }
         else
         {
@@ -63,8 +75,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                     .NewMeter({"op-create-account", "failure", "underfunded"},
                               "operation")
                     .Mark();
-                innerResult().code(CREATE_ACCOUNT_UNDERFUNDED);
-                return false;
+                return makeResult(CREATE_ACCOUNT_UNDERFUNDED);
             }
 
             auto ok =
@@ -84,8 +95,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-create-account", "success", "apply"},
                           "operation")
                 .Mark();
-            innerResult().code(CREATE_ACCOUNT_SUCCESS);
-            return true;
+            return makeResult(CREATE_ACCOUNT_SUCCESS);
         }
     }
     else
@@ -94,12 +104,11 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
             .NewMeter({"op-create-account", "failure", "already-exist"},
                       "operation")
             .Mark();
-        innerResult().code(CREATE_ACCOUNT_ALREADY_EXIST);
-        return false;
+        return makeResult(CREATE_ACCOUNT_ALREADY_EXIST);
     }
 }
 
-bool
+OperationResult
 CreateAccountOpFrame::doCheckValid(Application& app)
 {
     if (mCreateAccount.startingBalance <= 0)
@@ -109,8 +118,7 @@ CreateAccountOpFrame::doCheckValid(Application& app)
                 {"op-create-account", "invalid", "malformed-negative-balance"},
                 "operation")
             .Mark();
-        innerResult().code(CREATE_ACCOUNT_MALFORMED);
-        return false;
+        return makeResult(CREATE_ACCOUNT_MALFORMED);
     }
 
     if (mCreateAccount.destination == getSourceID())
@@ -120,10 +128,9 @@ CreateAccountOpFrame::doCheckValid(Application& app)
                        "malformed-destination-equals-source"},
                       "operation")
             .Mark();
-        innerResult().code(CREATE_ACCOUNT_MALFORMED);
-        return false;
+        return makeResult(CREATE_ACCOUNT_MALFORMED);
     }
 
-    return true;
+    return makeResult(CREATE_ACCOUNT_SUCCESS);
 }
 }

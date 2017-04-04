@@ -10,20 +10,14 @@ namespace stellar
 {
 class ChangeTrustOpFrame : public OperationFrame
 {
-    ChangeTrustResult&
-    innerResult()
-    {
-        return mResult.tr().changeTrustResult();
-    }
     ChangeTrustOp const& mChangeTrust;
 
   public:
-    ChangeTrustOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    ChangeTrustOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static ChangeTrustResultCode
     getInnerCode(OperationResult const& res)

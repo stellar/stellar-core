@@ -36,23 +36,21 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame& mParentTx;
+
     AccountFrame::pointer mSourceAccount;
-    OperationResult& mResult;
 
     bool checkSignature(SignatureChecker& signatureChecker) const;
 
-    virtual bool doCheckValid(Application& app) = 0;
-    virtual bool doApply(Application& app, LedgerDelta& delta,
+    virtual OperationResult doCheckValid(Application& app) = 0;
+    virtual OperationResult doApply(Application& app, LedgerDelta& delta,
                          LedgerManager& ledgerManager) = 0;
     virtual ThresholdLevel getThresholdLevel() const;
 
   public:
     static std::shared_ptr<OperationFrame>
-    makeHelper(Operation const& op, OperationResult& res,
-               TransactionFrame& parentTx);
+    makeHelper(Operation const& op, TransactionFrame& parentTx);
 
-    OperationFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+    OperationFrame(Operation const& op, TransactionFrame& parentTx);
     OperationFrame(OperationFrame const&) = delete;
 
     AccountFrame&
@@ -76,17 +74,10 @@ class OperationFrame
     // returns true on success
     bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db);
 
-    OperationResult&
-    getResult() const
-    {
-        return mResult;
-    }
-    OperationResultCode getResultCode() const;
-
-    bool checkValid(SignatureChecker& signatureChecker, Application& app,
+    OperationResult checkValid(SignatureChecker& signatureChecker, Application& app,
                     LedgerDelta* delta = nullptr);
 
-    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
+    OperationResult apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
                Application& app);
 
     Operation const&
@@ -95,4 +86,8 @@ class OperationFrame
         return mOperation;
     }
 };
+
+bool
+isSuccess(OperationResult const& result);
+
 }

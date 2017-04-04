@@ -18,10 +18,23 @@ static const uint32 allAccountFlags =
 static const uint32 allAccountAuthFlags =
     (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);
 
-SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
+namespace
+{
+
+OperationResult
+makeResult(SetOptionsResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(SET_OPTIONS);
+    result.tr().setOptionsResult().code(code);
+    return result;
+}
+}
+
+SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op,
                                      TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mSetOptions(mOperation.body.setOptionsOp())
+    : OperationFrame(op, parentTx), mSetOptions(mOperation.body.setOptionsOp())
 {
 }
 
@@ -38,7 +51,7 @@ SetOptionsOpFrame::getThresholdLevel() const
     return ThresholdLevel::MEDIUM;
 }
 
-bool
+OperationResult
 SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
@@ -56,8 +69,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-set-options", "failure", "invalid-inflation"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_INVALID_INFLATION);
-            return false;
+            return makeResult(SET_OPTIONS_INVALID_INFLATION);
         }
         account.inflationDest.activate() = inflationID;
     }
@@ -71,8 +83,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-set-options", "failure", "cant-change"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_CANT_CHANGE);
-            return false;
+            return makeResult(SET_OPTIONS_CANT_CHANGE);
         }
         account.flags = account.flags & ~*mSetOptions.clearFlags;
     }
@@ -86,8 +97,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-set-options", "failure", "cant-change"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_CANT_CHANGE);
-            return false;
+            return makeResult(SET_OPTIONS_CANT_CHANGE);
         }
         account.flags = account.flags | *mSetOptions.setFlags;
     }
@@ -144,8 +154,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                             {"op-set-options", "failure", "too-many-signers"},
                             "operation")
                         .Mark();
-                    innerResult().code(SET_OPTIONS_TOO_MANY_SIGNERS);
-                    return false;
+                    return makeResult(SET_OPTIONS_TOO_MANY_SIGNERS);
                 }
                 if (!mSourceAccount->addNumEntries(1, ledgerManager))
                 {
@@ -153,8 +162,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
                         .NewMeter({"op-set-options", "failure", "low-reserve"},
                                   "operation")
                         .Mark();
-                    innerResult().code(SET_OPTIONS_LOW_RESERVE);
-                    return false;
+                    return makeResult(SET_OPTIONS_LOW_RESERVE);
                 }
                 signers.push_back(*mSetOptions.signer);
             }
@@ -182,20 +190,18 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
     app.getMetrics()
         .NewMeter({"op-set-options", "success", "apply"}, "operation")
         .Mark();
-    innerResult().code(SET_OPTIONS_SUCCESS);
     mSourceAccount->storeChange(delta, db);
-    return true;
+    return makeResult(SET_OPTIONS_SUCCESS);
 }
 
-bool
+OperationResult
 SetOptionsOpFrame::doCheckValid(Application& app)
 {
     if (mSetOptions.setFlags)
     {
         if (*mSetOptions.setFlags & ~allAccountFlags)
         {
-            innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
-            return false;
+            return makeResult(SET_OPTIONS_UNKNOWN_FLAG);
         }
     }
 
@@ -203,8 +209,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
     {
         if (*mSetOptions.clearFlags & ~allAccountFlags)
         {
-            innerResult().code(SET_OPTIONS_UNKNOWN_FLAG);
-            return false;
+            return makeResult(SET_OPTIONS_UNKNOWN_FLAG);
         }
     }
 
@@ -216,8 +221,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                 .NewMeter({"op-set-options", "invalid", "bad-flags"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_BAD_FLAGS);
-            return false;
+            return makeResult(SET_OPTIONS_BAD_FLAGS);
         }
     }
 
@@ -230,8 +234,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                     {"op-set-options", "invalid", "threshold-out-of-range"},
                     "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
-            return false;
+            return makeResult(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
         }
     }
 
@@ -244,8 +247,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                     {"op-set-options", "invalid", "threshold-out-of-range"},
                     "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
-            return false;
+            return makeResult(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
         }
     }
 
@@ -258,8 +260,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                     {"op-set-options", "invalid", "threshold-out-of-range"},
                     "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
-            return false;
+            return makeResult(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
         }
     }
 
@@ -272,8 +273,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                     {"op-set-options", "invalid", "threshold-out-of-range"},
                     "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
-            return false;
+            return makeResult(SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
         }
     }
 
@@ -290,8 +290,7 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                 .NewMeter({"op-set-options", "invalid", "bad-signer"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_BAD_SIGNER);
-            return false;
+            return makeResult(SET_OPTIONS_BAD_SIGNER);
         }
     }
 
@@ -303,11 +302,10 @@ SetOptionsOpFrame::doCheckValid(Application& app)
                 .NewMeter({"op-set-options", "invalid", "invalid-home-domain"},
                           "operation")
                 .Mark();
-            innerResult().code(SET_OPTIONS_INVALID_HOME_DOMAIN);
-            return false;
+            return makeResult(SET_OPTIONS_INVALID_HOME_DOMAIN);
         }
     }
 
-    return true;
+    return makeResult(SET_OPTIONS_SUCCESS);
 }
 }

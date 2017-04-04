@@ -22,13 +22,26 @@ namespace stellar
 using namespace std;
 using xdr::operator==;
 
-PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
-                               TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx), mPayment(mOperation.body.paymentOp())
+namespace
+{
+
+OperationResult
+makeResult(PaymentResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(PAYMENT);
+    result.tr().paymentResult().code(code);
+    return result;
+}
+}
+
+PaymentOpFrame::PaymentOpFrame(Operation const& op, TransactionFrame& parentTx)
+    : OperationFrame(op, parentTx), mPayment(mOperation.body.paymentOp())
 {
 }
 
-bool
+OperationResult
 PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                         LedgerManager& ledgerManager)
 {
@@ -44,8 +57,7 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-payment", "success", "apply"}, "operation")
             .Mark();
-        innerResult().code(PAYMENT_SUCCESS);
-        return true;
+        return makeResult(PAYMENT_SUCCESS);
     }
 
     // build a pathPaymentOp
@@ -61,22 +73,25 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     ppOp.destination = mPayment.destination;
 
-    OperationResult opRes;
-    opRes.code(opINNER);
-    opRes.tr().type(PATH_PAYMENT);
-    PathPaymentOpFrame ppayment(op, opRes, mParentTx);
+    PathPaymentOpFrame ppayment{op, mParentTx};
     ppayment.setSourceAccountPtr(mSourceAccount);
-
-    if (!ppayment.doCheckValid(app) ||
-        !ppayment.doApply(app, delta, ledgerManager))
+    auto presult = ppayment.doCheckValid(app);
+    if ((presult.code() == opINNER) &&
+        (presult.tr().pathPaymentResult().code() == PATH_PAYMENT_SUCCESS))
     {
-        if (ppayment.getResultCode() != opINNER)
-        {
-            throw std::runtime_error("Unexpected error code from pathPayment");
-        }
+        presult = ppayment.doApply(app, delta, ledgerManager);
+    }
+
+    if (presult.code() != opINNER)
+    {
+        throw std::runtime_error("Unexpected error code from pathPayment");
+    }
+
+    if (presult.tr().pathPaymentResult().code() != PATH_PAYMENT_SUCCESS)
+    {
         PaymentResultCode res;
 
-        switch (PathPaymentOpFrame::getInnerCode(ppayment.getResult()))
+        switch (PathPaymentOpFrame::getInnerCode(presult))
         {
         case PATH_PAYMENT_UNDERFUNDED:
             app.getMetrics()
@@ -133,22 +148,18 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         default:
             throw std::runtime_error("Unexpected error code from pathPayment");
         }
-        innerResult().code(res);
-        return false;
+        return makeResult(res);
     }
 
-    assert(PathPaymentOpFrame::getInnerCode(ppayment.getResult()) ==
-           PATH_PAYMENT_SUCCESS);
+    assert(PathPaymentOpFrame::getInnerCode(presult) == PATH_PAYMENT_SUCCESS);
 
     app.getMetrics()
         .NewMeter({"op-payment", "success", "apply"}, "operation")
         .Mark();
-    innerResult().code(PAYMENT_SUCCESS);
-
-    return true;
+    return makeResult(PAYMENT_SUCCESS);
 }
 
-bool
+OperationResult
 PaymentOpFrame::doCheckValid(Application& app)
 {
     if (mPayment.amount <= 0)
@@ -157,8 +168,7 @@ PaymentOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-payment", "invalid", "malformed-negative-amount"},
                       "operation")
             .Mark();
-        innerResult().code(PAYMENT_MALFORMED);
-        return false;
+        return makeResult(PAYMENT_MALFORMED);
     }
     if (!isAssetValid(mPayment.asset))
     {
@@ -166,9 +176,8 @@ PaymentOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-payment", "invalid", "malformed-invalid-asset"},
                       "operation")
             .Mark();
-        innerResult().code(PAYMENT_MALFORMED);
-        return false;
+        return makeResult(PAYMENT_MALFORMED);
     }
-    return true;
+    return makeResult(PAYMENT_SUCCESS);
 }
 }

@@ -11,20 +11,14 @@ namespace stellar
 
 class PaymentOpFrame : public OperationFrame
 {
-    PaymentResult&
-    innerResult()
-    {
-        return mResult.tr().paymentResult();
-    }
     PaymentOp const& mPayment;
 
   public:
-    PaymentOpFrame(Operation const& op, OperationResult& res,
-                   TransactionFrame& parentTx);
+    PaymentOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static PaymentResultCode
     getInnerCode(OperationResult const& res)

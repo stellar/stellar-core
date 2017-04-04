@@ -12,10 +12,24 @@
 
 namespace stellar
 {
-AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op, OperationResult& res,
+
+namespace
+{
+
+OperationResult
+makeResult(AllowTrustResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(ALLOW_TRUST);
+    result.tr().allowTrustResult().code(code);
+    return result;
+}
+}
+
+AllowTrustOpFrame::AllowTrustOpFrame(Operation const& op,
                                      TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mAllowTrust(mOperation.body.allowTrustOp())
+    : OperationFrame(op, parentTx), mAllowTrust(mOperation.body.allowTrustOp())
 {
 }
 
@@ -25,7 +39,7 @@ AllowTrustOpFrame::getThresholdLevel() const
     return ThresholdLevel::LOW;
 }
 
-bool
+OperationResult
 AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
@@ -39,8 +53,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-allow-trust", "failure", "trust-self"},
                           "operation")
                 .Mark();
-            innerResult().code(ALLOW_TRUST_SELF_NOT_ALLOWED);
-            return false;
+            return makeResult(ALLOW_TRUST_SELF_NOT_ALLOWED);
         }
     }
 
@@ -51,8 +64,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             .NewMeter({"op-allow-trust", "failure", "not-required"},
                       "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_TRUST_NOT_REQUIRED);
-        return false;
+        return makeResult(ALLOW_TRUST_TRUST_NOT_REQUIRED);
     }
 
     if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
@@ -61,8 +73,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-allow-trust", "failure", "cant-revoke"}, "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_CANT_REVOKE);
-        return false;
+        return makeResult(ALLOW_TRUST_CANT_REVOKE);
     }
 
     Asset ci;
@@ -88,23 +99,20 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             .NewMeter({"op-allow-trust", "failure", "no-trust-line"},
                       "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_NO_TRUST_LINE);
-        return false;
+        return makeResult(ALLOW_TRUST_NO_TRUST_LINE);
     }
 
     app.getMetrics()
         .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
-    innerResult().code(ALLOW_TRUST_SUCCESS);
 
     trustLine->setAuthorized(mAllowTrust.authorize);
-
     trustLine->storeChange(delta, db);
 
-    return true;
+    return makeResult(ALLOW_TRUST_SUCCESS);
 }
 
-bool
+OperationResult
 AllowTrustOpFrame::doCheckValid(Application& app)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
@@ -113,8 +121,7 @@ AllowTrustOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-allow-trust", "invalid", "malformed-non-alphanum"},
                       "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_MALFORMED);
-        return false;
+        return makeResult(ALLOW_TRUST_MALFORMED);
     }
     Asset ci;
     ci.type(mAllowTrust.asset.type());
@@ -135,10 +142,9 @@ AllowTrustOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-allow-trust", "invalid", "malformed-invalid-asset"},
                       "operation")
             .Mark();
-        innerResult().code(ALLOW_TRUST_MALFORMED);
-        return false;
+        return makeResult(ALLOW_TRUST_MALFORMED);
     }
 
-    return true;
+    return makeResult(ALLOW_TRUST_SUCCESS);
 }
 }

@@ -24,17 +24,41 @@ namespace stellar
 using namespace std;
 using xdr::operator==;
 
+namespace
+{
+
+OperationResult
+makeResult(ManageOfferResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(MANAGE_OFFER);
+    result.tr().manageOfferResult().code(code);
+    return result;
+}
+
+OperationResult
+makeResult(ManageOfferSuccessResult success)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(MANAGE_OFFER);
+    result.tr().manageOfferResult().code(MANAGE_OFFER_SUCCESS);
+    result.tr().manageOfferResult().success() = success;
+    return result;
+}
+}
+
 ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
-                                       OperationResult& res,
                                        TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
     , mManageOffer(mOperation.body.manageOfferOp())
 {
     mPassive = false;
 }
 
 // make sure these issuers exist and you can hold the ask asset
-bool
+OperationResult
 ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                                     Database& db, LedgerDelta& delta)
 {
@@ -44,7 +68,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
     if (mManageOffer.amount == 0)
     {
         // don't bother loading trust lines as we're deleting the offer
-        return true;
+        return makeResult(MANAGE_OFFER_SUCCESS);
     }
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
@@ -58,8 +82,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "sell-no-issuer"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
-            return false;
+            return makeResult(MANAGE_OFFER_SELL_NO_ISSUER);
         }
         if (!mSheepLineA)
         { // we don't have what we are trying to sell
@@ -67,8 +90,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "sell-no-trust"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
-            return false;
+            return makeResult(MANAGE_OFFER_SELL_NO_TRUST);
         }
         if (mSheepLineA->getBalance() == 0)
         {
@@ -76,8 +98,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "underfunded"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_UNDERFUNDED);
-            return false;
+            return makeResult(MANAGE_OFFER_UNDERFUNDED);
         }
         if (!mSheepLineA->isAuthorized())
         {
@@ -86,8 +107,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                           "operation")
                 .Mark();
             // we are not authorized to sell
-            innerResult().code(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
-            return false;
+            return makeResult(MANAGE_OFFER_SELL_NOT_AUTHORIZED);
         }
     }
 
@@ -102,8 +122,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "buy-no-issuer"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
-            return false;
+            return makeResult(MANAGE_OFFER_BUY_NO_ISSUER);
         }
         if (!mWheatLineA)
         { // we can't hold what we are trying to buy
@@ -111,8 +130,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "buy-no-trust"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
-            return false;
+            return makeResult(MANAGE_OFFER_BUY_NO_TRUST);
         }
         if (!mWheatLineA->isAuthorized())
         { // we are not authorized to hold what we
@@ -121,26 +139,26 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
                 .NewMeter({"op-manage-offer", "invalid", "buy-not-authorized"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
-            return false;
+            return makeResult(MANAGE_OFFER_BUY_NOT_AUTHORIZED);
         }
     }
-    return true;
+    return makeResult(MANAGE_OFFER_SUCCESS);
 }
 
 // you are selling sheep for wheat
 // need to check the counter offers selling wheat for sheep
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
-bool
+OperationResult
 ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
 
-    if (!checkOfferValid(app.getMetrics(), db, delta))
+    auto result = checkOfferValid(app.getMetrics(), db, delta);
+    if (result.tr().manageOfferResult().code() != MANAGE_OFFER_SUCCESS)
     {
-        return false;
+        return result;
     }
 
     Asset const& sheep = mManageOffer.selling;
@@ -160,8 +178,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-manage-offer", "invalid", "not-found"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_OFFER_NOT_FOUND);
-            return false;
+            return makeResult(MANAGE_OFFER_NOT_FOUND);
         }
 
         // rebuild offer based off the manage offer
@@ -183,10 +200,10 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     int64_t maxAmountOfSheepCanSell;
 
-    innerResult().code(MANAGE_OFFER_SUCCESS);
-
     soci::transaction sqlTx(db.getSession());
     LedgerDelta tempDelta(delta);
+
+    auto success = ManageOfferSuccessResult{};
 
     if (mManageOffer.amount == 0)
     {
@@ -219,8 +236,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                     .NewMeter({"op-manage-offer", "invalid", "line-full"},
                               "operation")
                     .Mark();
-                innerResult().code(MANAGE_OFFER_LINE_FULL);
-                return false;
+                return makeResult(MANAGE_OFFER_LINE_FULL);
             }
         }
 
@@ -254,9 +270,11 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
+        auto crossedSelf = false;
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
-            wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
+            wheatReceived,
+            [this, &crossedSelf, &maxWheatPrice](OfferFrame const& o) {
                 if (o.getOfferID() == mSellSheepOffer->getOfferID())
                 {
                     // don't let the offer cross itself when updating it
@@ -270,7 +288,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                 if (o.getSellerID() == getSourceID())
                 {
                     // we are crossing our own offer
-                    innerResult().code(MANAGE_OFFER_CROSS_SELF);
+                    crossedSelf = true;
                     return OfferExchange::eStop;
                 }
                 return OfferExchange::eKeep;
@@ -284,9 +302,9 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         case OfferExchange::ePartial:
             break;
         case OfferExchange::eFilterStop:
-            if (innerResult().code() != MANAGE_OFFER_SUCCESS)
+            if (crossedSelf)
             {
-                return false;
+                return makeResult(MANAGE_OFFER_CROSS_SELF);
             }
             break;
         }
@@ -295,7 +313,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         for (auto const& oatom : oe.getOfferTrail())
         {
-            innerResult().success().offersClaimed.push_back(oatom);
+            success.offersClaimed.push_back(oatom);
         }
 
         if (wheatReceived > 0)
@@ -360,25 +378,24 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                     .NewMeter({"op-manage-offer", "invalid", "low reserve"},
                               "operation")
                     .Mark();
-                innerResult().code(MANAGE_OFFER_LOW_RESERVE);
-                return false;
+                return makeResult(MANAGE_OFFER_LOW_RESERVE);
             }
             mSellSheepOffer->mEntry.data.offer().offerID =
                 tempDelta.getHeaderFrame().generateID();
-            innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
+            success.offer.effect(MANAGE_OFFER_CREATED);
             mSellSheepOffer->storeAdd(tempDelta, db);
             mSourceAccount->storeChange(tempDelta, db);
         }
         else
         {
-            innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
+            success.offer.effect(MANAGE_OFFER_UPDATED);
             mSellSheepOffer->storeChange(tempDelta, db);
         }
-        innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
+        success.offer.offer() = mSellSheepOffer->getOffer();
     }
     else
     {
-        innerResult().success().offer.effect(MANAGE_OFFER_DELETED);
+        success.offer.effect(MANAGE_OFFER_DELETED);
 
         if (!creatingNewOffer)
         {
@@ -394,11 +411,11 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     app.getMetrics()
         .NewMeter({"op-create-offer", "success", "apply"}, "operation")
         .Mark();
-    return true;
+    return makeResult(success);
 }
 
 // makes sure the currencies are different
-bool
+OperationResult
 ManageOfferOpFrame::doCheckValid(Application& app)
 {
     Asset const& sheep = mManageOffer.selling;
@@ -410,8 +427,7 @@ ManageOfferOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-manage-offer", "invalid", "invalid-asset"},
                       "operation")
             .Mark();
-        innerResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
+        return makeResult(MANAGE_OFFER_MALFORMED);
     }
     if (compareAsset(sheep, wheat))
     {
@@ -419,8 +435,7 @@ ManageOfferOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-manage-offer", "invalid", "equal-currencies"},
                       "operation")
             .Mark();
-        innerResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
+        return makeResult(MANAGE_OFFER_MALFORMED);
     }
     if (mManageOffer.amount < 0 || mManageOffer.price.d <= 0 ||
         mManageOffer.price.n <= 0)
@@ -429,8 +444,7 @@ ManageOfferOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-manage-offer", "invalid", "negative-or-zero-values"},
                       "operation")
             .Mark();
-        innerResult().code(MANAGE_OFFER_MALFORMED);
-        return false;
+        return makeResult(MANAGE_OFFER_MALFORMED);
     }
     if (app.getLedgerManager().getCurrentLedgerVersion() > 2 &&
         mManageOffer.offerID == 0 && mManageOffer.amount == 0)
@@ -441,11 +455,10 @@ ManageOfferOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-manage-offer", "invalid", "create-with-zero"},
                       "operation")
             .Mark();
-        innerResult().code(MANAGE_OFFER_NOT_FOUND);
-        return false;
+        return makeResult(MANAGE_OFFER_NOT_FOUND);
     }
 
-    return true;
+    return makeResult(MANAGE_OFFER_SUCCESS);
 }
 
 OfferEntry

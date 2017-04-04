@@ -21,13 +21,33 @@ const time_t INFLATION_START_TIME = (1404172800LL); // 1-jul-2014 (unix epoch)
 
 namespace stellar
 {
-InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
+
+namespace
+{
+
+OperationResult
+makeResult(InflationResultCode code,
+           xdr::xvector<InflationPayout> const& payouts = {})
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(INFLATION);
+    result.tr().inflationResult().code(code);
+    if (code == INFLATION_SUCCESS)
+    {
+        result.tr().inflationResult().payouts() = payouts;
+    }
+    return result;
+}
+}
+
+InflationOpFrame::InflationOpFrame(Operation const& op,
                                    TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
-bool
+OperationResult
 InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
                           LedgerManager& ledgerManager)
 {
@@ -44,8 +64,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-inflation", "failure", "not-time"}, "operation")
             .Mark();
-        innerResult().code(INFLATION_NOT_TIME);
-        return false;
+        return makeResult(INFLATION_NOT_TIME);
     }
 
     /*
@@ -83,8 +102,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
     lcl.inflationSeq++;
 
     // now credit each account
-    innerResult().code(INFLATION_SUCCESS);
-    auto& payouts = innerResult().payouts();
+    auto payouts = xdr::xvector<InflationPayout>{};
 
     int64 leftAfterDole = amountToDole;
 
@@ -129,13 +147,13 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
     app.getMetrics()
         .NewMeter({"op-inflation", "success", "apply"}, "operation")
         .Mark();
-    return true;
+    return makeResult(INFLATION_SUCCESS, payouts);
 }
 
-bool
+OperationResult
 InflationOpFrame::doCheckValid(Application& app)
 {
-    return true;
+    return makeResult(INFLATION_SUCCESS);
 }
 
 ThresholdLevel

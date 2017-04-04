@@ -11,20 +11,14 @@ namespace stellar
 
 class PathPaymentOpFrame : public OperationFrame
 {
-    PathPaymentResult&
-    innerResult()
-    {
-        return mResult.tr().pathPaymentResult();
-    }
     PathPaymentOp const& mPathPayment;
 
   public:
-    PathPaymentOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    PathPaymentOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static PathPaymentResultCode
     getInnerCode(OperationResult const& res)

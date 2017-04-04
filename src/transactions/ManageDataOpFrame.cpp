@@ -19,14 +19,27 @@ namespace stellar
 using namespace std;
 using xdr::operator==;
 
-ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
+namespace
+{
+
+OperationResult
+makeResult(ManageDataResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(MANAGE_DATA);
+    result.tr().manageDataResult().code(code);
+    return result;
+}
+}
+
+ManageDataOpFrame::ManageDataOpFrame(Operation const& op,
                                      TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
-    , mManageData(mOperation.body.manageDataOp())
+    : OperationFrame(op, parentTx), mManageData(mOperation.body.manageDataOp())
 {
 }
 
-bool
+OperationResult
 ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
@@ -52,8 +65,7 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                     .NewMeter({"op-manage-data", "invalid", "low reserve"},
                               "operation")
                     .Mark();
-                innerResult().code(MANAGE_DATA_LOW_RESERVE);
-                return false;
+                return makeResult(MANAGE_DATA_LOW_RESERVE);
             }
 
             dataFrame = std::make_shared<DataFrame>();
@@ -80,8 +92,7 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-manage-data", "invalid", "not-found"},
                           "operation")
                 .Mark();
-            innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
-            return false;
+            return makeResult(MANAGE_DATA_NAME_NOT_FOUND);
         }
         delta.recordEntry(*dataFrame);
         mSourceAccount->addNumEntries(-1, ledgerManager);
@@ -89,15 +100,13 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
         dataFrame->storeDelete(delta, db);
     }
 
-    innerResult().code(MANAGE_DATA_SUCCESS);
-
     app.getMetrics()
         .NewMeter({"op-manage-data", "success", "apply"}, "operation")
         .Mark();
-    return true;
+    return makeResult(MANAGE_DATA_SUCCESS);
 }
 
-bool
+OperationResult
 ManageDataOpFrame::doCheckValid(Application& app)
 {
     if (app.getLedgerManager().getCurrentLedgerVersion() < 2)
@@ -107,8 +116,7 @@ ManageDataOpFrame::doCheckValid(Application& app)
                 {"op-set-options", "invalid", "invalid-data-old-protocol"},
                 "operation")
             .Mark();
-        innerResult().code(MANAGE_DATA_NOT_SUPPORTED_YET);
-        return false;
+        return makeResult(MANAGE_DATA_NOT_SUPPORTED_YET);
     }
 
     if ((mManageData.dataName.size() < 1) ||
@@ -118,10 +126,9 @@ ManageDataOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-set-options", "invalid", "invalid-data-name"},
                       "operation")
             .Mark();
-        innerResult().code(MANAGE_DATA_INVALID_NAME);
-        return false;
+        return makeResult(MANAGE_DATA_INVALID_NAME);
     }
 
-    return true;
+    return makeResult(MANAGE_DATA_SUCCESS);
 }
 }

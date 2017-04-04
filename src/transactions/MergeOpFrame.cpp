@@ -14,11 +14,29 @@ using namespace soci;
 
 namespace stellar
 {
+
+namespace
+{
+
+OperationResult
+makeResult(AccountMergeResultCode code, int64_t balance = 0)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(ACCOUNT_MERGE);
+    result.tr().accountMergeResult().code(code);
+    if (code == ACCOUNT_MERGE_SUCCESS)
+    {
+        result.tr().accountMergeResult().sourceAccountBalance() = balance;
+    }
+    return result;
+}
+}
+
 using xdr::operator==;
 
-MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
-                           TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+MergeOpFrame::MergeOpFrame(Operation const& op, TransactionFrame& parentTx)
+    : OperationFrame(op, parentTx)
 {
 }
 
@@ -33,7 +51,7 @@ MergeOpFrame::getThresholdLevel() const
 // make sure the we delete all the offers
 // make sure the we delete all the trustlines
 // move the XLM to the new account
-bool
+OperationResult
 MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
                       LedgerManager& ledgerManager)
 {
@@ -50,8 +68,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "no-account"}, "operation")
             .Mark();
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-        return false;
+        return makeResult(ACCOUNT_MERGE_NO_ACCOUNT);
     }
 
     if (ledgerManager.getCurrentLedgerVersion() > 4)
@@ -63,8 +80,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
             app.getMetrics()
                 .NewMeter({"op-merge", "failure", "no-account"}, "operation")
                 .Mark();
-            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-            return false;
+            return makeResult(ACCOUNT_MERGE_NO_ACCOUNT);
         }
         if (ledgerManager.getCurrentLedgerVersion() > 5)
         {
@@ -77,8 +93,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "static-auth"}, "operation")
             .Mark();
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
-        return false;
+        return makeResult(ACCOUNT_MERGE_IMMUTABLE_SET);
     }
 
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
@@ -86,8 +101,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "has-sub-entries"}, "operation")
             .Mark();
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-        return false;
+        return makeResult(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
     }
 
     if (!otherAccount->addBalance(sourceBalance))
@@ -101,12 +115,10 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
     app.getMetrics()
         .NewMeter({"op-merge", "success", "apply"}, "operation")
         .Mark();
-    innerResult().code(ACCOUNT_MERGE_SUCCESS);
-    innerResult().sourceAccountBalance() = sourceBalance;
-    return true;
+    return makeResult(ACCOUNT_MERGE_SUCCESS, sourceBalance);
 }
 
-bool
+OperationResult
 MergeOpFrame::doCheckValid(Application& app)
 {
     // makes sure not merging into self
@@ -116,9 +128,8 @@ MergeOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-merge", "invalid", "malformed-self-merge"},
                       "operation")
             .Mark();
-        innerResult().code(ACCOUNT_MERGE_MALFORMED);
-        return false;
+        return makeResult(ACCOUNT_MERGE_MALFORMED);
     }
-    return true;
+    return makeResult(ACCOUNT_MERGE_SUCCESS);
 }
 }

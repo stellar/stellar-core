@@ -11,20 +11,14 @@ namespace stellar
 
 class CreateAccountOpFrame : public OperationFrame
 {
-    CreateAccountResult&
-    innerResult()
-    {
-        return mResult.tr().createAccountResult();
-    }
     CreateAccountOp const& mCreateAccount;
 
   public:
-    CreateAccountOpFrame(Operation const& op, OperationResult& res,
-                         TransactionFrame& parentTx);
+    CreateAccountOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static CreateAccountResultCode
     getInnerCode(OperationResult const& res)

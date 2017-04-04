@@ -10,21 +10,14 @@ namespace stellar
 {
 class MergeOpFrame : public OperationFrame
 {
-    AccountMergeResult&
-    innerResult()
-    {
-        return mResult.tr().accountMergeResult();
-    }
-
     ThresholdLevel getThresholdLevel() const override;
 
   public:
-    MergeOpFrame(Operation const& op, OperationResult& res,
-                 TransactionFrame& parentTx);
+    MergeOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static AccountMergeResultCode
     getInnerCode(OperationResult const& res)

@@ -619,22 +619,16 @@ manageData(std::string const& name, DataValue* value)
     return op;
 }
 
-OperationFrame const&
-getFirstOperationFrame(TransactionFrame const& tx)
-{
-    return *(tx.getOperations()[0]);
-}
-
 OperationResult const&
 getFirstResult(TransactionFrame const& tx)
 {
-    return getFirstOperationFrame(tx).getResult();
+    return tx.getResult().result.results()[0];
 }
 
 OperationResultCode
 getFirstResultCode(TransactionFrame const& tx)
 {
-    return getFirstOperationFrame(tx).getResultCode();
+    return tx.getResult().result.results()[0].code();
 }
 
 void

@@ -10,21 +10,14 @@ namespace stellar
 {
 class InflationOpFrame : public OperationFrame
 {
-    InflationResult&
-    innerResult()
-    {
-        return mResult.tr().inflationResult();
-    }
-
     ThresholdLevel getThresholdLevel() const override;
 
   public:
-    InflationOpFrame(Operation const& op, OperationResult& res,
-                     TransactionFrame& parentTx);
+    InflationOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static InflationResultCode
     getInnerCode(OperationResult const& res)

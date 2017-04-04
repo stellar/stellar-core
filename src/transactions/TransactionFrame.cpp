@@ -138,7 +138,8 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 AccountFrame& account, int32_t neededWeight)
+                                 AccountFrame const& account,
+                                 int32_t neededWeight)
 {
     std::vector<Signer> signers;
     if (account.getAccount().thresholds[0])
@@ -195,8 +196,7 @@ TransactionFrame::resetResults()
     for (size_t i = 0; i < mEnvelope.tx.operations.size(); i++)
     {
         mOperations.push_back(
-            OperationFrame::makeHelper(mEnvelope.tx.operations[i],
-                                       getResult().result.results()[i], *this));
+            OperationFrame::makeHelper(mEnvelope.tx.operations[i], *this));
     }
 
     // feeCharged is updated accordingly to represent the cost of the
@@ -410,9 +410,11 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
     bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
+        auto resultIt = getResult().result.results().begin();
         for (auto& op : mOperations)
         {
-            if (!op->checkValid(signatureChecker, app))
+            *resultIt = op->checkValid(signatureChecker, app);
+            if (!isSuccess(*resultIt))
             {
                 // it's OK to just fast fail here and not try to call
                 // checkValid on all operations as the resulting object
@@ -424,6 +426,8 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 markResultFailed();
                 return false;
             }
+
+            resultIt++;
         }
 
         if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
@@ -444,21 +448,9 @@ TransactionFrame::markResultFailed()
 {
     // changing "code" causes the xdr struct to be deleted/re-created
     // As we want to preserve the results, we save them inside a temp object
-    // Also, note that because we're using move operators
-    // mOperations are still valid (they have pointers to the individual
-    // results elements)
     xdr::xvector<OperationResult> t(std::move(getResult().result.results()));
     getResult().result.code(txFAILED);
     getResult().result.results() = std::move(t);
-
-    // sanity check in case some implementations decide
-    // to not implement std::move properly
-    auto const& allResults = getResult().result.results();
-    assert(allResults.size() == mOperations.size());
-    for (size_t i = 0; i < mOperations.size(); i++)
-    {
-        assert(&mOperations[i]->getResult() == &allResults[i]);
-    }
 }
 
 bool
@@ -490,18 +482,21 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
         auto& opTimer =
             app.getMetrics().NewTimer({"transaction", "op", "apply"});
 
+        auto resultIt = getResult().result.results().begin();
         for (auto& op : mOperations)
         {
             auto time = opTimer.TimeScope();
             LedgerDelta opDelta(thisTxDelta);
-            bool txRes = op->apply(signatureChecker, opDelta, app);
+            *resultIt = op->apply(signatureChecker, opDelta, app);
 
-            if (!txRes)
+            if (!isSuccess(*resultIt))
             {
                 errorEncountered = true;
             }
             meta.operations().emplace_back(opDelta.getChanges());
             opDelta.commit();
+
+            resultIt++;
         }
 
         if (!errorEncountered)

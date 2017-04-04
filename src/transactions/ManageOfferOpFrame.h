@@ -17,14 +17,8 @@ class ManageOfferOpFrame : public OperationFrame
 
     OfferFrame::pointer mSellSheepOffer;
 
-    bool checkOfferValid(medida::MetricsRegistry& metrics, Database& db,
-                         LedgerDelta& delta);
-
-    ManageOfferResult&
-    innerResult()
-    {
-        return mResult.tr().manageOfferResult();
-    }
+    OperationResult checkOfferValid(medida::MetricsRegistry& metrics,
+                                    Database& db, LedgerDelta& delta);
 
     ManageOfferOp const& mManageOffer;
 
@@ -35,12 +29,11 @@ class ManageOfferOpFrame : public OperationFrame
     bool mPassive;
 
   public:
-    ManageOfferOpFrame(Operation const& op, OperationResult& res,
-                       TransactionFrame& parentTx);
+    ManageOfferOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static ManageOfferResultCode
     getInnerCode(OperationResult const& res)

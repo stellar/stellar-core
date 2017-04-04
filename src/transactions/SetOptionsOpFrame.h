@@ -11,20 +11,14 @@ namespace stellar
 class SetOptionsOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
-    SetOptionsResult&
-    innerResult()
-    {
-        return mResult.tr().setOptionsResult();
-    }
     SetOptionsOp const& mSetOptions;
 
   public:
-    SetOptionsOpFrame(Operation const& op, OperationResult& res,
-                      TransactionFrame& parentTx);
+    SetOptionsOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static SetOptionsResultCode
     getInnerCode(OperationResult const& res)

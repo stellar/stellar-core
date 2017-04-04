@@ -138,7 +138,7 @@ class TransactionFrame
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
+                        AccountFrame const& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
 

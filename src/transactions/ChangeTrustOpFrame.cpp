@@ -13,14 +13,28 @@
 namespace stellar
 {
 
+namespace
+{
+
+OperationResult
+makeResult(ChangeTrustResultCode code)
+{
+    auto result = OperationResult{};
+    result.code(opINNER);
+    result.tr().type(CHANGE_TRUST);
+    result.tr().changeTrustResult().code(code);
+    return result;
+}
+}
+
 ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
-                                       OperationResult& res,
                                        TransactionFrame& parentTx)
-    : OperationFrame(op, res, parentTx)
+    : OperationFrame(op, parentTx)
     , mChangeTrust(mOperation.body.changeTrustOp())
 {
 }
-bool
+
+OperationResult
 ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
@@ -42,8 +56,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-change-trust", "failure", "trust-self"},
                           "operation")
                 .Mark();
-            innerResult().code(CHANGE_TRUST_SELF_NOT_ALLOWED);
-            return false;
+            return makeResult(CHANGE_TRUST_SELF_NOT_ALLOWED);
         }
     }
 
@@ -58,8 +71,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-change-trust", "failure", "invalid-limit"},
                           "operation")
                 .Mark();
-            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
-            return false;
+            return makeResult(CHANGE_TRUST_INVALID_LIMIT);
         }
 
         if (mChangeTrust.limit == 0)
@@ -77,8 +89,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                     .NewMeter({"op-change-trust", "failure", "no-issuer"},
                               "operation")
                     .Mark();
-                innerResult().code(CHANGE_TRUST_NO_ISSUER);
-                return false;
+                return makeResult(CHANGE_TRUST_NO_ISSUER);
             }
             trustLine->getTrustLine().limit = mChangeTrust.limit;
             trustLine->storeChange(delta, db);
@@ -86,8 +97,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")
             .Mark();
-        innerResult().code(CHANGE_TRUST_SUCCESS);
-        return true;
+        return makeResult(CHANGE_TRUST_SUCCESS);
     }
     else
     { // new trust line
@@ -97,8 +107,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-change-trust", "failure", "invalid-limit"},
                           "operation")
                 .Mark();
-            innerResult().code(CHANGE_TRUST_INVALID_LIMIT);
-            return false;
+            return makeResult(CHANGE_TRUST_INVALID_LIMIT);
         }
         if (!issuer)
         {
@@ -106,8 +115,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-change-trust", "failure", "no-issuer"},
                           "operation")
                 .Mark();
-            innerResult().code(CHANGE_TRUST_NO_ISSUER);
-            return false;
+            return makeResult(CHANGE_TRUST_NO_ISSUER);
         }
         trustLine = std::make_shared<TrustFrame>();
         auto& tl = trustLine->getTrustLine();
@@ -123,8 +131,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 .NewMeter({"op-change-trust", "failure", "low-reserve"},
                           "operation")
                 .Mark();
-            innerResult().code(CHANGE_TRUST_LOW_RESERVE);
-            return false;
+            return makeResult(CHANGE_TRUST_LOW_RESERVE);
         }
 
         mSourceAccount->storeChange(delta, db);
@@ -133,12 +140,11 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")
             .Mark();
-        innerResult().code(CHANGE_TRUST_SUCCESS);
-        return true;
+        return makeResult(CHANGE_TRUST_SUCCESS);
     }
 }
 
-bool
+OperationResult
 ChangeTrustOpFrame::doCheckValid(Application& app)
 {
     if (mChangeTrust.limit < 0)
@@ -148,8 +154,7 @@ ChangeTrustOpFrame::doCheckValid(Application& app)
                 {"op-change-trust", "invalid", "malformed-negative-limit"},
                 "operation")
             .Mark();
-        innerResult().code(CHANGE_TRUST_MALFORMED);
-        return false;
+        return makeResult(CHANGE_TRUST_MALFORMED);
     }
     if (!isAssetValid(mChangeTrust.line))
     {
@@ -157,9 +162,9 @@ ChangeTrustOpFrame::doCheckValid(Application& app)
             .NewMeter({"op-change-trust", "invalid", "malformed-invalid-asset"},
                       "operation")
             .Mark();
-        innerResult().code(CHANGE_TRUST_MALFORMED);
-        return false;
+        return makeResult(CHANGE_TRUST_MALFORMED);
     }
-    return true;
+    return makeResult(CHANGE_TRUST_SUCCESS);
+    ;
 }
 }

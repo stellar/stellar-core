@@ -11,21 +11,15 @@ namespace stellar
 class AllowTrustOpFrame : public OperationFrame
 {
     ThresholdLevel getThresholdLevel() const override;
-    AllowTrustResult&
-    innerResult() const
-    {
-        return getResult().tr().allowTrustResult();
-    }
 
     AllowTrustOp const& mAllowTrust;
 
   public:
-    AllowTrustOpFrame(Operation const& op, OperationResult& res,
-                      TransactionFrame& parentTx);
+    AllowTrustOpFrame(Operation const& op, TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    OperationResult doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    OperationResult doCheckValid(Application& app) override;
 
     static AllowTrustResultCode
     getInnerCode(OperationResult const& res)
