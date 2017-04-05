@@ -37,8 +37,6 @@ class LedgerDelta
 
     Database& mDb; // Used strictly for rollback of db entry cache.
 
-    bool mUpdateLastModified;
-
     void checkState();
     void addEntry(EntryFrame::pointer entry);
     void deleteEntry(EntryFrame::pointer entry);
@@ -61,9 +59,7 @@ class LedgerDelta
     // keeps an internal reference to ledgerHeader,
     // will apply changes to ledgerHeader on commit,
     // will clear db entry cache on rollback.
-    // updateLastModified: if true, revs the lastModified field
-    LedgerDelta(LedgerHeader& ledgerHeader, Database& db,
-                bool updateLastModified = true);
+    LedgerDelta(LedgerHeader& ledgerHeader, Database& db);
 
     ~LedgerDelta();
 
@@ -82,8 +78,6 @@ class LedgerDelta
     void commit();
     // aborts any changes pending, flush db cache entries
     void rollback();
-
-    bool updateLastModified() const;
 
     void markMeters(Application& app) const;
 

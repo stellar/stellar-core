@@ -34,10 +34,11 @@ BucketApplicator::advance()
     while (mIn && mIn.readOne(entry))
     {
         LedgerHeader lh;
-        LedgerDelta delta(lh, mDb, false);
+        LedgerDelta delta(lh, mDb);
         if (entry.type() == LIVEENTRY)
         {
             EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
+            delta.getHeader().ledgerSeq = ep->getLastModified();
             ep->storeAddOrChange(delta, mDb);
         }
         else

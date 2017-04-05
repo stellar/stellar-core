@@ -20,18 +20,15 @@ LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     , mCurrentHeader(outerDelta.getHeader())
     , mPreviousHeaderValue(outerDelta.getHeader())
     , mDb(outerDelta.mDb)
-    , mUpdateLastModified(outerDelta.mUpdateLastModified)
 {
 }
 
-LedgerDelta::LedgerDelta(LedgerHeader& header, Database& db,
-                         bool updateLastModified)
+LedgerDelta::LedgerDelta(LedgerHeader& header, Database& db)
     : mOuterDelta(nullptr)
     , mHeader(&header)
     , mCurrentHeader(header)
     , mPreviousHeaderValue(header)
     , mDb(db)
-    , mUpdateLastModified(updateLastModified)
 {
 }
 
@@ -323,12 +320,6 @@ LedgerDelta::getDeadEntries() const
         dead.push_back(k);
     }
     return dead;
-}
-
-bool
-LedgerDelta::updateLastModified() const
-{
-    return mUpdateLastModified;
 }
 
 void

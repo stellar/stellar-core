@@ -100,10 +100,7 @@ void
 EntryFrame::touch(LedgerDelta const& delta)
 {
     uint32 ledgerSeq = delta.getHeader().ledgerSeq;
-    if (delta.updateLastModified())
-    {
-        touch(ledgerSeq);
-    }
+    touch(ledgerSeq);
 }
 
 void
