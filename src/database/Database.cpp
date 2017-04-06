@@ -4,6 +4,7 @@
 
 #include "database/Database.h"
 #include "crypto/Hex.h"
+#include "database/DatabaseConnectionString.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -87,8 +88,11 @@ Database::Database(Application& app)
     , mLastIdleTotalTime(app.getClock().now())
 {
     registerDrivers();
-    CLOG(INFO, "Database") << "Connecting to: " << app.getConfig().DATABASE;
-    mSession.open(app.getConfig().DATABASE);
+
+    CLOG(INFO, "Database") << "Connecting to: "
+                           << removePasswordFromConnectionString(
+                                  app.getConfig().DATABASE.value);
+    mSession.open(app.getConfig().DATABASE.value);
     if (isSqlite())
     {
         mSession << "PRAGMA journal_mode = WAL";
@@ -253,13 +257,14 @@ Database::setCurrentTransactionReadOnly()
 bool
 Database::isSqlite() const
 {
-    return mApp.getConfig().DATABASE.find("sqlite3:") != std::string::npos;
+    return mApp.getConfig().DATABASE.value.find("sqlite3:") !=
+           std::string::npos;
 }
 
 bool
 Database::canUsePool() const
 {
-    return !(mApp.getConfig().DATABASE == ("sqlite3://:memory:"));
+    return !(mApp.getConfig().DATABASE.value == ("sqlite3://:memory:"));
 }
 
 void
@@ -310,21 +315,22 @@ Database::getPool()
 {
     if (!mPool)
     {
-        std::string const& c = mApp.getConfig().DATABASE;
+        auto const& c = mApp.getConfig().DATABASE;
         if (!canUsePool())
         {
             std::string s("Can't create connection pool to ");
-            s += c;
+            s += removePasswordFromConnectionString(c.value);
             throw std::runtime_error(s);
         }
         size_t n = std::thread::hardware_concurrency();
-        LOG(INFO) << "Establishing " << n << "-entry connection pool to: " << c;
+        LOG(INFO) << "Establishing " << n << "-entry connection pool to: "
+                  << removePasswordFromConnectionString(c.value);
         mPool = make_unique<soci::connection_pool>(n);
         for (size_t i = 0; i < n; ++i)
         {
             LOG(DEBUG) << "Opening pool entry " << i;
             soci::session& sess = mPool->at(i);
-            sess.open(c);
+            sess.open(c.value);
             if (!isSqlite())
             {
                 setSerializable(sess);

@@ -13,7 +13,7 @@ Application::pointer
 Application::create(VirtualClock& clock, Config const& cfg, bool newDB)
 {
     Application::pointer ret = make_shared<ApplicationImpl>(clock, cfg);
-    if (newDB || cfg.DATABASE == "sqlite3://:memory:")
+    if (newDB || cfg.DATABASE.value == "sqlite3://:memory:")
         ret->newDB();
 
     return ret;

@@ -6,6 +6,7 @@
 #include "crypto/SecretKey.h"
 #include "lib/util/cpptoml.h"
 #include "overlay/StellarXDR.h"
+#include "util/SecretValue.h"
 #include "util/optional.h"
 #include <map>
 #include <memory>
@@ -173,7 +174,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::map<std::string, std::shared_ptr<HistoryArchive>> HISTORY;
 
     // Database config
-    std::string DATABASE;
+    SecretValue DATABASE;
 
     std::vector<std::string> COMMANDS;
     std::vector<std::string> REPORT_METRICS;

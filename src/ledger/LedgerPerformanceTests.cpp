@@ -164,8 +164,9 @@ TEST_CASE("ledger performance test", "[performance][hide]")
     qSet0.threshold = 1;
     qSet0.validators.push_back(v10NodeID);
 
-    cfg.DATABASE = "postgresql://host=localhost dbname=performance_test "
-                   "user=test password=test";
+    cfg.DATABASE =
+        SecretValue{"postgresql://host=localhost dbname=performance_test "
+                    "user=test password=test"};
     cfg.BUCKET_DIR_PATH = "performance-test.db.buckets";
     cfg.MANUAL_CLOSE = true;
     sim.addNode(v10SecretKey, qSet0, sim.getClock(), &cfg);
