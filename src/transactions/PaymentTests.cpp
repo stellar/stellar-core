@@ -94,8 +94,6 @@ TEST_CASE("payment", "[tx][payment]")
     ApplicationEditableVersion app(clock, cfg);
     app.start();
 
-    app.getLedgerManager().setCurrentLedgerVersion(cfg.LEDGER_PROTOCOL_VERSION);
-
     // set up world
     auto root = TestAccount::createRoot(app);
 
@@ -185,35 +183,13 @@ TEST_CASE("payment", "[tx][payment]")
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
 
-        Operation op1;
-        op1.body.type(ACCOUNT_MERGE);
-        op1.body.destination() = b1;
-
-        Operation op2;
-        op2.body.type(PAYMENT);
-        op2.body.paymentOp().amount = 200;
-        op2.body.paymentOp().destination = b1.getPublicKey();
-        op2.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
-
-        TransactionEnvelope e;
-
-        e.tx.sourceAccount = a1.getPublicKey();
-        e.tx.fee = 200;
-        e.tx.seqNum = a1.nextSequenceNumber();
-        e.tx.operations.push_back(op1);
-        e.tx.operations.push_back(op2);
-
-        TransactionFramePtr txFrame =
-            TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
-        txFrame->addSignature(a1.getSecretKey());
-
-        bool res = applyCheck(txFrame, delta, app);
+        auto txFrame = a1.tx({createMergeOp(b1), createPaymentOp(nullptr, b1, 200)});
+        auto res = applyCheck(txFrame, delta, app);
 
         REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
         REQUIRE(b1Balance == getAccountBalance(b1, app));
-        REQUIRE((a1Balance - 200) == getAccountBalance(a1, app));
+        REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
     }
 
     SECTION("send XLM to an existing account")
