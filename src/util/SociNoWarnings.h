@@ -14,5 +14,3 @@
 #include <soci.h>
 #pragma GCC diagnostic pop
 #endif // !
-
-
