@@ -51,21 +51,20 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
         return false;
     }
-	
-	if (ledgerManager.getCurrentLedgerVersion() > 4)
-	{
-		AccountFrame::pointer thisAccount =
-			AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-		if (!thisAccount)
-		{
-			app.getMetrics()
-				.NewMeter({ "op-merge", "failure", "no-account" }, "operation")
-				.Mark();
-			innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-			return false;
-		}
-	}
-	
+
+    if (ledgerManager.getCurrentLedgerVersion() > 4)
+    {
+        AccountFrame::pointer thisAccount =
+            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+        if (!thisAccount)
+        {
+            app.getMetrics()
+                .NewMeter({"op-merge", "failure", "no-account"}, "operation")
+                .Mark();
+            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+            return false;
+        }
+    }
 
     if (mSourceAccount->isImmutableAuth())
     {

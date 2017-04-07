@@ -13,10 +13,10 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/MergeOpFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
-#include "transactions/MergeOpFrame.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -53,8 +53,6 @@ TEST_CASE("merge", "[tx][merge]")
 
     auto a1 = root.create("A", minBalance);
 
-	app.getLedgerManager().setCurrentLedgerVersion(cfg.LEDGER_PROTOCOL_VERSION);
-
     SECTION("merge into self")
     {
         REQUIRE_THROWS_AS(a1.merge(a1), ex_ACCOUNT_MERGE_MALFORMED);
@@ -72,44 +70,61 @@ TEST_CASE("merge", "[tx][merge]")
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
 
+    SECTION("merge account twice")
+    {
+        int64 a1Balance = getAccountBalance(a1, app);
+        int64 b1Balance = getAccountBalance(b1, app);
 
-	SECTION("merge account twice")
-	{
-		int64 a1Balance = getAccountBalance(a1, app);
-		int64 b1Balance = getAccountBalance(b1, app);
+        Operation op1;
+        op1.body.type(ACCOUNT_MERGE);
+        op1.body.destination() = b1;
 
-		Operation op1;
-		op1.body.type(ACCOUNT_MERGE);
-		op1.body.destination() = b1;
+        Operation op2;
+        op2.body.type(ACCOUNT_MERGE);
+        op2.body.destination() = b1;
 
-		Operation op2;
-		op2.body.type(ACCOUNT_MERGE);
-		op2.body.destination() = b1;
+        TransactionEnvelope e;
 
-		TransactionEnvelope e;
+        e.tx.sourceAccount = a1.getPublicKey();
+        e.tx.fee = 200;
+        e.tx.seqNum = a1.nextSequenceNumber();
+        e.tx.operations.push_back(op1);
+        e.tx.operations.push_back(op2);
 
-		e.tx.sourceAccount = a1.getPublicKey();
-		e.tx.fee = 200;
-		e.tx.seqNum = a1.nextSequenceNumber();
-		e.tx.operations.push_back(op1);
-		e.tx.operations.push_back(op2);
+        TransactionFramePtr txFrame =
+            TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
 
-		TransactionFramePtr txFrame =
-			TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
+        txFrame->addSignature(a1.getSecretKey());
 
-		txFrame->addSignature(a1.getSecretKey());
+        SECTION("protocol version 4")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(4);
 
-		applyCheck(txFrame, delta, app);
+            applyCheck(txFrame, delta, app);
 
-		auto result =
-			MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[1]);
-		
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[1]);
 
-		REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-		REQUIRE(b1Balance == getAccountBalance(b1, app));
-		REQUIRE((a1Balance - 200) == getAccountBalance(a1, app));
+            auto a1BalanceAfterFee = a1Balance - e.tx.fee;
+            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee == getAccountBalance(b1, app));
+            REQUIRE(!loadAccount(a1, app, false));
+        }
 
-	}
+        SECTION("protocol version 5")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(5);
+
+            applyCheck(txFrame, delta, app);
+
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[1]);
+
+            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - e.tx.fee) == getAccountBalance(a1, app));
+        }
+    }
 
     SECTION("Account has static auth flag set")
     {
