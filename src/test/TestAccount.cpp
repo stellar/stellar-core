@@ -12,6 +12,13 @@ namespace stellar
 
 using namespace txtest;
 
+TransactionFramePtr
+TestAccount::tx(std::vector<Operation> const& ops)
+{
+    return transactionFromOperations(mApp.getNetworkID(), getSecretKey(),
+                                     nextSequenceNumber(), ops);
+}
+
 TestAccount
 TestAccount::createRoot(Application& app)
 {

@@ -6,6 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "ledger/OfferFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
 
@@ -28,6 +29,8 @@ class TestAccount
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {
     }
+
+    TransactionFramePtr tx(std::vector<Operation> const& ops);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);

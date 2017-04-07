@@ -75,26 +75,7 @@ TEST_CASE("merge", "[tx][merge]")
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
 
-        Operation op1;
-        op1.body.type(ACCOUNT_MERGE);
-        op1.body.destination() = b1;
-
-        Operation op2;
-        op2.body.type(ACCOUNT_MERGE);
-        op2.body.destination() = b1;
-
-        TransactionEnvelope e;
-
-        e.tx.sourceAccount = a1.getPublicKey();
-        e.tx.fee = 200;
-        e.tx.seqNum = a1.nextSequenceNumber();
-        e.tx.operations.push_back(op1);
-        e.tx.operations.push_back(op2);
-
-        TransactionFramePtr txFrame =
-            TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
-        txFrame->addSignature(a1.getSecretKey());
+        auto txFrame = a1.tx({createMergeOp(b1), createMergeOp(b1)});
 
         SECTION("protocol version 4")
         {
@@ -105,9 +86,10 @@ TEST_CASE("merge", "[tx][merge]")
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
 
-            auto a1BalanceAfterFee = a1Balance - e.tx.fee;
+            auto a1BalanceAfterFee = a1Balance - txFrame->getFee();
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee == getAccountBalance(b1, app));
+            REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee ==
+                    getAccountBalance(b1, app));
             REQUIRE(!loadAccount(a1, app, false));
         }
 
@@ -122,7 +104,8 @@ TEST_CASE("merge", "[tx][merge]")
 
             REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
             REQUIRE(b1Balance == getAccountBalance(b1, app));
-            REQUIRE((a1Balance - e.tx.fee) == getAccountBalance(a1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) ==
+                    getAccountBalance(a1, app));
         }
     }
 
