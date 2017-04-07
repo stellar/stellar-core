@@ -1170,11 +1170,14 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
 }
 
 Operation
-createMergeOp(PublicKey const& dest)
+createMergeOp(SecretKey const* from, PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
     op.body.destination() = dest;
+
+    if (from)
+        op.sourceAccount.activate() = from->getPublicKey();
 
     return op;
 }
@@ -1184,7 +1187,7 @@ createAccountMerge(Hash const& networkID, SecretKey const& source,
                    PublicKey const& dest, SequenceNumber seq)
 {
     return transactionFromOperation(networkID, source, seq,
-                                    createMergeOp(dest));
+                                    createMergeOp(nullptr, dest));
 }
 
 void

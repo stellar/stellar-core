@@ -176,6 +176,65 @@ TEST_CASE("payment", "[tx][payment]")
         }
     }
 
+    SECTION("a pays b, then a merge into b")
+    {
+        auto payment = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + payment;
+        auto b1 = root.create("B", amount);
+
+        int64 a1Balance = getAccountBalance(a1, app);
+        int64 b1Balance = getAccountBalance(b1, app);
+
+        auto txFrame = a1.tx(
+            {createPaymentOp(nullptr, b1, 200), createMergeOp(nullptr, b1)});
+
+        for (auto i : {4, 5})
+        {
+            SECTION("protocol version " + std::to_string(i))
+            {
+                app.getLedgerManager().setCurrentLedgerVersion(i);
+
+                auto res = applyCheck(txFrame, delta, app);
+
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
+                REQUIRE(!loadAccount(a1, app, false));
+                REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
+                        getAccountBalance(b1, app));
+            }
+        }
+    }
+
+    SECTION("a pays b, then b merge into a")
+    {
+        auto payment = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + payment;
+        auto b1 = root.create("B", amount);
+
+        int64 a1Balance = getAccountBalance(a1, app);
+        int64 b1Balance = getAccountBalance(b1, app);
+
+        auto txFrame = a1.tx({createPaymentOp(nullptr, b1, 200),
+                              createMergeOp(&b1.getSecretKey(), a1)});
+        txFrame->addSignature(b1);
+
+        for (auto i : {4, 5})
+        {
+            SECTION("protocol version " + std::to_string(i))
+            {
+                app.getLedgerManager().setCurrentLedgerVersion(i);
+
+                auto res = applyCheck(txFrame, delta, app);
+
+                REQUIRE(txFrame->getResultCode() == txSUCCESS);
+
+                REQUIRE(!loadAccount(b1, app, false));
+                REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
+                        getAccountBalance(a1, app));
+            }
+        }
+    }
+
     SECTION("merge then send")
     {
         auto b1 = root.create("B", app.getLedgerManager().getMinBalance(0));
@@ -183,7 +242,8 @@ TEST_CASE("payment", "[tx][payment]")
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
 
-        auto txFrame = a1.tx({createMergeOp(b1), createPaymentOp(nullptr, b1, 200)});
+        auto txFrame = a1.tx(
+            {createMergeOp(nullptr, b1), createPaymentOp(nullptr, b1, 200)});
         auto res = applyCheck(txFrame, delta, app);
 
         REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);

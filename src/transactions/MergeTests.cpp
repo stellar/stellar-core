@@ -75,7 +75,8 @@ TEST_CASE("merge", "[tx][merge]")
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
 
-        auto txFrame = a1.tx({createMergeOp(b1), createMergeOp(b1)});
+        auto txFrame =
+            a1.tx({createMergeOp(nullptr, b1), createMergeOp(nullptr, b1)});
 
         SECTION("protocol version 4")
         {
