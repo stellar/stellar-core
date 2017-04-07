@@ -1169,15 +1169,22 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
     return getFirstResult(*txFrame);
 }
 
-TransactionFramePtr
-createAccountMerge(Hash const& networkID, SecretKey const& source,
-                   PublicKey const& dest, SequenceNumber seq)
+Operation
+createMergeOp(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
     op.body.destination() = dest;
 
-    return transactionFromOperation(networkID, source, seq, op);
+    return op;
+}
+
+TransactionFramePtr
+createAccountMerge(Hash const& networkID, SecretKey const& source,
+                   PublicKey const& dest, SequenceNumber seq)
+{
+    return transactionFromOperation(networkID, source, seq,
+                                    createMergeOp(dest));
 }
 
 void
