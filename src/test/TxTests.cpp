@@ -418,14 +418,22 @@ applyAllowTrust(Application& app, SecretKey const& from,
             ALLOW_TRUST_SUCCESS);
 }
 
-TransactionFramePtr
-createCreateAccountTx(Hash const& networkID, SecretKey const& from,
-                      SecretKey const& to, SequenceNumber seq, int64_t amount)
+Operation createCreateAccountOp(SecretKey const* from, PublicKey const& dest, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
     op.body.createAccountOp().startingBalance = amount;
-    op.body.createAccountOp().destination = to.getPublicKey();
+    op.body.createAccountOp().destination = dest;
+    if (from)
+        op.sourceAccount.activate() = from->getPublicKey();
+    return op;
+}
+
+TransactionFramePtr
+createCreateAccountTx(Hash const& networkID, SecretKey const& from,
+                      SecretKey const& to, SequenceNumber seq, int64_t amount)
+{
+    Operation op= createCreateAccountOp(nullptr,to.getPublicKey(),amount);
 
     return transactionFromOperation(networkID, from, seq, op);
 }

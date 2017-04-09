@@ -35,6 +35,7 @@ TEST_CASE("merge", "[tx][merge]")
 
     VirtualClock clock;
     ApplicationEditableVersion app(clock, cfg);
+    app.getLedgerManager().setCurrentLedgerVersion(6);
     app.start();
 
     // set up world
@@ -69,6 +70,25 @@ TEST_CASE("merge", "[tx][merge]")
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
+
+    SECTION("with create")
+    {
+        int64 a1Balance = getAccountBalance(a1, app);
+        int64 b1Balance = getAccountBalance(b1, app);
+        auto txFrame =
+            a1.tx({ createMergeOp(&a1.getSecretKey(), b1), 
+                    createCreateAccountOp(&b1.getSecretKey(),a1.getPublicKey(), app.getLedgerManager().getMinBalance(1)),
+                    createMergeOp(&a1.getSecretKey(), b1) });
+        txFrame->addSignature(b1.getSecretKey());
+
+        applyCheck(txFrame, delta, app);
+
+        auto result = MergeOpFrame::getInnerCode(
+            txFrame->getResult().result.results()[2]);
+
+        REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
+        REQUIRE(getAccountBalance(b1, app)== a1Balance + b1Balance-300);
+    }
 
     SECTION("merge account twice")
     {
@@ -108,6 +128,23 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE((a1Balance - txFrame->getFee()) ==
                     getAccountBalance(a1, app));
         }
+
+        SECTION("protocol version 6")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(6);
+
+            applyCheck(txFrame, delta, app);
+
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[1]);
+
+            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) ==
+                getAccountBalance(a1, app));
+        }
+
+        
     }
 
     SECTION("Account has static auth flag set")

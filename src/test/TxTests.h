@@ -181,6 +181,8 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
 
 Operation createMergeOp(SecretKey const* from, PublicKey const& dest);
 
+Operation createCreateAccountOp(SecretKey const* from, PublicKey const& dest,int64_t amount);
+
 TransactionFramePtr createAccountMerge(Hash const& networkID,
                                        SecretKey const& source,
                                        PublicKey const& dest,
