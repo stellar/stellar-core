@@ -25,7 +25,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     // non configurable
     FORCE_SCP = false;
-    LEDGER_PROTOCOL_VERSION = 5;
+    LEDGER_PROTOCOL_VERSION = 6;
 
     OVERLAY_PROTOCOL_MIN_VERSION = 5;
     OVERLAY_PROTOCOL_VERSION = 5;

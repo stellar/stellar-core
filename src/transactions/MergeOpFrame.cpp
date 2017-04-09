@@ -39,6 +39,8 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 {
     AccountFrame::pointer otherAccount;
     Database& db = ledgerManager.getDatabase();
+    auto const& sourceAccount = mSourceAccount->getAccount();
+    int64 sourceBalance = sourceAccount.balance;
 
     otherAccount =
         AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
@@ -64,6 +66,10 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
             return false;
         }
+        if (ledgerManager.getCurrentLedgerVersion() > 5)
+        {
+            sourceBalance = thisAccount->getBalance();
+        }
     }
 
     if (mSourceAccount->isImmutableAuth())
@@ -75,7 +81,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    auto const& sourceAccount = mSourceAccount->getAccount();
+    
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
         app.getMetrics()
@@ -85,7 +91,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    int64 sourceBalance = sourceAccount.balance;
+    
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
