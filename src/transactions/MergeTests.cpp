@@ -75,10 +75,11 @@ TEST_CASE("merge", "[tx][merge]")
     {
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
-        auto txFrame =
-            a1.tx({ createMergeOp(&a1.getSecretKey(), b1), 
-                    createCreateAccountOp(&b1.getSecretKey(),a1.getPublicKey(), app.getLedgerManager().getMinBalance(1)),
-                    createMergeOp(&a1.getSecretKey(), b1) });
+        auto txFrame = a1.tx(
+            {createMergeOp(&a1.getSecretKey(), b1),
+             createCreateAccountOp(&b1.getSecretKey(), a1.getPublicKey(),
+                                   app.getLedgerManager().getMinBalance(1)),
+             createMergeOp(&a1.getSecretKey(), b1)});
         txFrame->addSignature(b1.getSecretKey());
 
         applyCheck(txFrame, delta, app);
@@ -87,7 +88,7 @@ TEST_CASE("merge", "[tx][merge]")
             txFrame->getResult().result.results()[2]);
 
         REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-        REQUIRE(getAccountBalance(b1, app)== a1Balance + b1Balance-300);
+        REQUIRE(getAccountBalance(b1, app) == a1Balance + b1Balance - 300);
     }
 
     SECTION("merge account twice")
@@ -141,10 +142,8 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
             REQUIRE(b1Balance == getAccountBalance(b1, app));
             REQUIRE((a1Balance - txFrame->getFee()) ==
-                getAccountBalance(a1, app));
+                    getAccountBalance(a1, app));
         }
-
-        
     }
 
     SECTION("Account has static auth flag set")

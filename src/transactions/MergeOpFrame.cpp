@@ -81,7 +81,6 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    
     if (sourceAccount.numSubEntries != sourceAccount.signers.size())
     {
         app.getMetrics()
@@ -91,7 +90,6 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
