@@ -244,12 +244,28 @@ TEST_CASE("payment", "[tx][payment]")
 
         auto txFrame = a1.tx(
             {createMergeOp(nullptr, b1), createPaymentOp(nullptr, b1, 200)});
-        auto res = applyCheck(txFrame, delta, app);
 
-        REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
+        SECTION("protocol version 6")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(6);
+            auto res = applyCheck(txFrame, delta, app);
 
-        REQUIRE(b1Balance == getAccountBalance(b1, app));
-        REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+            REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
+
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+        }
+
+        SECTION("protocol version 7")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(7);
+            auto res = applyCheck(txFrame, delta, app);
+
+            REQUIRE(txFrame->getResultCode() == txFAILED);
+
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+        }
     }
 
     SECTION("send XLM to an existing account")

@@ -92,6 +92,10 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     otherAccount->getAccount().balance += sourceBalance;
     otherAccount->storeChange(delta, db);
+    if (ledgerManager.getCurrentLedgerVersion() > 6)
+    {
+        mSourceAccount->getAccount().balance -= sourceBalance;
+    }
     mSourceAccount->storeDelete(delta, db);
 
     app.getMetrics()

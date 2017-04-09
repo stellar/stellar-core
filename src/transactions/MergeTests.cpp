@@ -98,18 +98,21 @@ TEST_CASE("merge", "[tx][merge]")
                         2 * txFrame->getFee());
         }
 
-        SECTION("protocol version 6")
+        for (auto v : {6, 7})
         {
-            app.getLedgerManager().setCurrentLedgerVersion(6);
+            SECTION("protocol version " + std::to_string(v))
+            {
+                app.getLedgerManager().setCurrentLedgerVersion(6);
 
-            applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, delta, app);
 
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[2]);
+                auto result = MergeOpFrame::getInnerCode(
+                    txFrame->getResult().result.results()[2]);
 
-            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(getAccountBalance(b1, app) ==
-                    a1Balance + b1Balance - txFrame->getFee());
+                REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
+                REQUIRE(getAccountBalance(b1, app) ==
+                        a1Balance + b1Balance - txFrame->getFee());
+            }
         }
     }
 
@@ -137,7 +140,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(!loadAccount(a1, app, false));
         }
 
-        for (auto v : {5, 6})
+        for (auto v : {5, 6, 7})
         {
             SECTION("protocol version " + std::to_string(v))
             {
