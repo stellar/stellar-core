@@ -52,7 +52,7 @@ TEST_CASE("merge", "[tx][merge]")
     const int64_t minBalance =
         app.getLedgerManager().getMinBalance(5) + 20 * txfee;
 
-    auto a1 = root.create("A", minBalance);
+    auto a1 = root.create("A", 2 * minBalance);
 
     SECTION("merge into self")
     {
@@ -75,19 +75,42 @@ TEST_CASE("merge", "[tx][merge]")
     {
         int64 a1Balance = getAccountBalance(a1, app);
         int64 b1Balance = getAccountBalance(b1, app);
+        auto createBalance = app.getLedgerManager().getMinBalance(1);
         auto txFrame =
-            a1.tx({ createMergeOp(&a1.getSecretKey(), b1), 
-                    createCreateAccountOp(&b1.getSecretKey(),a1.getPublicKey(), app.getLedgerManager().getMinBalance(1)),
-                    createMergeOp(&a1.getSecretKey(), b1) });
+            a1.tx({createMergeOp(&a1.getSecretKey(), b1),
+                   createCreateAccountOp(&b1.getSecretKey(), a1.getPublicKey(),
+                                         createBalance),
+                   createMergeOp(&a1.getSecretKey(), b1)});
         txFrame->addSignature(b1.getSecretKey());
 
-        applyCheck(txFrame, delta, app);
+        SECTION("protocol version 5")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(5);
 
-        auto result = MergeOpFrame::getInnerCode(
-            txFrame->getResult().result.results()[2]);
+            applyCheck(txFrame, delta, app);
 
-        REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-        REQUIRE(getAccountBalance(b1, app)== a1Balance + b1Balance-300);
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[2]);
+
+            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(getAccountBalance(b1, app) ==
+                    2 * a1Balance + b1Balance - createBalance -
+                        2 * txFrame->getFee());
+        }
+
+        SECTION("protocol version 6")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(6);
+
+            applyCheck(txFrame, delta, app);
+
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[2]);
+
+            REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(getAccountBalance(b1, app) ==
+                    a1Balance + b1Balance - txFrame->getFee());
+        }
     }
 
     SECTION("merge account twice")
@@ -114,37 +137,23 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(!loadAccount(a1, app, false));
         }
 
-        SECTION("protocol version 5")
+        for (auto v : {5, 6})
         {
-            app.getLedgerManager().setCurrentLedgerVersion(5);
+            SECTION("protocol version " + std::to_string(v))
+            {
+                app.getLedgerManager().setCurrentLedgerVersion(6);
 
-            applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, delta, app);
 
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[1]);
+                auto result = MergeOpFrame::getInnerCode(
+                    txFrame->getResult().result.results()[1]);
 
-            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-            REQUIRE(b1Balance == getAccountBalance(b1, app));
-            REQUIRE((a1Balance - txFrame->getFee()) ==
-                    getAccountBalance(a1, app));
+                REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
+                REQUIRE(b1Balance == getAccountBalance(b1, app));
+                REQUIRE((a1Balance - txFrame->getFee()) ==
+                        getAccountBalance(a1, app));
+            }
         }
-
-        SECTION("protocol version 6")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(6);
-
-            applyCheck(txFrame, delta, app);
-
-            auto result = MergeOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[1]);
-
-            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-            REQUIRE(b1Balance == getAccountBalance(b1, app));
-            REQUIRE((a1Balance - txFrame->getFee()) ==
-                getAccountBalance(a1, app));
-        }
-
-        
     }
 
     SECTION("Account has static auth flag set")

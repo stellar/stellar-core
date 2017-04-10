@@ -418,7 +418,9 @@ applyAllowTrust(Application& app, SecretKey const& from,
             ALLOW_TRUST_SUCCESS);
 }
 
-Operation createCreateAccountOp(SecretKey const* from, PublicKey const& dest, int64_t amount)
+Operation
+createCreateAccountOp(SecretKey const* from, PublicKey const& dest,
+                      int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
@@ -433,7 +435,7 @@ TransactionFramePtr
 createCreateAccountTx(Hash const& networkID, SecretKey const& from,
                       SecretKey const& to, SequenceNumber seq, int64_t amount)
 {
-    Operation op= createCreateAccountOp(nullptr,to.getPublicKey(),amount);
+    Operation op = createCreateAccountOp(nullptr, to.getPublicKey(), amount);
 
     return transactionFromOperation(networkID, from, seq, op);
 }
