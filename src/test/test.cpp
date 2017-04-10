@@ -117,7 +117,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         default:
             abort();
         }
-        thisConfig.DATABASE = dbname.str();
+        thisConfig.DATABASE = SecretValue{dbname.str()};
         thisConfig.REPORT_METRICS = gTestMetrics;
     }
     return *cfgs[instanceNumber];
