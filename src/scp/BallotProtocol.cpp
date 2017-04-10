@@ -160,13 +160,27 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
 
     if (!isStatementSane(statement, self))
     {
+        if (self)
+        {
+            CLOG(ERROR, "SCP") << "not sane statement from self, skipping "
+                               << "  e: " << mSlot.getSCP().envToStr(envelope);
+        }
+
         return SCP::EnvelopeState::INVALID;
     }
 
     if (!isNewerStatement(nodeID, statement))
     {
-        CLOG(TRACE, "SCP") << "stale statement, skipping "
-                           << " i: " << mSlot.getSlotIndex();
+        if (self)
+        {
+            CLOG(ERROR, "SCP") << "stale statement from self, skipping "
+                               << "  e: " << mSlot.getSCP().envToStr(envelope);
+        }
+        else
+        {
+            CLOG(TRACE, "SCP") << "stale statement, skipping "
+                               << " i: " << mSlot.getSlotIndex();
+        }
 
         return SCP::EnvelopeState::INVALID;
     }
@@ -201,6 +215,14 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
             }
             else
             {
+                if (self)
+                {
+                    CLOG(ERROR, "SCP")
+                        << "externalize statement with invalid value from "
+                           "self, skipping "
+                        << "  e: " << mSlot.getSCP().envToStr(envelope);
+                }
+
                 res = SCP::EnvelopeState::INVALID;
             }
         }
@@ -208,8 +230,16 @@ BallotProtocol::processEnvelope(SCPEnvelope const& envelope, bool self)
     else
     {
         // If the value is not valid, we just ignore it.
-        CLOG(TRACE, "SCP") << "invalid value "
-                           << " i: " << mSlot.getSlotIndex();
+        if (self)
+        {
+            CLOG(ERROR, "SCP") << "invalid value from self, skipping "
+                               << "  e: " << mSlot.getSCP().envToStr(envelope);
+        }
+        else
+        {
+            CLOG(TRACE, "SCP") << "invalid value "
+                               << " i: " << mSlot.getSlotIndex();
+        }
 
         res = SCP::EnvelopeState::INVALID;
     }
