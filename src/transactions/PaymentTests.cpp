@@ -504,6 +504,26 @@ TEST_CASE("payment", "[tx][payment]")
         a1.pay(gateway, idrCur, trustLineStartingBalance);
     }
 
+    SECTION("path payment to self")
+    {
+        auto a1Balance = getAccountBalance(a1, app);
+        auto amount = a1Balance / 10;
+
+        SECTION("protocol version 7")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(7);
+            a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
+            REQUIRE(getAccountBalance(a1, app) == a1Balance - amount - txfee);
+        }
+
+        SECTION("protocol version 8")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(8);
+            a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
+            REQUIRE(getAccountBalance(a1, app) == a1Balance - txfee);
+        }
+    }
+
     for (auto v : std::vector<int>{2, 3})
     {
         SECTION("protocol version " + std::to_string(v))

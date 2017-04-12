@@ -241,9 +241,27 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        int64_t minBalance = mSourceAccount->getMinimumBalance(ledgerManager);
+        auto sourceAccount = mSourceAccount;
 
-        if ((mSourceAccount->getAccount().balance - curBSent) < minBalance)
+        if (ledgerManager.getCurrentLedgerVersion() > 7)
+        {
+            sourceAccount =
+                AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+
+            if (!sourceAccount)
+            {
+                app.getMetrics()
+                    .NewMeter({"op-path-payment", "invalid", "no-account"},
+                              "operation")
+                    .Mark();
+                innerResult().code(PATH_PAYMENT_MALFORMED);
+                return false;
+            }
+        }
+
+        int64_t minBalance = sourceAccount->getMinimumBalance(ledgerManager);
+
+        if ((sourceAccount->getAccount().balance - curBSent) < minBalance)
         { // they don't have enough to send
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},
@@ -253,8 +271,8 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        mSourceAccount->getAccount().balance -= curBSent;
-        mSourceAccount->storeChange(delta, db);
+        sourceAccount->getAccount().balance -= curBSent;
+        sourceAccount->storeChange(delta, db);
     }
     else
     {
