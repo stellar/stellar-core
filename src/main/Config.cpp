@@ -233,6 +233,19 @@ Config::load(std::string const& filename)
                 }
                 DESIRED_BASE_FEE = (uint32_t)f;
             }
+            else if(item.first == "DESIRED_BASE_RESERVE")
+            {
+                if(!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
+                }
+                int64_t f = item.second->as<int64_t>()->value();
+                if(f < 0 || f >= UINT32_MAX)
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
+                }
+                DESIRED_BASE_RESERVE = (uint32_t)f;
+            }
             else if (item.first == "DESIRED_MAX_TX_PER_LEDGER")
             {
                 if (!item.second->as<int64_t>())
