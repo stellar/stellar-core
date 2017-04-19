@@ -56,9 +56,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     std::string t3("test3");
     std::string t4("test4");
 
-    SECTION("protocol version 1")
-    {
-        app.getLedgerManager().setCurrentLedgerVersion(1);
+    for_versions({1}, app, [&]{
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value),
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value),
@@ -82,37 +80,30 @@ TEST_CASE("manage data", "[tx][managedata]")
         // fail to remove data entry that isn't present
         REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
-    }
+    });
 
-    for (auto v : {2, 4})
-    {
-        SECTION("protocol version " + std::to_string(v))
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(v);
-            gateway.manageData(t1, &value);
-            gateway.manageData(t2, &value);
-            // try to add too much data
-            REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
-                              ex_MANAGE_DATA_LOW_RESERVE);
+    for_versions_from({2, 4}, app, [&]{
+        gateway.manageData(t1, &value);
+        gateway.manageData(t2, &value);
+        // try to add too much data
+        REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
+                            ex_MANAGE_DATA_LOW_RESERVE);
 
-            // modify an existing data entry
-            gateway.manageData(t1, &value2);
+        // modify an existing data entry
+        gateway.manageData(t1, &value2);
 
-            // clear an existing data entry
-            gateway.manageData(t1, nullptr);
+        // clear an existing data entry
+        gateway.manageData(t1, nullptr);
 
-            // can now add test3 since test was removed
-            gateway.manageData(t3, &value);
+        // can now add test3 since test was removed
+        gateway.manageData(t3, &value);
 
-            // fail to remove data entry that isn't present
-            REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
-                              ex_MANAGE_DATA_NAME_NOT_FOUND);
-        }
-    }
+        // fail to remove data entry that isn't present
+        REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
+                            ex_MANAGE_DATA_NAME_NOT_FOUND);
+    });
 
-    SECTION("protocol version 3")
-    {
-        app.getLedgerManager().setCurrentLedgerVersion(3);
+    for_versions({3}, app, [&]{
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINTERNAL_ERROR);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINTERNAL_ERROR);
         // try to add too much data
@@ -129,5 +120,5 @@ TEST_CASE("manage data", "[tx][managedata]")
 
         // fail to remove data entry that isn't present
         REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr), ex_txINTERNAL_ERROR);
-    }
+    });
 }

@@ -37,71 +37,74 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     SECTION("basic tests")
     {
-        // create a trustline with a limit of 0
-        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0),
-                          ex_CHANGE_TRUST_INVALID_LIMIT);
+        for_all_versions(app, [&]{
+            // create a trustline with a limit of 0
+            REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0),
+                            ex_CHANGE_TRUST_INVALID_LIMIT);
 
-        // create a trustline with a limit of 100
-        root.changeTrust(idrCur, 100);
+            // create a trustline with a limit of 100
+            root.changeTrust(idrCur, 100);
 
-        // fill it to 90
-        gateway.pay(root, idrCur, 90);
+            // fill it to 90
+            gateway.pay(root, idrCur, 90);
 
-        // can't lower the limit below balance
-        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 89),
-                          ex_CHANGE_TRUST_INVALID_LIMIT);
+            // can't lower the limit below balance
+            REQUIRE_THROWS_AS(root.changeTrust(idrCur, 89),
+                            ex_CHANGE_TRUST_INVALID_LIMIT);
 
-        // can't delete if there is a balance
-        REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0),
-                          ex_CHANGE_TRUST_INVALID_LIMIT);
+            // can't delete if there is a balance
+            REQUIRE_THROWS_AS(root.changeTrust(idrCur, 0),
+                            ex_CHANGE_TRUST_INVALID_LIMIT);
 
-        // lower the limit at the balance
-        root.changeTrust(idrCur, 90);
+            // lower the limit at the balance
+            root.changeTrust(idrCur, 90);
 
-        // clear the balance
-        root.pay(gateway, idrCur, 90);
+            // clear the balance
+            root.pay(gateway, idrCur, 90);
 
-        // delete the trust line
-        root.changeTrust(idrCur, 0);
-        REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idrCur, db)));
+            // delete the trust line
+            root.changeTrust(idrCur, 0);
+            REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idrCur, db)));
+        });
     }
     SECTION("issuer does not exist")
     {
         SECTION("new trust line")
         {
-            Asset usdCur = makeAsset(getAccount("non-existing"), "IDR");
-            REQUIRE_THROWS_AS(root.changeTrust(usdCur, 100),
-                              ex_CHANGE_TRUST_NO_ISSUER);
+            for_all_versions(app, [&]{
+                Asset usdCur = makeAsset(getAccount("non-existing"), "IDR");
+                REQUIRE_THROWS_AS(root.changeTrust(usdCur, 100),
+                                ex_CHANGE_TRUST_NO_ISSUER);
+            });
         }
         SECTION("edit existing")
         {
-            root.changeTrust(idrCur, 100);
-            // Merge gateway back into root (the trustline still exists)
-            gateway.merge(root);
+            for_all_versions(app, [&]{
+                root.changeTrust(idrCur, 100);
+                // Merge gateway back into root (the trustline still exists)
+                gateway.merge(root);
 
-            REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99),
-                              ex_CHANGE_TRUST_NO_ISSUER);
+                REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99),
+                                ex_CHANGE_TRUST_NO_ISSUER);
+            });
         }
     }
     SECTION("trusting self")
     {
-        SECTION("protocol version 2")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(2);
+        auto idrCur = makeAsset(gateway, "IDR");
+        auto loadTrustLine = [&]() {
+            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur,
+                                                db);
+        };
+        auto validateTrustLineIsConst = [&]() {
+            auto trustLine = loadTrustLine();
+            REQUIRE(trustLine);
+            REQUIRE(trustLine->getBalance() == INT64_MAX);
+        };
 
-            auto idrCur = makeAsset(gateway, "IDR");
-            auto loadTrustLine = [&]() {
-                return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur,
-                                                 db);
-            };
-            auto validateTrustLineIsConst = [&]() {
-                auto trustLine = loadTrustLine();
-                REQUIRE(trustLine);
-                REQUIRE(trustLine->getBalance() == INT64_MAX);
-            };
+        validateTrustLineIsConst();
 
-            validateTrustLineIsConst();
-
+        for_versions_to(2, app, [&]{
             // create a trustline with a limit of INT64_MAX - 1 wil lfail
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, INT64_MAX - 1),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
@@ -128,24 +131,9 @@ TEST_CASE("change trust", "[tx][changetrust]")
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 0),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
             validateTrustLineIsConst();
-        }
-        SECTION("protocol version 3")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(3);
+        });
 
-            auto idrCur = makeAsset(gateway, "IDR");
-            auto loadTrustLine = [&]() {
-                return TrustFrame::loadTrustLine(gateway.getPublicKey(), idrCur,
-                                                 db);
-            };
-            auto validateTrustLineIsConst = [&]() {
-                auto trustLine = loadTrustLine();
-                REQUIRE(trustLine);
-                REQUIRE(trustLine->getBalance() == INT64_MAX);
-            };
-
-            validateTrustLineIsConst();
-
+        for_versions_from(3, app, [&]{
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, INT64_MAX - 1),
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
@@ -171,6 +159,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
             REQUIRE_THROWS_AS(gateway.changeTrust(idrCur, 0),
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
-        }
+        });
     }
 }

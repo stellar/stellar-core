@@ -57,23 +57,25 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("insufficient balance")
         {
-            REQUIRE_THROWS_AS(
-                a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr),
-                ex_SET_OPTIONS_LOW_RESERVE);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(
+                    a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr),
+                    ex_SET_OPTIONS_LOW_RESERVE);
+            });
         }
 
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
-            REQUIRE_THROWS_AS(
-                a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk, nullptr),
-                ex_SET_OPTIONS_BAD_SIGNER);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(
+                    a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk, nullptr),
+                    ex_SET_OPTIONS_BAD_SIGNER);
+            });
         }
 
-        SECTION("multiple signers for protocol version 2")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(2);
 
+        for_versions_to(1, app, [&]{
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
 
@@ -147,12 +149,9 @@ TEST_CASE("set options", "[tx][setoptions]")
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
-        }
+        });
 
-        SECTION("multiple signers for protocol version 3")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(3);
-
+        for_versions_from(3, app, [&]{
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
@@ -221,50 +220,54 @@ TEST_CASE("set options", "[tx][setoptions]")
             a1Account = loadAccount(a1, app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
-        }
+        });
     }
 
     SECTION("flags")
     {
         SECTION("Can't set and clear same flag")
         {
-            uint32_t setFlags = AUTH_REQUIRED_FLAG;
-            uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
-                                            nullptr, nullptr, nullptr),
-                              ex_SET_OPTIONS_BAD_FLAGS);
+            for_all_versions(app, [&]{
+                uint32_t setFlags = AUTH_REQUIRED_FLAG;
+                uint32_t clearFlags = AUTH_REQUIRED_FLAG;
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
+                                                nullptr, nullptr, nullptr),
+                                ex_SET_OPTIONS_BAD_FLAGS);
+            });
         }
         SECTION("auth flags")
         {
-            uint32_t flags;
+            for_all_versions(app, [&]{
+                uint32_t flags;
 
-            flags = AUTH_REQUIRED_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                flags = AUTH_REQUIRED_FLAG;
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
 
-            flags = AUTH_REVOCABLE_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                flags = AUTH_REVOCABLE_FLAG;
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
 
-            // clear flag
-            a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr, nullptr);
+                // clear flag
+                a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr, nullptr);
 
-            flags = AUTH_IMMUTABLE_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                flags = AUTH_IMMUTABLE_FLAG;
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
 
-            // at this point trying to change any flag should fail
+                // at this point trying to change any flag should fail
 
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
-                                            nullptr, nullptr),
-                              ex_SET_OPTIONS_CANT_CHANGE);
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
+                                                nullptr, nullptr),
+                                ex_SET_OPTIONS_CANT_CHANGE);
 
-            flags = AUTH_REQUIRED_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
-                                            nullptr, nullptr),
-                              ex_SET_OPTIONS_CANT_CHANGE);
+                flags = AUTH_REQUIRED_FLAG;
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
+                                                nullptr, nullptr),
+                                ex_SET_OPTIONS_CANT_CHANGE);
 
-            flags = AUTH_REVOCABLE_FLAG;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr, nullptr,
-                                            nullptr, nullptr),
-                              ex_SET_OPTIONS_CANT_CHANGE);
+                flags = AUTH_REVOCABLE_FLAG;
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr, nullptr,
+                                                nullptr, nullptr),
+                                ex_SET_OPTIONS_CANT_CHANGE);
+            });
         }
     }
 
@@ -272,13 +275,15 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         SECTION("invalid home domain")
         {
-            std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
-            for (auto& s : bad)
-            {
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
-                                                nullptr, nullptr, &s),
-                                  ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
-            }
+            for_all_versions(app, [&]{
+                std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
+                for (auto& s : bad)
+                {
+                    REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
+                                                    nullptr, nullptr, &s),
+                                    ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
+                }
+            });
         }
     }
 

@@ -66,7 +66,7 @@ createTestAccounts(Application& app, int nbAccounts,
 
 // computes the resulting balance of each test account
 static std::vector<int64>
-simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
+simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& totFees,
                   std::function<int64(int)> getBalance,
                   std::function<int(int)> getVote)
 {
@@ -128,8 +128,8 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
 
     // 1% annual inflation on a weekly basis
     // 0.000190721
-    int64 coinsToDole = bigDivide(totCoins, 190721, 1000000000, ROUND_DOWN);
-    coinsToDole += totFees;
+    auto inflation = bigDivide(totCoins, 190721, 1000000000, ROUND_DOWN);
+    auto coinsToDole = inflation + totFees;
     int64 leftToDole = coinsToDole;
 
     for (auto w : winners)
@@ -140,11 +140,18 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
         if (balances[w] >= 0)
         {
             balances[w] += toDoleToThis;
-            totCoins += toDoleToThis;
+            if (ledgerVersion <= 7)
+            {
+                totCoins += toDoleToThis;
+            }
             leftToDole -= toDoleToThis;
         }
     }
 
+    if (ledgerVersion > 7)
+    {
+        totCoins += inflation;
+    }
     totFees = leftToDole;
 
     std::vector<int64> balRes;
@@ -156,7 +163,7 @@ simulateInflation(int nbAccounts, int64& totCoins, int64& totFees,
 }
 
 static void
-doInflation(Application& app, int nbAccounts,
+doInflation(Application& app, int ledgerVersion, int nbAccounts,
             std::function<int64(int)> getBalance,
             std::function<int(int)> getVote, int expectedWinnerCount)
 {
@@ -206,7 +213,7 @@ doInflation(Application& app, int nbAccounts,
     expectedFees += txFrame->getFee();
 
     expectedBalances =
-        simulateInflation(nbAccounts, expectedTotcoins, expectedFees,
+        simulateInflation(ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,
                           [&](int i) { return balances[i]; }, getVote);
 
     // perform actual inflation
@@ -277,55 +284,59 @@ TEST_CASE("inflation", "[tx][inflation]")
     VirtualClock clock;
     clock.setCurrentTime(inflationStart);
 
-    ApplicationEditableVersion app(clock, cfg);
+    ApplicationEditableVersion app{clock, cfg};
+    Database& db = app.getDatabase();
+
     auto root = TestAccount::createRoot(app);
 
     app.start();
 
     SECTION("not time")
     {
-        closeLedgerOn(app, 2, 30, 6, 2014);
-        applyInflation(app, root, root.nextSequenceNumber(),
-                       INFLATION_NOT_TIME);
+        for_all_versions(app, [&]{
+            closeLedgerOn(app, 2, 30, 6, 2014);
+            applyInflation(app, root, root.nextSequenceNumber(),
+                        INFLATION_NOT_TIME);
 
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                0);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    0);
 
-        closeLedgerOn(app, 3, 1, 7, 2014);
+            closeLedgerOn(app, 3, 1, 7, 2014);
 
-        auto txFrame = createInflation(app.getNetworkID(), root,
-                                       root.nextSequenceNumber());
+            auto txFrame = createInflation(app.getNetworkID(), root,
+                                        root.nextSequenceNumber());
 
-        closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                1);
+            closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    1);
 
-        applyInflation(app, root, root.nextSequenceNumber(),
-                       INFLATION_NOT_TIME);
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                1);
+            applyInflation(app, root, root.nextSequenceNumber(),
+                        INFLATION_NOT_TIME);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    1);
 
-        closeLedgerOn(app, 5, 8, 7, 2014);
-        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                2);
+            closeLedgerOn(app, 5, 8, 7, 2014);
+            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    2);
 
-        closeLedgerOn(app, 6, 14, 7, 2014);
-        applyInflation(app, root, root.nextSequenceNumber(),
-                       INFLATION_NOT_TIME);
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                2);
+            closeLedgerOn(app, 6, 14, 7, 2014);
+            applyInflation(app, root, root.nextSequenceNumber(),
+                        INFLATION_NOT_TIME);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    2);
 
-        closeLedgerOn(app, 7, 15, 7, 2014);
-        applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                3);
+            closeLedgerOn(app, 7, 15, 7, 2014);
+            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    3);
 
-        closeLedgerOn(app, 8, 21, 7, 2014);
-        applyInflation(app, root, root.nextSequenceNumber(),
-                       INFLATION_NOT_TIME);
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                3);
+            closeLedgerOn(app, 8, 21, 7, 2014);
+            applyInflation(app, root, root.nextSequenceNumber(),
+                        INFLATION_NOT_TIME);
+            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                    3);
+        });
     }
 
     SECTION("total coins")
@@ -381,9 +392,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
         auto inflation = root.tx({createInflationOp()});
 
-        SECTION("protocol version 7")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(7);
+        for_versions_to(7, app, [&]{
             closeLedgerOn(app, 4, 21, 7, 2014, {inflation});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
@@ -410,11 +419,9 @@ TEST_CASE("inflation", "[tx][inflation]")
                 afterInflationTarget1 +
                 afterInflationTarget2 +
                 clh.feePool == clh.totalCoins + inflationError);
-        }
+        });
 
-        SECTION("protocol version 8")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(8);
+        for_versions_from(8, app, [&]{
             closeLedgerOn(app, 4, 21, 7, 2014, {inflation});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
@@ -440,7 +447,7 @@ TEST_CASE("inflation", "[tx][inflation]")
                 afterInflationTarget1 +
                 afterInflationTarget2 +
                 clh.feePool == clh.totalCoins);
-        }
+        });
     }
 
     // minVote to participate in inflation
@@ -450,107 +457,107 @@ TEST_CASE("inflation", "[tx][inflation]")
         bigDivide(app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 5,
                   10000, ROUND_DOWN);
 
-    app.getLedgerManager().setCurrentLedgerVersion(6);
-
     SECTION("inflation scenarios")
     {
-        std::function<int(int)> voteFunc;
-        std::function<int64(int)> balanceFunc;
-        int nbAccounts = 0;
-        int expectedWinners = 0;
+        for_all_versions(app, [&]{
+            std::function<int(int)> voteFunc;
+            std::function<int64(int)> balanceFunc;
+            int nbAccounts = 0;
+            int expectedWinners = 0;
 
-        auto verify = [&]() {
-            if (nbAccounts != 0)
-            {
-                createTestAccounts(app, nbAccounts, balanceFunc, voteFunc);
-                closeLedgerOn(app, 2, 21, 7, 2014);
-
-                doInflation(app, nbAccounts, balanceFunc, voteFunc,
-                            expectedWinners);
-            }
-        };
-
-        SECTION("two guys over threshold")
-        {
-            nbAccounts = 120;
-            expectedWinners = 2;
-            voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
-            balanceFunc = [&](int n) {
-                if (n == 0 || n == 5)
+            auto verify = [&]() {
+                if (nbAccounts != 0)
                 {
-                    return winnerVote;
-                }
-                else
-                {
-                    return minVote;
+                    createTestAccounts(app, nbAccounts, balanceFunc, voteFunc);
+                    closeLedgerOn(app, 2, 21, 7, 2014);
+
+                    doInflation(app, app.getLedgerManager().getCurrentLedgerVersion(),
+                                nbAccounts, balanceFunc, voteFunc, expectedWinners);
                 }
             };
-            verify();
-        }
-        SECTION("no one over min")
-        {
-            SECTION("less than max")
+
+            SECTION("two guys over threshold")
+            {
+                nbAccounts = 120;
+                expectedWinners = 2;
+                voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
+                balanceFunc = [&](int n) {
+                    if (n == 0 || n == 5)
+                    {
+                        return winnerVote;
+                    }
+                    else
+                    {
+                        return minVote;
+                    }
+                };
+                verify();
+            }
+            SECTION("no one over min")
+            {
+                SECTION("less than max")
+                {
+                    nbAccounts = 12;
+                    expectedWinners = 0;
+                }
+                SECTION("more than max")
+                {
+                    nbAccounts = 2200;
+                    expectedWinners = 0;
+                }
+                voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
+                balanceFunc = [&](int n) {
+                    int64 balance = (n + 1) * minVote;
+                    assert(balance < winnerVote);
+                    return balance;
+                };
+                verify();
+            }
+            SECTION("all to one destination")
+            {
+                nbAccounts = 12;
+                expectedWinners = 1;
+                voteFunc = [&](int n) { return 0; };
+                balanceFunc = [&](int n) { return 1 + (winnerVote / nbAccounts); };
+                verify();
+            }
+            SECTION("50/50 split")
+            {
+                nbAccounts = 12;
+                expectedWinners = 2;
+                const int midPoint = nbAccounts / 2;
+
+                const int64 each =
+                    bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
+
+                voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
+                balanceFunc = [&](int n) { return each; };
+                verify();
+            }
+            SECTION("no winner")
             {
                 nbAccounts = 12;
                 expectedWinners = 0;
+                voteFunc = [&](int n) { return -1; };
+                balanceFunc = [&](int n) { return (n + 1) * minVote; };
+                verify();
             }
-            SECTION("more than max")
+            SECTION("some winner does not exist")
             {
-                nbAccounts = 2200;
-                expectedWinners = 0;
+                nbAccounts = 13;
+                expectedWinners = 1;
+                const int midPoint = nbAccounts / 2;
+
+                const int64 each =
+                    bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
+
+                voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
+                balanceFunc = [&](int n) {
+                    // account "0" does not exist
+                    return (n == 0) ? -1 : each;
+                };
+                verify();
             }
-            voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
-            balanceFunc = [&](int n) {
-                int64 balance = (n + 1) * minVote;
-                assert(balance < winnerVote);
-                return balance;
-            };
-            verify();
-        }
-        SECTION("all to one destination")
-        {
-            nbAccounts = 12;
-            expectedWinners = 1;
-            voteFunc = [&](int n) { return 0; };
-            balanceFunc = [&](int n) { return 1 + (winnerVote / nbAccounts); };
-            verify();
-        }
-        SECTION("50/50 split")
-        {
-            nbAccounts = 12;
-            expectedWinners = 2;
-            const int midPoint = nbAccounts / 2;
-
-            const int64 each =
-                bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
-
-            voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
-            balanceFunc = [&](int n) { return each; };
-            verify();
-        }
-        SECTION("no winner")
-        {
-            nbAccounts = 12;
-            expectedWinners = 0;
-            voteFunc = [&](int n) { return -1; };
-            balanceFunc = [&](int n) { return (n + 1) * minVote; };
-            verify();
-        }
-        SECTION("some winner does not exist")
-        {
-            nbAccounts = 13;
-            expectedWinners = 1;
-            const int midPoint = nbAccounts / 2;
-
-            const int64 each =
-                bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
-
-            voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
-            balanceFunc = [&](int n) {
-                // account "0" does not exist
-                return (n == 0) ? -1 : each;
-            };
-            verify();
-        }
+        });
     }
 }

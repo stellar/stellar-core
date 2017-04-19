@@ -35,7 +35,6 @@ TEST_CASE("merge", "[tx][merge]")
 
     VirtualClock clock;
     ApplicationEditableVersion app(clock, cfg);
-    app.getLedgerManager().setCurrentLedgerVersion(6);
     app.start();
 
     // set up world
@@ -56,13 +55,17 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("merge into self")
     {
-        REQUIRE_THROWS_AS(a1.merge(a1), ex_ACCOUNT_MERGE_MALFORMED);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(a1.merge(a1), ex_ACCOUNT_MERGE_MALFORMED);
+        });
     }
 
     SECTION("merge into non existent account")
     {
-        REQUIRE_THROWS_AS(a1.merge(getAccount("B").getPublicKey()),
-                          ex_ACCOUNT_MERGE_NO_ACCOUNT);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(a1.merge(getAccount("B").getPublicKey()),
+                            ex_ACCOUNT_MERGE_NO_ACCOUNT);
+        });
     }
 
     auto b1 = root.create("B", minBalance);
@@ -83,10 +86,7 @@ TEST_CASE("merge", "[tx][merge]")
                    createMergeOp(&a1.getSecretKey(), b1)});
         txFrame->addSignature(b1.getSecretKey());
 
-        SECTION("protocol version 5")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(5);
-
+        for_versions_to(5, app, [&]{
             applyCheck(txFrame, delta, app);
 
             auto result = MergeOpFrame::getInnerCode(
@@ -96,12 +96,9 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(getAccountBalance(b1, app) ==
                     2 * a1Balance + b1Balance - createBalance -
                         2 * txFrame->getFee());
-        }
+        });
 
-        SECTION("protocol version 6")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(6);
-
+        for_versions_from(6, app, [&]{
             applyCheck(txFrame, delta, app);
 
             auto result = MergeOpFrame::getInnerCode(
@@ -110,7 +107,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(getAccountBalance(b1, app) ==
                     a1Balance + b1Balance - txFrame->getFee());
-        }
+        });
     }
 
     SECTION("merge account twice")
@@ -121,10 +118,7 @@ TEST_CASE("merge", "[tx][merge]")
         auto txFrame =
             a1.tx({createMergeOp(nullptr, b1), createMergeOp(nullptr, b1)});
 
-        SECTION("protocol version 4")
-        {
-            app.getLedgerManager().setCurrentLedgerVersion(4);
-
+        for_versions_to(4, app, [&]{
             applyCheck(txFrame, delta, app);
 
             auto result = MergeOpFrame::getInnerCode(
@@ -135,33 +129,33 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee ==
                     getAccountBalance(b1, app));
             REQUIRE(!loadAccount(a1, app, false));
-        }
+        });
 
-        for (auto v : {5, 6})
-        {
-            SECTION("protocol version " + std::to_string(v))
-            {
-                app.getLedgerManager().setCurrentLedgerVersion(6);
+        for_versions(5, 7, app, [&]{
+            applyCheck(txFrame, delta, app);
 
-                applyCheck(txFrame, delta, app);
+            auto result = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[1]);
 
-                auto result = MergeOpFrame::getInnerCode(
-                    txFrame->getResult().result.results()[1]);
+            REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) ==
+                    getAccountBalance(a1, app));
+        });
 
-                REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-                REQUIRE(b1Balance == getAccountBalance(b1, app));
-                REQUIRE((a1Balance - txFrame->getFee()) ==
-                        getAccountBalance(a1, app));
-            }
-        }
+        for_versions_from(8, app, [&]{
+            throwingApplyCheck(txFrame, delta, app);
+        });
     }
 
     SECTION("Account has static auth flag set")
     {
-        uint32 flags = AUTH_IMMUTABLE_FLAG;
-        a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+        for_all_versions(app, [&]{
+            uint32 flags = AUTH_IMMUTABLE_FLAG;
+            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
 
-        REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_IMMUTABLE_SET);
+            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_IMMUTABLE_SET);
+        });
     }
 
     SECTION("With sub entries")
@@ -171,55 +165,51 @@ TEST_CASE("merge", "[tx][merge]")
 
         SECTION("account has trust line")
         {
-            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            });
         }
         SECTION("account has offer")
         {
-            for (auto v : std::vector<int>{2, 3})
-            {
-                SECTION("protocol version " + std::to_string(v))
+            for_all_versions(app, [&]{
+                gateway.pay(a1, usdCur, trustLineBalance);
+                Asset xlmCur;
+                xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
+
+                const Price somePrice(3, 2);
+                for (int i = 0; i < 4; i++)
                 {
-                    app.getLedgerManager().setCurrentLedgerVersion(v);
-
-                    gateway.pay(a1, usdCur, trustLineBalance);
-                    Asset xlmCur;
-                    xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
-
-                    const Price somePrice(3, 2);
-                    for (int i = 0; i < 4; i++)
-                    {
-                        a1.manageOffer(0, xlmCur, usdCur, somePrice,
-                                       100 * assetMultiplier);
-                    }
-                    // empty out balance
-                    a1.pay(gateway, usdCur, trustLineBalance);
-                    // delete the trust line
-                    a1.changeTrust(usdCur, 0);
-
-                    REQUIRE_THROWS_AS(a1.merge(b1),
-                                      ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                    a1.manageOffer(0, xlmCur, usdCur, somePrice,
+                                    100 * assetMultiplier);
                 }
-            }
+                // empty out balance
+                a1.pay(gateway, usdCur, trustLineBalance);
+                // delete the trust line
+                a1.changeTrust(usdCur, 0);
+
+                REQUIRE_THROWS_AS(a1.merge(b1),
+                                    ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            });
         }
 
         SECTION("account has data")
         {
-            app.getLedgerManager().setCurrentLedgerVersion(4);
+            for_versions_from({2, 4}, app, [&]{
+                // delete the trust line
+                a1.changeTrust(usdCur, 0);
 
-            // delete the trust line
-            a1.changeTrust(usdCur, 0);
+                DataValue value;
+                value.resize(20);
+                for (int n = 0; n < 20; n++)
+                {
+                    value[n] = (unsigned char)n;
+                }
 
-            DataValue value;
-            value.resize(20);
-            for (int n = 0; n < 20; n++)
-            {
-                value[n] = (unsigned char)n;
-            }
+                std::string t1("test");
 
-            std::string t1("test");
-
-            applyManageData(app, a1, t1, &value, a1.nextSequenceNumber());
-            REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                applyManageData(app, a1, t1, &value, a1.nextSequenceNumber());
+                REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            });
         }
     }
 
@@ -227,28 +217,32 @@ TEST_CASE("merge", "[tx][merge]")
     {
         SECTION("success - basic")
         {
-            a1.merge(b1);
-            REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                               app.getDatabase()));
+            for_all_versions(app, [&]{
+                a1.merge(b1);
+                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
+                                                app.getDatabase()));
+            });
         }
         SECTION("success, invalidates dependent tx")
         {
-            auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1,
-                                          a1.nextSequenceNumber());
-            auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
-                                       a1.nextSequenceNumber(), 100);
-            int64 a1Balance = getAccountBalance(a1, app);
-            int64 b1Balance = getAccountBalance(b1, app);
-            auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
-            checkTx(0, r, txSUCCESS);
-            checkTx(1, r, txNO_ACCOUNT);
+            for_all_versions(app, [&]{
+                auto tx1 = createAccountMerge(app.getNetworkID(), a1, b1,
+                                            a1.nextSequenceNumber());
+                auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
+                                        a1.nextSequenceNumber(), 100);
+                int64 a1Balance = getAccountBalance(a1, app);
+                int64 b1Balance = getAccountBalance(b1, app);
+                auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
+                checkTx(0, r, txSUCCESS);
+                checkTx(1, r, txNO_ACCOUNT);
 
-            REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                               app.getDatabase()));
+                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
+                                                app.getDatabase()));
 
-            int64 expectedB1Balance =
-                a1Balance + b1Balance - 2 * app.getLedgerManager().getTxFee();
-            REQUIRE(expectedB1Balance == getAccountBalance(b1, app));
+                int64 expectedB1Balance =
+                    a1Balance + b1Balance - 2 * app.getLedgerManager().getTxFee();
+                REQUIRE(expectedB1Balance == getAccountBalance(b1, app));
+            });
         }
     }
 }
