@@ -5,7 +5,7 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "main/Application.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -94,14 +94,14 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
+OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& ledgerDelta,
                       Application& app)
 {
     bool res;
-    res = checkValid(signatureChecker, app, &delta);
+    res = checkValid(signatureChecker, app, &ledgerDelta);
     if (res)
     {
-        res = doApply(app, delta, app.getLedgerManager());
+        res = doApply(app, ledgerDelta, app.getLedgerManager());
     }
 
     return res;
@@ -118,7 +118,7 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
 {
     auto neededThreshold =
         getNeededThreshold(*mSourceAccount, getThresholdLevel());
-    return mParentTx.checkSignature(signatureChecker, *mSourceAccount,
+    return mParentTx.checkSignature(signatureChecker, AccountFrame{*mSourceAccount},
                                     neededThreshold);
 }
 
@@ -130,9 +130,9 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
+OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries)
 {
-    mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
+    mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, ledgerDelta, entries, getSourceID());
     return !!mSourceAccount;
 }
 
@@ -148,10 +148,10 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
-                           LedgerDelta* delta)
+                           LedgerDelta* ledgerDelta)
 {
-    bool forApply = (delta != nullptr);
-    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta, app.getDatabase()))
+    bool forApply = (ledgerDelta != nullptr);
+    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), ledgerDelta, app.getLedgerEntries()))
     {
         if (forApply || !mOperation.sourceAccount)
         {
@@ -163,8 +163,8 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
         else
         {
-            mSourceAccount =
-                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount);
+            mSourceAccount = make_optional<LedgerEntry>(
+                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount));
         }
     }
 

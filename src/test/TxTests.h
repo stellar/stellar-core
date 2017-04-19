@@ -7,8 +7,6 @@
 #include "crypto/SecretKey.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/AccountFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "overlay/StellarXDR.h"
 #include "test/TestPrinter.h"
 #include "util/optional.h"
@@ -16,7 +14,7 @@
 namespace stellar
 {
 class TransactionFrame;
-class LedgerDelta;
+class LedgerDeltaLayer;
 class OperationFrame;
 class TxSetFrame;
 
@@ -46,17 +44,17 @@ SecretKey getRoot(Hash const& networkID);
 SecretKey getAccount(const char* n);
 
 // shorthand to load an existing account
-AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,
-                                  bool mustExist = true);
+optional<LedgerEntry const> loadAccount(PublicKey const& k, Application& app,
+                                        bool mustExist = true);
 
 // short hand to check that an account does not exist
 void requireNoAccount(PublicKey const& k, Application& app);
 
-OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
-                              Application& app, bool mustExist);
+optional<LedgerEntry const> loadOffer(PublicKey const& k, uint64 offerID,
+                                Application& app, bool mustExist);
 
-TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
-                                  Application& app, bool mustExist = true);
+optional<LedgerEntry const> loadTrustLine(SecretKey const& k, Asset const& asset,
+                                    Application& app, bool mustExist = true);
 
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);

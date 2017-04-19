@@ -6,8 +6,11 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/AccountQueries.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDeltaLayer.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "lib/util/format.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -112,6 +115,8 @@ ChangedAccountsSubnetriesCountIsValid::getName() const
 std::string
 ChangedAccountsSubnetriesCountIsValid::check(LedgerDelta const& delta) const
 {
+    assert(delta.isCollapsed());
+
     for (auto const& account : getAddedOrUpdatedAccounts(delta))
     {
         auto subentries = numberOfSubentries(account, mDb);

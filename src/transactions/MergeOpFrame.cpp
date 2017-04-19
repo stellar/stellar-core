@@ -4,6 +4,8 @@
 
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -34,18 +36,14 @@ MergeOpFrame::getThresholdLevel() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
+MergeOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                       LedgerManager& ledgerManager)
 {
-    AccountFrame::pointer otherAccount;
-    Database& db = ledgerManager.getDatabase();
-    auto const& sourceAccount = mSourceAccount->getAccount();
-    int64 sourceBalance = sourceAccount.balance;
+    auto sourceAccount = AccountFrame{*mSourceAccount};
+    int64 sourceBalance = sourceAccount.getBalance();
 
-    otherAccount =
-        AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
-
-    if (!otherAccount)
+    auto otherAccountEntry = ledgerDelta.loadAccount(mOperation.body.destination());
+    if (!otherAccountEntry)
     {
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "no-account"}, "operation")
@@ -56,8 +54,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (ledgerManager.getCurrentLedgerVersion() > 4)
     {
-        AccountFrame::pointer thisAccount =
-            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+        auto thisAccount = ledgerDelta.loadAccount(sourceAccount.getAccountID());
         if (!thisAccount)
         {
             app.getMetrics()
@@ -68,11 +65,11 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         if (ledgerManager.getCurrentLedgerVersion() > 5)
         {
-            sourceBalance = thisAccount->getBalance();
+            sourceBalance = AccountFrame{*thisAccount}.getBalance();
         }
     }
 
-    if (mSourceAccount->isImmutableAuth())
+    if (sourceAccount.isImmutableAuth())
     {
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "static-auth"}, "operation")
@@ -81,7 +78,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
+    if (sourceAccount.getNumSubEntries() != sourceAccount.getNumSigners())
     {
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "has-sub-entries"}, "operation")
@@ -90,13 +87,13 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (!otherAccount->addBalance(sourceBalance))
+    auto otherAccount = AccountFrame{*otherAccountEntry};
+    if (!otherAccount.addBalance(sourceBalance))
     {
         throw std::runtime_error("merge overflowed destination balance");
     }
-
-    otherAccount->storeChange(delta, db);
-    mSourceAccount->storeDelete(delta, db);
+    ledgerDelta.updateEntry(otherAccount);
+    ledgerDelta.deleteEntry(sourceAccount.getKey());
 
     app.getMetrics()
         .NewMeter({"op-merge", "success", "apply"}, "operation")

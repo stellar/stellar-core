@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "ledger/OfferFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"

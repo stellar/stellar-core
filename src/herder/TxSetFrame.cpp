@@ -227,10 +227,9 @@ TxSetFrame::trimInvalid(Application& app,
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
+            auto sourceAccountFrame = AccountFrame{lastTx->getSourceAccount()};
+            int64_t newBalance = sourceAccountFrame.getBalance() - totFee;
+            if (newBalance < sourceAccountFrame.getMinimumBalance(app.getLedgerManager()))
             {
                 for (auto& tx : item.second)
                 {
@@ -318,10 +317,9 @@ TxSetFrame::checkValid(Application& app) const
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
+            auto account = AccountFrame{lastTx->getSourceAccount()};
+            int64_t newBalance = account.getBalance() - totFee;
+            if (newBalance < account.getMinimumBalance(app.getLedgerManager()))
             {
                 CLOG(DEBUG, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)

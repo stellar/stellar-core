@@ -13,10 +13,15 @@
 #include "bucket/BucketManagerImpl.h"
 #include "bucket/LedgerCmp.h"
 #include "crypto/Hex.h"
+#include "database/AccountQueries.h"
 #include "database/Database.h"
 #include "herder/LedgerCloseData.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -245,14 +250,12 @@ TEST_CASE("bucket list shadowing", "[bucket]")
         BucketEntry BucketEntryAlice, BucketEntryBob;
         alice.balance++;
         BucketEntryAlice.type(LIVEENTRY);
-        BucketEntryAlice.liveEntry().data.type(ACCOUNT);
-        BucketEntryAlice.liveEntry().data.account() = alice;
+        BucketEntryAlice.liveEntry() = AccountFrame{alice}.getEntry();
         liveBatch.push_back(BucketEntryAlice.liveEntry());
 
         bob.balance++;
         BucketEntryBob.type(LIVEENTRY);
-        BucketEntryBob.liveEntry().data.type(ACCOUNT);
-        BucketEntryBob.liveEntry().data.account() = bob;
+        BucketEntryBob.liveEntry() = AccountFrame{bob}.getEntry();
         liveBatch.push_back(BucketEntryBob.liveEntry());
 
         bl.addBatch(*app, i, liveBatch, deadGen(5));
@@ -438,20 +441,13 @@ TEST_CASE("merging bucket entries", "[bucket]")
     Config const& cfg = getTestConfig();
     Application::pointer app = Application::create(clock, cfg);
 
-    LedgerEntry liveEntry;
-    LedgerKey deadEntry;
-
     autocheck::generator<bool> flip;
 
     SECTION("dead account entry annihilates live account entry")
     {
-        liveEntry.data.type(ACCOUNT);
-        liveEntry.data.account() =
-            LedgerTestUtils::generateValidAccountEntry(10);
-        deadEntry.type(ACCOUNT);
-        deadEntry.account().accountID = liveEntry.data.account().accountID;
-        std::vector<LedgerEntry> live{liveEntry};
-        std::vector<LedgerKey> dead{deadEntry};
+        auto account = AccountFrame{LedgerTestUtils::generateValidAccountEntry(10)};
+        std::vector<LedgerEntry> live{account.getEntry()};
+        std::vector<LedgerKey> dead{account.getKey()};
         std::shared_ptr<Bucket> b1 =
             Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
@@ -459,14 +455,9 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
     SECTION("dead trustline entry annihilates live trustline entry")
     {
-        liveEntry.data.type(TRUSTLINE);
-        liveEntry.data.trustLine() =
-            LedgerTestUtils::generateValidTrustLineEntry(10);
-        deadEntry.type(TRUSTLINE);
-        deadEntry.trustLine().accountID = liveEntry.data.trustLine().accountID;
-        deadEntry.trustLine().asset = liveEntry.data.trustLine().asset;
-        std::vector<LedgerEntry> live{liveEntry};
-        std::vector<LedgerKey> dead{deadEntry};
+        auto trust = TrustFrame{LedgerTestUtils::generateValidTrustLineEntry(10)};
+        std::vector<LedgerEntry> live{trust.getEntry()};
+        std::vector<LedgerKey> dead{trust.getKey()};
         std::shared_ptr<Bucket> b1 =
             Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
@@ -474,13 +465,9 @@ TEST_CASE("merging bucket entries", "[bucket]")
 
     SECTION("dead offer entry annihilates live offer entry")
     {
-        liveEntry.data.type(OFFER);
-        liveEntry.data.offer() = LedgerTestUtils::generateValidOfferEntry(10);
-        deadEntry.type(OFFER);
-        deadEntry.offer().sellerID = liveEntry.data.offer().sellerID;
-        deadEntry.offer().offerID = liveEntry.data.offer().offerID;
-        std::vector<LedgerEntry> live{liveEntry};
-        std::vector<LedgerKey> dead{deadEntry};
+        auto offer = OfferFrame{LedgerTestUtils::generateValidOfferEntry(10)};
+        std::vector<LedgerEntry> live{offer.getEntry()};
+        std::vector<LedgerKey> dead{offer.getKey()};
         std::shared_ptr<Bucket> b1 =
             Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == 1);
@@ -495,7 +482,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
             e = LedgerTestUtils::generateValidLedgerEntry(10);
             if (flip())
             {
-                dead.push_back(LedgerEntryKey(e));
+                dead.push_back(entryKey(e));
             }
         }
         std::shared_ptr<Bucket> b1 =
@@ -881,16 +868,16 @@ TEST_CASE("bucket apply", "[bucket]")
     Application::pointer app = Application::create(clock, cfg);
     app->start();
 
-    std::vector<LedgerEntry> live(10), noLive;
+    std::vector<LedgerEntry> live, noLive;
     std::vector<LedgerKey> dead, noDead;
 
-    for (auto& e : live)
+    for (auto i = 0; i < 10; i++)
     {
-        e.data.type(ACCOUNT);
-        auto& a = e.data.account();
-        a = LedgerTestUtils::generateValidAccountEntry(5);
-        a.balance = 1000000000;
-        dead.emplace_back(LedgerEntryKey(e));
+        auto account = AccountFrame{LedgerTestUtils::generateValidAccountEntry(5)};
+        account.setBalance(1000000000);
+        account.getEntry().lastModifiedLedgerSeq = 1;
+        live.push_back(account.getEntry());
+        dead.push_back(account.getKey());
     }
 
     std::shared_ptr<Bucket> birth =
@@ -899,19 +886,19 @@ TEST_CASE("bucket apply", "[bucket]")
     std::shared_ptr<Bucket> death =
         Bucket::fresh(app->getBucketManager(), noLive, dead);
 
-    auto& db = app->getDatabase();
-    auto& sess = db.getSession();
+    auto& ledgerEntries = app->getLedgerEntries();
+    auto& db = ledgerEntries.getDatabase();
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
-    birth->apply(db);
-    auto count = AccountFrame::countObjects(sess);
+    birth->apply(ledgerEntries);
+    auto count = countAccounts(db);
     REQUIRE(count == live.size() + 1 /* root account */);
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size()
                          << " dead entries";
-    death->apply(db);
-    count = AccountFrame::countObjects(sess);
+    death->apply(ledgerEntries);
+    count = countAccounts(db);
     REQUIRE(count == 1);
 }
 
@@ -923,28 +910,27 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     Application::pointer app = Application::create(clock, cfg);
     app->start();
 
-    std::vector<LedgerEntry> live(100000);
+    std::vector<LedgerEntry> live;
     std::vector<LedgerKey> noDead;
 
-    for (auto& l : live)
+    for (auto i = 0; i < 100000; i++)
     {
-        l.data.type(ACCOUNT);
-        auto& a = l.data.account();
-        a = LedgerTestUtils::generateValidAccountEntry(5);
+        live.push_back(AccountFrame{LedgerTestUtils::generateValidAccountEntry(5)}.getEntry());
+        live.back().lastModifiedLedgerSeq = 1;
     }
 
     std::shared_ptr<Bucket> birth =
         Bucket::fresh(app->getBucketManager(), live, noDead);
 
-    auto& db = app->getDatabase();
-    auto& sess = db.getSession();
+    auto& ledgerEntries = app->getLedgerEntries();
+    auto& sess = ledgerEntries.getDatabase().getSession();
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
     {
         TIMED_SCOPE(timerObj, "apply");
         soci::transaction sqltx(sess);
-        birth->apply(db);
+        birth->apply(ledgerEntries);
         sqltx.commit();
     }
 }

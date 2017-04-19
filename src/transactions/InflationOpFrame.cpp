@@ -3,8 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/InflationOpFrame.h"
+#include "database/InflationQueries.h"
 #include "ledger/AccountFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDeltaScope.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -28,12 +31,12 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
+InflationOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                           LedgerManager& ledgerManager)
 {
-    LedgerDelta inflationDelta(delta);
+    LedgerDeltaScope inflationDeltaScope{ledgerDelta};
 
-    auto& lcl = inflationDelta.getHeader();
+    auto& lcl = ledgerDelta.getHeader();
 
     time_t closeTime = lcl.scpValue.closeTime;
     uint64_t seq = lcl.inflationSeq;
@@ -61,20 +64,8 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
     int64_t minBalance =
         bigDivide(totalVotes, INFLATION_WIN_MIN_PERCENT, TRILLION, ROUND_DOWN);
 
-    std::vector<AccountFrame::InflationVotes> winners;
-    auto& db = ledgerManager.getDatabase();
-
-    AccountFrame::processForInflation(
-        [&](AccountFrame::InflationVotes const& votes) {
-            if (votes.mVotes >= minBalance)
-            {
-                winners.push_back(votes);
-                return true;
-            }
-            return false;
-        },
-        INFLATION_NUM_WINNERS, db);
-
+    auto& entries = app.getLedgerEntries();
+    auto& db = entries.getDatabase();
     auto inflationAmount = bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS,
                                      TRILLION, ROUND_DOWN);
     auto amountToDole = inflationAmount + lcl.feePool;
@@ -88,19 +79,15 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     int64 leftAfterDole = amountToDole;
 
-    for (auto const& w : winners)
+    for (auto const& w : inflationWinners(minBalance, INFLATION_NUM_WINNERS, db))
     {
-        AccountFrame::pointer winner;
-
         int64 toDoleThisWinner =
             bigDivide(amountToDole, w.mVotes, totalVotes, ROUND_DOWN);
 
         if (toDoleThisWinner == 0)
             continue;
 
-        winner =
-            AccountFrame::loadAccount(inflationDelta, w.mInflationDest, db);
-
+        auto winner = ledgerDelta.loadAccount(w.mInflationDest);
         if (winner)
         {
             leftAfterDole -= toDoleThisWinner;
@@ -108,11 +95,13 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
             {
                 lcl.totalCoins += toDoleThisWinner;
             }
-            if (!winner->addBalance(toDoleThisWinner))
+
+            auto winnerFrame = AccountFrame{*winner};
+            if (!winnerFrame.addBalance(toDoleThisWinner))
             {
                 throw std::runtime_error("inflation overflowed destination balance");
             }
-            winner->storeChange(inflationDelta, db);
+            ledgerDelta.updateEntry(winnerFrame);
             payouts.emplace_back(w.mInflationDest, toDoleThisWinner);
         }
     }
@@ -124,7 +113,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         lcl.totalCoins += inflationAmount;
     }
 
-    inflationDelta.commit();
+    inflationDeltaScope.commit();
 
     app.getMetrics()
         .NewMeter({"op-inflation", "success", "apply"}, "operation")

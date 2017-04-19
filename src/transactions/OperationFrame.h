@@ -4,10 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/AccountFrame.h"
 #include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
+#include "util/optional.h"
 #include "util/types.h"
+#include "xdr/Stellar-ledger-entries.h"
+
 #include <memory>
 
 namespace medida
@@ -20,6 +22,7 @@ namespace stellar
 class Application;
 class LedgerManager;
 class LedgerDelta;
+class LedgerEntries;
 
 class SignatureChecker;
 class TransactionFrame;
@@ -36,13 +39,13 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame& mParentTx;
-    AccountFrame::pointer mSourceAccount;
+    optional<LedgerEntry> mSourceAccount;
     OperationResult& mResult;
 
     bool checkSignature(SignatureChecker& signatureChecker) const;
 
     virtual bool doCheckValid(Application& app) = 0;
-    virtual bool doApply(Application& app, LedgerDelta& delta,
+    virtual bool doApply(Application& app, LedgerDelta& ledgerDelta,
                          LedgerManager& ledgerManager) = 0;
     virtual ThresholdLevel getThresholdLevel() const;
 
@@ -55,7 +58,7 @@ class OperationFrame
                    TransactionFrame& parentTx);
     OperationFrame(OperationFrame const&) = delete;
 
-    AccountFrame&
+    LedgerEntry
     getSourceAccount() const
     {
         assert(mSourceAccount);
@@ -65,7 +68,7 @@ class OperationFrame
     // overrides internal sourceAccount used by this operation
     // normally set automatically by checkValid
     void
-    setSourceAccountPtr(AccountFrame::pointer sa)
+    setSourceAccountPtr(optional<LedgerEntry> sa)
     {
         mSourceAccount = sa;
     }
@@ -74,7 +77,7 @@ class OperationFrame
 
     // load account if needed
     // returns true on success
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries);
 
     OperationResult&
     getResult() const
@@ -84,9 +87,9 @@ class OperationFrame
     OperationResultCode getResultCode() const;
 
     bool checkValid(SignatureChecker& signatureChecker, Application& app,
-                    LedgerDelta* delta = nullptr);
+                    LedgerDelta* ledgerDelta = nullptr);
 
-    bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
+    bool apply(SignatureChecker& signatureChecker, LedgerDelta& ledgerDelta,
                Application& app);
 
     Operation const&

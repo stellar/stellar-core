@@ -1,8 +1,12 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #include "database/Database.h"
+#include "database/TrustLineQueries.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -73,24 +77,23 @@ TEST_CASE("payment", "[tx][payment]")
 
     // sets up gateway2 account
     auto gateway2 = root.create("gate2", gatewayPayment);
+    auto idr = makeAsset(gateway, "IDR");
+    auto usd = makeAsset(gateway2, "USD");
 
-    Asset idr = makeAsset(gateway, "IDR");
-    Asset usd = makeAsset(gateway2, "USD");
+    auto rootAccount = AccountFrame{*loadAccount(root, app)};
+    auto a1Account = AccountFrame{*loadAccount(a1, app)};
+    REQUIRE(rootAccount.getMasterWeight() == 1);
+    REQUIRE(rootAccount.getHighThreshold() == 0);
+    REQUIRE(rootAccount.getLowThreshold() == 0);
+    REQUIRE(rootAccount.getMediumThreshold() == 0);
+    REQUIRE(a1Account.getBalance() == paymentAmount);
+    REQUIRE(a1Account.getMasterWeight()  == 1);
+    REQUIRE(a1Account.getHighThreshold() == 0);
+    REQUIRE(a1Account.getLowThreshold() == 0);
+    REQUIRE(a1Account.getMediumThreshold() == 0);
 
-    AccountFrame::pointer a1Account, rootAccount;
-    rootAccount = loadAccount(root, app);
-    a1Account = loadAccount(a1, app);
-    REQUIRE(rootAccount->getMasterWeight() == 1);
-    REQUIRE(rootAccount->getHighThreshold() == 0);
-    REQUIRE(rootAccount->getLowThreshold() == 0);
-    REQUIRE(rootAccount->getMediumThreshold() == 0);
-    REQUIRE(a1Account->getBalance() == paymentAmount);
-    REQUIRE(a1Account->getMasterWeight() == 1);
-    REQUIRE(a1Account->getHighThreshold() == 0);
-    REQUIRE(a1Account->getLowThreshold() == 0);
-    REQUIRE(a1Account->getMediumThreshold() == 0);
     // root did 2 transactions at this point
-    REQUIRE(rootAccount->getBalance() == (1000000000000000000 - paymentAmount -
+    REQUIRE(rootAccount.getBalance() == (1000000000000000000 - paymentAmount -
                                           gatewayPayment * 2 - txfee * 3));
 
     SECTION("Create account")
@@ -213,15 +216,14 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             root.pay(a1, morePayment);
 
-            AccountFrame::pointer a1Account2, rootAccount2;
-            rootAccount2 = loadAccount(root, app);
-            a1Account2 = loadAccount(a1, app);
-            REQUIRE(a1Account2->getBalance() ==
-                    a1Account->getBalance() + morePayment);
+            auto rootAccount2 = AccountFrame{*loadAccount(root, app)};
+            auto a1Account2 = AccountFrame{*loadAccount(a1, app)};
+            REQUIRE(a1Account2.getBalance() ==
+                    a1Account.getBalance() + morePayment);
 
             // root did 2 transactions at this point
-            REQUIRE(rootAccount2->getBalance() ==
-                    (rootAccount->getBalance() - morePayment - txfee));
+            REQUIRE(rootAccount2.getBalance() ==
+                    (rootAccount.getBalance() - morePayment - txfee));
         });
     }
 
@@ -235,10 +237,9 @@ TEST_CASE("payment", "[tx][payment]")
                         2),
                 ex_PAYMENT_NO_DESTINATION);
 
-            AccountFrame::pointer rootAccount2;
-            rootAccount2 = loadAccount(root, app);
-            REQUIRE(rootAccount2->getBalance() ==
-                    (rootAccount->getBalance() - txfee));
+            auto rootAccount2 = AccountFrame{*loadAccount(root, app)};
+            REQUIRE(rootAccount2.getBalance() ==
+                    (rootAccount.getBalance() - txfee));
         });
     }
 
@@ -919,9 +920,8 @@ TEST_CASE("payment", "[tx][payment]")
             a1.changeTrust(idr, 1000);
             gateway.pay(a1, idr, 100);
 
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, app);
-            REQUIRE(line->getBalance() == 100);
+            auto line = loadTrustLine(a1, idr, app)->data.trustLine();
+            REQUIRE(line.balance == 100);
 
             // create b1 account
             auto b1 = root.create("B", paymentAmount);
@@ -934,16 +934,16 @@ TEST_CASE("payment", "[tx][payment]")
                     // first, send 40 from a1 to b1
                     a1.pay(b1, idr, 40);
 
-                    line = loadTrustLine(a1, idr, app);
-                    REQUIRE(line->getBalance() == 60);
-                    line = loadTrustLine(b1, idr, app);
-                    REQUIRE(line->getBalance() == 40);
+                    line = loadTrustLine(a1, idr, app)->data.trustLine();
+                    REQUIRE(line.balance == 60);
+                    line = loadTrustLine(b1, idr, app)->data.trustLine();
+                    REQUIRE(line.balance == 40);
 
                     // then, send back to the gateway
                     // the gateway does not have a trust line as it's the issuer
                     b1.pay(gateway, idr, 40);
-                    line = loadTrustLine(b1, idr, app);
-                    REQUIRE(line->getBalance() == 0);
+                    line = loadTrustLine(b1, idr, app)->data.trustLine();
+                    REQUIRE(line.balance == 0);
                 });
             }
             SECTION("missing issuer")
@@ -969,19 +969,15 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             a1.changeTrust(idr, INT64_MAX);
             gateway.pay(a1, idr, INT64_MAX);
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, app);
-            REQUIRE(line->getBalance() == INT64_MAX);
+            auto line = loadTrustLine(a1, idr, app)->data.trustLine();
+            REQUIRE(line.balance == INT64_MAX);
 
             // send it all back
             a1.pay(gateway, idr, INT64_MAX);
-            line = loadTrustLine(a1, idr, app);
-            REQUIRE(line->getBalance() == 0);
+            line = loadTrustLine(a1, idr, app)->data.trustLine();
+            REQUIRE(line.balance == 0);
 
-            std::vector<TrustFrame::pointer> gwLines;
-            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
-                                app.getDatabase());
-            REQUIRE(gwLines.size() == 0);
+            REQUIRE(countTrustLines(gateway.getPublicKey(), app.getDatabase()) == 0);
         });
     }
     SECTION("authorize flag")
@@ -1032,8 +1028,8 @@ TEST_CASE("payment", "[tx][payment]")
                 {
                     sendToSelf.pay(sendToSelf, INT64_MAX);
                 }
-                auto account = loadAccount(sendToSelf, app);
-                REQUIRE(account->getBalance() == minBalance2 - txfee);
+                auto account = AccountFrame{*loadAccount(sendToSelf, app)};
+                REQUIRE(account.getBalance() == minBalance2 - txfee);
             }
 
             auto fakeCur = makeAsset(gateway, "fake");
@@ -1093,8 +1089,8 @@ TEST_CASE("payment", "[tx][payment]")
                     {
                         data.payWithoutTrustline(data.asset, 1);
 
-                        auto account = loadAccount(sendToSelf, app);
-                        REQUIRE(account->getBalance() ==
+                        auto account = AccountFrame{*loadAccount(sendToSelf, app)};
+                        REQUIRE(account.getBalance() ==
                                 minBalance2 - txfee);
                         REQUIRE(!loadTrustLine(sendToSelf, data.asset, app,
                                                 false));
@@ -1129,12 +1125,12 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, app);
-                        REQUIRE(account->getBalance() ==
+                        auto account = AccountFrame{*loadAccount(sendToSelf, app)};
+                        REQUIRE(account.getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline = loadTrustLine(
-                            sendToSelf, data.asset, app, true);
-                        REQUIRE(trustline->getBalance() == 0);
+                        auto trustline = TrustFrame{sendToSelf.loadTrustLine(
+                            data.asset)};
+                        REQUIRE(trustline.getBalance() == 0);
                     }
 
                     SECTION("with trustline and half balance")
@@ -1153,12 +1149,12 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, app);
-                        REQUIRE(account->getBalance() ==
+                        auto account = AccountFrame{*loadAccount(sendToSelf, app)};
+                        REQUIRE(account.getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline = loadTrustLine(
-                            sendToSelf, data.asset, app, true);
-                        REQUIRE(trustline->getBalance() == 500);
+                        auto trustline = TrustFrame{sendToSelf.loadTrustLine(
+                            data.asset)};
+                        REQUIRE(trustline.getBalance() == 500);
                     }
 
                     SECTION("with trustline and full balance")
@@ -1177,12 +1173,12 @@ TEST_CASE("payment", "[tx][payment]")
                         {
                             data.payWithTrustLineFull(data.asset, 2000);
                         }
-                        auto account = loadAccount(sendToSelf, app);
-                        REQUIRE(account->getBalance() ==
+                        auto account = AccountFrame{*loadAccount(sendToSelf, app)};
+                        REQUIRE(account.getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline = loadTrustLine(
-                            sendToSelf, data.asset, app, true);
-                        REQUIRE(trustline->getBalance() == 1000);
+                        auto trustline = TrustFrame{sendToSelf.loadTrustLine(
+                            data.asset)};
+                        REQUIRE(trustline.getBalance() == 1000);
                     }
                 }
             }

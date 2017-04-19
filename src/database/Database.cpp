@@ -4,7 +4,12 @@
 
 #include "database/Database.h"
 #include "crypto/Hex.h"
+#include "database/AccountQueries.h"
 #include "database/DatabaseConnectionString.h"
+#include "database/DataQueries.h"
+#include "database/OfferQueries.h"
+#include "database/SignerQueries.h"
+#include "database/TrustLineQueries.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
@@ -13,20 +18,14 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 #include "util/types.h"
-
 #include "bucket/BucketManager.h"
 #include "herder/Herder.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/TransactionFrame.h"
-
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -81,7 +80,6 @@ Database::Database(Application& app)
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
-    , mEntryCache(4096)
     , mExcludedQueryTime(0)
     , mExcludedTotalTime(0)
     , mLastIdleQueryTime(0)
@@ -118,7 +116,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
 
     case 3:
-        DataFrame::dropAll(*this);
+        createDataTable(*this);
         break;
 
     case 4:
@@ -289,9 +287,11 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    AccountFrame::dropAll(*this);
-    OfferFrame::dropAll(*this);
-    TrustFrame::dropAll(*this);
+    createAccountsTable(*this);
+    createSignersTable(*this);
+    createOffersTable(*this);
+    createTrustLinesTable(*this);
+
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
@@ -339,12 +339,6 @@ Database::getPool()
     }
     assert(mPool);
     return *mPool;
-}
-
-cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-Database::getEntryCache()
-{
-    return mEntryCache;
 }
 
 class SQLLogContext : NonCopyable

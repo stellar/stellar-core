@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
@@ -142,10 +143,11 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         auto acc = loadAccount(key.getPublicKey(), mApp, false);
         if (acc)
         {
+            auto af = AccountFrame{*acc};
             root["name"] = accName->second;
-            root["id"] = KeyUtils::toStrKey(acc->getID());
-            root["balance"] = (Json::Int64)acc->getBalance();
-            root["seqnum"] = (Json::UInt64)acc->getSeqNum();
+            root["id"] = KeyUtils::toStrKey(af.getAccountID());
+            root["balance"] = (Json::Int64)af.getBalance();
+            root["seqnum"] = (Json::UInt64)af.getSeqNum();
         }
     }
     retStr = root.toStyledString();

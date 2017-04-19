@@ -4,7 +4,8 @@
 
 #include "simulation/LoadGenerator.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -505,16 +506,15 @@ LoadGenerator::accountCreationTransactions(size_t n)
 bool
 LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 {
-    AccountFrame::pointer ret;
-    ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
-                                    app.getDatabase());
+    auto ret = app.getLedgerEntries().load(accountKey(account.mKey.getPublicKey()));
     if (!ret)
     {
         return false;
     }
 
-    account.mBalance = ret->getBalance();
-    account.mSeq = ret->getSeqNum();
+    auto acc = AccountFrame{*ret};
+    account.mBalance = acc.getBalance();
+    account.mSeq = acc.getSeqNum();
     auto high =
         app.getHerder().getMaxSeqInPendingTxs(account.mKey.getPublicKey());
     if (high > account.mSeq)
@@ -739,36 +739,34 @@ LoadGenerator::AccountInfo::creationTransaction()
 void
 LoadGenerator::AccountInfo::createDirectly(Application& app)
 {
-    AccountFrame a(mKey.getPublicKey());
-    AccountEntry& account = a.getAccount();
+    LedgerDelta ledgerDelta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                app.getLedgerEntries());
     auto ledger = app.getLedgerManager().getLedgerNum();
-    account.balance = LOADGEN_ACCOUNT_BALANCE;
-    account.seqNum = ((SequenceNumber)ledger) << 32;
-    a.touch(ledger);
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    ;
-    a.storeAdd(delta, app.getDatabase());
+    auto a = AccountFrame{mKey.getPublicKey(), LOADGEN_ACCOUNT_BALANCE, ((SequenceNumber)ledger) << 32};
+    ledgerDelta.addEntry(a);
+    app.getLedgerManager().apply(ledgerDelta);
 }
 
 void
 LoadGenerator::AccountInfo::debitDirectly(Application& app, int64_t debitAmount)
 {
-    auto existing =
-        AccountFrame::loadAccount(mKey.getPublicKey(), app.getDatabase());
-    if (!existing)
+    LedgerDelta ledgerDelta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                app.getLedgerEntries());
+
+    auto account = ledgerDelta.loadAccount(mKey.getPublicKey());
+    if (!account)
     {
         return;
     }
-    AccountEntry& account = existing->getAccount();
-    auto ledger = app.getLedgerManager().getLedgerNum();
-    existing->addBalance(-debitAmount); // it can fail, we don't care here
-    account.seqNum++;
-    existing->touch(ledger);
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    ;
-    existing->storeChange(delta, app.getDatabase());
+
+    auto frame = AccountFrame{*account};
+    if (frame.getBalance() >= debitAmount)
+    {
+        frame.addBalance(-debitAmount);
+    }
+    frame.setSeqNum(frame.getSeqNum() + 1);
+    ledgerDelta.updateEntry(frame);
+    app.getLedgerManager().apply(ledgerDelta);
 }
 
 void

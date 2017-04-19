@@ -12,20 +12,22 @@
 #include <memory>
 #include <set>
 
+/*
+A transaction in its exploded form.
+We can get it in from the DB or from the wire
+*/
 namespace soci
 {
 class session;
 }
 
-/*
-A transaction in its exploded form.
-We can get it in from the DB or from the wire
-*/
 namespace stellar
 {
+class AccountFrame;
 class Application;
 class OperationFrame;
 class LedgerDelta;
+class LedgerEntries;
 class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
@@ -40,7 +42,7 @@ class TransactionFrame
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    AccountFrame::pointer mSigningAccount;
+    optional<LedgerEntry> mSigningAccount;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -49,22 +51,22 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
-                     LedgerDelta* delta, SequenceNumber current);
+                     LedgerDelta* ledgerDelta, SequenceNumber current);
 
     void resetSigningAccount();
     void resetResults();
     bool checkAllSignaturesUsed();
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager);
+                                     LedgerDelta& ledgerDelta,
+                                     Application& app);
     void removeUsedOneTimeSignerKeys(const AccountID& accountId,
                                      const std::set<SignerKey>& keys,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager) const;
-    bool removeAccountSigner(const AccountFrame::pointer& account,
-                             const SignerKey& signerKey,
+                                     LedgerDelta& ledgerDelta,
+                                     Application& app) const;
+    bool removeAccountSigner(AccountFrame& account,
+                             SignerKey const& signerKey,
                              LedgerManager& ledgerManager) const;
     void markResultFailed();
 
@@ -115,7 +117,7 @@ class TransactionFrame
         return mEnvelope.tx.seqNum;
     }
 
-    AccountFrame const&
+    LedgerEntry
     getSourceAccount() const
     {
         assert(mSigningAccount);
@@ -138,24 +140,24 @@ class TransactionFrame
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
+                        AccountFrame const& account, int32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void processFeeSeqNum(int ledgerVersion, LedgerDelta& ledgerDelta, LedgerEntries &entries);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
+    bool apply(LedgerDelta& ledgerDelta, TransactionMeta& meta, Application& app);
 
     // version without meta
-    bool apply(LedgerDelta& delta, Application& app);
+    bool apply(LedgerDelta& ledgerDelta, Application& app);
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(int ledgerProtocolVersion,
-                                      LedgerDelta* delta, Database& app,
+    optional<LedgerEntry> loadAccount(int ledgerProtocolVersion,
+                                      LedgerDelta* ledgerDelta, LedgerEntries& entries,
                                       AccountID const& accountID);
 
     // transaction history

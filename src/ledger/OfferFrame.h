@@ -5,101 +5,44 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/EntryFrame.h"
-#include <functional>
-#include <unordered_map>
-
-namespace soci
-{
-class session;
-}
 
 namespace stellar
 {
-class ManageOfferOpFrame;
-class StatementContext;
+
+LedgerKey offerKey(AccountID sellerID, uint64 offerID);
 
 class OfferFrame : public EntryFrame
 {
-    static void
-    loadOffers(StatementContext& prep,
-               std::function<void(LedgerEntry const&)> offerProcessor);
-
-    double computePrice() const;
-
-    OfferEntry& mOffer;
-
-    void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
-
   public:
-    typedef std::shared_ptr<OfferFrame> pointer;
-
-    enum OfferFlags
-    {
-        PASSIVE_FLAG = 1
-    };
-
     OfferFrame();
-    OfferFrame(LedgerEntry const& from);
-    OfferFrame(OfferFrame const& from);
+    explicit OfferFrame(OfferEntry offer);
+    explicit OfferFrame(LedgerEntry entry);
 
-    OfferFrame& operator=(OfferFrame const& other);
-
-    EntryFrame::pointer
-    copy() const override
+    OfferEntry
+    getOffer() const
     {
-        return std::make_shared<OfferFrame>(*this);
+        return mEntry.data.offer();
     }
 
     Price const& getPrice() const;
+    void setPrice(Price price);
     int64_t getAmount() const;
+    void setAmount(int64_t amount);
     AccountID const& getSellerID() const;
+    void setSellerID(AccountID sellerID);
     Asset const& getBuying() const;
+    void setBuying(Asset buying);
     Asset const& getSelling() const;
+    void setSelling(Asset selling);
     uint64 getOfferID() const;
+    void setOfferID(uint64 offerID);
     uint32 getFlags() const;
+    bool isPassive() const;
 
-    OfferEntry const&
-    getOffer() const
-    {
-        return mOffer;
-    }
-    OfferEntry&
-    getOffer()
-    {
-        return mOffer;
-    }
-
-    static bool isValid(OfferEntry const& oe);
+    double computePrice() const;
     bool isValid() const;
 
-    // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
-
-    // Static helpers that don't assume an instance.
-    static void storeDelete(LedgerDelta& delta, Database& db,
-                            LedgerKey const& key);
-    static bool exists(Database& db, LedgerKey const& key);
-    static uint64_t countObjects(soci::session& sess);
-
-    // database utilities
-    static pointer loadOffer(AccountID const& accountID, uint64_t offerID,
-                             Database& db, LedgerDelta* delta = nullptr);
-
-    static void loadBestOffers(size_t numOffers, size_t offset,
-                               Asset const& pays, Asset const& gets,
-                               std::vector<OfferFrame::pointer>& retOffers,
-                               Database& db);
-
-    // load all offers from the database (very slow)
-    static std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
-    loadAllOffers(Database& db);
-
-    static void dropAll(Database& db);
-    static const char* kSQLCreateStatement1;
-    static const char* kSQLCreateStatement2;
-    static const char* kSQLCreateStatement3;
-    static const char* kSQLCreateStatement4;
+    friend bool operator==(OfferFrame const& x, OfferFrame const& y);
+    friend bool operator!=(OfferFrame const& x, OfferFrame const& y);
 };
 }

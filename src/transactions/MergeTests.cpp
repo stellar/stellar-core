@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -385,8 +386,7 @@ TEST_CASE("merge", "[tx][merge]")
         {
             for_all_versions(app, [&]{
                 a1.merge(b1);
-                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                                app.getDatabase()));
+                REQUIRE(!app.getLedgerEntries().load(accountKey(a1)));
             });
         }
         SECTION("success, invalidates dependent tx")
@@ -400,8 +400,7 @@ TEST_CASE("merge", "[tx][merge]")
                 checkTx(0, r, txSUCCESS);
                 checkTx(1, r, txNO_ACCOUNT);
 
-                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                                app.getDatabase()));
+                REQUIRE(!app.getLedgerEntries().load(accountKey(a1)));
 
                 int64 expectedB1Balance =
                     a1Balance + b1Balance - 2 * app.getLedgerManager().getTxFee();

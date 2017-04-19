@@ -5,6 +5,7 @@
 #include "Simulation.h"
 
 #include "herder/Herder.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
@@ -432,15 +433,14 @@ Simulation::accountsOutOfSyncWithDb()
              accountIt != mAccounts.end(); accountIt++)
         {
             auto account = *accountIt;
-            AccountFrame::pointer accountFrame;
-            accountFrame = AccountFrame::loadAccount(
-                account->mKey.getPublicKey(), app->getDatabase());
+            auto accountFrame = app->getLedgerEntries().load(accountKey(account->mKey.getPublicKey()));
             int64_t offset;
             if (accountFrame)
             {
-                offset = accountFrame->getBalance() -
+                auto af = AccountFrame{*accountFrame};
+                offset = af.getBalance() -
                          static_cast<int64_t>(account->mBalance);
-                account->mSeq = accountFrame->getSeqNum();
+                account->mSeq = af.getSeqNum();
             }
             else
             {
@@ -450,7 +450,7 @@ Simulation::accountsOutOfSyncWithDb()
             {
                 LOG(DEBUG) << "On node " << iApp << ", account " << account->mId
                            << " is off by " << (offset) << "\t(has "
-                           << (accountFrame ? accountFrame->getBalance() : 0)
+                           << (accountFrame ? AccountFrame{*accountFrame}.getBalance() : 0)
                            << " should have " << account->mBalance << ")";
                 totalOffsets += abs(offset);
                 result.push_back(account);

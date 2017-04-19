@@ -63,11 +63,10 @@ TEST_CASE("standalone", "[herder]")
 
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() > 2);
 
-            AccountFrame::pointer a1Account, b1Account;
-            a1Account = loadAccount(a1.getPublicKey(), *app);
-            b1Account = loadAccount(b1.getPublicKey(), *app);
-            REQUIRE(a1Account->getBalance() == paymentAmount);
-            REQUIRE(b1Account->getBalance() == paymentAmount);
+            auto a1Account = AccountFrame{*loadAccount(a1.getPublicKey(), *app)};
+            auto b1Account = AccountFrame{*loadAccount(b1.getPublicKey(), *app)};
+            REQUIRE(a1Account.getBalance() == paymentAmount);
+            REQUIRE(b1Account.getBalance() == paymentAmount);
         };
 
         auto setup = [&](asio::error_code const& error) {

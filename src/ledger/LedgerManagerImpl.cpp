@@ -3,22 +3,27 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
-#include "DataFrame.h"
-#include "OfferFrame.h"
-#include "TrustFrame.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
+#include "database/AccountQueries.h"
 #include "database/Database.h"
+#include "database/DataQueries.h"
+#include "database/OfferQueries.h"
+#include "database/SignerQueries.h"
+#include "database/TrustLineQueries.h"
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/Invariants.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDeltaScope.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledgerdelta/LedgerDeltaLayer.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -31,6 +36,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
 
@@ -163,8 +169,7 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee, uint32_t ba
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
-    AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = balance;
+    auto masterAccount = AccountFrame{skey.getPublicKey(), balance, 0};
     LedgerHeader genesisHeader;
 
     // all fields are initialized by default to 0
@@ -172,14 +177,14 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee, uint32_t ba
     genesisHeader.baseFee = baseFee;
     genesisHeader.baseReserve = baseReserve;
     genesisHeader.maxTxSetSize = maxTxSetSize;
-    genesisHeader.totalCoins = masterAccount.getAccount().balance;
+    genesisHeader.totalCoins = masterAccount.getBalance();
     genesisHeader.ledgerSeq = 1;
-
-    LedgerDelta delta(genesisHeader, getDatabase());
-    masterAccount.storeAdd(delta, this->getDatabase());
-    delta.commit();
-
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
+
+    auto delta = LedgerDelta{genesisHeader, mApp.getLedgerEntries()};
+    delta.addEntry(masterAccount);
+    apply(delta);
+
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed().value;
     ledgerClosed(delta);
@@ -713,7 +718,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     auto const& sv = ledgerData.getValue();
     mCurrentLedger->mHeader.scpValue = sv;
 
-    LedgerDelta ledgerDelta(mCurrentLedger->mHeader, getDatabase());
+    auto ledgerDelta = LedgerDelta{mCurrentLedger->mHeader, mApp.getLedgerEntries()};
 
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
@@ -767,9 +772,10 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    mApp.getInvariants().check(ledgerData.getTxSet(), ledgerDelta);
+    apply(ledgerDelta);
 
-    ledgerDelta.commit();
+    // invariants require commited ledgerDelta
+    mApp.getInvariants().check(ledgerData.getTxSet(), ledgerDelta);
     ledgerClosed(ledgerDelta);
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
@@ -809,6 +815,15 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 }
 
 void
+LedgerManagerImpl::apply(LedgerDelta const& delta)
+{
+    assert(delta.isCollapsed());
+
+    mApp.getLedgerEntries().apply(delta);
+    mCurrentLedger->mHeader = delta.getHeader();
+}
+
+void
 LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
@@ -819,36 +834,45 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 void
 LedgerManagerImpl::checkDbState()
 {
-    std::unordered_map<AccountID, AccountFrame::pointer> aData =
-        AccountFrame::checkDB(getDatabase());
-    std::unordered_map<AccountID, std::vector<TrustFrame::pointer>> trustLines;
-    trustLines = TrustFrame::loadAllLines(getDatabase());
-    std::unordered_map<AccountID, std::vector<OfferFrame::pointer>> offers;
-    offers = OfferFrame::loadAllOffers(getDatabase());
-    std::unordered_map<AccountID, std::vector<DataFrame::pointer>> datas;
-    datas = DataFrame::loadAllData(getDatabase());
+    // sanity check signers state
+    auto extraSigner = selectSignerWithoutAccount(getDatabase());
+    if (extraSigner)
+    {
+        throw std::runtime_error(fmt::format(
+            "Found extra signers in database for account {}", KeyUtils::toStrKey(*extraSigner)));
+    }
+
+    auto aData = std::unordered_map<AccountID, LedgerEntry>{};
+    for (auto& a : selectAllAccounts(getDatabase()))
+    {
+        aData.insert(std::make_pair(AccountFrame{a}.getAccountID(), a));
+    }
+
+    auto trustLines = selectTrustLineCountPerAccount(getDatabase());
+    auto offers = selectOfferCountPerAccount(getDatabase());
+    auto dataSizes = selectDataCountPerAccount(getDatabase());
 
     for (auto& i : aData)
     {
-        auto const& a = i.second->getAccount();
+        auto const& a = i.second.data.account();
 
         // checks the number of sub entries found in the database
         size_t actualSubEntries = a.signers.size();
         auto itTL = trustLines.find(i.first);
         if (itTL != trustLines.end())
         {
-            actualSubEntries += itTL->second.size();
+            actualSubEntries += itTL->second;
         }
         auto itOffers = offers.find(i.first);
         if (itOffers != offers.end())
         {
-            actualSubEntries += itOffers->second.size();
+            actualSubEntries += itOffers->second;
         }
 
-        auto itDatas = datas.find(i.first);
-        if (itDatas != datas.end())
+        auto itDatas = dataSizes.find(i.first);
+        if (itDatas != dataSizes.end())
         {
-            actualSubEntries += itDatas->second.size();
+            actualSubEntries += itDatas->second;
         }
 
         if (a.numSubEntries != (uint32)actualSubEntries)
@@ -896,7 +920,7 @@ LedgerManagerImpl::advanceLedgerPointers()
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      LedgerDelta& delta)
+                                      LedgerDelta& ledgerDelta)
 {
     CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
     int index = 0;
@@ -905,10 +929,10 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
         soci::transaction sqlTx(mApp.getDatabase().getSession());
         for (auto tx : txs)
         {
-            LedgerDelta thisTxDelta(delta);
-            tx->processFeeSeqNum(thisTxDelta, *this);
-            tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
-            thisTxDelta.commit();
+            LedgerDeltaScope txDeltaScope{ledgerDelta};
+            tx->processFeeSeqNum(getCurrentLedgerHeader().ledgerVersion, ledgerDelta, mApp.getLedgerEntries());
+            tx->storeTransactionFee(*this, ledgerDelta.top().getChanges(), ++index);
+            txDeltaScope.commit();
         }
         sqlTx.commit();
     }
@@ -931,7 +955,8 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        LedgerDelta delta(ledgerDelta);
+        auto origHeader = ledgerDelta.getHeader();
+        LedgerDeltaScope transactionDeltaScope{ledgerDelta};
         TransactionMeta tm;
         try
         {
@@ -940,15 +965,15 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
 
-            if (tx->apply(delta, tm, mApp))
+            if (tx->apply(ledgerDelta, tm, mApp))
             {
-                delta.commit();
+                transactionDeltaScope.commit();
             }
             else
             {
                 // failure means there should be no side effects
-                assert(delta.getChanges().size() == 0);
-                assert(delta.getHeader() == ledgerDelta.getHeader());
+                assert(ledgerDelta.top().getChanges().size() == 0);
+                assert(ledgerDelta.getHeader() == origHeader);
             }
         }
         catch (InvariantDoesNotHold &e)
@@ -959,11 +984,13 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         {
             CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
             tx->getResult().result.code(txINTERNAL_ERROR);
+            mApp.getLedgerEntries().flushCache();   // ledger entries may contain invalid data here
         }
         catch (...)
         {
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
             tx->getResult().result.code(txINTERNAL_ERROR);
+            mApp.getLedgerEntries().flushCache();   // ledger entries may contain invalid data here
         }
         tx->storeTransaction(*this, tm, ++index, txResultSet);
     }
@@ -972,10 +999,12 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 void
 LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
 {
+    assert(delta.isCollapsed());
+
     delta.markMeters(mApp);
     mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
-                                     delta.getLiveEntries(),
-                                     delta.getDeadEntries());
+                                     delta.top().getLiveEntries(),
+                                     delta.top().getDeadEntries());
 
     mApp.getBucketManager().snapshotLedger(mCurrentLedger->mHeader);
 

@@ -13,7 +13,7 @@ namespace stellar
 {
 
 class Invariant;
-class LedgerDelta;
+class LedgerDeltaLayer;
 
 class Invariants
 {

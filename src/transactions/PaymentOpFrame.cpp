@@ -6,8 +6,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -29,7 +28,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
+PaymentOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                         LedgerManager& ledgerManager)
 {
     // if sending to self XLM directly, just mark as success, else we need at
@@ -68,7 +67,7 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     ppayment.setSourceAccountPtr(mSourceAccount);
 
     if (!ppayment.doCheckValid(app) ||
-        !ppayment.doApply(app, delta, ledgerManager))
+        !ppayment.doApply(app, ledgerDelta, ledgerManager))
     {
         if (ppayment.getResultCode() != opINNER)
         {

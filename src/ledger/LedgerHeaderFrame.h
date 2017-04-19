@@ -37,8 +37,6 @@ class LedgerHeaderFrame
     // returns the first sequence number to use for new accounts
     SequenceNumber getStartingSequenceNumber() const;
 
-    // methods to generate IDs
-    uint64_t getLastGeneratedID() const;
     // generates a new ID and returns it
     uint64_t generateID();
 

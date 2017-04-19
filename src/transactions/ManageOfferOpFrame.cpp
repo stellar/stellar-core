@@ -6,7 +6,11 @@
 #include "transactions/ManageOfferOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDeltaScope.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/OfferFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -36,7 +40,7 @@ ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
 // make sure these issuers exist and you can hold the ask asset
 bool
 ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
-                                    Database& db, LedgerDelta& delta)
+                                    LedgerEntries& entries, LedgerDelta& ledgerDelta)
 {
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;
@@ -49,10 +53,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
-        auto tlI =
-            TrustFrame::loadTrustLineIssuer(getSourceID(), sheep, db, delta);
-        mSheepLineA = tlI.first;
-        if (!tlI.second)
+        auto issuer = ledgerDelta.loadAccount(getIssuer(sheep));
+        if (!issuer)
         {
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "sell-no-issuer"},
@@ -61,7 +63,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_SELL_NO_ISSUER);
             return false;
         }
-        if (!mSheepLineA)
+        auto sheepLineA = ledgerDelta.loadTrustLine(getSourceID(), sheep);
+        if (!sheepLineA)
         { // we don't have what we are trying to sell
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "sell-no-trust"},
@@ -70,7 +73,9 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_SELL_NO_TRUST);
             return false;
         }
-        if (mSheepLineA->getBalance() == 0)
+
+        auto sheepTrustA = TrustFrame{*sheepLineA};
+        if (sheepTrustA.getBalance() == 0)
         {
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "underfunded"},
@@ -79,7 +84,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_UNDERFUNDED);
             return false;
         }
-        if (!mSheepLineA->isAuthorized())
+        if (!sheepTrustA.isAuthorized())
         {
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "sell-not-authorized"},
@@ -93,10 +98,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        auto tlI =
-            TrustFrame::loadTrustLineIssuer(getSourceID(), wheat, db, delta);
-        mWheatLineA = tlI.first;
-        if (!tlI.second)
+        auto issuer = ledgerDelta.loadAccount(getIssuer(wheat));
+        if (!issuer)
         {
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "buy-no-issuer"},
@@ -105,7 +108,8 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_BUY_NO_ISSUER);
             return false;
         }
-        if (!mWheatLineA)
+        auto wheatLineA = ledgerDelta.loadTrustLine(getSourceID(), wheat);
+        if (!wheatLineA)
         { // we can't hold what we are trying to buy
             metrics
                 .NewMeter({"op-manage-offer", "invalid", "buy-no-trust"},
@@ -114,7 +118,9 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
             innerResult().code(MANAGE_OFFER_BUY_NO_TRUST);
             return false;
         }
-        if (!mWheatLineA->isAuthorized())
+
+        auto wheatTrustA = TrustFrame{*wheatLineA};
+        if (!wheatTrustA.isAuthorized())
         { // we are not authorized to hold what we
             // are trying to buy
             metrics
@@ -133,12 +139,13 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
+ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                             LedgerManager& ledgerManager)
 {
-    Database& db = ledgerManager.getDatabase();
+    auto& entries = app.getLedgerEntries();
+    auto& db = entries.getDatabase();
 
-    if (!checkOfferValid(app.getMetrics(), db, delta))
+    if (!checkOfferValid(app.getMetrics(), entries, ledgerDelta))
     {
         return false;
     }
@@ -149,12 +156,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
 
+    auto sourceFrame = AccountFrame{*mSourceAccount};
+    auto sellSheepOffer = OfferFrame{};
     if (offerID)
     { // modifying an old offer
-        mSellSheepOffer =
-            OfferFrame::loadOffer(getSourceID(), offerID, db, &delta);
-
-        if (!mSellSheepOffer)
+        auto offer = ledgerDelta.loadOffer(getSourceID(), offerID);
+        if (!offer)
         {
             app.getMetrics()
                 .NewMeter({"op-manage-offer", "invalid", "not-found"},
@@ -165,43 +172,46 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
 
         // rebuild offer based off the manage offer
-        mSellSheepOffer->getOffer() = buildOffer(
-            getSourceID(), mManageOffer, mSellSheepOffer->getOffer().flags);
-        mPassive = mSellSheepOffer->getFlags() & PASSIVE_FLAG;
+        sellSheepOffer = OfferFrame{makeOffer(
+            getSourceID(), mManageOffer, OfferFrame{*offer}.getFlags())};
+
+        mPassive = sellSheepOffer.isPassive();
     }
     else
     { // creating a new Offer
         creatingNewOffer = true;
-        LedgerEntry le;
-        le.data.type(OFFER);
-        le.data.offer() = buildOffer(getSourceID(), mManageOffer,
-                                     mPassive ? PASSIVE_FLAG : 0);
-        mSellSheepOffer = std::make_shared<OfferFrame>(le);
+        sellSheepOffer = OfferFrame{makeOffer(
+            getSourceID(), mManageOffer, mPassive ? PASSIVE_FLAG : 0)};
     }
 
-    int64_t maxSheepSend = mSellSheepOffer->getAmount();
-
+    int64_t maxSheepSend = sellSheepOffer.getAmount();
     int64_t maxAmountOfSheepCanSell;
 
     innerResult().code(MANAGE_OFFER_SUCCESS);
 
     soci::transaction sqlTx(db.getSession());
-    LedgerDelta tempDelta(delta);
+    LedgerDeltaScope offerDeltaScope{ledgerDelta};
+
+    auto sheepLineA = sheep.type() != ASSET_TYPE_NATIVE
+        ? ledgerDelta.loadTrustLine(getSourceID(), sheep)
+        : nullptr;
+    auto wheatLineA = wheat.type() != ASSET_TYPE_NATIVE
+        ? ledgerDelta.loadTrustLine(getSourceID(), wheat)
+        : nullptr;
 
     if (mManageOffer.amount == 0)
     {
-        mSellSheepOffer->getOffer().amount = 0;
+        sellSheepOffer.setAmount(0);
     }
     else
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            maxAmountOfSheepCanSell =
-                mSourceAccount->getBalanceAboveReserve(ledgerManager);
+            maxAmountOfSheepCanSell = sourceFrame.getBalanceAboveReserve(ledgerManager);
         }
         else
         {
-            maxAmountOfSheepCanSell = mSheepLineA->getBalance();
+            maxAmountOfSheepCanSell = TrustFrame{*sheepLineA}.getBalance();
         }
 
         // the maximum is defined by how much wheat it can receive
@@ -212,7 +222,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         else
         {
-            maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
+            maxWheatCanSell = TrustFrame{*wheatLineA}.getMaxAmountReceive();
             if (maxWheatCanSell == 0)
             {
                 app.getMetrics()
@@ -224,7 +234,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             }
         }
 
-        Price const& sheepPrice = mSellSheepOffer->getPrice();
+        auto const& sheepPrice = sellSheepOffer.getPrice();
 
         {
             int64_t maxSheepBasedOnWheat;
@@ -250,24 +260,26 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         int64_t sheepSent, wheatReceived;
 
-        OfferExchange oe(tempDelta, ledgerManager);
+        OfferExchange oe{app};
 
         const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
+            ledgerDelta,
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
-            wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
-                if (o.getOfferID() == mSellSheepOffer->getOfferID())
+            wheatReceived, [this, &maxWheatPrice, &sellSheepOffer](LedgerEntry const& o) {
+                auto offer = OfferFrame{o};
+                if (offer.getOfferID() == sellSheepOffer.getOfferID())
                 {
                     // don't let the offer cross itself when updating it
                     return OfferExchange::eSkip;
                 }
-                if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
-                    (o.getPrice() > maxWheatPrice))
+                if ((mPassive && (offer.getPrice() >= maxWheatPrice)) ||
+                    (offer.getPrice() > maxWheatPrice))
                 {
                     return OfferExchange::eStop;
                 }
-                if (o.getSellerID() == getSourceID())
+                if (offer.getSellerID() == getSourceID())
                 {
                     // we are crossing our own offer
                     innerResult().code(MANAGE_OFFER_CROSS_SELF);
@@ -300,61 +312,61 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (wheatReceived > 0)
         {
-            // it's OK to use mSourceAccount, mWheatLineA and mSheepLineA
+            // it's OK to use mSourceAccount, wheatLineA and sheepLineA
             // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
-                if (!mSourceAccount->addBalance(wheatReceived))
+                if (!sourceFrame.addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
-
-                mSourceAccount->storeChange(delta, db);
+                ledgerDelta.updateEntry(sourceFrame);
             }
             else
             {
-                if (!mWheatLineA->addBalance(wheatReceived))
+                auto wheatTrust = TrustFrame{*wheatLineA};
+                if (!wheatTrust.addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
-
-                mWheatLineA->storeChange(delta, db);
+                ledgerDelta.updateEntry(wheatTrust);
             }
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
             {
-                if (!mSourceAccount->addBalance(-sheepSent))
+                if (!sourceFrame.addBalance(-sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer sold more than balance");
                 }
-                mSourceAccount->storeChange(delta, db);
+                ledgerDelta.updateEntry(sourceFrame);
             }
             else
             {
-                if (!mSheepLineA->addBalance(-sheepSent))
+                auto sheepTrust = TrustFrame{*sheepLineA};
+                if (!sheepTrust.addBalance(-sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer sold more than balance");
                 }
-                mSheepLineA->storeChange(delta, db);
+                ledgerDelta.updateEntry(sheepTrust);
             }
         }
 
         // recomputes the amount of sheep for sale
-        mSellSheepOffer->getOffer().amount = maxSheepSend - sheepSent;
+        sellSheepOffer.setAmount(maxSheepSend - sheepSent);
     }
 
-    if (mSellSheepOffer->getOffer().amount > 0)
+    if (sellSheepOffer.getAmount() > 0)
     { // we still have sheep to sell so leave an offer
 
         if (creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have
             // the minbalance
-            if (!mSourceAccount->addNumEntries(1, ledgerManager))
+            if (!sourceFrame.addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-offer", "invalid", "low reserve"},
@@ -363,18 +375,17 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                 return false;
             }
-            mSellSheepOffer->mEntry.data.offer().offerID =
-                tempDelta.getHeaderFrame().generateID();
+            sellSheepOffer.setOfferID(ledgerDelta.getHeaderFrame().generateID());
             innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
-            mSellSheepOffer->storeAdd(tempDelta, db);
-            mSourceAccount->storeChange(tempDelta, db);
+            ledgerDelta.addEntry(sellSheepOffer);
+            ledgerDelta.updateEntry(sourceFrame);
         }
         else
         {
             innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
-            mSellSheepOffer->storeChange(tempDelta, db);
+            ledgerDelta.updateEntry(sellSheepOffer);
         }
-        innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
+        innerResult().success().offer.offer() = sellSheepOffer.getOffer();
     }
     else
     {
@@ -382,14 +393,14 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (!creatingNewOffer)
         {
-            mSellSheepOffer->storeDelete(tempDelta, db);
-            mSourceAccount->addNumEntries(-1, ledgerManager);
-            mSourceAccount->storeChange(tempDelta, db);
+            ledgerDelta.deleteEntry(sellSheepOffer.getKey());
+            sourceFrame.addNumEntries(-1, ledgerManager);
+            ledgerDelta.updateEntry(sourceFrame);
         }
     }
 
     sqlTx.commit();
-    tempDelta.commit();
+    offerDeltaScope.commit();
 
     app.getMetrics()
         .NewMeter({"op-create-offer", "success", "apply"}, "operation")
@@ -449,10 +460,10 @@ ManageOfferOpFrame::doCheckValid(Application& app)
 }
 
 OfferEntry
-ManageOfferOpFrame::buildOffer(AccountID const& account,
-                               ManageOfferOp const& op, uint32 flags)
+ManageOfferOpFrame::makeOffer(AccountID const& account,
+                              ManageOfferOp const& op, uint32 flags)
 {
-    OfferEntry o;
+    auto o = OfferEntry{};
     o.sellerID = account;
     o.amount = op.amount;
     o.price = op.price;

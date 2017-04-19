@@ -5,9 +5,12 @@
 #include "TxTests.h"
 
 #include "crypto/ByteSlice.h"
+#include "database/DataQueries.h"
 #include "invariant/Invariants.h"
 #include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
+#include "ledger/OfferFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
@@ -43,8 +46,8 @@ namespace txtest
 bool
 applyCheck(TransactionFramePtr tx, Application& app)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
+    LedgerDelta delta{app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getLedgerEntries()};
 
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
@@ -63,11 +66,18 @@ applyCheck(TransactionFramePtr tx, Application& app)
     // valid transaction sets ensure that
     {
         auto code = checkResult.result.code();
+        LedgerDelta ledgerDelta{app.getLedgerManager().getCurrentLedgerHeader(), app.getLedgerEntries()};
         if (code != txNO_ACCOUNT && code != txBAD_SEQ)
         {
-            tx->processFeeSeqNum(delta, app.getLedgerManager());
+            tx->processFeeSeqNum(app.getLedgerManager().getCurrentLedgerHeader().ledgerVersion,
+                                 ledgerDelta, app.getLedgerEntries());
         }
         doApply = (code != txBAD_SEQ);
+        if (doApply)
+        {
+            app.getLedgerManager().apply(ledgerDelta);
+            app.getInvariants().check(txSet, ledgerDelta);
+        }
     }
 
     bool res = false;
@@ -76,7 +86,11 @@ applyCheck(TransactionFramePtr tx, Application& app)
     {
         try
         {
-            res = tx->apply(delta, app);
+            LedgerDelta ledgerDelta{app.getLedgerManager().getCurrentLedgerHeader(), app.getLedgerEntries()};
+            res = tx->apply(ledgerDelta, app);
+            app.getLedgerManager().apply(ledgerDelta);
+
+            app.getInvariants().check(txSet, ledgerDelta);
         }
         catch (...)
         {
@@ -97,9 +111,6 @@ applyCheck(TransactionFramePtr tx, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
-    app.getInvariants().check(txSet, delta);
-    delta.commit();
-
     return res;
 }
 
@@ -173,10 +184,10 @@ getAccount(const char* n)
     return SecretKey::fromSeed(seed);
 }
 
-AccountFrame::pointer
+optional<LedgerEntry const>
 loadAccount(PublicKey const& k, Application& app, bool mustExist)
 {
-    auto res = AccountFrame::loadAccount(k, app.getDatabase());
+    auto res = app.getLedgerEntries().load(accountKey(k));
     if (mustExist)
     {
         REQUIRE(res);
@@ -187,15 +198,14 @@ loadAccount(PublicKey const& k, Application& app, bool mustExist)
 void
 requireNoAccount(PublicKey const& k, Application& app)
 {
-    AccountFrame::pointer res = loadAccount(k, app, false);
+    auto res = loadAccount(k, app, false);
     REQUIRE(!res);
 }
 
-OfferFrame::pointer
+optional<LedgerEntry const>
 loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
 {
-    OfferFrame::pointer res =
-        OfferFrame::loadOffer(k, offerID, app.getDatabase());
+    auto res = app.getLedgerEntries().load(offerKey(k, offerID));
     if (mustExist)
     {
         REQUIRE(res);
@@ -203,12 +213,11 @@ loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
     return res;
 }
 
-TrustFrame::pointer
+optional<LedgerEntry const>
 loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
               bool mustExist)
 {
-    TrustFrame::pointer res =
-        TrustFrame::loadTrustLine(k.getPublicKey(), asset, app.getDatabase());
+    auto res = app.getLedgerEntries().load(trustLineKey(k.getPublicKey(), asset));
     if (mustExist)
     {
         REQUIRE(res);
@@ -219,9 +228,8 @@ loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    AccountFrame::pointer account;
-    account = loadAccount(k, app);
-    return account->getAccount().signers;
+    auto account = AccountFrame{*loadAccount(k, app)};
+    return account.getSigners();
 }
 
 TransactionFramePtr
@@ -421,8 +429,6 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     auto& manageOfferResult = results[0].tr().manageOfferResult();
 
-    OfferFrame::pointer offer;
-
     auto& offerResult = manageOfferResult.success().offer;
 
     switch (offerResult.effect())
@@ -430,13 +436,13 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     case MANAGE_OFFER_CREATED:
     case MANAGE_OFFER_UPDATED:
     {
-        offer =
-            loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-        auto& offerEntry = offer->getOffer();
-        REQUIRE(offerEntry == offerResult.offer());
-        REQUIRE(offerEntry.price == price);
-        REQUIRE(offerEntry.selling == selling);
-        REQUIRE(offerEntry.buying == buying);
+        auto offer =
+            *loadOffer(source.getPublicKey(), expectedOfferID, app, true);
+        auto offerFrame = OfferFrame{offer};
+        REQUIRE(offer.data.offer() == offerResult.offer());
+        REQUIRE(offerFrame.getPrice() == price);
+        REQUIRE(offerFrame.getSelling() == selling);
+        REQUIRE(offerFrame.getBuying() == buying);
     }
     break;
     case MANAGE_OFFER_DELETED:
@@ -495,8 +501,6 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
     {
-        OfferFrame::pointer offer;
-
         auto& offerResult = createPassiveOfferResult.success().offer;
 
         switch (offerResult.effect())
@@ -504,14 +508,14 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer =
-                loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-            auto& offerEntry = offer->getOffer();
-            REQUIRE(offerEntry == offerResult.offer());
-            REQUIRE(offerEntry.price == price);
-            REQUIRE(offerEntry.selling == selling);
-            REQUIRE(offerEntry.buying == buying);
-            REQUIRE((offerEntry.flags & PASSIVE_FLAG) != 0);
+            auto offer =
+                *loadOffer(source.getPublicKey(), expectedOfferID, app, true);
+            auto offerFrame = OfferFrame{offer};
+            REQUIRE(offer.data.offer() == offerResult.offer());
+            REQUIRE(offerFrame.getPrice() == price);
+            REQUIRE(offerFrame.getSelling() == selling);
+            REQUIRE(offerFrame.getBuying() == buying);
+            REQUIRE(offerFrame.isPassive());
         }
         break;
         case MANAGE_OFFER_DELETED:
