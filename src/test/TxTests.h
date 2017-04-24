@@ -40,11 +40,7 @@ void checkEntry(LedgerEntry const& le, Application& app);
 void checkAccount(AccountID const& id, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year,
-                              TransactionFramePtr tx = nullptr);
-
-TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year, TxSetFramePtr txSet);
+                              int month, int year, std::vector<TransactionFramePtr> const& txs = {});
 
 SecretKey getRoot(Hash const& networkID);
 

@@ -337,14 +337,8 @@ TEST_CASE("payment", "[tx][payment]")
         auto tx2 = createPaymentTx(app.getNetworkID(), b1, root,
                                    b1.nextSequenceNumber(), 6);
 
-        TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash);
-        txSet->add(tx1);
-        txSet->add(tx2);
-        txSet->sortForHash();
-        REQUIRE(txSet->checkValid(app));
         int64 rootBalance = getAccountBalance(root, app);
-        auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
+        auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
         checkTx(0, r, txSUCCESS);
         checkTx(1, r, txINSUFFICIENT_BALANCE);
 

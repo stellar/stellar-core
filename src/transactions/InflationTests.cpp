@@ -296,7 +296,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto txFrame = createInflation(app.getNetworkID(), root,
                                        root.nextSequenceNumber());
 
-        closeLedgerOn(app, 4, 7, 7, 2014, txFrame);
+        closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
         REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
@@ -348,14 +348,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target1tx = root.tx({createCreateAccountOp(nullptr, target1, minBalance)});
         auto target2tx = root.tx({createCreateAccountOp(nullptr, target2, minBalance)});
 
-        auto txSet1 = std::make_shared<TxSetFrame>(app.getLedgerManager().getLastClosedLedgerHeader().hash);
-        txSet1->add(voter1tx);
-        txSet1->add(voter2tx);
-        txSet1->add(target1tx);
-        txSet1->add(target2tx);
-        txSet1->sortForHash();
-
-        closeLedgerOn(app, 2, 21, 7, 2014, txSet1);
+        closeLedgerOn(app, 2, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx});
 
         clh = app.getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000299);
@@ -366,12 +359,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto setInflationDestination1 = voter1.tx({createSetOptionsOp(&t1Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
         auto setInflationDestination2 = voter2.tx({createSetOptionsOp(&t2Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
 
-        auto txSet2 = std::make_shared<TxSetFrame>(app.getLedgerManager().getLastClosedLedgerHeader().hash);
-        txSet2->add(setInflationDestination1);
-        txSet2->add(setInflationDestination2);
-        txSet2->sortForHash();
-
-        closeLedgerOn(app, 3, 21, 7, 2014, txSet2);
+        closeLedgerOn(app, 3, 21, 7, 2014, {setInflationDestination1, setInflationDestination2});
 
         clh = app.getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000499);
@@ -392,14 +380,11 @@ TEST_CASE("inflation", "[tx][inflation]")
             clh.feePool == clh.totalCoins);
 
         auto inflation = root.tx({createInflationOp()});
-        auto txSet3 = std::make_shared<TxSetFrame>(app.getLedgerManager().getLastClosedLedgerHeader().hash);
-        txSet3->add(inflation);
-        txSet3->sortForHash();
 
         SECTION("protocol version 7")
         {
             app.getLedgerManager().setCurrentLedgerVersion(7);
-            closeLedgerOn(app, 4, 21, 7, 2014, txSet3);
+            closeLedgerOn(app, 4, 21, 7, 2014, {inflation});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
             REQUIRE(clh.feePool == 95361000000301);
@@ -430,7 +415,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         SECTION("protocol version 8")
         {
             app.getLedgerManager().setCurrentLedgerVersion(8);
-            closeLedgerOn(app, 4, 21, 7, 2014, txSet3);
+            closeLedgerOn(app, 4, 21, 7, 2014, {inflation});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
             REQUIRE(clh.feePool == 95361000000301);

@@ -237,15 +237,9 @@ TEST_CASE("merge", "[tx][merge]")
                                           a1.nextSequenceNumber());
             auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
                                        a1.nextSequenceNumber(), 100);
-            TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-                app.getLedgerManager().getLastClosedLedgerHeader().hash);
-            txSet->add(tx1);
-            txSet->add(tx2);
-            txSet->sortForHash();
-            REQUIRE(txSet->checkValid(app));
             int64 a1Balance = getAccountBalance(a1, app);
             int64 b1Balance = getAccountBalance(b1, app);
-            auto r = closeLedgerOn(app, 2, 1, 1, 2015, txSet);
+            auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txNO_ACCOUNT);
 

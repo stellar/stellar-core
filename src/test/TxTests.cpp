@@ -175,24 +175,19 @@ checkAccount(AccountID const& id, Application& app)
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              TransactionFramePtr tx)
+              std::vector<TransactionFramePtr> const& txs)
 {
-    TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
+
+    auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 
-    if (tx)
+    for (auto const& tx : txs)
     {
         txSet->add(tx);
-        txSet->sortForHash();
     }
 
-    return closeLedgerOn(app, ledgerSeq, day, month, year, txSet);
-}
-
-TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
-              TxSetFramePtr txSet)
-{
+    txSet->sortForHash();
+    REQUIRE(txSet->checkValid(app));
 
     StellarValue sv(txSet->getContentsHash(), getTestDate(day, month, year),
                     emptyUpgradeSteps, 0);
