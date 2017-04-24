@@ -12,6 +12,15 @@ namespace stellar
 
 using namespace txtest;
 
+void
+TestAccount::updateSequenceNumber()
+{
+    if (mSn == 0)
+    {
+        mSn = getAccountSeqNum(getSecretKey(), mApp);
+    }
+}
+
 TransactionFramePtr
 TestAccount::tx(std::vector<Operation> const& ops)
 {
