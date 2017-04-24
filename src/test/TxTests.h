@@ -162,6 +162,10 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  Price const& price, int64_t amount,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
+Operation
+createSetOptionsOp(AccountID* inflationDest,
+                 uint32_t* setFlags, uint32_t* clearFlags,
+                 ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
 
 TransactionFramePtr createSetOptions(
     Hash const& networkID, SecretKey const& source, SequenceNumber seq,
@@ -173,6 +177,8 @@ void applySetOptions(Application& app, SecretKey const& source,
                      uint32_t* setFlags, uint32_t* clearFlags,
                      ThresholdSetter* thrs, Signer* signer,
                      std::string* homeDomain);
+
+Operation createInflationOp();
 
 TransactionFramePtr createInflation(Hash const& networkID,
                                     SecretKey const& from, SequenceNumber seq);

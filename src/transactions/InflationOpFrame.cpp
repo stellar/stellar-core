@@ -75,9 +75,9 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         },
         INFLATION_NUM_WINNERS, db);
 
-    int64 amountToDole = bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS,
-                                   TRILLION, ROUND_DOWN);
-    amountToDole += lcl.feePool;
+    auto inflationAmount = bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS,
+                                  TRILLION, ROUND_DOWN);
+    auto amountToDole = inflationAmount + lcl.feePool;
 
     lcl.feePool = 0;
     lcl.inflationSeq++;
@@ -104,7 +104,10 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         if (winner)
         {
             leftAfterDole -= toDoleThisWinner;
-            lcl.totalCoins += toDoleThisWinner;
+            if (ledgerManager.getCurrentLedgerVersion() <= 7)
+            {
+                lcl.totalCoins += toDoleThisWinner;
+            }
             winner->getAccount().balance += toDoleThisWinner;
             winner->storeChange(inflationDelta, db);
             payouts.emplace_back(w.mInflationDest, toDoleThisWinner);
@@ -113,6 +116,10 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     // put back in fee pool as unclaimed funds
     lcl.feePool += leftAfterDole;
+    if (ledgerManager.getCurrentLedgerVersion() > 7)
+    {
+        lcl.totalCoins += inflationAmount;
+    }
 
     inflationDelta.commit();
 
