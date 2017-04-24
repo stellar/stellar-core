@@ -72,7 +72,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("account a1 does not exist")
             {
-                auto a1 = TestAccount{app, getAccount("a1"), 0};
+                auto a1 = TestAccount{app, getAccount("a1"), 1};
                 REQUIRE_THROWS_AS(
                     a1.manageOffer(0, idrCur, usdCur, oneone, 100),
                     ex_txNO_ACCOUNT);
