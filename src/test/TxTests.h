@@ -36,11 +36,9 @@ struct ThresholdSetter
 bool throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 
-void checkEntry(LedgerEntry const& le, Application& app);
-void checkAccount(AccountID const& id, Application& app);
-
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
-                              int month, int year, std::vector<TransactionFramePtr> const& txs = {});
+                              int month, int year,
+                              std::vector<TransactionFramePtr> const& txs = {});
 
 SecretKey getRoot(Hash const& networkID);
 
@@ -158,10 +156,9 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  Price const& price, int64_t amount,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
-Operation
-createSetOptionsOp(AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags,
-                 ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
+Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
+                             uint32_t* clearFlags, ThresholdSetter* thrs,
+                             Signer* signer, std::string* homeDomain);
 
 TransactionFramePtr createSetOptions(
     Hash const& networkID, SecretKey const& source, SequenceNumber seq,

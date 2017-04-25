@@ -74,10 +74,6 @@ class DataFrame : public EntryFrame
     static pointer loadData(AccountID const& accountID, std::string dataName,
                             Database& db);
 
-    static void loadAccountsData(AccountID const& accountID,
-                                 std::vector<DataFrame::pointer>& retData,
-                                 Database& db);
-
     // load all data entries from the database (very slow)
     static std::unordered_map<AccountID, std::vector<DataFrame::pointer>>
     loadAllData(Database& db);

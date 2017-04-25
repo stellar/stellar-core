@@ -5,6 +5,7 @@
 #include "TxTests.h"
 
 #include "crypto/ByteSlice.h"
+#include "invariant/Invariants.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
@@ -42,6 +43,10 @@ namespace txtest
 bool
 applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 {
+    auto txSet = std::make_shared<TxSetFrame>(
+        app.getLedgerManager().getLastClosedLedgerHeader().hash);
+    txSet->add(tx);
+
     // TODO: maybe we should just close ledger with tx instead of checking all
     // of
     // that manually?
@@ -87,26 +92,9 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         res = check;
     }
 
-    // verify modified accounts invariants
-    auto const& changes = delta.getChanges();
-    for (auto const& c : changes)
-    {
-        switch (c.type())
-        {
-        case LEDGER_ENTRY_CREATED:
-            checkEntry(c.created(), app);
-            break;
-        case LEDGER_ENTRY_UPDATED:
-            checkEntry(c.updated(), app);
-            break;
-        default:
-            break;
-        }
-    }
-
     // validates db state
     app.getLedgerManager().checkDbState();
-    delta.checkAgainstDatabase(app);
+    app.getInvariants().check(txSet, delta);
 
     return res;
 }
@@ -126,51 +114,6 @@ throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
         break;
     }
     return r;
-}
-
-void
-checkEntry(LedgerEntry const& le, Application& app)
-{
-    auto& d = le.data;
-    switch (d.type())
-    {
-    case ACCOUNT:
-        checkAccount(d.account().accountID, app);
-        break;
-    case TRUSTLINE:
-        checkAccount(d.trustLine().accountID, app);
-        break;
-    case OFFER:
-        checkAccount(d.offer().sellerID, app);
-        break;
-    case DATA:
-        checkAccount(d.data().accountID, app);
-        break;
-    default:
-        break;
-    }
-}
-
-void
-checkAccount(AccountID const& id, Application& app)
-{
-    AccountFrame::pointer res =
-        AccountFrame::loadAccount(id, app.getDatabase());
-    REQUIRE(!!res);
-    std::vector<TrustFrame::pointer> retLines;
-    TrustFrame::loadLines(id, retLines, app.getDatabase());
-
-    std::vector<OfferFrame::pointer> retOffers;
-    OfferFrame::loadOffers(id, retOffers, app.getDatabase());
-
-    std::vector<DataFrame::pointer> retDatas;
-    DataFrame::loadAccountsData(id, retDatas, app.getDatabase());
-
-    size_t actualSubEntries = res->getAccount().signers.size() +
-                              retLines.size() + retOffers.size() +
-                              retDatas.size();
-
-    REQUIRE(res->getAccount().numSubEntries == (uint32)actualSubEntries);
 }
 
 TxSetResultMeta
@@ -1039,9 +982,9 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 }
 
 Operation
-createSetOptionsOp(AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags,
-                 ThresholdSetter* thrs, Signer* signer, std::string* homeDomain)
+createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
+                   uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
+                   std::string* homeDomain)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -1102,7 +1045,10 @@ createSetOptions(Hash const& networkID, SecretKey const& source,
                  uint32_t* setFlags, uint32_t* clearFlags,
                  ThresholdSetter* thrs, Signer* signer, std::string* homeDomain)
 {
-    return transactionFromOperation(networkID, source, seq, createSetOptionsOp(inflationDest, setFlags, clearFlags, thrs, signer, homeDomain));
+    return transactionFromOperation(networkID, source, seq,
+                                    createSetOptionsOp(inflationDest, setFlags,
+                                                       clearFlags, thrs, signer,
+                                                       homeDomain));
 }
 
 void

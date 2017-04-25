@@ -91,8 +91,5 @@ class LedgerDelta
     std::vector<LedgerKey> getDeadEntries() const;
 
     LedgerEntryChanges getChanges() const;
-
-    // performs sanity checks against the local state
-    void checkAgainstDatabase(Application& app) const;
 };
 }

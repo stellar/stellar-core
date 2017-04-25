@@ -349,26 +349,6 @@ OfferFrame::loadBestOffers(size_t numOffers, size_t offset,
     });
 }
 
-void
-OfferFrame::loadOffers(AccountID const& accountID,
-                       std::vector<OfferFrame::pointer>& retOffers,
-                       Database& db)
-{
-    std::string actIDStrKey;
-    actIDStrKey = KeyUtils::toStrKey(accountID);
-
-    std::string sql = offerColumnSelector;
-    sql += " WHERE sellerid = :id";
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-
-    auto timer = db.getSelectTimer("offer");
-    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
-        retOffers.emplace_back(make_shared<OfferFrame>(of));
-    });
-}
-
 std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
 OfferFrame::loadAllOffers(Database& db)
 {

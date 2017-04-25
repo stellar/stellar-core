@@ -524,7 +524,11 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
                     ++nData;
                     break;
                 }
-                EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
+                auto s = EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
+                if (!s.empty())
+                {
+                    throw std::runtime_error{s};
+                }
                 if (meter.count() % 100 == 0)
                 {
                     CLOG(INFO, "Bucket") << "CheckDB compared " << meter.count()

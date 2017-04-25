@@ -9,8 +9,8 @@
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
-#include <numeric>
 #include <cstdlib>
+#include <numeric>
 #include <time.h>
 
 #ifdef _WIN32
@@ -68,7 +68,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.PARANOID_MODE = true;
+        thisConfig.INVARIANT_CHECK_BALANCE = true;
+        thisConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT = true;
+        thisConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE = true;
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // Tests are run in standalone by default, meaning that no external
@@ -141,32 +143,38 @@ test(int argc, char* const* argv, el::Level ll,
 }
 
 void
-for_versions_to(int to, ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_versions_to(int to, ApplicationEditableVersion& app,
+                std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
 
 void
-for_versions_from(int from, ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_versions_from(int from, ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
 void
-for_versions_from(std::vector<int> const& versions, ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_versions_from(std::vector<int> const& versions,
+                  ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f)
 {
     for_versions(versions, app, f);
     for_versions_from(versions.back() + 1, app, f);
 }
 
 void
-for_all_versions(ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_all_versions(ApplicationEditableVersion& app,
+                 std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
 void
-for_versions(int from, int to, ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_versions(int from, int to, ApplicationEditableVersion& app,
+             std::function<void(void)> const& f)
 {
     auto versions = std::vector<int>{};
     versions.resize(to - from + 1);
@@ -176,7 +184,8 @@ for_versions(int from, int to, ApplicationEditableVersion &app, std::function<vo
 }
 
 void
-for_versions(std::vector<int> const& versions, ApplicationEditableVersion &app, std::function<void(void)> const& f)
+for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
+             std::function<void(void)> const& f)
 {
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
     for (auto v : versions)

@@ -75,7 +75,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         }
 
 
-        for_versions_to(1, app, [&]{
+        for_versions_to(2, app, [&]{
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
 

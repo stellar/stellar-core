@@ -147,20 +147,21 @@ EntryFrame::putCachedEntry(Database& db) const
     putCachedEntry(getKey(), std::make_shared<LedgerEntry const>(mEntry), db);
 }
 
-void
+std::string
 EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
 {
     auto key = LedgerEntryKey(entry);
     flushCachedEntry(key, db);
     auto const& fromDb = EntryFrame::storeLoad(key, db);
-    if (!(fromDb->mEntry == entry))
+    if (fromDb->mEntry == entry)
     {
-        std::string s;
-        s = "Inconsistent state between objects: ";
-        s += xdr::xdr_to_string(fromDb->mEntry, "db");
-        s += xdr::xdr_to_string(entry, "live");
-        throw std::runtime_error(s);
+        return {};
     }
+
+    auto s = std::string{"Inconsistent state between objects: "};
+    s += xdr::xdr_to_string(fromDb->mEntry, "db");
+    s += xdr::xdr_to_string(entry, "live");
+    return s;
 }
 
 EntryFrame::EntryFrame(LedgerEntryType type) : mKeyCalculated(false)

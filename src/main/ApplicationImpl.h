@@ -24,6 +24,7 @@ class LedgerManager;
 class Herder;
 class BucketManager;
 class HistoryManager;
+class Invariant;
 class ProcessManager;
 class CommandHandler;
 class Database;
@@ -53,8 +54,9 @@ class ApplicationImpl : public Application
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
+    virtual Invariants& getInvariants() override;
     virtual OverlayManager& getOverlayManager() override;
-    virtual Database& getDatabase() override;
+    virtual Database& getDatabase() const override;
     virtual PersistentState& getPersistentState() override;
     virtual CommandHandler& getCommandHandler() override;
     virtual WorkManager& getWorkManager() override;
@@ -124,6 +126,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
+    std::unique_ptr<Invariants> mInvariants;
     std::shared_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
     std::shared_ptr<WorkManager> mWorkManager;
@@ -150,5 +153,7 @@ class ApplicationImpl : public Application
 
     void shutdownMainIOService();
     void runWorkerThread(unsigned i);
+
+    std::vector<std::unique_ptr<Invariant>> enabledInvariants() const;
 };
 }

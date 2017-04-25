@@ -415,30 +415,4 @@ LedgerDelta::markMeters(Application& app) const
         }
     }
 }
-
-void
-LedgerDelta::checkAgainstDatabase(Application& app) const
-{
-    if (!app.getConfig().PARANOID_MODE)
-    {
-        return;
-    }
-    auto& db = app.getDatabase();
-    auto live = getLiveEntries();
-    for (auto const& l : live)
-    {
-        EntryFrame::checkAgainstDatabase(l, db);
-    }
-    auto dead = getDeadEntries();
-    for (auto const& d : dead)
-    {
-        if (EntryFrame::exists(db, d))
-        {
-            std::string s;
-            s = "Inconsistent state ; entry should not exist in database: ";
-            s += xdr::xdr_to_string(d);
-            throw std::runtime_error(s);
-        }
-    }
-}
 }

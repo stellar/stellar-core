@@ -16,6 +16,11 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "history/HistoryManager.h"
+#include "invariant/CacheIsConsistentWithDatabase.h"
+#include "invariant/ChangedAccountsSubnetriesCountIsValid.h"
+#include "invariant/Invariant.h"
+#include "invariant/Invariants.h"
+#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -93,6 +98,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mHerder = Herder::create(*this);
     mBucketManager = BucketManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
+    mInvariants = make_unique<Invariants>(enabledInvariants());
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
@@ -279,8 +285,8 @@ ApplicationImpl::start()
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
             {
-                CLOG(INFO, "Ledger") << "Restarted publishing " << npub
-                                     << " queued snapshots";
+                CLOG(INFO, "Ledger")
+                    << "Restarted publishing " << npub << " queued snapshots";
             }
             if (mConfig.FORCE_SCP)
             {
@@ -575,6 +581,12 @@ ApplicationImpl::getHerder()
     return *mHerder;
 }
 
+Invariants&
+ApplicationImpl::getInvariants()
+{
+    return *mInvariants;
+}
+
 OverlayManager&
 ApplicationImpl::getOverlayManager()
 {
@@ -582,7 +594,7 @@ ApplicationImpl::getOverlayManager()
 }
 
 Database&
-ApplicationImpl::getDatabase()
+ApplicationImpl::getDatabase() const
 {
     return *mDatabase;
 }
@@ -621,5 +633,27 @@ asio::io_service&
 ApplicationImpl::getWorkerIOService()
 {
     return mWorkerIOService;
+}
+
+std::vector<std::unique_ptr<Invariant>>
+ApplicationImpl::enabledInvariants() const
+{
+    auto result = std::vector<std::unique_ptr<Invariant>>{};
+    if (mConfig.INVARIANT_CHECK_BALANCE)
+    {
+        result.push_back(
+            make_unique<TotalCoinsEqualsBalancesPlusFeePool>(getDatabase()));
+    }
+    if (mConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT)
+    {
+        result.push_back(
+            make_unique<ChangedAccountsSubnetriesCountIsValid>(getDatabase()));
+    }
+    if (mConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE)
+    {
+        result.push_back(
+            make_unique<CacheIsConsistentWithDatabase>(getDatabase()));
+    }
+    return result;
 }
 }

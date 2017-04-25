@@ -20,21 +20,23 @@ int test(int argc, char* const* argv, el::Level logLevel,
 
 extern bool force_sqlite;
 
-void
-for_versions_to(int to, ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_versions_to(int to, ApplicationEditableVersion& app,
+                     std::function<void(void)> const& f);
 
-void
-for_versions_from(int from, ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_versions_from(int from, ApplicationEditableVersion& app,
+                       std::function<void(void)> const& f);
 
-void
-for_versions_from(std::vector<int> const& versions, ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_versions_from(std::vector<int> const& versions,
+                       ApplicationEditableVersion& app,
+                       std::function<void(void)> const& f);
 
-void
-for_all_versions(ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_all_versions(ApplicationEditableVersion& app,
+                      std::function<void(void)> const& f);
 
-void
-for_versions(int from, int to, ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_versions(int from, int to, ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f);
 
-void
-for_versions(std::vector<int> const& versions, ApplicationEditableVersion &app, std::function<void(void)> const& f);
+void for_versions(std::vector<int> const& versions,
+                  ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f);
 }
