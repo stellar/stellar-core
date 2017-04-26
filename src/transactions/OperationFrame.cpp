@@ -148,7 +148,7 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
     }
 
-    if (!checkSignature(signatureChecker))
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")

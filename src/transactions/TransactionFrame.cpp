@@ -281,7 +281,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (!checkSignature(signatureChecker, *mSigningAccount,
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker, *mSigningAccount,
                         mSigningAccount->getLowThreshold()))
     {
         app.getMetrics()
@@ -442,9 +442,10 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
-        res = signatureChecker.checkAllSignaturesUsed();
-        if (!res)
+ 
+        if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
         {
+            res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "bad-auth-extra"},
@@ -522,7 +523,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 
         if (!errorEncountered)
         {
-            if (!signatureChecker.checkAllSignaturesUsed())
+            if (app.getLedgerManager().getCurrentLedgerVersion() !=7 && !signatureChecker.checkAllSignaturesUsed())
             {
                 getResult().result.code(txBAD_AUTH_EXTRA);
                 // this should never happen: malformed transaction should not be
@@ -530,7 +531,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 return false;
             }
 
-            // if an error occured, it is responsibility of account's owner to
+            // if an error occurred, it is responsibility of account's owner to
             // remove that signer
             removeUsedOneTimeSignerKeys(signatureChecker, thisTxDelta,
                                         app.getLedgerManager());
