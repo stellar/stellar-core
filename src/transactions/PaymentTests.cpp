@@ -498,7 +498,7 @@ TEST_CASE("payment", "[tx][payment]")
         });
     }
 
-    SECTION("path payment to self")
+    SECTION("path payment to self XLM")
     {
         auto a1Balance = getAccountBalance(a1, app);
         auto amount = a1Balance / 10;
@@ -511,6 +511,21 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
             REQUIRE(getAccountBalance(a1, app) == a1Balance - txfee);
+        });
+    }
+
+    SECTION("path payment to self asset")
+    {
+        auto curBalance = 10000;
+        auto amount = curBalance / 10;
+
+        a1.changeTrust(idrCur, 2 * curBalance);
+        gateway.pay(a1, idrCur, curBalance);
+
+        for_all_versions(app, [&]{
+            a1.pay(a1, idrCur, amount, idrCur, amount, {});
+            auto trustLine = loadTrustLine(a1, idrCur, app);
+            REQUIRE(trustLine->getBalance() == curBalance);
         });
     }
 
