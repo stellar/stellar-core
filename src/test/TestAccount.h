@@ -25,7 +25,7 @@ class TestAccount
   public:
     static TestAccount createRoot(Application& app);
 
-    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn)
+    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {
     }
@@ -84,13 +84,15 @@ class TestAccount
         return getSecretKey().getPublicKey();
     }
     SequenceNumber
-    getLastSequenceNumber() const
+    getLastSequenceNumber()
     {
+        updateSequenceNumber();
         return mSn;
     }
     SequenceNumber
     nextSequenceNumber()
     {
+        updateSequenceNumber();
         return ++mSn;
     }
 
@@ -98,5 +100,7 @@ class TestAccount
     Application& mApp;
     SecretKey mSk;
     SequenceNumber mSn;
+
+    void updateSequenceNumber();
 };
 }
