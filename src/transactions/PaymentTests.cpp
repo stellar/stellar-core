@@ -244,12 +244,30 @@ TEST_CASE("payment", "[tx][payment]")
 
         auto txFrame = a1.tx(
             {createMergeOp(nullptr, b1), createPaymentOp(nullptr, b1, 200)});
-        auto res = applyCheck(txFrame, delta, app);
 
-        REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
+        SECTION("protocol version 7")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(7);
+            auto res = applyCheck(txFrame, delta, app);
 
-        REQUIRE(b1Balance == getAccountBalance(b1, app));
-        REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+            REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
+
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+        }
+
+        SECTION("protocol version 8")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(8);
+            auto res = applyCheck(txFrame, delta, app);
+
+            REQUIRE(txFrame->getResultCode() == txFAILED);
+
+            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+        }
+
+        app.getLedgerManager().setCurrentLedgerVersion(1);
     }
 
     SECTION("send XLM to an existing account")
@@ -306,6 +324,7 @@ TEST_CASE("payment", "[tx][payment]")
         // payment goes through
         b1.pay(root, 1);
     }
+
     SECTION("two payments, first breaking second")
     {
         int64 startingBalance = paymentAmount + 5 +
@@ -333,6 +352,49 @@ TEST_CASE("payment", "[tx][payment]")
         int64 expectedb1Balance = app.getLedgerManager().getMinBalance(0) + 5;
         REQUIRE(expectedb1Balance == getAccountBalance(b1, app));
         REQUIRE(expectedrootBalance == getAccountBalance(root, app));
+    }
+
+    SECTION("pay, merge, create, pay")
+    {
+        auto amount = 300000000000000;
+        auto sourceAccount = root.create("source", amount);
+        auto secondSourceAccount = root.create("secondSource", amount);
+        auto payAndMergeDestination = root.create("payAndMerge", amount);
+        auto balanceBefore = getAccountBalance(sourceAccount, app)
+                + getAccountBalance(secondSourceAccount, app)
+                + getAccountBalance(payAndMergeDestination, app);
+
+        auto tx = sourceAccount.tx({
+            createPaymentOp(nullptr, payAndMergeDestination, 500000000),
+            createMergeOp(nullptr, payAndMergeDestination),
+            createCreateAccountOp(&secondSourceAccount.getSecretKey(), sourceAccount, 500000000),
+            createPaymentOp(nullptr, payAndMergeDestination, 10000000)
+        });
+        tx->addSignature(secondSourceAccount);
+
+        SECTION("protocol version 7")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(7);
+
+            throwingApplyCheck(tx, delta, app);
+            auto balanceAfter = getAccountBalance(sourceAccount, app)
+                    + getAccountBalance(secondSourceAccount, app)
+                    + getAccountBalance(payAndMergeDestination, app);
+            REQUIRE(balanceBefore + amount - 1000000800 == balanceAfter);
+        }
+
+        SECTION("protocol version 8")
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(8);
+
+            throwingApplyCheck(tx, delta, app);
+            auto balanceAfter = getAccountBalance(sourceAccount, app)
+                    + getAccountBalance(secondSourceAccount, app)
+                    + getAccountBalance(payAndMergeDestination, app);
+            REQUIRE(balanceBefore - 400 == balanceAfter);
+        }
+
+        app.getLedgerManager().setCurrentLedgerVersion(1);
     }
 
     SECTION("simple credit")
