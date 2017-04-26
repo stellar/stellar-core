@@ -67,7 +67,7 @@ class OperationFrame
 
     // load account if needed
     // returns true on success
-    bool loadAccount(LedgerDelta* delta, Database& db);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db);
 
     OperationResult&
     getResult() const
