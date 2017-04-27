@@ -49,7 +49,7 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(LedgerDelta* delta, Database& app);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
                      LedgerDelta* delta, SequenceNumber current);
 
@@ -162,7 +162,8 @@ class TransactionFrame
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(LedgerDelta* delta, Database& app,
+    AccountFrame::pointer loadAccount(int ledgerProtocolVersion,
+                                      LedgerDelta* delta, Database& app,
                                       AccountID const& accountID);
 
     // transaction history

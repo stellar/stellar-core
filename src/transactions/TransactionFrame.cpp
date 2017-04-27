@@ -153,12 +153,13 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(LedgerDelta* delta, Database& db,
+TransactionFrame::loadAccount(int ledgerProtocolVersion,
+                              LedgerDelta* delta, Database& db,
                               AccountID const& accountID)
 {
     AccountFrame::pointer res;
 
-    if (mSigningAccount && mSigningAccount->getID() == accountID)
+    if (ledgerProtocolVersion < 8 && mSigningAccount && mSigningAccount->getID() == accountID)
     {
         res = mSigningAccount;
     }
@@ -174,9 +175,9 @@ TransactionFrame::loadAccount(LedgerDelta* delta, Database& db,
 }
 
 bool
-TransactionFrame::loadAccount(LedgerDelta* delta, Database& db)
+TransactionFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
 {
-    mSigningAccount = loadAccount(delta, db, getSourceID());
+    mSigningAccount = loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
     return !!mSigningAccount;
 }
 
@@ -254,7 +255,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    if (!loadAccount(delta, app.getDatabase()))
+    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta, app.getDatabase()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
@@ -281,7 +282,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (!checkSignature(signatureChecker, *mSigningAccount,
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker, *mSigningAccount,
                         mSigningAccount->getLowThreshold()))
     {
         app.getMetrics()
@@ -313,7 +314,7 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
     resetSigningAccount();
     resetResults();
 
-    if (!loadAccount(&delta, ledgerManager.getDatabase()))
+    if (!loadAccount(ledgerManager.getCurrentLedgerVersion(), &delta, ledgerManager.getDatabase()))
     {
         throw std::runtime_error("Unexpected database state");
     }
@@ -442,9 +443,10 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
-        res = signatureChecker.checkAllSignaturesUsed();
-        if (!res)
+ 
+        if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
         {
+            res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "bad-auth-extra"},
@@ -522,7 +524,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 
         if (!errorEncountered)
         {
-            if (!signatureChecker.checkAllSignaturesUsed())
+            if (app.getLedgerManager().getCurrentLedgerVersion() !=7 && !signatureChecker.checkAllSignaturesUsed())
             {
                 getResult().result.code(txBAD_AUTH_EXTRA);
                 // this should never happen: malformed transaction should not be
@@ -530,7 +532,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 return false;
             }
 
-            // if an error occured, it is responsibility of account's owner to
+            // if an error occurred, it is responsibility of account's owner to
             // remove that signer
             removeUsedOneTimeSignerKeys(signatureChecker, thisTxDelta,
                                         app.getLedgerManager());
