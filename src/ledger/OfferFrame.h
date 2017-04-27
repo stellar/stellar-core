@@ -93,10 +93,6 @@ class OfferFrame : public EntryFrame
                                std::vector<OfferFrame::pointer>& retOffers,
                                Database& db);
 
-    static void loadOffers(AccountID const& accountID,
-                           std::vector<OfferFrame::pointer>& retOffers,
-                           Database& db);
-
     // load all offers from the database (very slow)
     static std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
     loadAllOffers(Database& db);

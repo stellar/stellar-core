@@ -5,10 +5,12 @@
 #include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"
+#include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
 #include <cstdlib>
+#include <numeric>
 #include <time.h>
 
 #ifdef _WIN32
@@ -66,7 +68,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.PARANOID_MODE = true;
+        thisConfig.INVARIANT_CHECK_BALANCE = true;
+        thisConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT = true;
+        thisConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE = true;
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // Tests are run in standalone by default, meaning that no external
@@ -136,5 +140,62 @@ test(int argc, char* const* argv, el::Level ll,
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
     return Catch::Session().run(argc, argv);
+}
+
+void
+for_versions_to(int to, ApplicationEditableVersion& app,
+                std::function<void(void)> const& f)
+{
+    for_versions(1, to, app, f);
+}
+
+void
+for_versions_from(int from, ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f)
+{
+    for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
+}
+
+void
+for_versions_from(std::vector<int> const& versions,
+                  ApplicationEditableVersion& app,
+                  std::function<void(void)> const& f)
+{
+    for_versions(versions, app, f);
+    for_versions_from(versions.back() + 1, app, f);
+}
+
+void
+for_all_versions(ApplicationEditableVersion& app,
+                 std::function<void(void)> const& f)
+{
+    for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
+}
+
+void
+for_versions(int from, int to, ApplicationEditableVersion& app,
+             std::function<void(void)> const& f)
+{
+    auto versions = std::vector<int>{};
+    versions.resize(to - from + 1);
+    std::iota(std::begin(versions), std::end(versions), from);
+
+    for_versions(versions, app, f);
+}
+
+void
+for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
+             std::function<void(void)> const& f)
+{
+    auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
+    for (auto v : versions)
+    {
+        SECTION("protocol version " + std::to_string(v))
+        {
+            app.getLedgerManager().setCurrentLedgerVersion(v);
+            f();
+        }
+    }
+    app.getLedgerManager().setCurrentLedgerVersion(previousVersion);
 }
 }

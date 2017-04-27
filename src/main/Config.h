@@ -31,6 +31,8 @@ class Config : public std::enable_shared_from_this<Config>
     std::string expandNodeID(std::string const& s) const;
 
   public:
+    static const int CURRENT_LEDGER_PROTOCOL_VERSION = 8;
+
     typedef std::shared_ptr<Config> pointer;
 
     enum TestDbMode
@@ -158,15 +160,15 @@ class Config : public std::enable_shared_from_this<Config>
     // process-management config
     size_t MAX_CONCURRENT_SUBPROCESSES;
 
-    // Setting this causes all sorts of extra checks to occur
-    // the overhead may cause slower systems to not perform as fast
-    // as the rest of the network, caution is advised when using this.
-    bool PARANOID_MODE;
-
     // SCP config
     SecretKey NODE_SEED;
     bool NODE_IS_VALIDATOR;
     stellar::SCPQuorumSet QUORUM_SET;
+
+    // Invariants
+    bool INVARIANT_CHECK_BALANCE;
+    bool INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT;
+    bool INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE;
 
     std::map<std::string, std::string> VALIDATOR_NAMES;
 

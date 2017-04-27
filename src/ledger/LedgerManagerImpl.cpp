@@ -16,6 +16,8 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
+#include "invariant/InvariantDoesNotHold.h"
+#include "invariant/Invariants.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
@@ -747,7 +749,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    ledgerDelta.checkAgainstDatabase(mApp);
+    mApp.getInvariants().check(ledgerData.mTxSet, ledgerDelta);
 
     ledgerDelta.commit();
     closeLedgerHelper(ledgerDelta);
@@ -930,6 +932,10 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 assert(delta.getChanges().size() == 0);
                 assert(delta.getHeader() == ledgerDelta.getHeader());
             }
+        }
+        catch (InvariantDoesNotHold &e)
+        {
+            throw e;
         }
         catch (std::runtime_error& e)
         {

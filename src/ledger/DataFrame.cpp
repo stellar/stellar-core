@@ -133,26 +133,6 @@ DataFrame::loadData(StatementContext& prep,
     }
 }
 
-void
-DataFrame::loadAccountsData(AccountID const& accountID,
-                            std::vector<DataFrame::pointer>& retData,
-                            Database& db)
-{
-    std::string actIDStrKey;
-    actIDStrKey = KeyUtils::toStrKey(accountID);
-
-    std::string sql = dataColumnSelector;
-    sql += " WHERE accountid = :id";
-    auto prep = db.getPreparedStatement(sql);
-    auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-
-    auto timer = db.getSelectTimer("data");
-    loadData(prep, [&retData](LedgerEntry const& of) {
-        retData.emplace_back(make_shared<DataFrame>(of));
-    });
-}
-
 std::unordered_map<AccountID, std::vector<DataFrame::pointer>>
 DataFrame::loadAllData(Database& db)
 {
