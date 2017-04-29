@@ -29,9 +29,15 @@ class Bucket;
 class BucketList;
 struct HistoryArchiveState;
 
+#define SKIP_1 50
+#define SKIP_2 5000
+#define SKIP_3 50000
+#define SKIP_4 500000
+
 class BucketManagerImpl : public BucketManager
 {
     static std::string const kLockFilename;
+    const std::vector<unsigned int> skipV = {SKIP_1, SKIP_2, SKIP_3, SKIP_4};
 
     Application& mApp;
     BucketList mBucketList;
@@ -46,7 +52,8 @@ class BucketManagerImpl : public BucketManager
     medida::Counter& mSharedBucketsSize;
 
   protected:
-    void calculateSkipValues(LedgerHeader& currentHeader);
+    void calculateSkipValues(LedgerHeader& currentHeader, int index = 0,
+                             int skipd = 0);
     std::string bucketFilename(std::string const& bucketHexHash);
     std::string bucketFilename(Hash const& hash);
 
@@ -73,9 +80,4 @@ class BucketManagerImpl : public BucketManager
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
 };
-
-#define SKIP_1 50
-#define SKIP_2 5000
-#define SKIP_3 50000
-#define SKIP_4 500000
 }
