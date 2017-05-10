@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "ledgerdelta/LedgerDelta.h"
 #include "main/Application.h"
+#include "signature/SigningAccount.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
@@ -30,26 +31,6 @@ namespace stellar
 {
 
 using namespace std;
-
-namespace
-{
-
-int32_t
-getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
-{
-    switch (level)
-    {
-    case ThresholdLevel::LOW:
-        return account.getLowThreshold();
-    case ThresholdLevel::MEDIUM:
-        return account.getMediumThreshold();
-    case ThresholdLevel::HIGH:
-        return account.getHighThreshold();
-    default:
-        assert(false);
-    }
-}
-}
 
 shared_ptr<OperationFrame>
 OperationFrame::makeHelper(Operation const& op, OperationResult& res,
@@ -114,12 +95,10 @@ OperationFrame::getThresholdLevel() const
 }
 
 bool
-OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
+OperationFrame::checkSignature(SigningAccount const& signingAccount, SignatureChecker& signatureChecker) const
 {
-    auto neededThreshold =
-        getNeededThreshold(*mSourceAccount, getThresholdLevel());
-    return mParentTx.checkSignature(signatureChecker, AccountFrame{*mSourceAccount},
-                                    neededThreshold);
+    return mParentTx.checkSignature(signatureChecker, signingAccount,
+                                    getThresholdLevel());
 }
 
 AccountID const&
@@ -150,6 +129,8 @@ bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
                            LedgerDelta* ledgerDelta)
 {
+    SigningAccount signingAccount;
+
     bool forApply = (ledgerDelta != nullptr);
     if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), ledgerDelta, app.getLedgerEntries()))
     {
@@ -163,12 +144,16 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
         else
         {
-            mSourceAccount = make_optional<LedgerEntry>(
-                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount));
+            signingAccount = SigningAccount{*mOperation.sourceAccount};
         }
     }
+    else
+    {
+        auto signingFrame = AccountFrame{*mSourceAccount};
+        signingAccount = SigningAccount{signingFrame};
+    }
 
-    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker))
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signingAccount, signatureChecker))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")

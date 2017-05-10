@@ -49,19 +49,6 @@ AccountFrame::AccountFrame(LedgerEntry entry) : EntryFrame{std::move(entry)}
     assert(mEntry.data.type() == ACCOUNT);
 }
 
-LedgerEntry
-AccountFrame::makeAuthOnlyAccount(AccountID const& id)
-{
-    auto ret = LedgerEntry{};
-    ret.data.type(ACCOUNT);
-    ret.data.account().accountID = id;
-    ret.data.account().thresholds[THRESHOLD_MASTER_WEIGHT] = 1;
-    // puts a negative balance to trip any attempt to save this
-    ret.data.account().balance = INT64_MIN;
-
-    return ret;
-}
-
 AccountID const&
 AccountFrame::getAccountID() const
 {

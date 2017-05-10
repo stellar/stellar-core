@@ -15,8 +15,9 @@
 #include "ledgerdelta/LedgerDeltaLayer.h"
 #include "ledger/LedgerEntries.h"
 #include "main/Application.h"
-#include "transactions/SignatureChecker.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureChecker.h"
+#include "signature/SignatureUtils.h"
+#include "signature/SigningAccount.h"
 #include "util/Algoritm.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -141,17 +142,29 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 AccountFrame const& account, int32_t neededWeight)
+                                 SigningAccount const& signingAccount, ThresholdLevel threshold)
 {
     std::vector<Signer> signers;
-    if (account.getMasterWeight())
+    if (signingAccount.weight)
         signers.push_back(
-            Signer(KeyUtils::convertKey<SignerKey>(account.getAccountID()),
-                   account.getMasterWeight()));
-    signers.insert(signers.end(), account.getSigners().begin(),
-                   account.getSigners().end());
+            Signer(KeyUtils::convertKey<SignerKey>(signingAccount.accountID),
+                   signingAccount.weight));
+    signers.insert(signers.end(), std::begin(signingAccount.signers),
+                   std::end(signingAccount.signers));
 
-    return signatureChecker.checkSignature(account.getAccountID(), signers,
+    auto neededWeight = [&](){;
+        switch (threshold)
+        {
+        case ThresholdLevel::LOW:
+            return signingAccount.lowThreshold;
+        case ThresholdLevel::MEDIUM:
+            return signingAccount.mediumThreshold;
+        case ThresholdLevel::HIGH:
+            return signingAccount.highThreshold;
+        };
+    }();
+
+    return signatureChecker.checkSignature(signingAccount.accountID, signers,
                                            neededWeight);
 }
 
@@ -276,6 +289,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     }
 
     auto signingFrame = AccountFrame{*mSigningAccount};
+    auto signingAccount = SigningAccount{signingFrame};
     // when applying, the account's sequence number is updated when taking fees
     if (!applying)
     {
@@ -294,8 +308,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker, signingFrame,
-                        signingFrame.getLowThreshold()))
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker, signingAccount,
+                                                                                 ThresholdLevel::LOW))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")

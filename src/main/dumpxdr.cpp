@@ -1,6 +1,6 @@
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "util/basen.h"
 #include "util/Fs.h"
 #include "util/XDRStream.h"

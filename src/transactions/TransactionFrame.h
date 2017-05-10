@@ -32,6 +32,8 @@ class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
 class SHA256;
+enum class ThresholdLevel;
+struct SigningAccount;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -140,7 +142,7 @@ class TransactionFrame
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame const& account, int32_t neededWeight);
+                        SigningAccount const& account, ThresholdLevel threshold);
 
     bool checkValid(Application& app, SequenceNumber current);
 

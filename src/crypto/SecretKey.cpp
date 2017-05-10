@@ -8,7 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/StrKey.h"
 #include "main/Config.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
 #include "util/make_unique.h"

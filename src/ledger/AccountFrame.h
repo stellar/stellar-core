@@ -21,9 +21,6 @@ class AccountFrame : public EntryFrame
     AccountFrame(AccountEntry account);
     AccountFrame(LedgerEntry entry);
 
-    // builds an accountFrame for the sole purpose of authentication
-    static LedgerEntry makeAuthOnlyAccount(AccountID const& id);
-
     AccountID const& getAccountID() const;
     void setAccountID(AccountID accountID);
 
