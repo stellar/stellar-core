@@ -285,8 +285,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 &&
-        !checkSignature(signatureChecker, *mSigningAccount,
+    if (!checkSignature(signatureChecker, *mSigningAccount,
                         mSigningAccount->getLowThreshold()))
     {
         app.getMetrics()
@@ -411,7 +410,9 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
     resetSigningAccount();
     resetResults();
-    SignatureChecker signatureChecker{getContentsHash(), mEnvelope.signatures};
+    SignatureChecker signatureChecker{
+        app.getLedgerManager().getCurrentLedgerVersion(),
+        getContentsHash(), mEnvelope.signatures};
     bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
@@ -431,8 +432,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
             }
         }
 
-        if (app.getLedgerManager().getCurrentLedgerVersion() != 7 &&
-            !signatureChecker.checkAllSignaturesUsed())
+        if (!signatureChecker.checkAllSignaturesUsed())
         {
             res = false;
             getResult().result.code(txBAD_AUTH_EXTRA);
@@ -479,7 +479,9 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
     resetSigningAccount();
-    SignatureChecker signatureChecker{getContentsHash(), mEnvelope.signatures};
+    SignatureChecker signatureChecker{
+        app.getLedgerManager().getCurrentLedgerVersion(),
+        getContentsHash(), mEnvelope.signatures};
     if (!commonValid(signatureChecker, app, &delta, 0))
     {
         return false;
@@ -512,8 +514,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 
         if (!errorEncountered)
         {
-            if (app.getLedgerManager().getCurrentLedgerVersion() != 7 &&
-                !signatureChecker.checkAllSignaturesUsed())
+            if (!signatureChecker.checkAllSignaturesUsed())
             {
                 getResult().result.code(txBAD_AUTH_EXTRA);
                 // this should never happen: malformed transaction should not be
