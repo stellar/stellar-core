@@ -44,8 +44,6 @@ class TransactionFrame
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    optional<LedgerEntry> mSigningAccount;
-
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
@@ -53,11 +51,9 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
                      LedgerDelta* ledgerDelta, SequenceNumber current);
 
-    void resetSigningAccount();
     void resetResults();
     bool checkAllSignaturesUsed();
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
@@ -123,13 +119,6 @@ class TransactionFrame
         return mEnvelope.tx.seqNum;
     }
 
-    LedgerEntry
-    getSourceAccount() const
-    {
-        assert(mSigningAccount);
-        return *mSigningAccount;
-    }
-
     AccountID const&
     getSourceID() const
     {
@@ -161,10 +150,6 @@ class TransactionFrame
     bool apply(LedgerDelta& ledgerDelta, Application& app);
 
     StellarMessage toStellarMessage() const;
-
-    optional<LedgerEntry> loadAccount(int ledgerProtocolVersion,
-                                      LedgerDelta* ledgerDelta, LedgerEntries& entries,
-                                      AccountID const& accountID);
 
     // transaction history
     void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,

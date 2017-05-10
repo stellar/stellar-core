@@ -268,6 +268,7 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_to(4, app, [&]{
             REQUIRE(applyCheck(txFrame, app));
 
+            REQUIRE(txFrame->getResult().result.results().size() == 2);
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
 
@@ -281,6 +282,7 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions(5, 7, app, [&]{
             REQUIRE(!applyCheck(txFrame, app));
 
+            REQUIRE(txFrame->getResult().result.results().size() == 2);
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
 
@@ -292,7 +294,19 @@ TEST_CASE("merge", "[tx][merge]")
 
         for_versions_from(8, app, [&]{
             REQUIRE(!applyCheck(txFrame, app));
+
+            auto result = txFrame->getResult().result.code();
+            REQUIRE(result == txFAILED);
+
+            REQUIRE(txFrame->getResult().result.results().size() == 2);
+            auto mergeResult = MergeOpFrame::getInnerCode(
+                txFrame->getResult().result.results()[0]);
+            REQUIRE(mergeResult == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(txFrame->getResult().result.results()[1].code() == opNO_ACCOUNT);
+
+            REQUIRE(b1Balance == b1.getBalance());
+            REQUIRE((a1Balance - txFrame->getFee()) ==
+                    a1.getBalance());
         });
     }
 

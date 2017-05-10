@@ -5,6 +5,7 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
+#include "ledger/LedgerEntries.h"
 #include "ledgerdelta/LedgerDelta.h"
 #include "main/Application.h"
 #include "signature/SigningAccount.h"
@@ -108,13 +109,6 @@ OperationFrame::getSourceID() const
                                     : mParentTx.getEnvelope().tx.sourceAccount;
 }
 
-bool
-OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries)
-{
-    mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, ledgerDelta, entries, getSourceID());
-    return !!mSourceAccount;
-}
-
 OperationResultCode
 OperationFrame::getResultCode() const
 {
@@ -132,9 +126,13 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
     SigningAccount signingAccount;
 
     bool forApply = (ledgerDelta != nullptr);
-    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), ledgerDelta, app.getLedgerEntries()))
+
+    auto sourceAccount = ledgerDelta
+        ? ledgerDelta->loadAccount(getSourceID())
+        : app.getLedgerEntries().load(accountKey(getSourceID()));
+    if (!sourceAccount)
     {
-        if (forApply || !mOperation.sourceAccount)
+        if (forApply)
         {
             app.getMetrics()
                 .NewMeter({"operation", "invalid", "no-account"}, "operation")
@@ -144,13 +142,12 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
         else
         {
-            signingAccount = SigningAccount{*mOperation.sourceAccount};
+            signingAccount = SigningAccount{getSourceID()};
         }
     }
     else
     {
-        auto signingFrame = AccountFrame{*mSourceAccount};
-        signingAccount = SigningAccount{signingFrame};
+        signingAccount = SigningAccount{*sourceAccount};
     }
 
     if (!checkSignature(signingAccount, signatureChecker))
@@ -160,13 +157,6 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
             .Mark();
         mResult.code(opBAD_AUTH);
         return false;
-    }
-
-    if (!forApply)
-    {
-        // safety: operations should not rely on ledger state as
-        // previous operations may change it (can even create the account)
-        mSourceAccount.reset();
     }
 
     mResult.code(opINNER);

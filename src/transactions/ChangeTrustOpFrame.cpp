@@ -64,9 +64,9 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         {
             // line gets deleted
             ledgerDelta.deleteEntry(trust.getKey());
-            auto frame = AccountFrame{*mSourceAccount};
-            frame.addNumEntries(-1, ledgerManager);
-            ledgerDelta.updateEntry(frame);
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+            sourceAccount.addNumEntries(-1, ledgerManager);
+            ledgerDelta.updateEntry(sourceAccount);
         }
         else
         {
@@ -110,8 +110,8 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         }
 
         auto trust = TrustFrame{getSourceID(), mChangeTrust.line, mChangeTrust.limit, !AccountFrame{*issuer}.isAuthRequired()};
-        auto sourceFrame = AccountFrame{*mSourceAccount};
-        if (!sourceFrame.addNumEntries(1, ledgerManager))
+        auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+        if (!sourceAccount.addNumEntries(1, ledgerManager))
         {
             app.getMetrics()
                 .NewMeter({"op-change-trust", "failure", "low-reserve"},
@@ -121,7 +121,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             return false;
         }
 
-        ledgerDelta.updateEntry(sourceFrame);
+        ledgerDelta.updateEntry(sourceAccount);
         ledgerDelta.addEntry(trust);
 
         app.getMetrics()

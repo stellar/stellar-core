@@ -32,19 +32,13 @@ bool
 ManageDataOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                            LedgerManager& ledgerManager)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() == 3)
-    {
-        throw std::runtime_error(
-            "MANAGE_DATA not supported on ledger version 3");
-    }
-
-    auto sourceFrame = AccountFrame{*mSourceAccount};
-    auto existingData = ledgerDelta.loadData(sourceFrame.getAccountID(), mManageData.dataName);
+    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+    auto existingData = ledgerDelta.loadData(sourceAccount.getAccountID(), mManageData.dataName);
     if (mManageData.dataValue)
     {
         if (!existingData)
         { // create a new data entry
-            if (!sourceFrame.addNumEntries(1, ledgerManager))
+            if (!sourceAccount.addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-data", "invalid", "low reserve"},
@@ -53,9 +47,9 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
             }
-            ledgerDelta.updateEntry(sourceFrame);
+            ledgerDelta.updateEntry(sourceAccount);
 
-            auto dataFrame = DataFrame{sourceFrame.getAccountID(), mManageData.dataName, *mManageData.dataValue};
+            auto dataFrame = DataFrame{sourceAccount.getAccountID(), mManageData.dataName, *mManageData.dataValue};
             ledgerDelta.addEntry(dataFrame);
         }
         else
@@ -76,8 +70,8 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
-        sourceFrame.addNumEntries(-1, ledgerManager);
-        ledgerDelta.updateEntry(sourceFrame);
+        sourceAccount.addNumEntries(-1, ledgerManager);
+        ledgerDelta.updateEntry(sourceAccount);
 
         auto dataFrame = DataFrame{*existingData};
         ledgerDelta.deleteEntry(dataFrame.getKey());

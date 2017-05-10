@@ -34,6 +34,133 @@
 namespace stellar
 {
 
+namespace
+{
+
+bool triggerManageDataBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() == 3;
+}
+
+bool allowMultipleMerges(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool multipleMergeReturnsMergeNoAccount(Application& app)
+{
+    return
+        app.getLedgerManager().getCurrentLedgerVersion() > 4 &&
+        app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool allowMergeCreateMergeBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 6;
+}
+
+bool allowMergeBackBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 6;
+}
+
+bool allowCreateMergePayBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool allowPayMergeCreatePayBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool allowMergePayBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool allowSelfXLMtoXLMPaymentBug(Application& app)
+{
+    return app.getLedgerManager().getCurrentLedgerVersion() < 8;
+}
+
+bool isMerge(OperationFrame const& op)
+{
+    return op.getOperation().body.type() == ACCOUNT_MERGE;
+}
+
+bool isMergeFrom(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isMerge(op)
+        && accountFrame->getAccountID() == op.getSourceID();
+}
+
+bool isMergeTo(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isMerge(op)
+        && accountFrame->getAccountID() == op.getOperation().body.destination();
+}
+
+bool isCreate(OperationFrame const& op)
+{
+    return op.getOperation().body.type() == CREATE_ACCOUNT;
+}
+
+bool isCreateFrom(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isCreate(op)
+        && accountFrame->getAccountID() == op.getSourceID();
+}
+
+bool isCreateDestination(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isCreate(op)
+        && accountFrame->getAccountID() == AccountFrame{op.getOperation().body.createAccountOp().destination}.getAccountID();
+}
+
+bool isPayment(OperationFrame const& op)
+{
+    return op.getOperation().body.type() == PAYMENT;
+}
+
+bool isPaymentSource(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isPayment(op)
+        && accountFrame->getAccountID() == op.getSourceID();
+}
+
+bool isPaymentDestination(OperationFrame const& op, optional<AccountFrame> accountFrame)
+{
+    return accountFrame
+        && isPayment(op)
+        && accountFrame->getAccountID() == AccountFrame{op.getOperation().body.paymentOp().destination}.getAccountID();
+}
+
+bool isPathPayment(OperationFrame const& op)
+{
+    return op.getOperation().body.type() == PATH_PAYMENT;
+}
+
+bool isPathPaymentSelfXLMtoXLM(OperationFrame const& op)
+{
+    return isPathPayment(op)
+        && op.getOperation().body.pathPaymentOp().sendAsset.type() == ASSET_TYPE_NATIVE
+        && op.getOperation().body.pathPaymentOp().destAsset.type() == ASSET_TYPE_NATIVE
+        && op.getOperation().body.pathPaymentOp().destination == op.getSourceID();
+}
+
+bool isManageData(OperationFrame const& op)
+{
+    return op.getOperation().body.type() == MANAGE_DATA;
+}
+
+}
+
 using namespace std;
 using xdr::operator==;
 
@@ -168,43 +295,6 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
                                            neededWeight);
 }
 
-optional<LedgerEntry>
-TransactionFrame::loadAccount(int ledgerProtocolVersion,
-                              LedgerDelta* ledgerDelta, LedgerEntries& entries,
-                              AccountID const& accountID)
-{
-    if (ledgerProtocolVersion < 8 && mSigningAccount && AccountFrame{*mSigningAccount}.getAccountID() == accountID)
-    {
-        return mSigningAccount;
-    }
-
-    auto a = optional<LedgerEntry const>{};
-    if (ledgerDelta)
-    {
-        a = ledgerDelta->loadAccount(accountID);
-    }
-    else
-    {
-        a = entries.load(accountKey(accountID));
-    }
-
-    if (a)
-    {
-        return make_optional<LedgerEntry>(*a);
-    }
-    else
-    {
-        return nullopt<LedgerEntry>();
-    }
-}
-
-bool
-TransactionFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries)
-{
-    mSigningAccount = loadAccount(ledgerProtocolVersion, ledgerDelta, entries, getSourceID());
-    return !!mSigningAccount;
-}
-
 void
 TransactionFrame::resetResults()
 {
@@ -279,7 +369,10 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), ledgerDelta, app.getLedgerEntries()))
+    auto signingEntry = ledgerDelta
+        ? ledgerDelta->loadAccount(getSourceID())
+        : app.getLedgerEntries().load(accountKey(getSourceID()));
+    if (!signingEntry)
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "no-account"}, "transaction")
@@ -288,7 +381,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
-    auto signingFrame = AccountFrame{*mSigningAccount};
+    auto signingFrame = AccountFrame{*signingEntry};
     auto signingAccount = SigningAccount{signingFrame};
     // when applying, the account's sequence number is updated when taking fees
     if (!applying)
@@ -338,17 +431,17 @@ TransactionFrame::processFeeSeqNum(int ledgerVersion,
                                    LedgerDelta& ledgerDelta,
                                    LedgerEntries &entries)
 {
-    resetSigningAccount();
     resetResults();
 
-    if (!loadAccount(ledgerVersion, &ledgerDelta, entries))
+    auto signingEntry = ledgerDelta.loadAccount(getSourceID());
+    if (!signingEntry)
     {
         throw std::runtime_error("Unexpected database state");
     }
 
     int64_t& fee = getResult().feeCharged;
 
-    auto signingFrame = AccountFrame{*mSigningAccount};
+    auto signingFrame = AccountFrame{*signingEntry};
     if (fee > 0)
     {
         fee = std::min(signingFrame.getBalance(), fee);
@@ -363,12 +456,6 @@ TransactionFrame::processFeeSeqNum(int ledgerVersion,
     }
     signingFrame.setSeqNum(mEnvelope.tx.seqNum);
     ledgerDelta.updateEntry(signingFrame);
-}
-
-void
-TransactionFrame::resetSigningAccount()
-{
-    mSigningAccount.reset();
 }
 
 void
@@ -431,7 +518,6 @@ TransactionFrame::removeAccountSigner(AccountFrame& account,
 bool
 TransactionFrame::checkValid(Application& app, SequenceNumber current)
 {
-    resetSigningAccount();
     resetResults();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion() == 7,
@@ -501,7 +587,6 @@ bool
 TransactionFrame::apply(LedgerDelta& ledgerDelta, TransactionMeta& meta,
                         Application& app)
 {
-    resetSigningAccount();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion() == 7,
         getContentsHash(), mEnvelope.signatures};
@@ -548,17 +633,189 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
         app.getMetrics().NewTimer({"transaction", "op", "apply"});
     auto error = false;
 
+    std::set<AccountID> paidFromAccounts;
+    optional<AccountFrame> mergedAccountFrame;
+    optional<AccountFrame> mergedToAccountFrame;
+    auto anyPayment = false;
+    auto wasRecreated = false;
+
     for (auto& op : mOperations)
     {
         auto time = opTimer.TimeScope();
+        auto setSeqNum = false;
         LedgerDeltaScope opDeltaScope{ledgerDelta};
 
-        if (!op->apply(signatureChecker, ledgerDelta, app))
+        if (triggerManageDataBug(app) && isManageData(*op))
+        {
+            meta.operations().clear();
+            getResult().result.code(txINTERNAL_ERROR);
+            return false;
+        }
+
+        if (allowMultipleMerges(app) && isMergeFrom(*op, mergedAccountFrame) && !wasRecreated)
+        {
+            if (multipleMergeReturnsMergeNoAccount(app))
+            {
+                op->getResult().code(opINNER);
+                op->getResult().tr().type(ACCOUNT_MERGE);
+                op->getResult().tr().accountMergeResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
+                meta.operations().clear();
+                markResultFailed();
+                return false;
+            }
+            else
+            {
+                if (!ledgerDelta.entryExists(mergedAccountFrame->getKey()))
+                {
+                    ledgerDelta.addEntry(*mergedAccountFrame);
+                }
+            }
+        }
+
+        if (allowMultipleMerges(app) && isCreateFrom(*op, mergedAccountFrame))
+        {
+            if (isCreateDestination(*op, mergedToAccountFrame))
+            {
+                op->getResult().code(opINNER);
+                op->getResult().tr().type(CREATE_ACCOUNT);
+                op->getResult().tr().createAccountResult().code(CREATE_ACCOUNT_ALREADY_EXIST);
+                markResultFailed();
+
+                meta.operations().emplace_back(ledgerDelta.top().getChanges());
+                opDeltaScope.commit();
+                error = true;
+                continue;
+            }
+            else
+            {
+                meta.operations().clear();
+                getResult().result.code(txINTERNAL_ERROR);
+                return false;
+            }
+        }
+
+        if (allowMergeBackBug(app) && isMergeFrom(*op, mergedToAccountFrame) && isMergeTo(*op, mergedAccountFrame))
+        {
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(mergedAccountFrame->getAccountID())};
+            setSeqNum = true;
+
+            auto currentToAccount = make_optional<AccountFrame>(*ledgerDelta.loadAccount(mergedToAccountFrame->getAccountID()));
+            mergedAccountFrame->setBalance(mergedAccountFrame->getBalance() + mergedToAccountFrame->getBalance() - currentToAccount->getBalance());
+            ledgerDelta.updateEntry(*mergedAccountFrame);
+        }
+
+        if (allowMergePayBug(app) && isPaymentSource(*op, mergedAccountFrame) && isPaymentDestination(*op, mergedToAccountFrame) && !wasRecreated)
+        {
+            meta.operations().clear();
+            getResult().result.code(txINTERNAL_ERROR);
+            return false;
+        }
+
+        auto setMerge = false;
+        if (isMerge(*op) && !mergedAccountFrame && (op->getSourceID() == getSourceID()))
+        {
+            mergedAccountFrame = make_optional<AccountFrame>(*ledgerDelta.loadAccount(op->getSourceID()));
+            auto toAccountEntry = ledgerDelta.loadAccount(op->getOperation().body.destination());
+            if (toAccountEntry)
+            {
+                mergedToAccountFrame = make_optional<AccountFrame>(*toAccountEntry);
+            }
+            setMerge = true;
+        }
+
+        if (allowCreateMergePayBug(app) && isPaymentSource(*op, mergedAccountFrame) && !wasRecreated)
+        {
+            if (isPaymentDestination(*op, mergedAccountFrame))
+            {
+                if (!ledgerDelta.entryExists(mergedAccountFrame->getKey()))
+                {
+                    ledgerDelta.addEntry(*mergedAccountFrame);
+                }
+            }
+            else
+            {
+                meta.operations().clear();
+                getResult().result.code(txINTERNAL_ERROR);
+                return false;
+            }
+        }
+
+        if (op->apply(signatureChecker, ledgerDelta, app))
+        {
+            if (isPayment(*op))
+            {
+                paidFromAccounts.insert(op->getSourceID());
+                anyPayment = true;
+            }
+
+            if (allowMergeCreateMergeBug(app) && isCreateDestination(*op, mergedAccountFrame) && (!anyPayment || (paidFromAccounts.find(mergedAccountFrame->getAccountID()) != std::end(paidFromAccounts))))
+            {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(mergedAccountFrame->getAccountID())};
+                sourceAccount.setBalance(mergedAccountFrame->getBalance());
+                sourceAccount.setSeqNum(mergedAccountFrame->getSeqNum());
+                ledgerDelta.updateEntry(sourceAccount);
+            }
+
+            if (isCreateDestination(*op, mergedAccountFrame))
+            {
+                wasRecreated = true;
+            }
+
+            if (allowPayMergeCreatePayBug(app) && isPaymentSource(*op, mergedAccountFrame) && isPaymentDestination(*op, mergedToAccountFrame))
+            {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(mergedAccountFrame->getAccountID())};
+                sourceAccount.setBalance(mergedAccountFrame->getBalance() - op->getOperation().body.paymentOp().amount);
+                sourceAccount.setSeqNum(mergedAccountFrame->getSeqNum());
+                ledgerDelta.updateEntry(sourceAccount);
+            }
+
+            if (allowSelfXLMtoXLMPaymentBug(app) && isPathPaymentSelfXLMtoXLM(*op))
+            {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(op->getSourceID())};
+                if (sourceAccount.getBalance() > op->getOperation().body.pathPaymentOp().destAmount)
+                {
+                    sourceAccount.setBalance(sourceAccount.getBalance() - op->getOperation().body.pathPaymentOp().destAmount);
+                    ledgerDelta.updateEntry(sourceAccount);
+                }
+                else
+                {
+                    op->getResult().code(opINNER);
+                    op->getResult().tr().type(PATH_PAYMENT);
+                    op->getResult().tr().pathPaymentResult().code(PATH_PAYMENT_UNDERFUNDED);
+                    markResultFailed();
+
+                    meta.operations().emplace_back(ledgerDelta.top().getChanges());
+                    opDeltaScope.commit();
+                    error = true;
+                    continue;
+                }
+            }
+
+            if (setSeqNum)
+            {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(mergedAccountFrame->getAccountID())};
+                sourceAccount.setSeqNum(ledgerDelta.getHeaderFrame().getStartingSequenceNumber());
+                ledgerDelta.updateEntry(sourceAccount);
+            }
+        }
+        else
         {
             error = true;
+
+            if (setMerge)
+            {
+                mergedAccountFrame = nullopt<AccountFrame>();
+                mergedToAccountFrame = nullopt<AccountFrame>();
+            }
         }
+
         meta.operations().emplace_back(ledgerDelta.top().getChanges());
         opDeltaScope.commit();
+    }
+
+    if (!wasRecreated && mergedAccountFrame && ledgerDelta.entryExists(mergedAccountFrame->getKey()))
+    {
+        ledgerDelta.deleteEntry(mergedAccountFrame->getKey());
     }
 
     return !error;

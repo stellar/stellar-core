@@ -9,6 +9,7 @@
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -930,7 +931,9 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return TX_STATUS_ERROR;
     }
 
-    if (AccountFrame{tx->getSourceAccount()}.getBalanceAboveReserve(mLedgerManager) < totFee)
+    // account is valid so source account exists
+    auto sourceAccount = AccountFrame{*mApp.getLedgerEntries().load(accountKey(tx->getSourceID()))};
+    if (sourceAccount.getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TX_STATUS_ERROR;

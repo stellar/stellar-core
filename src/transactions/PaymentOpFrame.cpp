@@ -64,7 +64,6 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     opRes.code(opINNER);
     opRes.tr().type(PATH_PAYMENT);
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
-    ppayment.setSourceAccountPtr(mSourceAccount);
 
     if (!ppayment.doCheckValid(app) ||
         !ppayment.doApply(app, ledgerDelta, ledgerManager))

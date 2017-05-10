@@ -46,8 +46,8 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         }
     }
 
-    auto sourceFrame = AccountFrame{*mSourceAccount};
-    if (!sourceFrame.isAuthRequired())
+    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+    if (!sourceAccount.isAuthRequired())
     { // this account doesn't require authorization to
         // hold credit
         app.getMetrics()
@@ -58,7 +58,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         return false;
     }
 
-    if (!sourceFrame.isRevocableAuth() && !mAllowTrust.authorize)
+    if (!sourceAccount.isRevocableAuth() && !mAllowTrust.authorize)
     {
         app.getMetrics()
             .NewMeter({"op-allow-trust", "failure", "cant-revoke"}, "operation")

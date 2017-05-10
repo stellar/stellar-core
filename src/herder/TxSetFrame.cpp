@@ -7,13 +7,14 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "ledger/LedgerEntries.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
-#include <algorithm>
-
 #include "xdrpp/printer.h"
+
+#include <algorithm>
 
 namespace stellar
 {
@@ -227,9 +228,10 @@ TxSetFrame::trimInvalid(Application& app,
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            auto sourceAccountFrame = AccountFrame{lastTx->getSourceAccount()};
-            int64_t newBalance = sourceAccountFrame.getBalance() - totFee;
-            if (newBalance < sourceAccountFrame.getMinimumBalance(app.getLedgerManager()))
+            // lastTx is valid, so has existing source account
+            auto sourceAccount = AccountFrame{*app.getLedgerEntries().load(accountKey(lastTx->getSourceID()))};
+            int64_t newBalance = sourceAccount.getBalance() - totFee;
+            if (newBalance < sourceAccount.getMinimumBalance(app.getLedgerManager()))
             {
                 for (auto& tx : item.second)
                 {
@@ -317,9 +319,10 @@ TxSetFrame::checkValid(Application& app) const
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            auto account = AccountFrame{lastTx->getSourceAccount()};
-            int64_t newBalance = account.getBalance() - totFee;
-            if (newBalance < account.getMinimumBalance(app.getLedgerManager()))
+            // lastTx is valid so source acocunt exists
+            auto sourceAccount = AccountFrame{*app.getLedgerEntries().load(accountKey(lastTx->getSourceID()))};
+            int64_t newBalance = sourceAccount.getBalance() - totFee;
+            if (newBalance < sourceAccount.getMinimumBalance(app.getLedgerManager()))
             {
                 CLOG(DEBUG, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)

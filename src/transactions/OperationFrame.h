@@ -39,7 +39,6 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame& mParentTx;
-    optional<LedgerEntry> mSourceAccount;
     OperationResult& mResult;
 
     bool checkSignature(SigningAccount const& signingAccount, SignatureChecker& signatureChecker) const;
@@ -58,26 +57,7 @@ class OperationFrame
                    TransactionFrame& parentTx);
     OperationFrame(OperationFrame const&) = delete;
 
-    LedgerEntry
-    getSourceAccount() const
-    {
-        assert(mSourceAccount);
-        return *mSourceAccount;
-    }
-
-    // overrides internal sourceAccount used by this operation
-    // normally set automatically by checkValid
-    void
-    setSourceAccountPtr(optional<LedgerEntry> sa)
-    {
-        mSourceAccount = sa;
-    }
-
     AccountID const& getSourceID() const;
-
-    // load account if needed
-    // returns true on success
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* ledgerDelta, LedgerEntries& entries);
 
     OperationResult&
     getResult() const

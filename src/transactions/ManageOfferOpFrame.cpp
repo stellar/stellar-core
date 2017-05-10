@@ -156,7 +156,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
 
-    auto sourceFrame = AccountFrame{*mSourceAccount};
+    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
     auto sellSheepOffer = OfferFrame{};
     if (offerID)
     { // modifying an old offer
@@ -207,7 +207,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            maxAmountOfSheepCanSell = sourceFrame.getBalanceAboveReserve(ledgerManager);
+            maxAmountOfSheepCanSell = sourceAccount.getBalanceAboveReserve(ledgerManager);
         }
         else
         {
@@ -316,12 +316,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
-                if (!sourceFrame.addBalance(wheatReceived))
+                if (!sourceAccount.addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer claimed over limit");
                 }
-                ledgerDelta.updateEntry(sourceFrame);
+                ledgerDelta.updateEntry(sourceAccount);
             }
             else
             {
@@ -336,12 +336,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
             {
-                if (!sourceFrame.addBalance(-sheepSent))
+                if (!sourceAccount.addBalance(-sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
                     throw std::runtime_error("offer sold more than balance");
                 }
-                ledgerDelta.updateEntry(sourceFrame);
+                ledgerDelta.updateEntry(sourceAccount);
             }
             else
             {
@@ -366,7 +366,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         {
             // make sure we don't allow us to add offers when we don't have
             // the minbalance
-            if (!sourceFrame.addNumEntries(1, ledgerManager))
+            if (!sourceAccount.addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-offer", "invalid", "low reserve"},
@@ -378,7 +378,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             sellSheepOffer.setOfferID(ledgerDelta.getHeaderFrame().generateID());
             innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
             ledgerDelta.addEntry(sellSheepOffer);
-            ledgerDelta.updateEntry(sourceFrame);
+            ledgerDelta.updateEntry(sourceAccount);
         }
         else
         {
@@ -394,8 +394,8 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         if (!creatingNewOffer)
         {
             ledgerDelta.deleteEntry(sellSheepOffer.getKey());
-            sourceFrame.addNumEntries(-1, ledgerManager);
-            ledgerDelta.updateEntry(sourceFrame);
+            sourceAccount.addNumEntries(-1, ledgerManager);
+            ledgerDelta.updateEntry(sourceAccount);
         }
     }
 

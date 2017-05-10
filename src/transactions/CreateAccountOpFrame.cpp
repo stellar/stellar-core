@@ -49,10 +49,10 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         }
         else
         {
-            auto sourceFrame = AccountFrame{*mSourceAccount};
-            int64_t minBalance = sourceFrame.getMinimumBalance(ledgerManager);
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+            int64_t minBalance = sourceAccount.getMinimumBalance(ledgerManager);
 
-            if ((sourceFrame.getBalance() - minBalance) <
+            if ((sourceAccount.getBalance() - minBalance) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
                 app.getMetrics()
@@ -63,8 +63,8 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                 return false;
             }
 
-            sourceFrame.addBalance(-mCreateAccount.startingBalance);
-            ledgerDelta.updateEntry(sourceFrame);
+            sourceAccount.addBalance(-mCreateAccount.startingBalance);
+            ledgerDelta.updateEntry(sourceAccount);
 
             auto newAccount = AccountFrame{
                 mCreateAccount.destination,

@@ -251,28 +251,21 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
 
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        auto sourceAccount = mSourceAccount;
-
-        if (ledgerManager.getCurrentLedgerVersion() > 7)
+        auto sourceEntry = ledgerDelta.loadAccount(AccountFrame{getSourceID()}.getAccountID());
+        if (!sourceEntry)
         {
-            auto a = ledgerDelta.loadAccount(AccountFrame{*sourceAccount}.getAccountID());
-            if (!a)
-            {
-                app.getMetrics()
-                    .NewMeter({"op-path-payment", "invalid", "no-account"},
-                              "operation")
-                    .Mark();
-                innerResult().code(PATH_PAYMENT_MALFORMED);
-                return false;
-            }
-
-            sourceAccount = make_optional<LedgerEntry>(*a);
+            app.getMetrics()
+                .NewMeter({"op-path-payment", "invalid", "no-account"},
+                            "operation")
+                .Mark();
+            innerResult().code(PATH_PAYMENT_MALFORMED);
+            return false;
         }
 
-        auto sourceFrame = AccountFrame{*sourceAccount};
-        int64_t minBalance = sourceFrame.getMinimumBalance(ledgerManager);
+        auto sourceAccount = AccountFrame{*sourceEntry};
+        int64_t minBalance = sourceAccount.getMinimumBalance(ledgerManager);
 
-        if ((sourceFrame.getBalance() - curBSent) < minBalance)
+        if ((sourceAccount.getBalance() - curBSent) < minBalance)
         { // they don't have enough to send
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},
@@ -282,11 +275,9 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             return false;
         }
 
-        auto ok = sourceFrame.addBalance(-curBSent);
+        auto ok = sourceAccount.addBalance(-curBSent);
         assert(ok);
-        ledgerDelta.updateEntry(sourceFrame);
-
-        *mSourceAccount = sourceFrame.getEntry();
+        ledgerDelta.updateEntry(sourceAccount);
     }
     else
     {

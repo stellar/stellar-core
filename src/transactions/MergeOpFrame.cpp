@@ -39,9 +39,6 @@ bool
 MergeOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                       LedgerManager& ledgerManager)
 {
-    auto sourceAccount = AccountFrame{*mSourceAccount};
-    int64 sourceBalance = sourceAccount.getBalance();
-
     auto otherAccountEntry = ledgerDelta.loadAccount(mOperation.body.destination());
     if (!otherAccountEntry)
     {
@@ -52,23 +49,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         return false;
     }
 
-    if (ledgerManager.getCurrentLedgerVersion() > 4)
-    {
-        auto thisAccount = ledgerDelta.loadAccount(sourceAccount.getAccountID());
-        if (!thisAccount)
-        {
-            app.getMetrics()
-                .NewMeter({"op-merge", "failure", "no-account"}, "operation")
-                .Mark();
-            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-            return false;
-        }
-        if (ledgerManager.getCurrentLedgerVersion() > 5)
-        {
-            sourceBalance = AccountFrame{*thisAccount}.getBalance();
-        }
-    }
-
+    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
     if (sourceAccount.isImmutableAuth())
     {
         app.getMetrics()
@@ -88,7 +69,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     }
 
     auto otherAccount = AccountFrame{*otherAccountEntry};
-    if (!otherAccount.addBalance(sourceBalance))
+    if (!otherAccount.addBalance(sourceAccount.getBalance()))
     {
         throw std::runtime_error("merge overflowed destination balance");
     }
@@ -99,7 +80,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         .NewMeter({"op-merge", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
-    innerResult().sourceAccountBalance() = sourceBalance;
+    innerResult().sourceAccountBalance() = sourceAccount.getBalance();
     return true;
 }
 
