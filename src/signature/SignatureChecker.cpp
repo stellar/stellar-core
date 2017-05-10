@@ -8,7 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "util/Algoritm.h"
 
 namespace stellar

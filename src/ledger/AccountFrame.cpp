@@ -77,16 +77,6 @@ AccountFrame::AccountFrame(AccountID const& id) : AccountFrame()
     mAccountEntry.accountID = id;
 }
 
-AccountFrame::pointer
-AccountFrame::makeAuthOnlyAccount(AccountID const& id)
-{
-    AccountFrame::pointer ret = make_shared<AccountFrame>(id);
-    // puts a negative balance to trip any attempt to save this
-    ret->mAccountEntry.balance = INT64_MIN;
-
-    return ret;
-}
-
 bool
 AccountFrame::signerCompare(Signer const& s1, Signer const& s2)
 {
