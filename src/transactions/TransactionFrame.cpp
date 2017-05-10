@@ -513,23 +513,11 @@ TransactionFrame::apply(LedgerDelta& ledgerDelta, TransactionMeta& meta,
     soci::transaction sqlTx(app.getDatabase().getSession());
     LedgerDeltaScope txDeltaScope{ledgerDelta};
 
-    auto& opTimer =
-        app.getMetrics().NewTimer({"transaction", "op", "apply"});
-
-    for (auto& op : mOperations)
+    if (!applyOperations(signatureChecker, ledgerDelta, meta, app))
     {
-        auto time = opTimer.TimeScope();
-        LedgerDeltaScope opDeltaScope{ledgerDelta};
-        bool txRes = op->apply(signatureChecker, ledgerDelta, app);
-
-        if (!txRes)
-        {
-            meta.operations().clear();
-            markResultFailed();
-            return false;
-        }
-        meta.operations().emplace_back(ledgerDelta.top().getChanges());
-        opDeltaScope.commit();
+        meta.operations().clear();
+        markResultFailed();
+        return false;
     }
 
     if (!signatureChecker.checkAllSignaturesUsed())
@@ -548,6 +536,32 @@ TransactionFrame::apply(LedgerDelta& ledgerDelta, TransactionMeta& meta,
     txDeltaScope.commit();
 
     return true;
+}
+
+bool
+TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
+                                  LedgerDelta& ledgerDelta,
+                                  TransactionMeta& meta,
+                                  Application& app)
+{
+    auto& opTimer =
+        app.getMetrics().NewTimer({"transaction", "op", "apply"});
+    auto error = false;
+
+    for (auto& op : mOperations)
+    {
+        auto time = opTimer.TimeScope();
+        LedgerDeltaScope opDeltaScope{ledgerDelta};
+
+        if (!op->apply(signatureChecker, ledgerDelta, app))
+        {
+            error = true;
+        }
+        meta.operations().emplace_back(ledgerDelta.top().getChanges());
+        opDeltaScope.commit();
+    }
+
+    return !error;
 }
 
 StellarMessage

@@ -71,6 +71,10 @@ class TransactionFrame
                              SignerKey const& signerKey,
                              LedgerManager& ledgerManager) const;
     void markResultFailed();
+    bool applyOperations(SignatureChecker& signatureChecker,
+                         LedgerDelta& ledgerDelta,
+                         TransactionMeta& meta,
+                         Application& app);
 
   public:
     TransactionFrame(Hash const& networkID,
