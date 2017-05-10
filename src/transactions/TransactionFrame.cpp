@@ -506,57 +506,44 @@ TransactionFrame::apply(LedgerDelta& ledgerDelta, TransactionMeta& meta,
         return false;
     }
 
-    bool errorEncountered = false;
+    soci::transaction sqlTx(app.getDatabase().getSession());
+    LedgerDeltaScope txDeltaScope{ledgerDelta};
 
+    auto& opTimer =
+        app.getMetrics().NewTimer({"transaction", "op", "apply"});
+
+    for (auto& op : mOperations)
     {
-        // shield outer scope of any side effects by using
-        // a sql transaction for ledger state and LedgerDeltaLayer
-        soci::transaction sqlTx(app.getDatabase().getSession());
-        LedgerDeltaScope txDeltaScope{ledgerDelta};
+        auto time = opTimer.TimeScope();
+        LedgerDeltaScope opDeltaScope{ledgerDelta};
+        bool txRes = op->apply(signatureChecker, ledgerDelta, app);
 
-        auto& opTimer =
-            app.getMetrics().NewTimer({"transaction", "op", "apply"});
-
-        for (auto& op : mOperations)
+        if (!txRes)
         {
-            auto time = opTimer.TimeScope();
-            LedgerDeltaScope opDeltaScope{ledgerDelta};
-            bool txRes = op->apply(signatureChecker, ledgerDelta, app);
-
-            if (!txRes)
-            {
-                errorEncountered = true;
-            }
-            meta.operations().emplace_back(ledgerDelta.top().getChanges());
-            opDeltaScope.commit();
+            meta.operations().clear();
+            markResultFailed();
+            return false;
         }
-
-        if (!errorEncountered)
-        {
-            if (app.getLedgerManager().getCurrentLedgerVersion() !=7 && !signatureChecker.checkAllSignaturesUsed())
-            {
-                getResult().result.code(txBAD_AUTH_EXTRA);
-                // this should never happen: malformed transaction should not be
-                // accepted by nodes
-                return false;
-            }
-
-            // if an error occurred, it is responsibility of account's owner to
-            // remove that signer
-            removeUsedOneTimeSignerKeys(signatureChecker, ledgerDelta,
-                                        app);
-            sqlTx.commit();
-            txDeltaScope.commit();
-        }
+        meta.operations().emplace_back(ledgerDelta.top().getChanges());
+        opDeltaScope.commit();
     }
 
-    if (errorEncountered)
+    if (app.getLedgerManager().getCurrentLedgerVersion() !=7 && !signatureChecker.checkAllSignaturesUsed())
     {
-        meta.operations().clear();
-        markResultFailed();
+        getResult().result.code(txBAD_AUTH_EXTRA);
+        // this should never happen: malformed transaction should not be
+        // accepted by nodes
+        return false;
     }
 
-    return !errorEncountered;
+    // if an error occurred, it is responsibility of account's owner to
+    // remove that signer
+    removeUsedOneTimeSignerKeys(signatureChecker, ledgerDelta,
+                                app);
+    sqlTx.commit();
+    txDeltaScope.commit();
+
+    return true;
 }
 
 StellarMessage
