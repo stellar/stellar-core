@@ -140,7 +140,7 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
         throw std::runtime_error(
             "invalid database state: offer must have matching account");
     }
-    auto acocuntBFrame = AccountFrame{*accountB};
+    auto accountBFrame = AccountFrame{*accountB};
 
     optional<LedgerEntry const> wheatLineAccountB;
     if (wheat.type() != ASSET_TYPE_NATIVE)
@@ -158,7 +158,7 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
     numWheatReceived = std::min(
         {canBuyAtMost(sheep, sheepLineAccountB,
                       sellingWheatOffer.getPrice()),
-         canSellAtMost(acocuntBFrame, wheat, wheatLineAccountB, ledgerManager),
+         canSellAtMost(accountBFrame, wheat, wheatLineAccountB, ledgerManager),
          sellingWheatOffer.getAmount()});
     assert(numWheatReceived >= 0);
     sellingWheatOffer.setAmount(numWheatReceived);
@@ -194,8 +194,9 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
     { // entire offer is taken
         ledgerDelta.deleteEntry(sellingWheatOffer.getKey());
 
-        acocuntBFrame.addNumEntries(-1, ledgerManager);
-        ledgerDelta.updateEntry(acocuntBFrame);
+        auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+        accountBFrame.addNumEntries(-1, ledgerManager);
+        ledgerDelta.updateEntry(accountBFrame);
     }
     else
     {
@@ -208,11 +209,12 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (!acocuntBFrame.addBalance(numSheepSend))
+            auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+            if (!accountBFrame.addBalance(numSheepSend))
             {
                 return eOfferCantConvert;
             }
-            ledgerDelta.updateEntry(acocuntBFrame);
+            ledgerDelta.updateEntry(accountBFrame);
         }
         else
         {
@@ -229,12 +231,12 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            acocuntBFrame.setBalance(acocuntBFrame.getBalance() - numWheatReceived);
-            if (!acocuntBFrame.addBalance(-numWheatReceived))
+            auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+            if (!accountBFrame.addBalance(-numWheatReceived))
             {
                 return eOfferCantConvert;
             }
-            ledgerDelta.updateEntry(acocuntBFrame);
+            ledgerDelta.updateEntry(accountBFrame);
         }
         else
         {
@@ -248,7 +250,7 @@ OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer
     }
 
     mOfferTrail.push_back(
-        ClaimOfferAtom(acocuntBFrame.getAccountID(), sellingWheatOffer.getOfferID(), wheat,
+        ClaimOfferAtom(accountBFrame.getAccountID(), sellingWheatOffer.getOfferID(), wheat,
                        numWheatReceived, sheep, numSheepSend));
 
     return offerTaken ? eOfferTaken : eOfferPartial;

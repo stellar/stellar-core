@@ -156,7 +156,6 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
 
-    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
     auto sellSheepOffer = OfferFrame{};
     if (offerID)
     { // modifying an old offer
@@ -207,6 +206,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
             maxAmountOfSheepCanSell = sourceAccount.getBalanceAboveReserve(ledgerManager);
         }
         else
@@ -316,6 +316,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
             // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
                 if (!sourceAccount.addBalance(wheatReceived))
                 {
                     // this would indicate a bug in OfferExchange
@@ -336,6 +337,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
             {
+                auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
                 if (!sourceAccount.addBalance(-sheepSent))
                 {
                     // this would indicate a bug in OfferExchange
@@ -366,6 +368,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         {
             // make sure we don't allow us to add offers when we don't have
             // the minbalance
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
             if (!sourceAccount.addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()
@@ -394,6 +397,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
         if (!creatingNewOffer)
         {
             ledgerDelta.deleteEntry(sellSheepOffer.getKey());
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
             sourceAccount.addNumEntries(-1, ledgerManager);
             ledgerDelta.updateEntry(sourceAccount);
         }
