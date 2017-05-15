@@ -86,6 +86,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
                 REQUIRE_THROWS_AS(root.changeTrust(idrCur, 99),
                                 ex_CHANGE_TRUST_NO_ISSUER);
+                REQUIRE(!loadAccount(gateway, app, false));
             });
         }
     }

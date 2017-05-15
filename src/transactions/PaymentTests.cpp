@@ -197,6 +197,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             auto res = applyCheck(txFrame, delta, app);
 
+            REQUIRE(!loadAccount(a1, app, false));
+            REQUIRE(loadAccount(b1, app));
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
             REQUIRE(!loadAccount(a1, app, false));
@@ -221,6 +223,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             auto res = applyCheck(txFrame, delta, app);
 
+            REQUIRE(loadAccount(a1, app));
+            REQUIRE(!loadAccount(b1, app, false));
             REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
             REQUIRE(!loadAccount(b1, app, false));
@@ -242,6 +246,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             auto res = applyCheck(txFrame, delta, app);
 
+            REQUIRE(loadAccount(a1, app));
+            REQUIRE(loadAccount(b1, app));
             REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
             REQUIRE(b1Balance == b1.getBalance());
@@ -251,6 +257,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             auto res = applyCheck(txFrame, delta, app);
 
+            REQUIRE(loadAccount(a1, app));
+            REQUIRE(loadAccount(b1, app));
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
             REQUIRE(b1Balance == b1.getBalance());
@@ -341,38 +349,640 @@ TEST_CASE("payment", "[tx][payment]")
         });
     }
 
-    SECTION("pay, merge, create, pay")
+    SECTION("create, merge, pay, 2 accounts")
     {
         auto amount = 300000000000000;
+        auto createAmount = 500000000;
+        auto payAmount = 200000000;
+        auto sourceAccount = root.create("source", amount);
+        auto createAccount = TestAccount{app, getAccount("create")};
+        auto balanceBefore = sourceAccount.getBalance();
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createCreateAccountOp(createAccount, createAmount),
+            createMergeOp(createAccount),
+            createPaymentOp(sourceAccount, payAmount)
+        });
+
+        for_versions_to(7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(!loadAccount(sourceAccount, app, false));
+            REQUIRE(loadAccount(createAccount, app));
+            REQUIRE(createAccount.getBalance() == amount - tx->getFee());
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[0].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - createAmount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[0].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - createAmount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
+        });
+    }
+
+    SECTION("create, merge, pay, 3 accounts")
+    {
+        auto amount = 300000000000000;
+        auto createAmount = 500000000;
+        auto payAmount = 200000000;
+        auto sourceAccount = root.create("source", amount);
+        auto createAccount = TestAccount{app, getAccount("create")};
+        auto payAccount = root.create("pay", amount);
+        auto balanceBefore = sourceAccount.getBalance() + payAccount.getBalance();
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createCreateAccountOp(createAccount, createAmount),
+            createMergeOp(createAccount),
+            createPaymentOp(payAccount, payAmount)
+        });
+
+        for_versions_to(7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(loadAccount(payAccount, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(payAccount.getBalance() == amount);
+
+            REQUIRE(tx->getResult().result.code() == txINTERNAL_ERROR);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(loadAccount(payAccount, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(payAccount.getBalance() == amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[0].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - createAmount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
+        });
+    }
+
+    SECTION("pay, merge, create, pay, self")
+    {
+        auto amount = 300000000000000;
+        auto pay1Amount = 100000000;
+        auto createAmount = 500000000;
+        auto pay2Amount = 200000000;
+        auto sourceAccount = root.create("source", amount);
+        auto payAndMergeDestination = root.create("payAndMerge", amount);
+        auto balanceBefore = sourceAccount.getBalance()
+                + payAndMergeDestination.getBalance();
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            payAndMergeDestination.op(createPaymentOp(payAndMergeDestination, pay1Amount)),
+            createMergeOp(payAndMergeDestination),
+            payAndMergeDestination.op(createCreateAccountOp(sourceAccount, createAmount)),
+            payAndMergeDestination.op(createPaymentOp(payAndMergeDestination, pay2Amount))
+        });
+        tx->addSignature(payAndMergeDestination);
+
+        for_versions_to(7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == createAmount);
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount - createAmount - tx->getFee());
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == createAmount);
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount - createAmount - tx->getFee());
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+    }
+
+    SECTION("pay, merge, create, pay, 2 accounts")
+    {
+        auto amount = 300000000000000;
+        auto pay1Amount = 500000000;
+        auto createAmount = 250000000;
+        auto pay2Amount = 10000000;
+        auto sourceAccount = root.create("source", amount);
+        auto payAndMergeDestination = root.create("payAndMerge", amount);
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createPaymentOp(payAndMergeDestination, pay1Amount),
+            createMergeOp(payAndMergeDestination),
+            payAndMergeDestination.op(createCreateAccountOp(sourceAccount, createAmount)),
+            createPaymentOp(payAndMergeDestination, pay2Amount)
+        });
+        tx->addSignature(payAndMergeDestination);
+
+        for_versions_to(7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - pay1Amount - pay2Amount - tx->getFee());
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount + pay2Amount - tx->getFee() - createAmount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - pay1Amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount + pay2Amount - tx->getFee() - createAmount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - pay1Amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+    }
+
+    SECTION("pay, merge, create, pay, 3 accounts")
+    {
+        auto amount = 300000000000000;
+        auto pay1Amount = 500000000;
+        auto createAmount = 250000000;
+        auto pay2Amount = 10000000;
         auto sourceAccount = root.create("source", amount);
         auto secondSourceAccount = root.create("secondSource", amount);
         auto payAndMergeDestination = root.create("payAndMerge", amount);
-        auto balanceBefore = sourceAccount.getBalance()
-                + secondSourceAccount.getBalance()
-                + payAndMergeDestination.getBalance();
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto secondSourceSeqNum = secondSourceAccount.getLastSequenceNumber();
+        auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(payAndMergeDestination, 500000000),
+            createPaymentOp(payAndMergeDestination, pay1Amount),
             createMergeOp(payAndMergeDestination),
-            secondSourceAccount.op(createCreateAccountOp(sourceAccount, 500000000)),
-            createPaymentOp(payAndMergeDestination, 10000000)
+            secondSourceAccount.op(createCreateAccountOp(sourceAccount, createAmount)),
+            createPaymentOp(payAndMergeDestination, pay2Amount)
         });
         tx->addSignature(secondSourceAccount);
 
         for_versions_to(7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
             REQUIRE(applyCheck(tx, delta, app));
-            auto balanceAfter = sourceAccount.getBalance()
-                    + secondSourceAccount.getBalance()
-                    + payAndMergeDestination.getBalance();
-            REQUIRE(balanceBefore + amount - 1000000800 == balanceAfter);
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(secondSourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - pay1Amount - pay2Amount - tx->getFee());
+            REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount + pay2Amount - tx->getFee());
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(secondSourceAccount.loadSequenceNumber() == secondSourceSeqNum);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - pay1Amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
         });
 
         for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
             REQUIRE(applyCheck(tx, delta, app));
-            auto balanceAfter = sourceAccount.getBalance()
-                    + secondSourceAccount.getBalance()
-                    + payAndMergeDestination.getBalance();
-            REQUIRE(balanceBefore - 400 == balanceAfter);
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(secondSourceAccount, app));
+            REQUIRE(loadAccount(payAndMergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
+            REQUIRE(secondSourceAccount.getBalance() == amount - createAmount);
+            REQUIRE(payAndMergeDestination.getBalance() == amount + amount + pay2Amount - tx->getFee());
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum);
+            REQUIRE(secondSourceAccount.loadSequenceNumber() == secondSourceSeqNum);
+            REQUIRE(payAndMergeDestination.loadSequenceNumber() == payAndMergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - pay1Amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[2].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+        });
+    }
+
+    SECTION("create, path payment, merge, create")
+    {
+        auto amount = 300000000000000;
+        auto create1Amount = 1000000000;
+        auto payAmount = 50000000;
+        auto create2Amount = 2000000000;
+        auto sourceAccount = root.create("source", amount);
+        auto createSource = root.create("createSource", amount);
+        auto createDestination = TestAccount{app, getAccount("createDestination")};
+        auto payDestination = root.create("pay", amount);
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto createSourceSeqNum = createSource.getLastSequenceNumber();
+        auto payDestinationSeqNum = payDestination.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createSource.op(createCreateAccountOp(createDestination, create1Amount)),
+            createDestination.op(createPathPaymentOp(payDestination,
+                xlmCur, payAmount, xlmCur, payAmount, {})),
+            payDestination.op(createMergeOp(createSource)),
+            createSource.op(createCreateAccountOp(payDestination, create2Amount)),
+        });
+        tx->addSignature(createSource);
+        tx->addSignature(createDestination);
+        tx->addSignature(payDestination);
+
+        for_all_versions(app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(createSource, app));
+            REQUIRE(loadAccount(createDestination, app));
+            REQUIRE(loadAccount(payDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(createSource.getBalance() == amount + amount - create1Amount - create2Amount + payAmount);
+            REQUIRE(createDestination.getBalance() == create1Amount - payAmount);
+            REQUIRE(payDestination.getBalance() == create2Amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(createSource.loadSequenceNumber() == createSourceSeqNum);
+            REQUIRE(payDestination.loadSequenceNumber() == payDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[0].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == PATH_PAYMENT);
+            REQUIRE(tx->getResult().result.results()[1].tr().pathPaymentResult().code() == PATH_PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == ACCOUNT_MERGE);
+            REQUIRE(tx->getResult().result.results()[2].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[2].tr().accountMergeResult().sourceAccountBalance() == amount + payAmount);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == CREATE_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[3].tr().createAccountResult().code() == CREATE_ACCOUNT_SUCCESS);
+        });
+    }
+
+    SECTION("pay self, merge, pay self, merge")
+    {
+        auto amount = 300000000000000;
+        auto pay1Amount = 500000000;
+        auto pay2Amount = 250000000;
+        auto sourceAccount = root.create("source", amount);
+        auto mergeDestination = root.create("payAndMerge", amount);
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto mergeDestinationSeqNum = mergeDestination.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createPaymentOp(sourceAccount, pay1Amount),
+            createMergeOp(mergeDestination),
+            createPaymentOp(sourceAccount, pay2Amount),
+            createMergeOp(mergeDestination)
+        });
+
+        for_versions_to(4, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(!loadAccount(sourceAccount, app, false));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(mergeDestination.getBalance() == amount + amount + amount - tx->getFee() - tx->getFee());
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+        });
+
+        for_versions(5, 7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(mergeDestination.getBalance() == amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().accountMergeResult().code() == ACCOUNT_MERGE_NO_ACCOUNT);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(mergeDestination.getBalance() == amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[2].code() == opNO_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[3].code() == opNO_ACCOUNT);
+        });
+    }
+
+    SECTION("pay self multiple, merge, pay self multiple, merge")
+    {
+        auto amount = 300000000000000;
+        auto pay1Amount = 500000000;
+        auto pay2Amount = 250000000;
+        auto sourceAccount = root.create("source", amount);
+        auto mergeDestination = root.create("payAndMerge", amount);
+        auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
+        auto mergeDestinationSeqNum = mergeDestination.getLastSequenceNumber();
+
+        auto tx = sourceAccount.tx({
+            createPaymentOp(sourceAccount, pay1Amount),
+            createPaymentOp(sourceAccount, pay1Amount),
+            createPaymentOp(sourceAccount, pay1Amount),
+            createPaymentOp(sourceAccount, pay1Amount),
+            createPaymentOp(sourceAccount, pay1Amount),
+            createPaymentOp(sourceAccount, pay1Amount),
+            createMergeOp(mergeDestination),
+            createPaymentOp(sourceAccount, pay2Amount),
+            createPaymentOp(sourceAccount, pay2Amount),
+            createMergeOp(mergeDestination)
+        });
+
+        for_versions_to(4, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(!loadAccount(sourceAccount, app, false));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(mergeDestination.getBalance() == amount + amount + amount - tx->getFee() - tx->getFee());
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txSUCCESS);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[1].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[4].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[4].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[4].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[5].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[5].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[5].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[7].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[7].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[7].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[8].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[8].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[8].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[9].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[9].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[9].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+        });
+
+        for_versions(5, 7, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(mergeDestination.getBalance() == amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[1].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[4].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[4].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[4].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[5].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[5].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[5].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[7].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[7].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[7].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[8].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[8].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[8].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[9].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[9].tr().accountMergeResult().code() == ACCOUNT_MERGE_NO_ACCOUNT);
+        });
+
+        for_versions_from(8, app, [&]{
+            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                              app.getDatabase());
+            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(loadAccount(sourceAccount, app));
+            REQUIRE(loadAccount(mergeDestination, app));
+            REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(mergeDestination.getBalance() == amount);
+            REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
+            REQUIRE(mergeDestination.loadSequenceNumber() == mergeDestinationSeqNum);
+
+            REQUIRE(tx->getResult().result.code() == txFAILED);
+            REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[0].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[0].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[1].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[1].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[2].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[2].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[2].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[3].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[3].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[3].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[4].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[4].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[4].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[5].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[5].tr().type() == PAYMENT);
+            REQUIRE(tx->getResult().result.results()[5].tr().paymentResult().code() == PAYMENT_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].code() == opINNER);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().code() == ACCOUNT_MERGE_SUCCESS);
+            REQUIRE(tx->getResult().result.results()[6].tr().accountMergeResult().sourceAccountBalance() == amount - tx->getFee());
+            REQUIRE(tx->getResult().result.results()[7].code() == opNO_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[8].code() == opNO_ACCOUNT);
+            REQUIRE(tx->getResult().result.results()[9].code() == opNO_ACCOUNT);
         });
     }
 
