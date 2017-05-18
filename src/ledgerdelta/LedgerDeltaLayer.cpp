@@ -87,7 +87,8 @@ LedgerDeltaLayer::addEntry(EntryFrame& entry)
         if (mNew.find(k) != mNew.end()     // double new
             || mMod.find(k) != mMod.end()) // mod + new is invalid
         {
-            throw std::runtime_error("Could not update data in LedgerDeltaLayer");
+            throw std::runtime_error(
+                "Could not update data in LedgerDeltaLayer");
         }
         mNew[k] = entry.getEntry();
     }
@@ -203,7 +204,7 @@ LedgerDeltaLayer::apply(LedgerDeltaLayer const& delta)
 
 void
 LedgerDeltaLayer::addCurrentMeta(LedgerEntryChanges& changes,
-                            LedgerKey const& key) const
+                                 LedgerKey const& key) const
 {
     auto it = mPrevious.find(key);
     if (it != mPrevious.end())

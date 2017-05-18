@@ -21,7 +21,8 @@ LedgerDeltaScope::~LedgerDeltaScope()
     }
 }
 
-void LedgerDeltaScope::commit()
+void
+LedgerDeltaScope::commit()
 {
     if (mCommited)
     {
@@ -32,5 +33,4 @@ void LedgerDeltaScope::commit()
     mCommited = true;
     mStack.applyTop();
 }
-
 }

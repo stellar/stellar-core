@@ -44,7 +44,7 @@ class LedgerDeltaLayer final
         return mDelete;
     }
 
-private:
+  private:
     friend LedgerDelta;
     LedgerHeaderFrame mHeader; // LedgerHeader to commit changes to
 

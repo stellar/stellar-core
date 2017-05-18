@@ -5,19 +5,19 @@
 #include "bucket/LedgerCmp.h"
 #include "database/EntryQueries.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerTestUtils.h"
 #include "ledgerdelta/LedgerDelta.h"
 #include "ledgerdelta/LedgerDeltaLayer.h"
 #include "ledgerdelta/LedgerDeltaScope.h"
-#include "ledger/LedgerTestUtils.h"
-#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "xdr/Stellar-SCP.h"
-#include "xdr/Stellar-ledger.h"
 #include "test/test.h"
-#include "xdrpp/printer.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger.h"
+#include "xdrpp/printer.h"
 
 using namespace stellar;
 
@@ -54,7 +54,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             {
                 ledgerDelta.getHeader().idPool++;
                 app->getLedgerManager().apply(ledgerDelta);
-                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() == expHeader);
+                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() ==
+                        expHeader);
             }
             SECTION("nested")
             {
@@ -68,7 +69,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                     nested.commit();
                 }
                 app->getLedgerManager().apply(ledgerDelta);
-                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() == expHeader);
+                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() ==
+                        expHeader);
             }
             SECTION("nested2")
             {
@@ -82,13 +84,15 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                     nested.commit();
                 }
                 app->getLedgerManager().apply(ledgerDelta);
-                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() == expHeader);
+                REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() ==
+                        expHeader);
             }
         }
         SECTION("no commit")
         {
             ledgerDelta.getHeader().idPool++;
-            REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() == orgHeader);
+            REQUIRE(app->getLedgerManager().getCurrentLedgerHeader() ==
+                    orgHeader);
         }
     }
 
@@ -111,7 +115,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                 auto account = AccountFrame{a};
                 account.setSeqNum(s);
                 accounts.emplace_back(account.getEntry());
-                orgAccounts.emplace(std::make_pair(account.getKey(), account.getEntry()));
+                orgAccounts.emplace(
+                    std::make_pair(account.getKey(), account.getEntry()));
             }
         }
 
@@ -182,11 +187,11 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
         modEntries(nbAccountsGroupSize, nbAccountsGroupSize * 2, ledgerDelta,
                    accountsByKey);
         // delete entries
-        delEntries(nbAccountsGroupSize * 2, nbAccountsGroupSize * 3, ledgerDelta,
-                   accountsByKey);
+        delEntries(nbAccountsGroupSize * 2, nbAccountsGroupSize * 3,
+                   ledgerDelta, accountsByKey);
 
-        auto checkChanges = [&](LedgerDeltaLayer& d, size_t nbAdds, size_t nbMods,
-                                size_t nbDels, size_t nbStates,
+        auto checkChanges = [&](LedgerDeltaLayer& d, size_t nbAdds,
+                                size_t nbMods, size_t nbDels, size_t nbStates,
                                 MapAccounts const& orgData) {
             auto changes = d.getChanges();
             size_t expectedChanges = nbAdds + nbMods + nbDels + nbStates;
@@ -215,7 +220,8 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                         REQUIRE(stateKey == removedEntry);
                         gotState = false;
                     }
-                    REQUIRE(accountsByKey.find(removedEntry) == std::end(accountsByKey));
+                    REQUIRE(accountsByKey.find(removedEntry) ==
+                            std::end(accountsByKey));
                     dels++;
                 }
                 break;
@@ -253,8 +259,9 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             REQUIRE(states == nbStates);
         };
 
-        checkChanges(ledgerDelta.top(), nbAccountsGroupSize, nbAccountsGroupSize,
-                     nbAccountsGroupSize, nbAccountsGroupSize * 2, orgAccounts);
+        checkChanges(ledgerDelta.top(), nbAccountsGroupSize,
+                     nbAccountsGroupSize, nbAccountsGroupSize,
+                     nbAccountsGroupSize * 2, orgAccounts);
 
         MapAccounts orgAccountsBeforeD2 = accountsByKey;
         orgAccountsBeforeD2.insert(orgAccounts.begin(), orgAccounts.end());
@@ -266,7 +273,7 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                 {
                     LedgerDeltaScope nested{ledgerDelta};
                     addEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
-                            ledgerDelta, accountsByKey);
+                               ledgerDelta, accountsByKey);
                     nested.commit();
                 }
                 checkChanges(ledgerDelta.top(), nbAccountsGroupSize * 2,
@@ -279,11 +286,11 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
                     LedgerDeltaScope nested{ledgerDelta};
                     MapAccounts accountsByKey2;
                     addEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
-                            ledgerDelta, accountsByKey2);
+                               ledgerDelta, accountsByKey2);
                 }
-                checkChanges(ledgerDelta.top(), nbAccountsGroupSize, nbAccountsGroupSize,
-                             nbAccountsGroupSize, nbAccountsGroupSize * 2,
-                             orgAccounts);
+                checkChanges(ledgerDelta.top(), nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 2, orgAccounts);
             }
         }
         SECTION("modified entries")
@@ -299,28 +306,29 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
 
             // modify entries that were added and modified
             size_t start = nbAccountsGroupSize * 2 / 3;
-            modEntries(start, start + nbAccountsGroupSize, ledgerDelta, modAccounts);
+            modEntries(start, start + nbAccountsGroupSize, ledgerDelta,
+                       modAccounts);
             // add modified entries that were not tracked so far
-            modEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4, ledgerDelta,
-                    modAccounts);
+            modEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
+                       ledgerDelta, modAccounts);
 
             SECTION("apply")
             {
                 accountsByKey = modAccounts;
                 checkChanges(ledgerDelta.top(), 0, nbAccountsGroupSize * 2, 0,
-                            nbAccountsGroupSize, orgAccountsBeforeD2);
+                             nbAccountsGroupSize, orgAccountsBeforeD2);
                 nested->commit();
                 nested = nullptr; // do the commit
                 checkChanges(ledgerDelta.top(), nbAccountsGroupSize,
-                            nbAccountsGroupSize * 2, nbAccountsGroupSize,
-                            nbAccountsGroupSize * 3, orgAccounts);
+                             nbAccountsGroupSize * 2, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 3, orgAccounts);
             }
             SECTION("rollback")
             {
                 nested = nullptr; // rollback
-                checkChanges(ledgerDelta.top(), nbAccountsGroupSize, nbAccountsGroupSize,
-                            nbAccountsGroupSize, nbAccountsGroupSize * 2,
-                            orgAccounts);
+                checkChanges(ledgerDelta.top(), nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 2, orgAccounts);
             }
         }
         SECTION("deleted entries")
@@ -336,32 +344,33 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
 
             // delete entries that were added and modified
             size_t start = nbAccountsGroupSize * 2 / 3;
-            delEntries(start, start + nbAccountsGroupSize, ledgerDelta, delAccounts);
+            delEntries(start, start + nbAccountsGroupSize, ledgerDelta,
+                       delAccounts);
             // add deleted entries that were not tracked so far
-            delEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4, ledgerDelta,
-                    delAccounts);
+            delEntries(nbAccountsGroupSize * 3, nbAccountsGroupSize * 4,
+                       ledgerDelta, delAccounts);
 
             SECTION("apply")
             {
                 accountsByKey = delAccounts;
                 checkChanges(ledgerDelta.top(), 0, 0, nbAccountsGroupSize * 2,
-                            nbAccountsGroupSize, orgAccountsBeforeD2);
+                             nbAccountsGroupSize, orgAccountsBeforeD2);
                 nested->commit();
                 nested = nullptr; // do the commit
                 // adds/mods were replaced by a delete
                 // adds+del result in no-op
                 size_t adds2del = nbAccountsGroupSize / 3;
                 checkChanges(ledgerDelta.top(), nbAccountsGroupSize - adds2del,
-                            nbAccountsGroupSize - start,
-                            nbAccountsGroupSize * 3 - adds2del,
-                            nbAccountsGroupSize * 3, orgAccounts);
+                             nbAccountsGroupSize - start,
+                             nbAccountsGroupSize * 3 - adds2del,
+                             nbAccountsGroupSize * 3, orgAccounts);
             }
             SECTION("rollback")
             {
                 nested = nullptr; // rollback
-                checkChanges(ledgerDelta.top(), nbAccountsGroupSize, nbAccountsGroupSize,
-                            nbAccountsGroupSize, nbAccountsGroupSize * 2,
-                            orgAccounts);
+                checkChanges(ledgerDelta.top(), nbAccountsGroupSize,
+                             nbAccountsGroupSize, nbAccountsGroupSize,
+                             nbAccountsGroupSize * 2, orgAccounts);
             }
         }
     }

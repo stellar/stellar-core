@@ -5,10 +5,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerHeaderFrame.h"
-#include "xdr/Stellar-SCP.h"
-#include "xdr/Stellar-ledger.h"
-#include "xdr/Stellar-ledger-entries.h"
 #include "util/optional.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-ledger.h"
 
 #include <vector>
 
@@ -22,14 +22,14 @@ class LedgerEntries;
 
 class LedgerDelta
 {
-public:
+  public:
     explicit LedgerDelta(LedgerHeader ledgerHeader, LedgerEntries& entries);
     ~LedgerDelta();
 
     bool isCollapsed() const;
 
     LedgerDeltaLayer const& top() const;
-    LedgerDeltaLayer &top();
+    LedgerDeltaLayer& top();
 
     LedgerHeader& getHeader();
     LedgerHeader const& getHeader() const;
@@ -51,7 +51,7 @@ public:
 
     void markMeters(Application& app) const;
 
-private:
+  private:
     LedgerEntries& mEntries;
     std::vector<LedgerDeltaLayer> mLayers;
 
@@ -62,5 +62,4 @@ private:
     void applyTop();
     void rollbackTop();
 };
-
 }

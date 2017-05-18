@@ -4,12 +4,12 @@
 
 #include "ledgerdelta/LedgerDelta.h"
 #include "database/EntryQueries.h"
-#include "ledgerdelta/LedgerDeltaLayer.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerEntries.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "ledgerdelta/LedgerDeltaLayer.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -24,8 +24,8 @@ namespace stellar
 
 using xdr::operator==;
 
-LedgerDelta::LedgerDelta(LedgerHeader ledgerHeader, LedgerEntries& entries) :
-        mEntries{entries}
+LedgerDelta::LedgerDelta(LedgerHeader ledgerHeader, LedgerEntries& entries)
+    : mEntries{entries}
 {
     mLayers.emplace_back(ledgerHeader);
 }
@@ -108,7 +108,8 @@ LedgerDelta::insertOrUpdateEntry(EntryFrame& entry)
     }
 }
 
-void LedgerDelta::addEntry(EntryFrame& entry)
+void
+LedgerDelta::addEntry(EntryFrame& entry)
 {
     if (top().addEntry(entry))
     {
@@ -116,13 +117,15 @@ void LedgerDelta::addEntry(EntryFrame& entry)
     }
 }
 
-void LedgerDelta::deleteEntry(LedgerKey const& key)
+void
+LedgerDelta::deleteEntry(LedgerKey const& key)
 {
     top().deleteEntry(key);
     stellar::deleteEntry(key, mEntries.getDatabase());
 }
 
-void LedgerDelta::updateEntry(EntryFrame& entry)
+void
+LedgerDelta::updateEntry(EntryFrame& entry)
 {
     if (top().updateEntry(entry))
     {
@@ -130,12 +133,14 @@ void LedgerDelta::updateEntry(EntryFrame& entry)
     }
 }
 
-void LedgerDelta::recordEntry(EntryFrame const& entry)
+void
+LedgerDelta::recordEntry(EntryFrame const& entry)
 {
     top().recordEntry(entry);
 }
 
-bool LedgerDelta::entryExists(LedgerKey const& key) const
+bool
+LedgerDelta::entryExists(LedgerKey const& key) const
 {
     for (auto i = mLayers.rbegin(); i != mLayers.rend(); ++i)
     {
@@ -309,5 +314,4 @@ LedgerDelta::markMeters(Application& app) const
         }
     }
 }
-
 }

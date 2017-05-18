@@ -11,21 +11,20 @@ class LedgerDelta;
 
 class LedgerDeltaScope
 {
-public:
-  explicit LedgerDeltaScope(LedgerDelta& stack);
-  ~LedgerDeltaScope();
+  public:
+    explicit LedgerDeltaScope(LedgerDelta& stack);
+    ~LedgerDeltaScope();
 
-  LedgerDeltaScope(LedgerDeltaScope const&) = delete;
-  LedgerDeltaScope(LedgerDeltaScope&&) = delete;
+    LedgerDeltaScope(LedgerDeltaScope const&) = delete;
+    LedgerDeltaScope(LedgerDeltaScope&&) = delete;
 
-  LedgerDeltaScope& operator = (LedgerDeltaScope const&) = delete;
-  LedgerDeltaScope& operator = (LedgerDeltaScope&&) = delete;
+    LedgerDeltaScope& operator=(LedgerDeltaScope const&) = delete;
+    LedgerDeltaScope& operator=(LedgerDeltaScope&&) = delete;
 
-  void commit();
+    void commit();
 
-private:
-  LedgerDelta& mStack;
-  bool mCommited{false};
+  private:
+    LedgerDelta& mStack;
+    bool mCommited{false};
 };
-
 }

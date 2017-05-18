@@ -301,16 +301,14 @@ insertOffer(LedgerEntry const& entry, Database& db)
     {
         sellingIssuerStrKey =
             KeyUtils::toStrKey(offer.selling.alphaNum4().issuer);
-        assetCodeToStr(offer.selling.alphaNum4().assetCode,
-                       sellingAssetCode);
+        assetCodeToStr(offer.selling.alphaNum4().assetCode, sellingAssetCode);
         selling_ind = soci::i_ok;
     }
     else if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         sellingIssuerStrKey =
             KeyUtils::toStrKey(offer.selling.alphaNum12().issuer);
-        assetCodeToStr(offer.selling.alphaNum12().assetCode,
-                       sellingAssetCode);
+        assetCodeToStr(offer.selling.alphaNum12().assetCode, sellingAssetCode);
         selling_ind = soci::i_ok;
     }
 
@@ -318,16 +316,14 @@ insertOffer(LedgerEntry const& entry, Database& db)
     {
         buyingIssuerStrKey =
             KeyUtils::toStrKey(offer.buying.alphaNum4().issuer);
-        assetCodeToStr(offer.buying.alphaNum4().assetCode,
-                       buyingAssetCode);
+        assetCodeToStr(offer.buying.alphaNum4().assetCode, buyingAssetCode);
         buying_ind = soci::i_ok;
     }
     else if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         buyingIssuerStrKey =
             KeyUtils::toStrKey(offer.buying.alphaNum12().issuer);
-        assetCodeToStr(offer.buying.alphaNum12().assetCode,
-                       buyingAssetCode);
+        assetCodeToStr(offer.buying.alphaNum12().assetCode, buyingAssetCode);
         buying_ind = soci::i_ok;
     }
 
@@ -349,7 +345,9 @@ insertOffer(LedgerEntry const& entry, Database& db)
     st.exchange(soci::use(offer.amount, "a"));
     st.exchange(soci::use(offer.price.n, "pn"));
     st.exchange(soci::use(offer.price.d, "pd"));
-    auto computedPrice = offerFrame.computePrice(); // do not ever pass result of function to soci::use
+    auto computedPrice =
+        offerFrame
+            .computePrice(); // do not ever pass result of function to soci::use
     st.exchange(soci::use(computedPrice, "p"));
     st.exchange(soci::use(offer.flags, "f"));
     st.exchange(soci::use(entry.lastModifiedLedgerSeq, "l"));
@@ -388,16 +386,14 @@ updateOffer(LedgerEntry const& entry, Database& db)
     {
         sellingIssuerStrKey =
             KeyUtils::toStrKey(offer.selling.alphaNum4().issuer);
-        assetCodeToStr(offer.selling.alphaNum4().assetCode,
-                       sellingAssetCode);
+        assetCodeToStr(offer.selling.alphaNum4().assetCode, sellingAssetCode);
         selling_ind = soci::i_ok;
     }
     else if (sellingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         sellingIssuerStrKey =
             KeyUtils::toStrKey(offer.selling.alphaNum12().issuer);
-        assetCodeToStr(offer.selling.alphaNum12().assetCode,
-                       sellingAssetCode);
+        assetCodeToStr(offer.selling.alphaNum12().assetCode, sellingAssetCode);
         selling_ind = soci::i_ok;
     }
 
@@ -405,16 +401,14 @@ updateOffer(LedgerEntry const& entry, Database& db)
     {
         buyingIssuerStrKey =
             KeyUtils::toStrKey(offer.buying.alphaNum4().issuer);
-        assetCodeToStr(offer.buying.alphaNum4().assetCode,
-                       buyingAssetCode);
+        assetCodeToStr(offer.buying.alphaNum4().assetCode, buyingAssetCode);
         buying_ind = soci::i_ok;
     }
     else if (buyingType == ASSET_TYPE_CREDIT_ALPHANUM12)
     {
         buyingIssuerStrKey =
             KeyUtils::toStrKey(offer.buying.alphaNum12().issuer);
-        assetCodeToStr(offer.buying.alphaNum12().assetCode,
-                       buyingAssetCode);
+        assetCodeToStr(offer.buying.alphaNum12().assetCode, buyingAssetCode);
         buying_ind = soci::i_ok;
     }
 
@@ -437,7 +431,9 @@ updateOffer(LedgerEntry const& entry, Database& db)
     st.exchange(soci::use(offer.amount, "a"));
     st.exchange(soci::use(offer.price.n, "pn"));
     st.exchange(soci::use(offer.price.d, "pd"));
-    auto computedPrice = offerFrame.computePrice(); // do not ever pass result of function to soci::use
+    auto computedPrice =
+        offerFrame
+            .computePrice(); // do not ever pass result of function to soci::use
     st.exchange(soci::use(computedPrice, "p"));
     st.exchange(soci::use(offer.flags, "f"));
     st.exchange(soci::use(entry.lastModifiedLedgerSeq, "l"));
