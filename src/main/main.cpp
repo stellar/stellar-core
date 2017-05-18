@@ -33,6 +33,7 @@ using namespace std;
 
 enum opttag
 {
+    OPT_BASE64,
     OPT_CMD,
     OPT_CONF,
     OPT_CONVERTID,
@@ -59,6 +60,7 @@ enum opttag
 };
 
 static const struct option stellar_core_options[] = {
+    {"base64", no_argument, nullptr, OPT_BASE64},
     {"c", required_argument, nullptr, OPT_CMD},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
@@ -90,6 +92,7 @@ usage(int err = 1)
     std::ostream& os = err ? std::cerr : std::cout;
     os << "usage: stellar-core [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
+          "      --base64        Use base64 for --printtxn and --signtxn\n"
           "      --c             Send a command to local stellar-core. try "
           "'--c help' for more information\n"
           "      --conf FILE     Specify a config file ('-' for STDIN, "
@@ -393,6 +396,7 @@ main(int argc, char* const* argv)
     std::vector<char*> rest;
 
     optional<bool> forceSCP = nullptr;
+    bool base64 = false;
     bool inferQuorum = false;
     bool checkQuorum = false;
     bool graphQuorum = false;
@@ -408,6 +412,9 @@ main(int argc, char* const* argv)
     {
         switch (opt)
         {
+        case OPT_BASE64:
+            base64 = true;
+            break;
         case 'c':
         case OPT_CMD:
             command = optarg;
@@ -424,10 +431,10 @@ main(int argc, char* const* argv)
             dumpxdr(std::string(optarg));
             return 0;
         case OPT_PRINTTXN:
-            printtxn(std::string(optarg));
+            printtxn(std::string(optarg), base64);
             return 0;
         case OPT_SIGNTXN:
-            signtxn(std::string(optarg));
+            signtxn(std::string(optarg), base64);
             return 0;
         case OPT_NETID:
             signtxn_network_id = optarg;

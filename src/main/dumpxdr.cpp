@@ -1,6 +1,7 @@
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
 #include "transactions/SignatureUtils.h"
+#include "util/basen.h"
 #include "util/Fs.h"
 #include "util/XDRStream.h"
 #include <iostream>
@@ -96,8 +97,10 @@ dumpxdr(std::string const& filename)
                                  xdr_strerror(errno));                         \
     } while (0)
 
+static std::string readFile(const std::string& filename, bool base64 = false);
+
 static std::string
-readFile(const std::string& filename)
+readFile(const std::string& filename, bool base64)
 {
     using namespace std;
     ostringstream input;
@@ -110,16 +113,22 @@ readFile(const std::string& filename)
             throw_perror(filename);
         input << file.rdbuf();
     }
-    return input.str();
+    if (base64) {
+        string ret;
+        bn::decode_b64(input.str(), ret);
+        return ret;
+    }
+    else
+        return input.str();
 }
 
 void
-printtxn(const std::string& filename)
+printtxn(const std::string& filename, bool base64)
 {
     using xdr::operator<<;
 
     TransactionEnvelope txenv;
-    xdr::xdr_from_opaque(readFile(filename), txenv);
+    xdr::xdr_from_opaque(readFile(filename, base64), txenv);
     std::cout << txenv;
 }
 
@@ -207,7 +216,7 @@ readSecret(const std::string& prompt, bool force_tty)
 }
 
 void
-signtxn(std::string const& filename)
+signtxn(std::string const& filename, bool base64)
 {
     using namespace std;
 
@@ -221,12 +230,12 @@ signtxn(std::string const& filename)
 
         const bool txn_stdin = filename == "-" || filename.empty();
 
-        if (isatty(1))
+        if (!base64 && isatty(1))
             throw std::runtime_error(
                 "Refusing to write binary transaction to terminal");
 
         TransactionEnvelope txenv;
-        xdr::xdr_from_opaque(readFile(filename), txenv);
+        xdr::xdr_from_opaque(readFile(filename, base64), txenv);
         if (txenv.signatures.size() == txenv.signatures.max_size())
             throw std::runtime_error(
                 "Evelope already contains maximum number of signatures");
@@ -242,7 +251,10 @@ signtxn(std::string const& filename)
             sk.sign(sha256(xdr::xdr_to_opaque(payload))));
 
         auto out = xdr::xdr_to_opaque(txenv);
-        cout.write(reinterpret_cast<char*>(out.data()), out.size());
+        if (base64)
+            cout << bn::encode_b64(out) << std::endl;
+        else
+            cout.write(reinterpret_cast<char*>(out.data()), out.size());
     }
     catch (const std::exception& e)
     {
