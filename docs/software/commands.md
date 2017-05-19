@@ -49,7 +49,7 @@ forcescp doesn't change the requirements for quorum so although this node will e
   variable, then before this argument you must specify the --netid
   option.
 * **--base64**: When preceding --printtxn or --signtxn, alters the
-  behavior of the option to works on base64-encoded XDR rather than
+  behavior of the option to work on base64-encoded XDR rather than
   raw XDR.
 * **--sec2pub**:  Reads a secret key on standard input and outputs the
   corresponding public key.  Both keys are in Stellar's standard
