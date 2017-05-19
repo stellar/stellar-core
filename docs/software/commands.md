@@ -48,6 +48,11 @@ forcescp doesn't change the requirements for quorum so although this node will e
   Note that if you do not have a STELLAR_NETWORK_ID environment
   variable, then before this argument you must specify the --netid
   option.
+* **--base64**: Used in conjunction with --printtxn and --signtxn,
+  works on base64-encoded XDR rather than raw XDR.
+* **--sec2pub**:  Reads a secret key on standard input and outputs the
+  corresponding public key.  Both keys are in Stellar's standard
+  base-32 ASCII format.
 * **--netid STRING**:  The --signtxn option requires a particular
   network to sign for.  For example, the production stellar network is
   "`Public Global Stellar Network ; September 2015`" while the test

@@ -125,11 +125,16 @@ readFile(const std::string& filename, bool base64)
 void
 printtxn(const std::string& filename, bool base64)
 {
-    using xdr::operator<<;
-
-    TransactionEnvelope txenv;
-    xdr::xdr_from_opaque(readFile(filename, base64), txenv);
-    std::cout << txenv;
+    try {
+        using xdr::operator<<;
+        TransactionEnvelope txenv;
+        xdr::xdr_from_opaque(readFile(filename, base64), txenv);
+        std::cout << txenv;
+    }
+    catch (const std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+    }
 }
 
 static int

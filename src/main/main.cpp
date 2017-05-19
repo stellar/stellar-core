@@ -53,7 +53,7 @@ enum opttag
     OPT_NEWDB,
     OPT_NEWHIST,
     OPT_PRINTTXN,
-    OPT_PRIV2PUB,
+    OPT_SEC2PUB,
     OPT_SIGNTXN,
     OPT_NETID,
     OPT_TEST,
@@ -79,7 +79,7 @@ static const struct option stellar_core_options[] = {
     {"help", no_argument, nullptr, OPT_HELP},
     {"inferquorum", optional_argument, nullptr, OPT_INFERQUORUM},
     {"offlineinfo", no_argument, nullptr, OPT_OFFLINEINFO},
-    {"priv2pub", no_argument, nullptr, OPT_PRIV2PUB},
+    {"sec2pub", no_argument, nullptr, OPT_SEC2PUB},
     {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
@@ -127,6 +127,8 @@ usage(int err = 1)
           " then quit\n"
           "                      (Key is read from stdin or terminal, as"
           " appropriate.)\n"
+          "      --sec2pub       Print the public key corresponding to a "
+          "secret key\n"
           "      --netid STRING  Specify network ID for subsequent signtxn\n"
           "                      (Default is STELLAR_NETWORK_ID environment"
           "variable)\n"
@@ -438,7 +440,7 @@ main(int argc, char* const* argv)
         case OPT_SIGNTXN:
             signtxn(std::string(optarg), base64);
             return 0;
-        case OPT_PRIV2PUB:
+        case OPT_SEC2PUB:
             priv2pub();
             return 0;
         case OPT_NETID:
