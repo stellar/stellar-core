@@ -33,11 +33,11 @@ using namespace std;
 
 enum opttag
 {
-    OPT_BASE64,
     OPT_CMD,
     OPT_CONF,
     OPT_CONVERTID,
     OPT_CHECKQUORUM,
+    OPT_BASE64,
     OPT_DUMPXDR,
     OPT_LOADXDR,
     OPT_FORCESCP,
@@ -53,6 +53,7 @@ enum opttag
     OPT_NEWDB,
     OPT_NEWHIST,
     OPT_PRINTTXN,
+    OPT_PRIV2PUB,
     OPT_SIGNTXN,
     OPT_NETID,
     OPT_TEST,
@@ -60,11 +61,11 @@ enum opttag
 };
 
 static const struct option stellar_core_options[] = {
-    {"base64", no_argument, nullptr, OPT_BASE64},
     {"c", required_argument, nullptr, OPT_CMD},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
     {"checkquorum", optional_argument, nullptr, OPT_CHECKQUORUM},
+    {"base64", no_argument, nullptr, OPT_BASE64},
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
     {"printtxn", required_argument, nullptr, OPT_PRINTTXN},
     {"signtxn", required_argument, nullptr, OPT_SIGNTXN},
@@ -78,6 +79,7 @@ static const struct option stellar_core_options[] = {
     {"help", no_argument, nullptr, OPT_HELP},
     {"inferquorum", optional_argument, nullptr, OPT_INFERQUORUM},
     {"offlineinfo", no_argument, nullptr, OPT_OFFLINEINFO},
+    {"priv2pub", no_argument, nullptr, OPT_PRIV2PUB},
     {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
     {"newdb", no_argument, nullptr, OPT_NEWDB},
@@ -435,6 +437,9 @@ main(int argc, char* const* argv)
             return 0;
         case OPT_SIGNTXN:
             signtxn(std::string(optarg), base64);
+            return 0;
+        case OPT_PRIV2PUB:
+            priv2pub();
             return 0;
         case OPT_NETID:
             signtxn_network_id = optarg;

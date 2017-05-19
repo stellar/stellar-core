@@ -261,4 +261,19 @@ signtxn(std::string const& filename, bool base64)
         cerr << e.what() << endl;
     }
 }
+
+void
+priv2pub()
+{
+    using namespace std;
+    try {
+        SecretKey sk(SecretKey::fromStrKeySeed(
+            readSecret("Secret key seed: ", false)));
+        cout << sk.getStrKeyPublic() << endl;
+    }
+    catch (const std::exception& e)
+    {
+        cerr << e.what() << endl;
+    }
+}
 }

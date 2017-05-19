@@ -13,4 +13,5 @@ extern const char* signtxn_network_id;
 void dumpxdr(std::string const& filename);
 void printtxn(std::string const& filename, bool base64);
 void signtxn(std::string const& filename, bool base64);
+void priv2pub();
 }
