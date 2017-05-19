@@ -113,6 +113,14 @@ terminal, stellar\-core disables echo.
 Note that if you do not have a STELLAR_NETWORK_ID environment variable,
 then before this argument you must specify the \-\-netid option.
 .IP \[bu] 2
+\f[B]\-\-base64\f[]: When preceding \-\-printtxn or \-\-signtxn, alters
+the behavior of the option to work on base64\-encoded XDR rather than
+raw XDR.
+.IP \[bu] 2
+\f[B]\-\-sec2pub\f[]: Reads a secret key on standard input and outputs
+the corresponding public key.
+Both keys are in Stellar\[aq]s standard base\-32 ASCII format.
+.IP \[bu] 2
 \f[B]\-\-netid STRING\f[]: The \-\-signtxn option requires a particular
 network to sign for.
 For example, the production stellar network is
