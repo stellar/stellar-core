@@ -97,10 +97,8 @@ dumpxdr(std::string const& filename)
                                  xdr_strerror(errno));                         \
     } while (0)
 
-static std::string readFile(const std::string& filename, bool base64 = false);
-
 static std::string
-readFile(const std::string& filename, bool base64)
+readFile(const std::string& filename, bool base64 = false)
 {
     using namespace std;
     ostringstream input;
