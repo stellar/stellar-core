@@ -7,6 +7,7 @@
 #define ELPP_THREAD_SAFE
 #define ELPP_DISABLE_DEFAULT_CRASH_HANDLING
 #define ELPP_NO_DEFAULT_LOG_FILE
+#define ELPP_FEATURE_PERFORMANCE_TRACKING
 
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead
