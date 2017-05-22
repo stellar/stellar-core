@@ -4,7 +4,6 @@
 
 #include "herder/HerderUtils.h"
 #include "scp/Slot.h"
-#include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
 #include <algorithm>
 #include <xdrpp/marshal.h>

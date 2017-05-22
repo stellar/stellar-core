@@ -10,7 +10,6 @@
 #include <queue>
 #include <set>
 #include <util/optional.h>
-#include <xdr/Stellar-SCP.h>
 
 /*
 SCP messages that you have received but are waiting to get the info of

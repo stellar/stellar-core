@@ -8,7 +8,6 @@
 #include "util/HashOfHash.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
-#include "xdr/Stellar-SCP.h"
 #include <deque>
 #include <functional>
 #include <map>

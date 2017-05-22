@@ -13,7 +13,6 @@
 #include "crypto/SecretKey.h"
 #include "lib/json/json-forwards.h"
 #include "scp/SCPDriver.h"
-#include "xdr/Stellar-SCP.h"
 
 namespace stellar
 {
