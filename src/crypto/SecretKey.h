@@ -17,6 +17,7 @@ namespace stellar
 using xdr::operator==;
 
 class ByteSlice;
+struct SecretValue;
 struct SignerKey;
 
 class SecretKey
@@ -43,7 +44,7 @@ class SecretKey
     PublicKey getPublicKey() const;
 
     // Get the seed portion of this secret key as a StrKey string.
-    std::string getStrKeySeed() const;
+    SecretValue getStrKeySeed() const;
 
     // Get the public key portion of this secret key as a StrKey string.
     std::string getStrKeyPublic() const;

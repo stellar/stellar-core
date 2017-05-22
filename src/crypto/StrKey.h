@@ -9,6 +9,8 @@
 namespace stellar
 {
 
+struct SecretValue;
+
 namespace strKey
 {
 
@@ -21,7 +23,7 @@ typedef enum {
 } StrKeyVersionByte;
 
 // Encode a version byte and ByteSlice into StrKey
-std::string toStrKey(uint8_t ver, ByteSlice const& bin);
+SecretValue toStrKey(uint8_t ver, ByteSlice const& bin);
 
 // computes the size of the StrKey that would result from encoding
 // a ByteSlice of dataSize bytes

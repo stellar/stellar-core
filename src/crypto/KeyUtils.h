@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/StrKey.h"
+#include "util/SecretValue.h"
 #include "xdr/Stellar-types.h"
 
 #include <sodium.h>
@@ -13,6 +14,8 @@
 
 namespace stellar
 {
+
+class SecretKey;
 
 template <typename T> struct KeyFunctions
 {
@@ -35,7 +38,15 @@ namespace KeyUtils
 {
 
 template <typename T>
-std::string
+typename std::enable_if<!std::is_same<T, SecretKey>::value, std::string>::type
+toStrKey(T const& key)
+{
+    return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
+                            KeyFunctions<T>::getKeyValue(key)).value;
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, SecretKey>::value, SecretValue>::type
 toStrKey(T const& key)
 {
     return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
@@ -43,10 +54,17 @@ toStrKey(T const& key)
 }
 
 template <typename T>
-std::string
+typename std::enable_if<!std::is_same<T, SecretKey>::value, std::string>::type
 toShortString(T const& key)
 {
     return toStrKey(key).substr(0, 5);
+}
+
+template <typename T>
+typename std::enable_if<std::is_same<T, SecretKey>::value, SecretValue>::type
+toShortString(T const& key)
+{
+    return SecretValue{toStrKey(key).value.substr(0, 5)};
 }
 
 std::size_t getKeyVersionSize(strKey::StrKeyVersionByte keyVersion);

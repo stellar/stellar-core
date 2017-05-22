@@ -106,7 +106,7 @@ SecretKey::getSeed() const
     return seed;
 }
 
-std::string
+SecretValue
 SecretKey::getStrKeySeed() const
 {
     assert(mKeyType == PUBLIC_KEY_TYPE_ED25519);
@@ -348,7 +348,7 @@ static void
 logSecretKey(std::ostream& s, SecretKey const& sk)
 {
     s << "Seed:" << std::endl
-      << "  strKey: " << sk.getStrKeySeed() << std::endl;
+      << "  strKey: " << sk.getStrKeySeed().value << std::endl;
     logPublicKey(s, sk.getPublicKey());
 }
 
