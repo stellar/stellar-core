@@ -97,6 +97,8 @@ class TestAccount
     }
     SequenceNumber loadSequenceNumber() const;
 
+    int64_t getBalance() const;
+
   private:
     Application& mApp;
     SecretKey mSk;

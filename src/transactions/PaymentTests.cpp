@@ -188,8 +188,8 @@ TEST_CASE("payment", "[tx][payment]")
         auto amount = app.getLedgerManager().getMinBalance(0) + payment;
         auto b1 = root.create("B", amount);
 
-        int64 a1Balance = getAccountBalance(a1, app);
-        int64 b1Balance = getAccountBalance(b1, app);
+        int64 a1Balance = a1.getBalance();
+        int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
             {createPaymentOp(nullptr, b1, 200), createMergeOp(nullptr, b1)});
@@ -201,7 +201,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(!loadAccount(a1, app, false));
             REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
-                    getAccountBalance(b1, app));
+                    b1.getBalance());
         });
     }
 
@@ -211,8 +211,8 @@ TEST_CASE("payment", "[tx][payment]")
         auto amount = app.getLedgerManager().getMinBalance(0) + payment;
         auto b1 = root.create("B", amount);
 
-        int64 a1Balance = getAccountBalance(a1, app);
-        int64 b1Balance = getAccountBalance(b1, app);
+        int64 a1Balance = a1.getBalance();
+        int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx({createPaymentOp(nullptr, b1, 200),
                               createMergeOp(&b1.getSecretKey(), a1)});
@@ -225,7 +225,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(!loadAccount(b1, app, false));
             REQUIRE((a1Balance + b1Balance - txFrame->getFee()) ==
-                    getAccountBalance(a1, app));
+                    a1.getBalance());
         });
     }
 
@@ -233,8 +233,8 @@ TEST_CASE("payment", "[tx][payment]")
     {
         auto b1 = root.create("B", app.getLedgerManager().getMinBalance(0));
 
-        int64 a1Balance = getAccountBalance(a1, app);
-        int64 b1Balance = getAccountBalance(b1, app);
+        int64 a1Balance = a1.getBalance();
+        int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
             {createMergeOp(nullptr, b1), createPaymentOp(nullptr, b1, 200)});
@@ -244,8 +244,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
-            REQUIRE(b1Balance == getAccountBalance(b1, app));
-            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+            REQUIRE(b1Balance == b1.getBalance());
+            REQUIRE((a1Balance - txFrame->getFee()) == a1.getBalance());
         });
 
         for_versions_from(8, app, [&]{
@@ -253,8 +253,8 @@ TEST_CASE("payment", "[tx][payment]")
 
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
-            REQUIRE(b1Balance == getAccountBalance(b1, app));
-            REQUIRE((a1Balance - txFrame->getFee()) == getAccountBalance(a1, app));
+            REQUIRE(b1Balance == b1.getBalance());
+            REQUIRE((a1Balance - txFrame->getFee()) == a1.getBalance());
         });
     }
 
@@ -332,15 +332,15 @@ TEST_CASE("payment", "[tx][payment]")
             auto tx2 = createPaymentTx(app.getNetworkID(), b1, root,
                                     b1.nextSequenceNumber(), 6);
 
-            int64 rootBalance = getAccountBalance(root, app);
+            int64 rootBalance = root.getBalance();
             auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance = app.getLedgerManager().getMinBalance(0) + 5;
-            REQUIRE(expectedb1Balance == getAccountBalance(b1, app));
-            REQUIRE(expectedrootBalance == getAccountBalance(root, app));
+            REQUIRE(expectedb1Balance == b1.getBalance());
+            REQUIRE(expectedrootBalance == root.getBalance());
         });
     }
 
@@ -350,9 +350,9 @@ TEST_CASE("payment", "[tx][payment]")
         auto sourceAccount = root.create("source", amount);
         auto secondSourceAccount = root.create("secondSource", amount);
         auto payAndMergeDestination = root.create("payAndMerge", amount);
-        auto balanceBefore = getAccountBalance(sourceAccount, app)
-                + getAccountBalance(secondSourceAccount, app)
-                + getAccountBalance(payAndMergeDestination, app);
+        auto balanceBefore = sourceAccount.getBalance()
+                + secondSourceAccount.getBalance()
+                + payAndMergeDestination.getBalance();
 
         auto tx = sourceAccount.tx({
             createPaymentOp(nullptr, payAndMergeDestination, 500000000),
@@ -364,17 +364,17 @@ TEST_CASE("payment", "[tx][payment]")
 
         for_versions_to(7, app, [&]{
             throwingApplyCheck(tx, delta, app);
-            auto balanceAfter = getAccountBalance(sourceAccount, app)
-                    + getAccountBalance(secondSourceAccount, app)
-                    + getAccountBalance(payAndMergeDestination, app);
+            auto balanceAfter = sourceAccount.getBalance()
+                    + secondSourceAccount.getBalance()
+                    + payAndMergeDestination.getBalance();
             REQUIRE(balanceBefore + amount - 1000000800 == balanceAfter);
         });
 
         for_versions_from(8, app, [&]{
             throwingApplyCheck(tx, delta, app);
-            auto balanceAfter = getAccountBalance(sourceAccount, app)
-                    + getAccountBalance(secondSourceAccount, app)
-                    + getAccountBalance(payAndMergeDestination, app);
+            auto balanceAfter = sourceAccount.getBalance()
+                    + secondSourceAccount.getBalance()
+                    + payAndMergeDestination.getBalance();
             REQUIRE(balanceBefore - 400 == balanceAfter);
         });
     }
@@ -500,17 +500,17 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("path payment to self XLM")
     {
-        auto a1Balance = getAccountBalance(a1, app);
+        auto a1Balance = a1.getBalance();
         auto amount = a1Balance / 10;
 
         for_versions_to(7, app, [&]{
             a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
-            REQUIRE(getAccountBalance(a1, app) == a1Balance - amount - txfee);
+            REQUIRE(a1.getBalance() == a1Balance - amount - txfee);
         });
 
         for_versions_from(8, app, [&]{
             a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
-            REQUIRE(getAccountBalance(a1, app) == a1Balance - txfee);
+            REQUIRE(a1.getBalance() == a1Balance - txfee);
         });
     }
 
@@ -1158,12 +1158,12 @@ TEST_CASE("payment", "[tx][payment]")
                 return account;
             };
 
-            auto validateAccountAsset = [&](const SecretKey& account,
+            auto validateAccountAsset = [&](const TestAccount& account,
                                             int assetIndex, int difference,
                                             int feeCount) {
                 if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
                 {
-                    REQUIRE(getAccountBalance(account, app) ==
+                    REQUIRE(account.getBalance() ==
                             initialBalance + difference - feeCount * txFee);
                 }
                 else
@@ -1173,7 +1173,7 @@ TEST_CASE("payment", "[tx][payment]")
                             initialBalance + difference);
                 }
             };
-            auto validateAccountAssets = [&](const SecretKey& account,
+            auto validateAccountAssets = [&](const TestAccount& account,
                                                 int assetIndex, int difference,
                                                 int feeCount) {
                 for (size_t i = 0; i < pathSize; i++)

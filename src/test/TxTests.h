@@ -57,8 +57,6 @@ OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
 TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
 
-int64_t getAccountBalance(SecretKey const& k, Application& app);
-
 xdr::xvector<Signer, 20> getAccountSigners(SecretKey const& k,
                                            Application& app);
 

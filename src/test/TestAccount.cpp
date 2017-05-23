@@ -27,6 +27,12 @@ TestAccount::updateSequenceNumber()
     }
 }
 
+int64_t
+TestAccount::getBalance() const
+{
+    return loadAccount(getSecretKey(), mApp)->getBalance();
+}
+
 TransactionFramePtr
 TestAccount::tx(std::vector<Operation> const& ops)
 {

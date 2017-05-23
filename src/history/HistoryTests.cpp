@@ -320,10 +320,10 @@ HistoryTests::generateRandomLedger()
                                  .getCurr()
                                  ->getHash());
 
-    rootBalances.push_back(getAccountBalance(root, app));
-    aliceBalances.push_back(getAccountBalance(alice, app));
-    bobBalances.push_back(getAccountBalance(bob, app));
-    carolBalances.push_back(getAccountBalance(carol, app));
+    rootBalances.push_back(root.getBalance());
+    aliceBalances.push_back(alice.getBalance());
+    bobBalances.push_back(bob.getBalance());
+    carolBalances.push_back(carol.getBalance());
 
     rootSeqs.push_back(root.loadSequenceNumber());
     aliceSeqs.push_back(alice.loadSequenceNumber());
@@ -566,10 +566,10 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     auto haveBobSeq = bobSeqs.at(i);
     auto haveCarolSeq = carolSeqs.at(i);
 
-    auto wantRootBalance = getAccountBalance(root, *app2);
-    auto wantAliceBalance = getAccountBalance(alice, *app2);
-    auto wantBobBalance = getAccountBalance(bob, *app2);
-    auto wantCarolBalance = getAccountBalance(carol, *app2);
+    auto wantRootBalance = root.getBalance();
+    auto wantAliceBalance = alice.getBalance();
+    auto wantBobBalance = bob.getBalance();
+    auto wantCarolBalance = carol.getBalance();
 
     auto wantRootSeq = root.loadSequenceNumber();
     auto wantAliceSeq = alice.loadSequenceNumber();
