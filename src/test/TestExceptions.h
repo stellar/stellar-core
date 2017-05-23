@@ -22,6 +22,10 @@ class ex_txINTERNAL_ERROR
 {
 };
 
+class ex_UNKNOWN
+{
+};
+
 class ex_ACCOUNT_MERGE_MALFORMED
 {
 };

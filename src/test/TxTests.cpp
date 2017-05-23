@@ -299,10 +299,6 @@ applyAllowTrust(Application& app, SecretKey const& from,
     applyCheck(txFrame, delta, app);
     throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-
-    REQUIRE(AllowTrustOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) ==
-            ALLOW_TRUST_SUCCESS);
 }
 
 Operation
@@ -342,18 +338,9 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
-    auto txResult = txFrame->getResult();
-    auto result =
-        CreateAccountOpFrame::getInnerCode(txResult.result.results()[0]);
-
-    AccountFrame::pointer toAccountAfter;
-    toAccountAfter = loadAccount(to, app, false);
-
-    if (result != CREATE_ACCOUNT_SUCCESS)
+    if (!applyCheck(txFrame, delta, app))
     {
+        auto toAccountAfter = loadAccount(to, app, false);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter)
@@ -361,12 +348,11 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
     }
-    else
-    {
-        REQUIRE(toAccountAfter);
-    }
-    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
-    REQUIRE(result == CREATE_ACCOUNT_SUCCESS);
+    throwIf(txFrame->getResult());
+    checkTransaction(*txFrame);
+
+    auto toAccountAfter = loadAccount(to, app, false);
+    REQUIRE(toAccountAfter);
 }
 
 Operation
@@ -407,20 +393,9 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-
-    checkTransaction(*txFrame);
-    auto txResult = txFrame->getResult();
-    auto result = PaymentOpFrame::getInnerCode(txResult.result.results()[0]);
-
-    REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
-
-    AccountFrame::pointer toAccountAfter;
-    toAccountAfter = loadAccount(to, app, false);
-
-    if (result != PAYMENT_SUCCESS)
+    if (!applyCheck(txFrame, delta, app))
     {
+        auto toAccountAfter = loadAccount(to, app, false);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter)
@@ -428,13 +403,12 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
     }
-    else
-    {
-        REQUIRE(toAccount);
-        REQUIRE(toAccountAfter);
-    }
+    throwIf(txFrame->getResult());
+    checkTransaction(*txFrame);
 
-    REQUIRE(result == PAYMENT_SUCCESS);
+    auto toAccountAfter = loadAccount(to, app, false);
+    REQUIRE(toAccount);
+    REQUIRE(toAccountAfter);
 }
 
 void
@@ -452,10 +426,6 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
     applyCheck(txFrame, delta, app);
     throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-
-    auto result = ChangeTrustOpFrame::getInnerCode(
-        txFrame->getResult().result.results()[0]);
-    REQUIRE(result == CHANGE_TRUST_SUCCESS);
 }
 
 TransactionFramePtr
@@ -497,13 +467,6 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
     applyCheck(txFrame, delta, app);
     throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-
-    auto& firstResult = getFirstResult(*txFrame);
-
-    auto res = firstResult.tr().paymentResult();
-    auto result = res.code();
-
-    REQUIRE(result == PAYMENT_SUCCESS);
 }
 
 TransactionFramePtr
@@ -561,7 +524,6 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
         REQUIRE(!noIssuer);
     }
 
-    REQUIRE(result == PATH_PAYMENT_SUCCESS);
     return res;
 }
 
@@ -631,37 +593,30 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     auto& manageOfferResult = results[0].tr().manageOfferResult();
 
-    if (manageOfferResult.code() == MANAGE_OFFER_SUCCESS)
+    OfferFrame::pointer offer;
+
+    auto& offerResult = manageOfferResult.success().offer;
+
+    switch (offerResult.effect())
     {
-        OfferFrame::pointer offer;
-
-        auto& offerResult = manageOfferResult.success().offer;
-
-        switch (offerResult.effect())
-        {
-        case MANAGE_OFFER_CREATED:
-        case MANAGE_OFFER_UPDATED:
-        {
-            offer =
-                loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-            auto& offerEntry = offer->getOffer();
-            REQUIRE(offerEntry == offerResult.offer());
-            REQUIRE(offerEntry.price == price);
-            REQUIRE(offerEntry.selling == selling);
-            REQUIRE(offerEntry.buying == buying);
-        }
-        break;
-        case MANAGE_OFFER_DELETED:
-            REQUIRE(
-                !loadOffer(source.getPublicKey(), expectedOfferID, app, false));
-            break;
-        default:
-            abort();
-        }
+    case MANAGE_OFFER_CREATED:
+    case MANAGE_OFFER_UPDATED:
+    {
+        offer =
+            loadOffer(source.getPublicKey(), expectedOfferID, app, true);
+        auto& offerEntry = offer->getOffer();
+        REQUIRE(offerEntry == offerResult.offer());
+        REQUIRE(offerEntry.price == price);
+        REQUIRE(offerEntry.selling == selling);
+        REQUIRE(offerEntry.buying == buying);
     }
-    else
-    {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+    break;
+    case MANAGE_OFFER_DELETED:
+        REQUIRE(
+            !loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+        break;
+    default:
+        abort();
     }
 
     return manageOfferResult;
@@ -775,13 +730,6 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         }
     }
 
-    if (createPassiveOfferResult.code() != MANAGE_OFFER_SUCCESS)
-    {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
-    }
-
-    REQUIRE(createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS);
-
     auto& success = createPassiveOfferResult.success().offer;
 
     REQUIRE(success.effect() == expectedEffect);
@@ -876,9 +824,6 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
     applyCheck(txFrame, delta, app);
     throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-    auto result = SetOptionsOpFrame::getInnerCode(
-        txFrame->getResult().result.results()[0]);
-    REQUIRE(SET_OPTIONS_SUCCESS == result);
 }
 
 Operation
@@ -951,10 +896,6 @@ applyAccountMerge(Application& app, SecretKey const& source,
     applyCheck(txFrame, delta, app);
     throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-
-    auto result =
-        MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
-    REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
 }
 
 TransactionFramePtr

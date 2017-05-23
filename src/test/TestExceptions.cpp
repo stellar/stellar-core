@@ -23,8 +23,10 @@ throwIf(CreateAccountResult const& result)
         throw ex_CREATE_ACCOUNT_LOW_RESERVE{};
     case CREATE_ACCOUNT_ALREADY_EXIST:
         throw ex_CREATE_ACCOUNT_ALREADY_EXIST{};
-    default:
+    case CREATE_ACCOUNT_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -51,8 +53,10 @@ throwIf(PaymentResult const& result)
         throw ex_PAYMENT_LINE_FULL{};
     case PAYMENT_NO_ISSUER:
         throw ex_PAYMENT_NO_ISSUER{};
-    default:
+    case PAYMENT_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -85,8 +89,10 @@ throwIf(PathPaymentResult const& result)
         throw ex_PATH_PAYMENT_OFFER_CROSS_SELF{};
     case PATH_PAYMENT_OVER_SENDMAX:
         throw ex_PATH_PAYMENT_OVER_SENDMAX{};
-    default:
+    case PATH_PAYMENT_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -119,8 +125,10 @@ throwIf(ManageOfferResult const& result)
         throw ex_MANAGE_OFFER_NOT_FOUND{};
     case MANAGE_OFFER_LOW_RESERVE:
         throw ex_MANAGE_OFFER_LOW_RESERVE{};
-    default:
+    case MANAGE_OFFER_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -147,8 +155,10 @@ throwIf(SetOptionsResult const& result)
         throw ex_SET_OPTIONS_BAD_SIGNER{};
     case SET_OPTIONS_INVALID_HOME_DOMAIN:
         throw ex_SET_OPTIONS_INVALID_HOME_DOMAIN{};
-    default:
+    case SET_OPTIONS_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -167,8 +177,10 @@ throwIf(ChangeTrustResult const& result)
         throw ex_CHANGE_TRUST_LOW_RESERVE{};
     case CHANGE_TRUST_SELF_NOT_ALLOWED:
         throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
-    default:
+    case CHANGE_TRUST_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -187,8 +199,10 @@ throwIf(AllowTrustResult const& result)
         throw ex_ALLOW_TRUST_CANT_REVOKE{};
     case ALLOW_TRUST_SELF_NOT_ALLOWED:
         throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
-    default:
+    case ALLOW_TRUST_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
@@ -205,14 +219,23 @@ throwIf(AccountMergeResult const& result)
         throw ex_ACCOUNT_MERGE_IMMUTABLE_SET{};
     case ACCOUNT_MERGE_HAS_SUB_ENTRIES:
         throw ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES{};
-    default:
+    case ACCOUNT_MERGE_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
 void
 throwIf(InflationResult const& result)
 {
+    switch (result.code())
+    {
+    case INFLATION_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
 }
 
 void
@@ -228,8 +251,10 @@ throwIf(ManageDataResult const& result)
         throw ex_MANAGE_DATA_LOW_RESERVE{};
     case MANAGE_DATA_INVALID_NAME:
         throw ex_MANAGE_DATA_INVALID_NAME{};
-    default:
+    case MANAGE_DATA_SUCCESS:
         break;
+    default:
+        throw ex_UNKNOWN{};
     }
 }
 
