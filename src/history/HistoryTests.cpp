@@ -1,6 +1,7 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #include "util/asio.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
@@ -16,6 +17,7 @@
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
@@ -25,6 +27,7 @@
 #include "util/TmpDir.h"
 #include "work/WorkManager.h"
 #include "work/WorkParent.h"
+
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -34,6 +37,7 @@ using namespace stellar;
 
 namespace stellar
 {
+using namespace txtest;
 using xdr::operator==;
 };
 
@@ -94,11 +98,6 @@ class HistoryTests
     Application::pointer appPtr;
     Application& app;
 
-    SecretKey mRoot;
-    SecretKey mAlice;
-    SecretKey mBob;
-    SecretKey mCarol;
-
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
 
@@ -110,15 +109,15 @@ class HistoryTests
     std::vector<uint256> mBucket0Hashes;
     std::vector<uint256> mBucket1Hashes;
 
-    std::vector<int64_t> mRootBalances;
-    std::vector<int64_t> mAliceBalances;
-    std::vector<int64_t> mBobBalances;
-    std::vector<int64_t> mCarolBalances;
+    std::vector<int64_t> rootBalances;
+    std::vector<int64_t> aliceBalances;
+    std::vector<int64_t> bobBalances;
+    std::vector<int64_t> carolBalances;
 
-    std::vector<SequenceNumber> mRootSeqs;
-    std::vector<SequenceNumber> mAliceSeqs;
-    std::vector<SequenceNumber> mBobSeqs;
-    std::vector<SequenceNumber> mCarolSeqs;
+    std::vector<SequenceNumber> rootSeqs;
+    std::vector<SequenceNumber> aliceSeqs;
+    std::vector<SequenceNumber> bobSeqs;
+    std::vector<SequenceNumber> carolSeqs;
 
   public:
     HistoryTests(std::shared_ptr<Configurator> cg =
@@ -128,10 +127,6 @@ class HistoryTests
         , appPtr(
               Application::create(clock, mConfigurator->configure(cfg, true)))
         , app(*appPtr)
-        , mRoot(txtest::getRoot(app.getNetworkID()))
-        , mAlice(txtest::getAccount("alice"))
-        , mBob(txtest::getAccount("bob"))
-        , mCarol(txtest::getAccount("carol"))
     {
         CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
     }
@@ -267,48 +262,36 @@ HistoryTests::generateRandomLedger()
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-    SequenceNumber rseq = txtest::getAccountSeqNum(mRoot, app) + 1;
-
-    Hash const& networkID = app.getNetworkID();
+    auto root = TestAccount{app, getRoot(app.getNetworkID())};
+    auto alice = TestAccount{app, getAccount("alice")};
+    auto bob = TestAccount{app, getAccount("bob")};
+    auto carol = TestAccount{app, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(
-        txtest::createCreateAccountTx(networkID, mRoot, mCarol, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mAlice, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mBob, rseq++, big));
-    txSet->add(txtest::createPaymentTx(networkID, mRoot, mCarol, rseq++, big));
+    txSet->add(root.tx({createCreateAccountOp(nullptr, alice, big)}));
+    txSet->add(root.tx({createCreateAccountOp(nullptr, bob, big)}));
+    txSet->add(root.tx({createCreateAccountOp(nullptr, carol, big)}));
+    txSet->add(root.tx({createPaymentOp(nullptr, alice, big)}));
+    txSet->add(root.tx({createPaymentOp(nullptr, bob, big)}));
+    txSet->add(root.tx({createPaymentOp(nullptr, carol, big)}));
 
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
     {
-        SequenceNumber aseq = txtest::getAccountSeqNum(mAlice, app) + 1;
-        SequenceNumber bseq = txtest::getAccountSeqNum(mBob, app) + 1;
-        SequenceNumber cseq = txtest::getAccountSeqNum(mCarol, app) + 1;
+        if (flip())
+            txSet->add(alice.tx({createPaymentOp(nullptr, bob, small)}));
+        if (flip())
+            txSet->add(alice.tx({createPaymentOp(nullptr, carol, small)}));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mBob, aseq++,
-                                               small));
+            txSet->add(bob.tx({createPaymentOp(nullptr, alice, small)}));
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mAlice, mCarol,
-                                               aseq++, small));
+            txSet->add(bob.tx({createPaymentOp(nullptr, carol, small)}));
 
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mAlice, bseq++,
-                                               small));
+            txSet->add(carol.tx({createPaymentOp(nullptr, alice, small)}));
         if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mBob, mCarol, bseq++,
-                                               small));
-
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mAlice,
-                                               cseq++, small));
-        if (flip())
-            txSet->add(txtest::createPaymentTx(networkID, mCarol, mBob, cseq++,
-                                               small));
+            txSet->add(carol.tx({createPaymentOp(nullptr, bob, small)}));
     }
 
     // Provoke sortForHash and hash-caching:
@@ -337,15 +320,15 @@ HistoryTests::generateRandomLedger()
                                  .getCurr()
                                  ->getHash());
 
-    mRootBalances.push_back(txtest::getAccountBalance(mRoot, app));
-    mAliceBalances.push_back(txtest::getAccountBalance(mAlice, app));
-    mBobBalances.push_back(txtest::getAccountBalance(mBob, app));
-    mCarolBalances.push_back(txtest::getAccountBalance(mCarol, app));
+    rootBalances.push_back(getAccountBalance(root, app));
+    aliceBalances.push_back(getAccountBalance(alice, app));
+    bobBalances.push_back(getAccountBalance(bob, app));
+    carolBalances.push_back(getAccountBalance(carol, app));
 
-    mRootSeqs.push_back(txtest::getAccountSeqNum(mRoot, app));
-    mAliceSeqs.push_back(txtest::getAccountSeqNum(mAlice, app));
-    mBobSeqs.push_back(txtest::getAccountSeqNum(mBob, app));
-    mCarolSeqs.push_back(txtest::getAccountSeqNum(mCarol, app));
+    rootSeqs.push_back(root.loadSequenceNumber());
+    aliceSeqs.push_back(alice.loadSequenceNumber());
+    bobSeqs.push_back(bob.loadSequenceNumber());
+    carolSeqs.push_back(carol.loadSequenceNumber());
 }
 
 void
@@ -414,6 +397,10 @@ HistoryTests::catchupApplication(uint32_t initLedger,
                                  Application::pointer app2, bool doStart,
                                  uint32_t gap)
 {
+    auto root = TestAccount{*app2, getRoot(app.getNetworkID())};
+    auto alice = TestAccount{*app2, getAccount("alice")};
+    auto bob = TestAccount{*app2, getAccount("bob")};
+    auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
     if (doStart)
@@ -569,25 +556,25 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     CHECK(wantBucket0Hash == haveBucket0Hash);
     CHECK(wantBucket1Hash == haveBucket1Hash);
 
-    auto haveRootBalance = mRootBalances.at(i);
-    auto haveAliceBalance = mAliceBalances.at(i);
-    auto haveBobBalance = mBobBalances.at(i);
-    auto haveCarolBalance = mCarolBalances.at(i);
+    auto haveRootBalance = rootBalances.at(i);
+    auto haveAliceBalance = aliceBalances.at(i);
+    auto haveBobBalance = bobBalances.at(i);
+    auto haveCarolBalance = carolBalances.at(i);
 
-    auto haveRootSeq = mRootSeqs.at(i);
-    auto haveAliceSeq = mAliceSeqs.at(i);
-    auto haveBobSeq = mBobSeqs.at(i);
-    auto haveCarolSeq = mCarolSeqs.at(i);
+    auto haveRootSeq = rootSeqs.at(i);
+    auto haveAliceSeq = aliceSeqs.at(i);
+    auto haveBobSeq = bobSeqs.at(i);
+    auto haveCarolSeq = carolSeqs.at(i);
 
-    auto wantRootBalance = txtest::getAccountBalance(mRoot, *app2);
-    auto wantAliceBalance = txtest::getAccountBalance(mAlice, *app2);
-    auto wantBobBalance = txtest::getAccountBalance(mBob, *app2);
-    auto wantCarolBalance = txtest::getAccountBalance(mCarol, *app2);
+    auto wantRootBalance = getAccountBalance(root, *app2);
+    auto wantAliceBalance = getAccountBalance(alice, *app2);
+    auto wantBobBalance = getAccountBalance(bob, *app2);
+    auto wantCarolBalance = getAccountBalance(carol, *app2);
 
-    auto wantRootSeq = txtest::getAccountSeqNum(mRoot, *app2);
-    auto wantAliceSeq = txtest::getAccountSeqNum(mAlice, *app2);
-    auto wantBobSeq = txtest::getAccountSeqNum(mBob, *app2);
-    auto wantCarolSeq = txtest::getAccountSeqNum(mCarol, *app2);
+    auto wantRootSeq = root.loadSequenceNumber();
+    auto wantAliceSeq = alice.loadSequenceNumber();
+    auto wantBobSeq = bob.loadSequenceNumber();
+    auto wantCarolSeq = carol.loadSequenceNumber();
 
     CHECK(haveRootBalance == wantRootBalance);
     CHECK(haveAliceBalance == wantAliceBalance);

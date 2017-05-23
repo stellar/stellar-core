@@ -12,12 +12,18 @@ namespace stellar
 
 using namespace txtest;
 
+SequenceNumber
+TestAccount::loadSequenceNumber() const
+{
+    return loadAccount(getSecretKey(), mApp)->getSeqNum();
+}
+
 void
 TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        mSn = getAccountSeqNum(getSecretKey(), mApp);
+        mSn = loadSequenceNumber();
     }
 }
 
@@ -32,8 +38,7 @@ TestAccount
 TestAccount::createRoot(Application& app)
 {
     auto secretKey = getRoot(app.getNetworkID());
-    auto sequenceNumber = getAccountSeqNum(secretKey, app);
-    return TestAccount{app, secretKey, sequenceNumber};
+    return TestAccount{app, secretKey};
 }
 
 TestAccount
@@ -41,8 +46,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
     applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(),
                          initialBalance);
-    auto sequenceNumber = getAccountSeqNum(secretKey, mApp);
-    return TestAccount{mApp, secretKey, sequenceNumber};
+    return TestAccount{mApp, secretKey};
 }
 
 TestAccount

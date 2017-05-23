@@ -95,6 +95,7 @@ class TestAccount
         updateSequenceNumber();
         return ++mSn;
     }
+    SequenceNumber loadSequenceNumber() const;
 
   private:
     Application& mApp;

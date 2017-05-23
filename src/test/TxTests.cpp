@@ -214,14 +214,6 @@ loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
     return res;
 }
 
-SequenceNumber
-getAccountSeqNum(SecretKey const& k, Application& app)
-{
-    AccountFrame::pointer account;
-    account = loadAccount(k, app);
-    return account->getSeqNum();
-}
-
 int64_t
 getAccountBalance(SecretKey const& k, Application& app)
 {
