@@ -231,6 +231,8 @@ throwIf(InflationResult const& result)
 {
     switch (result.code())
     {
+    case INFLATION_NOT_TIME:
+        throw ex_INFLATION_NOT_TIME{};
     case INFLATION_SUCCESS:
         break;
     default:

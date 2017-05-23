@@ -843,8 +843,7 @@ createInflation(Hash const& networkID, SecretKey const& from,
 }
 
 OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
-               InflationResultCode result)
+applyInflation(Application& app, SecretKey const& from, SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
         createInflation(app.getNetworkID(), from, seq);
@@ -852,10 +851,8 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
     bool res = applyCheck(txFrame, delta, app);
-
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-    REQUIRE(InflationOpFrame::getInnerCode(
-                txFrame->getResult().result.results()[0]) == result);
     if (res)
     {
         delta.commit();

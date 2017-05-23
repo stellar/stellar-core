@@ -229,5 +229,9 @@ class ex_SET_OPTIONS_BAD_SIGNER
 class ex_SET_OPTIONS_INVALID_HOME_DOMAIN
 {
 };
+
+class ex_INFLATION_NOT_TIME
+{
+};
 }
 }

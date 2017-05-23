@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -295,8 +296,8 @@ TEST_CASE("inflation", "[tx][inflation]")
     {
         for_all_versions(app, [&]{
             closeLedgerOn(app, 2, 30, 6, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
 
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     0);
@@ -310,30 +311,30 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
             closeLedgerOn(app, 5, 8, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            applyInflation(app, root, root.nextSequenceNumber());
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 6, 14, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 7, 15, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            applyInflation(app, root, root.nextSequenceNumber());
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
 
             closeLedgerOn(app, 8, 21, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
         });
