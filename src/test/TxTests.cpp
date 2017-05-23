@@ -1240,19 +1240,6 @@ getFirstResultCode(TransactionFrame const& tx)
     return getFirstOperationFrame(tx).getResultCode();
 }
 
-Operation&
-getFirstOperation(TransactionFrame& tx)
-{
-    return tx.getEnvelope().tx.operations[0];
-}
-
-void
-reSignTransaction(TransactionFrame& tx, SecretKey const& source)
-{
-    tx.getEnvelope().signatures.clear();
-    tx.addSignature(source);
-}
-
 void
 checkAmounts(int64_t a, int64_t b, int64_t maxd)
 {

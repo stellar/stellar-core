@@ -207,7 +207,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 std::string t1("test");
 
-                applyManageData(app, a1, t1, &value, a1.nextSequenceNumber());
+                a1.manageData(t1, &value);
                 REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
             });
         }

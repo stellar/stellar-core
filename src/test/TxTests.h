@@ -203,11 +203,6 @@ OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);
 OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 
-// modifying the type of the operation will lead to undefined behavior
-Operation& getFirstOperation(TransactionFrame& tx);
-
-void reSignTransaction(TransactionFrame& tx, SecretKey const& source);
-
 // checks that b-maxd <= a <= b
 // bias towards seller means
 //    * amount left in an offer should be higher than the exact calculation
