@@ -119,7 +119,7 @@ TEST_CASE("merge", "[tx][merge]")
             a1.tx({createMergeOp(nullptr, b1), createMergeOp(nullptr, b1)});
 
         for_versions_to(4, app, [&]{
-            applyCheck(txFrame, delta, app);
+            REQUIRE(applyCheck(txFrame, delta, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
@@ -132,7 +132,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(5, 7, app, [&]{
-            applyCheck(txFrame, delta, app);
+            REQUIRE(!applyCheck(txFrame, delta, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
@@ -144,7 +144,8 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, app, [&]{
-            throwingApplyCheck(txFrame, delta, app);
+            REQUIRE(!applyCheck(txFrame, delta, app));
+            REQUIRE(txFrame->getResult().result.results()[1].code() == opNO_ACCOUNT);
         });
     }
 

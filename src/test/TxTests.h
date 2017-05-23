@@ -33,7 +33,6 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-bool throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,

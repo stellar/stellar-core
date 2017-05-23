@@ -363,7 +363,7 @@ TEST_CASE("payment", "[tx][payment]")
         tx->addSignature(secondSourceAccount);
 
         for_versions_to(7, app, [&]{
-            throwingApplyCheck(tx, delta, app);
+            REQUIRE(applyCheck(tx, delta, app));
             auto balanceAfter = sourceAccount.getBalance()
                     + secondSourceAccount.getBalance()
                     + payAndMergeDestination.getBalance();
@@ -371,7 +371,7 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            throwingApplyCheck(tx, delta, app);
+            REQUIRE(applyCheck(tx, delta, app));
             auto balanceAfter = sourceAccount.getBalance()
                     + secondSourceAccount.getBalance()
                     + payAndMergeDestination.getBalance();

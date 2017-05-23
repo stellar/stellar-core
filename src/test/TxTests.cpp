@@ -99,23 +99,6 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     return res;
 }
 
-bool
-throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
-{
-    auto r = applyCheck(tx, delta, app);
-    switch (tx->getResultCode())
-    {
-    case txNO_ACCOUNT:
-        throw ex_txNO_ACCOUNT{};
-    case txINTERNAL_ERROR:
-        throw ex_txINTERNAL_ERROR{};
-    default:
-        // ignore rest for now
-        break;
-    }
-    return r;
-}
-
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFramePtr> const& txs)
@@ -313,27 +296,9 @@ applyAllowTrust(Application& app, SecretKey const& from,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
-
-    auto result = AllowTrustOpFrame::getInnerCode(
-        txFrame->getResult().result.results()[0]);
-    switch (result)
-    {
-    case ALLOW_TRUST_MALFORMED:
-        throw ex_ALLOW_TRUST_MALFORMED{};
-    case ALLOW_TRUST_NO_TRUST_LINE:
-        throw ex_ALLOW_TRUST_NO_TRUST_LINE{};
-    case ALLOW_TRUST_TRUST_NOT_REQUIRED:
-        throw ex_ALLOW_TRUST_TRUST_NOT_REQUIRED{};
-    case ALLOW_TRUST_CANT_REVOKE:
-        throw ex_ALLOW_TRUST_CANT_REVOKE{};
-    case ALLOW_TRUST_SELF_NOT_ALLOWED:
-        throw ex_ALLOW_TRUST_SELF_NOT_ALLOWED{};
-    default:
-        break;
-    }
 
     REQUIRE(AllowTrustOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[0]) ==
@@ -377,8 +342,8 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
     auto result =
@@ -401,21 +366,6 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
         REQUIRE(toAccountAfter);
     }
     REQUIRE(txResult.feeCharged == app.getLedgerManager().getTxFee());
-
-    switch (result)
-    {
-    case CREATE_ACCOUNT_MALFORMED:
-        throw ex_CREATE_ACCOUNT_MALFORMED{};
-    case CREATE_ACCOUNT_UNDERFUNDED:
-        throw ex_CREATE_ACCOUNT_UNDERFUNDED{};
-    case CREATE_ACCOUNT_LOW_RESERVE:
-        throw ex_CREATE_ACCOUNT_LOW_RESERVE{};
-    case CREATE_ACCOUNT_ALREADY_EXIST:
-        throw ex_CREATE_ACCOUNT_ALREADY_EXIST{};
-    default:
-        break;
-    }
-
     REQUIRE(result == CREATE_ACCOUNT_SUCCESS);
 }
 
@@ -457,7 +407,8 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
 
     checkTransaction(*txFrame);
     auto txResult = txFrame->getResult();
@@ -483,30 +434,6 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
         REQUIRE(toAccountAfter);
     }
 
-    switch (result)
-    {
-    case PAYMENT_MALFORMED:
-        throw ex_PAYMENT_MALFORMED{};
-    case PAYMENT_UNDERFUNDED:
-        throw ex_PAYMENT_UNDERFUNDED{};
-    case PAYMENT_SRC_NO_TRUST:
-        throw ex_PAYMENT_SRC_NO_TRUST{};
-    case PAYMENT_SRC_NOT_AUTHORIZED:
-        throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
-    case PAYMENT_NO_DESTINATION:
-        throw ex_PAYMENT_NO_DESTINATION{};
-    case PAYMENT_NO_TRUST:
-        throw ex_PAYMENT_NO_TRUST{};
-    case PAYMENT_NOT_AUTHORIZED:
-        throw ex_PAYMENT_NOT_AUTHORIZED{};
-    case PAYMENT_LINE_FULL:
-        throw ex_PAYMENT_LINE_FULL{};
-    case PAYMENT_NO_ISSUER:
-        throw ex_PAYMENT_NO_ISSUER{};
-    default:
-        break;
-    }
-
     REQUIRE(result == PAYMENT_SUCCESS);
 }
 
@@ -522,28 +449,12 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
 
     auto result = ChangeTrustOpFrame::getInnerCode(
         txFrame->getResult().result.results()[0]);
-    switch (result)
-    {
-    case CHANGE_TRUST_MALFORMED:
-        throw ex_CHANGE_TRUST_MALFORMED{};
-    case CHANGE_TRUST_NO_ISSUER:
-        throw ex_CHANGE_TRUST_NO_ISSUER{};
-    case CHANGE_TRUST_INVALID_LIMIT:
-        throw ex_CHANGE_TRUST_INVALID_LIMIT{};
-    case CHANGE_TRUST_LOW_RESERVE:
-        throw ex_CHANGE_TRUST_LOW_RESERVE{};
-    case CHANGE_TRUST_SELF_NOT_ALLOWED:
-        throw ex_CHANGE_TRUST_SELF_NOT_ALLOWED{};
-    default:
-        break;
-    }
-
     REQUIRE(result == CHANGE_TRUST_SUCCESS);
 }
 
@@ -583,38 +494,14 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
 
     auto res = firstResult.tr().paymentResult();
     auto result = res.code();
-
-    switch (result)
-    {
-    case PAYMENT_MALFORMED:
-        throw ex_PAYMENT_MALFORMED{};
-    case PAYMENT_UNDERFUNDED:
-        throw ex_PAYMENT_UNDERFUNDED{};
-    case PAYMENT_SRC_NO_TRUST:
-        throw ex_PAYMENT_SRC_NO_TRUST{};
-    case PAYMENT_SRC_NOT_AUTHORIZED:
-        throw ex_PAYMENT_SRC_NOT_AUTHORIZED{};
-    case PAYMENT_NO_DESTINATION:
-        throw ex_PAYMENT_NO_DESTINATION{};
-    case PAYMENT_NO_TRUST:
-        throw ex_PAYMENT_NO_TRUST{};
-    case PAYMENT_NOT_AUTHORIZED:
-        throw ex_PAYMENT_NOT_AUTHORIZED{};
-    case PAYMENT_LINE_FULL:
-        throw ex_PAYMENT_LINE_FULL{};
-    case PAYMENT_NO_ISSUER:
-        throw ex_PAYMENT_NO_ISSUER{};
-    default:
-        break;
-    }
 
     REQUIRE(result == PAYMENT_SUCCESS);
 }
@@ -651,8 +538,17 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    try
+    {
+        throwIf(txFrame->getResult());
+    }
+    catch (ex_PATH_PAYMENT_NO_ISSUER &)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == txFrame->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
+        throw;
+    }
     checkTransaction(*txFrame);
 
     auto& firstResult = getFirstResult(*txFrame);
@@ -663,38 +559,6 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
     if (result != PATH_PAYMENT_NO_ISSUER)
     {
         REQUIRE(!noIssuer);
-    }
-
-    switch (result)
-    {
-    case PATH_PAYMENT_MALFORMED:
-        throw ex_PATH_PAYMENT_MALFORMED{};
-    case PATH_PAYMENT_UNDERFUNDED:
-        throw ex_PATH_PAYMENT_UNDERFUNDED{};
-    case PATH_PAYMENT_SRC_NO_TRUST:
-        throw ex_PATH_PAYMENT_SRC_NO_TRUST{};
-    case PATH_PAYMENT_SRC_NOT_AUTHORIZED:
-        throw ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED{};
-    case PATH_PAYMENT_NO_DESTINATION:
-        throw ex_PATH_PAYMENT_NO_DESTINATION{};
-    case PATH_PAYMENT_NO_TRUST:
-        throw ex_PATH_PAYMENT_NO_TRUST{};
-    case PATH_PAYMENT_NOT_AUTHORIZED:
-        throw ex_PATH_PAYMENT_NOT_AUTHORIZED{};
-    case PATH_PAYMENT_LINE_FULL:
-        throw ex_PATH_PAYMENT_LINE_FULL{};
-    case PATH_PAYMENT_NO_ISSUER:
-        REQUIRE(noIssuer);
-        REQUIRE(*noIssuer == res.noIssuer());
-        throw ex_PATH_PAYMENT_NO_ISSUER{};
-    case PATH_PAYMENT_TOO_FEW_OFFERS:
-        throw ex_PATH_PAYMENT_TOO_FEW_OFFERS{};
-    case PATH_PAYMENT_OFFER_CROSS_SELF:
-        throw ex_PATH_PAYMENT_OFFER_CROSS_SELF{};
-    case PATH_PAYMENT_OVER_SENDMAX:
-        throw ex_PATH_PAYMENT_OVER_SENDMAX{};
-    default:
-        break;
     }
 
     REQUIRE(result == PATH_PAYMENT_SUCCESS);
@@ -752,16 +616,12 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     txFrame = manageOfferOp(app.getNetworkID(), offerId, source, selling,
                             buying, price, amount, seq);
 
-    try
-    {
-        throwingApplyCheck(txFrame, delta, app);
-    }
-    catch (...)
+    if (!applyCheck(txFrame, delta, app))
     {
         REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
-        throw;
     }
 
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
     delta.commit();
 
@@ -871,16 +731,11 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     txFrame = createPassiveOfferOp(app.getNetworkID(), source, selling, buying,
                                    price, amount, seq);
 
-    try
-    {
-        throwingApplyCheck(txFrame, delta, app);
-    }
-    catch (...)
+    if (!applyCheck(txFrame, delta, app))
     {
         REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
-        throw;
     }
-
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
     delta.commit();
 
@@ -923,36 +778,6 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     if (createPassiveOfferResult.code() != MANAGE_OFFER_SUCCESS)
     {
         REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
-    }
-
-    switch (createPassiveOfferResult.code())
-    {
-    case MANAGE_OFFER_MALFORMED:
-        throw ex_MANAGE_OFFER_MALFORMED{};
-    case MANAGE_OFFER_SELL_NO_TRUST:
-        throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
-    case MANAGE_OFFER_BUY_NO_TRUST:
-        throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
-    case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_LINE_FULL:
-        throw ex_MANAGE_OFFER_LINE_FULL{};
-    case MANAGE_OFFER_UNDERFUNDED:
-        throw ex_MANAGE_OFFER_UNDERFUNDED{};
-    case MANAGE_OFFER_CROSS_SELF:
-        throw ex_MANAGE_OFFER_CROSS_SELF{};
-    case MANAGE_OFFER_SELL_NO_ISSUER:
-        throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
-    case MANAGE_OFFER_BUY_NO_ISSUER:
-        throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
-    case MANAGE_OFFER_NOT_FOUND:
-        throw ex_MANAGE_OFFER_NOT_FOUND{};
-    case MANAGE_OFFER_LOW_RESERVE:
-        throw ex_MANAGE_OFFER_LOW_RESERVE{};
-    default:
-        break;
     }
 
     REQUIRE(createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS);
@@ -1048,36 +873,11 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
     checkTransaction(*txFrame);
     auto result = SetOptionsOpFrame::getInnerCode(
         txFrame->getResult().result.results()[0]);
-
-    switch (result)
-    {
-    case SET_OPTIONS_LOW_RESERVE:
-        throw ex_SET_OPTIONS_LOW_RESERVE{};
-    case SET_OPTIONS_TOO_MANY_SIGNERS:
-        throw ex_SET_OPTIONS_TOO_MANY_SIGNERS{};
-    case SET_OPTIONS_BAD_FLAGS:
-        throw ex_SET_OPTIONS_BAD_FLAGS{};
-    case SET_OPTIONS_INVALID_INFLATION:
-        throw ex_SET_OPTIONS_INVALID_INFLATION{};
-    case SET_OPTIONS_CANT_CHANGE:
-        throw ex_SET_OPTIONS_CANT_CHANGE{};
-    case SET_OPTIONS_UNKNOWN_FLAG:
-        throw ex_SET_OPTIONS_UNKNOWN_FLAG{};
-    case SET_OPTIONS_THRESHOLD_OUT_OF_RANGE:
-        throw ex_SET_OPTIONS_THRESHOLD_OUT_OF_RANGE{};
-    case SET_OPTIONS_BAD_SIGNER:
-        throw ex_SET_OPTIONS_BAD_SIGNER{};
-    case SET_OPTIONS_INVALID_HOME_DOMAIN:
-        throw ex_SET_OPTIONS_INVALID_HOME_DOMAIN{};
-    default:
-        break;
-    }
-
     REQUIRE(SET_OPTIONS_SUCCESS == result);
 }
 
@@ -1148,24 +948,12 @@ applyAccountMerge(Application& app, SecretKey const& source,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
+    checkTransaction(*txFrame);
 
     auto result =
         MergeOpFrame::getInnerCode(txFrame->getResult().result.results()[0]);
-    switch (result)
-    {
-    case ACCOUNT_MERGE_MALFORMED:
-        throw ex_ACCOUNT_MERGE_MALFORMED{};
-    case ACCOUNT_MERGE_NO_ACCOUNT:
-        throw ex_ACCOUNT_MERGE_NO_ACCOUNT{};
-    case ACCOUNT_MERGE_IMMUTABLE_SET:
-        throw ex_ACCOUNT_MERGE_IMMUTABLE_SET{};
-    case ACCOUNT_MERGE_HAS_SUB_ENTRIES:
-        throw ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES{};
-    default:
-        break;
-    }
-
     REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
 }
 
@@ -1191,23 +979,9 @@ applyManageData(Application& app, SecretKey const& source,
 
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    throwingApplyCheck(txFrame, delta, app);
-
-    auto result = ManageDataOpFrame::getInnerCode(
-        txFrame->getResult().result.results()[0]);
-    switch (result)
-    {
-    case MANAGE_DATA_NOT_SUPPORTED_YET:
-        throw ex_MANAGE_DATA_NOT_SUPPORTED_YET{};
-    case MANAGE_DATA_NAME_NOT_FOUND:
-        throw ex_MANAGE_DATA_NAME_NOT_FOUND{};
-    case MANAGE_DATA_LOW_RESERVE:
-        throw ex_MANAGE_DATA_LOW_RESERVE{};
-    case MANAGE_DATA_INVALID_NAME:
-        throw ex_MANAGE_DATA_INVALID_NAME{};
-    default:
-        break;
-    }
+    applyCheck(txFrame, delta, app);
+    throwIf(txFrame->getResult());
+    checkTransaction(*txFrame);
 
     auto dataFrame =
         DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
