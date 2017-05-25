@@ -887,6 +887,7 @@ TEST_CASE("bucket apply", "[bucket]")
     for (auto& e : live)
     {
         e.data.type(ACCOUNT);
+        e.lastModifiedLedgerSeq = 1; // data in buckets contains that value
         auto& a = e.data.account();
         a = LedgerTestUtils::generateValidAccountEntry(5);
         a.balance = 1000000000;
@@ -929,6 +930,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     for (auto& l : live)
     {
         l.data.type(ACCOUNT);
+        l.lastModifiedLedgerSeq = 1; // data in buckets contains that value
         auto& a = l.data.account();
         a = LedgerTestUtils::generateValidAccountEntry(5);
     }

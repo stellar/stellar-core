@@ -71,8 +71,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 for (auto n : nodes)
                 {
                     LedgerHeader lh;
+                    lh.ledgerSeq = 1;
                     Database& db = n->getDatabase();
-                    LedgerDelta delta(lh, db, false);
+                    LedgerDelta delta(lh, db);
                     newAccount->storeAdd(delta, db);
                 }
             }

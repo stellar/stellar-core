@@ -50,7 +50,8 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
         }
 
         LedgerHeader lh;
-        LedgerDelta delta(lh, db, false);
+        lh.ledgerSeq = 1;
+        LedgerDelta delta(lh, db);
 
         // adding accounts
         for (auto const& l : accountsMap)
