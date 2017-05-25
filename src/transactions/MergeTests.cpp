@@ -76,8 +76,8 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("with create")
     {
-        int64 a1Balance = getAccountBalance(a1, app);
-        int64 b1Balance = getAccountBalance(b1, app);
+        int64 a1Balance = a1.getBalance();
+        int64 b1Balance = b1.getBalance();
         auto createBalance = app.getLedgerManager().getMinBalance(1);
         auto txFrame =
             a1.tx({createMergeOp(&a1.getSecretKey(), b1),
@@ -93,7 +93,7 @@ TEST_CASE("merge", "[tx][merge]")
                 txFrame->getResult().result.results()[2]);
 
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(getAccountBalance(b1, app) ==
+            REQUIRE(b1.getBalance() ==
                     2 * a1Balance + b1Balance - createBalance -
                         2 * txFrame->getFee());
         });
@@ -105,21 +105,21 @@ TEST_CASE("merge", "[tx][merge]")
                 txFrame->getResult().result.results()[2]);
 
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(getAccountBalance(b1, app) ==
+            REQUIRE(b1.getBalance() ==
                     a1Balance + b1Balance - txFrame->getFee());
         });
     }
 
     SECTION("merge account twice")
     {
-        int64 a1Balance = getAccountBalance(a1, app);
-        int64 b1Balance = getAccountBalance(b1, app);
+        int64 a1Balance = a1.getBalance();
+        int64 b1Balance = b1.getBalance();
 
         auto txFrame =
             a1.tx({createMergeOp(nullptr, b1), createMergeOp(nullptr, b1)});
 
         for_versions_to(4, app, [&]{
-            applyCheck(txFrame, delta, app);
+            REQUIRE(applyCheck(txFrame, delta, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
@@ -127,24 +127,25 @@ TEST_CASE("merge", "[tx][merge]")
             auto a1BalanceAfterFee = a1Balance - txFrame->getFee();
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee ==
-                    getAccountBalance(b1, app));
+                    b1.getBalance());
             REQUIRE(!loadAccount(a1, app, false));
         });
 
         for_versions(5, 7, app, [&]{
-            applyCheck(txFrame, delta, app);
+            REQUIRE(!applyCheck(txFrame, delta, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
 
             REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-            REQUIRE(b1Balance == getAccountBalance(b1, app));
+            REQUIRE(b1Balance == b1.getBalance());
             REQUIRE((a1Balance - txFrame->getFee()) ==
-                    getAccountBalance(a1, app));
+                    a1.getBalance());
         });
 
         for_versions_from(8, app, [&]{
-            throwingApplyCheck(txFrame, delta, app);
+            REQUIRE(!applyCheck(txFrame, delta, app));
+            REQUIRE(txFrame->getResult().result.results()[1].code() == opNO_ACCOUNT);
         });
     }
 
@@ -207,7 +208,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 std::string t1("test");
 
-                applyManageData(app, a1, t1, &value, a1.nextSequenceNumber());
+                a1.manageData(t1, &value);
                 REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
             });
         }
@@ -230,8 +231,8 @@ TEST_CASE("merge", "[tx][merge]")
                                             a1.nextSequenceNumber());
                 auto tx2 = createPaymentTx(app.getNetworkID(), a1, root,
                                         a1.nextSequenceNumber(), 100);
-                int64 a1Balance = getAccountBalance(a1, app);
-                int64 b1Balance = getAccountBalance(b1, app);
+                int64 a1Balance = a1.getBalance();
+                int64 b1Balance = b1.getBalance();
                 auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
                 checkTx(0, r, txSUCCESS);
                 checkTx(1, r, txNO_ACCOUNT);
@@ -241,7 +242,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 int64 expectedB1Balance =
                     a1Balance + b1Balance - 2 * app.getLedgerManager().getTxFee();
-                REQUIRE(expectedB1Balance == getAccountBalance(b1, app));
+                REQUIRE(expectedB1Balance == b1.getBalance());
             });
         }
     }

@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
+#include "test/TestExceptions.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -295,8 +296,8 @@ TEST_CASE("inflation", "[tx][inflation]")
     {
         for_all_versions(app, [&]{
             closeLedgerOn(app, 2, 30, 6, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
 
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     0);
@@ -310,30 +311,30 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
             closeLedgerOn(app, 5, 8, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            applyInflation(app, root, root.nextSequenceNumber());
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 6, 14, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 7, 15, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(), INFLATION_SUCCESS);
+            applyInflation(app, root, root.nextSequenceNumber());
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
 
             closeLedgerOn(app, 8, 21, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber(),
-                        INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
+                              ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
         });
@@ -351,7 +352,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target2 = TestAccount{app, getAccount("target2"), 0};
 
         auto minBalance = app.getLedgerManager().getMinBalance(0);
-        auto rootBalance = getAccountBalance(root, app);
+        auto rootBalance = root.getBalance();
 
         auto voter1tx = root.tx({createCreateAccountOp(nullptr, voter1, rootBalance / 6)});
         voter1tx->getEnvelope().tx.fee = 999999999;
@@ -376,11 +377,11 @@ TEST_CASE("inflation", "[tx][inflation]")
         REQUIRE(clh.feePool == 1000000499);
         REQUIRE(clh.totalCoins == 1000000000000000000);
 
-        auto beforeInflationRoot = getAccountBalance(root, app);
-        auto beforeInflationVoter1 = getAccountBalance(voter1, app);
-        auto beforeInflationVoter2 = getAccountBalance(voter2, app);
-        auto beforeInflationTarget1 = getAccountBalance(target1, app);
-        auto beforeInflationTarget2 = getAccountBalance(target2, app);
+        auto beforeInflationRoot = root.getBalance();
+        auto beforeInflationVoter1 = voter1.getBalance();
+        auto beforeInflationVoter2 = voter2.getBalance();
+        auto beforeInflationTarget1 = target1.getBalance();
+        auto beforeInflationTarget2 = target2.getBalance();
 
         REQUIRE(
             beforeInflationRoot +
@@ -399,11 +400,11 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(clh.feePool == 95361000000301);
             REQUIRE(clh.totalCoins == 1000095361000000298);
 
-            auto afterInflationRoot = getAccountBalance(root, app);
-            auto afterInflationVoter1 = getAccountBalance(voter1, app);
-            auto afterInflationVoter2 = getAccountBalance(voter2, app);
-            auto afterInflationTarget1 = getAccountBalance(target1, app);
-            auto afterInflationTarget2 = getAccountBalance(target2, app);
+            auto afterInflationRoot = root.getBalance();
+            auto afterInflationVoter1 = voter1.getBalance();
+            auto afterInflationVoter2 = voter2.getBalance();
+            auto afterInflationTarget1 = target1.getBalance();
+            auto afterInflationTarget2 = target2.getBalance();
             auto inflationError = 95359999999702;
 
             REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
@@ -428,11 +429,11 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(clh.feePool == 95361000000301);
             REQUIRE(clh.totalCoins == 1000190721000000000);
 
-            auto afterInflationRoot = getAccountBalance(root, app);
-            auto afterInflationVoter1 = getAccountBalance(voter1, app);
-            auto afterInflationVoter2 = getAccountBalance(voter2, app);
-            auto afterInflationTarget1 = getAccountBalance(target1, app);
-            auto afterInflationTarget2 = getAccountBalance(target2, app);
+            auto afterInflationRoot = root.getBalance();
+            auto afterInflationVoter1 = voter1.getBalance();
+            auto afterInflationVoter2 = voter2.getBalance();
+            auto afterInflationTarget1 = target1.getBalance();
+            auto afterInflationTarget2 = target2.getBalance();
 
             REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
             REQUIRE(beforeInflationVoter1 == afterInflationVoter1);

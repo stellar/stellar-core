@@ -33,7 +33,6 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-bool throwingApplyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
@@ -56,10 +55,6 @@ OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
 
 TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
-
-SequenceNumber getAccountSeqNum(SecretKey const& k, Application& app);
-
-int64_t getAccountBalance(SecretKey const& k, Application& app);
 
 xdr::xvector<Signer, 20> getAccountSigners(SecretKey const& k,
                                            Application& app);
@@ -176,8 +171,7 @@ Operation createInflationOp();
 TransactionFramePtr createInflation(Hash const& networkID,
                                     SecretKey const& from, SequenceNumber seq);
 OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq,
-               InflationResultCode targetResult = INFLATION_SUCCESS);
+applyInflation(Application& app, SecretKey const& from, SequenceNumber seq);
 
 Operation createMergeOp(SecretKey const* from, PublicKey const& dest);
 
@@ -206,11 +200,6 @@ Asset makeAsset(SecretKey const& issuer, std::string const& code);
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);
 OperationResultCode getFirstResultCode(TransactionFrame const& tx);
-
-// modifying the type of the operation will lead to undefined behavior
-Operation& getFirstOperation(TransactionFrame& tx);
-
-void reSignTransaction(TransactionFrame& tx, SecretKey const& source);
 
 // checks that b-maxd <= a <= b
 // bias towards seller means
