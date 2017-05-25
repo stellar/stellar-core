@@ -295,28 +295,17 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 }
 
 void
-BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
+BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader, int index,
+                                       int skipd)
 {
-
-    if ((currentHeader.ledgerSeq % SKIP_1) == 0)
+    int v = currentHeader.ledgerSeq - skipd;
+    if (v > 0 && (v % skipV[index] == 0))
     {
-        int v = currentHeader.ledgerSeq - SKIP_1;
-        if (v > 0 && (v % SKIP_2) == 0)
-        {
-            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
-            if (v > 0 && (v % SKIP_3) == 0)
-            {
-                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
-                if (v > 0 && (v % SKIP_4) == 0)
-                {
-
-                    currentHeader.skipList[3] = currentHeader.skipList[2];
-                }
-                currentHeader.skipList[2] = currentHeader.skipList[1];
-            }
-            currentHeader.skipList[1] = currentHeader.skipList[0];
-        }
-        currentHeader.skipList[0] = currentHeader.bucketListHash;
+        unsigned int next = index + 1;
+        calculateSkipValues(currentHeader, next, skipd + skipV[index]);
+        currentHeader.skipList[index] = (index == 0)
+                                            ? currentHeader.bucketListHash
+                                            : currentHeader.skipList[index - 1];
     }
 }
 
