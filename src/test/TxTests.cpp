@@ -631,42 +631,8 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
     ManageOfferResult const& createOfferRes = applyCreateOfferHelper(
         app, offerId, source, selling, buying, price, amount, seq);
 
-    switch (createOfferRes.code())
-    {
-    case MANAGE_OFFER_MALFORMED:
-        throw ex_MANAGE_OFFER_MALFORMED{};
-    case MANAGE_OFFER_SELL_NO_TRUST:
-        throw ex_MANAGE_OFFER_SELL_NO_TRUST{};
-    case MANAGE_OFFER_BUY_NO_TRUST:
-        throw ex_MANAGE_OFFER_BUY_NO_TRUST{};
-    case MANAGE_OFFER_SELL_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_SELL_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_BUY_NOT_AUTHORIZED:
-        throw ex_MANAGE_OFFER_BUY_NOT_AUTHORIZED{};
-    case MANAGE_OFFER_LINE_FULL:
-        throw ex_MANAGE_OFFER_LINE_FULL{};
-    case MANAGE_OFFER_UNDERFUNDED:
-        throw ex_MANAGE_OFFER_UNDERFUNDED{};
-    case MANAGE_OFFER_CROSS_SELF:
-        throw ex_MANAGE_OFFER_CROSS_SELF{};
-    case MANAGE_OFFER_SELL_NO_ISSUER:
-        throw ex_MANAGE_OFFER_SELL_NO_ISSUER{};
-    case MANAGE_OFFER_BUY_NO_ISSUER:
-        throw ex_MANAGE_OFFER_BUY_NO_ISSUER{};
-    case MANAGE_OFFER_NOT_FOUND:
-        throw ex_MANAGE_OFFER_NOT_FOUND{};
-    case MANAGE_OFFER_LOW_RESERVE:
-        throw ex_MANAGE_OFFER_LOW_RESERVE{};
-    default:
-        break;
-    }
-
-    REQUIRE(createOfferRes.code() == MANAGE_OFFER_SUCCESS);
-
     auto& success = createOfferRes.success().offer;
-
     REQUIRE(success.effect() == expectedEffect);
-
     return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID
                                                     : 0;
 }
