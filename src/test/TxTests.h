@@ -96,7 +96,7 @@ void applyCreateAccountTx(Application& app, SecretKey const& from,
                           SecretKey const& to, SequenceNumber seq,
                           int64_t amount);
 
-Operation createPaymentOp(SecretKey const* from, PublicKey const& to,
+Operation createPaymentOp(PublicKey const& to,
                           int64_t amount);
 
 TransactionFramePtr createPaymentTx(Hash const& networkID,
@@ -177,9 +177,9 @@ TransactionFramePtr createInflation(Hash const& networkID,
 OperationResult
 applyInflation(Application& app, SecretKey const& from, SequenceNumber seq);
 
-Operation createMergeOp(SecretKey const* from, PublicKey const& dest);
+Operation createMergeOp(PublicKey const& dest);
 
-Operation createCreateAccountOp(SecretKey const* from, PublicKey const& dest,
+Operation createCreateAccountOp(PublicKey const& dest,
                                 int64_t amount);
 
 TransactionFramePtr createAccountMerge(Hash const& networkID,

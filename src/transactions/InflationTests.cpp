@@ -354,11 +354,11 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto minBalance = app.getLedgerManager().getMinBalance(0);
         auto rootBalance = root.getBalance();
 
-        auto voter1tx = root.tx({createCreateAccountOp(nullptr, voter1, rootBalance / 6)});
+        auto voter1tx = root.tx({createCreateAccountOp(voter1, rootBalance / 6)});
         voter1tx->getEnvelope().tx.fee = 999999999;
-        auto voter2tx = root.tx({createCreateAccountOp(nullptr, voter2, rootBalance / 3)});
-        auto target1tx = root.tx({createCreateAccountOp(nullptr, target1, minBalance)});
-        auto target2tx = root.tx({createCreateAccountOp(nullptr, target2, minBalance)});
+        auto voter2tx = root.tx({createCreateAccountOp(voter2, rootBalance / 3)});
+        auto target1tx = root.tx({createCreateAccountOp(target1, minBalance)});
+        auto target2tx = root.tx({createCreateAccountOp(target2, minBalance)});
 
         closeLedgerOn(app, 2, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx});
 

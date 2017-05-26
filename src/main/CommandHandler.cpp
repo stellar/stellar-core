@@ -190,11 +190,11 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame = fromAccount.tx({createCreateAccountOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
+            txFrame = fromAccount.tx({createCreateAccountOp(toAccount.getPublicKey(), paymentAmount)});
         }
         else
         {
-            txFrame = fromAccount.tx({createPaymentOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
+            txFrame = fromAccount.tx({createPaymentOp(toAccount.getPublicKey(), paymentAmount)});
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))

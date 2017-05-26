@@ -31,6 +31,7 @@ class TestAccount
     }
 
     TransactionFramePtr tx(std::vector<Operation> const& ops);
+    Operation op(Operation operation);
 
     TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
     TestAccount create(std::string const& name, uint64_t initialBalance);

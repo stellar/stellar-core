@@ -52,7 +52,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions),
-                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
+                      [&]() { return root.tx({createCreateAccountOp(a1.getPublicKey(), 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

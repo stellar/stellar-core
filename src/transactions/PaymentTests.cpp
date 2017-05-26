@@ -192,7 +192,7 @@ TEST_CASE("payment", "[tx][payment]")
         int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
-            {createPaymentOp(nullptr, b1, 200), createMergeOp(nullptr, b1)});
+            {createPaymentOp(b1, 200), createMergeOp(b1)});
 
         for_all_versions(app, [&]{
             auto res = applyCheck(txFrame, delta, app);
@@ -214,8 +214,8 @@ TEST_CASE("payment", "[tx][payment]")
         int64 a1Balance = a1.getBalance();
         int64 b1Balance = b1.getBalance();
 
-        auto txFrame = a1.tx({createPaymentOp(nullptr, b1, 200),
-                              createMergeOp(&b1.getSecretKey(), a1)});
+        auto txFrame = a1.tx({createPaymentOp(b1, 200),
+                              b1.op(createMergeOp(a1))});
         txFrame->addSignature(b1);
 
         for_all_versions(app, [&]{
@@ -237,7 +237,7 @@ TEST_CASE("payment", "[tx][payment]")
         int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
-            {createMergeOp(nullptr, b1), createPaymentOp(nullptr, b1, 200)});
+            {createMergeOp(b1), createPaymentOp(b1, 200)});
 
         for_versions_to(7, app, [&]{
             auto res = applyCheck(txFrame, delta, app);
@@ -305,7 +305,7 @@ TEST_CASE("payment", "[tx][payment]")
                 addReserve;
 
             // verify that the account can't do anything
-            auto tx = b1.tx({createPaymentOp(nullptr, root, 1)});
+            auto tx = b1.tx({createPaymentOp(root, 1)});
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -326,8 +326,8 @@ TEST_CASE("payment", "[tx][payment]")
                                     txfee * 2;
             auto b1 = root.create("B", startingBalance);
 
-            auto tx1 = b1.tx({createPaymentOp(nullptr, root, paymentAmount)});
-            auto tx2 = b1.tx({createPaymentOp(nullptr, root, 6)});
+            auto tx1 = b1.tx({createPaymentOp(root, paymentAmount)});
+            auto tx2 = b1.tx({createPaymentOp(root, 6)});
 
             int64 rootBalance = root.getBalance();
             auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
@@ -352,10 +352,10 @@ TEST_CASE("payment", "[tx][payment]")
                 + payAndMergeDestination.getBalance();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(nullptr, payAndMergeDestination, 500000000),
-            createMergeOp(nullptr, payAndMergeDestination),
-            createCreateAccountOp(&secondSourceAccount.getSecretKey(), sourceAccount, 500000000),
-            createPaymentOp(nullptr, payAndMergeDestination, 10000000)
+            createPaymentOp(payAndMergeDestination, 500000000),
+            createMergeOp(payAndMergeDestination),
+            secondSourceAccount.op(createCreateAccountOp(sourceAccount, 500000000)),
+            createPaymentOp(payAndMergeDestination, 10000000)
         });
         tx->addSignature(secondSourceAccount);
 

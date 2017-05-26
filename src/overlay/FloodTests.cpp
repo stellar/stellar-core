@@ -133,7 +133,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, dest.getPublicKey(), txAmount)});
+            auto tx1 = sources[i].tx({createCreateAccountOp(dest.getPublicKey(), txAmount)});
 
             // round robin
             auto inApp = nodes[i % nodes.size()];
@@ -208,7 +208,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, sources[i], txAmount)});
+            auto tx1 = sources[i].tx({createCreateAccountOp(sources[i], txAmount)});
 
             // round robin
             auto inApp = nodes[i % nodes.size()];

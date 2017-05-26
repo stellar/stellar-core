@@ -40,6 +40,13 @@ TestAccount::tx(std::vector<Operation> const& ops)
                                      nextSequenceNumber(), ops);
 }
 
+Operation
+TestAccount::op(Operation operation)
+{
+    operation.sourceAccount.activate() = getPublicKey();
+    return operation;
+}
+
 TestAccount
 TestAccount::createRoot(Application& app)
 {

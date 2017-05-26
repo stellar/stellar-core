@@ -302,15 +302,13 @@ applyAllowTrust(Application& app, SecretKey const& from,
 }
 
 Operation
-createCreateAccountOp(SecretKey const* from, PublicKey const& dest,
+createCreateAccountOp(PublicKey const& dest,
                       int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
     op.body.createAccountOp().startingBalance = amount;
     op.body.createAccountOp().destination = dest;
-    if (from)
-        op.sourceAccount.activate() = from->getPublicKey();
     return op;
 }
 
@@ -318,8 +316,8 @@ TransactionFramePtr
 createCreateAccountTx(Hash const& networkID, SecretKey const& from,
                       SecretKey const& to, SequenceNumber seq, int64_t amount)
 {
-    return transactionFromOperation(networkID, from, seq,
-                                    createCreateAccountOp(nullptr, to.getPublicKey(), amount));
+    auto op = createCreateAccountOp(to.getPublicKey(), amount);
+    return transactionFromOperation(networkID, from, seq, op);
 }
 
 void
@@ -355,17 +353,13 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
 }
 
 Operation
-createPaymentOp(SecretKey const* from, PublicKey const& to, int64_t amount)
+createPaymentOp(PublicKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
     op.body.paymentOp().amount = amount;
     op.body.paymentOp().destination = to;
     op.body.paymentOp().asset.type(ASSET_TYPE_NATIVE);
-
-    if (from)
-        op.sourceAccount.activate() = from->getPublicKey();
-
     return op;
 }
 
@@ -374,7 +368,7 @@ createPaymentTx(Hash const& networkID, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
     return transactionFromOperation(networkID, from, seq,
-                                    createPaymentOp(nullptr, to, amount));
+                                    createPaymentOp(to, amount));
 }
 
 void
@@ -826,15 +820,11 @@ applyInflation(Application& app, SecretKey const& from, SequenceNumber seq)
 }
 
 Operation
-createMergeOp(SecretKey const* from, PublicKey const& dest)
+createMergeOp(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
     op.body.destination() = dest;
-
-    if (from)
-        op.sourceAccount.activate() = from->getPublicKey();
-
     return op;
 }
 
@@ -843,7 +833,7 @@ createAccountMerge(Hash const& networkID, SecretKey const& source,
                    PublicKey const& dest, SequenceNumber seq)
 {
     return transactionFromOperation(networkID, source, seq,
-                                    createMergeOp(nullptr, dest));
+                                    createMergeOp(dest));
 }
 
 void
