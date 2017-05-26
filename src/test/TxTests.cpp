@@ -263,21 +263,16 @@ transactionFromOperations(Hash const& networkID, SecretKey const& from,
     return res;
 }
 
-TransactionFramePtr
-createChangeTrust(Hash const& networkID, SecretKey const& from,
-                  PublicKey const& to, SequenceNumber seq,
-                  std::string const& assetCode, int64_t limit)
+Operation
+createChangeTrustOp(Asset const& asset, int64_t limit)
 {
     Operation op;
 
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
-    op.body.changeTrustOp().line.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(op.body.changeTrustOp().line.alphaNum4().assetCode,
-                   assetCode);
-    op.body.changeTrustOp().line.alphaNum4().issuer = to;
+    op.body.changeTrustOp().line = asset;
 
-    return transactionFromOperation(networkID, from, seq, op);
+    return op;
 }
 
 Operation
@@ -388,15 +383,6 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
     auto toAccountAfter = loadAccount(to, app, false);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
-}
-
-void
-applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
-                 SequenceNumber seq, std::string const& assetCode,
-                 int64_t limit)
-{
-    auto tx = createChangeTrust(app.getNetworkID(), from, to, seq, assetCode, limit);
-    applyTx(tx, app);
 }
 
 TransactionFramePtr

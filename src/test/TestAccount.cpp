@@ -77,10 +77,7 @@ TestAccount::merge(PublicKey const& into)
 void
 TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyChangeTrust(mApp, getSecretKey(), asset.alphaNum4().issuer,
-                     nextSequenceNumber(), assetCode, limit);
+    applyTx(tx({createChangeTrustOp(asset, limit)}), mApp);
 }
 
 void

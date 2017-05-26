@@ -69,15 +69,8 @@ transactionFromOperations(Hash const& networkID, SecretKey const& from,
                           SequenceNumber seq,
                           std::vector<Operation> const& ops);
 
-TransactionFramePtr createChangeTrust(Hash const& networkID,
-                                      SecretKey const& from,
-                                      SecretKey const& to, SequenceNumber seq,
-                                      std::string const& assetCode,
-                                      int64_t limit);
-
-void applyChangeTrust(Application& app, SecretKey const& from,
-                      PublicKey const& to, SequenceNumber seq,
-                      std::string const& assetCode, int64_t limit);
+Operation
+createChangeTrustOp(Asset const& asset, int64_t limit);
 
 Operation
 createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
