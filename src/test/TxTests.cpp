@@ -99,6 +99,25 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     return res;
 }
 
+void
+checkTransaction(TransactionFrame& txFrame)
+{
+    REQUIRE(txFrame.getResult().feeCharged == 100); // default fee
+    REQUIRE((txFrame.getResultCode() == txSUCCESS ||
+             txFrame.getResultCode() == txFAILED));
+}
+
+void
+applyTx(TransactionFramePtr const& tx, Application& app)
+{
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    applyCheck(tx, delta, app);
+    throwIf(tx->getResult());
+    checkTransaction(*tx);
+    delta.commit();
+}
+
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFramePtr> const& txs)
@@ -205,14 +224,6 @@ getAccountSigners(SecretKey const& k, Application& app)
     return account->getAccount().signers;
 }
 
-void
-checkTransaction(TransactionFrame& txFrame)
-{
-    REQUIRE(txFrame.getResult().feeCharged == 100); // default fee
-    REQUIRE((txFrame.getResultCode() == txSUCCESS ||
-             txFrame.getResultCode() == txFAILED));
-}
-
 TransactionFramePtr
 transactionFromOperation(Hash const& networkID, SecretKey const& from,
                          SequenceNumber seq, Operation const& op)
@@ -290,15 +301,9 @@ applyAllowTrust(Application& app, SecretKey const& from,
                 PublicKey const& trustor, SequenceNumber seq,
                 std::string const& assetCode, bool authorize)
 {
-    TransactionFramePtr txFrame;
-    txFrame = createAllowTrust(app.getNetworkID(), from, trustor, seq,
+    auto tx = createAllowTrust(app.getNetworkID(), from, trustor, seq,
                                assetCode, authorize);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    applyTx(tx, app);
 }
 
 Operation
@@ -324,18 +329,15 @@ void
 applyCreateAccountTx(Application& app, SecretKey const& from,
                      SecretKey const& to, SequenceNumber seq, int64_t amount)
 {
-    TransactionFramePtr txFrame;
+    auto toAccount = loadAccount(to, app, false);
+    auto fromAccount = loadAccount(from, app);
+    auto tx = createCreateAccountTx(app.getNetworkID(), from, to, seq, amount);
 
-    AccountFrame::pointer fromAccount, toAccount;
-    toAccount = loadAccount(to, app, false);
-
-    fromAccount = loadAccount(from, app);
-
-    txFrame = createCreateAccountTx(app.getNetworkID(), from, to, seq, amount);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    if (!applyCheck(txFrame, delta, app))
+    try
+    {
+        applyTx(tx, app);
+    }
+    catch (...)
     {
         auto toAccountAfter = loadAccount(to, app, false);
         // check that the target account didn't change
@@ -344,9 +346,8 @@ applyCreateAccountTx(Application& app, SecretKey const& from,
         {
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
+        throw;
     }
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
 
     auto toAccountAfter = loadAccount(to, app, false);
     REQUIRE(toAccountAfter);
@@ -375,18 +376,15 @@ void
 applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
                SequenceNumber seq, int64_t amount)
 {
-    TransactionFramePtr txFrame;
+    auto toAccount = loadAccount(to, app, false);
+    auto fromAccount = loadAccount(from, app);
+    auto tx = createPaymentTx(app.getNetworkID(), from, to.getPublicKey(), seq, amount);
 
-    AccountFrame::pointer fromAccount, toAccount;
-    toAccount = loadAccount(to, app, false);
-
-    fromAccount = loadAccount(from, app);
-
-    txFrame = createPaymentTx(app.getNetworkID(), from, to.getPublicKey(), seq, amount);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    if (!applyCheck(txFrame, delta, app))
+    try
+    {
+        applyTx(tx, app);
+    }
+    catch (...)
     {
         auto toAccountAfter = loadAccount(to, app, false);
         // check that the target account didn't change
@@ -395,9 +393,8 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
         {
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }
+        throw;
     }
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
 
     auto toAccountAfter = loadAccount(to, app, false);
     REQUIRE(toAccount);
@@ -409,16 +406,8 @@ applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
                  SequenceNumber seq, std::string const& assetCode,
                  int64_t limit)
 {
-    TransactionFramePtr txFrame;
-
-    txFrame =
-        createChangeTrust(app.getNetworkID(), from, to, seq, assetCode, limit);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    auto tx = createChangeTrust(app.getNetworkID(), from, to, seq, assetCode, limit);
+    applyTx(tx, app);
 }
 
 TransactionFramePtr
@@ -450,16 +439,8 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
                      PublicKey const& to, Asset const& ci, SequenceNumber seq,
                      int64_t amount)
 {
-    TransactionFramePtr txFrame;
-
-    txFrame =
-        createCreditPaymentTx(app.getNetworkID(), from, to, ci, seq, amount);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    auto tx = createCreditPaymentTx(app.getNetworkID(), from, to, ci, seq, amount);
+    applyTx(tx, app);
 }
 
 TransactionFramePtr
@@ -487,28 +468,21 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
                    int64_t destAmount, SequenceNumber seq,
                    std::vector<Asset> const& path, Asset* noIssuer)
 {
-    TransactionFramePtr txFrame;
-
-    txFrame = createPathPaymentTx(app.getNetworkID(), from, to, sendCur,
+    auto tx = createPathPaymentTx(app.getNetworkID(), from, to, sendCur,
                                   sendMax, destCur, destAmount, seq, path);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
     try
     {
-        throwIf(txFrame->getResult());
+        applyTx(tx, app);
     }
     catch (ex_PATH_PAYMENT_NO_ISSUER &)
     {
         REQUIRE(noIssuer);
-        REQUIRE(*noIssuer == txFrame->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
+        REQUIRE(*noIssuer == tx->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
         throw;
     }
-    checkTransaction(*txFrame);
 
-    auto& firstResult = getFirstResult(*txFrame);
-
+    auto& firstResult = getFirstResult(*tx);
     auto res = firstResult.tr().pathPaymentResult();
     auto result = res.code();
 
@@ -557,30 +531,27 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
                        Asset const& buying, Price const& price, int64_t amount,
                        SequenceNumber seq)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
     if (offerId != 0)
     {
         expectedOfferID = offerId;
     }
 
-    TransactionFramePtr txFrame;
-
-    txFrame = manageOfferOp(app.getNetworkID(), offerId, source, selling,
+    auto tx = manageOfferOp(app.getNetworkID(), offerId, source, selling,
                             buying, price, amount, seq);
 
-    if (!applyCheck(txFrame, delta, app))
+    try
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        applyTx(tx, app);
+    }
+    catch (...)
+    {
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool == lastGeneratedID);
+        throw;
     }
 
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
-    delta.commit();
-
-    auto& results = txFrame->getResult().result.results();
+    auto& results = tx->getResult().result.results();
 
     REQUIRE(results.size() == 1);
 
@@ -636,24 +607,23 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    auto lastGeneratedID = delta.getHeaderFrame().getLastGeneratedID();
+    auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
-    TransactionFramePtr txFrame;
-    txFrame = createPassiveOfferOp(app.getNetworkID(), source, selling, buying,
+    auto tx = createPassiveOfferOp(app.getNetworkID(), source, selling, buying,
                                    price, amount, seq);
 
-    if (!applyCheck(txFrame, delta, app))
+    try
     {
-        REQUIRE(delta.getHeaderFrame().getLastGeneratedID() == lastGeneratedID);
+        applyTx(tx, app);
     }
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
-    delta.commit();
+    catch (...)
+    {
+        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool == lastGeneratedID);
+        throw;
+    }
 
-    auto& results = txFrame->getResult().result.results();
+    auto& results = tx->getResult().result.results();
 
     REQUIRE(results.size() == 1);
 
@@ -773,16 +743,9 @@ applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
                 std::string* homeDomain)
 {
-    TransactionFramePtr txFrame;
-
-    txFrame = createSetOptions(app.getNetworkID(), source, seq, inflationDest,
+    auto tx = createSetOptions(app.getNetworkID(), source, seq, inflationDest,
                                setFlags, clearFlags, thrs, signer, homeDomain);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    applyTx(tx, app);
 }
 
 Operation
@@ -804,19 +767,9 @@ createInflation(Hash const& networkID, SecretKey const& from,
 OperationResult
 applyInflation(Application& app, SecretKey const& from, SequenceNumber seq)
 {
-    TransactionFramePtr txFrame =
-        createInflation(app.getNetworkID(), from, seq);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    bool res = applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
-    if (res)
-    {
-        delta.commit();
-    }
-    return getFirstResult(*txFrame);
+    auto tx = createInflation(app.getNetworkID(), from, seq);
+    applyTx(tx, app);
+    return getFirstResult(*tx);
 }
 
 Operation
@@ -840,14 +793,8 @@ void
 applyAccountMerge(Application& app, SecretKey const& source,
                   PublicKey const& dest, SequenceNumber seq)
 {
-    TransactionFramePtr txFrame =
-        createAccountMerge(app.getNetworkID(), source, dest, seq);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    auto tx = createAccountMerge(app.getNetworkID(), source, dest, seq);
+    applyTx(tx, app);
 }
 
 TransactionFramePtr
@@ -867,14 +814,9 @@ void
 applyManageData(Application& app, SecretKey const& source,
                 std::string const& name, DataValue* value, SequenceNumber seq)
 {
-    TransactionFramePtr txFrame =
+    auto tx =
         createManageData(app.getNetworkID(), source, name, value, seq);
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(txFrame, delta, app);
-    throwIf(txFrame->getResult());
-    checkTransaction(*txFrame);
+    applyTx(tx, app);
 
     auto dataFrame =
         DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
