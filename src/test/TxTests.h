@@ -79,14 +79,9 @@ void applyChangeTrust(Application& app, SecretKey const& from,
                       PublicKey const& to, SequenceNumber seq,
                       std::string const& assetCode, int64_t limit);
 
-TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from,
-                 PublicKey const& trustor, SequenceNumber seq,
-                 std::string const& assetCode, bool authorize);
-
-void applyAllowTrust(Application& app, SecretKey const& from,
-                     PublicKey const& trustor, SequenceNumber seq,
-                     std::string const& assetCode, bool authorize);
+Operation
+createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+                   bool authorize);
 
 TransactionFramePtr createCreateAccountTx(Hash const& networkID,
                                           SecretKey const& from,

@@ -86,19 +86,13 @@ TestAccount::changeTrust(Asset const& asset, int64_t limit)
 void
 TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
-                    assetCode, true);
+    applyTx(tx({createAllowTrustOp(trustor, asset, true)}), mApp);
 }
 
 void
 TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
-    auto assetCode = std::string{};
-    assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
-    applyAllowTrust(mApp, getSecretKey(), trustor, nextSequenceNumber(),
-                    assetCode, false);
+    applyTx(tx({createAllowTrustOp(trustor, asset, false)}), mApp);
 }
 
 void

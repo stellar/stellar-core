@@ -280,30 +280,19 @@ createChangeTrust(Hash const& networkID, SecretKey const& from,
     return transactionFromOperation(networkID, from, seq, op);
 }
 
-TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from,
-                 PublicKey const& trustor, SequenceNumber seq,
-                 std::string const& assetCode, bool authorize)
+Operation
+createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+                   bool authorize)
 {
     Operation op;
 
     op.body.type(ALLOW_TRUST);
     op.body.allowTrustOp().trustor = trustor;
     op.body.allowTrustOp().asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
-    strToAssetCode(op.body.allowTrustOp().asset.assetCode4(), assetCode);
+    op.body.allowTrustOp().asset.assetCode4() = asset.alphaNum4().assetCode;
     op.body.allowTrustOp().authorize = authorize;
 
-    return transactionFromOperation(networkID, from, seq, op);
-}
-
-void
-applyAllowTrust(Application& app, SecretKey const& from,
-                PublicKey const& trustor, SequenceNumber seq,
-                std::string const& assetCode, bool authorize)
-{
-    auto tx = createAllowTrust(app.getNetworkID(), from, trustor, seq,
-                               assetCode, authorize);
-    applyTx(tx, app);
+    return op;
 }
 
 Operation
