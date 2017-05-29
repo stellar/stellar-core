@@ -83,15 +83,6 @@ Operation createMergeOp(PublicKey const& dest);
 Operation createCreateAccountOp(PublicKey const& dest,
                                 int64_t amount);
 
-TransactionFramePtr createCreateAccountTx(Hash const& networkID,
-                                          SecretKey const& from,
-                                          SecretKey const& to,
-                                          SequenceNumber seq, int64_t amount);
-
-void applyCreateAccountTx(Application& app, SecretKey const& from,
-                          SecretKey const& to, SequenceNumber seq,
-                          int64_t amount);
-
 Operation createPaymentOp(PublicKey const& to,
                           int64_t amount);
 

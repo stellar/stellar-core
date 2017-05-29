@@ -48,7 +48,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    SecretKey a1 = getAccount("A");
+    auto a1 = TestAccount{app, getAccount("A")};
 
     const uint64_t paymentAmount =
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
@@ -941,7 +941,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         TransactionFramePtr txFrame;
 
-        txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+        txFrame = root.tx({createCreateAccountOp(a1, paymentAmount)});
         txSet->add(txFrame);
 
         // close this ledger

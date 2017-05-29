@@ -4,6 +4,7 @@
 
 #include "TestAccount.h"
 
+#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TxTests.h"
 
@@ -62,8 +63,26 @@ TestAccount::createRoot(Application& app)
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    applyCreateAccountTx(mApp, getSecretKey(), secretKey, nextSequenceNumber(),
-                         initialBalance);
+    auto toCreate = loadAccount(secretKey, mApp, false);
+    auto self = loadAccount(getSecretKey(), mApp);
+
+    try
+    {
+        applyTx(tx({createCreateAccountOp(secretKey.getPublicKey(), initialBalance)}), mApp);
+    }
+    catch (...)
+    {
+        auto toCreateAfter = loadAccount(secretKey, mApp, false);
+        // check that the target account didn't change
+        REQUIRE(!!toCreate == !!toCreateAfter);
+        if (toCreate && toCreateAfter)
+        {
+            REQUIRE(toCreate->getAccount() == toCreateAfter->getAccount());
+        }
+        throw;
+    }
+
+    REQUIRE(loadAccount(secretKey, mApp));
     return TestAccount{mApp, secretKey};
 }
 

@@ -301,42 +301,6 @@ createCreateAccountOp(PublicKey const& dest,
     return op;
 }
 
-TransactionFramePtr
-createCreateAccountTx(Hash const& networkID, SecretKey const& from,
-                      SecretKey const& to, SequenceNumber seq, int64_t amount)
-{
-    auto op = createCreateAccountOp(to.getPublicKey(), amount);
-    return transactionFromOperation(networkID, from, seq, op);
-}
-
-void
-applyCreateAccountTx(Application& app, SecretKey const& from,
-                     SecretKey const& to, SequenceNumber seq, int64_t amount)
-{
-    auto toAccount = loadAccount(to, app, false);
-    auto fromAccount = loadAccount(from, app);
-    auto tx = createCreateAccountTx(app.getNetworkID(), from, to, seq, amount);
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        auto toAccountAfter = loadAccount(to, app, false);
-        // check that the target account didn't change
-        REQUIRE(!!toAccount == !!toAccountAfter);
-        if (toAccount && toAccountAfter)
-        {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
-        }
-        throw;
-    }
-
-    auto toAccountAfter = loadAccount(to, app, false);
-    REQUIRE(toAccountAfter);
-}
-
 Operation
 createPaymentOp(PublicKey const& to, int64_t amount)
 {

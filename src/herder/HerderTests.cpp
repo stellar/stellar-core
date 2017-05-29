@@ -47,8 +47,8 @@ TEST_CASE("standalone", "[herder]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    SecretKey a1 = getAccount("A");
-    SecretKey b1 = getAccount("B");
+    auto a1 = TestAccount{*app, getAccount("A")};
+    auto b1 = TestAccount{*app, getAccount("B")};
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
@@ -72,8 +72,8 @@ TEST_CASE("standalone", "[herder]")
 
         auto setup = [&](asio::error_code const& error) {
             // create accounts
-            auto txFrameA1 = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
-            auto txFrameA2 = root.tx({createCreateAccountOp(b1.getPublicKey(), paymentAmount)});
+            auto txFrameA1 = root.tx({createCreateAccountOp(a1, paymentAmount)});
+            auto txFrameA2 = root.tx({createCreateAccountOp(b1, paymentAmount)});
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
                     Herder::TX_STATUS_PENDING);
@@ -167,7 +167,8 @@ TEST_CASE("txset", "[herder]")
 
     const int nbAccounts = 2;
     const int nbTransactions = 5;
-    std::vector<TestAccount> accounts;
+
+    auto accounts = std::vector<TestAccount>{};
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
@@ -431,7 +432,7 @@ TEST_CASE("SCP Driver", "[herder]")
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto root = TestAccount::createRoot(*app);
-    SecretKey a1 = getAccount("A");
+    auto a1 = TestAccount{*app, getAccount("A")};
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
     auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
@@ -458,8 +459,10 @@ TEST_CASE("SCP Driver", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions),
-                      [&]() { return root.tx({createCreateAccountOp(a1.getPublicKey(), 10000000)}); });
+                      std::end(txSet->mTransactions), [&]() {
+                          return root.tx({createCreateAccountOp(a1,
+                              10000000)});
+                      });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);
