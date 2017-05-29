@@ -41,8 +41,8 @@ class TxSetFrame
 
     std::vector<TransactionFramePtr> sortForApply();
 
-    bool checkValid(Application& app) const;
-    void trimInvalid(Application& app,
+    bool checkValid(Application const& app) const;
+    void trimInvalid(Application const& app,
                      std::vector<TransactionFramePtr>& trimmed);
     void surgePricingFilter(LedgerManager const& lm);
 

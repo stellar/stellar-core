@@ -26,7 +26,7 @@ AllowTrustOpFrame::getNeededThreshold() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
+AllowTrustOpFrame::doApply(Application const& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     if (ledgerManager.getCurrentLedgerVersion() > 2)
@@ -105,7 +105,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(Application& app)
+AllowTrustOpFrame::doCheckValid(Application const& app)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {

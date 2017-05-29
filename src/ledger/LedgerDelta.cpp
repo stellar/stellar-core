@@ -332,7 +332,7 @@ LedgerDelta::updateLastModified() const
 }
 
 void
-LedgerDelta::markMeters(Application& app) const
+LedgerDelta::markMeters(Application const& app) const
 {
     for (auto const& ke : mNew)
     {

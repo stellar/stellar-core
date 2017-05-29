@@ -236,7 +236,7 @@ class HistoryManager
 
     // Initialize a named history archive by writing
     // .well-known/stellar-history.json to it.
-    static bool initializeHistoryArchive(Application& app, std::string arch);
+    static bool initializeHistoryArchive(Application const& app, std::string arch);
 
     // Check that config settings are at least somewhat reasonable.
     static bool checkSensibleConfig(Config const& cfg);

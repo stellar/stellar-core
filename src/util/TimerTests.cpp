@@ -88,7 +88,7 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
     Config cfg(getTestConfig());
     VirtualClock clock;
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    Application const& app = *appPtr;
 
     VirtualTimer timer1(app);
     VirtualTimer timer20(app);

@@ -115,7 +115,7 @@ CommandHandler::manualCmd(std::string const& cmd)
 }
 
 SequenceNumber
-getSeq(SecretKey const& k, Application& app)
+getSeq(SecretKey const& k, Application const& app)
 {
     AccountFrame::pointer account;
     account = AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());

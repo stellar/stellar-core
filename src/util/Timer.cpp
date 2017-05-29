@@ -433,7 +433,7 @@ VirtualClockEvent::operator<(VirtualClockEvent const& other) const
     return mWhen > other.mWhen || (mWhen == other.mWhen && mSeq > other.mSeq);
 }
 
-VirtualTimer::VirtualTimer(Application& app) : VirtualTimer(app.getClock())
+VirtualTimer::VirtualTimer(Application const& app) : VirtualTimer(app.getClock())
 {
 }
 

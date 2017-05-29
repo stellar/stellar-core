@@ -34,7 +34,7 @@ getTestAccount(int i)
 }
 
 static void
-createTestAccounts(Application& app, int nbAccounts,
+createTestAccounts(Application const& app, int nbAccounts,
                    std::function<int64(int)> getBalance,
                    std::function<int(int)> getVote)
 {
@@ -164,7 +164,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& tot
 }
 
 static void
-doInflation(Application& app, int ledgerVersion, int nbAccounts,
+doInflation(Application const& app, int ledgerVersion, int nbAccounts,
             std::function<int64(int)> getBalance,
             std::function<int(int)> getVote, int expectedWinnerCount)
 {

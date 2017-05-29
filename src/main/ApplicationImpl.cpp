@@ -224,7 +224,7 @@ ApplicationImpl::~ApplicationImpl()
 }
 
 uint64_t
-ApplicationImpl::timeNow()
+ApplicationImpl::timeNow() const
 {
     return VirtualClock::to_time_t(getClock().now());
 }
@@ -443,7 +443,7 @@ ApplicationImpl::applyCfgCommands()
 }
 
 Config const&
-ApplicationImpl::getConfig()
+ApplicationImpl::getConfig() const
 {
     return mConfig;
 }
@@ -496,13 +496,13 @@ ApplicationImpl::isStopping() const
 }
 
 VirtualClock&
-ApplicationImpl::getClock()
+ApplicationImpl::getClock() const
 {
     return mVirtualClock;
 }
 
 medida::MetricsRegistry&
-ApplicationImpl::getMetrics()
+ApplicationImpl::getMetrics() const
 {
     return *mMetrics;
 }
@@ -546,49 +546,49 @@ ApplicationImpl::syncAllMetrics()
 }
 
 TmpDirManager&
-ApplicationImpl::getTmpDirManager()
+ApplicationImpl::getTmpDirManager() const
 {
     return *mTmpDirManager;
 }
 
 LedgerManager&
-ApplicationImpl::getLedgerManager()
+ApplicationImpl::getLedgerManager() const
 {
     return *mLedgerManager;
 }
 
 BucketManager&
-ApplicationImpl::getBucketManager()
+ApplicationImpl::getBucketManager() const
 {
     return *mBucketManager;
 }
 
 HistoryManager&
-ApplicationImpl::getHistoryManager()
+ApplicationImpl::getHistoryManager() const
 {
     return *mHistoryManager;
 }
 
 ProcessManager&
-ApplicationImpl::getProcessManager()
+ApplicationImpl::getProcessManager() const
 {
     return *mProcessManager;
 }
 
 Herder&
-ApplicationImpl::getHerder()
+ApplicationImpl::getHerder() const
 {
     return *mHerder;
 }
 
 Invariants&
-ApplicationImpl::getInvariants()
+ApplicationImpl::getInvariants() const
 {
     return *mInvariants;
 }
 
 OverlayManager&
-ApplicationImpl::getOverlayManager()
+ApplicationImpl::getOverlayManager() const
 {
     return *mOverlayManager;
 }
@@ -600,31 +600,31 @@ ApplicationImpl::getDatabase() const
 }
 
 PersistentState&
-ApplicationImpl::getPersistentState()
+ApplicationImpl::getPersistentState() const
 {
     return *mPersistentState;
 }
 
 CommandHandler&
-ApplicationImpl::getCommandHandler()
+ApplicationImpl::getCommandHandler() const
 {
     return *mCommandHandler;
 }
 
 WorkManager&
-ApplicationImpl::getWorkManager()
+ApplicationImpl::getWorkManager() const
 {
     return *mWorkManager;
 }
 
 BanManager&
-ApplicationImpl::getBanManager()
+ApplicationImpl::getBanManager() const
 {
     return *mBanManager;
 }
 
 StatusManager&
-ApplicationImpl::getStatusManager()
+ApplicationImpl::getStatusManager() const
 {
     return *mStatusManager;
 }

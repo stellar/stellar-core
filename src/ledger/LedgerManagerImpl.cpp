@@ -330,7 +330,7 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
 }
 
 HistoryManager::CatchupMode
-getCatchupMode(Application& app)
+getCatchupMode(Application const& app)
 {
     return app.getConfig().CATCHUP_COMPLETE
                ? HistoryManager::CATCHUP_COMPLETE

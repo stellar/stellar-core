@@ -46,7 +46,7 @@ class ItemFetcher : private NonMovableOrCopyable
     /**
      * Create ItemFetcher that fetches data using @p askPeer delegate.
      */
-    explicit ItemFetcher(Application& app, AskPeer askPeer);
+    explicit ItemFetcher(Application const& app, AskPeer askPeer);
 
     /**
      * Fetch data identified by @p hash and needed by @p envelope. Multiple
@@ -95,7 +95,7 @@ class ItemFetcher : private NonMovableOrCopyable
   protected:
     void stopFetchingBelowInternal(uint64 slotIndex);
 
-    Application& mApp;
+    Application const& mApp;
     std::map<Hash, std::shared_ptr<Tracker>> mTrackers;
 
     // NB: There are many ItemFetchers in the system at once, but we are sharing

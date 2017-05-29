@@ -45,13 +45,13 @@ class Floodgate
     };
 
     std::map<uint256, FloodRecord::pointer> mFloodMap;
-    Application& mApp;
+    Application const& mApp;
     medida::Counter& mFloodMapSize;
     medida::Meter& mSendFromBroadcast;
     bool mShuttingDown;
 
   public:
-    Floodgate(Application& app);
+    Floodgate(Application const& app);
     // Floodgate will be cleared after every ledger close
     void clearBelow(uint32_t currentLedger);
     // returns true if this is a new record

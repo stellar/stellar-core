@@ -16,12 +16,12 @@ namespace stellar
 using namespace std;
 
 std::unique_ptr<BanManager>
-BanManager::create(Application& app)
+BanManager::create(Application const& app)
 {
     return make_unique<BanManagerImpl>(app);
 }
 
-BanManagerImpl::BanManagerImpl(Application& app) : mApp(app)
+BanManagerImpl::BanManagerImpl(Application const& app) : mApp(app)
 {
 }
 

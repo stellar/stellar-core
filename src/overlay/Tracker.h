@@ -39,7 +39,7 @@ class Tracker
 {
   private:
     AskPeer mAskPeer;
-    Application& mApp;
+    Application const& mApp;
     Peer::pointer mLastAskedPeer;
     int mNumListRebuild;
     std::deque<Peer::pointer> mPeersToAsk;
@@ -55,7 +55,7 @@ class Tracker
      * Create Tracker that tracks data identified by @p hash. @p askPeer
      * delegate is used to fetch the data.
      */
-    explicit Tracker(Application& app, Hash const& hash, AskPeer& askPeer);
+    explicit Tracker(Application const& app, Hash const& hash, AskPeer& askPeer);
     virtual ~Tracker();
 
     /**

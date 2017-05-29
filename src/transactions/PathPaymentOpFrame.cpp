@@ -31,7 +31,7 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
+PathPaymentOpFrame::doApply(Application const& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -341,7 +341,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(Application& app)
+PathPaymentOpFrame::doCheckValid(Application const& app)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {

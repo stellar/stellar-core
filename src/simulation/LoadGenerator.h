@@ -51,14 +51,14 @@ class LoadGenerator
     uint64_t mLastSecond;
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
-    void scheduleLoadGeneration(Application& app, uint32_t nAccounts,
+    void scheduleLoadGeneration(Application const& app, uint32_t nAccounts,
                                 uint32_t nTxs, uint32_t txRate, bool autoRate);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
-    void generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
+    void generateLoad(Application const& app, uint32_t nAccounts, uint32_t nTxs,
                       uint32_t txRate, bool autoRate);
 
     bool maybeCreateAccount(uint32_t ledgerNum, std::vector<TxInfo>& txs);
@@ -66,9 +66,9 @@ class LoadGenerator
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
     std::vector<AccountInfoPtr> createAccounts(size_t n);
-    bool loadAccount(Application& app, AccountInfo& account);
-    bool loadAccount(Application& app, AccountInfoPtr account);
-    bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
+    bool loadAccount(Application const& app, AccountInfo& account);
+    bool loadAccount(Application const& app, AccountInfoPtr account);
+    bool loadAccounts(Application const& app, std::vector<AccountInfoPtr> accounts);
 
     TxInfo createTransferNativeTransaction(AccountInfoPtr from,
                                            AccountInfoPtr to, int64_t amount);
@@ -86,7 +86,7 @@ class LoadGenerator
 
     TxInfo createRandomTransaction(float alpha, uint32_t ledgerNum = 0);
     std::vector<TxInfo> createRandomTransactions(size_t n, float paretoAlpha);
-    void updateMinBalance(Application& app);
+    void updateMinBalance(Application const& app);
 
     struct TrustLineInfo
     {
@@ -124,8 +124,8 @@ class LoadGenerator
         AccountInfoPtr mBuyCredit;
         AccountInfoPtr mSellCredit;
 
-        void createDirectly(Application& app);
-        void debitDirectly(Application& app, int64_t debitAmount);
+        void createDirectly(Application const& app);
+        void debitDirectly(Application const& app, int64_t debitAmount);
         TxInfo creationTransaction();
 
       private:
@@ -168,7 +168,7 @@ class LoadGenerator
         std::vector<AccountInfoPtr> mPath;
 
         void touchAccounts(uint32_t ledger);
-        bool execute(Application& app);
+        bool execute(Application const& app);
 
         void toTransactionFrames(Hash const& networkID,
                                  std::vector<TransactionFramePtr>& txs,

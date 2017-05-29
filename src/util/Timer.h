@@ -184,7 +184,7 @@ class VirtualTimer : private NonMovableOrCopyable
     bool mDeleting;
 
   public:
-    VirtualTimer(Application& app);
+    VirtualTimer(Application const& app);
     VirtualTimer(VirtualClock& app);
     ~VirtualTimer();
 

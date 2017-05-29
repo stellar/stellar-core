@@ -30,7 +30,7 @@ namespace stellar
 {
 
 std::shared_ptr<ProcessManager>
-ProcessManager::create(Application& app)
+ProcessManager::create(Application const& app)
 {
     return std::make_shared<ProcessManagerImpl>(app);
 }
@@ -133,7 +133,7 @@ ProcessManagerImpl::shutdown()
 #include <tchar.h>
 #include <windows.h>
 
-ProcessManagerImpl::ProcessManagerImpl(Application& app)
+ProcessManagerImpl::ProcessManagerImpl(Application const& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
     , mIOService(app.getClock().getIOService())
     , mSigChild(mIOService)
@@ -258,7 +258,7 @@ ProcessExitEvent::Impl::run()
 #include <spawn.h>
 #include <sys/wait.h>
 
-ProcessManagerImpl::ProcessManagerImpl(Application& app)
+ProcessManagerImpl::ProcessManagerImpl(Application const& app)
     : mMaxProcesses(app.getConfig().MAX_CONCURRENT_SUBPROCESSES)
     , mIOService(app.getClock().getIOService())
     , mSigChild(mIOService, SIGCHLD)

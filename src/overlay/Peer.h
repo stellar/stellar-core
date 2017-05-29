@@ -50,11 +50,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
         WE_CALLED_REMOTE
     };
 
-    static medida::Meter& getByteReadMeter(Application& app);
-    static medida::Meter& getByteWriteMeter(Application& app);
+    static medida::Meter& getByteReadMeter(Application const& app);
+    static medida::Meter& getByteWriteMeter(Application const& app);
 
   protected:
-    Application& mApp;
+    Application const& mApp;
 
     PeerRole mRole;
     PeerState mState;
@@ -186,9 +186,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void receivedBytes(size_t byteCount, bool gotFullMessage);
 
   public:
-    Peer(Application& app, PeerRole role);
+    Peer(Application const& app, PeerRole role);
 
-    Application&
+    Application const&
     getApp()
     {
         return mApp;

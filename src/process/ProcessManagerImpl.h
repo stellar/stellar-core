@@ -42,7 +42,7 @@ class ProcessManagerImpl : public ProcessManager
     friend class ProcessExitEvent::Impl;
 
   public:
-    ProcessManagerImpl(Application& app);
+    ProcessManagerImpl(Application const& app);
     ProcessExitEvent runProcess(std::string const& cmdLine,
                                 std::string outFile = "") override;
     size_t getNumRunningProcesses() override;

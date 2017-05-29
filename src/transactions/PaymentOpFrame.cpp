@@ -29,7 +29,7 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
+PaymentOpFrame::doApply(Application const& app, LedgerDelta& delta,
                         LedgerManager& ledgerManager)
 {
     // if sending to self XLM directly, just mark as success, else we need at
@@ -149,7 +149,7 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-PaymentOpFrame::doCheckValid(Application& app)
+PaymentOpFrame::doCheckValid(Application const& app)
 {
     if (mPayment.amount <= 0)
     {

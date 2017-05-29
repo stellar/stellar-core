@@ -27,7 +27,7 @@ class ApplicationEditableVersion : public ApplicationImpl
   public:
     ApplicationEditableVersion(VirtualClock& clock, Config const& cfg);
 
-    virtual LedgerManagerEditableVersion& getLedgerManager() override;
+    virtual LedgerManagerEditableVersion& getLedgerManager() const override;
 };
 
 time_t getTestDate(int day, int month, int year);

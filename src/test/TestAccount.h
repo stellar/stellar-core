@@ -23,9 +23,9 @@ struct ThresholdSetter;
 class TestAccount
 {
   public:
-    static TestAccount createRoot(Application& app);
+    static TestAccount createRoot(Application const& app);
 
-    explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
+    explicit TestAccount(Application const& app, SecretKey sk, SequenceNumber sn = 0)
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {
     }
@@ -100,7 +100,7 @@ class TestAccount
     int64_t getBalance() const;
 
   private:
-    Application& mApp;
+    Application const& mApp;
     SecretKey mSk;
     SequenceNumber mSn;
 

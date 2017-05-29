@@ -13,7 +13,7 @@ namespace stellar
 class PersistentState
 {
   public:
-    PersistentState(Application& app);
+    PersistentState(Application const& app);
 
     enum Entry
     {
@@ -37,6 +37,6 @@ class PersistentState
     static std::string kSQLCreateStatement;
     static std::string mapping[kLastEntry];
 
-    Application& mApp;
+    Application const& mApp;
 };
 }

@@ -287,7 +287,7 @@ class HerderImpl : public Herder, public SCPDriver
         medida::Counter& mHerderPendingTxs2;
         medida::Counter& mHerderPendingTxs3;
 
-        SCPMetrics(Application& app);
+        SCPMetrics(Application const& app);
     };
 
     SCPMetrics mSCPMetrics;

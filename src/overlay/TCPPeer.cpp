@@ -27,14 +27,14 @@ using namespace std;
 // TCPPeer
 ///////////////////////////////////////////////////////////////////////
 
-TCPPeer::TCPPeer(Application& app, Peer::PeerRole role,
+TCPPeer::TCPPeer(Application const& app, Peer::PeerRole role,
                  std::shared_ptr<TCPPeer::SocketType> socket)
     : Peer(app, role), mSocket(socket)
 {
 }
 
 TCPPeer::pointer
-TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
+TCPPeer::initiate(Application const& app, std::string const& ip, unsigned short port)
 {
     CLOG(DEBUG, "Overlay") << "TCPPeer:initiate"
                            << " to " << ip << ":" << port;
@@ -64,7 +64,7 @@ TCPPeer::initiate(Application& app, std::string const& ip, unsigned short port)
 }
 
 TCPPeer::pointer
-TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
+TCPPeer::accept(Application const& app, shared_ptr<TCPPeer::SocketType> socket)
 {
     assertThreadIsMain();
     shared_ptr<TCPPeer> result;

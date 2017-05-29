@@ -37,31 +37,31 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual uint64_t timeNow() override;
+    virtual uint64_t timeNow() const override;
 
-    virtual Config const& getConfig() override;
+    virtual Config const& getConfig() const override;
 
     virtual State getState() const override;
     virtual std::string getStateHuman() const override;
     virtual bool isStopping() const override;
-    virtual VirtualClock& getClock() override;
-    virtual medida::MetricsRegistry& getMetrics() override;
+    virtual VirtualClock& getClock() const override;
+    virtual medida::MetricsRegistry& getMetrics() const override;
     virtual void syncOwnMetrics() override;
     virtual void syncAllMetrics() override;
-    virtual TmpDirManager& getTmpDirManager() override;
-    virtual LedgerManager& getLedgerManager() override;
-    virtual BucketManager& getBucketManager() override;
-    virtual HistoryManager& getHistoryManager() override;
-    virtual ProcessManager& getProcessManager() override;
-    virtual Herder& getHerder() override;
-    virtual Invariants& getInvariants() override;
-    virtual OverlayManager& getOverlayManager() override;
+    virtual TmpDirManager& getTmpDirManager() const override;
+    virtual LedgerManager& getLedgerManager() const override;
+    virtual BucketManager& getBucketManager() const override;
+    virtual HistoryManager& getHistoryManager() const override;
+    virtual ProcessManager& getProcessManager() const override;
+    virtual Herder& getHerder() const override;
+    virtual Invariants& getInvariants() const override;
+    virtual OverlayManager& getOverlayManager() const override;
     virtual Database& getDatabase() const override;
-    virtual PersistentState& getPersistentState() override;
-    virtual CommandHandler& getCommandHandler() override;
-    virtual WorkManager& getWorkManager() override;
-    virtual BanManager& getBanManager() override;
-    virtual StatusManager& getStatusManager() override;
+    virtual PersistentState& getPersistentState() const override;
+    virtual CommandHandler& getCommandHandler() const override;
+    virtual WorkManager& getWorkManager() const override;
+    virtual BanManager& getBanManager() const override;
+    virtual StatusManager& getStatusManager() const override;
 
     virtual asio::io_service& getWorkerIOService() override;
 

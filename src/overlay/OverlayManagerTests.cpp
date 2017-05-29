@@ -29,7 +29,7 @@ class PeerStub : public Peer
   public:
     int sent = 0;
 
-    PeerStub(Application& app) : Peer(app, WE_CALLED_REMOTE)
+    PeerStub(Application const& app) : Peer(app, WE_CALLED_REMOTE)
     {
         mState = GOT_AUTH;
     }
@@ -82,7 +82,7 @@ class OverlayManagerTests
             newDB();
         }
         virtual OverlayManagerStub&
-        getOverlayManager() override
+        getOverlayManager() const override
         {
             return *mOverlayManager;
         }

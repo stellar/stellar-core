@@ -72,7 +72,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    Application const& app = *appPtr;
     std::string filename("hostname.txt");
     auto evt = app.getProcessManager().runProcess("hostname", filename);
     bool exited = false;
@@ -104,7 +104,7 @@ TEST_CASE("subprocess storm", "[process]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
     Application::pointer appPtr = Application::create(clock, cfg);
-    Application& app = *appPtr;
+    Application const& app = *appPtr;
 
     size_t n = 100;
     size_t completed = 0;

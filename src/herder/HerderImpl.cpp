@@ -42,7 +42,7 @@ Herder::create(Application& app)
     return make_unique<HerderImpl>(app);
 }
 
-HerderImpl::SCPMetrics::SCPMetrics(Application& app)
+HerderImpl::SCPMetrics::SCPMetrics(Application const& app)
     : mValueValid(app.getMetrics().NewMeter({"scp", "value", "valid"}, "value"))
     , mValueInvalid(
           app.getMetrics().NewMeter({"scp", "value", "invalid"}, "value"))

@@ -45,7 +45,7 @@ class BucketManager : NonMovableOrCopyable
 
   public:
     static std::unique_ptr<BucketManager> create(Application&);
-    static void dropAll(Application& app);
+    static void dropAll(Application const& app);
 
     virtual ~BucketManager()
     {

@@ -75,7 +75,7 @@ Database::registerDrivers()
     }
 }
 
-Database::Database(Application& app)
+Database::Database(Application const& app)
     : mApp(app)
     , mQueryMeter(
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
@@ -475,7 +475,7 @@ Database::recentIdleDbPercent()
     return idlePercent;
 }
 
-DBTimeExcluder::DBTimeExcluder(Application& app)
+DBTimeExcluder::DBTimeExcluder(Application const& app)
     : mApp(app)
     , mStartQueryTime(app.getDatabase().totalQueryTime())
     , mStartTotalTime(app.getClock().now())

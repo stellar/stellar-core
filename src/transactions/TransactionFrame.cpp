@@ -206,7 +206,7 @@ TransactionFrame::resetResults()
 
 bool
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
-                              Application& app, LedgerDelta* delta,
+                              Application const& app, LedgerDelta* delta,
                               SequenceNumber current)
 {
     bool applying = (delta != nullptr);
@@ -420,7 +420,7 @@ TransactionFrame::removeAccountSigner(const AccountFrame::pointer& account,
 }
 
 bool
-TransactionFrame::checkValid(Application& app, SequenceNumber current)
+TransactionFrame::checkValid(Application const& app, SequenceNumber current)
 {
     resetSigningAccount();
     resetResults();
@@ -480,7 +480,7 @@ TransactionFrame::markResultFailed()
 }
 
 bool
-TransactionFrame::apply(LedgerDelta& delta, Application& app)
+TransactionFrame::apply(LedgerDelta& delta, Application const& app)
 {
     TransactionMeta tm;
     return apply(delta, tm, app);
@@ -488,7 +488,7 @@ TransactionFrame::apply(LedgerDelta& delta, Application& app)
 
 bool
 TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
-                        Application& app)
+                        Application const& app)
 {
     resetSigningAccount();
     SignatureChecker signatureChecker{getContentsHash(), mEnvelope.signatures};

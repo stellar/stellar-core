@@ -19,7 +19,7 @@ class Database;
 class BanManager
 {
   public:
-    static std::unique_ptr<BanManager> create(Application& app);
+    static std::unique_ptr<BanManager> create(Application const& app);
     static void dropAll(Database& db);
 
     // Ban given node

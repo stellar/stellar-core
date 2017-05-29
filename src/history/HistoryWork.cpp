@@ -29,7 +29,7 @@ namespace stellar
 {
 
 static std::string
-fmtProgress(Application& app, std::string const& task, uint32_t first,
+fmtProgress(Application const& app, std::string const& task, uint32_t first,
             uint32_t last, uint32_t curr)
 {
     auto step = app.getHistoryManager().getCheckpointFrequency();

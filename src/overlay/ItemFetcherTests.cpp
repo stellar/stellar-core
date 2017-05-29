@@ -47,7 +47,7 @@ class ApplicationStub : public ApplicationImpl
     }
 
     virtual HerderStub&
-    getHerder() override
+    getHerder() const override
     {
         return *mHerder;
     }

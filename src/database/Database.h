@@ -84,7 +84,7 @@ class StatementContext : NonCopyable
  */
 class Database : NonMovableOrCopyable
 {
-    Application& mApp;
+    Application const& mApp;
     medida::Meter& mQueryMeter;
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
@@ -110,7 +110,7 @@ class Database : NonMovableOrCopyable
   public:
     // Instantiate object and connect to app.getConfig().DATABASE;
     // if there is a connection error, this will throw.
-    Database(Application& app);
+    Database(Application const& app);
 
     // Return a crude meter of total queries to the db, for use in
     // overlay/LoadManager.
@@ -199,12 +199,12 @@ class Database : NonMovableOrCopyable
 
 class DBTimeExcluder : NonCopyable
 {
-    Application& mApp;
+    Application const& mApp;
     std::chrono::nanoseconds mStartQueryTime;
     VirtualClock::time_point mStartTotalTime;
 
   public:
-    DBTimeExcluder(Application& mApp);
+    DBTimeExcluder(Application const& mApp);
     ~DBTimeExcluder();
 };
 }

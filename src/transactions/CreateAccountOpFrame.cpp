@@ -31,7 +31,7 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
+CreateAccountOpFrame::doApply(Application const& app, LedgerDelta& delta,
                               LedgerManager& ledgerManager)
 {
     AccountFrame::pointer destAccount;
@@ -98,7 +98,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(Application& app)
+CreateAccountOpFrame::doCheckValid(Application const& app)
 {
     if (mCreateAccount.startingBalance <= 0)
     {

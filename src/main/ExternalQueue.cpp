@@ -22,7 +22,7 @@ string ExternalQueue::kSQLCreateStatement =
     "lastread    INTEGER"
     "); ";
 
-ExternalQueue::ExternalQueue(Application& app) : mApp(app)
+ExternalQueue::ExternalQueue(Application const& app) : mApp(app)
 {
     mApp.getDatabase().getSession() << kSQLCreateStatement;
 }

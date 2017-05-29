@@ -23,7 +23,7 @@ using namespace std;
 // LoopbackPeer
 ///////////////////////////////////////////////////////////////////////
 
-LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
+LoopbackPeer::LoopbackPeer(Application const& app, PeerRole role) : Peer(app, role)
 {
 }
 
@@ -352,8 +352,8 @@ LoopbackPeer::setReorderProbability(double d)
     mReorderProb = bernoulli_distribution(d);
 }
 
-LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
-                                               Application& acceptor)
+LoopbackPeerConnection::LoopbackPeerConnection(Application const& initiator,
+                                               Application const& acceptor)
     : mInitiator(make_shared<LoopbackPeer>(initiator, Peer::WE_CALLED_REMOTE))
     , mAcceptor(make_shared<LoopbackPeer>(acceptor, Peer::REMOTE_CALLED_US))
 {

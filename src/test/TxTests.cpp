@@ -41,7 +41,7 @@ namespace txtest
 {
 
 bool
-applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application const& app)
 {
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
@@ -100,7 +100,7 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 }
 
 TxSetResultMeta
-closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
+closeLedgerOn(Application const& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFramePtr> const& txs)
 {
 
@@ -154,7 +154,7 @@ getAccount(const char* n)
 }
 
 AccountFrame::pointer
-loadAccount(SecretKey const& k, Application& app, bool mustExist)
+loadAccount(SecretKey const& k, Application const& app, bool mustExist)
 {
     AccountFrame::pointer res =
         AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
@@ -166,14 +166,14 @@ loadAccount(SecretKey const& k, Application& app, bool mustExist)
 }
 
 void
-requireNoAccount(SecretKey const& k, Application& app)
+requireNoAccount(SecretKey const& k, Application const& app)
 {
     AccountFrame::pointer res = loadAccount(k, app, false);
     REQUIRE(!res);
 }
 
 OfferFrame::pointer
-loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
+loadOffer(PublicKey const& k, uint64 offerID, Application const& app, bool mustExist)
 {
     OfferFrame::pointer res =
         OfferFrame::loadOffer(k, offerID, app.getDatabase());
@@ -185,7 +185,7 @@ loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
 }
 
 TrustFrame::pointer
-loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
+loadTrustLine(SecretKey const& k, Asset const& asset, Application const& app,
               bool mustExist)
 {
     TrustFrame::pointer res =
@@ -198,7 +198,7 @@ loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
 }
 
 xdr::xvector<Signer, 20>
-getAccountSigners(SecretKey const& k, Application& app)
+getAccountSigners(SecretKey const& k, Application const& app)
 {
     AccountFrame::pointer account;
     account = loadAccount(k, app);
@@ -286,7 +286,7 @@ createAllowTrust(Hash const& networkID, SecretKey const& from,
 }
 
 void
-applyAllowTrust(Application& app, SecretKey const& from,
+applyAllowTrust(Application const& app, SecretKey const& from,
                 PublicKey const& trustor, SequenceNumber seq,
                 std::string const& assetCode, bool authorize)
 {
@@ -324,7 +324,7 @@ createCreateAccountTx(Hash const& networkID, SecretKey const& from,
 }
 
 void
-applyCreateAccountTx(Application& app, SecretKey const& from,
+applyCreateAccountTx(Application const& app, SecretKey const& from,
                      SecretKey const& to, SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
@@ -379,7 +379,7 @@ createPaymentTx(Hash const& networkID, SecretKey const& from,
 }
 
 void
-applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
+applyPaymentTx(Application const& app, SecretKey const& from, SecretKey const& to,
                SequenceNumber seq, int64_t amount)
 {
     TransactionFramePtr txFrame;
@@ -412,7 +412,7 @@ applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
 }
 
 void
-applyChangeTrust(Application& app, SecretKey const& from, PublicKey const& to,
+applyChangeTrust(Application const& app, SecretKey const& from, PublicKey const& to,
                  SequenceNumber seq, std::string const& assetCode,
                  int64_t limit)
 {
@@ -453,7 +453,7 @@ makeAsset(SecretKey const& issuer, std::string const& code)
 }
 
 void
-applyCreditPaymentTx(Application& app, SecretKey const& from,
+applyCreditPaymentTx(Application const& app, SecretKey const& from,
                      PublicKey const& to, Asset const& ci, SequenceNumber seq,
                      int64_t amount)
 {
@@ -489,7 +489,7 @@ createPathPaymentTx(Hash const& networkID, SecretKey const& from,
 }
 
 PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
+applyPathPaymentTx(Application const& app, SecretKey const& from, PublicKey const& to,
                    Asset const& sendCur, int64_t sendMax, Asset const& destCur,
                    int64_t destAmount, SequenceNumber seq,
                    std::vector<Asset> const& path, Asset* noIssuer)
@@ -559,7 +559,7 @@ manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
 }
 
 static ManageOfferResult
-applyCreateOfferHelper(Application& app, uint64 offerId,
+applyCreateOfferHelper(Application const& app, uint64 offerId,
                        SecretKey const& source, Asset const& selling,
                        Asset const& buying, Price const& price, int64_t amount,
                        SequenceNumber seq)
@@ -623,7 +623,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 }
 
 uint64_t
-applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
+applyManageOffer(Application const& app, uint64 offerId, SecretKey const& source,
                  Asset const& selling, Asset const& buying, Price const& price,
                  int64_t amount, SequenceNumber seq,
                  ManageOfferEffect expectedEffect)
@@ -638,7 +638,7 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
 }
 
 uint64_t
-applyCreatePassiveOffer(Application& app, SecretKey const& source,
+applyCreatePassiveOffer(Application const& app, SecretKey const& source,
                         Asset const& selling, Asset const& buying,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
@@ -775,7 +775,7 @@ createSetOptions(Hash const& networkID, SecretKey const& source,
 }
 
 void
-applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
+applySetOptions(Application const& app, SecretKey const& source, SequenceNumber seq,
                 AccountID* inflationDest, uint32_t* setFlags,
                 uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
                 std::string* homeDomain)
@@ -809,7 +809,7 @@ createInflation(Hash const& networkID, SecretKey const& from,
 }
 
 OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq)
+applyInflation(Application const& app, SecretKey const& from, SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
         createInflation(app.getNetworkID(), from, seq);
@@ -848,7 +848,7 @@ createAccountMerge(Hash const& networkID, SecretKey const& source,
 }
 
 void
-applyAccountMerge(Application& app, SecretKey const& source,
+applyAccountMerge(Application const& app, SecretKey const& source,
                   PublicKey const& dest, SequenceNumber seq)
 {
     TransactionFramePtr txFrame =
@@ -875,7 +875,7 @@ createManageData(Hash const& networkID, SecretKey const& source,
 }
 
 void
-applyManageData(Application& app, SecretKey const& source,
+applyManageData(Application const& app, SecretKey const& source,
                 std::string const& name, DataValue* value, SequenceNumber seq)
 {
     TransactionFramePtr txFrame =

@@ -39,7 +39,7 @@ ApplicationEditableVersion::ApplicationEditableVersion(VirtualClock& clock,
 }
 
 LedgerManagerEditableVersion&
-ApplicationEditableVersion::getLedgerManager()
+ApplicationEditableVersion::getLedgerManager() const
 {
     return static_cast<LedgerManagerEditableVersion&>(*mLedgerManager);
 }

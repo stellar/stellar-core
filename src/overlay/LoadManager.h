@@ -38,7 +38,7 @@ class LoadManager
   public:
     LoadManager();
     ~LoadManager();
-    void reportLoads(std::vector<Peer::pointer> const& peers, Application& app);
+    void reportLoads(std::vector<Peer::pointer> const& peers, Application const& app);
 
     // We track the costs incurred by each peer in a PeerCosts structure,
     // and keep these in an LRU cache to avoid overfilling the LoadManager
@@ -62,14 +62,14 @@ class LoadManager
     // Measure recent load on the system and, if the system appears
     // overloaded, shed one or more of the worst-behaved peers,
     // according to our local per-peer accounting.
-    void maybeShedExcessLoad(Application& app);
+    void maybeShedExcessLoad(Application const& app);
 
     // Context manager for doing work on behalf of a node, we push
     // one of these on the stack. When destroyed it will debit the
     // peer in question with the cost.
     class PeerContext
     {
-        Application& mApp;
+        Application const& mApp;
         NodeID mNode;
 
         VirtualClock::time_point mWorkStart;
@@ -78,7 +78,7 @@ class LoadManager
         std::uint64_t mSQLQueriesStart;
 
       public:
-        PeerContext(Application& app, NodeID const& node);
+        PeerContext(Application const& app, NodeID const& node);
         ~PeerContext();
     };
 };
