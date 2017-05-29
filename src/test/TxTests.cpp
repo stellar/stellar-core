@@ -732,21 +732,6 @@ createInflationOp()
     return op;
 }
 
-TransactionFramePtr
-createInflation(Hash const& networkID, SecretKey const& from,
-                SequenceNumber seq)
-{
-    return transactionFromOperation(networkID, from, seq, createInflationOp());
-}
-
-OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq)
-{
-    auto tx = createInflation(app.getNetworkID(), from, seq);
-    applyTx(tx, app);
-    return getFirstResult(*tx);
-}
-
 Operation
 createMergeOp(PublicKey const& dest)
 {

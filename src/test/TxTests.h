@@ -76,6 +76,13 @@ Operation
 createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
                    bool authorize);
 
+Operation createInflationOp();
+
+Operation createMergeOp(PublicKey const& dest);
+
+Operation createCreateAccountOp(PublicKey const& dest,
+                                int64_t amount);
+
 TransactionFramePtr createCreateAccountTx(Hash const& networkID,
                                           SecretKey const& from,
                                           SecretKey const& to,
@@ -158,18 +165,6 @@ void applySetOptions(Application& app, SecretKey const& source,
                      uint32_t* setFlags, uint32_t* clearFlags,
                      ThresholdSetter* thrs, Signer* signer,
                      std::string* homeDomain);
-
-Operation createInflationOp();
-
-TransactionFramePtr createInflation(Hash const& networkID,
-                                    SecretKey const& from, SequenceNumber seq);
-OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq);
-
-Operation createMergeOp(PublicKey const& dest);
-
-Operation createCreateAccountOp(PublicKey const& dest,
-                                int64_t amount);
 
 TransactionFramePtr createManageData(Hash const& networkID,
                                      SecretKey const& source,

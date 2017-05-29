@@ -80,6 +80,12 @@ TestAccount::merge(PublicKey const& into)
 }
 
 void
+TestAccount::inflation()
+{
+    applyTx(tx({createInflationOp()}), mApp);
+}
+
+void
 TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
     applyTx(tx({createChangeTrustOp(asset, limit)}), mApp);
