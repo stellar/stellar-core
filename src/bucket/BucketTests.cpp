@@ -108,6 +108,8 @@ TEST_CASE("skip list", "[bucket]")
             Hash h5 = HashUtils::random();
             Hash h6 = HashUtils::random();
             Hash h7 = HashUtils::random();
+            Hash h8 = HashUtils::random();
+            Hash h9 = HashUtils::random();
 
             // up first entry
             LedgerHeader header;
@@ -174,6 +176,22 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[1] == h6);
             REQUIRE(header.skipList[2] == h4);
             REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = SKIP_4 + SKIP_3 + SKIP_2 + SKIP_1;
+            header.bucketListHash = h8;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h8);
+            REQUIRE(header.skipList[1] == h7);
+            REQUIRE(header.skipList[2] == h6);
+            REQUIRE(header.skipList[3] == h4);
+
+            header.ledgerSeq = SKIP_4 + SKIP_4 + SKIP_3 + SKIP_2 + SKIP_1;
+            header.bucketListHash = h9;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h9);
+            REQUIRE(header.skipList[1] == h8);
+            REQUIRE(header.skipList[2] == h7);
+            REQUIRE(header.skipList[3] == h6);
         }
     };
 
