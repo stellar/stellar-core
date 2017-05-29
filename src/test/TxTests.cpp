@@ -682,9 +682,8 @@ createMergeOp(PublicKey const& dest)
     return op;
 }
 
-TransactionFramePtr
-createManageData(Hash const& networkID, SecretKey const& source,
-                 std::string const& name, DataValue* value, SequenceNumber seq)
+Operation
+createManageDataOp(std::string const& name, DataValue* value)
 {
     Operation op;
     op.body.type(MANAGE_DATA);
@@ -692,28 +691,7 @@ createManageData(Hash const& networkID, SecretKey const& source,
     if (value)
         op.body.manageDataOp().dataValue.activate() = *value;
 
-    return transactionFromOperation(networkID, source, seq, op);
-}
-
-void
-applyManageData(Application& app, SecretKey const& source,
-                std::string const& name, DataValue* value, SequenceNumber seq)
-{
-    auto tx =
-        createManageData(app.getNetworkID(), source, name, value, seq);
-    applyTx(tx, app);
-
-    auto dataFrame =
-        DataFrame::loadData(source.getPublicKey(), name, app.getDatabase());
-    if (value)
-    {
-        REQUIRE(dataFrame != nullptr);
-        REQUIRE(dataFrame->getData().dataValue == *value);
-    }
-    else
-    {
-        REQUIRE(dataFrame == nullptr);
-    }
+    return op;
 }
 
 OperationFrame const&

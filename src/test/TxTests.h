@@ -80,6 +80,8 @@ Operation createInflationOp();
 
 Operation createMergeOp(PublicKey const& dest);
 
+Operation createManageDataOp(std::string const& name, DataValue* value);
+
 Operation createCreateAccountOp(PublicKey const& dest,
                                 int64_t amount);
 
@@ -145,15 +147,6 @@ Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
 Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
                              uint32_t* clearFlags, ThresholdSetter* thrs,
                              Signer* signer, std::string* homeDomain);
-
-TransactionFramePtr createManageData(Hash const& networkID,
-                                     SecretKey const& source,
-                                     std::string const& name, DataValue* value,
-                                     SequenceNumber seq);
-
-void applyManageData(Application& app, SecretKey const& source,
-                     std::string const& name, DataValue* value,
-                     SequenceNumber seq);
 
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 

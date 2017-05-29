@@ -4,6 +4,7 @@
 
 #include "TestAccount.h"
 
+#include "ledger/DataFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TxTests.h"
@@ -134,7 +135,19 @@ TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
 void
 TestAccount::manageData(std::string const& name, DataValue* value)
 {
-    applyManageData(mApp, getSecretKey(), name, value, nextSequenceNumber());
+    applyTx(tx({createManageDataOp(name, value)}), mApp);
+
+    auto dataFrame =
+        DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
+    if (value)
+    {
+        REQUIRE(dataFrame != nullptr);
+        REQUIRE(dataFrame->getData().dataValue == *value);
+    }
+    else
+    {
+        REQUIRE(dataFrame == nullptr);
+    }
 }
 
 OfferFrame::pointer
