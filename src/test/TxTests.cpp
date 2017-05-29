@@ -421,16 +421,9 @@ applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
         throw;
     }
 
-    auto& firstResult = getFirstResult(*tx);
-    auto res = firstResult.tr().pathPaymentResult();
-    auto result = res.code();
+    REQUIRE(!noIssuer);
 
-    if (result != PATH_PAYMENT_NO_ISSUER)
-    {
-        REQUIRE(!noIssuer);
-    }
-
-    return res;
+    return getFirstResult(*tx).tr().pathPaymentResult();
 }
 
 TransactionFramePtr
