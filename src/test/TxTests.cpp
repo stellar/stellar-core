@@ -382,11 +382,10 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
     applyTx(tx, app);
 }
 
-TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey const& from,
-                    PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+Operation
+createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
                     Asset const& destCur, int64_t destAmount,
-                    SequenceNumber seq, std::vector<Asset> const& path)
+                    std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -398,32 +397,7 @@ createPathPaymentTx(Hash const& networkID, SecretKey const& from,
     ppop.destination = to;
     std::copy(std::begin(path), std::end(path), std::back_inserter(ppop.path));
 
-    return transactionFromOperation(networkID, from, seq, op);
-}
-
-PathPaymentResult
-applyPathPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
-                   Asset const& sendCur, int64_t sendMax, Asset const& destCur,
-                   int64_t destAmount, SequenceNumber seq,
-                   std::vector<Asset> const& path, Asset* noIssuer)
-{
-    auto tx = createPathPaymentTx(app.getNetworkID(), from, to, sendCur,
-                                  sendMax, destCur, destAmount, seq, path);
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (ex_PATH_PAYMENT_NO_ISSUER &)
-    {
-        REQUIRE(noIssuer);
-        REQUIRE(*noIssuer == tx->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
-        throw;
-    }
-
-    REQUIRE(!noIssuer);
-
-    return getFirstResult(*tx).tr().pathPaymentResult();
+    return op;
 }
 
 TransactionFramePtr

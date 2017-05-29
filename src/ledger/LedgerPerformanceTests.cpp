@@ -129,7 +129,7 @@ class LedgerPerformanceTests : public Simulation
         for (auto& tx : txs)
         {
             std::vector<TransactionFramePtr> txfs;
-            tx.toTransactionFrames(mApp->getNetworkID(), txfs, txm);
+            tx.toTransactionFrames(*mApp, txfs, txm);
             for (auto f : txfs)
                 txSet->add(f);
             tx.recordExecution(baseFee);

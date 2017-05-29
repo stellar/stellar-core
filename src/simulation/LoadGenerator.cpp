@@ -8,6 +8,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -884,7 +885,7 @@ LoadGenerator::TxInfo::execute(Application& app)
 {
     std::vector<TransactionFramePtr> txfs;
     TxMetrics txm(app.getMetrics());
-    toTransactionFrames(app.getNetworkID(), txfs, txm);
+    toTransactionFrames(app, txfs, txm);
     for (auto f : txfs)
     {
         txm.mTxnAttempted.Mark();
@@ -915,7 +916,7 @@ LoadGenerator::TxInfo::execute(Application& app)
 
 void
 LoadGenerator::TxInfo::toTransactionFrames(
-    Hash const& networkID, std::vector<TransactionFramePtr>& txs,
+    Application& app, std::vector<TransactionFramePtr>& txs,
     TxMetrics& txm)
 {
     switch (mType)
@@ -995,7 +996,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
 
             e.tx.fee = 100 * static_cast<uint32>(e.tx.operations.size());
             TransactionFramePtr res =
-                TransactionFrame::makeTransactionFromWire(networkID, e);
+                TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
             for (auto a : signingAccounts)
             {
                 res->addSignature(a->mKey);
@@ -1007,7 +1008,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
     case TxInfo::TX_TRANSFER_NATIVE:
         txm.mPayment.Mark();
         txm.mNativePayment.Mark();
-        txs.push_back(txtest::createPaymentTx(networkID, mFrom->mKey, mTo->mKey.getPublicKey(),
+        txs.push_back(txtest::createPaymentTx(app.getNetworkID(), mFrom->mKey, mTo->mKey.getPublicKey(),
                                               mFrom->mSeq + 1, mAmount));
         break;
 
@@ -1026,7 +1027,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey.getPublicKey(),
+                app.getNetworkID(), mFrom->mKey, mTo->mKey.getPublicKey(),
                 assetPath.front(), mFrom->mSeq + 1, mAmount));
         }
         else
@@ -1049,9 +1050,12 @@ LoadGenerator::TxInfo::toTransactionFrames(
             assetPath.erase(assetPath.begin());
             assetPath.pop_back();
             auto sendMax = mAmount * 10;
-            txs.emplace_back(txtest::createPathPaymentTx(
-                networkID, mFrom->mKey, mTo->mKey.getPublicKey(), sendAsset,
-                sendMax, recvAsset, mAmount, mFrom->mSeq + 1, assetPath));
+            auto fromAccount = TestAccount{app, mFrom->mKey};
+            auto op =
+                txtest::createPathPaymentOp(mTo->mKey.getPublicKey(),
+                                            sendAsset, sendMax, recvAsset,
+                                            mAmount, assetPath);
+            txs.emplace_back(fromAccount.tx({op}, mFrom->mSeq + 1));
         }
     }
     break;

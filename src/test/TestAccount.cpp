@@ -7,6 +7,7 @@
 #include "ledger/DataFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestExceptions.h"
 #include "test/TxTests.h"
 
 namespace stellar
@@ -202,8 +203,21 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
 {
-    return applyPathPaymentTx(mApp, getSecretKey(), destination, sendCur,
-                              sendMax, destCur, destAmount,
-                              nextSequenceNumber(), path, noIssuer);
+    auto transaction = tx({createPathPaymentOp(destination, sendCur, sendMax,
+                                               destCur, destAmount, path)});
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (ex_PATH_PAYMENT_NO_ISSUER &)
+    {
+        REQUIRE(noIssuer);
+        REQUIRE(*noIssuer == transaction->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
+        throw;
+    }
+
+    REQUIRE(!noIssuer);
+
+    return getFirstResult(*transaction).tr().pathPaymentResult();
 }
 };
