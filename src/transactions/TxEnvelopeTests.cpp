@@ -423,9 +423,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         auto b1 = root.create("a1", paymentAmount);
                         a1.pay(b1, 1000);
 
-                        TransactionFramePtr tx = createAccountMerge(
-                            app.getNetworkID(), b1, a1,
-                            b1.getLastSequenceNumber() + 2);
+                        auto tx = b1.tx({createMergeOp(a1)}, b1.getLastSequenceNumber() + 2);
                         tx->getEnvelope().signatures.clear();
 
                         SignerKey sk = alternative.createSigner(*tx);

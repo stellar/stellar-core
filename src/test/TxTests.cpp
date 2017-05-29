@@ -757,22 +757,6 @@ createMergeOp(PublicKey const& dest)
 }
 
 TransactionFramePtr
-createAccountMerge(Hash const& networkID, SecretKey const& source,
-                   PublicKey const& dest, SequenceNumber seq)
-{
-    return transactionFromOperation(networkID, source, seq,
-                                    createMergeOp(dest));
-}
-
-void
-applyAccountMerge(Application& app, SecretKey const& source,
-                  PublicKey const& dest, SequenceNumber seq)
-{
-    auto tx = createAccountMerge(app.getNetworkID(), source, dest, seq);
-    applyTx(tx, app);
-}
-
-TransactionFramePtr
 createManageData(Hash const& networkID, SecretKey const& source,
                  std::string const& name, DataValue* value, SequenceNumber seq)
 {

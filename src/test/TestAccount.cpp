@@ -34,10 +34,15 @@ TestAccount::getBalance() const
 }
 
 TransactionFramePtr
-TestAccount::tx(std::vector<Operation> const& ops)
+TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 {
+    if (sn == 0)
+    {
+        sn = nextSequenceNumber();
+    }
+
     return transactionFromOperations(mApp.getNetworkID(), getSecretKey(),
-                                     nextSequenceNumber(), ops);
+                                     sn, ops);
 }
 
 Operation
@@ -71,7 +76,7 @@ TestAccount::create(std::string const& name, uint64_t initialBalance)
 void
 TestAccount::merge(PublicKey const& into)
 {
-    applyAccountMerge(mApp, getSecretKey(), into, nextSequenceNumber());
+    applyTx(tx({createMergeOp(into)}), mApp);
 }
 
 void

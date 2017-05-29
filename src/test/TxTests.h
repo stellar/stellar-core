@@ -171,14 +171,6 @@ Operation createMergeOp(PublicKey const& dest);
 Operation createCreateAccountOp(PublicKey const& dest,
                                 int64_t amount);
 
-TransactionFramePtr createAccountMerge(Hash const& networkID,
-                                       SecretKey const& source,
-                                       PublicKey const& dest,
-                                       SequenceNumber seq);
-
-void applyAccountMerge(Application& app, SecretKey const& source,
-                       PublicKey const& dest, SequenceNumber seq);
-
 TransactionFramePtr createManageData(Hash const& networkID,
                                      SecretKey const& source,
                                      std::string const& name, DataValue* value,
