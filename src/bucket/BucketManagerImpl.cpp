@@ -8,20 +8,21 @@
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "medida/counter.h"
+#include "medida/meter.h"
+#include "medida/metrics_registry.h"
+#include "medida/timer.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
 #include "util/types.h"
+
 #include <fstream>
 #include <map>
+#include <numeric>
 #include <set>
-
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
 
 namespace stellar
 {
@@ -298,26 +299,21 @@ void
 BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 {
     static auto skips = std::vector<int>{50, 5000, 50000, 500000};
+    auto sum = std::accumulate(std::begin(skips), std::end(skips), 0);
+    auto replacements = std::vector<Hash>{
+        currentHeader.bucketListHash,
+        currentHeader.skipList[0],
+        currentHeader.skipList[1],
+        currentHeader.skipList[2]};
 
-    if ((currentHeader.ledgerSeq % skips[0]) == 0)
+    for (int i = skips.size() - 1; i >= 0; i--)
     {
-        int v = currentHeader.ledgerSeq - skips[0];
-        if (v > 0 && (v % skips[1]) == 0)
+        sum -= skips[i];
+        auto v = currentHeader.ledgerSeq - sum;
+        if (v > 0 && (v % skips[i] == 0))
         {
-            v = currentHeader.ledgerSeq - skips[1] - skips[0];
-            if (v > 0 && (v % skips[2]) == 0)
-            {
-                v = currentHeader.ledgerSeq - skips[2] - skips[1] - skips[0];
-                if (v > 0 && (v % skips[3]) == 0)
-                {
-
-                    currentHeader.skipList[3] = currentHeader.skipList[2];
-                }
-                currentHeader.skipList[2] = currentHeader.skipList[1];
-            }
-            currentHeader.skipList[1] = currentHeader.skipList[0];
+            currentHeader.skipList[i] = replacements[i];
         }
-        currentHeader.skipList[0] = currentHeader.bucketListHash;
     }
 }
 
