@@ -146,17 +146,6 @@ Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
                              uint32_t* clearFlags, ThresholdSetter* thrs,
                              Signer* signer, std::string* homeDomain);
 
-TransactionFramePtr createSetOptions(
-    Hash const& networkID, SecretKey const& source, SequenceNumber seq,
-    AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
-    ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
-
-void applySetOptions(Application& app, SecretKey const& source,
-                     SequenceNumber seq, AccountID* inflationDest,
-                     uint32_t* setFlags, uint32_t* clearFlags,
-                     ThresholdSetter* thrs, Signer* signer,
-                     std::string* homeDomain);
-
 TransactionFramePtr createManageData(Hash const& networkID,
                                      SecretKey const& source,
                                      std::string const& name, DataValue* value,

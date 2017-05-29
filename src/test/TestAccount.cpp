@@ -127,8 +127,8 @@ TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
-    applySetOptions(mApp, getSecretKey(), nextSequenceNumber(), inflationDest,
-                    setFlags, clearFlags, thrs, signer, homeDomain);
+    applyTx(tx({createSetOptionsOp(inflationDest, setFlags, clearFlags, thrs,
+                                   signer, homeDomain)}), mApp);
 }
 
 void

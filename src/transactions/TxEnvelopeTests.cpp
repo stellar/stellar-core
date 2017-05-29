@@ -182,9 +182,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("not enough rights (operation)")
         {
             // updating thresholds requires high
-            TransactionFramePtr tx = createSetOptions(
-                app.getNetworkID(), a1, a1.nextSequenceNumber(), nullptr,
-                nullptr, nullptr, &th, &sk1, nullptr);
+            auto tx = a1.tx({createSetOptionsOp(nullptr, nullptr, nullptr, &th,
+                                                &sk1, nullptr)});
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();
@@ -529,10 +528,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (operation)")
                     {
                         // updating thresholds requires high
-                        TransactionFramePtr tx = createSetOptions(
-                            app.getNetworkID(), a1,
-                            a1.getLastSequenceNumber() + 2, nullptr,
-                            nullptr, nullptr, &th, nullptr, nullptr);
+                        auto tx = a1.tx({createSetOptionsOp(nullptr, nullptr,
+                                                            nullptr, &th,
+                                                            nullptr, nullptr)},
+                                        a1.getLastSequenceNumber() + 2);
                         tx->getEnvelope().signatures.clear();
 
                         SignerKey sk = alternative.createSigner(*tx);

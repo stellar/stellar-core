@@ -664,29 +664,6 @@ createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
     return op;
 }
 
-TransactionFramePtr
-createSetOptions(Hash const& networkID, SecretKey const& source,
-                 SequenceNumber seq, AccountID* inflationDest,
-                 uint32_t* setFlags, uint32_t* clearFlags,
-                 ThresholdSetter* thrs, Signer* signer, std::string* homeDomain)
-{
-    return transactionFromOperation(networkID, source, seq,
-                                    createSetOptionsOp(inflationDest, setFlags,
-                                                       clearFlags, thrs, signer,
-                                                       homeDomain));
-}
-
-void
-applySetOptions(Application& app, SecretKey const& source, SequenceNumber seq,
-                AccountID* inflationDest, uint32_t* setFlags,
-                uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                std::string* homeDomain)
-{
-    auto tx = createSetOptions(app.getNetworkID(), source, seq, inflationDest,
-                               setFlags, clearFlags, thrs, signer, homeDomain);
-    applyTx(tx, app);
-}
-
 Operation
 createInflationOp()
 {

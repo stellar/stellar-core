@@ -471,8 +471,8 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             uint32_t setFlags = AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
 
-            applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr,
-                            &setFlags, nullptr, nullptr, nullptr, nullptr);
+            gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
+                               nullptr);
 
             a1.changeTrust(idrCur, trustLineLimit);
 
