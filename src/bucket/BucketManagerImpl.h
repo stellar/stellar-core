@@ -73,9 +73,4 @@ class BucketManagerImpl : public BucketManager
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
 };
-
-#define SKIP_1 50
-#define SKIP_2 5000
-#define SKIP_3 50000
-#define SKIP_4 500000
 }

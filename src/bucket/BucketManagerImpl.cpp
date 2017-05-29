@@ -297,17 +297,18 @@ BucketManagerImpl::snapshotLedger(LedgerHeader& currentHeader)
 void
 BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 {
+    static auto skips = std::vector<int>{50, 5000, 50000, 500000};
 
-    if ((currentHeader.ledgerSeq % SKIP_1) == 0)
+    if ((currentHeader.ledgerSeq % skips[0]) == 0)
     {
-        int v = currentHeader.ledgerSeq - SKIP_1;
-        if (v > 0 && (v % SKIP_2) == 0)
+        int v = currentHeader.ledgerSeq - skips[0];
+        if (v > 0 && (v % skips[1]) == 0)
         {
-            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
-            if (v > 0 && (v % SKIP_3) == 0)
+            v = currentHeader.ledgerSeq - skips[1] - skips[0];
+            if (v > 0 && (v % skips[2]) == 0)
             {
-                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
-                if (v > 0 && (v % SKIP_4) == 0)
+                v = currentHeader.ledgerSeq - skips[2] - skips[1] - skips[0];
+                if (v > 0 && (v % skips[3]) == 0)
                 {
 
                     currentHeader.skipList[3] = currentHeader.skipList[2];
