@@ -85,7 +85,7 @@ class LedgerDelta
 
     bool updateLastModified() const;
 
-    void markMeters(Application& app) const;
+    void markMeters(Application const& app) const;
 
     std::vector<LedgerEntry> getLiveEntries() const;
     std::vector<LedgerKey> getDeadEntries() const;

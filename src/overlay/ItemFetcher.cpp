@@ -18,7 +18,7 @@
 namespace stellar
 {
 
-ItemFetcher::ItemFetcher(Application& app, AskPeer askPeer)
+ItemFetcher::ItemFetcher(Application const& app, AskPeer askPeer)
     : mApp(app)
     , mItemMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "item-fetch-map"}))

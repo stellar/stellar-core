@@ -77,7 +77,7 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 
 bool
 OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
-                      Application& app)
+                      Application const& app)
 {
     bool res;
     res = checkValid(signatureChecker, app, &delta);
@@ -127,7 +127,7 @@ OperationFrame::getResultCode() const
 // make sure sig is correct
 // verifies that the operation is well formed (operation specific)
 bool
-OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
+OperationFrame::checkValid(SignatureChecker& signatureChecker, Application const& app,
                            LedgerDelta* delta)
 {
     bool forApply = (delta != nullptr);

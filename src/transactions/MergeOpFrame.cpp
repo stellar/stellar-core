@@ -34,7 +34,7 @@ MergeOpFrame::getNeededThreshold() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
+MergeOpFrame::doApply(Application const& app, LedgerDelta& delta,
                       LedgerManager& ledgerManager)
 {
     AccountFrame::pointer otherAccount;
@@ -103,7 +103,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-MergeOpFrame::doCheckValid(Application& app)
+MergeOpFrame::doCheckValid(Application const& app)
 {
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())

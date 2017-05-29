@@ -21,7 +21,7 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 {
 }
 bool
-ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
+ChangeTrustOpFrame::doApply(Application const& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -139,7 +139,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(Application& app)
+ChangeTrustOpFrame::doCheckValid(Application const& app)
 {
     if (mChangeTrust.limit < 0)
     {

@@ -54,7 +54,7 @@ HistoryManager::dropAll(Database& db)
 }
 
 bool
-HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
+HistoryManager::initializeHistoryArchive(Application const& app, std::string arch)
 {
     auto const& cfg = app.getConfig();
     auto i = cfg.HISTORY.find(arch);

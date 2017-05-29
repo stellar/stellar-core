@@ -28,7 +28,7 @@ InflationOpFrame::InflationOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
+InflationOpFrame::doApply(Application const& app, LedgerDelta& delta,
                           LedgerManager& ledgerManager)
 {
     LedgerDelta inflationDelta(delta);
@@ -130,7 +130,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-InflationOpFrame::doCheckValid(Application& app)
+InflationOpFrame::doCheckValid(Application const& app)
 {
     return true;
 }

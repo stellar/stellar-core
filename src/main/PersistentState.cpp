@@ -22,7 +22,7 @@ string PersistentState::kSQLCreateStatement =
     "state       TEXT"
     "); ";
 
-PersistentState::PersistentState(Application& app) : mApp(app)
+PersistentState::PersistentState(Application const& app) : mApp(app)
 {
 }
 

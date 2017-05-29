@@ -21,7 +21,7 @@ using xdr::operator==;
 static const uint64_t expirationLimit = 3600;
 
 static AuthCert
-makeAuthCert(Application& app, Curve25519Public const& pub)
+makeAuthCert(Application const& app, Curve25519Public const& pub)
 {
     AuthCert cert;
     // Certs are refreshed every half hour, good for an hour.
@@ -35,7 +35,7 @@ makeAuthCert(Application& app, Curve25519Public const& pub)
     return cert;
 }
 
-PeerAuth::PeerAuth(Application& app)
+PeerAuth::PeerAuth(Application const& app)
     : mApp(app)
     , mECDHSecretKey(EcdhRandomSecret())
     , mECDHPublicKey(EcdhDerivePublic(mECDHSecretKey))

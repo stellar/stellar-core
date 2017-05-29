@@ -53,15 +53,15 @@ class TCPPeer : public Peer
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
 
-    TCPPeer(Application& app, Peer::PeerRole role,
+    TCPPeer(Application const& app, Peer::PeerRole role,
             std::shared_ptr<SocketType> socket); // hollow
                                                  // constuctor; use
                                                  // `initiate` or
                                                  // `accept` instead
 
-    static pointer initiate(Application& app, std::string const& ip,
+    static pointer initiate(Application const& app, std::string const& ip,
                             unsigned short port);
-    static pointer accept(Application& app, std::shared_ptr<SocketType> socket);
+    static pointer accept(Application const& app, std::shared_ptr<SocketType> socket);
 
     virtual ~TCPPeer();
 

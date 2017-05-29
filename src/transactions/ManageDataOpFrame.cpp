@@ -27,7 +27,7 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
+ManageDataOpFrame::doApply(Application const& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     if (app.getLedgerManager().getCurrentLedgerVersion() == 3)
@@ -98,7 +98,7 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-ManageDataOpFrame::doCheckValid(Application& app)
+ManageDataOpFrame::doCheckValid(Application const& app)
 {
     if (app.getLedgerManager().getCurrentLedgerVersion() < 2)
     {

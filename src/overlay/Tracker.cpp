@@ -19,7 +19,7 @@ namespace stellar
 static std::chrono::milliseconds const MS_TO_WAIT_FOR_FETCH_REPLY{1500};
 static int const MAX_REBUILD_FETCH_LIST = 1000;
 
-Tracker::Tracker(Application& app, Hash const& hash, AskPeer& askPeer)
+Tracker::Tracker(Application const& app, Hash const& hash, AskPeer& askPeer)
     : mAskPeer(askPeer)
     , mApp(app)
     , mNumListRebuild(0)

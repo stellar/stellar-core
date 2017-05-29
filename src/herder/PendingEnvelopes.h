@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
 #include "lib/json/json.h"
@@ -36,7 +36,7 @@ struct SlotEnvelopes
 
 class PendingEnvelopes
 {
-    Application& mApp;
+    Application const& mApp;
     HerderImpl& mHerder;
 
     // ledger# and list of envelopes in various states
@@ -66,7 +66,7 @@ class PendingEnvelopes
     void discardSCPEnvelopesWithQSet(Hash hash);
 
   public:
-    PendingEnvelopes(Application& app, HerderImpl& herder);
+    PendingEnvelopes(Application const& app, HerderImpl& herder);
     ~PendingEnvelopes();
 
     /**

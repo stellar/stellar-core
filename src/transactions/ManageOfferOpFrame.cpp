@@ -133,7 +133,7 @@ ManageOfferOpFrame::checkOfferValid(medida::MetricsRegistry& metrics,
 // see if this is modifying an old offer
 // see if this offer crosses any existing offers
 bool
-ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
+ManageOfferOpFrame::doApply(Application const& app, LedgerDelta& delta,
                             LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -388,7 +388,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
 // makes sure the currencies are different
 bool
-ManageOfferOpFrame::doCheckValid(Application& app)
+ManageOfferOpFrame::doCheckValid(Application const& app)
 {
     Asset const& sheep = mManageOffer.selling;
     Asset const& wheat = mManageOffer.buying;

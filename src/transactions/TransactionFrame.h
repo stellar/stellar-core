@@ -50,7 +50,7 @@ class TransactionFrame
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
     bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
-    bool commonValid(SignatureChecker& signatureChecker, Application& app,
+    bool commonValid(SignatureChecker& signatureChecker, Application const& app,
                      LedgerDelta* delta, SequenceNumber current);
 
     void resetSigningAccount();
@@ -148,17 +148,17 @@ class TransactionFrame
     bool checkSignature(SignatureChecker& signatureChecker,
                         AccountFrame& account, int32_t neededWeight);
 
-    bool checkValid(Application& app, SequenceNumber current);
+    bool checkValid(Application const& app, SequenceNumber current);
 
     // collect fee, consume sequence number
     void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
+    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application const& app);
 
     // version without meta
-    bool apply(LedgerDelta& delta, Application& app);
+    bool apply(LedgerDelta& delta, Application const& app);
 
     StellarMessage toStellarMessage() const;
 

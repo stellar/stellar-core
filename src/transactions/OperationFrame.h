@@ -34,8 +34,8 @@ class OperationFrame
 
     bool checkSignature(SignatureChecker& signatureChecker) const;
 
-    virtual bool doCheckValid(Application& app) = 0;
-    virtual bool doApply(Application& app, LedgerDelta& delta,
+    virtual bool doCheckValid(Application const& app) = 0;
+    virtual bool doApply(Application const& app, LedgerDelta& delta,
                          LedgerManager& ledgerManager) = 0;
     virtual int32_t getNeededThreshold() const;
 
@@ -76,11 +76,11 @@ class OperationFrame
     }
     OperationResultCode getResultCode() const;
 
-    bool checkValid(SignatureChecker& signatureChecker, Application& app,
+    bool checkValid(SignatureChecker& signatureChecker, Application const& app,
                     LedgerDelta* delta = nullptr);
 
     bool apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
-               Application& app);
+               Application const& app);
 
     Operation const&
     getOperation() const

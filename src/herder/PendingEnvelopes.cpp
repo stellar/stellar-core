@@ -1,4 +1,4 @@
-﻿#include "PendingEnvelopes.h"
+#include "PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
@@ -21,7 +21,7 @@ using namespace std;
 namespace stellar
 {
 
-PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
+PendingEnvelopes::PendingEnvelopes(Application const& app, HerderImpl& herder)
     : mApp(app)
     , mHerder(herder)
     , mQsetCache(QSET_CACHE_SIZE)

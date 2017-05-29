@@ -15,10 +15,10 @@ namespace stellar
 class BanManagerImpl : public BanManager
 {
   protected:
-    Application& mApp;
+    Application const& mApp;
 
   public:
-    BanManagerImpl(Application& app);
+    BanManagerImpl(Application const& app);
     ~BanManagerImpl();
 
     void banNode(NodeID nodeID) override;

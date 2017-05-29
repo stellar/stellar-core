@@ -81,7 +81,7 @@ LoadGenerator::pickRandomAsset()
 
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
-LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
+LoadGenerator::scheduleLoadGeneration(Application const& app, uint32_t nAccounts,
                                       uint32_t nTxs, uint32_t txRate,
                                       bool autoRate)
 {
@@ -226,7 +226,7 @@ LoadGenerator::clear()
 // If work remains after the current step, call scheduleLoadGeneration()
 // with the remainder.
 void
-LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
+LoadGenerator::generateLoad(Application const& app, uint32_t nAccounts, uint32_t nTxs,
                             uint32_t txRate, bool autoRate)
 {
     soci::transaction sqltx(app.getDatabase().getSession());
@@ -459,7 +459,7 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
 }
 
 void
-LoadGenerator::updateMinBalance(Application& app)
+LoadGenerator::updateMinBalance(Application const& app)
 {
     auto b = app.getLedgerManager().getMinBalance(0);
     if (b > mMinBalance)
@@ -502,7 +502,7 @@ LoadGenerator::accountCreationTransactions(size_t n)
 }
 
 bool
-LoadGenerator::loadAccount(Application& app, AccountInfo& account)
+LoadGenerator::loadAccount(Application const& app, AccountInfo& account)
 {
     AccountFrame::pointer ret;
     ret = AccountFrame::loadAccount(account.mKey.getPublicKey(),
@@ -524,7 +524,7 @@ LoadGenerator::loadAccount(Application& app, AccountInfo& account)
 }
 
 bool
-LoadGenerator::loadAccount(Application& app, AccountInfoPtr acc)
+LoadGenerator::loadAccount(Application const& app, AccountInfoPtr acc)
 {
     if (acc)
     {
@@ -534,7 +534,7 @@ LoadGenerator::loadAccount(Application& app, AccountInfoPtr acc)
 }
 
 bool
-LoadGenerator::loadAccounts(Application& app, std::vector<AccountInfoPtr> accs)
+LoadGenerator::loadAccounts(Application const& app, std::vector<AccountInfoPtr> accs)
 {
     bool loaded = !accs.empty();
     for (auto a : accs)
@@ -736,7 +736,7 @@ LoadGenerator::AccountInfo::creationTransaction()
 }
 
 void
-LoadGenerator::AccountInfo::createDirectly(Application& app)
+LoadGenerator::AccountInfo::createDirectly(Application const& app)
 {
     AccountFrame a(mKey.getPublicKey());
     AccountEntry& account = a.getAccount();
@@ -751,7 +751,7 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
 }
 
 void
-LoadGenerator::AccountInfo::debitDirectly(Application& app, int64_t debitAmount)
+LoadGenerator::AccountInfo::debitDirectly(Application const& app, int64_t debitAmount)
 {
     auto existing =
         AccountFrame::loadAccount(mKey.getPublicKey(), app.getDatabase());
@@ -880,7 +880,7 @@ LoadGenerator::TxInfo::touchAccounts(uint32_t ledger)
 }
 
 bool
-LoadGenerator::TxInfo::execute(Application& app)
+LoadGenerator::TxInfo::execute(Application const& app)
 {
     std::vector<TransactionFramePtr> txfs;
     TxMetrics txm(app.getMetrics());

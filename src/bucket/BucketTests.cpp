@@ -701,7 +701,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
 }
 
 static Hash
-closeLedger(Application& app)
+closeLedger(Application const& app)
 {
     auto& lm = app.getLedgerManager();
     auto lclHash = lm.getLastClosedLedgerHeader().hash;

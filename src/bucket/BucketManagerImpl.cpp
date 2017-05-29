@@ -33,7 +33,7 @@ BucketManager::create(Application& app)
 }
 
 void
-BucketManager::dropAll(Application& app)
+BucketManager::dropAll(Application const& app)
 {
     std::string d = app.getConfig().BUCKET_DIR_PATH;
 

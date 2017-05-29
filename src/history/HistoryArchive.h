@@ -69,7 +69,7 @@ struct HistoryArchiveState
     static std::string wellKnownRemoteName();
     static std::string remoteDir(uint32_t snapshotNumber);
     static std::string remoteName(uint32_t snapshotNumber);
-    static std::string localName(Application& app,
+    static std::string localName(Application const& app,
                                  std::string const& archiveName);
 
     // Return cumulative hash of the bucketlist for this archive state.

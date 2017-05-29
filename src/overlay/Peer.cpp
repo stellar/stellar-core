@@ -39,18 +39,18 @@ using namespace std;
 using namespace soci;
 
 medida::Meter&
-Peer::getByteReadMeter(Application& app)
+Peer::getByteReadMeter(Application const& app)
 {
     return app.getMetrics().NewMeter({"overlay", "byte", "read"}, "byte");
 }
 
 medida::Meter&
-Peer::getByteWriteMeter(Application& app)
+Peer::getByteWriteMeter(Application const& app)
 {
     return app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte");
 }
 
-Peer::Peer(Application& app, PeerRole role)
+Peer::Peer(Application const& app, PeerRole role)
     : mApp(app)
     , mRole(role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)

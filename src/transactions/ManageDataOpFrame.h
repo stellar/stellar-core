@@ -23,9 +23,9 @@ class ManageDataOpFrame : public OperationFrame
     ManageDataOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    bool doApply(Application const& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    bool doCheckValid(Application const& app) override;
 
     static ManageDataResultCode
     getInnerCode(OperationResult const& res)

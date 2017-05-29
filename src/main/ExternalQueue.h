@@ -14,7 +14,7 @@ namespace stellar
 class ExternalQueue
 {
   public:
-    ExternalQueue(Application& app);
+    ExternalQueue(Application const& app);
 
     static void dropAll(Database& db);
 
@@ -35,6 +35,6 @@ class ExternalQueue
 
     static std::string kSQLCreateStatement;
 
-    Application& mApp;
+    Application const& mApp;
 };
 }

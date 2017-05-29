@@ -150,11 +150,11 @@ class Application
 
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
-    virtual uint64_t timeNow() = 0;
+    virtual uint64_t timeNow() const = 0;
 
     // Return a reference to the Application-local copy of the Config object
     // that the Application was constructed with.
-    virtual Config const& getConfig() = 0;
+    virtual Config const& getConfig() const = 0;
 
     // Gets the current execution-state of the Application
     // (derived from the state of other modules
@@ -163,11 +163,11 @@ class Application
     virtual bool isStopping() const = 0;
 
     // Get the external VirtualClock to which this Application is bound.
-    virtual VirtualClock& getClock() = 0;
+    virtual VirtualClock& getClock() const = 0;
 
     // Get the registry of metrics owned by this application. Metrics are
     // reported through the administrative HTTP interface, see CommandHandler.
-    virtual medida::MetricsRegistry& getMetrics() = 0;
+    virtual medida::MetricsRegistry& getMetrics() const = 0;
 
     // Ensure any App-local metrics that are "current state" gauge-like counters
     // reflect the current reality as best as possible.
@@ -177,20 +177,20 @@ class Application
     virtual void syncAllMetrics() = 0;
 
     // Get references to each of the "subsystem" objects.
-    virtual TmpDirManager& getTmpDirManager() = 0;
-    virtual LedgerManager& getLedgerManager() = 0;
-    virtual BucketManager& getBucketManager() = 0;
-    virtual HistoryManager& getHistoryManager() = 0;
-    virtual ProcessManager& getProcessManager() = 0;
-    virtual Herder& getHerder() = 0;
-    virtual Invariants& getInvariants() = 0;
-    virtual OverlayManager& getOverlayManager() = 0;
+    virtual TmpDirManager& getTmpDirManager() const = 0;
+    virtual LedgerManager& getLedgerManager() const = 0;
+    virtual BucketManager& getBucketManager() const = 0;
+    virtual HistoryManager& getHistoryManager() const = 0;
+    virtual ProcessManager& getProcessManager() const = 0;
+    virtual Herder& getHerder() const = 0;
+    virtual Invariants& getInvariants() const = 0;
+    virtual OverlayManager& getOverlayManager() const = 0;
     virtual Database& getDatabase() const = 0;
-    virtual PersistentState& getPersistentState() = 0;
-    virtual CommandHandler& getCommandHandler() = 0;
-    virtual WorkManager& getWorkManager() = 0;
-    virtual BanManager& getBanManager() = 0;
-    virtual StatusManager& getStatusManager() = 0;
+    virtual PersistentState& getPersistentState() const = 0;
+    virtual CommandHandler& getCommandHandler() const = 0;
+    virtual WorkManager& getWorkManager() const = 0;
+    virtual BanManager& getBanManager() const = 0;
+    virtual StatusManager& getStatusManager() const = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

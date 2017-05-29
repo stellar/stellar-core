@@ -17,7 +17,7 @@ namespace stellar
 using asio::ip::tcp;
 using namespace std;
 
-PeerDoor::PeerDoor(Application& app)
+PeerDoor::PeerDoor(Application const& app)
     : mApp(app), mAcceptor(mApp.getClock().getIOService())
 {
 }

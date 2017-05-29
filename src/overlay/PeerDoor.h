@@ -21,7 +21,7 @@ class PeerDoorStub;
 class PeerDoor
 {
   protected:
-    Application& mApp;
+    Application const& mApp;
     asio::ip::tcp::acceptor mAcceptor;
 
     virtual void acceptNextPeer();
@@ -32,7 +32,7 @@ class PeerDoor
   public:
     typedef std::shared_ptr<PeerDoor> pointer;
 
-    PeerDoor(Application&);
+    PeerDoor(Application const&);
 
     void start();
     void close();

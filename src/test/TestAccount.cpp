@@ -41,7 +41,7 @@ TestAccount::tx(std::vector<Operation> const& ops)
 }
 
 TestAccount
-TestAccount::createRoot(Application& app)
+TestAccount::createRoot(Application const& app)
 {
     auto secretKey = getRoot(app.getNetworkID());
     return TestAccount{app, secretKey};

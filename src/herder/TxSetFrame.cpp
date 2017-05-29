@@ -188,7 +188,7 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm)
 
 // TODO.3 this and checkValid share a lot of code
 void
-TxSetFrame::trimInvalid(Application& app,
+TxSetFrame::trimInvalid(Application const& app,
                         std::vector<TransactionFramePtr>& trimmed)
 {
     soci::transaction sqltx(app.getDatabase().getSession());
@@ -246,7 +246,7 @@ TxSetFrame::trimInvalid(Application& app,
 // the fees of all the tx it has submitted in this set
 // check seq num
 bool
-TxSetFrame::checkValid(Application& app) const
+TxSetFrame::checkValid(Application const& app) const
 {
     // Establish read-only transaction for duration of checkValid.
     soci::transaction sqltx(app.getDatabase().getSession());

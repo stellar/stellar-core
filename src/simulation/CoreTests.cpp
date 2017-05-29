@@ -389,7 +389,7 @@ class ScaleReporter
 };
 
 static void
-closeLedger(Application& app)
+closeLedger(Application const& app)
 {
     auto& clock = app.getClock();
     bool advanced = false;

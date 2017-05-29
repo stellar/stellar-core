@@ -61,7 +61,7 @@ class LoopbackPeer : public Peer
     virtual ~LoopbackPeer()
     {
     }
-    LoopbackPeer(Application& app, PeerRole role);
+    LoopbackPeer(Application const& app, PeerRole role);
     void drop() override;
     std::string getIP() override;
 
@@ -114,7 +114,7 @@ class LoopbackPeerConnection
     std::shared_ptr<LoopbackPeer> mAcceptor;
 
   public:
-    LoopbackPeerConnection(Application& initiator, Application& acceptor);
+    LoopbackPeerConnection(Application const& initiator, Application const& acceptor);
     ~LoopbackPeerConnection();
     std::shared_ptr<LoopbackPeer> getInitiator() const;
     std::shared_ptr<LoopbackPeer> getAcceptor() const;

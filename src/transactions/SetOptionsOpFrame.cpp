@@ -39,7 +39,7 @@ SetOptionsOpFrame::getNeededThreshold() const
 }
 
 bool
-SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
+SetOptionsOpFrame::doApply(Application const& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
@@ -188,7 +188,7 @@ SetOptionsOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-SetOptionsOpFrame::doCheckValid(Application& app)
+SetOptionsOpFrame::doCheckValid(Application const& app)
 {
     if (mSetOptions.setFlags)
     {

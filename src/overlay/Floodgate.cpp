@@ -24,7 +24,7 @@ Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
         mPeersTold.insert(peer);
 }
 
-Floodgate::Floodgate(Application& app)
+Floodgate::Floodgate(Application const& app)
     : mApp(app)
     , mFloodMapSize(
           app.getMetrics().NewCounter({"overlay", "memory", "flood-map"}))

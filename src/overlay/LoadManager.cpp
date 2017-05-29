@@ -54,7 +54,7 @@ timeMag(uint64_t nanos)
 
 void
 LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,
-                         Application& app)
+                         Application const& app)
 {
     CLOG(INFO, "Overlay") << "";
     CLOG(INFO, "Overlay") << "Cumulative peer-load costs:";
@@ -82,7 +82,7 @@ LoadManager::~LoadManager()
 }
 
 void
-LoadManager::maybeShedExcessLoad(Application& app)
+LoadManager::maybeShedExcessLoad(Application const& app)
 {
     uint32_t minIdle = app.getConfig().MINIMUM_IDLE_PERCENT;
     uint32_t idleClock = app.getClock().recentIdleCrankPercent();
@@ -163,7 +163,7 @@ LoadManager::getPeerCosts(NodeID const& node)
     return p;
 }
 
-LoadManager::PeerContext::PeerContext(Application& app, NodeID const& node)
+LoadManager::PeerContext::PeerContext(Application const& app, NodeID const& node)
     : mApp(app)
     , mNode(node)
     , mWorkStart(app.getClock().now())
