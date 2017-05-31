@@ -61,7 +61,7 @@ class LedgerManagerImpl : public LedgerManager
                            LedgerDelta& ledgerDelta,
                            TransactionResultSet& txResultSet);
 
-    void closeLedgerHelper(LedgerDelta const& delta);
+    void ledgerClosed(LedgerDelta const& delta);
     void advanceLedgerPointers();
 
     State mState;

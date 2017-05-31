@@ -182,7 +182,7 @@ LedgerManagerImpl::startNewLedger()
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed();
-    closeLedgerHelper(delta);
+    ledgerClosed(delta);
 }
 
 void
@@ -758,7 +758,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mApp.getInvariants().check(ledgerData.getTxSet(), ledgerDelta);
 
     ledgerDelta.commit();
-    closeLedgerHelper(ledgerDelta);
+    ledgerClosed(ledgerDelta);
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
@@ -958,7 +958,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 }
 
 void
-LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
+LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
 {
     delta.markMeters(mApp);
     mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
