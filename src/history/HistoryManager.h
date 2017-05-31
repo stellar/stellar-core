@@ -199,8 +199,7 @@ class HistoryManager
     {
         CATCHUP_COMPLETE,
         CATCHUP_MINIMAL,
-        CATCHUP_RECENT,
-        CATCHUP_BUCKET_REPAIR
+        CATCHUP_RECENT
     };
 
     // Status code returned from LedgerManager::verifyCatchupCandidate. The

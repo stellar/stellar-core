@@ -652,9 +652,6 @@ HistoryManagerImpl::catchupHistory(
         handler,
     bool manualCatchup)
 {
-    // To repair buckets, call `downloadMissingBuckets()` instead.
-    assert(mode != CATCHUP_BUCKET_REPAIR);
-
     if (mCatchupWork)
     {
         throw std::runtime_error("Catchup already in progress");
