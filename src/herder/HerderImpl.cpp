@@ -628,7 +628,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, Value const& value)
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
     LedgerCloseData ledgerData(lastConsensusLedgerIndex(), externalizedSet, b);
-    mLedgerManager.externalizeValue(ledgerData);
+    mLedgerManager.valueExternalized(ledgerData);
 
     // perform cleanups
     updatePendingTransactions(externalizedSet->mTransactions);

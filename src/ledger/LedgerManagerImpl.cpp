@@ -341,7 +341,7 @@ getCatchupMode(Application& app)
 
 // called by txherder
 void
-LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
+LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 {
     CLOG(INFO, "Ledger")
         << "Got consensus: "
