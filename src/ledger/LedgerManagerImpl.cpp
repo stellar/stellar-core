@@ -472,38 +472,44 @@ LedgerManagerImpl::verifyCatchupCandidate(
 // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
 // here, which causes CatchupStateMachine to pause and retry later.
 
-#define CHECK_PAIR(aseq, bseq, ahash, bhash)                                   \
-    if ((aseq) == (bseq))                                                      \
-    {                                                                          \
-        if ((ahash) == (bhash))                                                \
-        {                                                                      \
-            return HistoryManager::VERIFY_HASH_OK;                             \
-        }                                                                      \
-        else                                                                   \
-        {                                                                      \
-            return HistoryManager::VERIFY_HASH_BAD;                            \
-        }                                                                      \
-    }
+    struct LedgerInfo
+    {
+        uint32 seq;
+        Hash hash;
+    };
 
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
-               mLastClosedLedger.hash, candidate.hash);
-
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq - 1,
-               candidate.header.ledgerSeq,
-               mLastClosedLedger.header.previousLedgerHash, candidate.hash);
-
-    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq - 1,
-               candidate.header.ledgerSeq,
-               mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
+    auto infos = std::vector<LedgerInfo>{};
+    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq,
+                               mLastClosedLedger.hash});
+    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq - 1,
+                               mLastClosedLedger.header.previousLedgerHash});
+    infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
+                               mCurrentLedger->mHeader.previousLedgerHash});
 
     for (auto const& ld : mSyncingLedgers)
     {
-        CHECK_PAIR(ld.getLedgerSeq() - 1, candidate.header.ledgerSeq,
-                   ld.mTxSet->previousLedgerHash(), candidate.hash);
+        infos.push_back(LedgerInfo{ld.getLedgerSeq() - 1,
+                                   ld.getTxSet()->previousLedgerHash()});
     }
 
-#undef CHECK_PAIR
-    return HistoryManager::VERIFY_HASH_UNKNOWN;
+    auto matchingSequenceId =
+        std::find_if(std::begin(infos), std::end(infos),
+                     [&candidate](LedgerInfo const& info){
+                         return info.seq == candidate.header.ledgerSeq;
+                    });
+    if (matchingSequenceId == std::end(infos))
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN;
+    }
+
+    if (matchingSequenceId->hash == candidate.hash)
+    {
+        return HistoryManager::VERIFY_HASH_OK;
+    }
+    else
+    {
+        return HistoryManager::VERIFY_HASH_BAD;
+    }
 }
 
 void
