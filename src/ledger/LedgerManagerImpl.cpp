@@ -488,18 +488,18 @@ LedgerManagerImpl::verifyCatchupCandidate(
     CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
                mLastClosedLedger.hash, candidate.hash);
 
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq,
-               candidate.header.ledgerSeq + 1,
+    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq - 1,
+               candidate.header.ledgerSeq,
                mLastClosedLedger.header.previousLedgerHash, candidate.hash);
 
-    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq,
-               candidate.header.ledgerSeq + 1,
+    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq - 1,
+               candidate.header.ledgerSeq,
                mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
 
     for (auto const& ld : mSyncingLedgers)
     {
-        CHECK_PAIR(ld.getLedgerSeq(), candidate.header.ledgerSeq + 1,
-                   ld.getTxSet()->previousLedgerHash(), candidate.hash);
+        CHECK_PAIR(ld.getLedgerSeq() - 1, candidate.header.ledgerSeq,
+                   ld.mTxSet->previousLedgerHash(), candidate.hash);
     }
 
 #undef CHECK_PAIR
