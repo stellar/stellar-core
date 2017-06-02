@@ -335,13 +335,19 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
+    auto setLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (setLedger.header.ledgerSeq < 2)
+    {
+        setLedger = {};
+    }
+
     if (mFirstVerified.header.ledgerSeq != 0)
     {
-        mFirstVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+        mFirstVerified = setLedger;
     }
     if (mLastVerified.header.ledgerSeq != 0)
     {
-        mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+        mLastVerified = setLedger;
     }
     mCurrSeq = mFirstSeq;
 }
