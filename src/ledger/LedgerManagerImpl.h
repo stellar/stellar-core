@@ -6,6 +6,7 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
+#include "ledger/SyncingLedgerChain.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/PersistentState.h"
@@ -49,7 +50,7 @@ class LedgerManagerImpl : public LedgerManager
 
     medida::Counter& mSyncingLedgersSize;
 
-    std::vector<LedgerCloseData> mSyncingLedgers;
+    SyncingLedgerChain mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
                          HistoryManager::CatchupMode mode,

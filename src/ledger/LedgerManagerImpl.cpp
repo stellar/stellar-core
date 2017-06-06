@@ -393,7 +393,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                                  << ledgerData.getLedgerSeq();
 
             assert(mSyncingLedgers.size() == 0);
-            mSyncingLedgers.push_back(ledgerData);
+            auto addResult = mSyncingLedgers.add(ledgerData);
+            assert(addResult == SyncingLedgerChainAddResult::CONTIGUOUS);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
             CLOG(INFO, "Ledger") << "Close of ledger "
                                  << ledgerData.getLedgerSeq()
@@ -404,29 +405,20 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
     case LedgerManager::LM_CATCHING_UP_STATE:
     {
-        bool contiguous = (mSyncingLedgers.empty() ||
-                           mSyncingLedgers.back().getLedgerSeq() + 1 ==
-                               ledgerData.getLedgerSeq());
-
-        bool skipLogging = false;
-
-        if (contiguous)
+        switch (mSyncingLedgers.add(ledgerData))
         {
+        case SyncingLedgerChainAddResult::CONTIGUOUS:
             // Normal close while catching up
-            mSyncingLedgers.push_back(ledgerData);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-        }
-        else if (ledgerData.getLedgerSeq() <=
-                 mSyncingLedgers.back().getLedgerSeq())
-        {
+            mApp.getHistoryManager().logAndUpdateStatus(true);
+            break;
+        case SyncingLedgerChainAddResult::TOO_OLD:
             CLOG(INFO, "Ledger") << "Skipping close ledger: latest known is "
                                  << mSyncingLedgers.back().getLedgerSeq()
                                  << ", more recent than "
                                  << ledgerData.getLedgerSeq();
-            skipLogging = true;
-        }
-        else
-        {
+            break;
+        case SyncingLedgerChainAddResult::TOO_NEW:
             // Out-of-order close while catching up; timeout / network failure?
             CLOG(WARNING, "Ledger")
                 << "Out-of-order close during catchup, buffered to "
@@ -435,11 +427,9 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
             CLOG(WARNING, "Ledger")
                 << "this round of catchup will fail and restart.";
-        }
 
-        if (!skipLogging)
-        {
-            mApp.getHistoryManager().logAndUpdateStatus(contiguous);
+            mApp.getHistoryManager().logAndUpdateStatus(false);
+            break;
         }
     }
     break;
@@ -619,7 +609,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                 CLOG(ERROR, "Ledger")
                     << "Flushing buffer and restarting at ledger "
                     << lastBuffered.getLedgerSeq();
-                mSyncingLedgers.clear();
+                mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
                 startCatchUp(lastBuffered.getLedgerSeq(), getCatchupMode(mApp));
                 return;
@@ -633,7 +623,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     }
 
     // Either way, we're done processing the ledgers backlog
-    mSyncingLedgers.clear();
+    mSyncingLedgers = {};
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 
