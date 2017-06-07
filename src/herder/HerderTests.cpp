@@ -72,10 +72,8 @@ TEST_CASE("standalone", "[herder]")
 
         auto setup = [&](asio::error_code const& error) {
             // create accounts
-            TransactionFramePtr txFrameA1 = createCreateAccountTx(
-                networkID, root, a1, root.nextSequenceNumber(), paymentAmount);
-            TransactionFramePtr txFrameA2 = createCreateAccountTx(
-                networkID, root, b1, root.nextSequenceNumber(), paymentAmount);
+            auto txFrameA1 = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
+            auto txFrameA2 = root.tx({createCreateAccountOp(nullptr, b1.getPublicKey(), paymentAmount)});
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
                     Herder::TX_STATUS_PENDING);
@@ -169,7 +167,7 @@ TEST_CASE("txset", "[herder]")
 
     const int nbAccounts = 2;
     const int nbTransactions = 5;
-    SecretKey accounts[nbAccounts];
+    std::vector<TestAccount> accounts;
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
@@ -185,21 +183,19 @@ TEST_CASE("txset", "[herder]")
     {
         std::string accountName = "A";
         accountName += '0' + (char)i;
-        accounts[i] = getAccount(accountName.c_str());
+        accounts.push_back(TestAccount{*app, getAccount(accountName.c_str())});
         transactions.push_back(std::vector<TransactionFramePtr>());
         for (int j = 0; j < nbTransactions; j++)
         {
             if (j == 0)
             {
-                transactions[i].emplace_back(createCreateAccountTx(
-                    networkID, sourceAccount, accounts[i],
-                    sourceAccount.nextSequenceNumber(), paymentAmount));
+                transactions[i].emplace_back(
+                    sourceAccount.tx({createCreateAccountOp(nullptr, accounts[i].getPublicKey(), paymentAmount)}));
             }
             else
             {
-                transactions[i].emplace_back(createPaymentTx(
-                    networkID, sourceAccount, accounts[i],
-                    sourceAccount.nextSequenceNumber(), paymentAmount));
+                transactions[i].emplace_back(
+                    sourceAccount.tx({createPaymentOp(nullptr, accounts[i].getPublicKey(), paymentAmount)}));
             }
         }
     }
@@ -241,8 +237,7 @@ TEST_CASE("txset", "[herder]")
     {
         SECTION("no user")
         {
-            txSet->add(createPaymentTx(networkID, accounts[0], root, 1,
-                                       paymentAmount));
+            txSet->add(accounts[0].tx({createPaymentOp(nullptr, root, paymentAmount)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -254,9 +249,10 @@ TEST_CASE("txset", "[herder]")
         {
             SECTION("gap after")
             {
-                txSet->add(createPaymentTx(
-                    networkID, sourceAccount, accounts[0],
-                    sourceAccount.getLastSequenceNumber() + 5, paymentAmount));
+                auto tx = sourceAccount.tx({createPaymentOp(nullptr,
+                    accounts[0], paymentAmount)});
+                tx->getEnvelope().tx.seqNum += 5;
+                txSet->add(tx);
                 txSet->sortForHash();
                 REQUIRE(!txSet->checkValid(*app));
 
@@ -288,9 +284,7 @@ TEST_CASE("txset", "[herder]")
         SECTION("insuficient balance")
         {
             // extra transaction would push the account below the reserve
-            txSet->add(createPaymentTx(networkID, sourceAccount, accounts[0],
-                                       sourceAccount.nextSequenceNumber(),
-                                       paymentAmount));
+            txSet->add(sourceAccount.tx({createPaymentOp(nullptr, accounts[0], paymentAmount)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -337,8 +331,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount,
-                                       root.nextSequenceNumber(), n + 10));
+            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(lm);
@@ -351,8 +344,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount,
-                                       root.nextSequenceNumber(), n + 10));
+            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
         }
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
@@ -367,10 +359,8 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount,
-                                       root.nextSequenceNumber(), n + 10));
-            auto tx = createPaymentTx(networkID, accountB, destAccount,
-                                      accountB.nextSequenceNumber(), n + 10);
+            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            auto tx = accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)});
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
         }
@@ -389,13 +379,11 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            auto tx = createPaymentTx(networkID, root, destAccount,
-                                      root.nextSequenceNumber(), n + 10);
+            auto tx = root.tx({createPaymentOp(nullptr, destAccount, n + 10)});
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
 
-            tx = createPaymentTx(networkID, accountB, destAccount,
-                                 accountB.nextSequenceNumber(), n + 10);
+            tx = accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)});
             if (n != 1)
                 tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
             txSet->add(tx);
@@ -415,12 +403,9 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 30; n++)
         {
-            txSet->add(createPaymentTx(networkID, root, destAccount,
-                                       root.nextSequenceNumber(), n + 10));
-            txSet->add(createPaymentTx(networkID, accountB, destAccount,
-                                       accountB.nextSequenceNumber(), n + 10));
-            txSet->add(createPaymentTx(networkID, accountC, destAccount,
-                                       accountC.nextSequenceNumber(), n + 10));
+            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            txSet->add(accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            txSet->add(accountC.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(lm);
@@ -473,11 +458,8 @@ TEST_CASE("SCP Driver", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions), [&]() {
-                          return createCreateAccountTx(
-                              networkID, root, a1, root.nextSequenceNumber(),
-                              10000000);
-                      });
+                      std::end(txSet->mTransactions),
+                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

@@ -36,8 +36,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         return cfg;
     };
 
-    std::vector<SecretKey> sources;
-    std::vector<PublicKey> sourcesPub;
+    std::vector<TestAccount> sources;
     SequenceNumber expectedSeq = 0;
 
     std::vector<std::shared_ptr<Application>> nodes;
@@ -62,9 +61,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto& account = gen.data.account();
             for (int i = 0; i < nbTx; i++)
             {
-                sources.emplace_back(SecretKey::random());
-                sourcesPub.emplace_back(sources.back().getPublicKey());
-                account.accountID = sourcesPub.back();
+                sources.emplace_back(
+                    TestAccount{*app0, SecretKey::random(), 0});
+                account.accountID = sources.back();
                 auto newAccount = EntryFrame::FromXDR(gen);
 
                 // need to create on all nodes
@@ -134,8 +133,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = createCreateAccountTx(networkID, sources[i], dest,
-                                             expectedSeq, txAmount);
+            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, dest.getPublicKey(), txAmount)});
 
             // round robin
             auto inApp = nodes[i % nodes.size()];
@@ -151,17 +149,17 @@ TEST_CASE("Flooding", "[flood][overlay]")
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {
             // checks if an app received all transactions or not
             size_t okCount = 0;
-            for (auto const& s : sourcesPub)
+            for (auto const& s : sources)
             {
                 okCount +=
                     (app->getHerder().getMaxSeqInPendingTxs(s) == expectedSeq)
                         ? 1
                         : 0;
             }
-            bool res = okCount == sourcesPub.size();
+            bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sourcesPub.size() << " peers: "
+                       << sources.size() << " peers: "
                        << app->getOverlayManager().getPeers().size();
             return res;
         };
@@ -210,8 +208,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = createCreateAccountTx(networkID, sources[i], dest,
-                                             expectedSeq, txAmount);
+            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, sources[i], txAmount)});
 
             // round robin
             auto inApp = nodes[i % nodes.size()];
@@ -228,7 +225,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             // use sources as validators
             SCPQuorumSet qset;
             qset.threshold = 1;
-            qset.validators.emplace_back(sourcesPub[i]);
+            qset.validators.emplace_back(sources[i]);
 
             Hash qSetHash = sha256(xdr::xdr_to_opaque(qset));
 
@@ -248,9 +245,10 @@ TEST_CASE("Flooding", "[flood][overlay]")
             nom.quorumSetHash = qSetHash;
 
             // use the sources to sign the message
-            st.nodeID = sourcesPub[i];
-            envelope.signature = sources[i].sign(xdr::xdr_to_opaque(
-                inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
+            st.nodeID = sources[i];
+            envelope.signature =
+                sources[i].getSecretKey().sign(xdr::xdr_to_opaque(
+                    inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
 
             // inject the message
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
@@ -269,20 +267,20 @@ TEST_CASE("Flooding", "[flood][overlay]")
             HerderImpl& herder = *static_cast<HerderImpl*>(&app->getHerder());
             auto state =
                 herder.getSCP().getCurrentState(lcl.header.ledgerSeq + 1);
-            for (auto const& s : sourcesPub)
+            for (auto const& s : sources)
             {
-                if (std::find_if(state.begin(), state.end(),
-                                 [&](SCPEnvelope const& e) {
-                                     return e.statement.nodeID == s;
-                                 }) != state.end())
+                if (std::find_if(
+                        state.begin(), state.end(), [&](SCPEnvelope const& e) {
+                            return e.statement.nodeID == s.getPublicKey();
+                        }) != state.end())
                 {
                     okCount += 1;
                 }
             }
-            bool res = okCount == sourcesPub.size();
+            bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sourcesPub.size() << " peers: "
+                       << sources.size() << " peers: "
                        << app->getOverlayManager().getPeers().size();
             return res;
         };

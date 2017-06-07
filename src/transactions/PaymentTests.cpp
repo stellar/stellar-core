@@ -305,8 +305,7 @@ TEST_CASE("payment", "[tx][payment]")
                 addReserve;
 
             // verify that the account can't do anything
-            auto tx = createPaymentTx(app.getNetworkID(), b1, root,
-                                    b1.nextSequenceNumber(), 1);
+            auto tx = b1.tx({createPaymentOp(nullptr, root, 1)});
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -327,10 +326,8 @@ TEST_CASE("payment", "[tx][payment]")
                                     txfee * 2;
             auto b1 = root.create("B", startingBalance);
 
-            auto tx1 = createPaymentTx(app.getNetworkID(), b1, root,
-                                    b1.nextSequenceNumber(), paymentAmount);
-            auto tx2 = createPaymentTx(app.getNetworkID(), b1, root,
-                                    b1.nextSequenceNumber(), 6);
+            auto tx1 = b1.tx({createPaymentOp(nullptr, root, paymentAmount)});
+            auto tx2 = b1.tx({createPaymentOp(nullptr, root, 6)});
 
             int64 rootBalance = root.getBalance();
             auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});

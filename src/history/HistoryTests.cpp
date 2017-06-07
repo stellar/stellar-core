@@ -461,7 +461,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
             auto const& lcd = mLedgerCloseDatas.at(n - 2);
             CLOG(INFO, "History")
                 << "force-externalizing LedgerCloseData for " << n
-                << " has txhash:" << hexAbbrev(lcd.mTxSet->getContentsHash());
+                << " has txhash:"
+                << hexAbbrev(lcd.getTxSet()->getContentsHash());
             lm.externalizeValue(lcd);
         }
     }

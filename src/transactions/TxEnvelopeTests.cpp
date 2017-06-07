@@ -55,15 +55,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("outer envelope")
     {
-        TransactionFramePtr txFrame;
         LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                         app.getDatabase());
-        txFrame =
-            createCreateAccountTx(app.getNetworkID(), root, a1,
-                                root.nextSequenceNumber(), paymentAmount);
 
         SECTION("no signature")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures.clear();
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -78,6 +75,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("bad signature")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -92,6 +90,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("bad signature (wrong hint)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -106,6 +105,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("too many signatures (signed twice)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             txFrame->addSignature(a1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
@@ -120,6 +120,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("too many signatures (unused signature)")
         {
+            auto txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
@@ -159,8 +160,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("not enough rights (envelope)")
         {
-            TransactionFramePtr tx = createPaymentTx(
-                app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
+            auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
 
             // only sign with s1
             tx->getEnvelope().signatures.clear();
@@ -206,9 +206,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("success two signatures")
         {
-            TransactionFramePtr tx = createPaymentTx(
-                app.getNetworkID(), a1, root, a1.nextSequenceNumber(), 1000);
-
+            auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
@@ -226,8 +224,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("do not allow duplicate signature")
         {
-            TransactionFramePtr tx = createPaymentTx(
-                networkID, a1, root, a1.nextSequenceNumber(), 1000);
+            auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
 
             tx->getEnvelope().signatures.clear();
             for (auto i = 0; i < 10; i++)
@@ -283,10 +280,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION(alternative.name)
             {
                 for_versions_to(2, app, [&]{
-                    TransactionFramePtr tx =
-                        createPaymentTx(app.getNetworkID(), a1, root,
-                                        a1.getLastSequenceNumber() + 2, 1000);
+                    auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                     tx->getEnvelope().signatures.clear();
+                    tx->getEnvelope().tx.seqNum++;
+                    a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                     SignerKey sk = alternative.createSigner(*tx);
                     Signer sk1(sk, 1);
@@ -300,10 +297,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     SECTION("invalid seq nr")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 1, 1000);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                         tx->getEnvelope().signatures.clear();
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -326,10 +322,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("invalid signature")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, 1000);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                         tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         KeyFunctions<SignerKey>::getKeyValue(sk)[0] ^= 0x01;
@@ -358,9 +354,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("too many signatures (signed by owner)")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, 1000);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -388,10 +384,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("success")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, 1000);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                         tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -457,10 +453,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("failing transaction")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, -1);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, -1)});
                         tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
@@ -503,10 +499,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("not enough rights (envelope)")
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, 1000);
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                         tx->getEnvelope().signatures.clear();
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 5); // below low rights
@@ -568,12 +564,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("success signature + " + alternative.name)
                     {
-                        TransactionFramePtr tx = createPaymentTx(
-                            app.getNetworkID(), a1, root,
-                            a1.getLastSequenceNumber() + 2, 1000);
-
+                        auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(s1);
+                        tx->getEnvelope().tx.seqNum++;
+                        a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 5); // below low rights
@@ -726,9 +721,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("single tx wrapped by different account")
             {
-                TransactionFramePtr tx =
-                    createPaymentTx(app.getNetworkID(), a1, root,
-                                    a1.nextSequenceNumber(), 1000);
+                auto tx = a1.tx({createPaymentOp(nullptr, root, 1000)});
 
                 // change inner payment to be b->root
                 tx->getEnvelope().tx.operations[0].sourceAccount.activate() =
@@ -780,9 +773,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("multiple tx")
             {
                 for_all_versions(app, [&]{
-                    TransactionFramePtr tx_a =
-                        createPaymentTx(app.getNetworkID(), a1, root,
-                                        a1.nextSequenceNumber(), 1000);
+                    auto tx_a = a1.tx({createPaymentOp(nullptr, root, 1000)});
                     SECTION("one invalid tx")
                     {
                         Asset idrCur = makeAsset(b1, "IDR");
@@ -828,9 +819,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("one failed tx")
                     {
                         // this payment is too large
-                        TransactionFramePtr tx_b =
-                            createPaymentTx(app.getNetworkID(), b1, root,
-                                            b1.nextSequenceNumber(), paymentAmount);
+                        auto tx_b = b1.tx({createPaymentOp(nullptr, root, paymentAmount)});
 
                         tx_b->getEnvelope()
                             .tx.operations[0]
@@ -867,9 +856,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     }
                     SECTION("both success")
                     {
-                        TransactionFramePtr tx_b =
-                            createPaymentTx(app.getNetworkID(), b1, root,
-                                            b1.nextSequenceNumber(), 1000);
+                        auto tx_b = b1.tx({createPaymentOp(nullptr, root, 1000)});
 
                         tx_b->getEnvelope()
                             .tx.operations[0]
@@ -908,18 +895,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("operation using default signature")
             {
                 for_all_versions(app, [&]{
-                    SecretKey c1 = getAccount("C");
+                    auto c1 = TestAccount{app, getAccount("C")};
 
                     // build a transaction:
                     //  1. B funds C
                     //  2. send from C -> root
 
-                    TransactionFramePtr tx = createCreateAccountTx(
-                        app.getNetworkID(), b1, c1, b1.nextSequenceNumber(),
-                        paymentAmount / 2);
-
-                    TransactionFramePtr tx_c =
-                        createPaymentTx(app.getNetworkID(), c1, root, 0, 1000);
+                    auto tx = b1.tx({createCreateAccountOp(nullptr, c1.getPublicKey(), paymentAmount / 2)});
+                    auto tx_c = c1.tx({createPaymentOp(nullptr, root, 1000)});
 
                     tx_c->getEnvelope().tx.operations[0].sourceAccount.activate() =
                         c1.getPublicKey();
@@ -962,9 +945,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         TransactionFramePtr txFrame;
 
-        txFrame =
-            createCreateAccountTx(app.getNetworkID(), root, a1,
-                                  root.nextSequenceNumber(), paymentAmount);
+        txFrame = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
         txSet->add(txFrame);
 
         // close this ledger
@@ -981,9 +962,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("Insufficient fee")
             {
                 for_all_versions(app, [&]{
-                    txFrame =
-                        createPaymentTx(app.getNetworkID(), root, a1,
-                                        root.nextSequenceNumber(), paymentAmount);
+                    txFrame = root.tx({createPaymentOp(nullptr, a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
                         app.getLedgerManager().getTxFee() - 1);
 
@@ -1014,9 +993,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     clock.setCurrentTime(ledgerTime);
 
-                    txFrame =
-                        createPaymentTx(app.getNetworkID(), root, a1,
-                                        root.nextSequenceNumber(), paymentAmount);
+                    txFrame = root.tx({createPaymentOp(nullptr, a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(start + 1000, start + 10000);
 
@@ -1025,9 +1002,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
 
-                    txFrame =
-                        createPaymentTx(app.getNetworkID(), root, a1,
-                                        root.nextSequenceNumber(), paymentAmount);
+                    txFrame = root.tx({createPaymentOp(nullptr, a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start + 300000);
 
@@ -1035,9 +1010,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     applyCheck(txFrame, delta, app);
                     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-                    txFrame =
-                        createPaymentTx(app.getNetworkID(), root, a1,
-                                        root.nextSequenceNumber(), paymentAmount);
+                    txFrame = root.tx({createPaymentOp(nullptr, a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start);
 
@@ -1050,10 +1023,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("transaction gap")
             {
                 for_all_versions(app, [&]{
-                    txFrame = createPaymentTx(app.getNetworkID(), root, a1,
-                                            root.getLastSequenceNumber(),
-                                            paymentAmount);
-
+                    txFrame =
+                        root.tx({createPaymentOp(nullptr, a1.getPublicKey(), paymentAmount)});
+                    txFrame->getEnvelope().tx.seqNum--;
                     applyCheck(txFrame, delta, app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);

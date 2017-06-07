@@ -51,11 +51,8 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions), [&]() {
-                          return createCreateAccountTx(
-                              networkID, root, a1, root.nextSequenceNumber(),
-                              10000000);
-                      });
+                      std::end(txSet->mTransactions),
+                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);
