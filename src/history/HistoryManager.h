@@ -214,9 +214,12 @@ class HistoryManager
     // definitely part of the consensus history chain (i.e. the ledger hash
     // matches the consensus for the provided ledger number); VERIFY_HASH_BAD if
     // the proposed ledger is definitely _not_ valid (i.e. if it has a different
-    // hash than the consensus ledger with its number); or VERIFY_HASH_UNKNOWN
-    // if the network consensus has not yet advanced to the proposed catchup
-    // target.
+    // hash than the consensus ledger with its number);
+    // VERIFY_HASH_UNKNOWN_RECOVERABLE if the network consensus has not
+    // yet advanced to the proposed catchup target and
+    // VERIFY_HASH_UNKNOWN_UNRECOVERABLE if proposed target ledger was not
+    // received from network and next ledgers were received (so the probability
+    // of receiving it is extremaly low).
     //
     // In the first case, catchup will proceed; in the second it will fail (and
     // restart, possibly against a different untrusted history archive); in the
@@ -225,7 +228,8 @@ class HistoryManager
     {
         VERIFY_HASH_OK,
         VERIFY_HASH_BAD,
-        VERIFY_HASH_UNKNOWN
+        VERIFY_HASH_UNKNOWN_RECOVERABLE,
+        VERIFY_HASH_UNKNOWN_UNRECOVERABLE
     };
 
     // Select any readable history archive. If there are more than one,

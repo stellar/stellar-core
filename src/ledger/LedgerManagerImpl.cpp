@@ -489,7 +489,14 @@ LedgerManagerImpl::verifyCatchupCandidate(
                     });
     if (matchingSequenceId == std::end(infos))
     {
-        return HistoryManager::VERIFY_HASH_UNKNOWN;
+        if (mSyncingLedgers.hadTooNew())
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+        }
+        else
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+        }
     }
 
     if (matchingSequenceId->hash == candidate.hash)
