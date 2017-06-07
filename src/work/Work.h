@@ -48,6 +48,13 @@ class Work : public WorkParent
         WORK_FAILURE_RAISE
     };
 
+    enum CompleteResult
+    {
+        WORK_COMPLETE_OK,
+        WORK_COMPLETE_FAILURE,
+        WORK_COMPLETE_FATAL
+    };
+
     Work(Application& app, WorkParent& parent, std::string uniqueName,
          size_t maxRetries = RETRY_A_FEW);
 
@@ -97,8 +104,8 @@ class Work : public WorkParent
 
     std::function<void(asio::error_code const& ec)> callComplete();
     void run();
-    void complete(asio::error_code const& ec);
-    void scheduleComplete(asio::error_code ec = asio::error_code());
+    void complete(CompleteResult result);
+    void scheduleComplete(CompleteResult result = WORK_COMPLETE_OK);
     void scheduleRetry();
     void scheduleRun();
     void
@@ -109,7 +116,12 @@ class Work : public WorkParent
     void
     scheduleFailure()
     {
-        scheduleComplete(std::make_error_code(std::errc::io_error));
+        scheduleComplete(WORK_COMPLETE_FAILURE);
+    }
+    void
+    scheduleFatalFailure()
+    {
+        scheduleComplete(WORK_COMPLETE_FATAL);
     }
 
     void setState(State s);
