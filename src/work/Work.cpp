@@ -66,6 +66,7 @@ Work::getStatus() const
         return fmt::format("Retrying in {:d} sec: {:s}", eta, getUniqueName());
     }
     case WORK_FAILURE_RAISE:
+    case WORK_FAILURE_FATAL:
         return fmt::format("Failed: {:s}", getUniqueName());
     default:
         assert(false);
@@ -111,6 +112,8 @@ Work::stateName(State st)
         return "WORK_FAILURE_RETRY";
     case WORK_FAILURE_RAISE:
         return "WORK_FAILURE_RAISE";
+    case WORK_FAILURE_FATAL:
+        return "WORK_FAILURE_FATAL";
     default:
         throw std::runtime_error("Unknown Work::State");
     }
@@ -225,6 +228,13 @@ Work::advance()
                             << getUniqueName() << " successful, scheduling run";
         scheduleRun();
     }
+    else if (anyChildFatalFailure())
+    {
+        CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
+                            << getUniqueName() << " fatally failed, scheduling "
+                            << "fatal failure";
+        scheduleFatalFailure();
+    }
     else if (anyChildRaiseFailure())
     {
         CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
@@ -266,7 +276,7 @@ Work::complete(CompleteResult result)
         setState(WORK_FAILURE_RETRY);
         break;
     case WORK_COMPLETE_FATAL:
-        setState(WORK_FAILURE_RAISE);
+        setState(WORK_FAILURE_FATAL);
         break;
     }
 
@@ -286,6 +296,7 @@ Work::complete(CompleteResult result)
         break;
 
     case WORK_FAILURE_RAISE:
+    case WORK_FAILURE_FATAL:
         fail.Mark();
         onFailureRaise();
         CLOG(DEBUG, "Work") << "notifying parent of failed " << getUniqueName();
@@ -349,7 +360,7 @@ Work::getState() const
 bool
 Work::isDone() const
 {
-    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE;
+    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE || mState == WORK_FAILURE_FATAL;
 }
 
 void

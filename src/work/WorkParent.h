@@ -40,6 +40,7 @@ class WorkParent : public std::enable_shared_from_this<WorkParent>,
     void clearChildren();
     void advanceChildren();
     bool anyChildRaiseFailure() const;
+    bool anyChildFatalFailure() const;
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
 

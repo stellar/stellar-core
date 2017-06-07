@@ -500,7 +500,7 @@ VerifyLedgerChainWork::onSuccess()
     case HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE:
         CLOG(ERROR, "History")
             << "Catchup material failed verification, propagating failure";
-        return WORK_FAILURE_RAISE;
+        return WORK_FAILURE_FATAL;
     default:
         assert(false);
         throw std::runtime_error("unexpected VerifyLedgerChainWork state");
