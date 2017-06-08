@@ -34,6 +34,7 @@ struct ThresholdSetter
 };
 
 bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
+void applyTx(TransactionFramePtr const& tx, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
@@ -68,35 +69,23 @@ transactionFromOperations(Hash const& networkID, SecretKey const& from,
                           SequenceNumber seq,
                           std::vector<Operation> const& ops);
 
-TransactionFramePtr createChangeTrust(Hash const& networkID,
-                                      SecretKey const& from,
-                                      SecretKey const& to, SequenceNumber seq,
-                                      std::string const& assetCode,
-                                      int64_t limit);
+Operation
+createChangeTrustOp(Asset const& asset, int64_t limit);
 
-void applyChangeTrust(Application& app, SecretKey const& from,
-                      PublicKey const& to, SequenceNumber seq,
-                      std::string const& assetCode, int64_t limit);
+Operation
+createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+                   bool authorize);
 
-TransactionFramePtr
-createAllowTrust(Hash const& networkID, SecretKey const& from,
-                 PublicKey const& trustor, SequenceNumber seq,
-                 std::string const& assetCode, bool authorize);
+Operation createInflationOp();
 
-void applyAllowTrust(Application& app, SecretKey const& from,
-                     PublicKey const& trustor, SequenceNumber seq,
-                     std::string const& assetCode, bool authorize);
+Operation createMergeOp(PublicKey const& dest);
 
-TransactionFramePtr createCreateAccountTx(Hash const& networkID,
-                                          SecretKey const& from,
-                                          SecretKey const& to,
-                                          SequenceNumber seq, int64_t amount);
+Operation createManageDataOp(std::string const& name, DataValue* value);
 
-void applyCreateAccountTx(Application& app, SecretKey const& from,
-                          SecretKey const& to, SequenceNumber seq,
-                          int64_t amount);
+Operation createCreateAccountOp(PublicKey const& dest,
+                                int64_t amount);
 
-Operation createPaymentOp(SecretKey const* from, PublicKey const& to,
+Operation createPaymentOp(PublicKey const& to,
                           int64_t amount);
 
 TransactionFramePtr createPaymentTx(Hash const& networkID,
@@ -115,18 +104,10 @@ void applyCreditPaymentTx(Application& app, SecretKey const& from,
                           PublicKey const& to, Asset const& ci,
                           SequenceNumber seq, int64_t amount);
 
-TransactionFramePtr
-createPathPaymentTx(Hash const& networkID, SecretKey const& from,
-                    PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+Operation
+createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
                     Asset const& destCur, int64_t destAmount,
-                    SequenceNumber seq, std::vector<Asset> const& path);
-
-PathPaymentResult applyPathPaymentTx(Application& app, SecretKey const& from,
-                                     PublicKey const& to, Asset const& sendCur,
-                                     int64_t sendMax, Asset const& destCur,
-                                     int64_t destAmount, SequenceNumber seq,
-                                     std::vector<Asset> const& path,
-                                     Asset* noIssuer = nullptr);
+                    std::vector<Asset> const& path);
 
 TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
                                   SecretKey const& source, Asset const& selling,
@@ -158,46 +139,6 @@ Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
 Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
                              uint32_t* clearFlags, ThresholdSetter* thrs,
                              Signer* signer, std::string* homeDomain);
-
-TransactionFramePtr createSetOptions(
-    Hash const& networkID, SecretKey const& source, SequenceNumber seq,
-    AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
-    ThresholdSetter* thrs, Signer* signer, std::string* homeDomain);
-
-void applySetOptions(Application& app, SecretKey const& source,
-                     SequenceNumber seq, AccountID* inflationDest,
-                     uint32_t* setFlags, uint32_t* clearFlags,
-                     ThresholdSetter* thrs, Signer* signer,
-                     std::string* homeDomain);
-
-Operation createInflationOp();
-
-TransactionFramePtr createInflation(Hash const& networkID,
-                                    SecretKey const& from, SequenceNumber seq);
-OperationResult
-applyInflation(Application& app, SecretKey const& from, SequenceNumber seq);
-
-Operation createMergeOp(SecretKey const* from, PublicKey const& dest);
-
-Operation createCreateAccountOp(SecretKey const* from, PublicKey const& dest,
-                                int64_t amount);
-
-TransactionFramePtr createAccountMerge(Hash const& networkID,
-                                       SecretKey const& source,
-                                       PublicKey const& dest,
-                                       SequenceNumber seq);
-
-void applyAccountMerge(Application& app, SecretKey const& source,
-                       PublicKey const& dest, SequenceNumber seq);
-
-TransactionFramePtr createManageData(Hash const& networkID,
-                                     SecretKey const& source,
-                                     std::string const& name, DataValue* value,
-                                     SequenceNumber seq);
-
-void applyManageData(Application& app, SecretKey const& source,
-                     std::string const& name, DataValue* value,
-                     SequenceNumber seq);
 
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 

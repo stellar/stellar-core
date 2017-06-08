@@ -29,6 +29,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include <regex>
+
 using namespace stellar::txtest;
 
 using std::placeholders::_1;
@@ -184,17 +185,16 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_name"] = to->second;
         root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
-        ;
         root["amount"] = (Json::UInt64)paymentAmount;
 
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
         {
-            txFrame = fromAccount.tx({createCreateAccountOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
+            txFrame = fromAccount.tx({createCreateAccountOp(toAccount, paymentAmount)});
         }
         else
         {
-            txFrame = fromAccount.tx({createPaymentOp(nullptr, toAccount.getPublicKey(), paymentAmount)});
+            txFrame = fromAccount.tx({createPaymentOp(toAccount, paymentAmount)});
         }
 
         switch (mApp.getHerder().recvTransaction(txFrame))

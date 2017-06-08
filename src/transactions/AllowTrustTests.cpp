@@ -52,8 +52,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     {
         for_all_versions(app, [&]{
             auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
-            applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr,
-                            &setFlags, nullptr, nullptr, nullptr, nullptr);
+            gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
+                               nullptr);
 
             SECTION("do not set revocable flag")
             {
@@ -65,8 +65,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
             SECTION("set revocable flag")
             {
                 auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
-                applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr,
-                                &setFlags, nullptr, nullptr, nullptr, nullptr);
+                gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
+                                   nullptr, nullptr);
 
                 REQUIRE_THROWS_AS(gateway.allowTrust(idrCur, a1),
                                 ex_ALLOW_TRUST_NO_TRUST_LINE);
@@ -89,8 +89,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     {
         for_all_versions(app, [&]{
             auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
-            applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr,
-                            &setFlags, nullptr, nullptr, nullptr, nullptr);
+            gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
+                               nullptr);
 
             a1.changeTrust(idrCur, trustLineLimit);
             REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, trustLineStartingBalance),
@@ -111,8 +111,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
             SECTION("set revocable flag")
             {
                 auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
-                applySetOptions(app, gateway, gateway.nextSequenceNumber(), nullptr,
-                                &setFlags, nullptr, nullptr, nullptr, nullptr);
+                gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
+                                   nullptr, nullptr);
 
                 gateway.denyTrust(idrCur, a1);
                 REQUIRE_THROWS_AS(a1.pay(gateway, idrCur, trustLineStartingBalance),
@@ -146,9 +146,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
         SECTION("allow trust without explicit trustline")
         {
             auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
-            applySetOptions(app, gateway, gateway.nextSequenceNumber(),
-                            nullptr, &setFlags, nullptr, nullptr, nullptr,
-                            nullptr);
+            gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
+                              nullptr);
 
             SECTION("do not set revocable flag")
             {
@@ -168,9 +167,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
             SECTION("set revocable flag")
             {
                 auto setFlags = static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
-                applySetOptions(app, gateway, gateway.nextSequenceNumber(),
-                                nullptr, &setFlags, nullptr, nullptr,
-                                nullptr, nullptr);
+                gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
+                                   nullptr, nullptr);
 
                 for_versions_to(2, app, [&]{
                     gateway.allowTrust(idrCur, gateway);

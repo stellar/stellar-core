@@ -268,30 +268,30 @@ HistoryTests::generateRandomLedger()
     auto carol = TestAccount{app, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(root.tx({createCreateAccountOp(nullptr, alice, big)}));
-    txSet->add(root.tx({createCreateAccountOp(nullptr, bob, big)}));
-    txSet->add(root.tx({createCreateAccountOp(nullptr, carol, big)}));
-    txSet->add(root.tx({createPaymentOp(nullptr, alice, big)}));
-    txSet->add(root.tx({createPaymentOp(nullptr, bob, big)}));
-    txSet->add(root.tx({createPaymentOp(nullptr, carol, big)}));
+    txSet->add(root.tx({createCreateAccountOp(alice, big)}));
+    txSet->add(root.tx({createCreateAccountOp(bob, big)}));
+    txSet->add(root.tx({createCreateAccountOp(carol, big)}));
+    txSet->add(root.tx({createPaymentOp(alice, big)}));
+    txSet->add(root.tx({createPaymentOp(bob, big)}));
+    txSet->add(root.tx({createPaymentOp(carol, big)}));
 
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
     {
         if (flip())
-            txSet->add(alice.tx({createPaymentOp(nullptr, bob, small)}));
+            txSet->add(alice.tx({createPaymentOp(bob, small)}));
         if (flip())
-            txSet->add(alice.tx({createPaymentOp(nullptr, carol, small)}));
+            txSet->add(alice.tx({createPaymentOp(carol, small)}));
 
         if (flip())
-            txSet->add(bob.tx({createPaymentOp(nullptr, alice, small)}));
+            txSet->add(bob.tx({createPaymentOp(alice, small)}));
         if (flip())
-            txSet->add(bob.tx({createPaymentOp(nullptr, carol, small)}));
+            txSet->add(bob.tx({createPaymentOp(carol, small)}));
 
         if (flip())
-            txSet->add(carol.tx({createPaymentOp(nullptr, alice, small)}));
+            txSet->add(carol.tx({createPaymentOp(alice, small)}));
         if (flip())
-            txSet->add(carol.tx({createPaymentOp(nullptr, bob, small)}));
+            txSet->add(carol.tx({createPaymentOp(bob, small)}));
     }
 
     // Provoke sortForHash and hash-caching:

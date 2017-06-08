@@ -208,9 +208,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     std::vector<int64> expectedBalances;
 
     auto root = TestAccount::createRoot(app);
-    TransactionFramePtr txFrame =
-        createInflation(app.getNetworkID(), root, root.nextSequenceNumber());
-
+    auto txFrame = root.tx({createInflationOp()});
     expectedFees += txFrame->getFee();
 
     expectedBalances =
@@ -218,11 +216,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
                           [&](int i) { return balances[i]; }, getVote);
 
     // perform actual inflation
-    {
-        LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
-        REQUIRE(applyCheck(txFrame, delta, app));
-        delta.commit();
-    }
+    applyTx(txFrame, app);
 
     // verify ledger state
     LedgerHeader& cur2 = lm.getCurrentLedgerHeader();
@@ -296,45 +290,40 @@ TEST_CASE("inflation", "[tx][inflation]")
     {
         for_all_versions(app, [&]{
             closeLedgerOn(app, 2, 30, 6, 2014);
-            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
-                              ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
 
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     0);
 
             closeLedgerOn(app, 3, 1, 7, 2014);
 
-            auto txFrame = createInflation(app.getNetworkID(), root,
-                                        root.nextSequenceNumber());
+            auto txFrame = root.tx({createInflationOp()});
 
             closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
-            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
-                              ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     1);
 
             closeLedgerOn(app, 5, 8, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber());
+            root.inflation();
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 6, 14, 7, 2014);
-            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
-                              ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     2);
 
             closeLedgerOn(app, 7, 15, 7, 2014);
-            applyInflation(app, root, root.nextSequenceNumber());
+            root.inflation();
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
 
             closeLedgerOn(app, 8, 21, 7, 2014);
-            REQUIRE_THROWS_AS(applyInflation(app, root, root.nextSequenceNumber()),
-                              ex_INFLATION_NOT_TIME);
+            REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                     3);
         });
@@ -354,11 +343,11 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto minBalance = app.getLedgerManager().getMinBalance(0);
         auto rootBalance = root.getBalance();
 
-        auto voter1tx = root.tx({createCreateAccountOp(nullptr, voter1, rootBalance / 6)});
+        auto voter1tx = root.tx({createCreateAccountOp(voter1, rootBalance / 6)});
         voter1tx->getEnvelope().tx.fee = 999999999;
-        auto voter2tx = root.tx({createCreateAccountOp(nullptr, voter2, rootBalance / 3)});
-        auto target1tx = root.tx({createCreateAccountOp(nullptr, target1, minBalance)});
-        auto target2tx = root.tx({createCreateAccountOp(nullptr, target2, minBalance)});
+        auto voter2tx = root.tx({createCreateAccountOp(voter2, rootBalance / 3)});
+        auto target1tx = root.tx({createCreateAccountOp(target1, minBalance)});
+        auto target2tx = root.tx({createCreateAccountOp(target2, minBalance)});
 
         closeLedgerOn(app, 2, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx});
 

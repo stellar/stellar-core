@@ -25,7 +25,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto root = TestAccount::createRoot(*app);
-    auto a1 = getAccount("A");
+    auto a1 = TestAccount{*app, getAccount("A")};
     using TxPair = std::pair<Value, TxSetFramePtr>;
     auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
         txSet->sortForHash();
@@ -51,8 +51,10 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions),
-                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
+                      std::end(txSet->mTransactions), [&]() {
+                          return root.tx({createCreateAccountOp(a1,
+                              10000000)});
+                      });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

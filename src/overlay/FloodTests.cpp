@@ -133,10 +133,12 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, dest.getPublicKey(), txAmount)});
-
             // round robin
             auto inApp = nodes[i % nodes.size()];
+
+            auto account = TestAccount{*inApp, sources[i]};
+            auto tx1 = account.tx({createCreateAccountOp(dest.getPublicKey(), txAmount)},
+                                  expectedSeq);
 
             // this is basically a modified version of Peer::recvTransaction
             auto msg = tx1->toStellarMessage();
@@ -208,10 +210,12 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
             SecretKey dest = SecretKey::random();
 
-            auto tx1 = sources[i].tx({createCreateAccountOp(nullptr, sources[i], txAmount)});
-
             // round robin
             auto inApp = nodes[i % nodes.size()];
+
+            auto account = TestAccount{*inApp, sources[i]};
+            auto tx1 = account.tx({createCreateAccountOp(dest.getPublicKey(), txAmount)},
+                                  expectedSeq);
 
             // create the transaction set containing this transaction
             auto const& lcl =

@@ -47,8 +47,8 @@ TEST_CASE("standalone", "[herder]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    SecretKey a1 = getAccount("A");
-    SecretKey b1 = getAccount("B");
+    auto a1 = TestAccount{*app, getAccount("A")};
+    auto b1 = TestAccount{*app, getAccount("B")};
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
@@ -72,8 +72,8 @@ TEST_CASE("standalone", "[herder]")
 
         auto setup = [&](asio::error_code const& error) {
             // create accounts
-            auto txFrameA1 = root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), paymentAmount)});
-            auto txFrameA2 = root.tx({createCreateAccountOp(nullptr, b1.getPublicKey(), paymentAmount)});
+            auto txFrameA1 = root.tx({createCreateAccountOp(a1, paymentAmount)});
+            auto txFrameA2 = root.tx({createCreateAccountOp(b1, paymentAmount)});
 
             REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
                     Herder::TX_STATUS_PENDING);
@@ -167,7 +167,8 @@ TEST_CASE("txset", "[herder]")
 
     const int nbAccounts = 2;
     const int nbTransactions = 5;
-    std::vector<TestAccount> accounts;
+
+    auto accounts = std::vector<TestAccount>{};
 
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
@@ -190,12 +191,12 @@ TEST_CASE("txset", "[herder]")
             if (j == 0)
             {
                 transactions[i].emplace_back(
-                    sourceAccount.tx({createCreateAccountOp(nullptr, accounts[i].getPublicKey(), paymentAmount)}));
+                    sourceAccount.tx({createCreateAccountOp(accounts[i].getPublicKey(), paymentAmount)}));
             }
             else
             {
                 transactions[i].emplace_back(
-                    sourceAccount.tx({createPaymentOp(nullptr, accounts[i].getPublicKey(), paymentAmount)}));
+                    sourceAccount.tx({createPaymentOp(accounts[i].getPublicKey(), paymentAmount)}));
             }
         }
     }
@@ -237,7 +238,7 @@ TEST_CASE("txset", "[herder]")
     {
         SECTION("no user")
         {
-            txSet->add(accounts[0].tx({createPaymentOp(nullptr, root, paymentAmount)}));
+            txSet->add(accounts[0].tx({createPaymentOp(root, paymentAmount)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -249,7 +250,7 @@ TEST_CASE("txset", "[herder]")
         {
             SECTION("gap after")
             {
-                auto tx = sourceAccount.tx({createPaymentOp(nullptr,
+                auto tx = sourceAccount.tx({createPaymentOp(
                     accounts[0], paymentAmount)});
                 tx->getEnvelope().tx.seqNum += 5;
                 txSet->add(tx);
@@ -284,7 +285,7 @@ TEST_CASE("txset", "[herder]")
         SECTION("insuficient balance")
         {
             // extra transaction would push the account below the reserve
-            txSet->add(sourceAccount.tx({createPaymentOp(nullptr, accounts[0], paymentAmount)}));
+            txSet->add(sourceAccount.tx({createPaymentOp(accounts[0], paymentAmount)}));
             txSet->sortForHash();
             REQUIRE(!txSet->checkValid(*app));
 
@@ -331,7 +332,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            txSet->add(root.tx({createPaymentOp(destAccount, n + 10)}));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(lm);
@@ -344,7 +345,7 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            txSet->add(root.tx({createPaymentOp(destAccount, n + 10)}));
         }
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
@@ -359,8 +360,8 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
-            auto tx = accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)});
+            txSet->add(root.tx({createPaymentOp(destAccount, n + 10)}));
+            auto tx = accountB.tx({createPaymentOp(destAccount, n + 10)});
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
         }
@@ -379,11 +380,11 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 10; n++)
         {
-            auto tx = root.tx({createPaymentOp(nullptr, destAccount, n + 10)});
+            auto tx = root.tx({createPaymentOp(destAccount, n + 10)});
             tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 2;
             txSet->add(tx);
 
-            tx = accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)});
+            tx = accountB.tx({createPaymentOp(destAccount, n + 10)});
             if (n != 1)
                 tx->getEnvelope().tx.fee = tx->getEnvelope().tx.fee * 3;
             txSet->add(tx);
@@ -403,9 +404,9 @@ TEST_CASE("surge", "[herder]")
         // extra transaction would push the account below the reserve
         for (int n = 0; n < 30; n++)
         {
-            txSet->add(root.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
-            txSet->add(accountB.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
-            txSet->add(accountC.tx({createPaymentOp(nullptr, destAccount, n + 10)}));
+            txSet->add(root.tx({createPaymentOp(destAccount, n + 10)}));
+            txSet->add(accountB.tx({createPaymentOp(destAccount, n + 10)}));
+            txSet->add(accountC.tx({createPaymentOp(destAccount, n + 10)}));
         }
         txSet->sortForHash();
         txSet->surgePricingFilter(lm);
@@ -431,7 +432,7 @@ TEST_CASE("SCP Driver", "[herder]")
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto root = TestAccount::createRoot(*app);
-    SecretKey a1 = getAccount("A");
+    auto a1 = TestAccount{*app, getAccount("A")};
 
     using TxPair = std::pair<Value, TxSetFramePtr>;
     auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
@@ -458,8 +459,10 @@ TEST_CASE("SCP Driver", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions),
-                      [&]() { return root.tx({createCreateAccountOp(nullptr, a1.getPublicKey(), 10000000)}); });
+                      std::end(txSet->mTransactions), [&]() {
+                          return root.tx({createCreateAccountOp(a1,
+                              10000000)});
+                      });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

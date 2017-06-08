@@ -170,7 +170,7 @@ class LoadGenerator
         void touchAccounts(uint32_t ledger);
         bool execute(Application& app);
 
-        void toTransactionFrames(Hash const& networkID,
+        void toTransactionFrames(Application& app,
                                  std::vector<TransactionFramePtr>& txs,
                                  TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
