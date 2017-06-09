@@ -335,13 +335,19 @@ VerifyLedgerChainWork::getStatus() const
 void
 VerifyLedgerChainWork::onReset()
 {
+    auto setLedger = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    if (setLedger.header.ledgerSeq < 2)
+    {
+        setLedger = {};
+    }
+
     if (mFirstVerified.header.ledgerSeq != 0)
     {
-        mFirstVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+        mFirstVerified = setLedger;
     }
     if (mLastVerified.header.ledgerSeq != 0)
     {
-        mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
+        mLastVerified = setLedger;
     }
     mCurrSeq = mFirstSeq;
 }
@@ -441,7 +447,9 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
                               << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
-        if (status == HistoryManager::VERIFY_HASH_UNKNOWN && mManualCatchup)
+        if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
+             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
+            mManualCatchup)
         {
             CLOG(WARNING, "History")
                 << "Accepting unknown-hash ledger due to manual catchup";
@@ -484,14 +492,15 @@ VerifyLedgerChainWork::onSuccess()
 
         mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
-    case HistoryManager::VERIFY_HASH_UNKNOWN:
+    case HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE:
         CLOG(WARNING, "History")
             << "Catchup material verification inconclusive, retrying";
         return WORK_FAILURE_RETRY;
     case HistoryManager::VERIFY_HASH_BAD:
+    case HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE:
         CLOG(ERROR, "History")
             << "Catchup material failed verification, propagating failure";
-        return WORK_FAILURE_RAISE;
+        return WORK_FAILURE_FATAL;
     default:
         assert(false);
         throw std::runtime_error("unexpected VerifyLedgerChainWork state");

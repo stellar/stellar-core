@@ -463,7 +463,7 @@ HistoryTests::catchupApplication(uint32_t initLedger,
                 << "force-externalizing LedgerCloseData for " << n
                 << " has txhash:"
                 << hexAbbrev(lcd.getTxSet()->getContentsHash());
-            lm.externalizeValue(lcd);
+            lm.valueExternalized(lcd);
         }
     }
 

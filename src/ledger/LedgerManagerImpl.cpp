@@ -182,7 +182,7 @@ LedgerManagerImpl::startNewLedger()
     mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed();
-    closeLedgerHelper(delta);
+    ledgerClosed(delta);
 }
 
 void
@@ -341,7 +341,7 @@ getCatchupMode(Application& app)
 
 // called by txherder
 void
-LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
+LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 {
     CLOG(INFO, "Ledger")
         << "Got consensus: "
@@ -393,7 +393,8 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
                                  << ledgerData.getLedgerSeq();
 
             assert(mSyncingLedgers.size() == 0);
-            mSyncingLedgers.push_back(ledgerData);
+            auto addResult = mSyncingLedgers.add(ledgerData);
+            assert(addResult == SyncingLedgerChainAddResult::CONTIGUOUS);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
             CLOG(INFO, "Ledger") << "Close of ledger "
                                  << ledgerData.getLedgerSeq()
@@ -404,29 +405,20 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
 
     case LedgerManager::LM_CATCHING_UP_STATE:
     {
-        bool contiguous = (mSyncingLedgers.empty() ||
-                           mSyncingLedgers.back().getLedgerSeq() + 1 ==
-                               ledgerData.getLedgerSeq());
-
-        bool skipLogging = false;
-
-        if (contiguous)
+        switch (mSyncingLedgers.add(ledgerData))
         {
+        case SyncingLedgerChainAddResult::CONTIGUOUS:
             // Normal close while catching up
-            mSyncingLedgers.push_back(ledgerData);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-        }
-        else if (ledgerData.getLedgerSeq() <=
-                 mSyncingLedgers.back().getLedgerSeq())
-        {
+            mApp.getHistoryManager().logAndUpdateStatus(true);
+            break;
+        case SyncingLedgerChainAddResult::TOO_OLD:
             CLOG(INFO, "Ledger") << "Skipping close ledger: latest known is "
                                  << mSyncingLedgers.back().getLedgerSeq()
                                  << ", more recent than "
                                  << ledgerData.getLedgerSeq();
-            skipLogging = true;
-        }
-        else
-        {
+            break;
+        case SyncingLedgerChainAddResult::TOO_NEW:
             // Out-of-order close while catching up; timeout / network failure?
             CLOG(WARNING, "Ledger")
                 << "Out-of-order close during catchup, buffered to "
@@ -435,11 +427,9 @@ LedgerManagerImpl::externalizeValue(LedgerCloseData const& ledgerData)
 
             CLOG(WARNING, "Ledger")
                 << "this round of catchup will fail and restart.";
-        }
 
-        if (!skipLogging)
-        {
-            mApp.getHistoryManager().logAndUpdateStatus(contiguous);
+            mApp.getHistoryManager().logAndUpdateStatus(false);
+            break;
         }
     }
     break;
@@ -472,38 +462,51 @@ LedgerManagerImpl::verifyCatchupCandidate(
 // legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
 // here, which causes CatchupStateMachine to pause and retry later.
 
-#define CHECK_PAIR(aseq, bseq, ahash, bhash)                                   \
-    if ((aseq) == (bseq))                                                      \
-    {                                                                          \
-        if ((ahash) == (bhash))                                                \
-        {                                                                      \
-            return HistoryManager::VERIFY_HASH_OK;                             \
-        }                                                                      \
-        else                                                                   \
-        {                                                                      \
-            return HistoryManager::VERIFY_HASH_BAD;                            \
-        }                                                                      \
-    }
+    struct LedgerInfo
+    {
+        uint32 seq;
+        Hash hash;
+    };
 
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq, candidate.header.ledgerSeq,
-               mLastClosedLedger.hash, candidate.hash);
-
-    CHECK_PAIR(mLastClosedLedger.header.ledgerSeq,
-               candidate.header.ledgerSeq + 1,
-               mLastClosedLedger.header.previousLedgerHash, candidate.hash);
-
-    CHECK_PAIR(mCurrentLedger->mHeader.ledgerSeq,
-               candidate.header.ledgerSeq + 1,
-               mCurrentLedger->mHeader.previousLedgerHash, candidate.hash);
+    auto infos = std::vector<LedgerInfo>{};
+    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq,
+                               mLastClosedLedger.hash});
+    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq - 1,
+                               mLastClosedLedger.header.previousLedgerHash});
+    infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
+                               mCurrentLedger->mHeader.previousLedgerHash});
 
     for (auto const& ld : mSyncingLedgers)
     {
-        CHECK_PAIR(ld.getLedgerSeq(), candidate.header.ledgerSeq + 1,
-                   ld.getTxSet()->previousLedgerHash(), candidate.hash);
+        infos.push_back(LedgerInfo{ld.getLedgerSeq() - 1,
+                                   ld.getTxSet()->previousLedgerHash()});
     }
 
-#undef CHECK_PAIR
-    return HistoryManager::VERIFY_HASH_UNKNOWN;
+    auto matchingSequenceId =
+        std::find_if(std::begin(infos), std::end(infos),
+                     [&candidate](LedgerInfo const& info){
+                         return info.seq == candidate.header.ledgerSeq;
+                    });
+    if (matchingSequenceId == std::end(infos))
+    {
+        if (mSyncingLedgers.hadTooNew())
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+        }
+        else
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+        }
+    }
+
+    if (matchingSequenceId->hash == candidate.hash)
+    {
+        return HistoryManager::VERIFY_HASH_OK;
+    }
+    else
+    {
+        return HistoryManager::VERIFY_HASH_BAD;
+    }
 }
 
 void
@@ -613,7 +616,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                 CLOG(ERROR, "Ledger")
                     << "Flushing buffer and restarting at ledger "
                     << lastBuffered.getLedgerSeq();
-                mSyncingLedgers.clear();
+                mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
                 startCatchUp(lastBuffered.getLedgerSeq(), getCatchupMode(mApp));
                 return;
@@ -627,7 +630,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     }
 
     // Either way, we're done processing the ledgers backlog
-    mSyncingLedgers.clear();
+    mSyncingLedgers = {};
     mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 }
 
@@ -758,7 +761,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mApp.getInvariants().check(ledgerData.getTxSet(), ledgerDelta);
 
     ledgerDelta.commit();
-    closeLedgerHelper(ledgerDelta);
+    ledgerClosed(ledgerDelta);
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
@@ -958,7 +961,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 }
 
 void
-LedgerManagerImpl::closeLedgerHelper(LedgerDelta const& delta)
+LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
 {
     delta.markMeters(mApp);
     mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,

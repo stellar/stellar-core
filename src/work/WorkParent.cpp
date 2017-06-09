@@ -63,6 +63,19 @@ WorkParent::anyChildRaiseFailure() const
 }
 
 bool
+WorkParent::anyChildFatalFailure() const
+{
+    for (auto& c : mChildren)
+    {
+        if (c.second->getState() == Work::WORK_FAILURE_FATAL)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
 WorkParent::allChildrenSuccessful() const
 {
     for (auto& c : mChildren)
@@ -81,7 +94,8 @@ WorkParent::allChildrenDone() const
     for (auto& c : mChildren)
     {
         if (c.second->getState() != Work::WORK_SUCCESS &&
-            c.second->getState() != Work::WORK_FAILURE_RAISE)
+            c.second->getState() != Work::WORK_FAILURE_RAISE &&
+            c.second->getState() != Work::WORK_FAILURE_FATAL)
         {
             return false;
         }

@@ -713,7 +713,7 @@ closeLedger(Application& app)
     StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
                     emptyUpgradeSteps, 0);
     LedgerCloseData lcd(lm.getLedgerNum(), txSet, sv);
-    lm.externalizeValue(lcd);
+    lm.valueExternalized(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }
 

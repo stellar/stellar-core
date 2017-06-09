@@ -56,6 +56,12 @@ WorkManagerImpl::notify(std::string const& child)
         mApp.getMetrics().NewMeter({"work", "root", "failure"}, "unit").Mark();
         mChildren.erase(child);
     }
+    else if (i->second->getState() == Work::WORK_FAILURE_FATAL)
+    {
+        CLOG(WARNING, "Work") << "WorkManager got FAILURE_FATAL from " << child;
+        mApp.getMetrics().NewMeter({"work", "root", "failure"}, "unit").Mark();
+        mChildren.erase(child);
+    }
     advanceChildren();
 }
 
