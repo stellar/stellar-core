@@ -523,14 +523,12 @@ ApplicationImpl::syncOwnMetrics()
     // Flush crypto pure-global-cache stats. They don't belong
     // to a single app instance but first one to flush will claim
     // them.
-    uint64_t vhit = 0, vmiss = 0, vignore = 0;
-    PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss, vignore);
+    uint64_t vhit = 0, vmiss = 0;
+    PubKeyUtils::flushVerifySigCacheCounts(vhit, vmiss);
     mMetrics->NewMeter({"crypto", "verify", "hit"}, "signature").Mark(vhit);
     mMetrics->NewMeter({"crypto", "verify", "miss"}, "signature").Mark(vmiss);
-    mMetrics->NewMeter({"crypto", "verify", "ignore"}, "signature")
-        .Mark(vignore);
     mMetrics->NewMeter({"crypto", "verify", "total"}, "signature")
-        .Mark(vhit + vmiss + vignore);
+        .Mark(vhit + vmiss);
 
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
