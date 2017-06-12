@@ -347,5 +347,27 @@ remoteName(std::string const& type, std::string const& hexStr,
 {
     return remoteDir(type, hexStr) + "/" + baseName(type, hexStr, suffix);
 }
+
+void
+checkGzipSuffix(std::string const& filename)
+{
+    std::string suf(".gz");
+    if (!(filename.size() >= suf.size() &&
+          equal(suf.rbegin(), suf.rend(), filename.rbegin())))
+    {
+        throw std::runtime_error("filename does not end in .gz");
+    }
+}
+
+void
+checkNoGzipSuffix(std::string const& filename)
+{
+    std::string suf(".gz");
+    if (filename.size() >= suf.size() &&
+        equal(suf.rbegin(), suf.rend(), filename.rbegin()))
+    {
+        throw std::runtime_error("filename ends in .gz");
+    }
+}
 }
 }
