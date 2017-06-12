@@ -32,14 +32,6 @@ static cache::lru_cache<Hash, bool> gVerifySigCache(0xffff);
 static std::unique_ptr<SHA256> gHasher = SHA256::create();
 static uint64_t gVerifyCacheHit = 0;
 static uint64_t gVerifyCacheMiss = 0;
-static uint64_t gVerifyCacheIgnore = 0;
-
-static bool
-shouldCacheVerifySig(PublicKey const& key, Signature const& signature,
-                     ByteSlice const& bin)
-{
-    return true;
-}
 
 static Hash
 verifySigCacheKey(PublicKey const& key, Signature const& signature,
@@ -211,16 +203,13 @@ PubKeyUtils::clearVerifySigCache()
 }
 
 void
-PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
-                                       uint64_t& ignores)
+PubKeyUtils::flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses)
 {
     std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
     hits = gVerifyCacheHit;
     misses = gVerifyCacheMiss;
-    ignores = gVerifyCacheIgnore;
     gVerifyCacheHit = 0;
     gVerifyCacheMiss = 0;
-    gVerifyCacheIgnore = 0;
 }
 
 std::string
@@ -296,33 +285,23 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
 {
     assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
 
-    bool shouldCache = shouldCacheVerifySig(key, signature, bin);
-    Hash cacheKey;
+    auto cacheKey = verifySigCacheKey(key, signature, bin);
 
-    if (shouldCache)
     {
-        cacheKey = verifySigCacheKey(key, signature, bin);
         std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
         if (gVerifySigCache.exists(cacheKey))
         {
             ++gVerifyCacheHit;
             return gVerifySigCache.get(cacheKey);
         }
-        ++gVerifyCacheMiss;
-    }
-    else
-    {
-        ++gVerifyCacheIgnore;
     }
 
+    ++gVerifyCacheMiss;
     bool ok =
         (crypto_sign_verify_detached(signature.data(), bin.data(), bin.size(),
                                      key.ed25519().data()) == 0);
-    if (shouldCache)
-    {
-        std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
-        gVerifySigCache.put(cacheKey, ok);
-    }
+    std::lock_guard<std::mutex> guard(gVerifySigCacheMutex);
+    gVerifySigCache.put(cacheKey, ok);
     return ok;
 }
 

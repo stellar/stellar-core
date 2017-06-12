@@ -101,8 +101,7 @@ bool verifySig(PublicKey const& key, Signature const& signature,
                ByteSlice const& bin);
 
 void clearVerifySigCache();
-void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses,
-                               uint64_t& ignores);
+void flushVerifySigCacheCounts(uint64_t& hits, uint64_t& misses);
 
 PublicKey random();
 }
