@@ -31,8 +31,8 @@ TEST_CASE("random", "[crypto]")
 {
     SecretKey k1 = SecretKey::random();
     SecretKey k2 = SecretKey::random();
-    LOG(DEBUG) << "k1: " << k1.getStrKeySeed();
-    LOG(DEBUG) << "k2: " << k2.getStrKeySeed();
+    LOG(DEBUG) << "k1: " << k1.getStrKeySeed().value;
+    LOG(DEBUG) << "k2: " << k2.getStrKeySeed().value;
     CHECK(k1.getStrKeySeed() != k2.getStrKeySeed());
 }
 
@@ -131,10 +131,10 @@ TEST_CASE("sign tests", "[crypto]")
 {
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
-    LOG(DEBUG) << "generated random secret key seed: " << sk.getStrKeySeed();
+    LOG(DEBUG) << "generated random secret key seed: " << sk.getStrKeySeed().value;
     LOG(DEBUG) << "corresponding public key: " << KeyUtils::toStrKey(pk);
 
-    CHECK(SecretKey::fromStrKeySeed(sk.getStrKeySeed()) == sk);
+    CHECK(SecretKey::fromStrKeySeed(sk.getStrKeySeed().value) == sk);
 
     std::string msg = "hello";
     auto sig = sk.sign(msg);
@@ -220,7 +220,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     {
         std::vector<uint8_t> in(input(size));
 
-        std::string encoded = strKey::toStrKey(version, in);
+        std::string encoded = strKey::toStrKey(version, in).value;
 
         REQUIRE(encoded.size() == ((size + 3 + 4) / 5 * 8));
 
@@ -250,7 +250,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     {
         const int expectedSize = 32;
         std::vector<uint8_t> in(input(expectedSize));
-        std::string encoded = strKey::toStrKey(version, in);
+        std::string encoded = strKey::toStrKey(version, in).value;
 
         for (size_t p = 0u; p < encoded.size(); p++)
         {

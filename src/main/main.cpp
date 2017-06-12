@@ -462,7 +462,7 @@ main(int argc, char* const* argv)
         case OPT_GENSEED:
         {
             SecretKey key = SecretKey::random();
-            std::cout << "Secret seed: " << key.getStrKeySeed() << std::endl;
+            std::cout << "Secret seed: " << key.getStrKeySeed().value << std::endl;
             std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
             return 0;
         }

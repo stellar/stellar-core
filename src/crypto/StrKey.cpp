@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "StrKey.h"
+#include "util/SecretValue.h"
 #include "util/basen.h"
 #include "util/crc16.h"
 
@@ -11,7 +12,7 @@ namespace stellar
 namespace strKey
 {
 // Encode a version byte and ByteSlice into StrKey
-std::string
+SecretValue
 toStrKey(uint8_t ver, ByteSlice const& bin)
 {
     ver <<= 3; // promote to 8 bits
@@ -27,7 +28,7 @@ toStrKey(uint8_t ver, ByteSlice const& bin)
 
     std::string res;
     res = bn::encode_b32(toEncode);
-    return res;
+    return SecretValue{res};
 }
 
 size_t

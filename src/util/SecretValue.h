@@ -6,6 +6,9 @@
 
 #include <string>
 
+namespace stellar
+{
+
 /**
  * Some values should not be printed to log directly - for example database
  * connection strings with password or secret keys.
@@ -17,3 +20,8 @@ struct SecretValue
 {
     std::string value;
 };
+
+bool operator==(SecretValue const& x, SecretValue const& y);
+bool operator!=(SecretValue const& x, SecretValue const& y);
+
+}
