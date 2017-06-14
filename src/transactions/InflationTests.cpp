@@ -56,7 +56,7 @@ createTestAccounts(Application& app, int nbAccounts,
             root.create(to, setupBalance);
 
             AccountFrame::pointer act;
-            act = loadAccount(to, app);
+            act = loadAccount(to.getPublicKey(), app);
             act->getAccount().balance = bal;
             act->getAccount().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
@@ -179,12 +179,12 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         if (getBalance(i) < 0)
         {
             balances[i] = -1;
-            requireNoAccount(getTestAccount(i), app);
+            requireNoAccount(getTestAccount(i).getPublicKey(), app);
         }
         else
         {
             AccountFrame::pointer act;
-            act = loadAccount(getTestAccount(i), app);
+            act = loadAccount(getTestAccount(i).getPublicKey(), app);
             balances[i] = act->getBalance();
             // double check that inflationDest is setup properly
             if (act->getAccount().inflationDest)
@@ -235,13 +235,13 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         auto const& k = getTestAccount(i);
         if (expectedBalances[i] < 0)
         {
-            requireNoAccount(k, app);
+            requireNoAccount(k.getPublicKey(), app);
             REQUIRE(balances[i] < 0); // account didn't get deleted
         }
         else
         {
             AccountFrame::pointer act;
-            act = loadAccount(k, app);
+            act = loadAccount(k.getPublicKey(), app);
             REQUIRE(expectedBalances[i] == act->getBalance());
 
             if (expectedBalances[i] != balances[i])

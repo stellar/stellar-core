@@ -45,11 +45,11 @@ SecretKey getRoot(Hash const& networkID);
 SecretKey getAccount(const char* n);
 
 // shorthand to load an existing account
-AccountFrame::pointer loadAccount(SecretKey const& k, Application& app,
+AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,
                                   bool mustExist = true);
 
 // short hand to check that an account does not exist
-void requireNoAccount(SecretKey const& k, Application& app);
+void requireNoAccount(PublicKey const& k, Application& app);
 
 OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
                               Application& app, bool mustExist);
@@ -57,7 +57,7 @@ OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
 TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
                                   Application& app, bool mustExist = true);
 
-xdr::xvector<Signer, 20> getAccountSigners(SecretKey const& k,
+xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
 TransactionFramePtr transactionFromOperation(Hash const& networkID,
@@ -93,7 +93,7 @@ TransactionFramePtr createPaymentTx(Hash const& networkID,
                                     SequenceNumber seq, int64_t amount);
 
 void applyPaymentTx(Application& app, SecretKey const& from,
-                    SecretKey const& to, SequenceNumber seq, int64_t amount);
+                    PublicKey const& to, SequenceNumber seq, int64_t amount);
 
 TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
                                           SecretKey const& from,

@@ -280,7 +280,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             REQUIRE_THROWS_AS(
                 root.pay(
-                    getAccount("B"),
+                    getAccount("B").getPublicKey(),
                     app.getLedgerManager().getCurrentLedgerHeader().baseReserve *
                         2),
                 ex_PAYMENT_NO_DESTINATION);

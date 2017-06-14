@@ -173,10 +173,9 @@ getAccount(const char* n)
 }
 
 AccountFrame::pointer
-loadAccount(SecretKey const& k, Application& app, bool mustExist)
+loadAccount(PublicKey const& k, Application& app, bool mustExist)
 {
-    AccountFrame::pointer res =
-        AccountFrame::loadAccount(k.getPublicKey(), app.getDatabase());
+    auto res = AccountFrame::loadAccount(k, app.getDatabase());
     if (mustExist)
     {
         REQUIRE(res);
@@ -185,7 +184,7 @@ loadAccount(SecretKey const& k, Application& app, bool mustExist)
 }
 
 void
-requireNoAccount(SecretKey const& k, Application& app)
+requireNoAccount(PublicKey const& k, Application& app)
 {
     AccountFrame::pointer res = loadAccount(k, app, false);
     REQUIRE(!res);
@@ -217,7 +216,7 @@ loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
 }
 
 xdr::xvector<Signer, 20>
-getAccountSigners(SecretKey const& k, Application& app)
+getAccountSigners(PublicKey const& k, Application& app)
 {
     AccountFrame::pointer account;
     account = loadAccount(k, app);
@@ -321,12 +320,12 @@ createPaymentTx(Hash const& networkID, SecretKey const& from,
 }
 
 void
-applyPaymentTx(Application& app, SecretKey const& from, SecretKey const& to,
+applyPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
                SequenceNumber seq, int64_t amount)
 {
     auto toAccount = loadAccount(to, app, false);
-    auto fromAccount = loadAccount(from, app);
-    auto tx = createPaymentTx(app.getNetworkID(), from, to.getPublicKey(), seq, amount);
+    auto fromAccount = loadAccount(from.getPublicKey(), app);
+    auto tx = createPaymentTx(app.getNetworkID(), from, to, seq, amount);
 
     try
     {
