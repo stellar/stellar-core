@@ -13,12 +13,15 @@ namespace stellar
 class LedgerManagerEditableVersion : public LedgerManagerImpl
 {
   public:
-    LedgerManagerEditableVersion(Application& app);
+    LedgerManagerEditableVersion(Application& app, uint32_t baseFee);
 
     uint32_t getCurrentLedgerVersion() const override;
     void setCurrentLedgerVersion(uint32_t currentLedgerVersion);
 
+    void startNewLedger() override;
+
   private:
+    uint32_t mBaseFee;
     uint32_t mCurrentLedgerVersion;
 };
 

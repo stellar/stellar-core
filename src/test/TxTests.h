@@ -60,12 +60,12 @@ TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr transactionFromOperation(Hash const& networkID,
+TransactionFramePtr transactionFromOperation(Application& app,
                                              SecretKey const& from,
                                              SequenceNumber seq,
                                              Operation const& op);
 TransactionFramePtr
-transactionFromOperations(Hash const& networkID, SecretKey const& from,
+transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq,
                           std::vector<Operation> const& ops);
 
@@ -88,14 +88,14 @@ Operation createCreateAccountOp(PublicKey const& dest,
 Operation createPaymentOp(PublicKey const& to,
                           int64_t amount);
 
-TransactionFramePtr createPaymentTx(Hash const& networkID,
+TransactionFramePtr createPaymentTx(Application& app,
                                     SecretKey const& from, PublicKey const& to,
                                     SequenceNumber seq, int64_t amount);
 
 void applyPaymentTx(Application& app, SecretKey const& from,
                     PublicKey const& to, SequenceNumber seq, int64_t amount);
 
-TransactionFramePtr createCreditPaymentTx(Hash const& networkID,
+TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
@@ -109,13 +109,13 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
                     Asset const& destCur, int64_t destAmount,
                     std::vector<Asset> const& path);
 
-TransactionFramePtr manageOfferOp(Hash const& networkID, uint64 offerId,
+TransactionFramePtr manageOfferOp(Application& app, uint64 offerId,
                                   SecretKey const& source, Asset const& selling,
                                   Asset const& buying, Price const& price,
                                   int64_t amount, SequenceNumber seq);
 
 TransactionFramePtr
-createPassiveOfferOp(Hash const& networkID, SecretKey const& source,
+createPassiveOfferOp(Application& app, SecretKey const& source,
                      Asset const& selling, Asset const& buying,
                      Price const& price, int64_t amount, SequenceNumber seq);
 

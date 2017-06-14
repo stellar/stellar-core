@@ -601,8 +601,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     auto op = a1.op(createPaymentOp(root, 100));
                     TransactionFramePtr tx = transactionFromOperation(
-                        app.getNetworkID(), root,
-                        root.getLastSequenceNumber() + 2, op);
+                        app, root, root.getLastSequenceNumber() + 2, op);
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -645,8 +644,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     auto op = a1.op(createPaymentOp(root, 100));
                     TransactionFramePtr tx = transactionFromOperations(
-                        app.getNetworkID(), root,
-                        root.getLastSequenceNumber() + 2, {op, op});
+                        app, root, root.getLastSequenceNumber() + 2, {op, op});
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -821,7 +819,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         Asset idrCur = makeAsset(b1, "IDR");
                         Price price(1, 1);
                         TransactionFramePtr tx_b =
-                            manageOfferOp(app.getNetworkID(), 0, b1, idrCur, idrCur,
+                            manageOfferOp(app, 0, b1, idrCur, idrCur,
                                         price, 1000, b1.getLastSequenceNumber());
 
                         // build a new tx based off tx_a and tx_b
