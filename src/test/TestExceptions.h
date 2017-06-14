@@ -22,6 +22,10 @@ class ex_txINTERNAL_ERROR
 {
 };
 
+class ex_txINSUFFICIENT_BALANCE
+{
+};
+
 class ex_UNKNOWN
 {
 };
