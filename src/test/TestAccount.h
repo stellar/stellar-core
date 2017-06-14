@@ -59,7 +59,7 @@ class TestAccount
                        Price const& price, int64_t amount,
                        ManageOfferEffect expectedEffect = MANAGE_OFFER_CREATED);
 
-    void pay(SecretKey const& destination, int64_t amount);
+    void pay(PublicKey const& destination, int64_t amount);
     void pay(PublicKey const& destination, Asset const& selling,
              int64_t amount);
     PathPaymentResult pay(PublicKey const& destination, Asset const& sendCur,

@@ -244,4 +244,60 @@ TEST_CASE("merge", "[tx][merge]")
             });
         }
     }
+
+    SECTION("account has only base reserve")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0));
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + one stroop")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + 1);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + one operation fee - one stroop")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + txfee - 1);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + one operation fee")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + txfee);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + one operation fee + one stroop")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + txfee + 1);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + two operation fees - one stroop")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + 2 * txfee - 1);
+        for_all_versions(app, [&]{
+            REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
+        });
+    }
+
+    SECTION("account has only base reserve + two operation fees")
+    {
+        auto mergeFrom = root.create("merge-from", app.getLedgerManager().getMinBalance(0) + 2 * txfee);
+        for_all_versions(app, [&]{
+            mergeFrom.merge(root);
+        });
+    }
 }

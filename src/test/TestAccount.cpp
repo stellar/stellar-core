@@ -18,13 +18,13 @@ using namespace txtest;
 SequenceNumber
 TestAccount::loadSequenceNumber() const
 {
-    return loadAccount(getSecretKey(), mApp)->getSeqNum();
+    return loadAccount(getPublicKey(), mApp)->getSeqNum();
 }
 
 void
 TestAccount::updateSequenceNumber()
 {
-    if (mSn == 0 && loadAccount(getSecretKey(), mApp, false))
+    if (mSn == 0 && loadAccount(getPublicKey(), mApp, false))
     {
         mSn = loadSequenceNumber();
     }
@@ -33,7 +33,7 @@ TestAccount::updateSequenceNumber()
 int64_t
 TestAccount::getBalance() const
 {
-    return loadAccount(getSecretKey(), mApp)->getBalance();
+    return loadAccount(getPublicKey(), mApp)->getBalance();
 }
 
 TransactionFramePtr
@@ -65,8 +65,8 @@ TestAccount::createRoot(Application& app)
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    auto toCreate = loadAccount(secretKey, mApp, false);
-    auto self = loadAccount(getSecretKey(), mApp);
+    auto toCreate = loadAccount(secretKey.getPublicKey(), mApp, false);
+    auto self = loadAccount(getSecretKey().getPublicKey(), mApp);
 
     try
     {
@@ -74,7 +74,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        auto toCreateAfter = loadAccount(secretKey, mApp, false);
+        auto toCreateAfter = loadAccount(secretKey.getPublicKey(), mApp, false);
         // check that the target account didn't change
         REQUIRE(!!toCreate == !!toCreateAfter);
         if (toCreate && toCreateAfter)
@@ -84,7 +84,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
         throw;
     }
 
-    REQUIRE(loadAccount(secretKey, mApp));
+    REQUIRE(loadAccount(secretKey.getPublicKey(), mApp));
     return TestAccount{mApp, secretKey};
 }
 
@@ -98,6 +98,9 @@ void
 TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({createMergeOp(into)}), mApp);
+
+    REQUIRE(loadAccount(into, mApp));
+    REQUIRE(!loadAccount(getPublicKey(), mApp, false));
 }
 
 void
@@ -184,7 +187,7 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
 }
 
 void
-TestAccount::pay(SecretKey const& destination, int64_t amount)
+TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(),
                    amount);

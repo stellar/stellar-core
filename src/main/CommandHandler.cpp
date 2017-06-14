@@ -139,7 +139,7 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         {
             key = getAccount(accName->second.c_str());
         }
-        auto acc = loadAccount(key, mApp, false);
+        auto acc = loadAccount(key.getPublicKey(), mApp, false);
         if (acc)
         {
             root["name"] = accName->second;
