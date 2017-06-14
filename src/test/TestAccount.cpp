@@ -98,6 +98,9 @@ void
 TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({createMergeOp(into)}), mApp);
+
+    REQUIRE(loadAccount(into, mApp));
+    REQUIRE(!loadAccount(getPublicKey(), mApp, false));
 }
 
 void
