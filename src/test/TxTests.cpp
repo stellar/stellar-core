@@ -296,35 +296,6 @@ createPaymentTx(Application& app, SecretKey const& from,
                                      {createPaymentOp(to, amount)});
 }
 
-void
-applyPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
-               SequenceNumber seq, int64_t amount)
-{
-    auto toAccount = loadAccount(to, app, false);
-    auto fromAccount = loadAccount(from.getPublicKey(), app);
-    auto tx = createPaymentTx(app, from, to, seq, amount);
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        auto toAccountAfter = loadAccount(to, app, false);
-        // check that the target account didn't change
-        REQUIRE(!!toAccount == !!toAccountAfter);
-        if (toAccount && toAccountAfter)
-        {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
-        }
-        throw;
-    }
-
-    auto toAccountAfter = loadAccount(to, app, false);
-    REQUIRE(toAccount);
-    REQUIRE(toAccountAfter);
-}
-
 TransactionFramePtr
 createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,

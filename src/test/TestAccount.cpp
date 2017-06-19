@@ -188,8 +188,29 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
 void
 TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
-    applyPaymentTx(mApp, getSecretKey(), destination, nextSequenceNumber(),
-                   amount);
+    auto toAccount = loadAccount(destination, mApp, false);
+    auto fromAccount = loadAccount(getPublicKey(), mApp);
+    auto transaction = tx({createPaymentOp(destination, amount)});
+
+    try
+    {
+        applyTx(transaction, mApp);
+    }
+    catch (...)
+    {
+        auto toAccountAfter = loadAccount(destination, mApp, false);
+        // check that the target account didn't change
+        REQUIRE(!!toAccount == !!toAccountAfter);
+        if (toAccount && toAccountAfter)
+        {
+            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
+        }
+        throw;
+    }
+
+    auto toAccountAfter = loadAccount(destination, mApp, false);
+    REQUIRE(toAccount);
+    REQUIRE(toAccountAfter);
 }
 
 void
