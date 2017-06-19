@@ -399,10 +399,9 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
     return op;
 }
 
-TransactionFramePtr
-createPassiveOfferOp(Application& app, SecretKey const& source,
-                     Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount, SequenceNumber seq)
+Operation
+createPassiveOfferOp(Asset const& selling, Asset const& buying,
+                     Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
@@ -411,13 +410,12 @@ createPassiveOfferOp(Application& app, SecretKey const& source,
     op.body.createPassiveOfferOp().buying = buying;
     op.body.createPassiveOfferOp().price = price;
 
-    return transactionFromOperation(app, source, seq, op);
+    return op;
 }
 
-TransactionFramePtr
-manageOfferOp(Application& app, uint64 offerId, SecretKey const& source,
-              Asset const& selling, Asset const& buying, Price const& price,
-              int64_t amount, SequenceNumber seq)
+Operation
+manageOfferOp(uint64 offerId, Asset const& selling, Asset const& buying,
+              Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(MANAGE_OFFER);
@@ -427,7 +425,7 @@ manageOfferOp(Application& app, uint64 offerId, SecretKey const& source,
     op.body.manageOfferOp().offerID = offerId;
     op.body.manageOfferOp().price = price;
 
-    return transactionFromOperation(app, source, seq, op);
+    return op;
 }
 
 static ManageOfferResult
@@ -443,8 +441,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         expectedOfferID = offerId;
     }
 
-    auto tx = manageOfferOp(app, offerId, source, selling,
-                            buying, price, amount, seq);
+    auto op = manageOfferOp(offerId, selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
     {
@@ -515,8 +513,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
-    auto tx = createPassiveOfferOp(app, source, selling, buying,
-                                   price, amount, seq);
+    auto op = createPassiveOfferOp(selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
     {

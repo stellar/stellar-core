@@ -818,9 +818,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     {
                         Asset idrCur = makeAsset(b1, "IDR");
                         Price price(1, 1);
-                        TransactionFramePtr tx_b =
-                            manageOfferOp(app, 0, b1, idrCur, idrCur,
-                                        price, 1000, b1.getLastSequenceNumber());
+                        auto tx_b = b1.tx({manageOfferOp(0, idrCur, idrCur,
+                                                         price, 1000)});
 
                         // build a new tx based off tx_a and tx_b
                         tx_b->getEnvelope()

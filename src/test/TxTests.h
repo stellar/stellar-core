@@ -110,15 +110,13 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
                     Asset const& destCur, int64_t destAmount,
                     std::vector<Asset> const& path);
 
-TransactionFramePtr manageOfferOp(Application& app, uint64 offerId,
-                                  SecretKey const& source, Asset const& selling,
-                                  Asset const& buying, Price const& price,
-                                  int64_t amount, SequenceNumber seq);
+Operation manageOfferOp(uint64 offerId, Asset const& selling,
+                        Asset const& buying, Price const& price,
+                        int64_t amount);
 
-TransactionFramePtr
-createPassiveOfferOp(Application& app, SecretKey const& source,
-                     Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount, SequenceNumber seq);
+Operation
+createPassiveOfferOp(Asset const& selling, Asset const& buying,
+                     Price const& price, int64_t amount);
 
 // returns the ID of the new offer if created
 uint64_t applyManageOffer(Application& app, uint64 offerId,
