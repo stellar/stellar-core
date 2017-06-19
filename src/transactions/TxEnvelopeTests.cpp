@@ -600,8 +600,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION(alternative.name + " in op source account signers")
                 {
                     auto op = a1.op(createPaymentOp(root, 100));
-                    TransactionFramePtr tx = transactionFromOperation(
-                        app, root, root.getLastSequenceNumber() + 2, op);
+                    auto tx = transactionFromOperations(
+                        app, root,
+                        root.getLastSequenceNumber() + 2, {op});
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);

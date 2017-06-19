@@ -61,10 +61,6 @@ TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr transactionFromOperation(Application& app,
-                                             SecretKey const& from,
-                                             SequenceNumber seq,
-                                             Operation const& op);
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq,

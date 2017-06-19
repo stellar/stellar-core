@@ -224,41 +224,18 @@ getAccountSigners(PublicKey const& k, Application& app)
 }
 
 TransactionFramePtr
-transactionFromOperation(Application& app, SecretKey const& from,
-                         SequenceNumber seq, Operation const& op)
-{
-    TransactionEnvelope e;
-
-    e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = app.getLedgerManager().getTxFee();
-    e.tx.seqNum = seq;
-    e.tx.operations.push_back(op);
-
-    TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
-    res->addSignature(from);
-
-    return res;
-}
-
-TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops)
 {
-    TransactionEnvelope e;
-
+    auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
     e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
 
-    TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
+    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
     res->addSignature(from);
-
     return res;
 }
 
@@ -315,8 +292,8 @@ TransactionFramePtr
 createPaymentTx(Application& app, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
-    return transactionFromOperation(app, from, seq,
-                                    createPaymentOp(to, amount));
+    return transactionFromOperations(app, from, seq,
+                                     {createPaymentOp(to, amount)});
 }
 
 void
@@ -359,7 +336,7 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
     op.body.paymentOp().asset = asset;
     op.body.paymentOp().destination = to;
 
-    return transactionFromOperation(app, from, seq, op);
+    return transactionFromOperations(app, from, seq, {op});
 }
 
 Asset
