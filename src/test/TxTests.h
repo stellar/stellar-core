@@ -82,7 +82,9 @@ Operation createManageDataOp(std::string const& name, DataValue* value);
 Operation createCreateAccountOp(PublicKey const& dest,
                                 int64_t amount);
 
-Operation createPaymentOp(PublicKey const& to,
+Operation createPaymentOp(PublicKey const& to, int64_t amount);
+
+Operation createPaymentOp(PublicKey const& to, Asset const& asset,
                           int64_t amount);
 
 TransactionFramePtr createPaymentTx(Application& app,
@@ -93,10 +95,6 @@ TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
-
-void applyCreditPaymentTx(Application& app, SecretKey const& from,
-                          PublicKey const& to, Asset const& ci,
-                          SequenceNumber seq, int64_t amount);
 
 Operation
 createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,

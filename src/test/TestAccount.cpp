@@ -214,11 +214,10 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
 }
 
 void
-TestAccount::pay(PublicKey const& destination, Asset const& selling,
+TestAccount::pay(PublicKey const& destination, Asset const& asset,
                  int64_t amount)
 {
-    applyCreditPaymentTx(mApp, getSecretKey(), destination, selling,
-                         nextSequenceNumber(), amount);
+    applyTx(tx({createPaymentOp(destination, asset, amount)}), mApp);
 }
 
 PathPaymentResult

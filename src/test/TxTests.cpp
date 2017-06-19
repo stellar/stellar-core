@@ -288,6 +288,17 @@ createPaymentOp(PublicKey const& to, int64_t amount)
     return op;
 }
 
+Operation
+createPaymentOp(PublicKey const& to, Asset const& asset, int64_t amount)
+{
+    Operation op;
+    op.body.type(PAYMENT);
+    op.body.paymentOp().amount = amount;
+    op.body.paymentOp().destination = to;
+    op.body.paymentOp().asset = asset;
+    return op;
+}
+
 TransactionFramePtr
 createPaymentTx(Application& app, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
@@ -301,12 +312,7 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,
                       SequenceNumber seq, int64_t amount)
 {
-    Operation op;
-    op.body.type(PAYMENT);
-    op.body.paymentOp().amount = amount;
-    op.body.paymentOp().asset = asset;
-    op.body.paymentOp().destination = to;
-
+    auto op = createPaymentOp(to, asset, amount);
     return transactionFromOperations(app, from, seq, {op});
 }
 
@@ -318,15 +324,6 @@ makeAsset(SecretKey const& issuer, std::string const& code)
     asset.alphaNum4().issuer = issuer.getPublicKey();
     strToAssetCode(asset.alphaNum4().assetCode, code);
     return asset;
-}
-
-void
-applyCreditPaymentTx(Application& app, SecretKey const& from,
-                     PublicKey const& to, Asset const& ci, SequenceNumber seq,
-                     int64_t amount)
-{
-    auto tx = createCreditPaymentTx(app, from, to, ci, seq, amount);
-    applyTx(tx, app);
 }
 
 Operation
