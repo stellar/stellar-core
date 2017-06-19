@@ -135,9 +135,9 @@ InflationOpFrame::doCheckValid(Application& app)
     return true;
 }
 
-int32_t
-InflationOpFrame::getNeededThreshold() const
+ThresholdLevel
+InflationOpFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getLowThreshold();
+    return ThresholdLevel::LOW;
 }
 }

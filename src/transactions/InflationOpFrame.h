@@ -16,7 +16,7 @@ class InflationOpFrame : public OperationFrame
         return mResult.tr().inflationResult();
     }
 
-    int32_t getNeededThreshold() const override;
+    ThresholdLevel getThresholdLevel() const override;
 
   public:
     InflationOpFrame(Operation const& op, OperationResult& res,

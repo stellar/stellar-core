@@ -25,17 +25,17 @@ SetOptionsOpFrame::SetOptionsOpFrame(Operation const& op, OperationResult& res,
 {
 }
 
-int32_t
-SetOptionsOpFrame::getNeededThreshold() const
+ThresholdLevel
+SetOptionsOpFrame::getThresholdLevel() const
 {
     // updating thresholds or signer requires high threshold
     if (mSetOptions.masterWeight || mSetOptions.lowThreshold ||
         mSetOptions.medThreshold || mSetOptions.highThreshold ||
         mSetOptions.signer)
     {
-        return mSourceAccount->getHighThreshold();
+        return ThresholdLevel::HIGH;
     }
-    return mSourceAccount->getMediumThreshold();
+    return ThresholdLevel::MEDIUM;
 }
 
 bool

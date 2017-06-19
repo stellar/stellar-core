@@ -31,6 +31,26 @@ namespace stellar
 
 using namespace std;
 
+namespace
+{
+
+int32_t
+getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
+{
+    switch (level)
+    {
+    case ThresholdLevel::LOW:
+        return account.getLowThreshold();
+    case ThresholdLevel::MEDIUM:
+        return account.getMediumThreshold();
+    case ThresholdLevel::HIGH:
+        return account.getHighThreshold();
+    default:
+        assert(false);
+    }
+}
+}
+
 shared_ptr<OperationFrame>
 OperationFrame::makeHelper(Operation const& op, OperationResult& res,
                            TransactionFrame& tx)
@@ -89,17 +109,19 @@ OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
     return res;
 }
 
-int32_t
-OperationFrame::getNeededThreshold() const
+ThresholdLevel
+OperationFrame::getThresholdLevel() const
 {
-    return mSourceAccount->getMediumThreshold();
+    return ThresholdLevel::MEDIUM;
 }
 
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
 {
+    auto neededThreshold =
+        getNeededThreshold(*mSourceAccount, getThresholdLevel());
     return mParentTx.checkSignature(signatureChecker, *mSourceAccount,
-                                    getNeededThreshold());
+                                    neededThreshold);
 }
 
 AccountID const&

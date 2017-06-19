@@ -81,14 +81,6 @@ class TransactionFrame
     Hash const& getFullHash() const;
     Hash const& getContentsHash() const;
 
-    AccountFrame::pointer
-    getSourceAccountPtr() const
-    {
-        return mSigningAccount;
-    }
-
-    void setSourceAccountPtr(AccountFrame::pointer signingAccount);
-
     std::vector<std::shared_ptr<OperationFrame>> const&
     getOperations() const
     {

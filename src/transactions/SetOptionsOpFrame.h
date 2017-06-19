@@ -10,7 +10,7 @@ namespace stellar
 {
 class SetOptionsOpFrame : public OperationFrame
 {
-    int32_t getNeededThreshold() const override;
+    ThresholdLevel getThresholdLevel() const override;
     SetOptionsResult&
     innerResult()
     {

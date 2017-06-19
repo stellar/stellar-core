@@ -10,7 +10,7 @@ namespace stellar
 {
 class AllowTrustOpFrame : public OperationFrame
 {
-    int32_t getNeededThreshold() const override;
+    ThresholdLevel getThresholdLevel() const override;
     AllowTrustResult&
     innerResult() const
     {

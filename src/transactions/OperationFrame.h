@@ -24,6 +24,13 @@ class LedgerDelta;
 class SignatureChecker;
 class TransactionFrame;
 
+enum class ThresholdLevel
+{
+    LOW,
+    MEDIUM,
+    HIGH
+};
+
 class OperationFrame
 {
   protected:
@@ -37,7 +44,7 @@ class OperationFrame
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(Application& app, LedgerDelta& delta,
                          LedgerManager& ledgerManager) = 0;
-    virtual int32_t getNeededThreshold() const;
+    virtual ThresholdLevel getThresholdLevel() const;
 
   public:
     static std::shared_ptr<OperationFrame>
