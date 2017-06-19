@@ -31,7 +31,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string expandNodeID(std::string const& s) const;
 
   public:
-    static const int CURRENT_LEDGER_PROTOCOL_VERSION = 8;
+    static const int CURRENT_LEDGER_PROTOCOL_VERSION = 9;
 
     typedef std::shared_ptr<Config> pointer;
 

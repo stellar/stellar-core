@@ -292,9 +292,12 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
+    auto balanceAfter = (applying && (app.getLedgerManager().getCurrentLedgerVersion() > 8))
+            ? mSigningAccount->getAccount().balance
+            : mSigningAccount->getAccount().balance - mEnvelope.tx.fee;
+
     // don't let the account go below the reserve
-    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
-        mSigningAccount->getMinimumBalance(app.getLedgerManager()))
+    if (balanceAfter < mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "insufficient-balance"},
@@ -430,7 +433,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
- 
+
         if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
         {
             res = false;
