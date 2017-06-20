@@ -14,7 +14,7 @@ stellar-core [OPTIONS]
 
 Stellar is a decentralized, federated peer-to-peer network that allows
 people to send payments in any asset anywhere in the world
-instantaneously, and with minimal fee.  `Stellar-core` is the core
+instantaneously, and with minimal fee. `Stellar-core` is the core
 component of this network. `Stellar-core` is a C++ implementation of
 the Stellar Consensus Protocol configured to construct a chain of
 ledgers that are guaranteed to be in agreement across all the
