@@ -508,25 +508,25 @@ LedgerManagerImpl::verifyCatchupCandidate(
                      [&candidate](LedgerInfo const& info) {
                          return info.seq == candidate.header.ledgerSeq;
                      });
-    if (matchingSequenceId == std::end(infos))
+    if (matchingSequenceId != std::end(infos))
     {
-        if (mSyncingLedgers.hadTooNew())
+        if (matchingSequenceId->hash == candidate.hash)
         {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+            return HistoryManager::VERIFY_HASH_OK;
         }
         else
         {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+            return HistoryManager::VERIFY_HASH_BAD;
         }
     }
 
-    if (matchingSequenceId->hash == candidate.hash)
+    if (mSyncingLedgers.hadTooNew())
     {
-        return HistoryManager::VERIFY_HASH_OK;
+        return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
     }
     else
     {
-        return HistoryManager::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
     }
 }
 
