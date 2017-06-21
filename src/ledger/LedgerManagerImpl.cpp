@@ -350,6 +350,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         << ", tx_count=" << ledgerData.getTxSet()->size()
         << ", sv: " << stellarValueToString(ledgerData.getValue()) << "]";
 
+    printf("crash: %d\n", 12 / mSyncingLedgers.size());
+
     auto st = getState();
     switch (st)
     {
