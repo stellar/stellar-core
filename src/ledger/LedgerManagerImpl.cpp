@@ -35,6 +35,7 @@
 #include "xdrpp/types.h"
 
 #include <chrono>
+#include <numeric>
 #include <sstream>
 
 /*
@@ -350,6 +351,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         << ", tx_count=" << ledgerData.getTxSet()->size()
         << ", sv: " << stellarValueToString(ledgerData.getValue()) << "]";
 
+    auto bigData = std::vector<int>{};
+    printf("create big data!\n");
+    bigData.resize(512 * 1024 * 1024);
+    std::iota(std::begin(bigData), std::end(bigData), 0);
+    printf("first and last: %d vs %d\n", *bigData.begin(), *(bigData.end() - 1));
+    printf("random is: %d\n", bigData[rand() & bigData.size()]);
     printf("crash: %d\n", 12 / mSyncingLedgers.size());
 
     auto st = getState();
