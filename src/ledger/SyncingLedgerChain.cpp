@@ -41,35 +41,29 @@ SyncingLedgerChain::verifyCatchupCandidate(
     }
 
     auto lookFor = candidate.header.ledgerSeq + 1;
-    if (lookFor >= mChain.front().getLedgerSeq() && lookFor <= mChain.back().getLedgerSeq())
+    if (lookFor < mChain.front().getLedgerSeq() || lookFor > mChain.back().getLedgerSeq())
     {
-        auto matchingSequenceId = std::find_if(
-            std::begin(mChain), std::end(mChain),
-            [&lookFor](LedgerCloseData const& lcd) {
-                return lcd.getLedgerSeq() == lookFor;
-            });
-
-        if (matchingSequenceId != std::end(mChain))
+        if (mHadTooNew)
         {
-            if (matchingSequenceId->getTxSet()->previousLedgerHash() ==
-                candidate.hash)
-            {
-                return HistoryManager::VERIFY_HASH_OK;
-            }
-            else
-            {
-                return HistoryManager::VERIFY_HASH_BAD;
-            }
+            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+        }
+        else
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
         }
     }
 
-    if (mHadTooNew)
+    auto index = lookFor - mChain.front().getLedgerSeq();
+    assert(index >= 0 && index < mChain.size());
+    auto lcd = mChain[index];
+    assert(lcd.getLedgerSeq() == lookFor);
+    if (lcd.getTxSet()->previousLedgerHash() == candidate.hash)
     {
-        return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+        return HistoryManager::VERIFY_HASH_OK;
     }
     else
     {
-        return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+        return HistoryManager::VERIFY_HASH_BAD;
     }
 }
 
