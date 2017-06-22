@@ -31,10 +31,37 @@ SyncingLedgerChain::add(LedgerCloseData lcd)
     return SyncingLedgerChainAddResult::TOO_NEW;
 }
 
-bool
-SyncingLedgerChain::hadTooNew() const
+HistoryManager::VerifyHashStatus
+SyncingLedgerChain::verifyCatchupCandidate(
+    LedgerHeaderHistoryEntry const& candidate) const
 {
-    return mHadTooNew;
+    auto matchingSequenceId = std::find_if(
+        std::begin(mChain), std::end(mChain),
+        [&candidate](LedgerCloseData const& lcd) {
+            return lcd.getLedgerSeq() - 1 == candidate.header.ledgerSeq;
+        });
+
+    if (matchingSequenceId != std::end(mChain))
+    {
+        if (matchingSequenceId->getTxSet()->previousLedgerHash() ==
+            candidate.hash)
+        {
+            return HistoryManager::VERIFY_HASH_OK;
+        }
+        else
+        {
+            return HistoryManager::VERIFY_HASH_BAD;
+        }
+    }
+
+    if (mHadTooNew)
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+    }
+    else
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+    }
 }
 
 LedgerCloseData const&
