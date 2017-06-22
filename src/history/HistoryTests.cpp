@@ -346,8 +346,8 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
     auto& lm = mApp.getLedgerManager();
 
     // At this point LCL should be 1, current ledger should be 2
-    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
-    assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
+    REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
     generateAndPublishHistory(nPublishes);
 }
@@ -651,7 +651,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
     auto catchupConfiguration = CatchupConfiguration(toLedger, count);
 
-    assert(!app2->getClock().getIOService().stopped());
+    REQUIRE(!app2->getClock().getIOService().stopped());
 
     while (!app2->getWorkManager().allChildrenDone())
     {
@@ -690,7 +690,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     //
     // So cumulatively: we want to probe local history slot i = nextLedger - 3.
 
-    assert(nextLedger != 0);
+    REQUIRE(nextLedger != 0);
     if (nextLedger >= 3)
     {
         size_t i = nextLedger - 3;
@@ -1063,23 +1063,18 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     // by providing 30 cranks of the event loop and assuming that failure
     // to catch up within that time means 'stalled'.
 
-    bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(
-        initLedger, std::numeric_limits<uint32_t>::max(), false, app2);
-    CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, 0, false, app3);
-    CHECK(!caughtup);
+    REQUIRE(!catchupApplication(
+        initLedger, std::numeric_limits<uint32_t>::max(), false, app2));
+    REQUIRE(!catchupApplication(initLedger, 0, false, app3));
 
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(
-        initLedger, std::numeric_limits<uint32_t>::max(), false, app2, false);
-    CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, 0, false, app3, false);
-    CHECK(caughtup);
+    REQUIRE(catchupApplication(initLedger, std::numeric_limits<uint32_t>::max(),
+                               false, app2, false));
+    REQUIRE(catchupApplication(initLedger, 0, false, app3, false));
 }
 
 TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
@@ -1291,14 +1286,14 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     // Now generate a little more history
     generateAndPublishHistory(1);
 
-    bool caughtup = false;
     auto init = app2->getLedgerManager().getLastClosedLedgerNum() + 2;
+    REQUIRE(init == 66);
 
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
-                                  false, app2, true, init + 10);
-    assert(!caughtup);
+    REQUIRE(!catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                                false, app2, true, init + 10));
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 64);
 
     app2->getWorkManager().clearChildren();
 
@@ -1307,9 +1302,9 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // And catchup successfully
     init = mApp.getLedgerManager().getLastClosedLedgerNum();
-    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
-                                  false, app2);
-    assert(caughtup);
+    REQUIRE(catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                               false, app2));
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 192);
 }
 
 /*
