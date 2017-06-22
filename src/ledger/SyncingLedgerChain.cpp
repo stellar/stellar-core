@@ -37,11 +37,16 @@ SyncingLedgerChain::verifyCatchupCandidate(
 {
     if (mChain.empty())
     {
-        return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+        return HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD;
     }
 
     auto lookFor = candidate.header.ledgerSeq + 1;
-    if (lookFor < mChain.front().getLedgerSeq() || lookFor > mChain.back().getLedgerSeq())
+    if (lookFor < mChain.front().getLedgerSeq())
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD;
+    }
+
+    if (lookFor > mChain.back().getLedgerSeq())
     {
         if (mHadTooNew)
         {

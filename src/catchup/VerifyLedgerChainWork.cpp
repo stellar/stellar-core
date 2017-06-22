@@ -177,7 +177,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                               << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
         if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
-             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
+             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE ||
+             status == HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD) &&
             !mVerifyWithBufferedLedgers)
         {
             CLOG(WARNING, "History")
@@ -222,6 +223,16 @@ VerifyLedgerChainWork::onSuccess()
             CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
                                   << mRange.last() << "] verified";
             return WORK_SUCCESS;
+        }
+
+        mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
+        return WORK_RUNNING;
+    case HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD:
+        if (mCurrSeq == mLastSeq)
+        {
+            CLOG(ERROR, "History") << "Unable to verify history chain ["
+                                   << mFirstSeq << "," << mLastSeq << "]";
+            return WORK_FAILURE_FATAL;
         }
 
         mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();

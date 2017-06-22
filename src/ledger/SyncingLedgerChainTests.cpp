@@ -42,13 +42,13 @@ makeBadLedgerHistoryEntry(uint32_t nextLedgerSeq)
 }
 }
 
-TEST_CASE("empty syncing ledger return UNKNOWN_RECOVERABLE",
+TEST_CASE("empty syncing ledger return UNKNOWN_TOO_EARLY",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
     REQUIRE(ledgerChain.size() == 0);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(2)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
 }
 
 TEST_CASE("empty syncing ledger chain accepts anything",
@@ -60,9 +60,9 @@ TEST_CASE("empty syncing ledger chain accepts anything",
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 20);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
@@ -83,9 +83,9 @@ TEST_CASE("not empty syncing ledger chain accepts next ledger",
     REQUIRE(ledgerChain.size() == 2);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 21);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
@@ -110,9 +110,9 @@ TEST_CASE("not empty syncing ledger chain do not accept after-next ledger",
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 20);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
@@ -137,9 +137,9 @@ TEST_CASE("not empty syncing ledger chain do not accept duplicate",
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 20);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
@@ -160,9 +160,9 @@ TEST_CASE("not empty syncing ledger chain do not accept previous ledger",
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 20);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
@@ -184,9 +184,9 @@ TEST_CASE("not empty syncing ledger chain accepts next ledger after failure",
     REQUIRE(ledgerChain.size() == 2);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 21);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(19)) ==
-            HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE);
+            HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeLedgerHistoryEntry(20)) ==
             HistoryManager::VERIFY_HASH_OK);
     REQUIRE(ledgerChain.verifyCatchupCandidate(makeBadLedgerHistoryEntry(20)) ==
