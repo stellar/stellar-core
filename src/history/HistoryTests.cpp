@@ -1301,8 +1301,8 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
     caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
                                   false, app2, true, init + 10);
-    REQUIRE(!caughtup);
-    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 64);
+    REQUIRE(caughtup);
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 75);
 
     app2->getWorkManager().clearChildren();
 

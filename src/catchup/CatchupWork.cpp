@@ -349,6 +349,9 @@ CatchupWork::onSuccess()
         return WORK_PENDING;
     }
 
+    auto applyRange = LedgerRange{
+        ledgerRange.first(),
+        std::min(ledgerRange.last(), mLastVerified.header.ledgerSeq)};
     if (applyTransactions(ledgerRange))
     {
         return WORK_PENDING;
