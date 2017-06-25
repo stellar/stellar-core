@@ -137,7 +137,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto inApp = nodes[i % nodes.size()];
 
             auto account = TestAccount{*inApp, sources[i]};
-            auto tx1 = account.tx({createCreateAccountOp(dest.getPublicKey(), txAmount)},
+            auto tx1 = account.tx({createAccount(dest.getPublicKey(), txAmount)},
                                   expectedSeq);
 
             // this is basically a modified version of Peer::recvTransaction
@@ -214,7 +214,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto inApp = nodes[i % nodes.size()];
 
             auto account = TestAccount{*inApp, sources[i]};
-            auto tx1 = account.tx({createCreateAccountOp(dest.getPublicKey(), txAmount)},
+            auto tx1 = account.tx({createAccount(dest.getPublicKey(), txAmount)},
                                   expectedSeq);
 
             // create the transaction set containing this transaction

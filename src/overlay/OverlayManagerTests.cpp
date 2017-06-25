@@ -146,14 +146,14 @@ class OverlayManagerTests
 
         Hash const& networkID = app.getNetworkID();
 
-        StellarMessage AtoC = a.tx({createPaymentOp(b, 10)})->toStellarMessage();
+        StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
         pm.broadcastMessage(AtoC);
         vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
         pm.broadcastMessage(AtoC);
         REQUIRE(sentCounts(pm) == expected);
-        StellarMessage CtoD = c.tx({createPaymentOp(d, 10)})->toStellarMessage();
+        StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
         pm.broadcastMessage(CtoD);
         vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);

@@ -240,7 +240,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
 }
 
 Operation
-createChangeTrustOp(Asset const& asset, int64_t limit)
+changeTrust(Asset const& asset, int64_t limit)
 {
     Operation op;
 
@@ -252,7 +252,7 @@ createChangeTrustOp(Asset const& asset, int64_t limit)
 }
 
 Operation
-createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+allowTrust(PublicKey const& trustor, Asset const& asset,
                    bool authorize)
 {
     Operation op;
@@ -267,8 +267,7 @@ createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
 }
 
 Operation
-createCreateAccountOp(PublicKey const& dest,
-                      int64_t amount)
+createAccount(PublicKey const& dest, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
@@ -278,7 +277,7 @@ createCreateAccountOp(PublicKey const& dest,
 }
 
 Operation
-createPaymentOp(PublicKey const& to, int64_t amount)
+payment(PublicKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -289,7 +288,7 @@ createPaymentOp(PublicKey const& to, int64_t amount)
 }
 
 Operation
-createPaymentOp(PublicKey const& to, Asset const& asset, int64_t amount)
+payment(PublicKey const& to, Asset const& asset, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -304,7 +303,7 @@ createPaymentTx(Application& app, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
     return transactionFromOperations(app, from, seq,
-                                     {createPaymentOp(to, amount)});
+                                     {payment(to, amount)});
 }
 
 TransactionFramePtr
@@ -312,7 +311,7 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,
                       SequenceNumber seq, int64_t amount)
 {
-    auto op = createPaymentOp(to, asset, amount);
+    auto op = payment(to, asset, amount);
     return transactionFromOperations(app, from, seq, {op});
 }
 
@@ -327,9 +326,9 @@ makeAsset(SecretKey const& issuer, std::string const& code)
 }
 
 Operation
-createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
-                    Asset const& destCur, int64_t destAmount,
-                    std::vector<Asset> const& path)
+pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+            Asset const& destCur, int64_t destAmount,
+            std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -345,8 +344,8 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
 }
 
 Operation
-createPassiveOfferOp(Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount)
+createPassiveOffer(Asset const& selling, Asset const& buying,
+                   Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
@@ -359,8 +358,8 @@ createPassiveOfferOp(Asset const& selling, Asset const& buying,
 }
 
 Operation
-manageOfferOp(uint64 offerId, Asset const& selling, Asset const& buying,
-              Price const& price, int64_t amount)
+manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+            Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(MANAGE_OFFER);
@@ -386,7 +385,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         expectedOfferID = offerId;
     }
 
-    auto op = manageOfferOp(offerId, selling, buying, price, amount);
+    auto op = manageOffer(offerId, selling, buying, price, amount);
     auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
@@ -458,7 +457,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
-    auto op = createPassiveOfferOp(selling, buying, price, amount);
+    auto op = createPassiveOffer(selling, buying, price, amount);
     auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
@@ -516,9 +515,9 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 }
 
 Operation
-createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
-                   uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                   std::string* homeDomain)
+setOptions(AccountID* inflationDest, uint32_t* setFlags,
+           uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
+           std::string* homeDomain)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -574,7 +573,7 @@ createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
 }
 
 Operation
-createInflationOp()
+inflation()
 {
     Operation op;
     op.body.type(INFLATION);
@@ -583,7 +582,7 @@ createInflationOp()
 }
 
 Operation
-createMergeOp(PublicKey const& dest)
+accountMerge(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
@@ -592,7 +591,7 @@ createMergeOp(PublicKey const& dest)
 }
 
 Operation
-createManageDataOp(std::string const& name, DataValue* value)
+manageData(std::string const& name, DataValue* value)
 {
     Operation op;
     op.body.type(MANAGE_DATA);

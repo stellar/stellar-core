@@ -52,7 +52,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions), [&]() {
-                          return root.tx({createCreateAccountOp(a1,
+                          return root.tx({createAccount(a1,
                               10000000)});
                       });
     };

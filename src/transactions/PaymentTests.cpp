@@ -184,15 +184,15 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("a pays b, then a merge into b")
     {
-        auto payment = 1000000;
-        auto amount = app.getLedgerManager().getMinBalance(0) + payment;
+        auto paymentAmount = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmount;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
         int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
-            {createPaymentOp(b1, 200), createMergeOp(b1)});
+            {payment(b1, 200), accountMerge(b1)});
 
         for_all_versions(app, [&]{
             auto res = applyCheck(txFrame, delta, app);
@@ -209,15 +209,15 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("a pays b, then b merge into a")
     {
-        auto payment = 1000000;
-        auto amount = app.getLedgerManager().getMinBalance(0) + payment;
+        auto paymentAmount = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmount;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
         int64 b1Balance = b1.getBalance();
 
-        auto txFrame = a1.tx({createPaymentOp(b1, 200),
-                              b1.op(createMergeOp(a1))});
+        auto txFrame = a1.tx({payment(b1, 200),
+                              b1.op(accountMerge(a1))});
         txFrame->addSignature(b1);
 
         for_all_versions(app, [&]{
@@ -241,7 +241,7 @@ TEST_CASE("payment", "[tx][payment]")
         int64 b1Balance = b1.getBalance();
 
         auto txFrame = a1.tx(
-            {createMergeOp(b1), createPaymentOp(b1, 200)});
+            {accountMerge(b1), payment(b1, 200)});
 
         for_versions_to(7, app, [&]{
             auto res = applyCheck(txFrame, delta, app);
@@ -313,7 +313,7 @@ TEST_CASE("payment", "[tx][payment]")
                 addReserve;
 
             // verify that the account can't do anything
-            auto tx = b1.tx({createPaymentOp(root, 1)});
+            auto tx = b1.tx({payment(root, 1)});
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
@@ -334,8 +334,8 @@ TEST_CASE("payment", "[tx][payment]")
                                     txfee * 2;
             auto b1 = root.create("B", startingBalance);
 
-            auto tx1 = b1.tx({createPaymentOp(root, paymentAmount)});
-            auto tx2 = b1.tx({createPaymentOp(root, 6)});
+            auto tx1 = b1.tx({payment(root, paymentAmount)});
+            auto tx2 = b1.tx({payment(root, 6)});
 
             int64 rootBalance = root.getBalance();
             auto r = closeLedgerOn(app, 2, 1, 1, 2015, {tx1, tx2});
@@ -355,14 +355,14 @@ TEST_CASE("payment", "[tx][payment]")
         auto createAmount = 500000000;
         auto payAmount = 200000000;
         auto sourceAccount = root.create("source", amount);
-        auto createAccount = TestAccount{app, getAccount("create")};
+        auto createSourceAccount = TestAccount{app, getAccount("create")};
         auto balanceBefore = sourceAccount.getBalance();
         auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createCreateAccountOp(createAccount, createAmount),
-            createMergeOp(createAccount),
-            createPaymentOp(sourceAccount, payAmount)
+            createAccount(createSourceAccount, createAmount),
+            accountMerge(createSourceAccount),
+            payment(sourceAccount, payAmount)
         });
 
         for_versions_to(7, app, [&]{
@@ -370,8 +370,8 @@ TEST_CASE("payment", "[tx][payment]")
                               app.getDatabase());
             REQUIRE(applyCheck(tx, delta, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
-            REQUIRE(loadAccount(createAccount, app));
-            REQUIRE(createAccount.getBalance() == amount - tx->getFee());
+            REQUIRE(loadAccount(createSourceAccount, app));
+            REQUIRE(createSourceAccount.getBalance() == amount - tx->getFee());
 
             REQUIRE(tx->getResult().result.code() == txSUCCESS);
             REQUIRE(tx->getResult().result.results()[0].code() == opINNER);
@@ -391,7 +391,7 @@ TEST_CASE("payment", "[tx][payment]")
                               app.getDatabase());
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(loadAccount(sourceAccount, app));
-            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(sourceAccount.loadSequenceNumber() == sourceSeqNum + 1);
 
@@ -413,15 +413,15 @@ TEST_CASE("payment", "[tx][payment]")
         auto createAmount = 500000000;
         auto payAmount = 200000000;
         auto sourceAccount = root.create("source", amount);
-        auto createAccount = TestAccount{app, getAccount("create")};
+        auto createSourceAccount = TestAccount{app, getAccount("create")};
         auto payAccount = root.create("pay", amount);
         auto balanceBefore = sourceAccount.getBalance() + payAccount.getBalance();
         auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createCreateAccountOp(createAccount, createAmount),
-            createMergeOp(createAccount),
-            createPaymentOp(payAccount, payAmount)
+            createAccount(createSourceAccount, createAmount),
+            accountMerge(createSourceAccount),
+            payment(payAccount, payAmount)
         });
 
         for_versions_to(7, app, [&]{
@@ -429,7 +429,7 @@ TEST_CASE("payment", "[tx][payment]")
                               app.getDatabase());
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(loadAccount(sourceAccount, app));
-            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(loadAccount(payAccount, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(payAccount.getBalance() == amount);
@@ -442,7 +442,7 @@ TEST_CASE("payment", "[tx][payment]")
                               app.getDatabase());
             REQUIRE(!applyCheck(tx, delta, app));
             REQUIRE(loadAccount(sourceAccount, app));
-            REQUIRE(!loadAccount(createAccount, app, false));
+            REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(loadAccount(payAccount, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
             REQUIRE(payAccount.getBalance() == amount);
@@ -474,10 +474,10 @@ TEST_CASE("payment", "[tx][payment]")
         auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            payAndMergeDestination.op(createPaymentOp(payAndMergeDestination, pay1Amount)),
-            createMergeOp(payAndMergeDestination),
-            payAndMergeDestination.op(createCreateAccountOp(sourceAccount, createAmount)),
-            payAndMergeDestination.op(createPaymentOp(payAndMergeDestination, pay2Amount))
+            payAndMergeDestination.op(payment(payAndMergeDestination, pay1Amount)),
+            accountMerge(payAndMergeDestination),
+            payAndMergeDestination.op(createAccount(sourceAccount, createAmount)),
+            payAndMergeDestination.op(payment(payAndMergeDestination, pay2Amount))
         });
         tx->addSignature(payAndMergeDestination);
 
@@ -548,10 +548,10 @@ TEST_CASE("payment", "[tx][payment]")
         auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(payAndMergeDestination, pay1Amount),
-            createMergeOp(payAndMergeDestination),
-            payAndMergeDestination.op(createCreateAccountOp(sourceAccount, createAmount)),
-            createPaymentOp(payAndMergeDestination, pay2Amount)
+            payment(payAndMergeDestination, pay1Amount),
+            accountMerge(payAndMergeDestination),
+            payAndMergeDestination.op(createAccount(sourceAccount, createAmount)),
+            payment(payAndMergeDestination, pay2Amount)
         });
         tx->addSignature(payAndMergeDestination);
 
@@ -624,10 +624,10 @@ TEST_CASE("payment", "[tx][payment]")
         auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(payAndMergeDestination, pay1Amount),
-            createMergeOp(payAndMergeDestination),
-            secondSourceAccount.op(createCreateAccountOp(sourceAccount, createAmount)),
-            createPaymentOp(payAndMergeDestination, pay2Amount)
+            payment(payAndMergeDestination, pay1Amount),
+            accountMerge(payAndMergeDestination),
+            secondSourceAccount.op(createAccount(sourceAccount, createAmount)),
+            payment(payAndMergeDestination, pay2Amount)
         });
         tx->addSignature(secondSourceAccount);
 
@@ -707,11 +707,11 @@ TEST_CASE("payment", "[tx][payment]")
         auto payDestinationSeqNum = payDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createSource.op(createCreateAccountOp(createDestination, create1Amount)),
-            createDestination.op(createPathPaymentOp(payDestination,
+            createSource.op(createAccount(createDestination, create1Amount)),
+            createDestination.op(pathPayment(payDestination,
                 xlmCur, payAmount, xlmCur, payAmount, {})),
-            payDestination.op(createMergeOp(createSource)),
-            createSource.op(createCreateAccountOp(payDestination, create2Amount)),
+            payDestination.op(accountMerge(createSource)),
+            createSource.op(createAccount(payDestination, create2Amount)),
         });
         tx->addSignature(createSource);
         tx->addSignature(createDestination);
@@ -761,10 +761,10 @@ TEST_CASE("payment", "[tx][payment]")
         auto mergeDestinationSeqNum = mergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(sourceAccount, pay1Amount),
-            createMergeOp(mergeDestination),
-            createPaymentOp(sourceAccount, pay2Amount),
-            createMergeOp(mergeDestination)
+            payment(sourceAccount, pay1Amount),
+            accountMerge(mergeDestination),
+            payment(sourceAccount, pay2Amount),
+            accountMerge(mergeDestination)
         });
 
         for_versions_to(4, app, [&]{
@@ -850,16 +850,16 @@ TEST_CASE("payment", "[tx][payment]")
         auto mergeDestinationSeqNum = mergeDestination.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
-            createPaymentOp(sourceAccount, pay1Amount),
-            createPaymentOp(sourceAccount, pay1Amount),
-            createPaymentOp(sourceAccount, pay1Amount),
-            createPaymentOp(sourceAccount, pay1Amount),
-            createPaymentOp(sourceAccount, pay1Amount),
-            createPaymentOp(sourceAccount, pay1Amount),
-            createMergeOp(mergeDestination),
-            createPaymentOp(sourceAccount, pay2Amount),
-            createPaymentOp(sourceAccount, pay2Amount),
-            createMergeOp(mergeDestination)
+            payment(sourceAccount, pay1Amount),
+            payment(sourceAccount, pay1Amount),
+            payment(sourceAccount, pay1Amount),
+            payment(sourceAccount, pay1Amount),
+            payment(sourceAccount, pay1Amount),
+            payment(sourceAccount, pay1Amount),
+            accountMerge(mergeDestination),
+            payment(sourceAccount, pay2Amount),
+            payment(sourceAccount, pay2Amount),
+            accountMerge(mergeDestination)
         });
 
         for_versions_to(4, app, [&]{

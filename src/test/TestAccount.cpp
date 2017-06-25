@@ -69,7 +69,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 
     try
     {
-        applyTx(tx({createCreateAccountOp(secretKey.getPublicKey(), initialBalance)}), mApp);
+        applyTx(tx({createAccount(secretKey.getPublicKey(), initialBalance)}), mApp);
     }
     catch (...)
     {
@@ -96,7 +96,7 @@ TestAccount::create(std::string const& name, uint64_t initialBalance)
 void
 TestAccount::merge(PublicKey const& into)
 {
-    applyTx(tx({createMergeOp(into)}), mApp);
+    applyTx(tx({accountMerge(into)}), mApp);
 
     REQUIRE(loadAccount(into, mApp));
     REQUIRE(!loadAccount(getPublicKey(), mApp, false));
@@ -105,25 +105,25 @@ TestAccount::merge(PublicKey const& into)
 void
 TestAccount::inflation()
 {
-    applyTx(tx({createInflationOp()}), mApp);
+    applyTx(tx({txtest::inflation()}), mApp);
 }
 
 void
 TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
-    applyTx(tx({createChangeTrustOp(asset, limit)}), mApp);
+    applyTx(tx({txtest::changeTrust(asset, limit)}), mApp);
 }
 
 void
 TestAccount::allowTrust(Asset const& asset, PublicKey const& trustor)
 {
-    applyTx(tx({createAllowTrustOp(trustor, asset, true)}), mApp);
+    applyTx(tx({txtest::allowTrust(trustor, asset, true)}), mApp);
 }
 
 void
 TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
-    applyTx(tx({createAllowTrustOp(trustor, asset, false)}), mApp);
+    applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
 }
 
 void
@@ -131,14 +131,14 @@ TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
-    applyTx(tx({createSetOptionsOp(inflationDest, setFlags, clearFlags, thrs,
+    applyTx(tx({txtest::setOptions(inflationDest, setFlags, clearFlags, thrs,
                                    signer, homeDomain)}), mApp);
 }
 
 void
 TestAccount::manageData(std::string const& name, DataValue* value)
 {
-    applyTx(tx({createManageDataOp(name, value)}), mApp);
+    applyTx(tx({txtest::manageData(name, value)}), mApp);
 
     auto dataFrame =
         DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
@@ -190,7 +190,7 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
     auto toAccount = loadAccount(destination, mApp, false);
     auto fromAccount = loadAccount(getPublicKey(), mApp);
-    auto transaction = tx({createPaymentOp(destination, amount)});
+    auto transaction = tx({payment(destination, amount)});
 
     try
     {
@@ -217,7 +217,7 @@ void
 TestAccount::pay(PublicKey const& destination, Asset const& asset,
                  int64_t amount)
 {
-    applyTx(tx({createPaymentOp(destination, asset, amount)}), mApp);
+    applyTx(tx({payment(destination, asset, amount)}), mApp);
 }
 
 PathPaymentResult
@@ -225,7 +225,7 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
 {
-    auto transaction = tx({createPathPaymentOp(destination, sendCur, sendMax,
+    auto transaction = tx({pathPayment(destination, sendCur, sendMax,
                                                destCur, destAmount, path)});
     try
     {
