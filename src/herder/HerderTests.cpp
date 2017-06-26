@@ -64,8 +64,8 @@ TEST_CASE("standalone", "[herder]")
             REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() > 2);
 
             AccountFrame::pointer a1Account, b1Account;
-            a1Account = loadAccount(a1, *app);
-            b1Account = loadAccount(b1, *app);
+            a1Account = loadAccount(a1.getPublicKey(), *app);
+            b1Account = loadAccount(b1.getPublicKey(), *app);
             REQUIRE(a1Account->getBalance() == paymentAmount);
             REQUIRE(b1Account->getBalance() == paymentAmount);
         };
