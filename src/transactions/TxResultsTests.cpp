@@ -31,17 +31,6 @@ using namespace stellar::txtest;
   and then as scpValue in ledger or not).
 */
 
-namespace Catch
-{
-
-template <>
-std::string
-toString(TransactionResult const& tr)
-{
-    return xdr::xdr_to_string(tr);
-}
-}
-
 namespace
 {
 

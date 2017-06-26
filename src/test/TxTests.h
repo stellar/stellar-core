@@ -10,6 +10,7 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "overlay/StellarXDR.h"
+#include "test/TestPrinter.h"
 #include "util/optional.h"
 
 namespace stellar
