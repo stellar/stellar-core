@@ -157,21 +157,21 @@ LedgerManagerImpl::getStateHuman() const
 }
 
 void
-LedgerManagerImpl::startNewLedger()
+LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee, uint32_t baseReserve, uint32_t maxTxSetSize)
 {
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = 1000000000000000000;
+    masterAccount.getAccount().balance = balance;
     LedgerHeader genesisHeader;
 
     // all fields are initialized by default to 0
     // set the ones that are not 0
-    genesisHeader.baseFee = 100;
-    genesisHeader.baseReserve = 100000000;
-    genesisHeader.maxTxSetSize = 100; // 100 tx/ledger max
+    genesisHeader.baseFee = baseFee;
+    genesisHeader.baseReserve = baseReserve;
+    genesisHeader.maxTxSetSize = maxTxSetSize;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
     genesisHeader.ledgerSeq = 1;
 
@@ -183,6 +183,13 @@ LedgerManagerImpl::startNewLedger()
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed().value;
     ledgerClosed(delta);
+}
+
+void
+LedgerManagerImpl::startNewLedger()
+{
+     // 100 tx/ledger max
+    startNewLedger(1000000000000000000, 100, 100000000, 100);
 }
 
 void

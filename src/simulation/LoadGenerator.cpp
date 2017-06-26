@@ -1008,7 +1008,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
     case TxInfo::TX_TRANSFER_NATIVE:
         txm.mPayment.Mark();
         txm.mNativePayment.Mark();
-        txs.push_back(txtest::createPaymentTx(app.getNetworkID(), mFrom->mKey, mTo->mKey.getPublicKey(),
+        txs.push_back(txtest::createPaymentTx(app, mFrom->mKey, mTo->mKey.getPublicKey(),
                                               mFrom->mSeq + 1, mAmount));
         break;
 
@@ -1027,7 +1027,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
         {
             txm.mCreditPayment.Mark();
             txs.emplace_back(txtest::createCreditPaymentTx(
-                app.getNetworkID(), mFrom->mKey, mTo->mKey.getPublicKey(),
+                app, mFrom->mKey, mTo->mKey.getPublicKey(),
                 assetPath.front(), mFrom->mSeq + 1, mAmount));
         }
         else

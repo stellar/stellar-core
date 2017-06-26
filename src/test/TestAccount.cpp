@@ -44,8 +44,7 @@ TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
         sn = nextSequenceNumber();
     }
 
-    return transactionFromOperations(mApp.getNetworkID(), getSecretKey(),
-                                     sn, ops);
+    return transactionFromOperations(mApp, getSecretKey(), sn, ops);
 }
 
 Operation

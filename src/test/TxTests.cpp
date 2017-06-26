@@ -100,9 +100,9 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
 }
 
 void
-checkTransaction(TransactionFrame& txFrame)
+checkTransaction(TransactionFrame& txFrame, Application& app)
 {
-    REQUIRE(txFrame.getResult().feeCharged == 100); // default fee
+    REQUIRE(txFrame.getResult().feeCharged == app.getLedgerManager().getTxFee());
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -114,7 +114,7 @@ applyTx(TransactionFramePtr const& tx, Application& app)
                       app.getDatabase());
     applyCheck(tx, delta, app);
     throwIf(tx->getResult());
-    checkTransaction(*tx);
+    checkTransaction(*tx, app);
     delta.commit();
 }
 
@@ -224,18 +224,18 @@ getAccountSigners(PublicKey const& k, Application& app)
 }
 
 TransactionFramePtr
-transactionFromOperation(Hash const& networkID, SecretKey const& from,
+transactionFromOperation(Application& app, SecretKey const& from,
                          SequenceNumber seq, Operation const& op)
 {
     TransactionEnvelope e;
 
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = 100;
+    e.tx.fee = app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     e.tx.operations.push_back(op);
 
     TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(networkID, e);
+        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
 
     res->addSignature(from);
 
@@ -243,19 +243,19 @@ transactionFromOperation(Hash const& networkID, SecretKey const& from,
 }
 
 TransactionFramePtr
-transactionFromOperations(Hash const& networkID, SecretKey const& from,
+transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops)
 {
     TransactionEnvelope e;
 
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = ops.size() * 100;
+    e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
 
     TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(networkID, e);
+        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
 
     res->addSignature(from);
 
@@ -312,10 +312,10 @@ createPaymentOp(PublicKey const& to, int64_t amount)
 }
 
 TransactionFramePtr
-createPaymentTx(Hash const& networkID, SecretKey const& from,
+createPaymentTx(Application& app, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
-    return transactionFromOperation(networkID, from, seq,
+    return transactionFromOperation(app, from, seq,
                                     createPaymentOp(to, amount));
 }
 
@@ -325,7 +325,7 @@ applyPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
 {
     auto toAccount = loadAccount(to, app, false);
     auto fromAccount = loadAccount(from.getPublicKey(), app);
-    auto tx = createPaymentTx(app.getNetworkID(), from, to, seq, amount);
+    auto tx = createPaymentTx(app, from, to, seq, amount);
 
     try
     {
@@ -349,7 +349,7 @@ applyPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
 }
 
 TransactionFramePtr
-createCreditPaymentTx(Hash const& networkID, SecretKey const& from,
+createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,
                       SequenceNumber seq, int64_t amount)
 {
@@ -359,7 +359,7 @@ createCreditPaymentTx(Hash const& networkID, SecretKey const& from,
     op.body.paymentOp().asset = asset;
     op.body.paymentOp().destination = to;
 
-    return transactionFromOperation(networkID, from, seq, op);
+    return transactionFromOperation(app, from, seq, op);
 }
 
 Asset
@@ -377,7 +377,7 @@ applyCreditPaymentTx(Application& app, SecretKey const& from,
                      PublicKey const& to, Asset const& ci, SequenceNumber seq,
                      int64_t amount)
 {
-    auto tx = createCreditPaymentTx(app.getNetworkID(), from, to, ci, seq, amount);
+    auto tx = createCreditPaymentTx(app, from, to, ci, seq, amount);
     applyTx(tx, app);
 }
 
@@ -400,7 +400,7 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
 }
 
 TransactionFramePtr
-createPassiveOfferOp(Hash const& networkID, SecretKey const& source,
+createPassiveOfferOp(Application& app, SecretKey const& source,
                      Asset const& selling, Asset const& buying,
                      Price const& price, int64_t amount, SequenceNumber seq)
 {
@@ -411,11 +411,11 @@ createPassiveOfferOp(Hash const& networkID, SecretKey const& source,
     op.body.createPassiveOfferOp().buying = buying;
     op.body.createPassiveOfferOp().price = price;
 
-    return transactionFromOperation(networkID, source, seq, op);
+    return transactionFromOperation(app, source, seq, op);
 }
 
 TransactionFramePtr
-manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
+manageOfferOp(Application& app, uint64 offerId, SecretKey const& source,
               Asset const& selling, Asset const& buying, Price const& price,
               int64_t amount, SequenceNumber seq)
 {
@@ -427,7 +427,7 @@ manageOfferOp(Hash const& networkID, uint64 offerId, SecretKey const& source,
     op.body.manageOfferOp().offerID = offerId;
     op.body.manageOfferOp().price = price;
 
-    return transactionFromOperation(networkID, source, seq, op);
+    return transactionFromOperation(app, source, seq, op);
 }
 
 static ManageOfferResult
@@ -443,7 +443,7 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         expectedOfferID = offerId;
     }
 
-    auto tx = manageOfferOp(app.getNetworkID(), offerId, source, selling,
+    auto tx = manageOfferOp(app, offerId, source, selling,
                             buying, price, amount, seq);
 
     try
@@ -515,7 +515,7 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
-    auto tx = createPassiveOfferOp(app.getNetworkID(), source, selling, buying,
+    auto tx = createPassiveOfferOp(app, source, selling, buying,
                                    price, amount, seq);
 
     try

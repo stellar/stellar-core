@@ -11,8 +11,8 @@
 namespace stellar
 {
 
-LedgerManagerEditableVersion::LedgerManagerEditableVersion(Application& app)
-    : LedgerManagerImpl(app)
+LedgerManagerEditableVersion::LedgerManagerEditableVersion(Application& app, uint32_t baseFee)
+    : LedgerManagerImpl{app}, mBaseFee{baseFee}
 {
 }
 
@@ -29,11 +29,17 @@ LedgerManagerEditableVersion::setCurrentLedgerVersion(
     mCurrentLedgerVersion = currentLedgerVersion;
 }
 
+void
+LedgerManagerEditableVersion::startNewLedger()
+{
+    LedgerManagerImpl::startNewLedger(1000000000000000000, mBaseFee, 100000000, 100);
+}
+
 ApplicationEditableVersion::ApplicationEditableVersion(VirtualClock& clock,
                                                        Config const& cfg)
     : ApplicationImpl(clock, cfg)
 {
-    mLedgerManager = make_unique<LedgerManagerEditableVersion>(*this);
+    mLedgerManager = make_unique<LedgerManagerEditableVersion>(*this, cfg.DESIRED_BASE_FEE);
     mHerder = Herder::create(*this); // need to recreate
     newDB();
 }

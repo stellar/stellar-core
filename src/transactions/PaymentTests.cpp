@@ -1907,60 +1907,228 @@ TEST_CASE("payment", "[tx][payment]")
         }
     });
 
-    SECTION("account has only base reserve")
+    auto amount = 1;
+    SECTION("fee less than base reserve")
     {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0));
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
+        SECTION("account has only base reserve + amount")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - two stroops")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 2);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 1);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
     }
 
-    SECTION("account has only base reserve + one stroop")
+    SECTION("fee equal to base reserve")
     {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + 1);
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
+        auto cfg = getTestConfig(1);
+        cfg.DESIRED_BASE_FEE = 100000000;
+
+        VirtualClock clock;
+        ApplicationEditableVersion app(clock, cfg);
+        app.start();
+
+        // set up world
+        auto root = TestAccount::createRoot(app);
+        auto txfee = app.getLedgerManager().getTxFee();
+
+        SECTION("account has only base reserve + amount")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - two stroops")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 2);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 1);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
     }
 
-    SECTION("account has only base reserve + one operation fee - one stroop")
+    SECTION("fee bigger than base reserve")
     {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + txfee - 1);
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
-    }
+        auto cfg = getTestConfig(1);
+        cfg.DESIRED_BASE_FEE = 200000000;
 
-    SECTION("account has only base reserve + one operation fee")
-    {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + txfee);
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
-    }
+        VirtualClock clock;
+        ApplicationEditableVersion app(clock, cfg);
+        app.start();
 
-    SECTION("account has only base reserve + one operation fee + one stroop")
-    {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + txfee + 1);
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
-    }
+        // set up world
+        auto root = TestAccount::createRoot(app);
+        auto txfee = app.getLedgerManager().getTxFee();
 
-    SECTION("account has only base reserve + two operation fees - one stroop")
-    {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + 2 * txfee - 1);
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
-        });
-    }
+        SECTION("account has only base reserve + amount")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
 
-    SECTION("account has only base reserve + two operation fees")
-    {
-        auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + 2 * txfee);
-        for_all_versions(app, [&]{
-            payFrom.pay(root, 1);
-        });
+        SECTION("account has only base reserve + amount + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + one operation fee + one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - two stroops")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 2);
+            for_all_versions(app, [&]{
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_txINSUFFICIENT_BALANCE);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees - one stroop")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee - 1);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
+
+        SECTION("account has only base reserve + amount + two operation fees")
+        {
+            auto payFrom = root.create("pay-from", app.getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+            for_all_versions(app, [&]{
+                payFrom.pay(root, 1);
+            });
+        }
     }
 }
 
