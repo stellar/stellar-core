@@ -64,11 +64,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame->getEnvelope().signatures.clear();
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -79,11 +79,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -94,11 +94,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -109,11 +109,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame->addSignature(a1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -125,11 +125,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             txFrame->addSignature(bogus);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -170,11 +170,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -193,12 +193,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txFAILED);
                 REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -214,7 +214,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
             for_all_versions(app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                         PAYMENT_SUCCESS);
@@ -233,11 +233,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -313,7 +313,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -340,12 +340,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -370,12 +370,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -401,7 +401,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -409,7 +409,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     (alternative.removeAfterSucces ? 0 : 1));
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -439,7 +439,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == ACCOUNT_MERGE_SUCCESS);
@@ -468,7 +468,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == stellar::PAYMENT_MALFORMED);
@@ -514,12 +514,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
@@ -547,13 +547,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txFAILED);
                             REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
@@ -580,7 +580,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -588,7 +588,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     (alternative.removeAfterSucces ? 1 : 2));
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -621,7 +621,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     alternative.sign(*tx);
 
                     for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -631,7 +631,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
                     for_versions({7}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -664,7 +664,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     alternative.sign(*tx);
 
                     for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -674,7 +674,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
                     for_versions({7}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -724,7 +724,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(SignatureUtils::signHashX(x));
 
             for_versions_from(3, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                             *tx)) == PAYMENT_SUCCESS);
@@ -750,7 +750,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 REQUIRE(!tx->checkValid(app, 0));
 
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txMISSING_OPERATION);
             });
         }
@@ -779,7 +779,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
                         REQUIRE(!tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txFAILED);
                         REQUIRE(tx->getOperations()[0]->getResultCode() ==
                                 opBAD_AUTH);
@@ -790,7 +790,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
                         REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                     });
                 }
@@ -804,7 +804,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             app.getDatabase());
 
                         REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                                 PAYMENT_SUCCESS);
@@ -843,7 +843,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         REQUIRE(!tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -881,7 +881,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         REQUIRE(tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -918,7 +918,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         REQUIRE(tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -962,7 +962,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     REQUIRE(tx->checkValid(app, 0));
 
-                    applyCheck(tx, delta, app);
+                    applyCheck(tx, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
                             2 * app.getLedgerManager().getTxFee());
@@ -1006,7 +1006,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
                         app.getLedgerManager().getTxFee() - 1);
 
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
                 });
@@ -1015,7 +1015,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("duplicate payment")
             {
                 for_all_versions(app, [&]{
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1038,7 +1038,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         TimeBounds(start + 1000, start + 10000);
 
                     closeLedgerOn(app, 3, 1, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
 
@@ -1047,7 +1047,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         TimeBounds(1000, start + 300000);
 
                     closeLedgerOn(app, 4, 2, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
                     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
                     txFrame = root.tx({payment(a1.getPublicKey(), paymentAmount)});
@@ -1055,7 +1055,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         TimeBounds(1000, start);
 
                     closeLedgerOn(app, 5, 3, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
                     REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                 });
             }
@@ -1066,7 +1066,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });

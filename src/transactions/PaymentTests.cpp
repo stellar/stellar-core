@@ -195,7 +195,7 @@ TEST_CASE("payment", "[tx][payment]")
             {payment(b1, 200), accountMerge(b1)});
 
         for_all_versions(app, [&]{
-            auto res = applyCheck(txFrame, delta, app);
+            auto res = applyCheck(txFrame, app);
 
             REQUIRE(!loadAccount(a1, app, false));
             REQUIRE(loadAccount(b1, app));
@@ -221,7 +221,7 @@ TEST_CASE("payment", "[tx][payment]")
         txFrame->addSignature(b1);
 
         for_all_versions(app, [&]{
-            auto res = applyCheck(txFrame, delta, app);
+            auto res = applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(!loadAccount(b1, app, false));
@@ -244,7 +244,7 @@ TEST_CASE("payment", "[tx][payment]")
             {accountMerge(b1), payment(b1, 200)});
 
         for_versions_to(7, app, [&]{
-            auto res = applyCheck(txFrame, delta, app);
+            auto res = applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -255,7 +255,7 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            auto res = applyCheck(txFrame, delta, app);
+            auto res = applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -314,7 +314,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             // verify that the account can't do anything
             auto tx = b1.tx({payment(root, 1)});
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
             // top up the account to unblock it
@@ -368,7 +368,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(createSourceAccount, app));
             REQUIRE(createSourceAccount.getBalance() == amount - tx->getFee());
@@ -389,7 +389,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
@@ -427,7 +427,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(loadAccount(payAccount, app));
@@ -440,7 +440,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
             REQUIRE(loadAccount(payAccount, app));
@@ -484,7 +484,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == createAmount);
@@ -511,7 +511,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == createAmount);
@@ -558,7 +558,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == amount - pay1Amount - pay2Amount - tx->getFee());
@@ -585,7 +585,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
@@ -634,7 +634,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(secondSourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -664,7 +664,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(secondSourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -720,7 +720,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(createSource, app));
             REQUIRE(loadAccount(createDestination, app));
@@ -770,7 +770,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(4, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount - tx->getFee() - tx->getFee());
@@ -794,7 +794,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions(5, 7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
@@ -819,7 +819,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
@@ -865,7 +865,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_to(4, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(applyCheck(tx, delta, app));
+            REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(mergeDestination.getBalance() == amount + amount + amount - tx->getFee() - tx->getFee());
@@ -907,7 +907,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions(5, 7, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
@@ -950,7 +950,7 @@ TEST_CASE("payment", "[tx][payment]")
         for_versions_from(8, app, [&]{
             LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                               app.getDatabase());
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());

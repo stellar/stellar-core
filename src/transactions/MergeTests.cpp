@@ -71,9 +71,6 @@ TEST_CASE("merge", "[tx][merge]")
     auto b1 = root.create("B", minBalance);
     auto gateway = root.create("gate", minBalance);
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-
     SECTION("with create")
     {
         auto a1Balance = a1.getBalance();
@@ -86,7 +83,7 @@ TEST_CASE("merge", "[tx][merge]")
         txFrame->addSignature(b1.getSecretKey());
 
         for_versions_to(5, app, [&]{
-            applyCheck(txFrame, delta, app);
+            applyCheck(txFrame, app);
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[2]);
@@ -99,7 +96,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(6, app, [&]{
-            applyCheck(txFrame, delta, app);
+            applyCheck(txFrame, app);
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[2]);
@@ -124,7 +121,7 @@ TEST_CASE("merge", "[tx][merge]")
         txFrame->addSignature(b1.getSecretKey());
 
         for_all_versions(app, [&]{
-            applyCheck(txFrame, delta, app);
+            applyCheck(txFrame, app);
 
             auto mergeResult = txFrame->getResult().result.results()[2].tr().accountMergeResult();
             REQUIRE(mergeResult.code() == ACCOUNT_MERGE_SUCCESS);
@@ -149,7 +146,7 @@ TEST_CASE("merge", "[tx][merge]")
                    accountMerge(b1)});
 
         for_versions_to(4, app, [&]{
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -173,7 +170,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(5, 7, app, [&]{
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -196,7 +193,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, app, [&]{
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -229,7 +226,7 @@ TEST_CASE("merge", "[tx][merge]")
                    accountMerge(b1)});
 
         for_versions_to(7, app, [&]{
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -243,7 +240,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, app, [&]{
-            REQUIRE(!applyCheck(tx, delta, app));
+            REQUIRE(!applyCheck(tx, app));
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -271,7 +268,7 @@ TEST_CASE("merge", "[tx][merge]")
             a1.tx({accountMerge(b1), accountMerge(b1)});
 
         for_versions_to(4, app, [&]{
-            REQUIRE(applyCheck(txFrame, delta, app));
+            REQUIRE(applyCheck(txFrame, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
@@ -284,7 +281,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions(5, 7, app, [&]{
-            REQUIRE(!applyCheck(txFrame, delta, app));
+            REQUIRE(!applyCheck(txFrame, app));
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);
@@ -296,7 +293,7 @@ TEST_CASE("merge", "[tx][merge]")
         });
 
         for_versions_from(8, app, [&]{
-            REQUIRE(!applyCheck(txFrame, delta, app));
+            REQUIRE(!applyCheck(txFrame, app));
             REQUIRE(txFrame->getResult().result.results()[1].code() == opNO_ACCOUNT);
         });
     }
@@ -310,7 +307,7 @@ TEST_CASE("merge", "[tx][merge]")
                    accountMerge(getAccount("non-existing").getPublicKey())});
 
         for_all_versions(app, [&]{
-            applyCheck(txFrame, delta, app);
+            applyCheck(txFrame, app);
 
             auto result = MergeOpFrame::getInnerCode(
                 txFrame->getResult().result.results()[1]);

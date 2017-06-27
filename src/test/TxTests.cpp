@@ -41,8 +41,11 @@ namespace txtest
 {
 
 bool
-applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+applyCheck(TransactionFramePtr tx, Application& app)
 {
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
     txSet->add(tx);
@@ -95,6 +98,7 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     // validates db state
     app.getLedgerManager().checkDbState();
     app.getInvariants().check(txSet, delta);
+    delta.commit();
 
     return res;
 }
@@ -110,12 +114,9 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 void
 applyTx(TransactionFramePtr const& tx, Application& app)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(tx, delta, app);
+    applyCheck(tx, app);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
-    delta.commit();
 }
 
 TxSetResultMeta
