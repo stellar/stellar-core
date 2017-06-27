@@ -737,9 +737,12 @@ namespace cpptoml
                         static_cast<toml_group*>(curr_group->get(part).get());
                 }
             }
-            ++it;
-            consume_whitespace(it, end);
-            eol_or_comment(it, end);
+            if(it != kg_end)
+            {
+                ++it;
+                consume_whitespace(it, end);
+                eol_or_comment(it, end);
+            }
         }
 
         void parse_group_array(std::string::iterator& it,
@@ -817,7 +820,7 @@ namespace cpptoml
             std::string key = parse_key(it, end);
             if(curr_group->contains(key))
                 throw_parse_exception("Key " + key + " already present");
-            if(*it != '=')
+            if(it == end || *it != '=')
                 throw_parse_exception("Value must follow after a '='");
             ++it;
             consume_whitespace(it, end);
@@ -1189,6 +1192,8 @@ namespace cpptoml
                 end = line_.end();
                 consume_whitespace(start, end);
             }
+
+            assert(start != end);
         }
 
         void consume_whitespace(std::string::iterator& it,
