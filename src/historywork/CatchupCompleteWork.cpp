@@ -3,10 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/CatchupCompleteWork.h"
-#include "history/FileTransferInfo.h"
-#include "historywork/ApplyLedgerChainWork.h"
-#include "historywork/BatchDownloadWork.h"
-#include "historywork/VerifyLedgerChainWork.h"
+#include "history/HistoryManager.h"
+#include "historywork/CatchupTransactionsWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -27,21 +25,9 @@ CatchupCompleteWork::getStatus() const
 {
     if (mState == WORK_PENDING)
     {
-        if (mApplyWork)
+        if (mCatchupTransactionsWork)
         {
-            return mApplyWork->getStatus();
-        }
-        else if (mVerifyWork)
-        {
-            return mVerifyWork->getStatus();
-        }
-        else if (mDownloadTransactionsWork)
-        {
-            return mDownloadTransactionsWork->getStatus();
-        }
-        else if (mDownloadLedgersWork)
-        {
-            return mDownloadLedgersWork->getStatus();
+            return mCatchupTransactionsWork->getStatus();
         }
         else if (mGetHistoryArchiveStateWork)
         {
@@ -62,10 +48,7 @@ void
 CatchupCompleteWork::onReset()
 {
     CatchupWork::onReset();
-    mDownloadLedgersWork.reset();
-    mDownloadTransactionsWork.reset();
-    mVerifyWork.reset();
-    mApplyWork.reset();
+    mCatchupTransactionsWork.reset();
 }
 
 Work::State
@@ -76,54 +59,24 @@ CatchupCompleteWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    uint32_t firstSeq = firstCheckpointSeq();
-    uint32_t lastSeq = lastCheckpointSeq();
-
-    // Phase 2: download and decompress the ledgers.
-    if (!mDownloadLedgersWork)
+    // Phase 2: do the catchup.
+    if (!mCatchupTransactionsWork)
     {
-        CLOG(INFO, "History") << "Catchup COMPLETE downloading ledgers ["
-                              << firstSeq << ", " << lastSeq << "]";
-        mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
-        return WORK_PENDING;
-    }
-
-    // Phase 3: download and decompress the transactions.
-    if (!mDownloadTransactionsWork)
-    {
-        CLOG(INFO, "History") << "Catchup COMPLETE downloading transactions";
-        mDownloadTransactionsWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_TRANSACTIONS, *mDownloadDir);
-        return WORK_PENDING;
-    }
-
-    // Phase 4: verify the ledger chain.
-    if (!mVerifyWork)
-    {
-        CLOG(INFO, "History") << "Catchup COMPLETE verifying history";
-        mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
-        mVerifyWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
-            mLastVerified);
-        return WORK_PENDING;
-    }
-
-    // Phase 5: apply the transactions.
-    if (!mApplyWork)
-    {
-        CLOG(INFO, "History") << "Catchup COMPLETE applying history";
-        mApplyWork = addWork<ApplyLedgerChainWork>(*mDownloadDir, firstSeq,
-                                                   lastSeq, mLastApplied);
+        mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
+            *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
+            mManualCatchup, "COMPLETE", "complete",
+            0); // never retry
         return WORK_PENDING;
     }
 
     CLOG(INFO, "History") << "Completed catchup COMPLETE to state "
-                          << LedgerManager::ledgerAbbrev(mLastApplied)
+                          << LedgerManager::ledgerAbbrev(
+                                 mCatchupTransactionsWork->getLastApplied())
                           << " for nextLedger=" << nextLedger();
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastApplied);
+    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
+                mCatchupTransactionsWork->getLastApplied());
 
     return WORK_SUCCESS;
 }
@@ -131,8 +84,11 @@ CatchupCompleteWork::onSuccess()
 void
 CatchupCompleteWork::onFailureRaise()
 {
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, HistoryManager::CATCHUP_COMPLETE, mLastVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
+                mCatchupTransactionsWork
+                    ? mCatchupTransactionsWork->getLastVerified()
+                    : LedgerHeaderHistoryEntry{});
 }
 }

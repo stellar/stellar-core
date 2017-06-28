@@ -4,24 +4,23 @@
 
 #pragma once
 
-#include "history/HistoryManager.h"
+#include "history/CatchupManager.h"
 #include "historywork/CatchupWork.h"
 
 namespace stellar
 {
 
+class CatchupTransactionsWork;
+
 class CatchupCompleteWork : public CatchupWork
 {
 
     typedef std::function<void(asio::error_code const& ec,
-                               HistoryManager::CatchupMode mode,
+                               CatchupManager::CatchupMode mode,
                                LedgerHeaderHistoryEntry const& lastClosed)>
         handler;
 
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<Work> mVerifyWork;
-    std::shared_ptr<Work> mApplyWork;
+    std::shared_ptr<CatchupTransactionsWork> mCatchupTransactionsWork;
     handler mEndHandler;
     virtual uint32_t firstCheckpointSeq() const override;
 

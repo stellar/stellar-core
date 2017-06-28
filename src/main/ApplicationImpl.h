@@ -51,6 +51,7 @@ class ApplicationImpl : public Application
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
     virtual BucketManager& getBucketManager() override;
+    virtual CatchupManager& getCatchupManager() override;
     virtual HistoryManager& getHistoryManager() override;
     virtual ProcessManager& getProcessManager() override;
     virtual Herder& getHerder() override;
@@ -125,6 +126,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;
+    std::unique_ptr<CatchupManager> mCatchupManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<Invariants> mInvariants;
     std::shared_ptr<ProcessManager> mProcessManager;

@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include <memory>
 
@@ -144,7 +145,7 @@ class LedgerManager
     // "manual mode", in which rounding up and down to checkpoint frequencies is
     // disabled.
     virtual void startCatchUp(uint32_t initLedger,
-                              HistoryManager::CatchupMode resume,
+                              CatchupManager::CatchupMode resume,
                               bool manualCatchup = false) = 0;
 
     // Called by the history subsystem during catchup: this method asks the

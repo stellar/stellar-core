@@ -141,9 +141,9 @@ CatchupMinimalWork::onSuccess()
     CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
                           << LedgerManager::ledgerAbbrev(mFirstVerified)
                           << " for nextLedger=" << nextLedger();
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
-    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mFirstVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mFirstVerified);
 
     return WORK_SUCCESS;
 }
@@ -151,8 +151,8 @@ CatchupMinimalWork::onSuccess()
 void
 CatchupMinimalWork::onFailureRaise()
 {
-    mApp.getHistoryManager().historyCaughtup();
+    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, HistoryManager::CATCHUP_MINIMAL, mLastVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mLastVerified);
 }
 }

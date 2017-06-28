@@ -10,29 +10,26 @@
 namespace stellar
 {
 
-class CatchupMinimalWork : public CatchupWork
+class CatchupTransactionsWork;
+
+class CatchupCompleteImmediateWork : public CatchupWork
 {
-  public:
+
     typedef std::function<void(asio::error_code const& ec,
                                CatchupManager::CatchupMode mode,
                                LedgerHeaderHistoryEntry const& lastClosed)>
         handler;
 
-  protected:
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mVerifyLedgersWork;
-    std::shared_ptr<Work> mDownloadBucketsWork;
-    std::shared_ptr<Work> mApplyWork;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
+    std::shared_ptr<CatchupTransactionsWork> mCatchupTransactionsWork;
     handler mEndHandler;
+    virtual uint32_t archiveStateSeq() const override;
     virtual uint32_t firstCheckpointSeq() const override;
+    virtual uint32_t lastCheckpointSeq() const override;
 
   public:
-    CatchupMinimalWork(Application& app, WorkParent& parent,
-                       uint32_t initLedger, bool manualCatchup,
-                       handler endHandler);
+    CatchupCompleteImmediateWork(Application& app, WorkParent& parent,
+                                 uint32_t initLedger, bool manualCatchup,
+                                 handler endHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

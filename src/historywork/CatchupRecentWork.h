@@ -4,13 +4,13 @@
 
 #pragma once
 
-#include "history/HistoryManager.h"
+#include "history/CatchupManager.h"
 #include "work/Work.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
-
-struct LedgerHeaderHistoryEntry;
 
 // Catchup-recent is just a catchup-minimal to (now - N),
 // followed by a catchup-complete to now.
@@ -18,7 +18,7 @@ class CatchupRecentWork : public Work
 {
   public:
     typedef std::function<void(asio::error_code const& ec,
-                               HistoryManager::CatchupMode mode,
+                               CatchupManager::CatchupMode mode,
                                LedgerHeaderHistoryEntry const& ledger)>
         handler;
 

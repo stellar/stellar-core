@@ -24,7 +24,6 @@ class HistoryManagerImpl : public HistoryManager
     Application& mApp;
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<Work> mPublishWork;
-    std::shared_ptr<Work> mCatchupWork;
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -32,10 +31,6 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mPublishStart;
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
-
-    medida::Meter& mCatchupStart;
-    medida::Meter& mCatchupSuccess;
-    medida::Meter& mCatchupFailure;
 
   public:
     HistoryManagerImpl(Application& app);
@@ -76,18 +71,9 @@ class HistoryManagerImpl : public HistoryManager
 
     void historyPublished(uint32_t ledgerSeq, bool success) override;
 
-    void historyCaughtup() override;
-
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,
         std::function<void(asio::error_code const& ec)> handler) override;
-
-    void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup) override;
 
     HistoryArchiveState getLastClosedHistoryArchiveState() const override;
 
@@ -103,9 +89,5 @@ class HistoryManagerImpl : public HistoryManager
     uint64_t getPublishStartCount() override;
     uint64_t getPublishSuccessCount() override;
     uint64_t getPublishFailureCount() override;
-
-    uint64_t getCatchupStartCount() override;
-    uint64_t getCatchupSuccessCount() override;
-    uint64_t getCatchupFailureCount() override;
 };
 }

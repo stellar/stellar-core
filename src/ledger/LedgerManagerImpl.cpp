@@ -336,14 +336,14 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-HistoryManager::CatchupMode
+CatchupManager::CatchupMode
 getCatchupMode(Application& app)
 {
     return app.getConfig().CATCHUP_COMPLETE
-               ? HistoryManager::CATCHUP_COMPLETE
+               ? CatchupManager::CATCHUP_COMPLETE
                : (app.getConfig().CATCHUP_RECENT == 0
-                      ? HistoryManager::CATCHUP_MINIMAL
-                      : HistoryManager::CATCHUP_RECENT);
+                      ? CatchupManager::CATCHUP_MINIMAL
+                      : CatchupManager::CATCHUP_RECENT);
 }
 
 // called by txherder
@@ -448,11 +448,11 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 
 void
 LedgerManagerImpl::startCatchUp(uint32_t initLedger,
-                                HistoryManager::CatchupMode resume,
+                                CatchupManager::CatchupMode resume,
                                 bool manualCatchup)
 {
     setState(LM_CATCHING_UP_STATE);
-    mApp.getHistoryManager().catchupHistory(
+    mApp.getCatchupManager().catchupHistory(
         initLedger, resume,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3),
         manualCatchup);
@@ -518,7 +518,7 @@ LedgerManagerImpl::verifyCatchupCandidate(
 
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
-                                   HistoryManager::CatchupMode mode,
+                                   CatchupManager::CatchupMode mode,
                                    LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
@@ -533,7 +533,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         // through catchup -- we did the minimal prefix part -- and will
         // get another callback as CATCHUP_COMPLETE when recent-replay is
         // done. So for now just deposit LCL and prepare for replay.
-        if (mode == HistoryManager::CATCHUP_RECENT)
+        if (mode == CatchupManager::CATCHUP_RECENT)
         {
             mLastClosedLedger = lastClosed;
             CLOG(INFO, "Ledger") << "First phase of CATCHUP_RECENT done: "
@@ -544,7 +544,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
         // If we were in CATCHUP_MINIMAL mode, LCL has not been updated
         // and we need to pick it up here.
-        if (mode == HistoryManager::CATCHUP_MINIMAL)
+        if (mode == CatchupManager::CATCHUP_MINIMAL)
         {
             mLastClosedLedger = lastClosed;
             mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
@@ -554,7 +554,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
             // In this case we should actually have been caught-up during the
             // replay process and, if judged successful, our LCL should be the
             // one provided as well.
-            assert(mode == HistoryManager::CATCHUP_COMPLETE);
+            assert(mode == CatchupManager::CATCHUP_COMPLETE);
             assert(lastClosed.hash == mLastClosedLedger.hash);
             assert(lastClosed.header == mLastClosedLedger.header);
         }
