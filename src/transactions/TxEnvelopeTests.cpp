@@ -5,7 +5,6 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
@@ -55,81 +54,78 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("outer envelope")
     {
-        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
         SECTION("no signature")
         {
-            auto txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+            auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures.clear();
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
 
         SECTION("bad signature")
         {
-            auto txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+            auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
 
         SECTION("bad signature (wrong hint)")
         {
-            auto txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+            auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
 
         SECTION("too many signatures (signed twice)")
         {
-            auto txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+            auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->addSignature(a1);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
 
         SECTION("too many signatures (unused signature)")
         {
-            auto txFrame = root.tx({createCreateAccountOp(a1.getPublicKey(), paymentAmount)});
+            auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
             for_versions({7}, app, [&]{
-                applyCheck(txFrame, delta, app);
+                applyCheck(txFrame, app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -160,21 +156,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("not enough rights (envelope)")
         {
-            auto tx = a1.tx({createPaymentOp(root, 1000)});
+            auto tx = a1.tx({payment(root, 1000)});
 
             // only sign with s1
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -182,39 +175,33 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("not enough rights (operation)")
         {
             // updating thresholds requires high
-            auto tx = a1.tx({createSetOptionsOp(nullptr, nullptr, nullptr, &th,
+            auto tx = a1.tx({setOptions(nullptr, nullptr, nullptr, &th,
                                                 &sk1, nullptr)});
 
             // only sign with s1 (med)
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txFAILED);
                 REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
 
         SECTION("success two signatures")
         {
-            auto tx = a1.tx({createPaymentOp(root, 1000)});
+            auto tx = a1.tx({payment(root, 1000)});
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_all_versions(app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                         PAYMENT_SUCCESS);
@@ -223,21 +210,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("do not allow duplicate signature")
         {
-            auto tx = a1.tx({createPaymentOp(root, 1000)});
+            auto tx = a1.tx({payment(root, 1000)});
 
             tx->getEnvelope().signatures.clear();
             for (auto i = 0; i < 10; i++)
                 tx->addSignature(s1);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
             for_versions({7}, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -279,7 +263,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION(alternative.name)
             {
                 for_versions_to(2, app, [&]{
-                    auto tx = a1.tx({createPaymentOp(root, 1000)});
+                    auto tx = a1.tx({payment(root, 1000)});
                     tx->getEnvelope().signatures.clear();
                     tx->getEnvelope().tx.seqNum++;
                     a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
@@ -296,7 +280,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     SECTION("invalid seq nr")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
@@ -306,14 +290,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -321,7 +301,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("invalid signature")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         tx->getEnvelope().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
@@ -333,19 +313,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -353,7 +329,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("too many signatures (signed by owner)")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
@@ -363,19 +339,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 1);
                         });
@@ -383,7 +355,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("success")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         tx->getEnvelope().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
@@ -393,15 +365,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -409,7 +377,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     (alternative.removeAfterSucces ? 0 : 1));
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -417,12 +385,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         });
                     }
 
-                    SECTION("merge signing account")
+                    SECTION("accountMerge signing account")
                     {
                         auto b1 = root.create("a1", paymentAmount);
                         a1.pay(b1, 1000);
 
-                        auto tx = b1.tx({createMergeOp(a1)}, b1.getLastSequenceNumber() + 2);
+                        auto tx = b1.tx({accountMerge(a1)}, b1.getLastSequenceNumber() + 2);
                         tx->getEnvelope().signatures.clear();
 
                         SignerKey sk = alternative.createSigner(*tx);
@@ -430,16 +398,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         b1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(getAccountSigners(a1, app).size() == 0);
                         REQUIRE(getAccountSigners(b1, app).size() == 1);
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == ACCOUNT_MERGE_SUCCESS);
@@ -450,7 +414,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("failing transaction")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, -1)});
+                        auto tx = a1.tx({payment(root, -1)});
                         tx->getEnvelope().signatures.clear();
                         tx->getEnvelope().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
@@ -460,15 +424,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == stellar::PAYMENT_MALFORMED);
@@ -496,7 +456,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("not enough rights (envelope)")
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         tx->getEnvelope().tx.seqNum++;
                         a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
@@ -507,19 +467,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
@@ -528,7 +484,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (operation)")
                     {
                         // updating thresholds requires high
-                        auto tx = a1.tx({createSetOptionsOp(nullptr, nullptr,
+                        auto tx = a1.tx({setOptions(nullptr, nullptr,
                                                             nullptr, &th,
                                                             nullptr, nullptr)},
                                         a1.getLastSequenceNumber() + 2);
@@ -540,20 +496,16 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txFAILED);
                             REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, app).size() == 2);
                         });
@@ -561,7 +513,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("success signature + " + alternative.name)
                     {
-                        auto tx = a1.tx({createPaymentOp(root, 1000)});
+                        auto tx = a1.tx({payment(root, 1000)});
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(s1);
                         tx->getEnvelope().tx.seqNum++;
@@ -573,14 +525,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -588,7 +536,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     (alternative.removeAfterSucces ? 1 : 2));
                         });
                         for_versions({7}, app, [&]{
-                            applyCheck(tx, delta, app);
+                            applyCheck(tx, app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
@@ -599,9 +547,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 SECTION(alternative.name + " in op source account signers")
                 {
-                    auto op = a1.op(createPaymentOp(root, 100));
-                    TransactionFramePtr tx = transactionFromOperation(
-                        app, root, root.getLastSequenceNumber() + 2, op);
+                    auto op = a1.op(payment(root, 100));
+                    auto tx = transactionFromOperations(
+                        app, root,
+                        root.getLastSequenceNumber() + 2, {op});
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -611,16 +560,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                     nullptr);
 
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
                     REQUIRE(getAccountSigners(root, app).size() == 1);
                     REQUIRE(getAccountSigners(a1, app).size() == 1);
                     alternative.sign(*tx);
 
                     for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -630,7 +575,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
                     for_versions({7}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -642,7 +587,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION(alternative.name +
                         " in multiple ops source account signers")
                 {
-                    auto op = a1.op(createPaymentOp(root, 100));
+                    auto op = a1.op(payment(root, 100));
                     TransactionFramePtr tx = transactionFromOperations(
                         app, root, root.getLastSequenceNumber() + 2, {op, op});
                     tx->getEnvelope().signatures.clear();
@@ -654,16 +599,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                     nullptr);
 
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
                     REQUIRE(getAccountSigners(root, app).size() == 1);
                     REQUIRE(getAccountSigners(a1, app).size() == 1);
                     alternative.sign(*tx);
 
                     for_versions_from({3, 4, 5, 6, 8}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -673,7 +614,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
                     for_versions({7}, app, [&]{
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -703,7 +644,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1,
                           nullptr);
 
-            auto tx = a1.tx({createPaymentOp(root, 1000)});
+            auto tx = a1.tx({payment(root, 1000)});
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
             tx->getEnvelope().tx.seqNum++;
@@ -716,14 +657,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                           &sk2, nullptr);
 
             REQUIRE(getAccountSigners(a1, app).size() == 2);
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader(),
-                app.getDatabase());
-
             tx->addSignature(SignatureUtils::signHashX(x));
 
             for_versions_from(3, app, [&]{
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                             *tx)) == PAYMENT_SUCCESS);
@@ -744,12 +681,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 TransactionFramePtr tx =
                     std::make_shared<TransactionFrame>(app.getNetworkID(), te);
                 tx->addSignature(root);
-                LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                app.getDatabase());
-
                 REQUIRE(!tx->checkValid(app, 0));
 
-                applyCheck(tx, delta, app);
+                applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txMISSING_OPERATION);
             });
         }
@@ -761,7 +695,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("single tx wrapped by different account")
             {
-                auto tx = a1.tx({createPaymentOp(root, 1000)});
+                auto tx = a1.tx({payment(root, 1000)});
 
                 // change inner payment to be b->root
                 tx->getEnvelope().tx.operations[0].sourceAccount.activate() =
@@ -773,23 +707,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("missing signature")
                 {
                     for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(!tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txFAILED);
                         REQUIRE(tx->getOperations()[0]->getResultCode() ==
                                 opBAD_AUTH);
                     });
                     for_versions({7}, app, [&]{
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                     });
                 }
@@ -798,12 +724,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     for_all_versions(app, [&]{
                         tx->addSignature(b1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
                         REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                                 PAYMENT_SUCCESS);
@@ -813,14 +736,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("multiple tx")
             {
                 for_all_versions(app, [&]{
-                    auto tx_a = a1.tx({createPaymentOp(root, 1000)});
+                    auto tx_a = a1.tx({payment(root, 1000)});
                     SECTION("one invalid tx")
                     {
                         Asset idrCur = makeAsset(b1, "IDR");
                         Price price(1, 1);
-                        TransactionFramePtr tx_b =
-                            manageOfferOp(app, 0, b1, idrCur, idrCur,
-                                        price, 1000, b1.getLastSequenceNumber());
+                        auto tx_b = b1.tx({manageOffer(0, idrCur, idrCur,
+                                                         price, 1000)});
 
                         // build a new tx based off tx_a and tx_b
                         tx_b->getEnvelope()
@@ -837,13 +759,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(!tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -859,7 +777,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("one failed tx")
                     {
                         // this payment is too large
-                        auto tx_b = b1.tx({createPaymentOp(root, paymentAmount)});
+                        auto tx_b = b1.tx({payment(root, paymentAmount)});
 
                         tx_b->getEnvelope()
                             .tx.operations[0]
@@ -875,13 +793,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -896,7 +810,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     }
                     SECTION("both success")
                     {
-                        auto tx_b = b1.tx({createPaymentOp(root, 1000)});
+                        auto tx_b = b1.tx({payment(root, 1000)});
 
                         tx_b->getEnvelope()
                             .tx.operations[0]
@@ -912,13 +826,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(tx->checkValid(app, 0));
 
-                        applyCheck(tx, delta, app);
+                        applyCheck(tx, app);
 
                         REQUIRE(tx->getResult().feeCharged ==
                                 2 * app.getLedgerManager().getTxFee());
@@ -941,8 +851,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     //  1. B funds C
                     //  2. send from C -> root
 
-                    auto tx = b1.tx({createCreateAccountOp(c1.getPublicKey(), paymentAmount / 2)});
-                    auto tx_c = c1.tx({createPaymentOp(root, 1000)});
+                    auto tx = b1.tx({createAccount(c1.getPublicKey(), paymentAmount / 2)});
+                    auto tx_c = c1.tx({payment(root, 1000)});
 
                     tx_c->getEnvelope().tx.operations[0].sourceAccount.activate() =
                         c1.getPublicKey();
@@ -956,13 +866,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
                     tx->addSignature(c1);
 
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
                     REQUIRE(tx->checkValid(app, 0));
 
-                    applyCheck(tx, delta, app);
+                    applyCheck(tx, app);
 
                     REQUIRE(tx->getResult().feeCharged ==
                             2 * app.getLedgerManager().getTxFee());
@@ -985,7 +891,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         TransactionFramePtr txFrame;
 
-        txFrame = root.tx({createCreateAccountOp(a1, paymentAmount)});
+        txFrame = root.tx({createAccount(a1, paymentAmount)});
         txSet->add(txFrame);
 
         // close this ledger
@@ -996,17 +902,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
-
             SECTION("Insufficient fee")
             {
                 for_all_versions(app, [&]{
-                    txFrame = root.tx({createPaymentOp(a1.getPublicKey(), paymentAmount)});
+                    txFrame = root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
                         app.getLedgerManager().getTxFee() - 1);
 
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
                 });
@@ -1015,7 +918,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("duplicate payment")
             {
                 for_all_versions(app, [&]{
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -1033,29 +936,29 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     clock.setCurrentTime(ledgerTime);
 
-                    txFrame = root.tx({createPaymentOp(a1.getPublicKey(), paymentAmount)});
+                    txFrame = root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(start + 1000, start + 10000);
 
                     closeLedgerOn(app, 3, 1, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
 
-                    txFrame = root.tx({createPaymentOp(a1.getPublicKey(), paymentAmount)});
+                    txFrame = root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start + 300000);
 
                     closeLedgerOn(app, 4, 2, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
                     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
-                    txFrame = root.tx({createPaymentOp(a1.getPublicKey(), paymentAmount)});
+                    txFrame = root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start);
 
                     closeLedgerOn(app, 5, 3, 7, 2014);
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
                     REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                 });
             }
@@ -1064,9 +967,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             {
                 for_all_versions(app, [&]{
                     txFrame =
-                        root.tx({createPaymentOp(a1.getPublicKey(), paymentAmount)});
+                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;
-                    applyCheck(txFrame, delta, app);
+                    applyCheck(txFrame, app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });

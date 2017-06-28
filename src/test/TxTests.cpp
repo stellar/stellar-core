@@ -41,8 +41,11 @@ namespace txtest
 {
 
 bool
-applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
+applyCheck(TransactionFramePtr tx, Application& app)
 {
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
     txSet->add(tx);
@@ -95,6 +98,7 @@ applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app)
     // validates db state
     app.getLedgerManager().checkDbState();
     app.getInvariants().check(txSet, delta);
+    delta.commit();
 
     return res;
 }
@@ -110,12 +114,9 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 void
 applyTx(TransactionFramePtr const& tx, Application& app)
 {
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
-    applyCheck(tx, delta, app);
+    applyCheck(tx, app);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
-    delta.commit();
 }
 
 TxSetResultMeta
@@ -224,46 +225,23 @@ getAccountSigners(PublicKey const& k, Application& app)
 }
 
 TransactionFramePtr
-transactionFromOperation(Application& app, SecretKey const& from,
-                         SequenceNumber seq, Operation const& op)
-{
-    TransactionEnvelope e;
-
-    e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = app.getLedgerManager().getTxFee();
-    e.tx.seqNum = seq;
-    e.tx.operations.push_back(op);
-
-    TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
-    res->addSignature(from);
-
-    return res;
-}
-
-TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq, const std::vector<Operation>& ops)
 {
-    TransactionEnvelope e;
-
+    auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
     e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
 
-    TransactionFramePtr res =
-        TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
-
+    auto res = TransactionFrame::makeTransactionFromWire(app.getNetworkID(), e);
     res->addSignature(from);
-
     return res;
 }
 
 Operation
-createChangeTrustOp(Asset const& asset, int64_t limit)
+changeTrust(Asset const& asset, int64_t limit)
 {
     Operation op;
 
@@ -275,7 +253,7 @@ createChangeTrustOp(Asset const& asset, int64_t limit)
 }
 
 Operation
-createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+allowTrust(PublicKey const& trustor, Asset const& asset,
                    bool authorize)
 {
     Operation op;
@@ -290,8 +268,7 @@ createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
 }
 
 Operation
-createCreateAccountOp(PublicKey const& dest,
-                      int64_t amount)
+createAccount(PublicKey const& dest, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_ACCOUNT);
@@ -301,7 +278,7 @@ createCreateAccountOp(PublicKey const& dest,
 }
 
 Operation
-createPaymentOp(PublicKey const& to, int64_t amount)
+payment(PublicKey const& to, int64_t amount)
 {
     Operation op;
     op.body.type(PAYMENT);
@@ -311,41 +288,23 @@ createPaymentOp(PublicKey const& to, int64_t amount)
     return op;
 }
 
+Operation
+payment(PublicKey const& to, Asset const& asset, int64_t amount)
+{
+    Operation op;
+    op.body.type(PAYMENT);
+    op.body.paymentOp().amount = amount;
+    op.body.paymentOp().destination = to;
+    op.body.paymentOp().asset = asset;
+    return op;
+}
+
 TransactionFramePtr
 createPaymentTx(Application& app, SecretKey const& from,
                 PublicKey const& to, SequenceNumber seq, int64_t amount)
 {
-    return transactionFromOperation(app, from, seq,
-                                    createPaymentOp(to, amount));
-}
-
-void
-applyPaymentTx(Application& app, SecretKey const& from, PublicKey const& to,
-               SequenceNumber seq, int64_t amount)
-{
-    auto toAccount = loadAccount(to, app, false);
-    auto fromAccount = loadAccount(from.getPublicKey(), app);
-    auto tx = createPaymentTx(app, from, to, seq, amount);
-
-    try
-    {
-        applyTx(tx, app);
-    }
-    catch (...)
-    {
-        auto toAccountAfter = loadAccount(to, app, false);
-        // check that the target account didn't change
-        REQUIRE(!!toAccount == !!toAccountAfter);
-        if (toAccount && toAccountAfter)
-        {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
-        }
-        throw;
-    }
-
-    auto toAccountAfter = loadAccount(to, app, false);
-    REQUIRE(toAccount);
-    REQUIRE(toAccountAfter);
+    return transactionFromOperations(app, from, seq,
+                                     {payment(to, amount)});
 }
 
 TransactionFramePtr
@@ -353,13 +312,8 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
                       PublicKey const& to, Asset const& asset,
                       SequenceNumber seq, int64_t amount)
 {
-    Operation op;
-    op.body.type(PAYMENT);
-    op.body.paymentOp().amount = amount;
-    op.body.paymentOp().asset = asset;
-    op.body.paymentOp().destination = to;
-
-    return transactionFromOperation(app, from, seq, op);
+    auto op = payment(to, asset, amount);
+    return transactionFromOperations(app, from, seq, {op});
 }
 
 Asset
@@ -372,19 +326,10 @@ makeAsset(SecretKey const& issuer, std::string const& code)
     return asset;
 }
 
-void
-applyCreditPaymentTx(Application& app, SecretKey const& from,
-                     PublicKey const& to, Asset const& ci, SequenceNumber seq,
-                     int64_t amount)
-{
-    auto tx = createCreditPaymentTx(app, from, to, ci, seq, amount);
-    applyTx(tx, app);
-}
-
 Operation
-createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
-                    Asset const& destCur, int64_t destAmount,
-                    std::vector<Asset> const& path)
+pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+            Asset const& destCur, int64_t destAmount,
+            std::vector<Asset> const& path)
 {
     Operation op;
     op.body.type(PATH_PAYMENT);
@@ -399,10 +344,9 @@ createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
     return op;
 }
 
-TransactionFramePtr
-createPassiveOfferOp(Application& app, SecretKey const& source,
-                     Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount, SequenceNumber seq)
+Operation
+createPassiveOffer(Asset const& selling, Asset const& buying,
+                   Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(CREATE_PASSIVE_OFFER);
@@ -411,13 +355,12 @@ createPassiveOfferOp(Application& app, SecretKey const& source,
     op.body.createPassiveOfferOp().buying = buying;
     op.body.createPassiveOfferOp().price = price;
 
-    return transactionFromOperation(app, source, seq, op);
+    return op;
 }
 
-TransactionFramePtr
-manageOfferOp(Application& app, uint64 offerId, SecretKey const& source,
-              Asset const& selling, Asset const& buying, Price const& price,
-              int64_t amount, SequenceNumber seq)
+Operation
+manageOffer(uint64 offerId, Asset const& selling, Asset const& buying,
+            Price const& price, int64_t amount)
 {
     Operation op;
     op.body.type(MANAGE_OFFER);
@@ -427,7 +370,7 @@ manageOfferOp(Application& app, uint64 offerId, SecretKey const& source,
     op.body.manageOfferOp().offerID = offerId;
     op.body.manageOfferOp().price = price;
 
-    return transactionFromOperation(app, source, seq, op);
+    return op;
 }
 
 static ManageOfferResult
@@ -443,8 +386,8 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
         expectedOfferID = offerId;
     }
 
-    auto tx = manageOfferOp(app, offerId, source, selling,
-                            buying, price, amount, seq);
+    auto op = manageOffer(offerId, selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
     {
@@ -515,8 +458,8 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     auto lastGeneratedID = app.getLedgerManager().getCurrentLedgerHeader().idPool;
     auto expectedOfferID = lastGeneratedID + 1;
 
-    auto tx = createPassiveOfferOp(app, source, selling, buying,
-                                   price, amount, seq);
+    auto op = createPassiveOffer(selling, buying, price, amount);
+    auto tx = transactionFromOperations(app, source, seq, {op});
 
     try
     {
@@ -573,9 +516,9 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 }
 
 Operation
-createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
-                   uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
-                   std::string* homeDomain)
+setOptions(AccountID* inflationDest, uint32_t* setFlags,
+           uint32_t* clearFlags, ThresholdSetter* thrs, Signer* signer,
+           std::string* homeDomain)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
@@ -631,7 +574,7 @@ createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
 }
 
 Operation
-createInflationOp()
+inflation()
 {
     Operation op;
     op.body.type(INFLATION);
@@ -640,7 +583,7 @@ createInflationOp()
 }
 
 Operation
-createMergeOp(PublicKey const& dest)
+accountMerge(PublicKey const& dest)
 {
     Operation op;
     op.body.type(ACCOUNT_MERGE);
@@ -649,7 +592,7 @@ createMergeOp(PublicKey const& dest)
 }
 
 Operation
-createManageDataOp(std::string const& name, DataValue* value)
+manageData(std::string const& name, DataValue* value)
 {
     Operation op;
     op.body.type(MANAGE_DATA);

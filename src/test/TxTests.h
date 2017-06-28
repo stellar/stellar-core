@@ -34,7 +34,7 @@ struct ThresholdSetter
     optional<uint8_t> highThreshold;
 };
 
-bool applyCheck(TransactionFramePtr tx, LedgerDelta& delta, Application& app);
+bool applyCheck(TransactionFramePtr tx, Application& app);
 void applyTx(TransactionFramePtr const& tx, Application& app);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
@@ -61,64 +61,51 @@ TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 
-TransactionFramePtr transactionFromOperation(Application& app,
-                                             SecretKey const& from,
-                                             SequenceNumber seq,
-                                             Operation const& op);
 TransactionFramePtr
 transactionFromOperations(Application& app, SecretKey const& from,
                           SequenceNumber seq,
                           std::vector<Operation> const& ops);
 
 Operation
-createChangeTrustOp(Asset const& asset, int64_t limit);
+changeTrust(Asset const& asset, int64_t limit);
 
 Operation
-createAllowTrustOp(PublicKey const& trustor, Asset const& asset,
+allowTrust(PublicKey const& trustor, Asset const& asset,
                    bool authorize);
 
-Operation createInflationOp();
+Operation inflation();
 
-Operation createMergeOp(PublicKey const& dest);
+Operation accountMerge(PublicKey const& dest);
 
-Operation createManageDataOp(std::string const& name, DataValue* value);
+Operation manageData(std::string const& name, DataValue* value);
 
-Operation createCreateAccountOp(PublicKey const& dest,
-                                int64_t amount);
+Operation createAccount(PublicKey const& dest, int64_t amount);
 
-Operation createPaymentOp(PublicKey const& to,
-                          int64_t amount);
+Operation payment(PublicKey const& to, int64_t amount);
+
+Operation payment(PublicKey const& to, Asset const& asset, int64_t amount);
 
 TransactionFramePtr createPaymentTx(Application& app,
                                     SecretKey const& from, PublicKey const& to,
                                     SequenceNumber seq, int64_t amount);
-
-void applyPaymentTx(Application& app, SecretKey const& from,
-                    PublicKey const& to, SequenceNumber seq, int64_t amount);
 
 TransactionFramePtr createCreditPaymentTx(Application& app,
                                           SecretKey const& from,
                                           PublicKey const& to, Asset const& ci,
                                           SequenceNumber seq, int64_t amount);
 
-void applyCreditPaymentTx(Application& app, SecretKey const& from,
-                          PublicKey const& to, Asset const& ci,
-                          SequenceNumber seq, int64_t amount);
+Operation
+pathPayment(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
+            Asset const& destCur, int64_t destAmount,
+            std::vector<Asset> const& path);
+
+Operation manageOffer(uint64 offerId, Asset const& selling,
+                      Asset const& buying, Price const& price,
+                      int64_t amount);
 
 Operation
-createPathPaymentOp(PublicKey const& to, Asset const& sendCur, int64_t sendMax,
-                    Asset const& destCur, int64_t destAmount,
-                    std::vector<Asset> const& path);
-
-TransactionFramePtr manageOfferOp(Application& app, uint64 offerId,
-                                  SecretKey const& source, Asset const& selling,
-                                  Asset const& buying, Price const& price,
-                                  int64_t amount, SequenceNumber seq);
-
-TransactionFramePtr
-createPassiveOfferOp(Application& app, SecretKey const& source,
-                     Asset const& selling, Asset const& buying,
-                     Price const& price, int64_t amount, SequenceNumber seq);
+createPassiveOffer(Asset const& selling, Asset const& buying,
+                   Price const& price, int64_t amount);
 
 // returns the ID of the new offer if created
 uint64_t applyManageOffer(Application& app, uint64 offerId,
@@ -133,13 +120,10 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  Price const& price, int64_t amount,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
-Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
-                             uint32_t* clearFlags, ThresholdSetter* thrs,
-                             Signer* signer, std::string* homeDomain);
 
-Operation createSetOptionsOp(AccountID* inflationDest, uint32_t* setFlags,
-                             uint32_t* clearFlags, ThresholdSetter* thrs,
-                             Signer* signer, std::string* homeDomain);
+Operation setOptions(AccountID* inflationDest, uint32_t* setFlags,
+                     uint32_t* clearFlags, ThresholdSetter* thrs,
+                     Signer* signer, std::string* homeDomain);
 
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 

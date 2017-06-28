@@ -271,30 +271,30 @@ HistoryTests::generateRandomLedger()
     auto carol = TestAccount{app, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
-    txSet->add(root.tx({createCreateAccountOp(alice, big)}));
-    txSet->add(root.tx({createCreateAccountOp(bob, big)}));
-    txSet->add(root.tx({createCreateAccountOp(carol, big)}));
-    txSet->add(root.tx({createPaymentOp(alice, big)}));
-    txSet->add(root.tx({createPaymentOp(bob, big)}));
-    txSet->add(root.tx({createPaymentOp(carol, big)}));
+    txSet->add(root.tx({createAccount(alice, big)}));
+    txSet->add(root.tx({createAccount(bob, big)}));
+    txSet->add(root.tx({createAccount(carol, big)}));
+    txSet->add(root.tx({payment(alice, big)}));
+    txSet->add(root.tx({payment(bob, big)}));
+    txSet->add(root.tx({payment(carol, big)}));
 
     // They all randomly send a little to one another every ledger after #4
     if (ledgerSeq > 4)
     {
         if (flip())
-            txSet->add(alice.tx({createPaymentOp(bob, small)}));
+            txSet->add(alice.tx({payment(bob, small)}));
         if (flip())
-            txSet->add(alice.tx({createPaymentOp(carol, small)}));
+            txSet->add(alice.tx({payment(carol, small)}));
 
         if (flip())
-            txSet->add(bob.tx({createPaymentOp(alice, small)}));
+            txSet->add(bob.tx({payment(alice, small)}));
         if (flip())
-            txSet->add(bob.tx({createPaymentOp(carol, small)}));
+            txSet->add(bob.tx({payment(carol, small)}));
 
         if (flip())
-            txSet->add(carol.tx({createPaymentOp(alice, small)}));
+            txSet->add(carol.tx({payment(alice, small)}));
         if (flip())
-            txSet->add(carol.tx({createPaymentOp(bob, small)}));
+            txSet->add(carol.tx({payment(bob, small)}));
     }
 
     // Provoke sortForHash and hash-caching:

@@ -1052,9 +1052,8 @@ LoadGenerator::TxInfo::toTransactionFrames(
             auto sendMax = mAmount * 10;
             auto fromAccount = TestAccount{app, mFrom->mKey};
             auto op =
-                txtest::createPathPaymentOp(mTo->mKey.getPublicKey(),
-                                            sendAsset, sendMax, recvAsset,
-                                            mAmount, assetPath);
+                txtest::pathPayment(mTo->mKey.getPublicKey(), sendAsset,
+                                    sendMax, recvAsset, mAmount, assetPath);
             txs.emplace_back(fromAccount.tx({op}, mFrom->mSeq + 1));
         }
     }

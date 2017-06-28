@@ -222,7 +222,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     const int64_t baseReserve = clh.baseReserve;
     const int64_t baseFee = clh.baseFee;
     const int64_t startAmount = baseReserve * 100;
-    const int64_t payment = baseReserve * 10;
+    const int64_t paymentAmount = baseReserve * 10;
 
     auto amount = [&](PaymentValidity t) {
         switch (t)
@@ -389,7 +389,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too early")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
                 for_all_versions(app, [&] {
@@ -399,7 +399,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too late")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
                 for_all_versions(app, [&] {
@@ -409,7 +409,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent fee")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.fee--;
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee - 1, txINSUFFICIENT_FEE});
@@ -418,7 +418,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("no account")
             {
-                auto tx = f.tx({createPaymentOp(root, 1)});
+                auto tx = f.tx({payment(root, 1)});
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
                 });
@@ -426,7 +426,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("bad seq")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.seqNum++;
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txBAD_SEQ});
@@ -435,7 +435,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent balance")
             {
-                auto tx = g.tx({createPaymentOp(root, 1)});
+                auto tx = g.tx({payment(root, 1)});
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txINSUFFICIENT_BALANCE});
                 });
@@ -455,7 +455,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too early")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
@@ -466,7 +466,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too late")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
@@ -477,7 +477,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent fee")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.fee--;
                 for_all_versions(app, [&] {
@@ -487,7 +487,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("no account")
             {
-                auto tx = f.tx({createPaymentOp(root, 1)});
+                auto tx = f.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
@@ -496,7 +496,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("bad seq")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.seqNum++;
                 for_all_versions(app, [&] {
@@ -506,7 +506,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent balance")
             {
-                auto tx = g.tx({createPaymentOp(root, 1)});
+                auto tx = g.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 for_versions_to(6, app, [&] {
                     validate(tx, {baseFee, txBAD_AUTH});
@@ -533,7 +533,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too early")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
@@ -544,7 +544,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("too late")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
@@ -555,7 +555,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent fee")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.fee--;
                 for_all_versions(app, [&] {
@@ -565,7 +565,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("no account")
             {
-                auto tx = f.tx({createPaymentOp(root, 1)});
+                auto tx = f.tx({payment(root, 1)});
                 tx->addSignature(a);
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
@@ -574,7 +574,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("bad seq")
             {
-                auto tx = a.tx({createPaymentOp(root, 1)});
+                auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.seqNum++;
                 for_all_versions(app, [&] {
@@ -584,7 +584,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             SECTION("insufficent balance")
             {
-                auto tx = g.tx({createPaymentOp(root, 1)});
+                auto tx = g.tx({payment(root, 1)});
                 tx->addSignature(a);
                 for_all_versions(app, [&] {
                     validate(tx, {baseFee, txINSUFFICIENT_BALANCE});
@@ -618,7 +618,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         for (auto i = 0; i < ops.size(); i++)
         {
             auto destination = accounts[(i + 1) % ops.size()];
-            auto op = createPaymentOp(*destination, amount(ops[i]));
+            auto op = payment(*destination, amount(ops[i]));
             if (i != 0)
                 op = accounts[i]->op(op);
             operations.push_back(op);
@@ -674,8 +674,8 @@ TEST_CASE("txresults", "[tx][txresults]")
     {
         SECTION("normal")
         {
-            auto tx = a.tx({createPaymentOp(b, 1000),
-                            createMergeOp(root)});
+            auto tx = a.tx({payment(b, 1000),
+                            accountMerge(root)});
 
             auto applyResult =
                 expectedResult(baseFee * 2, 2, txSUCCESS,
@@ -691,9 +691,9 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx = a.tx({createPaymentOp(b, 1000),
-                            createMergeOp(root),
-                            createPaymentOp(c, 1000)});
+            auto tx = a.tx({payment(b, 1000),
+                            accountMerge(root),
+                            payment(c, 1000)});
 
             for_all_versions(app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
@@ -706,7 +706,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     {
         SECTION("normal")
         {
-            auto tx = root.tx({createCreateAccountOp(f, startAmount)});
+            auto tx = root.tx({createAccount(f, startAmount)});
 
             for_all_versions(app, [&] {
                 validate(tx, {baseFee * 1, txSUCCESS},
@@ -718,8 +718,8 @@ TEST_CASE("txresults", "[tx][txresults]")
         SECTION("with payment after")
         {
             auto tx = root.tx(
-                {createCreateAccountOp(f, startAmount),
-                 a.op(createPaymentOp(root, startAmount / 2))});
+                {createAccount(f, startAmount),
+                 a.op(payment(root, startAmount / 2))});
             tx->addSignature(a);
 
             for_all_versions(app, [&] {
@@ -741,9 +741,9 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("normal")
         {
-            auto tx = a.tx({createPaymentOp(b, 1000),
-                            createSetOptionsOp(nullptr, nullptr, nullptr, &th,
-                                               nullptr, nullptr)});
+            auto tx = a.tx({payment(b, 1000),
+                            setOptions(nullptr, nullptr, nullptr, &th, nullptr,
+                                       nullptr)});
             for_all_versions(app, [&] {
                 validate(
                     tx, {baseFee * 2, txSUCCESS},
@@ -754,10 +754,10 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx = a.tx({createPaymentOp(b, 1000),
-                            createSetOptionsOp(nullptr, nullptr, nullptr, &th,
-                                               nullptr, nullptr),
-                            createPaymentOp(c, 1000)});
+            auto tx = a.tx({payment(b, 1000),
+                            setOptions(nullptr, nullptr, nullptr, &th, nullptr,
+                                       nullptr),
+                            payment(c, 1000)});
 
             for_versions_to(6, app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
@@ -782,7 +782,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         SECTION("before tx")
         {
             a.setOptions(nullptr, nullptr, nullptr, &th, nullptr, nullptr);
-            auto tx = a.tx({createPaymentOp(b, 1000)});
+            auto tx = a.tx({payment(b, 1000)});
 
             for_versions_to(6, app, [&] {
                 validate(tx, {baseFee * 1, txFAILED});
