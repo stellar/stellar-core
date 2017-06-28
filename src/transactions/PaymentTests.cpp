@@ -2,7 +2,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -147,9 +146,6 @@ TEST_CASE("payment", "[tx][payment]")
     // root did 2 transactions at this point
     REQUIRE(rootAccount->getBalance() == (1000000000000000000 - paymentAmount -
                                           gatewayPayment * 2 - txfee * 3));
-
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
 
     SECTION("Create account")
     {
@@ -366,8 +362,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_to(7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(createSourceAccount, app));
@@ -387,8 +381,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
@@ -425,8 +417,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_to(7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
@@ -438,8 +428,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(!loadAccount(createSourceAccount, app, false));
@@ -482,8 +470,6 @@ TEST_CASE("payment", "[tx][payment]")
         tx->addSignature(payAndMergeDestination);
 
         for_versions_to(7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -509,8 +495,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -556,8 +540,6 @@ TEST_CASE("payment", "[tx][payment]")
         tx->addSignature(payAndMergeDestination);
 
         for_versions_to(7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -583,8 +565,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(payAndMergeDestination, app));
@@ -632,8 +612,6 @@ TEST_CASE("payment", "[tx][payment]")
         tx->addSignature(secondSourceAccount);
 
         for_versions_to(7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(secondSourceAccount, app));
@@ -662,8 +640,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(secondSourceAccount, app));
@@ -718,8 +694,6 @@ TEST_CASE("payment", "[tx][payment]")
         tx->addSignature(payDestination);
 
         for_all_versions(app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(createSource, app));
@@ -768,8 +742,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_to(4, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(mergeDestination, app));
@@ -792,8 +764,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions(5, 7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
@@ -817,8 +787,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
@@ -863,8 +831,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_to(4, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(applyCheck(tx, app));
             REQUIRE(!loadAccount(sourceAccount, app, false));
             REQUIRE(loadAccount(mergeDestination, app));
@@ -905,8 +871,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions(5, 7, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));
@@ -948,8 +912,6 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
             REQUIRE(!applyCheck(tx, app));
             REQUIRE(loadAccount(sourceAccount, app));
             REQUIRE(loadAccount(mergeDestination, app));

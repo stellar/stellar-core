@@ -5,7 +5,6 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
@@ -55,9 +54,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("outer envelope")
     {
-        LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
         SECTION("no signature")
         {
             auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
@@ -166,9 +162,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
                 applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
@@ -189,9 +182,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
                 applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txFAILED);
@@ -210,9 +200,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
             for_all_versions(app, [&]{
                 applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -228,9 +215,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             for (auto i = 0; i < 10; i++)
                 tx->addSignature(s1);
-
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
             for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
                 applyCheck(tx, app);
@@ -306,10 +290,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from(3, app, [&]{
@@ -333,10 +313,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
@@ -363,10 +339,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
@@ -392,10 +364,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         Signer sk1(sk, 1);
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
-
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
                         alternative.sign(*tx);
@@ -430,10 +398,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         b1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(getAccountSigners(a1, app).size() == 0);
                         REQUIRE(getAccountSigners(b1, app).size() == 1);
                         alternative.sign(*tx);
@@ -459,10 +423,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         Signer sk1(sk, 1);
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr,
                                         &sk1, nullptr);
-
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
                         REQUIRE(getAccountSigners(a1, app).size() == 1);
                         alternative.sign(*tx);
@@ -507,10 +467,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
@@ -540,10 +496,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
@@ -573,10 +525,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                         &sk1, nullptr);
 
                         REQUIRE(getAccountSigners(a1, app).size() == 2);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         alternative.sign(*tx);
 
                         for_versions_from({3, 4, 5, 6, 8}, app, [&]{
@@ -611,10 +559,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     &sk1, nullptr);
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                     nullptr);
-
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
 
                     REQUIRE(getAccountSigners(root, app).size() == 1);
                     REQUIRE(getAccountSigners(a1, app).size() == 1);
@@ -654,10 +598,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                     &sk1, nullptr);
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                     nullptr);
-
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
 
                     REQUIRE(getAccountSigners(root, app).size() == 1);
                     REQUIRE(getAccountSigners(a1, app).size() == 1);
@@ -717,10 +657,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                           &sk2, nullptr);
 
             REQUIRE(getAccountSigners(a1, app).size() == 2);
-            LedgerDelta delta(
-                app.getLedgerManager().getCurrentLedgerHeader(),
-                app.getDatabase());
-
             tx->addSignature(SignatureUtils::signHashX(x));
 
             for_versions_from(3, app, [&]{
@@ -745,9 +681,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 TransactionFramePtr tx =
                     std::make_shared<TransactionFrame>(app.getNetworkID(), te);
                 tx->addSignature(root);
-                LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                                app.getDatabase());
-
                 REQUIRE(!tx->checkValid(app, 0));
 
                 applyCheck(tx, app);
@@ -774,10 +707,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("missing signature")
                 {
                     for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&]{
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(!tx->checkValid(app, 0));
                         applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txFAILED);
@@ -785,10 +714,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                 opBAD_AUTH);
                     });
                     for_versions({7}, app, [&]{
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(tx->checkValid(app, 0));
                         applyCheck(tx, app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
@@ -799,9 +724,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     for_all_versions(app, [&]{
                         tx->addSignature(b1);
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
                         REQUIRE(tx->checkValid(app, 0));
                         applyCheck(tx, app);
@@ -837,10 +759,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(!tx->checkValid(app, 0));
 
                         applyCheck(tx, app);
@@ -875,10 +793,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
-
                         REQUIRE(tx->checkValid(app, 0));
 
                         applyCheck(tx, app);
@@ -911,10 +825,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
-
-                        LedgerDelta delta(
-                            app.getLedgerManager().getCurrentLedgerHeader(),
-                            app.getDatabase());
 
                         REQUIRE(tx->checkValid(app, 0));
 
@@ -956,10 +866,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
                     tx->addSignature(c1);
 
-                    LedgerDelta delta(
-                        app.getLedgerManager().getCurrentLedgerHeader(),
-                        app.getDatabase());
-
                     REQUIRE(tx->checkValid(app, 0));
 
                     applyCheck(tx, app);
@@ -996,9 +902,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
 
         {
-            LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                              app.getDatabase());
-
             SECTION("Insufficient fee")
             {
                 for_all_versions(app, [&]{

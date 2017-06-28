@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
