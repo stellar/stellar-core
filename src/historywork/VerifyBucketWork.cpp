@@ -19,7 +19,8 @@ VerifyBucketWork::VerifyBucketWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::string const& bucketFile, uint256 const& hash)
-    : Work(app, parent, std::string("verify-bucket-hash ") + bucketFile)
+    : Work(app, parent, std::string("verify-bucket-hash ") + bucketFile,
+           RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)

@@ -34,6 +34,7 @@ class Work : public WorkParent
 {
 
   public:
+    static size_t const RETRY_NEVER = 0;
     static size_t const RETRY_ONCE = 1;
     static size_t const RETRY_A_FEW = 5;
     static size_t const RETRY_A_LOT = 32;
