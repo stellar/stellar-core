@@ -853,7 +853,16 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
 
     while (app2->getProcessManager().getNumRunningProcesses() != 0)
     {
-        app2->getClock().crank(false);
+        try
+        {
+            app2->getClock().crank(false);
+        }
+        catch (...)
+        {
+            // see https://github.com/stellar/stellar-core/issues/1250
+            // we expect to get "Unable to restore last-known ledger state"
+            // several more times
+        }
     }
 }
 
