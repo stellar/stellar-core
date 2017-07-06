@@ -1,4 +1,4 @@
-#Transactions
+# Transactions
 See [Concept documentation](https://www.stellar.org/developers/guides/concepts/transactions.html).
 
 Anything that changes the ledger is called a _Transaction_.
@@ -10,14 +10,14 @@ See the TransactionFrame class for the implementation.
 
 
 *********************
-##Fees
+## Fees
 The network charges a fee for each transaction - right now the fee is just 
 proportional to the number of operations inside it. See `TransactionFrame::getMinFee` for the actual implementation.
 
 The base fee (multiplier) is decided during consensus; the desired base fee for 
 each instance is defined in their configuration file.
 
-##Sequence Number
+## Sequence Number
 Transactions follow a strict ordering rule when it comes to processing of 
 transactions per account:
 * Each transaction has a sequence number field.
@@ -34,7 +34,7 @@ to their sequence numbers being continuous: if 3 transactions are submitted and
 the account is at sequence number 5, the transactions must have sequence 
 numbers 6, 7 and 8.
 
-##Validity of a transaction
+## Validity of a transaction
 
 A transaction is considered valid if and only if:
 
@@ -59,7 +59,7 @@ __Note__ that because transactions are not applied during validation (in this C+
 implementation), there is a chance that a transaction invalidates another 
 transaction; therefore this is really a best effort implementation specific.
 
-##Applying a transaction
+## Applying a transaction
 
 When SCP externalizes the transaction set to apply to the last closed ledger:
 Source Accounts for transactions are charged a fee and their sequence number
@@ -72,11 +72,11 @@ If any operation fails, the transaction is rolled back entirely but marked as
 such: the sequence number in the account is consumed, the fee is collected and 
 the result set to "Failed".
 
-##Result
+## Result
 When transactions are applied (success or not), the result is saved in the 
 "txhistory" and "txfeehistory" tables in the database.
 
-#Operations
+# Operations
 
 Operations are individual commands that mutate the ledger.
 
@@ -86,7 +86,7 @@ transaction, unless there is an override defined for the operation.
 See the "Multiple signature" section below for examples of how to use different 
 source accounts in operations.
 
-##Thresholds
+## Thresholds
 
 Each operation falls under a specific threshold category: low, medium, high.
 Thresholds define the level of priviledge an operation needs in order to succeed.
@@ -103,7 +103,7 @@ Thresholds define the level of priviledge an operation needs in order to succeed
 
 See the section on signatures below for more details.
 
-##Validity of an operation
+## Validity of an operation
 
 An operation is valid if:
 * the outer transaction has enough signatures for the "source account" of the 
@@ -118,7 +118,7 @@ for example, are the parameters within the expected bounds?
 It should not make checks that depend on the state of the ledger as the checks
 are invalidated as other operations are being applied.
 
-##Applying an operation
+## Applying an operation
 
 Operations implement a "doApply" method that implements the results of that 
 operation.
@@ -126,7 +126,7 @@ operation.
 When operations are applied they track changes to the ledger using SQL 
 transactions and LedgerDelta objects, this makes rolling back changes simpler.
 
-##Result
+## Result
 
 For each Operation, there is a matching Result type that gathers information on the key side effects 
 of the operation or in the case of failure records why in structured form.
@@ -137,25 +137,25 @@ servers to consume externally.
 The txfeehistory table is additional meta data that tracks changes to the ledger
 done before transactions are applied.
 
-##List of operations
+## List of operations
 See `src/xdr/Stellar-transaction.x` for a detailed list of all operations and results.
 
-##Implementation
+## Implementation
 For each operation type, there is a matching Frame class: for example, the Payment Operation has a PaymentFrame class associated with it.
 
 The OperationFrame class defines the base contract that an operation frame must follow.
 
-#Envelope and Signatures
+# Envelope and Signatures
 Transactions must be signed before being submited to the network.
 
-##Well formed signatures
+## Well formed signatures
 A signature is a digital signature of the body of a transaction, generated with a private key.
 Only some keys are authorized to sign transactions, see the "Signers" section below for more detail.
 
 See the section on "Validity of a transaction" and "Validity of an operation" 
 for other requirements that must be met by the transaction in terms of signatures.
 
-##Signers
+## Signers
 Accounts are identified with the public key of what is called the "master key".
 Additional signers can be added to any account using the "SetOptions" operation.
 When added, signers are authorized (in addition to the master key) to sign 
@@ -168,7 +168,7 @@ section below for more detail.
 
 Adding signers increases the reserve for the account.
 
-##Thresholds
+## Thresholds
 
 Thresholds are a property of an account entry that controls
 * the weight 'w' of the master key (default: 1)
@@ -182,9 +182,9 @@ to sign the transaction.
 A set of signatures meets a given level of privilege if the sum of weights of 
 the signatures is greater or equal to the threshold for that level.
 
-##Examples
+## Examples
 
-###Operation Examples
+### Operation Examples
 1. Exchange without third party
 
   A wants to send B some credits X (Operation 1) in exchange for credits Y (Operation 2).
@@ -253,7 +253,7 @@ the signatures is greater or equal to the threshold for that level.
     * source=_null_
     * Account Merge -> A
 
-###Threshold Use Examples
+### Threshold Use Examples
 1. Gateway keeps most of its funds in a cold account. The Gateway requires 
    authorization for people to hold its credit. It adds another signing key to 
    the cold account with a weight below Medium. It is now safe to use this 2nd 
