@@ -6,10 +6,10 @@
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
+#include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
-#include "util/Format.h"
 
 namespace stellar
 {
