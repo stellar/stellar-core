@@ -5,10 +5,10 @@
 #include "historywork/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "historywork/Progress.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "util/Format.h"
 #include "util/XDRStream.h"
 
 namespace stellar
