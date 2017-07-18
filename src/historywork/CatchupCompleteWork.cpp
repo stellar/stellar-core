@@ -67,7 +67,7 @@ CatchupCompleteWork::onSuccess()
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
             *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
             mManualCatchup, "COMPLETE", "complete",
-            0); // never retry
+            Work::RETRY_NEVER);
         return WORK_PENDING;
     }
 

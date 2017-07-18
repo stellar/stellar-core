@@ -79,26 +79,26 @@ CatchupManagerImpl::catchupHistory(
     {
         CLOG(INFO, "History") << "Starting CatchupMinimalWork";
         mCatchupWork = mApp.getWorkManager().addWork<CatchupMinimalWork>(
-            initLedger, manualCatchup, handler, Work::RETRY_A_FEW);
+            initLedger, manualCatchup, handler, Work::RETRY_NEVER);
     }
     else if (mode == CATCHUP_RECENT)
     {
         CLOG(INFO, "History") << "Starting CatchupRecentWork";
         mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
-            initLedger, manualCatchup, handler, Work::RETRY_A_FEW);
+            initLedger, manualCatchup, handler, Work::RETRY_NEVER);
     }
     else if (mode == CATCHUP_COMPLETE)
     {
         CLOG(INFO, "History") << "Starting CatchupCompleteWork";
         mCatchupWork = mApp.getWorkManager().addWork<CatchupCompleteWork>(
-            initLedger, manualCatchup, handler, Work::RETRY_A_FEW);
+            initLedger, manualCatchup, handler, Work::RETRY_NEVER);
     }
     else if (mode == CATCHUP_COMPLETE_IMMEDIATE)
     {
         CLOG(INFO, "History") << "Starting CatchupCompleteImmediateWork";
         mCatchupWork =
             mApp.getWorkManager().addWork<CatchupCompleteImmediateWork>(
-                initLedger, manualCatchup, handler, Work::RETRY_A_FEW);
+                initLedger, manualCatchup, handler, Work::RETRY_NEVER);
     }
     else
     {
