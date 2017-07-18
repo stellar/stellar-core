@@ -16,8 +16,10 @@ CatchupCompleteImmediateWork::CatchupCompleteImmediateWork(Application& app,
                                                            WorkParent& parent,
                                                            uint32_t initLedger,
                                                            bool manualCatchup,
-                                                           handler endHandler)
-    : CatchupWork(app, parent, initLedger, "complete-immediate", manualCatchup)
+                                                           handler endHandler,
+                                                           size_t maxRetries)
+    : CatchupWork(app, parent, initLedger, "complete-immediate", manualCatchup,
+                  maxRetries)
     , mEndHandler(endHandler)
 {
 }

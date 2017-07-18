@@ -23,7 +23,8 @@ class BucketDownloadWork : public Work
   public:
     BucketDownloadWork(Application& app, WorkParent& parent,
                        std::string const& uniqueName,
-                       HistoryArchiveState const& localState);
+                       HistoryArchiveState const& localState,
+                       size_t maxRetries = RETRY_A_FEW);
     ~BucketDownloadWork();
     void onReset() override;
     void takeDownloadDir(BucketDownloadWork& other);
