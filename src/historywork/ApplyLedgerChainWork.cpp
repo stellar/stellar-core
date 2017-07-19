@@ -10,6 +10,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
+#include "util/format.h"
 
 namespace stellar
 {
@@ -83,8 +84,8 @@ ApplyLedgerChainWork::getCurrentTxSet()
     {
         if (mTxHistoryEntry.ledgerSeq < seq)
         {
-            CLOG(DEBUG, "History") << "Skipping txset for ledger "
-                                   << mTxHistoryEntry.ledgerSeq;
+            CLOG(DEBUG, "History")
+                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
         }
         else if (mTxHistoryEntry.ledgerSeq > seq)
         {
@@ -116,23 +117,28 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
 
     auto& lm = mApp.getLedgerManager();
 
-    LedgerHeader const& previousHeader = lm.getLastClosedLedgerHeader().header;
+    auto const& lclHeader = lm.getLastClosedLedgerHeader();
 
     // If we are >1 before LCL, skip
-    if (header.ledgerSeq + 1 < previousHeader.ledgerSeq)
+    if (header.ledgerSeq + 1 < lclHeader.header.ledgerSeq)
     {
-        CLOG(DEBUG, "History") << "Catchup skipping old ledger "
-                               << header.ledgerSeq;
+        CLOG(DEBUG, "History")
+            << "Catchup skipping old ledger " << header.ledgerSeq;
         return true;
     }
 
     // If we are one before LCL, check that we knit up with it
-    if (header.ledgerSeq + 1 == previousHeader.ledgerSeq)
+    if (header.ledgerSeq + 1 == lclHeader.header.ledgerSeq)
     {
-        if (hHeader.hash != previousHeader.previousLedgerHash)
+        if (hHeader.hash != lclHeader.header.previousLedgerHash)
         {
             throw std::runtime_error(
-                "replay failed to connect on hash of LCL predecessor");
+                fmt::format("replay of {:s} failed to connect on hash of LCL "
+                            "predecessor {:s}",
+                            LedgerManager::ledgerAbbrev(hHeader),
+                            LedgerManager::ledgerAbbrev(
+                                lclHeader.header.ledgerSeq - 1,
+                                lclHeader.header.previousLedgerHash)));
         }
         CLOG(DEBUG, "History") << "Catchup at 1-before LCL ("
                                << header.ledgerSeq << "), hash correct";
@@ -140,28 +146,36 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     }
 
     // If we are at LCL, check that we knit up with it
-    if (header.ledgerSeq == previousHeader.ledgerSeq)
+    if (header.ledgerSeq == lclHeader.header.ledgerSeq)
     {
         if (hHeader.hash != lm.getLastClosedLedgerHeader().hash)
         {
-            throw std::runtime_error("replay at LCL disagreed on hash");
+            throw std::runtime_error(
+                fmt::format("replay of {:s} at LCL {:s} disagreed on hash",
+                            LedgerManager::ledgerAbbrev(hHeader),
+                            LedgerManager::ledgerAbbrev(lclHeader)));
         }
-        CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq
-                               << ", hash correct";
+        CLOG(DEBUG, "History")
+            << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
         return true;
     }
 
     // If we are past current, we can't catch up: fail.
     if (header.ledgerSeq != lm.getCurrentLedgerHeader().ledgerSeq)
     {
-        throw std::runtime_error("replay overshot current ledger");
+        throw std::runtime_error(fmt::format(
+            "replay overshot current ledger: {:d} > {:d}", header.ledgerSeq,
+            lm.getCurrentLedgerHeader().ledgerSeq));
     }
 
     // If we do not agree about LCL hash, we can't catch up: fail.
     if (header.previousLedgerHash != lm.getLastClosedLedgerHeader().hash)
     {
-        throw std::runtime_error(
-            "replay at current ledger disagreed on LCL hash");
+        throw std::runtime_error(fmt::format(
+            "replay at current ledger {:s} disagreed on LCL hash {:s}",
+            LedgerManager::ledgerAbbrev(header.ledgerSeq - 1,
+                                        header.previousLedgerHash),
+            LedgerManager::ledgerAbbrev(lclHeader)));
     }
 
     auto txset = getCurrentTxSet();
@@ -174,8 +188,11 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // header.
     if (header.scpValue.txSetHash != txset->getContentsHash())
     {
-        throw std::runtime_error("replay txset hash differs from txset "
-                                 "hash in replay ledger");
+        throw std::runtime_error(fmt::format(
+            "replay txset hash differs from txset hash in replay ledger: hash "
+            "for txset for {:d} is {:s}, expected {:s}",
+            header.ledgerSeq, hexAbbrev(txset->getContentsHash()),
+            hexAbbrev(header.scpValue.txSetHash)));
     }
 
     LedgerCloseData closeData(header.ledgerSeq, txset, header.scpValue);
@@ -187,7 +204,10 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     CLOG(DEBUG, "History") << "Replay header:\n" << xdr::xdr_to_string(hHeader);
     if (lm.getLastClosedLedgerHeader().hash != hHeader.hash)
     {
-        throw std::runtime_error("replay produced mismatched ledger hash");
+        throw std::runtime_error(fmt::format(
+            "replay of {:s} produced mismatched ledger hash {:s}",
+            LedgerManager::ledgerAbbrev(hHeader),
+            LedgerManager::ledgerAbbrev(lm.getLastClosedLedgerHeader())));
     }
     mLastApplied = hHeader;
     return true;

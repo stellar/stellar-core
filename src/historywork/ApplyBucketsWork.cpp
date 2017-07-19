@@ -12,6 +12,7 @@
 #include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "util/format.h"
 #include "util/make_unique.h"
 
 namespace stellar
@@ -36,7 +37,10 @@ ApplyBucketsWork::ApplyBucketsWork(
     if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
     {
         throw std::runtime_error(
-            "ApplyBucketsWork applying ledger earlier than local LCL");
+            fmt::format("ApplyBucketsWork applying ledger earlier than local "
+                        "LCL: {:s} < {:s}",
+                        LedgerManager::ledgerAbbrev(firstVerified),
+                        LedgerManager::ledgerAbbrev(lcl)));
     }
 }
 
@@ -159,8 +163,8 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
-        CLOG(DEBUG, "History") << "ApplyBuckets : starting next level: "
-                               << mLevel;
+        CLOG(DEBUG, "History")
+            << "ApplyBuckets : starting next level: " << mLevel;
         return WORK_PENDING;
     }
 
