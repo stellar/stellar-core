@@ -154,6 +154,34 @@ compareAsset(Asset const& first, Asset const& second)
     return false;
 }
 
+bool
+addBalance(int64_t& balance, int64_t delta, int64_t maxBalance)
+{
+    assert(balance >= 0);
+    assert(maxBalance >= 0);
+
+    if (delta == 0)
+    {
+        return true;
+    }
+
+    // strange-looking condition, but without UB
+    // equivalent to (balance + delta) < 0
+    // as balance >= 0, -balance > MIN_INT64, so no conversions needed
+    if (delta < -balance)
+    {
+        return false;
+    }
+
+    if (maxBalance - balance < delta)
+    {
+        return false;
+    }
+
+    balance += delta;
+    return true;
+}
+
 // calculates A*B/C when A*B overflows 64bits
 bool
 bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)

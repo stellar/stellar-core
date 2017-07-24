@@ -208,7 +208,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            accountB->getAccount().balance += numSheepSend;
+            if (!accountB->addBalance(numSheepSend))
+            {
+                return eOfferCantConvert;
+            }
             accountB->storeChange(mDelta, db);
         }
         else
@@ -225,7 +228,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            accountB->getAccount().balance -= numWheatReceived;
+            if (!accountB->addBalance(-numWheatReceived))
+            {
+                return eOfferCantConvert;
+            }
             accountB->storeChange(mDelta, db);
         }
         else

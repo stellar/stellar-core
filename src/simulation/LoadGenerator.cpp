@@ -762,10 +762,7 @@ LoadGenerator::AccountInfo::debitDirectly(Application& app, int64_t debitAmount)
     }
     AccountEntry& account = existing->getAccount();
     auto ledger = app.getLedgerManager().getLedgerNum();
-    if (account.balance >= debitAmount)
-    {
-        account.balance -= debitAmount;
-    }
+    existing->addBalance(-debitAmount); // it can fail, we don't care here
     account.seqNum++;
     existing->touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),

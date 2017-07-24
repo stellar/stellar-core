@@ -67,8 +67,10 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
-            mSourceAccount->getAccount().balance -=
-                mCreateAccount.startingBalance;
+            auto ok =
+                mSourceAccount->addBalance(-mCreateAccount.startingBalance);
+            assert(ok);
+
             mSourceAccount->storeChange(delta, db);
 
             destAccount = make_shared<AccountFrame>(mCreateAccount.destination);

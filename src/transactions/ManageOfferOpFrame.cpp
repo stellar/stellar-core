@@ -304,7 +304,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             // here as OfferExchange won't cross offers from source account
             if (wheat.type() == ASSET_TYPE_NATIVE)
             {
-                mSourceAccount->getAccount().balance += wheatReceived;
+                if (!mSourceAccount->addBalance(wheatReceived))
+                {
+                    // this would indicate a bug in OfferExchange
+                    throw std::runtime_error("offer claimed over limit");
+                }
+
                 mSourceAccount->storeChange(delta, db);
             }
             else
@@ -320,7 +325,11 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
             if (sheep.type() == ASSET_TYPE_NATIVE)
             {
-                mSourceAccount->getAccount().balance -= sheepSent;
+                if (!mSourceAccount->addBalance(-sheepSent))
+                {
+                    // this would indicate a bug in OfferExchange
+                    throw std::runtime_error("offer sold more than balance");
+                }
                 mSourceAccount->storeChange(delta, db);
             }
             else

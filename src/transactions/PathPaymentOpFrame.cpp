@@ -82,7 +82,15 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     // update last balance in the chain
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        destination->getAccount().balance += curBReceived;
+        if (!destination->addBalance(curBReceived))
+        {
+            app.getMetrics()
+                .NewMeter({"op-path-payment", "invalid", "balance-overflow"},
+                          "operation")
+                .Mark();
+            innerResult().code(PATH_PAYMENT_MALFORMED);
+            return false;
+        }
         destination->storeChange(delta, db);
     }
     else
@@ -274,7 +282,8 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        sourceAccount->getAccount().balance -= curBSent;
+        auto ok = sourceAccount->addBalance(-curBSent);
+        assert(ok);
         sourceAccount->storeChange(delta, db);
     }
     else

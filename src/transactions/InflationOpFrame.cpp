@@ -76,7 +76,7 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
         INFLATION_NUM_WINNERS, db);
 
     auto inflationAmount = bigDivide(lcl.totalCoins, INFLATION_RATE_TRILLIONTHS,
-                                  TRILLION, ROUND_DOWN);
+                                     TRILLION, ROUND_DOWN);
     auto amountToDole = inflationAmount + lcl.feePool;
 
     lcl.feePool = 0;
@@ -108,7 +108,10 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
             {
                 lcl.totalCoins += toDoleThisWinner;
             }
-            winner->getAccount().balance += toDoleThisWinner;
+            if (!winner->addBalance(toDoleThisWinner))
+            {
+                throw std::runtime_error("inflation overflowed destination balance");
+            }
             winner->storeChange(inflationDelta, db);
             payouts.emplace_back(w.mInflationDest, toDoleThisWinner);
         }

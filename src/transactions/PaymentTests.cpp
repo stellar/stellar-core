@@ -1437,8 +1437,10 @@ TEST_CASE("payment", "[tx][payment]")
 
             SECTION("dest amount too big")
             {
-                root.pay(a1, xlmCur, 20, xlmCur,
-                         std::numeric_limits<int64_t>::max(), {});
+                REQUIRE_THROWS_AS(
+                    root.pay(a1, xlmCur, 20, xlmCur,
+                             std::numeric_limits<int64_t>::max(), {}),
+                    ex_PATH_PAYMENT_MALFORMED);
             }
 
             SECTION("send with path (takes own offer)")

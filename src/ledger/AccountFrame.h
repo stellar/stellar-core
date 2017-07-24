@@ -64,6 +64,9 @@ class AccountFrame : public EntryFrame
     // actual balance for the account
     int64_t getBalance() const;
 
+    // update balance for account
+    bool addBalance(int64_t delta);
+
     // reserve balance that the account must always hold
     int64_t getMinimumBalance(LedgerManager const& lm) const;
 

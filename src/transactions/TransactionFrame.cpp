@@ -324,13 +324,8 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
 
     if (fee > 0)
     {
-        int64_t avail = mSigningAccount->getAccount().balance;
-        if (avail < fee)
-        {
-            // take all their balance to be safe
-            fee = avail;
-        }
-        mSigningAccount->getAccount().balance -= fee;
+        fee = std::min(mSigningAccount->getAccount().balance, fee);
+        mSigningAccount->addBalance(-fee);
         delta.getHeader().feePool += fee;
     }
     if (mSigningAccount->getSeqNum() + 1 != mEnvelope.tx.seqNum)
@@ -430,7 +425,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
- 
+
         if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
         {
             res = false;

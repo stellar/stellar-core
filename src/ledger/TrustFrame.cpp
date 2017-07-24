@@ -114,11 +114,7 @@ TrustFrame::setAuthorized(bool authorized)
 bool
 TrustFrame::addBalance(int64_t delta)
 {
-    if (mIsIssuer)
-    {
-        return true;
-    }
-    if (delta == 0)
+    if (mIsIssuer || delta == 0)
     {
         return true;
     }
@@ -126,16 +122,7 @@ TrustFrame::addBalance(int64_t delta)
     {
         return false;
     }
-    if (mTrustLine.limit < delta + mTrustLine.balance)
-    {
-        return false;
-    }
-    if ((delta + mTrustLine.balance) < 0)
-    {
-        return false;
-    }
-    mTrustLine.balance += delta;
-    return true;
+    return stellar::addBalance(mTrustLine.balance, delta, mTrustLine.limit);
 }
 
 int64_t
