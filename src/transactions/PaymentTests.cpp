@@ -1435,6 +1435,12 @@ TEST_CASE("payment", "[tx][payment]")
                 }
             }
 
+            SECTION("dest amount too big")
+            {
+                root.pay(a1, xlmCur, 20, xlmCur,
+                         std::numeric_limits<int64_t>::max(), {});
+            }
+
             SECTION("send with path (takes own offer)")
             {
                 // raise A1's balance by what we're trying to send
