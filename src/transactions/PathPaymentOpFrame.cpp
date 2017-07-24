@@ -193,6 +193,9 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                 }
                 return OfferExchange::eKeep;
             });
+
+        assert(curASent >= 0);
+
         switch (r)
         {
         case OfferExchange::eFilterStop:

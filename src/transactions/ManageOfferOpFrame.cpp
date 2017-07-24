@@ -276,6 +276,8 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return OfferExchange::eKeep;
             });
 
+        assert(sheepSent >= 0);
+
         switch (r)
         {
         case OfferExchange::eOK:
