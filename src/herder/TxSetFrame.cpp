@@ -61,8 +61,8 @@ TxSetFrame::sortForHash()
 // This way people can't predict the order that txs will be applied in
 struct ApplyTxSorter
 {
-    Hash const& mSetHash;
-    ApplyTxSorter(Hash const& h) : mSetHash(h)
+    Hash mSetHash;
+    ApplyTxSorter(Hash h) : mSetHash{std::move(h)}
     {
     }
 
