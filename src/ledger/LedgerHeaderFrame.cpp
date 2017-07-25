@@ -86,9 +86,11 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
     // note: columns other than "data" are there to faciliate lookup/processing
     auto prep = db.getPreparedStatement(
         "INSERT INTO ledgerheaders "
-        "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data) "
-        "VALUES "
-        "(:h,        :ph,      :blh,            :seq,     :ct,       :data)");
+        "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data, totalcoins, feepool, totalbalance) "
+        "SELECT "
+        ":h,        :ph,      :blh,            :seq,     :ct,       :data,    :totc,   :feep,   SUM(balance) "
+        "from accounts"
+        );
     auto& st = prep.statement();
     st.exchange(use(hash));
     st.exchange(use(prevHash));
@@ -96,6 +98,8 @@ LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
     st.exchange(use(mHeader.ledgerSeq));
     st.exchange(use(mHeader.scpValue.closeTime));
     st.exchange(use(headerEncoded));
+    st.exchange(use(mHeader.totalCoins));
+    st.exchange(use(mHeader.feePool));
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("ledger-header");
@@ -236,7 +240,10 @@ LedgerHeaderFrame::dropAll(Database& db)
                        "bucketlisthash  CHARACTER(64) NOT NULL,"
                        "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
                        "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
-                       "data            TEXT NOT NULL"
+                       "data            TEXT NOT NULL,"
+                       "totalcoins      BIGINT       NOT NULL CHECK (totalcoins >= 0),"
+                       "feepool         BIGINT       NOT NULL CHECK (feepool >= 0),"
+                       "totalbalance    BIGINT       NOT NULL CHECK (totalbalance >= 0)"
                        ");";
 
     db.getSession()
