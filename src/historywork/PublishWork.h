@@ -14,6 +14,7 @@ struct StateSnapshot;
 class PublishWork : public Work
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
+    std::vector<std::string> mOriginalBuckets;
 
     std::shared_ptr<Work> mResolveSnapshotWork;
     std::shared_ptr<Work> mWriteSnapshotWork;

@@ -308,7 +308,7 @@ class HistoryManager
     // configured archives published correctly; if so the snapshot
     // can be dequeued, otherwise it should remain and be tried again
     // later.
-    virtual void historyPublished(uint32_t ledgerSeq, bool success) = 0;
+    virtual void historyPublished(uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets, bool success) = 0;
 
     virtual void downloadMissingBuckets(
         HistoryArchiveState desiredState,

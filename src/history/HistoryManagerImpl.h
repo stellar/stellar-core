@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/PublishQueueBuckets.h"
 #include "history/HistoryManager.h"
 #include "util/TmpDir.h"
 #include <memory>
@@ -24,6 +25,8 @@ class HistoryManagerImpl : public HistoryManager
     Application& mApp;
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<Work> mPublishWork;
+    PublishQueueBuckets mPublishQueueBuckets;
+    bool mPublishQueueBucketsFilled {false};
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -31,6 +34,8 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mPublishStart;
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
+
+    std::vector<std::string> loadBucketsReferencedByPublishQueue();
 
   public:
     HistoryManagerImpl(Application& app);
@@ -69,7 +74,7 @@ class HistoryManagerImpl : public HistoryManager
 
     std::vector<HistoryArchiveState> getPublishQueueStates();
 
-    void historyPublished(uint32_t ledgerSeq, bool success) override;
+    void historyPublished(uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets, bool success) override;
 
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,

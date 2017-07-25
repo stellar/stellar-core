@@ -20,6 +20,7 @@ PublishWork::PublishWork(Application& app, WorkParent& parent,
     : Work(app, parent,
            fmt::format("publish-{:08x}", snapshot->mLocalState.currentLedger))
     , mSnapshot(snapshot)
+    , mOriginalBuckets(mSnapshot->mLocalState.allBuckets())
 {
 }
 
@@ -87,15 +88,19 @@ PublishWork::onSuccess()
         return WORK_PENDING;
     }
 
+    // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change
+    // in meantime
     mApp.getHistoryManager().historyPublished(
-        mSnapshot->mLocalState.currentLedger, true);
+        mSnapshot->mLocalState.currentLedger, mOriginalBuckets, true);
     return WORK_SUCCESS;
 }
 
 void
 PublishWork::onFailureRaise()
 {
+    // use mOriginalBuckets as mSnapshot->mLocalState.allBuckets() could change
+    // in meantime
     mApp.getHistoryManager().historyPublished(
-        mSnapshot->mLocalState.currentLedger, false);
+        mSnapshot->mLocalState.currentLedger, mOriginalBuckets, false);
 }
 }
