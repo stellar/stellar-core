@@ -53,6 +53,8 @@ class OperationFrame
 
     OperationFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
+    OperationFrame(Operation&&, OperationResult&,
+                   TransactionFrame&) = delete;
     OperationFrame(OperationFrame const&) = delete;
 
     AccountFrame&

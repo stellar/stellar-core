@@ -17,7 +17,7 @@ class BucketDownloadWork : public Work
 {
   protected:
     HistoryArchiveState mLocalState;
-    std::unique_ptr<TmpDir> mDownloadDir;
+    std::shared_ptr<TmpDir const> mDownloadDir;
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
 
   public:

@@ -21,6 +21,8 @@ class PathPaymentOpFrame : public OperationFrame
   public:
     PathPaymentOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
+    PathPaymentOpFrame(Operation&&, OperationResult&,
+                       TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

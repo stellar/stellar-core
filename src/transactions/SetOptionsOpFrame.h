@@ -21,6 +21,8 @@ class SetOptionsOpFrame : public OperationFrame
   public:
     SetOptionsOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
+    SetOptionsOpFrame(Operation&&, OperationResult&,
+                      TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

@@ -5,6 +5,8 @@
 #pragma once
 
 #include "work/Work.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -14,13 +16,12 @@ class BucketLevel;
 class BucketList;
 class Bucket;
 struct HistoryArchiveState;
-struct LedgerHeaderHistoryEntry;
 
 class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     HistoryArchiveState& mApplyState;
-    LedgerHeaderHistoryEntry const& mFirstVerified;
+    LedgerHeaderHistoryEntry mFirstVerified;
 
     bool mApplying;
     size_t mLevel;
@@ -37,7 +38,7 @@ class ApplyBucketsWork : public Work
     ApplyBucketsWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      HistoryArchiveState& applyState,
-                     LedgerHeaderHistoryEntry const& firstVerified);
+                     LedgerHeaderHistoryEntry firstVerified);
     ~ApplyBucketsWork();
 
     void onReset() override;

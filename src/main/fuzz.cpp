@@ -53,6 +53,7 @@ struct CfgDirGuard
             fs::deltree(path);
         }
     }
+    CfgDirGuard(Config&&) = delete;
     CfgDirGuard(Config const& c) : mConfig(c)
     {
         clean(mConfig.BUCKET_DIR_PATH);

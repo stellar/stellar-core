@@ -10,7 +10,6 @@
 #include "main/Application.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
-#include "util/make_unique.h"
 
 namespace stellar
 {
@@ -30,7 +29,7 @@ FetchRecentQsetsWork::onReset()
     clearChildren();
     mDownloadSCPMessagesWork.reset();
     mDownloadDir =
-        make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
+        std::make_shared<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
 }
 
 void
@@ -65,7 +64,7 @@ FetchRecentQsetsWork::onSuccess()
         CLOG(INFO, "History") << "Downloading recent SCP messages: ["
                               << firstSeq << ", " << lastSeq << "]";
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_SCP, mDownloadDir);
         return WORK_PENDING;
     }
 

@@ -49,7 +49,7 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 }
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
+    Application& app, WorkParent& parent, std::shared_ptr<TmpDir const> downloadDir,
     uint32_t first, uint32_t last, bool manualCatchup,
     LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
@@ -97,7 +97,7 @@ VerifyLedgerChainWork::onReset()
 HistoryManager::VerifyHashStatus
 VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 {
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
+    FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
     XDRInputFileStream hdrIn;
     hdrIn.open(ft.localPath_nogz());
 

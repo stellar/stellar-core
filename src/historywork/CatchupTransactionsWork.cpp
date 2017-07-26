@@ -15,7 +15,7 @@ namespace stellar
 {
 
 CatchupTransactionsWork::CatchupTransactionsWork(
-    Application& app, WorkParent& parent, TmpDir& downloadDir,
+    Application& app, WorkParent& parent, std::shared_ptr<TmpDir const> downloadDir,
     uint32_t firstSeq, uint32_t lastSeq, bool manualCatchup,
     std::string catchupTypeName, std::string const& name, size_t maxRetries)
     : Work{app, parent, "catchup-transactions-" + name, maxRetries}

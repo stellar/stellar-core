@@ -90,7 +90,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -99,7 +99,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
         mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
             mLastVerified);
         return WORK_PENDING;
     }

@@ -18,7 +18,7 @@ class TmpDir;
 
 class ApplyLedgerChainWork : public Work
 {
-    TmpDir const& mDownloadDir;
+    std::shared_ptr<TmpDir const> mDownloadDir;
     uint32_t mFirstSeq;
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
@@ -33,7 +33,7 @@ class ApplyLedgerChainWork : public Work
 
   public:
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
-                         TmpDir const& downloadDir, uint32_t first,
+                         std::shared_ptr<TmpDir const> downloadDir, uint32_t first,
                          uint32_t last, LedgerHeaderHistoryEntry& lastApplied);
     std::string getStatus() const override;
     void onReset() override;

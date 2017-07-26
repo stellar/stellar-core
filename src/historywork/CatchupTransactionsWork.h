@@ -18,7 +18,7 @@ class CatchupTransactionsWork : public Work
 {
   public:
     CatchupTransactionsWork(Application& app, WorkParent& parent,
-                            TmpDir& downloadDir, uint32_t firstSeq,
+                            std::shared_ptr<TmpDir const> downloadDir, uint32_t firstSeq,
                             uint32_t lastSeq, bool manualCatchup,
                             std::string catchupTypeName,
                             std::string const& name, size_t maxRetries = 0);
@@ -36,7 +36,7 @@ class CatchupTransactionsWork : public Work
     std::shared_ptr<Work> mVerifyWork;
     std::shared_ptr<Work> mApplyWork;
 
-    TmpDir& mDownloadDir;
+    std::shared_ptr<TmpDir const> mDownloadDir;
     uint32_t mFirstSeq;
     uint32_t mLastSeq;
     bool mManualCatchup;

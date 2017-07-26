@@ -15,7 +15,7 @@ namespace stellar
 BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
                                      uint32_t first, uint32_t last,
                                      std::string const& type,
-                                     TmpDir const& downloadDir)
+                                     std::shared_ptr<TmpDir const> downloadDir)
     : Work(app, parent,
            fmt::format("batch-download-{:s}-{:08x}-{:08x}", type, first, last))
     , mFirst(first)
@@ -45,7 +45,7 @@ BatchDownloadWork::addNextDownloadWorker()
         return;
     }
 
-    FileTransferInfo ft(mDownloadDir, mFileType, mNext);
+    FileTransferInfo ft(*mDownloadDir, mFileType, mNext);
     if (fs::exists(ft.localPath_nogz()))
     {
         CLOG(DEBUG, "History") << "already have " << mFileType
