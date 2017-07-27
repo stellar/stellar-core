@@ -152,7 +152,7 @@ TEST_CASE("subwork items fail at the same time", "[work]")
         clock.crank();
     }
 
-    REQUIRE(w->mCount == 2);
+    REQUIRE(w->mCount == 1);
 }
 
 class WorkDoNothing : public Work
@@ -244,5 +244,5 @@ TEST_CASE("sub-subwork items succed at the same time", "[work]")
         }
     }
 
-    REQUIRE(work1->mCalledSuccessWithPendingSubwork);
+    REQUIRE(!work1->mCalledSuccessWithPendingSubwork);
 }

@@ -57,11 +57,6 @@ GetAndUnzipRemoteFileWork::onSuccess()
 {
     if (mGunzipFileWork)
     {
-        if (mGunzipFileWork->getState() != WORK_SUCCESS)
-        {
-            return WORK_PENDING;
-        }
-
         if (!fs::exists(mFt.localPath_nogz()))
         {
             CLOG(ERROR, "History") << "Downloading and unzipping "
