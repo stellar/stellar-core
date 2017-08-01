@@ -100,7 +100,8 @@ TEST_CASE("work steps", "[work]")
 class FailingWork : public Work
 {
   public:
-    FailingWork(Application& app, WorkParent& parent, std::string const& uniqueName)
+    FailingWork(Application& app, WorkParent& parent,
+                std::string const& uniqueName)
         : Work(app, parent, uniqueName, 0)
     {
     }
@@ -115,7 +116,7 @@ class FailingWork : public Work
 class WorkCountingOnFailureRaise : public Work
 {
   public:
-    int mCount {0};
+    int mCount{0};
 
     WorkCountingOnFailureRaise(Application& app, WorkParent& parent)
         : Work(app, parent, std::string("counting-on-complete"), 0)
@@ -158,7 +159,8 @@ TEST_CASE("subwork items fail at the same time", "[work]")
 class WorkDoNothing : public Work
 {
   public:
-    WorkDoNothing(Application& app, WorkParent& parent, std::string const& uniqueName)
+    WorkDoNothing(Application& app, WorkParent& parent,
+                  std::string const& uniqueName)
         : Work(app, parent, uniqueName, 0)
     {
     }
@@ -168,7 +170,8 @@ class WorkDoNothing : public Work
     {
     }
 
-    void forceSuccess()
+    void
+    forceSuccess()
     {
         callComplete()({});
     }
@@ -177,7 +180,8 @@ class WorkDoNothing : public Work
 class WorkWith2Subworks : public Work
 {
   public:
-    WorkWith2Subworks(Application& app, WorkParent& parent, std::string const& uniqueName)
+    WorkWith2Subworks(Application& app, WorkParent& parent,
+                      std::string const& uniqueName)
         : Work(app, parent, uniqueName, 0)
     {
     }
@@ -200,17 +204,20 @@ class WorkWith2Subworks : public Work
 
         if (mSecondSubwork)
         {
-            mCalledSuccessWithPendingSubwork = mCalledSuccessWithPendingSubwork || mSecondSubwork->getState() == WORK_PENDING;
+            mCalledSuccessWithPendingSubwork =
+                mCalledSuccessWithPendingSubwork ||
+                mSecondSubwork->getState() == WORK_PENDING;
             return WORK_SUCCESS;
         }
 
-        mSecondSubwork = addWork<WorkDoNothing>("second-subwork-of-" + getUniqueName());
+        mSecondSubwork =
+            addWork<WorkDoNothing>("second-subwork-of-" + getUniqueName());
         return WORK_PENDING;
     }
 
     std::shared_ptr<WorkDoNothing> mFirstSubwork;
     std::shared_ptr<WorkDoNothing> mSecondSubwork;
-    bool mCalledSuccessWithPendingSubwork {false};
+    bool mCalledSuccessWithPendingSubwork{false};
 };
 
 TEST_CASE("sub-subwork items succed at the same time", "[work]")
