@@ -2207,6 +2207,7 @@ class Callback : protected base::threading::ThreadSafe {
 class LogDispatchData {
  public:
   LogDispatchData() : m_logMessage(nullptr), m_dispatchAction(base::DispatchAction::None) {}
+  LogDispatchData(LogMessage* logMessage, base::DispatchAction dispatchAction) : m_logMessage(logMessage), m_dispatchAction(dispatchAction) {}
   inline const LogMessage* logMessage(void) const {
     return m_logMessage;
   }

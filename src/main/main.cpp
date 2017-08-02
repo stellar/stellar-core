@@ -586,6 +586,7 @@ main(int argc, char* const* argv)
             s += cfgFile + " found";
             throw std::invalid_argument(s);
         }
+        Logging::enableInMemoryLogging("test.log");
         Logging::setFmt(KeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 

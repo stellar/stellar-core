@@ -12,6 +12,8 @@
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead
 #include "lib/util/easylogging++.h"
+#include <memory>
+#include <utility>
 
 namespace stellar
 {
@@ -30,5 +32,45 @@ class Logging
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
     static void rotate();
+    static void enableInMemoryLogging();
 };
+
+class DispatchCallback : public el::base::DefaultLogDispatchCallback
+{
+public:
+    void handle(const el::LogDispatchData* handlePtr);
+};
+
+class MemoryHandler : public el::LogDispatchCallback
+{
+public:
+    MemoryHandler();
+
+    static MemoryHandler& getInstance();
+
+    void handle(const el::LogDispatchData* handlePtr);
+
+private:
+    size_t postIncrementIndex();
+
+    bool checkForPush(el::LogMessage& message);
+
+    void push();
+
+    void clear();
+
+    std::unique_ptr< std::pair< el::base::DispatchAction, std::unique_ptr<el::LogMessage> >[] > buffer;
+    size_t start;
+    size_t size;
+    size_t count;
+    el::Level pushLevel;
+    DispatchCallback dispatchCallback;
+};
+
+class StaticMemoryHandler : public el::LogDispatchCallback
+{
+protected:
+    void handle(const el::LogDispatchData* handlePtr);
+};
+
 }
