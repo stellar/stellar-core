@@ -8,6 +8,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/make_unique.h"
+#include "work/WorkManager.h"
 #include "work/WorkParent.h"
 
 #include "medida/meter.h"
@@ -137,15 +138,22 @@ Work::callComplete()
 void
 Work::scheduleRun()
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
+    mScheduled = true;
     mApp.getClock().getIOService().post([weak]() {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
+        self->mScheduled = false;
         self->run();
     });
 }
@@ -153,15 +161,22 @@ Work::scheduleRun()
 void
 Work::scheduleComplete(CompleteResult result)
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     std::weak_ptr<Work> weak(
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
+    mScheduled = true;
     mApp.getClock().getIOService().post([weak, result]() {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
+        self->mScheduled = false;
         self->complete(result);
     });
 }
@@ -169,6 +184,11 @@ Work::scheduleComplete(CompleteResult result)
 void
 Work::scheduleRetry()
 {
+    if (mScheduled)
+    {
+        return;
+    }
+
     if (getState() != WORK_FAILURE_RETRY)
     {
         std::string msg = fmt::format("retrying {} in state {}",
@@ -190,6 +210,7 @@ Work::scheduleRetry()
         << "Scheduling retry #" << (mRetries + 1) << "/" << mMaxRetries
         << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
         << " sec, for " << getUniqueName();
+    mScheduled = true;
     mRetryTimer->async_wait(
         [weak]() {
             auto self = weak.lock();
@@ -197,6 +218,7 @@ Work::scheduleRetry()
             {
                 return;
             }
+            self->mScheduled = false;
             self->mRetries++;
             self->reset();
             self->advance();

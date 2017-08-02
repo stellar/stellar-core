@@ -104,6 +104,7 @@ class Work : public WorkParent
     size_t mMaxRetries{RETRY_A_FEW};
     size_t mRetries{0};
     State mState{WORK_PENDING};
+    bool mScheduled {false};
 
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
