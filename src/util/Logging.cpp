@@ -4,8 +4,9 @@
 
 #include "util/Logging.h"
 #include "main/Application.h"
+#include "util/InMemoryLogHandler.h"
 #include "util/types.h"
-#include "util/Fs.h"
+#include <vector>
 
 /*
 Levels:
@@ -24,11 +25,14 @@ namespace
 {
 
 static const std::vector<std::string> loggers = {
-    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
-    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
+    "Fs",      "SCP",    "Bucket",    "Database", "History",
+    "Process", "Ledger", "Overlay",   "Herder",   "Tx",
+    "LoadGen", "Work",   "Invariant", "InMemory"};
 }
 
 el::Configurations Logging::gDefaultConf;
+
+const std::string Logging::inMemoryLoggerName = "InMemory";
 
 void
 Logging::setFmt(std::string const& peerID, bool timestamps)
@@ -38,7 +42,8 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
     {
         datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
     }
-    const std::string shortFmt = datetime + " " + peerID + " [%logger %level] %msg";
+    const std::string shortFmt =
+        datetime + " " + peerID + " [%logger %level] %msg";
     const std::string longFmt = shortFmt + " [%fbase:%line]";
 
     gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
@@ -231,108 +236,38 @@ Logging::rotate()
 }
 
 void
-Logging::enableInMemoryLogging()
+Logging::enableInMemoryLogging(const std::string& logFilename,
+                               const std::string& pushLevel)
 {
-    const std::string defaultMagicLogDispatchCallback = "DefaultLogDispatchCallback";
-    const std::string inMemoryHandlerName = "InMemoryHandler";
-    el::Helpers::uninstallLogDispatchCallback<el::base::DefaultLogDispatchCallback>(defaultMagicLogDispatchCallback);
-    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(inMemoryHandlerName);
-}
-
-MemoryHandler::MemoryHandler() : start(0), size(10), count(0), pushLevel(el::Level::Fatal)
-{
-    using namespace std;
-    buffer = unique_ptr<pair<el::base::DispatchAction, unique_ptr<el::LogMessage>>[]>(new pair<el::base::DispatchAction, unique_ptr<el::LogMessage> >[size]);
-}
-
-void
-MemoryHandler::handle(const el::LogDispatchData* handlePtr)
-{
-    using namespace std;
-    el::base::DispatchAction dispatchAction = handlePtr->dispatchAction();
-    el::LogMessage* tmpMsg = const_cast<el::LogMessage*>(handlePtr->logMessage());
-    auto messageData = new el::LogMessage(tmpMsg->level(),
-                                          tmpMsg->file(),
-                                          tmpMsg->line(),
-                                          tmpMsg->func(),
-                                          tmpMsg->verboseLevel(),
-                                          tmpMsg->logger());
-    size_t ix = postIncrementIndex();
-    buffer[ix] = std::make_pair(dispatchAction, unique_ptr<el::LogMessage>(messageData));
-    if (checkForPush(*messageData))
+    std::vector<std::string> loggers;
+    el::Loggers::populateAllLoggerIds(&loggers);
+    for (auto loggerId : loggers)
     {
-        push();
-        clear();
+        el::Logger* logger = el::Loggers::getLogger(loggerId);
+        el::Configurations* config = logger->configurations();
+        auto logLevel = el::LevelHelper::castToInt(getLogLevel(loggerId));
+        auto startLevel = el::LevelHelper::castToInt(el::Level::Trace);
+        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config,
+                                                    logLevel]() -> bool {
+            el::Level thisLevel = el::LevelHelper::castFromInt(startLevel);
+            config->set(thisLevel, el::ConfigurationType::Enabled, "true");
+            if (startLevel < logLevel)
+            {
+                config->set(thisLevel, el::ConfigurationType::ToStandardOutput,
+                            "false");
+                config->set(thisLevel, el::ConfigurationType::ToFile, "false");
+            }
+            return false;
+        });
+        logger->configure(*config);
     }
-}
 
-void
-MemoryHandler::push()
-{
-    using namespace std;
-    for (size_t i = 0; i < count; ++i) {
-        size_t ix = (start+i) % size;
-        pair< el::base::DispatchAction, unique_ptr<el::LogMessage> >& recordData = buffer[ix];
-        el::base::DispatchAction dispatchAction = recordData.first;
-        unique_ptr<el::LogMessage>& message = recordData.second;
-        el::LogDispatchData data(message.get(), dispatchAction);
-        dispatchCallback.handle(&data);
-        message.reset(nullptr);
-    }
-}
-
-void
-MemoryHandler::clear()
-{
-    start = 0;
-    count = 0;
-}
-
-
-bool
-MemoryHandler::checkForPush(el::LogMessage& message)
-{
-    if (message.level() == pushLevel)
+    if (!logFilename.empty())
     {
-        return true;
+        StaticMemoryHandler::setLogFilename(logFilename);
     }
-    else
-    {
-        return false;
-    }
+    StaticMemoryHandler::setPushLevel(pushLevel);
+    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(
+        inMemoryLoggerName);
 }
-
-size_t
-MemoryHandler::postIncrementIndex()
-{
-    size_t ix = (start + count) % size;
-    if (count < size)
-    {
-        count += 1;
-    }
-    else
-    {
-        start = start+1 % size;
-    }
-    return ix;
-}
-
-MemoryHandler&
-MemoryHandler::getInstance()
-{
-    static MemoryHandler instance;
-    return instance;
-}
-
-void
-StaticMemoryHandler::handle(const el::LogDispatchData* handlePtr)
-{
-    MemoryHandler::getInstance().handle(handlePtr);
-}
-
-void DispatchCallback::handle(const el::LogDispatchData* handlePtr)
-{
-    el::base::DefaultLogDispatchCallback::handle(handlePtr);
-}
-
 }
