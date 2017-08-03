@@ -739,9 +739,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     auto tx_a = a1.tx({payment(root, 1000)});
                     SECTION("one invalid tx")
                     {
-                        Asset idrCur = makeAsset(b1, "IDR");
+                        auto idr = b1.asset("IDR");
                         Price price(1, 1);
-                        auto tx_b = b1.tx({manageOffer(0, idrCur, idrCur,
+                        auto tx_b = b1.tx({manageOffer(0, idr, idr,
                                                          price, 1000)});
 
                         // build a new tx based off tx_a and tx_b

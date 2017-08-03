@@ -317,6 +317,14 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
 }
 
 Asset
+makeNativeAsset()
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_NATIVE);
+    return asset;
+}
+
+Asset
 makeAsset(SecretKey const& issuer, std::string const& code)
 {
     Asset asset;
@@ -445,7 +453,7 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
 
     auto& success = createOfferRes.success().offer;
     REQUIRE(success.effect() == expectedEffect);
-    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
                                                     : 0;
 }
 

@@ -10,6 +10,7 @@
 #include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -54,1159 +55,1021 @@ TEST_CASE("create offer", "[tx][offers]")
     const int64_t minBalance2 =
         app.getLedgerManager().getMinBalance(2) + 20 * txfee;
 
-    // sets up gateway account
-    auto gateway = root.create("gateway", minBalance2 * 10);
-
-    Asset xlmCur;
-    xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
-    Asset idrCur = makeAsset(gateway, "IDR");
-    Asset usdCur = makeAsset(gateway, "USD");
+    // sets up issuer account
+    auto issuer = root.create("issuer", minBalance2 * 10);
+    auto xlm = makeNativeAsset();
+    auto idr = issuer.asset("IDR");
+    auto usd = issuer.asset("USD");
 
     const Price oneone(1, 1);
-
-    SECTION("account a1 does not exist")
-    {
-        auto a1 = TestAccount{app, getAccount("a1"), 1};
-        for_all_versions(app, [&]{
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_txNO_ACCOUNT);
-        });
-    }
 
     SECTION("passive offer")
     {
         auto a1 = root.create("A", minBalance2 * 2);
         auto b1 = root.create("B", minBalance2 * 2);
 
-        a1.changeTrust(idrCur, trustLineLimit);
-        a1.changeTrust(usdCur, trustLineLimit);
-        b1.changeTrust(idrCur, trustLineLimit);
-        b1.changeTrust(usdCur, trustLineLimit);
+        a1.changeTrust(idr, trustLineLimit);
+        a1.changeTrust(usd, trustLineLimit);
+        b1.changeTrust(idr, trustLineLimit);
+        b1.changeTrust(usd, trustLineLimit);
 
-        gateway.pay(a1, idrCur, trustLineBalance);
-        gateway.pay(b1, usdCur, trustLineBalance);
+        issuer.pay(a1, idr, trustLineBalance);
+        issuer.pay(b1, usd, trustLineBalance);
 
-        auto firstOfferID = a1.manageOffer(0, idrCur, usdCur, oneone,
-                                            100 * assetMultiplier);
+        auto market = TestMarket{app};
+        auto firstOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(a1,
+                                   {idr, usd, oneone, 100 * assetMultiplier});
+        });
+        auto secondOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(
+                b1,
+                {usd, idr, oneone, 100 * assetMultiplier, OfferType::PASSIVE});
+        });
 
-        // offer2 is a passive offer
-        auto secondOfferID = b1.createPassiveOffer(
-            usdCur, idrCur, oneone, 100 * assetMultiplier);
-
-        REQUIRE(secondOfferID == (firstOfferID + 1));
-
-        // offer1 didn't change
-        auto offer = a1.loadOffer(firstOfferID);
-        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
-        REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
-
-        offer = b1.loadOffer(secondOfferID);
-        REQUIRE(offer->getAmount() == (100 * assetMultiplier));
-        REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
-
-        const Price highPrice(100, 99);
-        const Price lowPrice(99, 100);
-
-        SECTION("creates a passive offer with a better price")
+        SECTION("create a passive offer with a better price")
         {
-            for_all_versions(app, [&]{
-                auto thirdOfferID = b1.createPassiveOffer(
-                    usdCur, idrCur, lowPrice, 100 * assetMultiplier,
-                    MANAGE_OFFER_DELETED);
-
-                // offer1 is taken, offer3 was not created
-                REQUIRE(!a1.hasOffer(firstOfferID));
+            for_all_versions(app, [&] {
+                // firstOffer is taken, new offer was not created
+                market.requireChangesWithOffer(
+                    {{firstOffer.key, OfferState::DELETED}}, [&] {
+                        return market.addOffer(b1,
+                                               {usd, idr, Price{99, 100},
+                                                100 * assetMultiplier,
+                                                OfferType::PASSIVE},
+                                               OfferState::DELETED);
+                    });
             });
         }
-        SECTION("modify existing passive offer")
+        SECTION("modify existing passive offer with higher price")
         {
-            SECTION("modify high")
-            {
-                for_all_versions(app, [&]{
-                    b1.manageOffer(secondOfferID, usdCur, idrCur, highPrice,
-                                    100 * assetMultiplier,
-                                    MANAGE_OFFER_UPDATED);
-
-                    offer = a1.loadOffer(firstOfferID);
-                    REQUIRE(offer->getAmount() == (100 * assetMultiplier));
-                    REQUIRE((offer->getFlags() & PASSIVE_FLAG) == 0);
-
-                    offer = b1.loadOffer(secondOfferID);
-                    REQUIRE(offer->getAmount() == (100 * assetMultiplier));
-                    REQUIRE(offer->getPrice() == highPrice);
-                    REQUIRE((offer->getFlags() & PASSIVE_FLAG) != 0);
+            for_all_versions(app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(b1, secondOffer.key.offerID,
+                                              {usd, idr, Price{100, 99},
+                                               100 * assetMultiplier,
+                                               OfferType::PASSIVE});
                 });
-            }
-            SECTION("modify low")
-            {
-                for_all_versions(app, [&]{
-                    b1.manageOffer(secondOfferID, usdCur, idrCur, lowPrice,
-                                    100 * assetMultiplier,
-                                    MANAGE_OFFER_DELETED);
+            });
+        }
 
-                    REQUIRE(!a1.hasOffer(firstOfferID));
-                    REQUIRE(!b1.hasOffer(secondOfferID));
-                });
-            }
+        SECTION("modify existing passive offer with lower price")
+        {
+            for_all_versions(app, [&] {
+                // firstOffer is taken with updated offer
+                market.requireChangesWithOffer(
+                    {{firstOffer.key, OfferState::DELETED}}, [&] {
+                        return market.updateOffer(b1, secondOffer.key.offerID,
+                                                  {usd, idr, Price{99, 100},
+                                                   100 * assetMultiplier,
+                                                   OfferType::PASSIVE},
+                                                  OfferState::DELETED);
+                    });
+            });
         }
     }
 
-    SECTION("negative offer creation tests")
+    SECTION("create offer errors")
     {
-        for_all_versions(app, [&]{
-            auto a1 = root.create("A", minBalance2);
+        auto market = TestMarket{app};
 
-            // sell IDR for USD
-
-            // missing IDR trust
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_SELL_NO_TRUST);
-
-            // no issuer for selling
-            SecretKey gateway2 = getAccount("other gate");
-            Asset idrCur2 = makeAsset(gateway2, "IDR");
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur2, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_SELL_NO_ISSUER);
-
-            a1.changeTrust(idrCur, trustLineLimit);
-
-            // can't sell IDR if account doesn't have any
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_UNDERFUNDED);
-
-            // fund a1 with some IDR
-            gateway.pay(a1, idrCur, trustLineLimit);
-
-            // missing USD trust
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_BUY_NO_TRUST);
-
-            // no issuer for buying
-            Asset usdCur2 = makeAsset(gateway2, "USD");
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur2, oneone, 100),
-                ex_MANAGE_OFFER_BUY_NO_ISSUER);
-
-            a1.changeTrust(usdCur, trustLineLimit);
-
-            // need sufficient XLM funds to create an offer
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_LOW_RESERVE);
-
-            // add some funds to create the offer
-            root.pay(a1, minBalance2);
-
-            // can't receive more of what we're trying to buy
-            // first, fill the trust line to the limit
-            gateway.pay(a1, usdCur, trustLineLimit);
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_LINE_FULL);
-
-            // try to overflow
-            // first moves the limit and balance to INT64_MAX
-            a1.changeTrust(usdCur, INT64_MAX);
-            gateway.pay(a1, usdCur, INT64_MAX - trustLineLimit);
-
-            REQUIRE_THROWS_AS(
-                a1.manageOffer(0, idrCur, usdCur, oneone, 100),
-                ex_MANAGE_OFFER_LINE_FULL);
-
-            // offer with amount 0
-            if (app.getLedgerManager().getCurrentLedgerVersion() <= 2)
-            {
-                a1.manageOffer(0, idrCur, usdCur, oneone, 0,
-                                MANAGE_OFFER_DELETED);
-            }
-            else
-            {
+        SECTION("create offer without account")
+        {
+            auto a1 = TestAccount{app, getAccount("a1"), 1};
+            for_all_versions(app, [&] {
                 REQUIRE_THROWS_AS(
-                    a1.manageOffer(0, idrCur, usdCur, oneone, 0),
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_txNO_ACCOUNT);
+            });
+        }
+
+        SECTION("create offer without trustline for selling")
+        {
+            auto a1 = root.create("A", minBalance2);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_SELL_NO_TRUST);
+            });
+        }
+
+        SECTION("create offer without issuer for selling")
+        {
+            auto a1 = root.create("A", minBalance2);
+            auto fakeIssuer = getAccount("fakeIssuer");
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1,
+                                              {makeAsset(fakeIssuer, "IDR"),
+                                               usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_OFFER_SELL_NO_ISSUER);
+            });
+        }
+
+        SECTION("create offer without having any amount of asset")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_UNDERFUNDED);
+            });
+        }
+
+        SECTION("create offer without trustline for buying")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_BUY_NO_TRUST);
+            });
+        }
+
+        SECTION("create offer without issuer for buying")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            auto fakeIssuer = getAccount("fakeIssuer");
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.addOffer(
+                                              a1,
+                                              {idr,
+                                               makeAsset(fakeIssuer, "USD"),
+                                               oneone, 100});
+                                      }),
+                                  ex_MANAGE_OFFER_BUY_NO_ISSUER);
+            });
+        }
+
+        SECTION("create offer without XLM to make for reserve")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            a1.changeTrust(usd, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_LOW_RESERVE);
+            });
+        }
+
+        SECTION("create offer with trustline filled up")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            a1.changeTrust(usd, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            issuer.pay(a1, usd, trustLineLimit);
+            root.pay(a1, minBalance2);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_LINE_FULL);
+            });
+        }
+
+        SECTION("create offer with trustline filled up to INT64_MAX")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            a1.changeTrust(usd, INT64_MAX);
+            issuer.pay(a1, idr, trustLineLimit);
+            issuer.pay(a1, usd, INT64_MAX);
+            root.pay(a1, minBalance2);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 100});
+                        }),
+                    ex_MANAGE_OFFER_LINE_FULL);
+            });
+        }
+
+        SECTION("create offer with amount 0")
+        {
+            auto a1 = root.create("A", minBalance2);
+            a1.changeTrust(idr, trustLineLimit);
+            a1.changeTrust(usd, trustLineLimit);
+            issuer.pay(a1, idr, trustLineLimit);
+            issuer.pay(a1, usd, trustLineLimit);
+            root.pay(a1, minBalance2);
+            for_versions_to(2, app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(a1, {idr, usd, oneone, 0},
+                                           OfferState::DELETED);
+                });
+            });
+            for_versions_from(3, app, [&] {
+                REQUIRE_THROWS_AS(
+                    market.requireChangesWithOffer(
+                        {},
+                        [&] {
+                            return market.addOffer(a1, {idr, usd, oneone, 0});
+                        }),
                     ex_MANAGE_OFFER_NOT_FOUND);
-            }
+            });
+        }
 
-            // there should be no pending offer at this point in the system
-            OfferFrame offer;
-            for (int i = 0; i < 9; i++)
-            {
-                REQUIRE(!a1.hasOffer(i));
-            }
-        });
+        SECTION("create offer with invalid prices")
+        {
+            auto invalidPrices = std::vector<Price>{
+                Price{-1, -1}, Price{-1, 1}, Price{0, -1}, Price{-1, 0},
+                Price{0, 0},   Price{0, 1},  Price{1, -1}, Price{1, 0}};
+            for_all_versions(app, [&] {
+                auto a = root.create("A", minBalance2 * 2);
+                a.changeTrust(idr, trustLineLimit);
+                for (auto const& p : invalidPrices)
+                {
+                    REQUIRE_THROWS_AS(
+                        market.requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a, {xlm, idr, p, 150 * assetMultiplier});
+                            }),
+                        ex_MANAGE_OFFER_MALFORMED);
+                }
+            });
+        }
     }
 
-    SECTION("offer manipulation")
+    SECTION("update offer")
     {
-        for_all_versions(app, [&]{
-            const int64_t minBalanceA =
-                app.getLedgerManager().getMinBalance(3);
+        auto const minBalanceA = app.getLedgerManager().getMinBalance(3);
+        auto a1 = root.create("A", minBalanceA + 10000);
+        a1.changeTrust(usd, trustLineLimit);
+        a1.changeTrust(idr, trustLineLimit);
+        issuer.pay(a1, idr, trustLineBalance);
 
-            auto a1 = root.create("A", minBalanceA + 10000);
-
-            a1.changeTrust(usdCur, trustLineLimit);
-            a1.changeTrust(idrCur, trustLineLimit);
-            gateway.pay(a1, idrCur, trustLineBalance);
-
-            auto offerID = a1.manageOffer(0, idrCur, usdCur, oneone, 100);
-            auto orgOffer = a1.loadOffer(offerID);
-
-            SECTION("Cancel offer")
-            {
-                auto cancelCheck = [&]() {
-                    a1.manageOffer(offerID, idrCur, usdCur, oneone, 0,
-                                    MANAGE_OFFER_DELETED);
-
-                    REQUIRE(!a1.hasOffer(offerID));
-                };
-                SECTION("Typical")
-                {
-                    cancelCheck();
-                }
-                SECTION("selling trust line")
-                {
-                    // not having a balance should not stop deleting the
-                    // offer
-                    a1.pay(gateway, idrCur, trustLineBalance);
-                    SECTION("empty")
-                    {
-                        cancelCheck();
-                    }
-                    SECTION("Deleted trust line")
-                    {
-                        a1.changeTrust(idrCur, 0);
-                        cancelCheck();
-                    }
-                }
-                SECTION("buying trust line")
-                {
-                    SECTION("trust line full")
-                    {
-                        // having a trust line full should not stop from
-                        // deleting
-                        // the
-                        // offer
-                        gateway.pay(a1, usdCur, trustLineLimit);
-                        cancelCheck();
-                    }
-                    SECTION("Deleted trust line")
-                    {
-                        a1.changeTrust(usdCur, 0);
-                        cancelCheck();
-                    }
-                }
-            }
-            SECTION("negative tests (manipulation)")
-            {
-                SECTION("Delete non existant offer")
-                {
-                    auto bogusOfferID = offerID + 1;
-                    REQUIRE_THROWS_AS(a1.manageOffer(bogusOfferID, idrCur,
-                                                        usdCur, oneone, 0,
-                                                        MANAGE_OFFER_DELETED),
-                                        ex_MANAGE_OFFER_NOT_FOUND);
-                }
-            }
-            SECTION("Update price")
-            {
-                const Price onetwo(1, 2);
-                a1.manageOffer(offerID, idrCur, usdCur, onetwo, 100,
-                                MANAGE_OFFER_UPDATED);
-
-                auto modOffer = a1.loadOffer(offerID);
-                REQUIRE(modOffer->getOffer().price == onetwo);
-                modOffer->getOffer().price = oneone;
-                REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
-            }
-            SECTION("Update amount")
-            {
-                a1.manageOffer(offerID, idrCur, usdCur, oneone, 10,
-                                MANAGE_OFFER_UPDATED);
-
-                auto modOffer = a1.loadOffer(offerID);
-                REQUIRE(modOffer->getOffer().amount == 10);
-                modOffer->getOffer().amount = 100;
-                REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
-            }
-            SECTION("Update selling/buying assets")
-            {
-                // needs usdCur
-                gateway.pay(a1, usdCur, trustLineBalance);
-
-                // swap selling and buying
-                a1.manageOffer(offerID, usdCur, idrCur, oneone, 100,
-                                MANAGE_OFFER_UPDATED);
-
-                auto modOffer = a1.loadOffer(offerID);
-                REQUIRE(modOffer->getOffer().selling == usdCur);
-                REQUIRE(modOffer->getOffer().buying == idrCur);
-                std::swap(modOffer->getOffer().buying,
-                            modOffer->getOffer().selling);
-                REQUIRE(orgOffer->getOffer() == modOffer->getOffer());
-            }
+        auto market = TestMarket{app};
+        auto offer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(a1, {idr, usd, oneone, 100});
         });
+        auto cancelCheck = [&]() {
+            market.requireChangesWithOffer({}, [&] {
+                return market.updateOffer(a1, offer.key.offerID,
+                                          {idr, usd, oneone, 0},
+                                          OfferState::DELETED);
+            });
+        };
+
+        SECTION("cancel offer")
+        {
+            for_all_versions(app, [&] { cancelCheck(); });
+        }
+
+        SECTION("cancel offer with empty selling trust line")
+        {
+            for_all_versions(app, [&] {
+                a1.pay(issuer, idr, trustLineBalance);
+                cancelCheck();
+            });
+        }
+
+        SECTION("cancel offer with deleted selling trust line")
+        {
+            for_all_versions(app, [&] {
+                a1.pay(issuer, idr, trustLineBalance);
+                a1.changeTrust(idr, 0);
+                cancelCheck();
+            });
+        }
+
+        SECTION("cancel offer with full buying trust line")
+        {
+            for_all_versions(app, [&] {
+                issuer.pay(a1, usd, trustLineLimit);
+                cancelCheck();
+            });
+        }
+
+        SECTION("cancel offer with deleted buying trust line")
+        {
+            for_all_versions(app, [&] {
+                a1.changeTrust(usd, 0);
+                cancelCheck();
+            });
+        }
+
+        SECTION("update price")
+        {
+            for_all_versions(app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(a1, offer.key.offerID,
+                                              {idr, usd, Price{1, 2}, 100});
+                });
+            });
+        }
+        SECTION("update amount")
+        {
+            for_all_versions(app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(a1, offer.key.offerID,
+                                              {idr, usd, oneone, 10});
+                });
+            });
+        }
+        SECTION("update selling/buying assets")
+        {
+            for_all_versions(app, [&] {
+                // needs usd
+                issuer.pay(a1, usd, trustLineBalance);
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(a1, offer.key.offerID,
+                                              {usd, idr, oneone, 10});
+                });
+            });
+        }
+
+        SECTION("update non existent offer")
+        {
+            auto bogusOfferID = offer.key.offerID + 1;
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.updateOffer(
+                                              a1, bogusOfferID,
+                                              {idr, usd, oneone, 100});
+                                      }),
+                                  ex_MANAGE_OFFER_NOT_FOUND);
+            });
+        }
+
+        SECTION("delete non existent offer")
+        {
+            auto bogusOfferID = offer.key.offerID + 1;
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                      {},
+                                      [&] {
+                                          return market.updateOffer(
+                                              a1, bogusOfferID,
+                                              {idr, usd, oneone, 0});
+                                      }),
+                                  ex_MANAGE_OFFER_NOT_FOUND);
+            });
+        }
     }
 
-    // minimum balance to hold
-    // 2 trust lines and one offer
-    const int64_t minBalance3 = app.getLedgerManager().getMinBalance(3);
-
-    SECTION("a1 setup properly")
+    SECTION("create offer")
     {
-        for_all_versions(app, [&]{
-            OfferFrame::pointer offer;
+        auto const nbOffers = 22;
+        auto const minBalanceA =
+            app.getLedgerManager().getMinBalance(3 + nbOffers);
+        auto const minBalance3 = app.getLedgerManager().getMinBalance(3);
+        auto a1 = root.create("A", minBalanceA + 10000);
+        a1.changeTrust(usd, trustLineLimit);
+        a1.changeTrust(idr, trustLineLimit);
+        issuer.pay(a1, idr, trustLineBalance);
 
-            // fund a1 with some IDR and XLM
+        auto market = TestMarket{app};
 
-            const int nbOffers = 22;
+        SECTION("idr -> xlm")
+        {
+            for_all_versions(app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(
+                        a1, {xlm, idr, Price{3, 2}, 100 * assetMultiplier});
+                });
+            });
+        }
 
-            const int64_t minBalanceA =
-                app.getLedgerManager().getMinBalance(3 + nbOffers);
+        SECTION("xlm -> idr")
+        {
+            for_all_versions(app, [&] {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(
+                        a1, {idr, xlm, Price{3, 2}, 100 * assetMultiplier});
+                });
+            });
+        }
 
-            auto a1 = root.create("A", minBalanceA + 10000);
+        SECTION("multiple offers")
+        {
+            auto b1 = root.create("B", minBalance3 + 10000);
+            b1.changeTrust(idr, trustLineLimit);
+            b1.changeTrust(usd, trustLineLimit);
 
-            a1.changeTrust(usdCur, trustLineLimit);
-            a1.changeTrust(idrCur, trustLineLimit);
-            gateway.pay(a1, idrCur, trustLineBalance);
-            SECTION("Native offers")
+            auto const price = Price{3, 2};
+            auto exactCrossPrice = Price{2, 3};
+            auto offerState =
+                OfferState{idr, usd, price, 100 * assetMultiplier};
+            auto offers = std::vector<TestMarketOffer>{};
+            for (auto i = 0; i < nbOffers; i++)
             {
-                const Price somePrice(3, 2);
-                SECTION("IDR -> XLM")
-                {
-                    a1.manageOffer(0, xlmCur, idrCur, somePrice,
-                                    100 * assetMultiplier);
-                }
-                SECTION("XLM -> IDR")
-                {
-                    a1.manageOffer(0, idrCur, xlmCur, somePrice,
-                                    100 * assetMultiplier);
-                }
+                offers.push_back(market.requireChangesWithOffer(
+                    {}, [&] { return market.addOffer(a1, offerState); }));
             }
 
-            SECTION("multiple offers tests")
+            SECTION("offer does not cross")
             {
-                // create nbOffers
-                std::vector<uint64_t> a1OfferID;
-                const Price usdPriceOfferA(3, 2);
-
-                for (int i = 0; i < nbOffers; i++)
-                {
-
-                    // offer is sell 100 IDR for 150 USD; sell IRD @ 0.66 ->
-                    // buy USD
-                    // @
-                    // 1.5
-                    auto newOfferID =
-                        a1.manageOffer(0, idrCur, usdCur, usdPriceOfferA,
-                                        100 * assetMultiplier);
-
-                    offer = a1.loadOffer(newOfferID);
-
-                    a1OfferID.push_back(newOfferID);
-
-                    // verifies that the offer was created as expected
-                    REQUIRE(offer->getPrice() == usdPriceOfferA);
-                    REQUIRE(offer->getAmount() == 100 * assetMultiplier);
-                    REQUIRE(offer->getSelling().alphaNum4().assetCode ==
-                            idrCur.alphaNum4().assetCode);
-                    REQUIRE(offer->getBuying().alphaNum4().assetCode ==
-                            usdCur.alphaNum4().assetCode);
-                }
-
-                auto b1 = root.create("B", minBalance3 + 10000);
-
-                b1.changeTrust(idrCur, trustLineLimit);
-                b1.changeTrust(usdCur, trustLineLimit);
-
-                const Price twoone(2, 1);
-
-                SECTION("offer that doesn't cross")
-                {
-                    gateway.pay(b1, usdCur, 20000 * assetMultiplier);
-
+                for_all_versions(app, [&] {
+                    issuer.pay(b1, usd, 20000 * assetMultiplier);
                     // offer is sell 40 USD for 80 IDR ; sell USD @ 2
+                    market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(
+                            b1, {usd, idr, Price{2, 1}, 40 * assetMultiplier});
+                    });
+                });
+            }
 
-                    auto offerID = b1.manageOffer(0, usdCur, idrCur, twoone,
-                                                    40 * assetMultiplier);
-
-                    // verifies that the offer was created properly
-                    offer = b1.loadOffer(offerID);
-                    REQUIRE(offer->getPrice() == twoone);
-                    REQUIRE(offer->getAmount() == 40 * assetMultiplier);
-                    REQUIRE(offer->getBuying().alphaNum4().assetCode ==
-                            idrCur.alphaNum4().assetCode);
-                    REQUIRE(offer->getSelling().alphaNum4().assetCode ==
-                            usdCur.alphaNum4().assetCode);
-
-                    // and that a1 offers were not touched
-                    for (auto a1Offer : a1OfferID)
-                    {
-                        offer = a1.loadOffer(a1Offer);
-                        REQUIRE(offer->getPrice() == usdPriceOfferA);
-                        REQUIRE(offer->getAmount() ==
-                                100 * assetMultiplier);
-                        REQUIRE(offer->getBuying().alphaNum4().assetCode ==
-                                usdCur.alphaNum4().assetCode);
-                        REQUIRE(offer->getSelling().alphaNum4().assetCode ==
-                                idrCur.alphaNum4().assetCode);
-                    }
-                }
-
-                SECTION("Offer crossing own offer")
-                {
-                    gateway.pay(a1, usdCur, 20000 * assetMultiplier);
+            SECTION("offer crosses own")
+            {
+                for_all_versions(app, [&] {
+                    issuer.pay(a1, usd, 20000 * assetMultiplier);
 
                     // ensure we could receive proceeds from the offer
-                    a1.pay(gateway, idrCur, 100000 * assetMultiplier);
+                    a1.pay(issuer, idr, 100000 * assetMultiplier);
 
                     // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 /
-                    // buy IRD @
-                    // 0.66
-                    Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
+                    // buy IRD @ 0.66
+                    REQUIRE_THROWS_AS(market.requireChangesWithOffer(
+                                          {},
+                                          [&] {
+                                              return market.addOffer(
+                                                  a1,
+                                                  {usd, idr, exactCrossPrice,
+                                                   150 * assetMultiplier});
+                                          }),
+                                      ex_MANAGE_OFFER_CROSS_SELF);
+                });
+            }
 
-                    REQUIRE_THROWS_AS(a1.manageOffer(0, usdCur, idrCur,
-                                                        exactCross,
-                                                        150 * assetMultiplier),
-                                        ex_MANAGE_OFFER_CROSS_SELF);
-
-                    for (auto a1Offer : a1OfferID)
-                    {
-                        offer = a1.loadOffer(a1Offer);
-                        REQUIRE(offer->getPrice() == usdPriceOfferA);
-                        REQUIRE(offer->getAmount() ==
-                                100 * assetMultiplier);
-                        REQUIRE(offer->getBuying().alphaNum4().assetCode ==
-                                usdCur.alphaNum4().assetCode);
-                        REQUIRE(offer->getSelling().alphaNum4().assetCode ==
-                                idrCur.alphaNum4().assetCode);
-                    }
-                }
-
-                SECTION("Offer that crosses exactly")
-                {
-                    gateway.pay(b1, usdCur, 20000 * assetMultiplier);
+            SECTION("offer crosses and removes first")
+            {
+                for_all_versions(app, [&] {
+                    issuer.pay(b1, usd, 20000 * assetMultiplier);
 
                     // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
-                    // buy IRD @
-                    // 0.66
-                    Price exactCross(usdPriceOfferA.d, usdPriceOfferA.n);
+                    // buy IRD @ 0.66
+                    market.requireChangesWithOffer(
+                        {{offers[0].key, OfferState::DELETED}}, [&] {
+                            return market.addOffer(b1,
+                                                   {usd, idr, exactCrossPrice,
+                                                    150 * assetMultiplier},
+                                                   OfferState::DELETED);
+                        });
+                });
+            }
 
-                    b1.manageOffer(0, usdCur, idrCur, exactCross,
-                                    150 * assetMultiplier,
-                                    MANAGE_OFFER_DELETED);
+            SECTION("offer crosses, removes first six and changes seventh")
+            {
+                for_all_versions(app, [&] {
+                    issuer.pay(b1, usd, 20000 * assetMultiplier);
 
-                    // and the state of a1 offers
-                    for (int i = 0; i < nbOffers; i++)
-                    {
-                        uint64_t a1Offer = a1OfferID[i];
-
-                        if (i == 0)
-                        {
-                            // first offer was taken
-                            REQUIRE(!a1.hasOffer(a1Offer));
-                        }
-                        else
-                        {
-                            offer = a1.loadOffer(a1Offer);
-                            REQUIRE(offer->getPrice() == usdPriceOfferA);
-                            REQUIRE(offer->getAmount() ==
-                                    100 * assetMultiplier);
-                            REQUIRE(
-                                offer->getBuying().alphaNum4().assetCode ==
-                                usdCur.alphaNum4().assetCode);
-                            REQUIRE(
-                                offer->getSelling().alphaNum4().assetCode ==
-                                idrCur.alphaNum4().assetCode);
-                        }
-                    }
-                }
-
-                SECTION("crossing offers with rounding")
-                {
-                    auto bidAmount = 8224563625;
-                    auto bidPrice = Price{500, 2061}; // bid for 4.1220000
-                    auto askAmount = 2000000000;
-                    auto askPrice = Price{2551, 625}; // ask for 4.0816000
-
-                    auto askingOfferAccount =
-                        root.create("asking offer account", 10000000000);
-                    auto biddingOfferAccount =
-                        root.create("bidding offer account", 10000000000);
-                    askingOfferAccount.changeTrust(idrCur, trustLineLimit);
-                    biddingOfferAccount.changeTrust(idrCur, trustLineLimit);
-                    gateway.pay(askingOfferAccount, idrCur,
-                                trustLineBalance);
-
-                    SECTION("bid before ask uses bid price")
-                    {
-                        auto biddingOfferID =
-                            biddingOfferAccount.manageOffer(
-                                0, xlmCur, idrCur, bidPrice, bidAmount);
-                        auto askingOfferID = askingOfferAccount.manageOffer(
-                            0, idrCur, xlmCur, askPrice, askAmount);
-
-                        auto askingOffer =
-                            askingOfferAccount.loadOffer(askingOfferID)
-                                ->getOffer();
-
-                        if (app.getLedgerManager()
-                                .getCurrentLedgerVersion() <= 2)
-                        {
-                            auto biddingOffer =
-                                biddingOfferAccount
-                                    .loadOffer(biddingOfferID)
-                                    ->getOffer();
-                            REQUIRE(askingOffer.amount ==
-                                    4715278); // 8224563625 / 4.1220000 =
-                                                // 1995284722,22 = 2000000000
-                                                // - 4715278 (rounding down)
-                            REQUIRE(biddingOffer.amount ==
-                                    1); // rounding error, should be 0
-                        }
-                        else
-                        {
-                            REQUIRE(askingOffer.amount ==
-                                    4715277); // 8224563625 / 4.1220000 =
-                                                // 1995284722,22 = 2000000000
-                                                // - 4715277 (rounding up)
-                            REQUIRE(!biddingOfferAccount.hasOffer(
-                                biddingOfferID));
-                        }
-                    }
-
-                    SECTION("ask before bid uses ask price")
-                    {
-                        auto askingOfferID = askingOfferAccount.manageOffer(
-                            0, idrCur, xlmCur, askPrice, askAmount);
-                        auto biddingOfferID =
-                            biddingOfferAccount.manageOffer(
-                                0, xlmCur, idrCur, bidPrice, bidAmount);
-
-                        REQUIRE(
-                            !askingOfferAccount.hasOffer(askingOfferID));
-                        auto biddingOffer =
-                            biddingOfferAccount.loadOffer(biddingOfferID)
-                                ->getOffer();
-                        REQUIRE(biddingOffer.amount ==
-                                61363625); // 2000000000 * 4.0816000 =
-                                            // 8163200000 = 8224563625 -
-                                            // 61363625
-                    }
-                }
-
-                TrustFrame::pointer line;
-                line = loadTrustLine(a1, usdCur, app);
-                int64_t a1_usd = line->getBalance();
-
-                line = loadTrustLine(a1, idrCur, app);
-                int64_t a1_idr = line->getBalance();
-
-                const Price onetwo(1, 2);
-
-                SECTION(
-                    "Offer that takes multiple other offers and is cleared")
-                {
-                    gateway.pay(b1, usdCur, 20000 * assetMultiplier);
-
-                    line = loadTrustLine(b1, usdCur, app);
-                    int64_t b1_usd = line->getBalance();
-
-                    line = loadTrustLine(b1, idrCur, app);
-                    int64_t b1_idr = line->getBalance();
-
-                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
-                    b1.manageOffer(0, usdCur, idrCur, onetwo,
-                                    1010 * assetMultiplier,
-                                    MANAGE_OFFER_DELETED);
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            100000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            20000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
 
                     // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy
-                    // USD
-                    // @ 1.5
+                    // -> buy USD @ 1.5
                     // first 6 offers get taken for 6*150=900 USD, gets 600
-                    // IDR in
-                    // return
+                    // IDR in return
                     // offer #7 : has 110 USD available
                     //    -> can claim partial offer 100*110/150 = 73.333 ;
-                    //    ->
-                    //    26.66666
-                    //    left
+                    //    -> 26.66666 left
                     // 8 .. untouched
                     // the USDs were sold at the (better) rate found in the
-                    // original
-                    // offers
-                    int64_t usdRecv = 1010 * assetMultiplier;
+                    // original offers
 
-                    int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
+                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                    market.requireChangesWithOffer(
+                        {{offers[0].key, OfferState::DELETED},
+                         {offers[1].key, OfferState::DELETED},
+                         {offers[2].key, OfferState::DELETED},
+                         {offers[3].key, OfferState::DELETED},
+                         {offers[4].key, OfferState::DELETED},
+                         {offers[5].key, OfferState::DELETED},
+                         {offers[6].key, {idr, usd, price, 26666667}}},
+                        [&] {
+                            return market.addOffer(
+                                b1,
+                                {usd, idr, Price{1, 2}, 1010 * assetMultiplier},
+                                OfferState::DELETED);
+                        });
 
-                    for (int i = 0; i < nbOffers; i++)
-                    {
-                        uint64_t a1Offer = a1OfferID[i];
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            1010 * assetMultiplier);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            99326666667);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            18990 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
+                            673333333);
+                });
+            }
 
-                        if (i < 6)
-                        {
-                            // first 6 offers are taken
-                            REQUIRE(!a1.hasOffer(a1Offer));
-                        }
-                        else
-                        {
-                            // others are untouched
-                            offer = a1.loadOffer(a1Offer);
-                            REQUIRE(offer->getPrice() == usdPriceOfferA);
-                            REQUIRE(
-                                offer->getBuying().alphaNum4().assetCode ==
-                                usdCur.alphaNum4().assetCode);
-                            REQUIRE(
-                                offer->getSelling().alphaNum4().assetCode ==
-                                idrCur.alphaNum4().assetCode);
-                            if (i == 6)
-                            {
-                                int64_t expected =
-                                    100 * assetMultiplier -
-                                    (idrSend - 6 * 100 * assetMultiplier);
-                                checkAmounts(expected, offer->getAmount());
-                            }
-                            else
-                            {
-                                REQUIRE(offer->getAmount() ==
-                                        100 * assetMultiplier);
-                            }
-                        }
-                    }
+            SECTION("offer crosses, removes first six and changes seventh and "
+                    "then remains")
+            {
+                for_all_versions(app, [&] {
+                    issuer.pay(b1, usd, 20000 * assetMultiplier);
 
-                    // check balances
-                    line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(a1_usd + usdRecv, line->getBalance());
-
-                    line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(a1_idr - idrSend, line->getBalance());
-
-                    // buyer may have paid a bit more to cross offers
-                    line = loadTrustLine(b1, usdCur, app);
-                    checkAmounts(line->getBalance(), b1_usd - usdRecv);
-
-                    line = loadTrustLine(b1, idrCur, app);
-                    checkAmounts(line->getBalance(), b1_idr + idrSend);
-                }
-
-                SECTION("Trying to extract value from an offer")
-                {
-                    gateway.pay(b1, usdCur, 20000 * assetMultiplier);
-
-                    line = loadTrustLine(b1, usdCur, app);
-                    int64_t b1_usd = line->getBalance();
-
-                    line = loadTrustLine(b1, idrCur, app);
-                    int64_t b1_idr = line->getBalance();
-
-                    // the USDs were sold at the (better) rate found in the
-                    // original
-                    // offers
-                    int64_t usdRecv = 10 * assetMultiplier;
-
-                    int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
-
-                    for (int j = 0; j < 10; j++)
-                    {
-                        // offer is sell 1 USD for 0.5 IDR; sell USD @ 0.5
-
-                        b1.manageOffer(0, usdCur, idrCur, onetwo,
-                                        1 * assetMultiplier,
-                                        MANAGE_OFFER_DELETED);
-                    }
-
-                    for (int i = 0; i < nbOffers; i++)
-                    {
-                        uint64_t a1Offer = a1OfferID[i];
-
-                        offer = a1.loadOffer(a1Offer);
-
-                        REQUIRE(offer->getBuying().alphaNum4().assetCode ==
-                                usdCur.alphaNum4().assetCode);
-                        REQUIRE(offer->getSelling().alphaNum4().assetCode ==
-                                idrCur.alphaNum4().assetCode);
-
-                        if (i == 0)
-                        {
-                            int64_t expected =
-                                100 * assetMultiplier - idrSend;
-                            checkAmounts(expected, offer->getAmount(), 10);
-                        }
-                        else
-                        {
-                            REQUIRE(offer->getAmount() ==
-                                    100 * assetMultiplier);
-                        }
-                    }
-
-                    // check balances
-
-                    line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(a1_usd + usdRecv, line->getBalance(), 10);
-
-                    line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(a1_idr - idrSend, line->getBalance(), 10);
-
-                    line = loadTrustLine(b1, usdCur, app);
-                    checkAmounts(line->getBalance(), b1_usd - usdRecv, 10);
-
-                    line = loadTrustLine(b1, idrCur, app);
-                    checkAmounts(line->getBalance(), b1_idr + idrSend, 10);
-                }
-
-                SECTION(
-                    "Offer that takes multiple other offers and remains")
-                {
-                    gateway.pay(b1, usdCur, 20000 * assetMultiplier);
-
-                    line = loadTrustLine(b1, usdCur, app);
-                    int64_t b1_usd = line->getBalance();
-
-                    line = loadTrustLine(b1, idrCur, app);
-                    int64_t b1_idr = line->getBalance();
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            100000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            20000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
 
                     auto c1 = root.create("C", minBalance3 + 10000);
 
                     // inject also an offer that should get cleaned up
-                    uint64_t cOfferID = 0;
-                    {
-                        c1.changeTrust(idrCur, trustLineLimit);
-                        c1.changeTrust(usdCur, trustLineLimit);
-                        gateway.pay(c1, idrCur, 20000 * assetMultiplier);
+                    c1.changeTrust(idr, trustLineLimit);
+                    c1.changeTrust(usd, trustLineLimit);
+                    issuer.pay(c1, idr, 20000 * assetMultiplier);
 
-                        // matches the offer from A
-                        cOfferID = c1.manageOffer(0, idrCur, usdCur,
-                                                    usdPriceOfferA,
-                                                    100 * assetMultiplier);
-                        // drain account
-                        c1.pay(gateway, idrCur, 20000 * assetMultiplier);
-                        // offer should still be there
-                        REQUIRE(c1.hasOffer(cOfferID));
-                    }
+                    // matches the offer from A
+                    auto cOffer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(
+                            c1, {idr, usd, price, 100 * assetMultiplier});
+                    });
+                    // drain account
+                    c1.pay(issuer, idr, 20000 * assetMultiplier);
+                    // offer should still be there
+                    market.checkCurrentOffers();
 
                     // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
 
-                    int64_t usdBalanceForSale = 10000 * assetMultiplier;
-                    auto offerID = b1.manageOffer(0, usdCur, idrCur, onetwo,
-                                                    usdBalanceForSale);
-
-                    offer = b1.loadOffer(offerID);
-
-                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
-                    // -> buy
-                    // USD
-                    // @ 1.5
-                    int64_t usdRecv = 150 * assetMultiplier * nbOffers;
-                    int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
-
-                    int64_t expected = usdBalanceForSale - usdRecv;
-
-                    checkAmounts(expected, offer->getAmount());
-
-                    // check that the bogus offer was cleared
-                    REQUIRE(!c1.hasOffer(cOfferID));
-
-                    for (int i = 0; i < nbOffers; i++)
+                    auto usdBalanceForSale = 10000000000;
+                    auto usdBalanceRemaining = 6700000000;
+                    auto offerPosted =
+                        OfferState{usd, idr, Price{1, 2}, usdBalanceForSale};
+                    auto offerRemaining =
+                        OfferState{usd, idr, Price{1, 2}, usdBalanceRemaining};
+                    auto removed = std::vector<TestMarketOffer>{};
+                    for (auto o : offers)
                     {
-                        uint64_t a1Offer = a1OfferID[i];
-                        REQUIRE(!a1.hasOffer(a1Offer));
+                        removed.push_back({o.key, OfferState::DELETED});
                     }
+                    // c1 has no idr to support that offer
+                    removed.push_back({cOffer.key, OfferState::DELETED});
+                    auto offer = market.requireChangesWithOffer(removed, [&] {
+                        return market.addOffer(b1, offerPosted, offerRemaining);
+                    });
+
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            3300000000);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            97800000000);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            16700000000);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
+                            2200000000);
+                });
+            }
+
+            SECTION("multiple offers with small amount crosses")
+            {
+                for_all_versions(app, [&] {
+                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            100000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            20000 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
+
+                    auto offerPosted =
+                        OfferState{usd, idr, Price{1, 2}, 1 * assetMultiplier};
+                    auto offerChanged =
+                        OfferState{idr, usd, price, 100 * assetMultiplier};
+                    for (auto i = 0; i < 10; i++)
+                    {
+                        offerChanged.amount -= 666666;
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, offerChanged}}, [&] {
+                                return market.addOffer(b1, offerPosted,
+                                                       OfferState::DELETED);
+                            });
+                    }
+
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            10000000);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            99993333340);
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            19990000000);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
+                            6666660);
+                });
+            }
+        }
+
+        SECTION("offers with limits")
+        {
+            auto const price = Price{3, 2};
+            auto b1 = root.create("B", minBalance3 + 10000);
+            b1.changeTrust(idr, trustLineLimit);
+            b1.changeTrust(usd, trustLineLimit);
+
+            // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell
+            // IRD @ 0.66
+            auto offerA1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    a1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+            });
+
+            // b1 sells the same thing
+            issuer.pay(b1, idr, trustLineBalance);
+            auto offerB1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    b1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+            });
+
+            auto c1 = root.create("C", minBalanceA + 10000);
+            c1.changeTrust(usd, trustLineLimit);
+            c1.changeTrust(idr, trustLineLimit);
+            issuer.pay(c1, usd, trustLineBalance);
+
+            SECTION("creates an offer but reaches limit while selling")
+            {
+                for_all_versions(app, [&] {
+                    // fund C such that it's 150 IDR below its limit
+                    issuer.pay(c1, idr, trustLineLimit - 150 * assetMultiplier);
+
+                    // try to create an offer:
+                    // it will cross with the offers from A and B but
+                    // will stop when C1's limit is reached.
+                    // it should still be able to buy 150 IDR / sell 225
+                    // USD
+
+                    // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66
+                    // USD
+                    // -> sell USD @ 1.5 IDR
+                    auto offerChanged = OfferState{idr, usd, price, 50000000};
+                    market.requireChangesWithOffer(
+                        {{offerA1.key, OfferState::DELETED},
+                         {offerB1.key, offerChanged}},
+                        [&] {
+                            return market.addOffer(
+                                c1,
+                                {usd, idr, Price{2, 3}, 300 * assetMultiplier},
+                                OfferState::DELETED);
+                        });
+
+                    // A1's offer was taken entirely
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            150000000);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            99900000000);
+
+                    // B1's offer was partially taken
+                    // buyer may have paid a bit more to cross offers
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            75000000);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
+                            99950000000);
+
+                    // C1
+                    REQUIRE(loadTrustLine(c1, usd, app)->getBalance() ==
+                            99775000000);
+                    REQUIRE(loadTrustLine(c1, idr, app)->getBalance() ==
+                            1000000000000);
+                });
+            }
+
+            SECTION("creates an offer but top seller is not authorized")
+            {
+                for_all_versions(app, [&] {
+                    // sets up the secure issuer account for USD
+                    auto issuerAuth = root.create("issuerAuth", minBalance2);
+
+                    auto usdAuth = issuerAuth.asset("USD");
+                    auto idrAuth = issuerAuth.asset("IDR");
+
+                    uint32_t setFlags =
+                        AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
+                    issuerAuth.setOptions(nullptr, &setFlags, nullptr, nullptr,
+                                          nullptr, nullptr);
+
+                    // setup d1
+                    auto d1 = root.create("D", minBalance3 + 10000);
+
+                    d1.changeTrust(idrAuth, trustLineLimit);
+                    d1.changeTrust(usdAuth, trustLineLimit);
+
+                    issuerAuth.allowTrust(usdAuth, d1);
+                    issuerAuth.allowTrust(idrAuth, d1);
+
+                    issuerAuth.pay(d1, idrAuth, trustLineBalance);
+
+                    // offer is sell 100 IDR for 150 USD; buy USD @
+                    // 1.5 = sell IRD @ 0.66
+                    auto offerD1 = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(d1,
+                                               {idrAuth, usdAuth, Price{3, 2},
+                                                100 * assetMultiplier});
+                    });
+
+                    SECTION("D not authorized to hold USD")
+                    {
+                        issuerAuth.denyTrust(usdAuth, d1);
+                    }
+                    SECTION("D not authorized to send IDR")
+                    {
+                        issuerAuth.denyTrust(idrAuth, d1);
+                    }
+
+                    // setup e1
+                    auto e1 = root.create("E", minBalance3 + 10000);
+
+                    e1.changeTrust(idrAuth, trustLineLimit);
+                    e1.changeTrust(usdAuth, trustLineLimit);
+
+                    issuerAuth.allowTrust(usdAuth, e1);
+                    issuerAuth.allowTrust(idrAuth, e1);
+
+                    issuerAuth.pay(e1, idrAuth, trustLineBalance);
+
+                    auto offerE1 = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(e1,
+                                               {idrAuth, usdAuth, Price{3, 2},
+                                                100 * assetMultiplier});
+                    });
+
+                    // setup f1
+                    auto f1 = root.create("F", minBalance3 + 10000);
+
+                    f1.changeTrust(idrAuth, trustLineLimit);
+                    f1.changeTrust(usdAuth, trustLineLimit);
+
+                    issuerAuth.allowTrust(usdAuth, f1);
+                    issuerAuth.allowTrust(idrAuth, f1);
+
+                    issuerAuth.pay(f1, usdAuth, trustLineBalance);
+
+                    // try to create an offer:
+                    // it will cross with the offer from E and skip
+                    // the / offer from D it should still be able to buy 100
+                    // IDR
+                    // / sell
+                    // 150 USD
+
+                    // offer is buy 200 IDR for 300 USD; buy IDR @
+                    // 0.66 USD -> sell USD @ 1.5 IDR
+                    auto offerPosted = OfferState{usdAuth, idrAuth, Price{2, 3},
+                                                  300 * assetMultiplier};
+                    auto offerRemaining = OfferState{
+                        usdAuth, idrAuth, Price{2, 3}, 150 * assetMultiplier};
+                    auto offerF1 = market.requireChangesWithOffer(
+                        {{offerD1.key, OfferState::DELETED},
+                         {offerE1.key, OfferState::DELETED}},
+                        [&] {
+                            return market.addOffer(f1, offerPosted,
+                                                   offerRemaining);
+                        });
+                    // offer created would be buy 100 IDR for 150
+                    // USD ; 0.66
+
+                    // D1's offer was deleted
+                    REQUIRE(loadTrustLine(d1, usdAuth, app)->getBalance() == 0);
+                    REQUIRE(loadTrustLine(d1, idrAuth, app)->getBalance() ==
+                            100000000000);
+
+                    // E1's offer was taken
+                    REQUIRE(loadTrustLine(e1, usdAuth, app)->getBalance() ==
+                            150000000);
+                    REQUIRE(loadTrustLine(e1, idrAuth, app)->getBalance() ==
+                            99900000000);
+
+                    // F!
+                    REQUIRE(loadTrustLine(f1, usdAuth, app)->getBalance() ==
+                            99850000000);
+                    REQUIRE(loadTrustLine(f1, idrAuth, app)->getBalance() ==
+                            100000000);
+                });
+            }
+
+            SECTION("creates an offer but top seller reaches limit")
+            {
+                for_all_versions(app, [&] {
+                    // makes "A" only capable of holding 75 "USD"
+                    issuer.pay(a1, usd, trustLineLimit - 75 * assetMultiplier);
+
+                    // try to create an offer:
+                    // it will cross with the offer from B fully
+                    // but partially cross the offer from A
+                    // it should still be able to buy 150 IDR / sell
+                    // 225 USD
+
+                    // offer is buy 200 IDR for 300 USD; buy IDR @
+                    // 0.66 USD
+                    // -> sell USD @ 1.5 IDR
+                    auto offerPosted = OfferState{usd, idr, Price{2, 3},
+                                                  300 * assetMultiplier};
+                    auto offerRemaining =
+                        OfferState{usd, idr, Price{2, 3}, 75 * assetMultiplier};
+                    market.requireChangesWithOffer(
+                        {{offerA1.key, OfferState::DELETED},
+                         {offerB1.key, OfferState::DELETED}},
+                        [&] {
+                            return market.addOffer(c1, offerPosted,
+                                                   offerRemaining);
+                        });
+                    // offer created would be buy 50 IDR for 75 USD
+                    // ; 0.66
 
                     // check balances
-                    line = loadTrustLine(a1, usdCur, app);
-                    checkAmounts(a1_usd + usdRecv, line->getBalance());
 
-                    line = loadTrustLine(a1, idrCur, app);
-                    checkAmounts(a1_idr - idrSend, line->getBalance());
+                    // A1's offer was deleted
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            trustLineLimit);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            trustLineBalance - 50 * assetMultiplier);
 
-                    // buyer may have paid a bit more to cross offers
-                    line = loadTrustLine(b1, usdCur, app);
-                    checkAmounts(line->getBalance(), b1_usd - usdRecv);
+                    // B1's offer was taken
+                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
+                            150 * assetMultiplier);
+                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
+                            trustLineBalance - 100 * assetMultiplier);
 
-                    line = loadTrustLine(b1, idrCur, app);
-                    checkAmounts(line->getBalance(), b1_idr + idrSend);
-                }
+                    // C1
+                    REQUIRE(loadTrustLine(c1, usd, app)->getBalance() ==
+                            trustLineBalance - 225 * assetMultiplier);
+                    REQUIRE(loadTrustLine(c1, idr, app)->getBalance() ==
+                            150 * assetMultiplier);
+                });
             }
-            SECTION("limits and issuers")
+        }
+
+        SECTION("issuer offers")
+        {
+            auto offerA1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    a1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+            });
+
+            SECTION("issuer creates an offer, claimed by somebody else")
             {
-                const Price usdPriceOfferA(3, 2);
-                // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell
-                // IRD @
-                // 0.66
-                auto offerA1 =
-                    a1.manageOffer(0, idrCur, usdCur, usdPriceOfferA,
-                                    100 * assetMultiplier);
-
-                offer = a1.loadOffer(offerA1);
-
-                SECTION("multiple parties")
-                {
-                    // b1 sells the same thing
-                    auto b1 = root.create("B", minBalance3 + 10000);
-
-                    b1.changeTrust(idrCur, trustLineLimit);
-                    b1.changeTrust(usdCur, trustLineLimit);
-
-                    gateway.pay(b1, idrCur, trustLineBalance);
-
-                    auto offerB1 =
-                        b1.manageOffer(0, idrCur, usdCur, usdPriceOfferA,
-                                        100 * assetMultiplier);
-
-                    offer = b1.loadOffer(offerB1);
-
-                    auto c1 = root.create("C", minBalanceA + 10000);
-
-                    c1.changeTrust(usdCur, trustLineLimit);
-                    c1.changeTrust(idrCur, trustLineLimit);
-                    gateway.pay(c1, usdCur, trustLineBalance);
-
-                    SECTION(
-                        "Creates an offer but reaches limit while selling")
-                    {
-                        // fund C such that it's 150 IDR below its limit
-                        gateway.pay(c1, idrCur,
-                                    trustLineLimit - 150 * assetMultiplier);
-
-                        // try to create an offer:
-                        // it will cross with the offers from A and B but
-                        // will stop
-                        // when
-                        // C1's limit is reached.
-                        // it should still be able to buy 150 IDR / sell 225
-                        // USD
-
-                        // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66
-                        // USD
-                        // -> sell USD @ 1.5 IDR
-                        const Price idrPriceOfferC(2, 3);
-                        c1.manageOffer(0, usdCur, idrCur, idrPriceOfferC,
-                                        300 * assetMultiplier,
-                                        MANAGE_OFFER_DELETED);
-
-                        TrustFrame::pointer line;
-
-                        // check balances
-
-                        // A1's offer was taken entirely
-                        line = loadTrustLine(a1, usdCur, app);
-                        checkAmounts(150 * assetMultiplier,
-                                        line->getBalance());
-
-                        line = loadTrustLine(a1, idrCur, app);
-                        checkAmounts(trustLineBalance -
-                                            100 * assetMultiplier,
-                                        line->getBalance());
-
-                        // B1's offer was partially taken
-                        // buyer may have paid a bit more to cross offers
-                        line = loadTrustLine(b1, usdCur, app);
-                        checkAmounts(line->getBalance(),
-                                        75 * assetMultiplier);
-
-                        line = loadTrustLine(b1, idrCur, app);
-                        checkAmounts(line->getBalance(),
-                                        trustLineBalance -
-                                            50 * assetMultiplier);
-
-                        // C1
-                        line = loadTrustLine(c1, usdCur, app);
-                        checkAmounts(line->getBalance(),
-                                        trustLineBalance -
-                                            225 * assetMultiplier);
-
-                        line = loadTrustLine(c1, idrCur, app);
-                        checkAmounts(line->getBalance(), trustLineLimit);
-                    }
-                    SECTION("Create an offer, top seller has limits")
-                    {
-                        SECTION(
-                            "Creates an offer, top seller not authorized")
-                        {
-                            // sets up the secure gateway account for USD
-                            auto secgateway =
-                                root.create("secure", minBalance2);
-
-                            Asset secUsdCur = makeAsset(secgateway, "USD");
-                            Asset secIdrCur = makeAsset(secgateway, "IDR");
-
-                            uint32_t setFlags =
-                                AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
-                            secgateway.setOptions(nullptr, &setFlags,
-                                                    nullptr, nullptr, nullptr,
-                                                    nullptr);
-
-                            // setup d1
-                            auto d1 = root.create("D", minBalance3 + 10000);
-
-                            d1.changeTrust(secIdrCur, trustLineLimit);
-                            d1.changeTrust(secUsdCur, trustLineLimit);
-
-                            secgateway.allowTrust(secUsdCur, d1);
-                            secgateway.allowTrust(secIdrCur, d1);
-
-                            secgateway.pay(d1, secIdrCur, trustLineBalance);
-
-                            const Price usdPriceOfferD(3, 2);
-                            // offer is sell 100 IDR for 150 USD; buy USD @
-                            // 1.5 =
-                            // sell IRD @
-                            // 0.66
-                            auto offerD1 = d1.manageOffer(
-                                0, secIdrCur, secUsdCur, usdPriceOfferD,
-                                100 * assetMultiplier);
-
-                            SECTION("D not authorized to hold USD")
-                            {
-                                secgateway.denyTrust(secUsdCur, d1);
-                            }
-                            SECTION("D not authorized to send IDR")
-                            {
-                                secgateway.denyTrust(secIdrCur, d1);
-                            }
-
-                            // setup e1
-                            auto e1 = root.create("E", minBalance3 + 10000);
-
-                            e1.changeTrust(secIdrCur, trustLineLimit);
-                            e1.changeTrust(secUsdCur, trustLineLimit);
-
-                            secgateway.allowTrust(secUsdCur, e1);
-                            secgateway.allowTrust(secIdrCur, e1);
-
-                            secgateway.pay(e1, secIdrCur, trustLineBalance);
-
-                            auto offerE1 = e1.manageOffer(
-                                0, secIdrCur, secUsdCur, usdPriceOfferD,
-                                100 * assetMultiplier);
-
-                            // setup f1
-                            auto f1 = root.create("F", minBalance3 + 10000);
-
-                            f1.changeTrust(secIdrCur, trustLineLimit);
-                            f1.changeTrust(secUsdCur, trustLineLimit);
-
-                            secgateway.allowTrust(secUsdCur, f1);
-                            secgateway.allowTrust(secIdrCur, f1);
-
-                            secgateway.pay(f1, secUsdCur, trustLineBalance);
-
-                            // try to create an offer:
-                            // it will cross with the offer from E and skip
-                            // the
-                            // offer from D
-                            // it should still be able to buy 100 IDR / sell
-                            // 150 USD
-
-                            // offer is buy 200 IDR for 300 USD; buy IDR @
-                            // 0.66 USD
-                            // -> sell USD @ 1.5 IDR
-                            const Price idrPriceOfferC(2, 3);
-                            auto offerF1ID = f1.manageOffer(
-                                0, secUsdCur, secIdrCur, idrPriceOfferC,
-                                300 * assetMultiplier);
-                            // offer created would be buy 100 IDR for 150
-                            // USD ; 0.66
-
-                            auto offerF1 = f1.loadOffer(offerF1ID);
-                            REQUIRE(offerF1->getAmount() ==
-                                    150 * assetMultiplier);
-
-                            TrustFrame::pointer line;
-
-                            // check balances
-
-                            // D1's offer was deleted
-                            REQUIRE(!d1.hasOffer(offerD1));
-
-                            line = loadTrustLine(d1, secUsdCur, app);
-                            checkAmounts(0, line->getBalance());
-
-                            line = loadTrustLine(d1, secIdrCur, app);
-                            checkAmounts(trustLineBalance,
-                                            line->getBalance());
-
-                            // E1's offer was taken
-                            REQUIRE(!e1.hasOffer(offerE1));
-
-                            line = loadTrustLine(e1, secUsdCur, app);
-                            checkAmounts(line->getBalance(),
-                                            150 * assetMultiplier);
-
-                            line = loadTrustLine(e1, secIdrCur, app);
-                            checkAmounts(line->getBalance(),
-                                            trustLineBalance -
-                                                100 * assetMultiplier);
-
-                            // F1
-                            line = loadTrustLine(f1, secUsdCur, app);
-                            checkAmounts(line->getBalance(),
-                                            trustLineBalance -
-                                                150 * assetMultiplier);
-
-                            line = loadTrustLine(f1, secIdrCur, app);
-                            checkAmounts(line->getBalance(),
-                                            100 * assetMultiplier);
-                        }
-                        SECTION(
-                            "Creates an offer, top seller reaches limit")
-                        {
-                            // makes "A" only capable of holding 75 "USD"
-                            gateway.pay(a1, usdCur,
-                                        trustLineLimit -
-                                            75 * assetMultiplier);
-
-                            // try to create an offer:
-                            // it will cross with the offer from B fully
-                            // but partially cross the offer from A
-                            // it should still be able to buy 150 IDR / sell
-                            // 225 USD
-
-                            // offer is buy 200 IDR for 300 USD; buy IDR @
-                            // 0.66 USD
-                            // -> sell USD @ 1.5 IDR
-                            const Price idrPriceOfferC(2, 3);
-                            auto offerC1ID = c1.manageOffer(
-                                0, usdCur, idrCur, idrPriceOfferC,
-                                300 * assetMultiplier);
-                            // offer created would be buy 50 IDR for 75 USD
-                            // ; 0.66
-                            auto offerC1 = c1.loadOffer(offerC1ID);
-
-                            REQUIRE(offerC1->getAmount() ==
-                                    75 * assetMultiplier);
-
-                            TrustFrame::pointer line;
-
-                            // check balances
-
-                            // A1's offer was deleted
-                            REQUIRE(!a1.hasOffer(offerA1));
-
-                            line = loadTrustLine(a1, usdCur, app);
-                            checkAmounts(trustLineLimit,
-                                            line->getBalance());
-
-                            line = loadTrustLine(a1, idrCur, app);
-                            checkAmounts(trustLineBalance -
-                                                50 * assetMultiplier,
-                                            line->getBalance());
-
-                            // B1's offer was taken
-                            REQUIRE(!b1.hasOffer(offerB1));
-
-                            line = loadTrustLine(b1, usdCur, app);
-                            checkAmounts(line->getBalance(),
-                                            150 * assetMultiplier);
-
-                            line = loadTrustLine(b1, idrCur, app);
-                            checkAmounts(line->getBalance(),
-                                            trustLineBalance -
-                                                100 * assetMultiplier);
-
-                            // C1
-                            line = loadTrustLine(c1, usdCur, app);
-                            checkAmounts(line->getBalance(),
-                                            trustLineBalance -
-                                                225 * assetMultiplier);
-
-                            line = loadTrustLine(c1, idrCur, app);
-                            checkAmounts(line->getBalance(),
-                                            150 * assetMultiplier);
-                        }
-                    }
-                }
-                SECTION("issuer offers")
-                {
-                    TrustFrame::pointer line;
-
-                    SECTION(
-                        "issuer creates an offer, claimed by somebody else")
-                    {
-                        // sell 100 IDR for 90 USD
-                        auto gwOffer = gateway.manageOffer(
-                            0, idrCur, usdCur, Price(9, 10),
-                            100 * assetMultiplier);
-
-                        // fund a1 with some USD
-                        gateway.pay(a1, usdCur, 1000 * assetMultiplier);
-
-                        // sell USD for IDR
-                        a1.manageOffer(0, usdCur, idrCur, Price(1, 1),
-                                        90 * assetMultiplier,
-                                        MANAGE_OFFER_DELETED);
-
-                        // gw's offer was deleted
-                        REQUIRE(!gateway.hasOffer(gwOffer));
-
-                        // check balance
-                        line = loadTrustLine(a1, usdCur, app);
-                        checkAmounts(910 * assetMultiplier,
-                                        line->getBalance());
-
-                        line = loadTrustLine(a1, idrCur, app);
-                        checkAmounts(trustLineBalance +
-                                            100 * assetMultiplier,
-                                        line->getBalance());
-                    }
-                    SECTION("issuer claims an offer from somebody else")
-                    {
-                        gateway.manageOffer(0, usdCur, idrCur, Price(2, 3),
-                                            150 * assetMultiplier,
-                                            MANAGE_OFFER_DELETED);
-
-                        // A's offer was deleted
-                        REQUIRE(!a1.hasOffer(offerA1));
-
-                        // check balance
-                        line = loadTrustLine(a1, usdCur, app);
-                        checkAmounts(150 * assetMultiplier,
-                                        line->getBalance());
-
-                        line = loadTrustLine(a1, idrCur, app);
-                        checkAmounts(trustLineBalance -
-                                            100 * assetMultiplier,
-                                        line->getBalance());
-                    }
-                }
+                for_all_versions(app, [&] {
+                    // sell 100 IDR for 90 USD
+                    auto gwOffer = market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(
+                            issuer,
+                            {idr, usd, Price{9, 10}, 100 * assetMultiplier});
+                    });
+
+                    // fund a1 with some USD
+                    issuer.pay(a1, usd, 1000 * assetMultiplier);
+
+                    // sell USD for IDR
+                    market.requireChangesWithOffer(
+                        {{gwOffer.key, OfferState::DELETED}}, [&] {
+                            return market.addOffer(
+                                a1,
+                                {usd, idr, Price{1, 1}, 90 * assetMultiplier},
+                                OfferState::DELETED);
+                        });
+
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            910 * assetMultiplier);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            trustLineBalance + 100 * assetMultiplier);
+                });
             }
-        });
+
+            SECTION("issuer claims an offer from somebody else")
+            {
+                for_all_versions(app, [&] {
+                    market.requireChangesWithOffer(
+                        {{offerA1.key, OfferState::DELETED}}, [&] {
+                            return market.addOffer(
+                                issuer,
+                                {usd, idr, Price(2, 3), 150 * assetMultiplier},
+                                OfferState::DELETED);
+                        });
+
+                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
+                            150 * assetMultiplier);
+                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
+                            trustLineBalance - 100 * assetMultiplier);
+                });
+            }
+        }
     }
 
-    SECTION("offers with invalid prices")
+    SECTION("crossing offers with rounding")
     {
-        for_all_versions(app, [&]{
-            auto a = root.create("A", minBalance2 * 2);
-            a.changeTrust(idrCur, trustLineLimit);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, -1},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, 1},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, -1},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{-1, 0},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, 0},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{0, 1},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{1, -1},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-            REQUIRE_THROWS_AS(a.manageOffer(0, xlmCur, idrCur, Price{1, 0},
-                                            150 * assetMultiplier),
-                            ex_MANAGE_OFFER_MALFORMED);
-        });
+        auto market = TestMarket{app};
+        auto bidAmount = 8224563625;
+        auto bidPrice = Price{500, 2061}; // bid for 4.1220000
+        auto askAmount = 2000000000;
+        auto askPrice = Price{2551, 625}; // ask for 4.0816000
+
+        auto askingAccount = root.create("asking offer account", 10000000000);
+        auto biddingAccount = root.create("bidding offer account", 10000000000);
+        askingAccount.changeTrust(idr, trustLineLimit);
+        biddingAccount.changeTrust(idr, trustLineLimit);
+        issuer.pay(askingAccount, idr, trustLineBalance);
+
+        auto bidding = OfferState{xlm, idr, bidPrice, bidAmount};
+        auto asking = OfferState{idr, xlm, askPrice, askAmount};
+
+        SECTION("bid before ask uses bid price")
+        {
+            auto biddingKey =
+                market
+                    .requireChangesWithOffer({},
+                                             [&] {
+                                                 return market.addOffer(
+                                                     biddingAccount, bidding);
+                                             })
+                    .key;
+
+            for_versions_to(2, app, [&] {
+                // 8224563625 / 4.1220000 = 1995284722 = 2000000000 -
+                // 4715278
+                // (rounding down)
+                auto updatedAsking = OfferState{idr, xlm, askPrice, 4715278};
+                // rounding error, should be 0
+                auto updatedBidding = OfferState{xlm, idr, bidPrice, 1};
+
+                market.requireChangesWithOffer(
+                    {{biddingKey, updatedBidding}}, [&] {
+                        return market.addOffer(askingAccount, asking,
+                                               updatedAsking);
+                    });
+            });
+
+            for_versions_from(3, app, [&] {
+                // 8224563625 / 4.1220000 = 1995284722 = 2000000000 -
+                // 4715278
+                // (rounding up)
+                auto updatedAsking = OfferState{idr, xlm, askPrice, 4715277};
+                market.requireChangesWithOffer(
+                    {{biddingKey, OfferState::DELETED}}, [&] {
+                        return market.addOffer(askingAccount, asking,
+                                               updatedAsking);
+                    });
+            });
+        }
+
+        SECTION("ask before bid uses ask price")
+        {
+            for_all_versions(app, [&] {
+                // 2000000000 * 4.0816000 = 8163200000 = 8224563625 -
+                // 61363625
+                auto updatedBidding = OfferState{xlm, idr, bidPrice, 61363625};
+
+                auto askingKey =
+                    market
+                        .requireChangesWithOffer({},
+                                                 [&] {
+                                                     return market.addOffer(
+                                                         askingAccount, asking);
+                                                 })
+                        .key;
+                market.requireChangesWithOffer(
+                    {{askingKey, OfferState::DELETED}}, [&] {
+                        return market.addOffer(biddingAccount, bidding,
+                                               updatedBidding);
+                    });
+            });
+        }
     }
 }
-

@@ -9,6 +9,7 @@
 #include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -96,7 +97,7 @@ TEST_CASE("payment", "[tx][payment]")
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    Asset xlmCur;
+    Asset xlm;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
 
@@ -128,8 +129,8 @@ TEST_CASE("payment", "[tx][payment]")
     // sets up gateway2 account
     auto gateway2 = root.create("gate2", gatewayPayment);
 
-    Asset idrCur = makeAsset(gateway, "IDR");
-    Asset usdCur = makeAsset(gateway2, "USD");
+    Asset idr = makeAsset(gateway, "IDR");
+    Asset usd = makeAsset(gateway2, "USD");
 
     AccountFrame::pointer a1Account, rootAccount;
     rootAccount = loadAccount(root, app);
@@ -685,7 +686,7 @@ TEST_CASE("payment", "[tx][payment]")
         auto tx = sourceAccount.tx({
             createSource.op(createAccount(createDestination, create1Amount)),
             createDestination.op(pathPayment(payDestination,
-                xlmCur, payAmount, xlmCur, payAmount, {})),
+                xlm, payAmount, xlm, payAmount, {})),
             payDestination.op(accountMerge(createSource)),
             createSource.op(createAccount(payDestination, create2Amount)),
         });
@@ -954,7 +955,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             for_all_versions(app, [&]{
                 REQUIRE_THROWS_AS(
-                    gateway.pay(getAccount("B").getPublicKey(), idrCur, 100),
+                    gateway.pay(getAccount("B").getPublicKey(), idr, 100),
                     ex_PAYMENT_NO_DESTINATION);
             });
         }
@@ -963,40 +964,40 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("credit payment with no trust")
         {
             for_all_versions(app, [&]{
-                REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, 100),
+                REQUIRE_THROWS_AS(gateway.pay(a1, idr, 100),
                                 ex_PAYMENT_NO_TRUST);
             });
         }
 
         SECTION("with trust")
         {
-            a1.changeTrust(idrCur, 1000);
-            gateway.pay(a1, idrCur, 100);
+            a1.changeTrust(idr, 1000);
+            gateway.pay(a1, idr, 100);
 
             TrustFrame::pointer line;
-            line = loadTrustLine(a1, idrCur, app);
+            line = loadTrustLine(a1, idr, app);
             REQUIRE(line->getBalance() == 100);
 
             // create b1 account
             auto b1 = root.create("B", paymentAmount);
 
-            b1.changeTrust(idrCur, 100);
+            b1.changeTrust(idr, 100);
 
             SECTION("positive")
             {
                 for_all_versions(app, [&]{
                     // first, send 40 from a1 to b1
-                    a1.pay(b1, idrCur, 40);
+                    a1.pay(b1, idr, 40);
 
-                    line = loadTrustLine(a1, idrCur, app);
+                    line = loadTrustLine(a1, idr, app);
                     REQUIRE(line->getBalance() == 60);
-                    line = loadTrustLine(b1, idrCur, app);
+                    line = loadTrustLine(b1, idr, app);
                     REQUIRE(line->getBalance() == 40);
 
                     // then, send back to the gateway
                     // the gateway does not have a trust line as it's the issuer
-                    b1.pay(gateway, idrCur, 40);
-                    line = loadTrustLine(b1, idrCur, app);
+                    b1.pay(gateway, idr, 40);
+                    line = loadTrustLine(b1, idr, app);
                     REQUIRE(line->getBalance() == 0);
                 });
             }
@@ -1005,15 +1006,15 @@ TEST_CASE("payment", "[tx][payment]")
                 for_all_versions(app, [&]{
                     gateway.merge(root);
                     // cannot send to an account that is not the issuer
-                    REQUIRE_THROWS_AS(a1.pay(b1, idrCur, 40), ex_PAYMENT_NO_ISSUER);
+                    REQUIRE_THROWS_AS(a1.pay(b1, idr, 40), ex_PAYMENT_NO_ISSUER);
                     // should be able to send back credits to issuer
-                    a1.pay(gateway, idrCur, 75);
+                    a1.pay(gateway, idr, 75);
                     // cannot change the limit
-                    REQUIRE_THROWS_AS(a1.changeTrust(idrCur, 25),
+                    REQUIRE_THROWS_AS(a1.changeTrust(idr, 25),
                                     ex_CHANGE_TRUST_NO_ISSUER);
-                    a1.pay(gateway, idrCur, 25);
+                    a1.pay(gateway, idr, 25);
                     // and should be able to delete the trust line too
-                    a1.changeTrust(idrCur, 0);
+                    a1.changeTrust(idr, 0);
                 });
             }
         }
@@ -1021,15 +1022,15 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("issuer large amounts")
     {
         for_all_versions(app, [&]{
-            a1.changeTrust(idrCur, INT64_MAX);
-            gateway.pay(a1, idrCur, INT64_MAX);
+            a1.changeTrust(idr, INT64_MAX);
+            gateway.pay(a1, idr, INT64_MAX);
             TrustFrame::pointer line;
-            line = loadTrustLine(a1, idrCur, app);
+            line = loadTrustLine(a1, idr, app);
             REQUIRE(line->getBalance() == INT64_MAX);
 
             // send it all back
-            a1.pay(gateway, idrCur, INT64_MAX);
-            line = loadTrustLine(a1, idrCur, app);
+            a1.pay(gateway, idr, INT64_MAX);
+            line = loadTrustLine(a1, idr, app);
             REQUIRE(line->getBalance() == 0);
 
             std::vector<TrustFrame::pointer> gwLines;
@@ -1046,24 +1047,24 @@ TEST_CASE("payment", "[tx][payment]")
             gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
                                nullptr);
 
-            a1.changeTrust(idrCur, trustLineLimit);
+            a1.changeTrust(idr, trustLineLimit);
 
-            REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, trustLineStartingBalance),
+            REQUIRE_THROWS_AS(gateway.pay(a1, idr, trustLineStartingBalance),
                             ex_PAYMENT_NOT_AUTHORIZED);
 
-            gateway.allowTrust(idrCur, a1);
+            gateway.allowTrust(idr, a1);
 
-            gateway.pay(a1, idrCur, trustLineStartingBalance);
+            gateway.pay(a1, idr, trustLineStartingBalance);
 
             // send it all back
-            gateway.denyTrust(idrCur, a1);
+            gateway.denyTrust(idr, a1);
 
-            REQUIRE_THROWS_AS(a1.pay(gateway, idrCur, trustLineStartingBalance),
+            REQUIRE_THROWS_AS(a1.pay(gateway, idr, trustLineStartingBalance),
                             ex_PAYMENT_SRC_NOT_AUTHORIZED);
 
-            gateway.allowTrust(idrCur, a1);
+            gateway.allowTrust(idr, a1);
 
-            a1.pay(gateway, idrCur, trustLineStartingBalance);
+            a1.pay(gateway, idr, trustLineStartingBalance);
         });
     }
 
@@ -1073,12 +1074,12 @@ TEST_CASE("payment", "[tx][payment]")
         auto amount = a1Balance / 10;
 
         for_versions_to(7, app, [&]{
-            a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
+            a1.pay(a1, xlm, amount, xlm, amount, {});
             REQUIRE(a1.getBalance() == a1Balance - amount - txfee);
         });
 
         for_versions_from(8, app, [&]{
-            a1.pay(a1, xlmCur, amount, xlmCur, amount, {});
+            a1.pay(a1, xlm, amount, xlm, amount, {});
             REQUIRE(a1.getBalance() == a1Balance - txfee);
         });
     }
@@ -1088,12 +1089,12 @@ TEST_CASE("payment", "[tx][payment]")
         auto curBalance = 10000;
         auto amount = curBalance / 10;
 
-        a1.changeTrust(idrCur, 2 * curBalance);
-        gateway.pay(a1, idrCur, curBalance);
+        a1.changeTrust(idr, 2 * curBalance);
+        gateway.pay(a1, idr, curBalance);
 
         for_all_versions(app, [&]{
-            a1.pay(a1, idrCur, amount, idrCur, amount, {});
-            auto trustLine = loadTrustLine(a1, idrCur, app);
+            a1.pay(a1, idr, amount, idr, amount, {});
+            auto trustLine = loadTrustLine(a1, idr, app);
             REQUIRE(trustLine->getBalance() == curBalance);
         });
     }
@@ -1162,7 +1163,7 @@ TEST_CASE("payment", "[tx][payment]")
             }
 
             auto withoutTrustLine = std::vector<Data>{
-                Data{"existing asset", idrCur, payNoTrust, payOk,
+                Data{"existing asset", idr, payNoTrust, payOk,
                         payLineFull},
                 Data{"non existing asset with existing issuer", fakeCur,
                         payNoTrust, payOk, payLineFull},
@@ -1190,7 +1191,7 @@ TEST_CASE("payment", "[tx][payment]")
             auto withTrustLine = withoutTrustLine;
             withTrustLine.resize(2);
 
-            sendToSelf.changeTrust(idrCur, 1000);
+            sendToSelf.changeTrust(idr, 1000);
             sendToSelf.changeTrust(fakeCur, 1000);
             REQUIRE_THROWS_AS(
                 sendToSelf.changeTrust(fakeWithFakeAccountCur, 1000),
@@ -1275,18 +1276,20 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("payment through path")
         {
+            auto market = TestMarket{app};
+
             SECTION("send XLM with path (not enough offers)")
             {
-                REQUIRE_THROWS_AS(gateway.pay(a1, idrCur, morePayment * 10,
-                                                xlmCur, morePayment, {}),
-                                    ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                REQUIRE_THROWS_AS(market.requireChanges({}, [&]{
+                    gateway.pay(a1, idr, morePayment * 10, xlm, morePayment, {});}),
+                    ex_PATH_PAYMENT_TOO_FEW_OFFERS);
             }
 
             // setup a1
-            a1.changeTrust(usdCur, trustLineLimit);
-            a1.changeTrust(idrCur, trustLineLimit);
+            a1.changeTrust(usd, trustLineLimit);
+            a1.changeTrust(idr, trustLineLimit);
 
-            gateway2.pay(a1, usdCur, trustLineStartingBalance);
+            gateway2.pay(a1, usd, trustLineStartingBalance);
 
             // add a couple offers in the order book
 
@@ -1298,25 +1301,25 @@ TEST_CASE("payment", "[tx][payment]")
             // @ 0.5
 
             auto b1 = root.create("B", minBalance3 + 10000);
-            b1.changeTrust(usdCur, trustLineLimit);
-            b1.changeTrust(idrCur, trustLineLimit);
-            gateway.pay(b1, idrCur, trustLineStartingBalance);
+            b1.changeTrust(usd, trustLineLimit);
+            b1.changeTrust(idr, trustLineLimit);
+            gateway.pay(b1, idr, trustLineStartingBalance);
 
-            auto offerB1 = b1.manageOffer(0, idrCur, usdCur, usdPriceOffer,
-                                            100 * assetMultiplier);
+            auto offerB1 = market.requireChangesWithOffer({}, [&]{ return market.addOffer(b1, {idr, usd, usdPriceOffer,
+                                                100 * assetMultiplier});});
 
             // setup "c1"
             auto c1 = root.create("C", minBalance3 + 10000);
 
-            c1.changeTrust(usdCur, trustLineLimit);
-            c1.changeTrust(idrCur, trustLineLimit);
+            c1.changeTrust(usd, trustLineLimit);
+            c1.changeTrust(idr, trustLineLimit);
 
-            gateway.pay(c1, idrCur, trustLineStartingBalance);
+            gateway.pay(c1, idr, trustLineStartingBalance);
 
             // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD
             // @ 0.66
-            auto offerC1 = c1.manageOffer(0, idrCur, usdCur, Price(3, 2),
-                                            100 * assetMultiplier);
+            auto offerC1 = market.requireChangesWithOffer({}, [&]{ return market.addOffer(c1, {idr, usd, Price(3, 2),
+                                                100 * assetMultiplier});});
 
             // at this point:
             // a1 holds (0, IDR) (trustLineStartingBalance, USD)
@@ -1327,9 +1330,9 @@ TEST_CASE("payment", "[tx][payment]")
                 // A1: try to send 100 IDR to B1
                 // using 149 USD
 
-                REQUIRE_THROWS_AS(a1.pay(b1, usdCur, 149 * assetMultiplier,
-                                            idrCur, 100 * assetMultiplier, {}),
-                                    ex_PATH_PAYMENT_OVER_SENDMAX);
+                REQUIRE_THROWS_AS(market.requireChanges({}, [&]{
+                    a1.pay(b1, usd, 149 * assetMultiplier, idr, 100 * assetMultiplier, {});}),
+                    ex_PATH_PAYMENT_OVER_SENDMAX);
             }
 
             SECTION("send with path (success)")
@@ -1338,8 +1341,14 @@ TEST_CASE("payment", "[tx][payment]")
                 // should cost 150 (C's offer taken entirely) +
                 //  50 (1/4 of B's offer)=200 USD
 
-                auto res = a1.pay(b1, usdCur, 250 * assetMultiplier, idrCur,
-                                    125 * assetMultiplier, {});
+                auto offerB1Updated = OfferState{idr, usd, usdPriceOffer,
+                                                 75 * assetMultiplier};
+                auto res = PathPaymentResult{};
+                market.requireChanges(
+                    {{offerC1.key, OfferState::DELETED}, {offerB1.key, offerB1Updated}}, [&]{
+                        res = a1.pay(b1, usd, 250 * assetMultiplier, idr,
+                                            125 * assetMultiplier, {});
+                    });
 
                 auto const& multi = res.success();
 
@@ -1349,34 +1358,30 @@ TEST_CASE("payment", "[tx][payment]")
 
                 // C1
                 // offer was taken
-                REQUIRE(multi.offers[0].offerID == offerC1);
-                REQUIRE(!c1.hasOffer(offerC1));
-                line = loadTrustLine(c1, idrCur, app);
+                REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
+                line = loadTrustLine(c1, idr, app);
                 checkAmounts(line->getBalance(), trustLineStartingBalance -
                                                         100 * assetMultiplier);
-                line = loadTrustLine(c1, usdCur, app);
+                line = loadTrustLine(c1, usd, app);
                 checkAmounts(line->getBalance(), 150 * assetMultiplier);
 
                 // B1
                 auto const& b1Res = multi.offers[1];
-                REQUIRE(b1Res.offerID == offerB1);
-                auto offer = b1.loadOffer(offerB1);
-                OfferEntry const& oe = offer->getOffer();
+                REQUIRE(b1Res.offerID == offerB1.key.offerID);
                 REQUIRE(b1Res.sellerID == b1.getPublicKey());
                 checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
-                checkAmounts(oe.amount, 75 * assetMultiplier);
-                line = loadTrustLine(b1, idrCur, app);
+                line = loadTrustLine(b1, idr, app);
                 // 125 where sent, 25 were consumed by B's offer
                 checkAmounts(line->getBalance(),
                                 trustLineStartingBalance +
                                     (125 - 25) * assetMultiplier);
-                line = loadTrustLine(b1, usdCur, app);
+                line = loadTrustLine(b1, usd, app);
                 checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
                 // A1
-                line = loadTrustLine(a1, idrCur, app);
+                line = loadTrustLine(a1, idr, app);
                 checkAmounts(line->getBalance(), 0);
-                line = loadTrustLine(a1, usdCur, app);
+                line = loadTrustLine(a1, usd, app);
                 checkAmounts(line->getBalance(), trustLineStartingBalance -
                                                         200 * assetMultiplier);
             }
@@ -1387,24 +1392,26 @@ TEST_CASE("payment", "[tx][payment]")
                 {
                     SECTION("last")
                     {
-                        // gateway issued idrCur
+                        // gateway issued idr
                         gateway.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            a1.pay(b1, usdCur, 250 * assetMultiplier,
-                                    idrCur, 125 * assetMultiplier, {},
-                                    &idrCur),
+                            market.requireChanges({}, [&]{
+                                a1.pay(b1, usd, 250 * assetMultiplier,
+                                    idr, 125 * assetMultiplier, {},
+                                    &idr);}),
                             ex_PATH_PAYMENT_NO_ISSUER);
                     }
                     SECTION("first")
                     {
-                        // gateway2 issued usdCur
+                        // gateway2 issued usd
                         gateway2.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            a1.pay(b1, usdCur, 250 * assetMultiplier,
-                                    idrCur, 125 * assetMultiplier, {},
-                                    &usdCur),
+                            market.requireChanges({}, [&]{
+                                a1.pay(b1, usd, 250 * assetMultiplier,
+                                    idr, 125 * assetMultiplier, {},
+                                    &usd);}),
                             ex_PATH_PAYMENT_NO_ISSUER);
                     }
                     SECTION("mid")
@@ -1412,9 +1419,10 @@ TEST_CASE("payment", "[tx][payment]")
                         SecretKey missing = getAccount("missing");
                         Asset btcCur = makeAsset(missing, "BTC");
                         REQUIRE_THROWS_AS(
-                            a1.pay(b1, usdCur, 250 * assetMultiplier,
-                                    idrCur, 125 * assetMultiplier, {btcCur},
-                                    &btcCur),
+                            market.requireChanges({}, [&]{
+                                a1.pay(b1, usd, 250 * assetMultiplier,
+                                    idr, 125 * assetMultiplier, {btcCur},
+                                    &btcCur);}),
                             ex_PATH_PAYMENT_NO_ISSUER);
                     }
                 }
@@ -1424,13 +1432,14 @@ TEST_CASE("payment", "[tx][payment]")
                     // only one negative test:
                     SECTION("cannot take offers on the way")
                     {
-                        // gateway issued idrCur
+                        // gateway issued idr
                         gateway.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            a1.pay(gateway, usdCur, 250 * assetMultiplier,
-                                    idrCur, 125 * assetMultiplier, {}),
-                            ex_PATH_PAYMENT_NO_DESTINATION);
+                            market.requireChanges({}, [&]{
+                                a1.pay(gateway, usd, 250 * assetMultiplier,
+                                        idr, 125 * assetMultiplier, {});}),
+                                ex_PATH_PAYMENT_NO_DESTINATION);
                     }
                 }
             }
@@ -1449,13 +1458,15 @@ TEST_CASE("payment", "[tx][payment]")
                 root.pay(a1, 100 * assetMultiplier);
 
                 // offer is sell 100 USD for 100 XLM
-                a1.manageOffer(0, usdCur, xlmCur, Price(1, 1),
-                                100 * assetMultiplier);
+                market.requireChangesWithOffer({}, [&]{ return market.addOffer(a1, {usd, xlm, Price(1, 1),
+                                     100 * assetMultiplier});});
 
                 // A1: try to send 100 USD to B1 using XLM
 
-                REQUIRE_THROWS_AS(a1.pay(b1, xlmCur, 100 * assetMultiplier,
-                                            usdCur, 100 * assetMultiplier, {}),
+                REQUIRE_THROWS_AS(
+                            market.requireChanges({}, [&]{
+                                a1.pay(b1, xlm, 100 * assetMultiplier,
+                                            usd, 100 * assetMultiplier, {});}),
                                     ex_PATH_PAYMENT_OFFER_CROSS_SELF);
             }
 
@@ -1463,15 +1474,20 @@ TEST_CASE("payment", "[tx][payment]")
             {
                 // make it such that C can only receive 120 USD (4/5th of
                 // offerC)
-                c1.changeTrust(usdCur, 120 * assetMultiplier);
+                c1.changeTrust(usd, 120 * assetMultiplier);
 
                 // A1: try to send 105 IDR to B1 using USD
                 // cost 120 (C's offer maxed out at 4/5th of published
                 // amount)
                 //  50 (1/4 of B's offer)=170 USD
 
-                auto res = a1.pay(b1, usdCur, 400 * assetMultiplier, idrCur,
-                                    105 * assetMultiplier, {});
+                auto offerB1Updated = OfferState{idr, usd, usdPriceOffer,
+                                                 75 * assetMultiplier};
+                auto res = PathPaymentResult{};
+                market.requireChanges(
+                    {{offerC1.key, OfferState::DELETED}, {offerB1.key, offerB1Updated}}, [&]{
+                        res = a1.pay(b1, usd, 400 * assetMultiplier, idr, 105 * assetMultiplier, {});
+                    });
 
                 auto& multi = res.success();
 
@@ -1481,35 +1497,31 @@ TEST_CASE("payment", "[tx][payment]")
 
                 // C1
                 // offer was taken
-                REQUIRE(multi.offers[0].offerID == offerC1);
-                REQUIRE(!c1.hasOffer(offerC1));
-                line = loadTrustLine(c1, idrCur, app);
+                REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
+                line = loadTrustLine(c1, idr, app);
                 checkAmounts(line->getBalance(), trustLineStartingBalance -
                                                         80 * assetMultiplier);
-                line = loadTrustLine(c1, usdCur, app);
+                line = loadTrustLine(c1, usd, app);
                 checkAmounts(line->getBalance(),
                                 line->getTrustLine().limit);
 
                 // B1
                 auto const& b1Res = multi.offers[1];
-                REQUIRE(b1Res.offerID == offerB1);
-                auto offer = b1.loadOffer(offerB1);
-                OfferEntry const& oe = offer->getOffer();
+                REQUIRE(b1Res.offerID == offerB1.key.offerID);
                 REQUIRE(b1Res.sellerID == b1.getPublicKey());
                 checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
-                checkAmounts(oe.amount, 75 * assetMultiplier);
-                line = loadTrustLine(b1, idrCur, app);
+                line = loadTrustLine(b1, idr, app);
                 // 105 where sent, 25 were consumed by B's offer
                 checkAmounts(line->getBalance(),
                                 trustLineStartingBalance +
                                     (105 - 25) * assetMultiplier);
-                line = loadTrustLine(b1, usdCur, app);
+                line = loadTrustLine(b1, usd, app);
                 checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
                 // A1
-                line = loadTrustLine(a1, idrCur, app);
+                line = loadTrustLine(a1, idr, app);
                 checkAmounts(line->getBalance(), 0);
-                line = loadTrustLine(a1, usdCur, app);
+                line = loadTrustLine(a1, usd, app);
                 checkAmounts(line->getBalance(), trustLineStartingBalance -
                                                         170 * assetMultiplier);
             }
@@ -1521,8 +1533,14 @@ TEST_CASE("payment", "[tx][payment]")
                 // * B's offer 25 IDR by 50 USD
 
                 auto checkBalances = [&]() {
-                    auto res = a1.pay(b1, usdCur, 200 * assetMultiplier,
-                                        idrCur, 25 * assetMultiplier, {});
+                    auto offerB1Updated = OfferState{idr, usd, usdPriceOffer,
+                                                    75 * assetMultiplier};
+                    auto res = PathPaymentResult{};
+                    market.requireChanges(
+                        {{offerC1.key, OfferState::DELETED}, {offerB1.key, offerB1Updated}}, [&]{
+                        res = a1.pay(b1, usd, 200 * assetMultiplier,
+                                     idr, 25 * assetMultiplier, {});
+                        });
 
                     auto& multi = res.success();
 
@@ -1532,33 +1550,29 @@ TEST_CASE("payment", "[tx][payment]")
 
                     // C1
                     // offer was deleted
-                    REQUIRE(multi.offers[0].offerID == offerC1);
+                    REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
                     REQUIRE(multi.offers[0].amountSold == 0);
                     REQUIRE(multi.offers[0].amountBought == 0);
-                    REQUIRE(!c1.hasOffer(offerC1));
 
                     // B1
                     auto const& b1Res = multi.offers[1];
-                    REQUIRE(b1Res.offerID == offerB1);
-                    auto offer = b1.loadOffer(offerB1);
-                    OfferEntry const& oe = offer->getOffer();
+                    REQUIRE(b1Res.offerID == offerB1.key.offerID);
                     REQUIRE(b1Res.sellerID == b1.getPublicKey());
                     checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
-                    checkAmounts(oe.amount, 75 * assetMultiplier);
-                    line = loadTrustLine(b1, idrCur, app);
+                    line = loadTrustLine(b1, idr, app);
                     // As B was the sole participant in the exchange, the
                     // IDR
                     // balance should not have changed
                     checkAmounts(line->getBalance(),
                                     trustLineStartingBalance);
-                    line = loadTrustLine(b1, usdCur, app);
+                    line = loadTrustLine(b1, usd, app);
                     // but 25 USD cost 50 USD to send
                     checkAmounts(line->getBalance(), 50 * assetMultiplier);
 
                     // A1
-                    line = loadTrustLine(a1, idrCur, app);
+                    line = loadTrustLine(a1, idr, app);
                     checkAmounts(line->getBalance(), 0);
-                    line = loadTrustLine(a1, usdCur, app);
+                    line = loadTrustLine(a1, usd, app);
                     checkAmounts(line->getBalance(),
                                     trustLineStartingBalance -
                                         50 * assetMultiplier);
@@ -1566,15 +1580,15 @@ TEST_CASE("payment", "[tx][payment]")
 
                 SECTION("deleted selling line")
                 {
-                    c1.pay(gateway, idrCur, trustLineStartingBalance);
-                    c1.changeTrust(idrCur, 0);
+                    c1.pay(gateway, idr, trustLineStartingBalance);
+                    c1.changeTrust(idr, 0);
 
                     checkBalances();
                 }
 
                 SECTION("deleted buying line")
                 {
-                    c1.changeTrust(usdCur, 0);
+                    c1.changeTrust(usd, 0);
                     checkBalances();
                 }
             }
@@ -1582,59 +1596,48 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("path payment with rounding errors")
         {
+            auto market = TestMarket{app};
             auto issuer = root.create("issuer", 5999999400);
             auto source = root.create("source", 1989999000);
             auto destination = root.create("destination", 499999700);
             auto seller = root.create("seller", 20999999300);
 
-            auto cnyCur = makeAsset(issuer, "CNY");
-            destination.changeTrust(cnyCur, INT64_MAX);
-            seller.changeTrust(cnyCur, 100000 * assetMultiplier);
+            auto cny = issuer.asset("CNY");
+            destination.changeTrust(cny, INT64_MAX);
+            seller.changeTrust(cny, 100000 * assetMultiplier);
 
-            issuer.pay(seller, cnyCur, 170 * assetMultiplier);
+            issuer.pay(seller, cny, 170 * assetMultiplier);
             auto price = Price{2000, 29};
-            auto offerId =
-                seller.manageOffer(0, cnyCur, xlmCur, price, 145000000);
+            auto sellerOffer =
+                market.requireChangesWithOffer({}, [&]{ return market.addOffer(seller, {cny, xlm, price, 145000000});});
 
             auto path = std::vector<Asset>{};
             if (app.getLedgerManager().getCurrentLedgerVersion() <= 2)
             {
                 // bug, it should succeed
-                REQUIRE_THROWS_AS(source.pay(destination, xlmCur,
-                                                1382068965, cnyCur,
-                                                2 * assetMultiplier, path),
-                                    ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                REQUIRE_THROWS_AS(market.requireChanges({}, [&]{
+                    source.pay(destination, xlm, 1382068965, cny, 2 * assetMultiplier, path);}),
+                    ex_PATH_PAYMENT_TOO_FEW_OFFERS);
             }
             else
             {
-                source.pay(destination, xlmCur, 1382068965, cnyCur,
-                            2 * assetMultiplier, path);
-                auto sellerOffer = seller.loadOffer(offerId);
-                REQUIRE(sellerOffer->getPrice() == price);
-                REQUIRE(sellerOffer->getAmount() ==
-                        145000000 - 2 * assetMultiplier);
-                REQUIRE(sellerOffer->getBuying().type() ==
-                        ASSET_TYPE_NATIVE);
-                REQUIRE(sellerOffer->getSelling().alphaNum4().assetCode ==
-                        cnyCur.alphaNum4().assetCode);
+                auto sellerOfferRemaining = OfferState{cny, xlm, price, 145000000 - 2 * assetMultiplier};
+                market.requireChanges({{sellerOffer.key, sellerOfferRemaining}}, [&]{
+                    source.pay(destination, xlm, 1382068965, cny, 2 * assetMultiplier, path, nullptr);});
 
-                auto sourceAccount = loadAccount(source, app);
                 // 1379310345 = round up(20000000 * price)
-                REQUIRE(sourceAccount->getBalance() ==
+                REQUIRE(loadAccount(source, app)->getBalance() ==
                         1989999000 - 100 - 1379310345);
-
-                auto sellerLine = loadTrustLine(seller, cnyCur, app);
-                REQUIRE(sellerLine->getBalance() == 168 * assetMultiplier);
-
-                auto destinationLine =
-                    loadTrustLine(destination, cnyCur, app);
-                REQUIRE(destinationLine->getBalance() ==
+                REQUIRE(loadTrustLine(seller, cny, app)->getBalance() == 168 * assetMultiplier);
+                REQUIRE(loadTrustLine(destination, cny, app)->getBalance() ==
                         2 * assetMultiplier);
             }
         }
 
         SECTION("path with bogus offer, bogus offer shows on offers trail")
         {
+            auto market = TestMarket{app};
+
             auto paymentToReceive = 24 * assetMultiplier;
             auto offerSize = paymentToReceive / 2;
             auto initialBalance = app.getLedgerManager().getMinBalance(10) +
@@ -1642,44 +1645,44 @@ TEST_CASE("payment", "[tx][payment]")
             auto mm = root.create("mm", initialBalance);
             auto source = root.create("source", initialBalance);
             auto destination = root.create("destination", initialBalance);
-            mm.changeTrust(idrCur, trustLineLimit);
-            mm.changeTrust(usdCur, trustLineLimit);
-            destination.changeTrust(idrCur, trustLineLimit);
-            gateway.pay(mm, idrCur, 100 * assetMultiplier);
-            gateway2.pay(mm, usdCur, 100 * assetMultiplier);
+            mm.changeTrust(idr, trustLineLimit);
+            mm.changeTrust(usd, trustLineLimit);
+            destination.changeTrust(idr, trustLineLimit);
+            gateway.pay(mm, idr, 100 * assetMultiplier);
+            gateway2.pay(mm, usd, 100 * assetMultiplier);
 
-            auto idrCurCheapOfferID =
-                mm.manageOffer(0, idrCur, usdCur, Price{3, 12}, offerSize);
-            auto idrCurMidBogusOfferID =
-                mm.manageOffer(0, idrCur, usdCur, Price{4, 12}, 1);
-            auto idrCurExpensiveOfferID =
-                mm.manageOffer(0, idrCur, usdCur, Price{6, 12}, offerSize);
-            auto usdCurOfferID = mm.manageOffer(0, usdCur, xlmCur,
-                                                Price{1, 2}, 2 * offerSize);
+            auto idrCurCheapOffer =
+                market.requireChangesWithOffer({}, [&]{ return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});});
+            auto idrCurMidBogusOffer =
+                market.requireChangesWithOffer({}, [&]{ return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});});
+            auto idrCurExpensiveOffer =
+                market.requireChangesWithOffer({}, [&]{ return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});});
+            auto usdCurOffer = market.requireChangesWithOffer({}, [&]{ return market.addOffer(mm, {usd, xlm,
+                                                    Price{1, 2}, 2 * offerSize});});
 
-            auto path = std::vector<Asset>{xlmCur, usdCur};
-            auto res = source.pay(destination, xlmCur, 8 * paymentToReceive,
-                                    idrCur, paymentToReceive, path);
+            auto path = std::vector<Asset>{xlm, usd};
+            auto res = source.pay(destination, xlm, 8 * paymentToReceive,
+                                    idr, paymentToReceive, path);
 
             auto const& offers = res.success().offers;
             REQUIRE(offers.size() == 4);
             REQUIRE(std::find_if(std::begin(offers), std::end(offers),
                                     [&](ClaimOfferAtom const& x) {
-                                        return x.offerID == idrCurCheapOfferID;
+                                        return x.offerID == idrCurCheapOffer.key.offerID;
                                     }) != std::end(offers));
             REQUIRE(std::find_if(std::begin(offers), std::end(offers),
                                     [&](ClaimOfferAtom const& x) {
                                         return x.offerID ==
-                                            idrCurMidBogusOfferID;
+                                            idrCurMidBogusOffer.key.offerID;
                                     }) != std::end(offers));
             REQUIRE(std::find_if(std::begin(offers), std::end(offers),
                                     [&](ClaimOfferAtom const& x) {
                                         return x.offerID ==
-                                            idrCurExpensiveOfferID;
+                                            idrCurExpensiveOffer.key.offerID;
                                     }) != std::end(offers));
             REQUIRE(std::find_if(std::begin(offers), std::end(offers),
                                     [&](ClaimOfferAtom const& x) {
-                                        return x.offerID == usdCurOfferID;
+                                        return x.offerID == usdCurOffer.key.offerID;
                                     }) != std::end(offers));
         }
 
@@ -1706,6 +1709,7 @@ TEST_CASE("payment", "[tx][payment]")
             // accounts, offers and assets -
             // it greatly simplified index calculation in the code.
 
+            auto market = TestMarket{app};
             auto paymentAmount =
                 10 * assetMultiplier; // amount of money that 'destination'
                                         // account will receive
@@ -1719,7 +1723,7 @@ TEST_CASE("payment", "[tx][payment]")
                                     // used in one case
             auto txFee = app.getLedgerManager().getTxFee();
 
-            auto assets = std::deque<Asset>{xlmCur, usdCur, idrCur};
+            auto assets = std::deque<Asset>{xlm, usd, idr};
             auto pathSize = assets.size();
             auto accounts = std::deque<TestAccount>{};
 
@@ -1727,10 +1731,10 @@ TEST_CASE("payment", "[tx][payment]")
                 // setup account with required trustlines and money both in
                 // native and assets
                 auto account = root.create(name, initialBalance);
-                account.changeTrust(idrCur, trustLineLimit);
-                gateway.pay(account, idrCur, initialBalance);
-                account.changeTrust(usdCur, trustLineLimit);
-                gateway2.pay(account, usdCur, initialBalance);
+                account.changeTrust(idr, trustLineLimit);
+                gateway.pay(account, idr, initialBalance);
+                account.changeTrust(usd, trustLineLimit);
+                gateway2.pay(account, usd, initialBalance);
 
                 return account;
             };
@@ -1764,8 +1768,7 @@ TEST_CASE("payment", "[tx][payment]")
                                                 uint64_t offerId,
                                                 int difference) {
                 auto offer = account.loadOffer(offerId);
-                auto offerEntry = offer->getOffer();
-                REQUIRE(offerEntry.amount == offerAmount + difference);
+                REQUIRE(offer.amount == offerAmount + difference);
             };
 
             auto source = setupAccount("S");
@@ -1794,9 +1797,9 @@ TEST_CASE("payment", "[tx][payment]")
                     auto offers = std::deque<uint64_t>{};
                     for (size_t i = 0; i < pathSize; i++)
                     {
-                        offers.push_back(accounts[i].manageOffer(
-                            0, assets[i], assets[(i + 2) % pathSize], price,
-                            offerAmount));
+                        offers.push_back(market.requireChangesWithOffer({}, [&]{ return market.addOffer(accounts[i],
+                            {assets[i], assets[(i + 2) % pathSize], price,
+                             offerAmount});}).key.offerID);
                         validateOffer(accounts[i], offers[i], 0);
                     }
 
@@ -1816,14 +1819,14 @@ TEST_CASE("payment", "[tx][payment]")
                             if (overSendMax)
                                 REQUIRE_THROWS_AS(
                                     source.pay(destination, assets[0],
-                                                maxMultipler * paymentAmount,
-                                                assets[0], paymentAmount,
-                                                path),
+                                               maxMultipler * paymentAmount,
+                                               assets[0], paymentAmount,
+                                               path),
                                     ex_PATH_PAYMENT_OVER_SENDMAX);
                             else
                                 source.pay(destination, assets[0],
-                                            maxMultipler * paymentAmount,
-                                            assets[0], paymentAmount, path);
+                                           maxMultipler * paymentAmount,
+                                           assets[0], paymentAmount, path);
 
                             for (size_t j = 0; j < pathSize; j++)
                             {

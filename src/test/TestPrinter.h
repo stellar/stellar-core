@@ -8,12 +8,20 @@
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/printer.h"
 
+namespace stellar
+{
+
+struct OfferState;
+}
+
 namespace Catch
 {
 
-template <>
-std::string toString(stellar::Hash const& tr);
+template <> std::string toString(stellar::Hash const& tr);
 
-template <>
-std::string toString(stellar::TransactionResult const& tr);
+template <> std::string toString(stellar::OfferEntry const& oe);
+
+template <> std::string toString(stellar::OfferState const& os);
+
+template <> std::string toString(stellar::TransactionResult const& tr);
 }

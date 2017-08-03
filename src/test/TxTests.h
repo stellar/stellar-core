@@ -125,6 +125,7 @@ Operation setOptions(AccountID* inflationDest, uint32_t* setFlags,
                      uint32_t* clearFlags, ThresholdSetter* thrs,
                      Signer* signer, std::string* homeDomain);
 
+Asset makeNativeAsset();
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);

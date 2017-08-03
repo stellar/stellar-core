@@ -330,8 +330,8 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("With sub entries")
     {
-        Asset usdCur = makeAsset(gateway, "USD");
-        a1.changeTrust(usdCur, trustLineLimit);
+        Asset usd = makeAsset(gateway, "USD");
+        a1.changeTrust(usd, trustLineLimit);
 
         SECTION("account has trust line")
         {
@@ -342,20 +342,18 @@ TEST_CASE("merge", "[tx][merge]")
         SECTION("account has offer")
         {
             for_all_versions(app, [&]{
-                gateway.pay(a1, usdCur, trustLineBalance);
-                Asset xlmCur;
-                xlmCur.type(AssetType::ASSET_TYPE_NATIVE);
+                gateway.pay(a1, usd, trustLineBalance);
+                auto xlm = makeNativeAsset();
 
                 const Price somePrice(3, 2);
                 for (int i = 0; i < 4; i++)
                 {
-                    a1.manageOffer(0, xlmCur, usdCur, somePrice,
-                                    100 * assetMultiplier);
+                    a1.manageOffer(0, xlm, usd, somePrice, 100 * assetMultiplier);
                 }
                 // empty out balance
-                a1.pay(gateway, usdCur, trustLineBalance);
+                a1.pay(gateway, usd, trustLineBalance);
                 // delete the trust line
-                a1.changeTrust(usdCur, 0);
+                a1.changeTrust(usd, 0);
 
                 REQUIRE_THROWS_AS(a1.merge(b1),
                                     ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
@@ -366,7 +364,7 @@ TEST_CASE("merge", "[tx][merge]")
         {
             for_versions_from({2, 4}, app, [&]{
                 // delete the trust line
-                a1.changeTrust(usdCur, 0);
+                a1.changeTrust(usd, 0);
 
                 DataValue value;
                 value.resize(20);
