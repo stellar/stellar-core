@@ -63,11 +63,9 @@ TEST_CASE("payment", "[tx][payment]")
 
     const int64_t morePayment = paymentAmount / 2;
 
-    const int64_t assetMultiplier = 10000000;
-
     int64_t trustLineLimit = INT64_MAX;
 
-    int64_t trustLineStartingBalance = 20000 * assetMultiplier;
+    int64_t trustLineStartingBalance = 20000;
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;

@@ -100,18 +100,16 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     const int64_t minBalance3 =
         app.getLedgerManager().getMinBalance(3) + 10 * txfee;
 
-    const int64_t paymentAmount = minBalance2;
+    const int64_t paymentAmount = minBalance3;
 
     // create an account
     auto a1 = root.create("A", paymentAmount);
 
     const int64_t morePayment = paymentAmount / 2;
 
-    const int64_t assetMultiplier = 10000000;
-
     int64_t trustLineLimit = INT64_MAX;
 
-    int64_t trustLineStartingBalance = 20000 * assetMultiplier;
+    int64_t trustLineStartingBalance = 20000;
 
     // sets up gateway account
     const int64_t gatewayPayment = minBalance2 + morePayment;
@@ -207,8 +205,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             gateway.pay(b1, idr, trustLineStartingBalance);
 
             auto offerB1 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(
-                    b1, {idr, usd, usdPriceOffer, 100 * assetMultiplier});
+                return market.addOffer(b1, {idr, usd, usdPriceOffer, 100});
             });
 
             // setup "c1"
@@ -222,8 +219,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // offer is sell 100 IDR for 150 USD ; buy USD @ 1.5 = sell IRD
             // @ 0.66
             auto offerC1 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(
-                    c1, {idr, usd, Price(3, 2), 100 * assetMultiplier});
+                return market.addOffer(c1, {idr, usd, Price(3, 2), 100});
             });
 
             // at this point:
@@ -236,12 +232,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 // using 149 USD
 
                 REQUIRE_THROWS_AS(
-                    market.requireChanges({},
-                                          [&] {
-                                              a1.pay(b1, usd,
-                                                     149 * assetMultiplier, idr,
-                                                     100 * assetMultiplier, {});
-                                          }),
+                    market.requireChanges(
+                        {}, [&] { a1.pay(b1, usd, 149, idr, 100, {}); }),
                     ex_PATH_PAYMENT_OVER_SENDMAX);
             }
 
@@ -251,35 +243,24 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 // should cost 150 (C's offer taken entirely) +
                 //  50 (1/4 of B's offer)=200 USD
 
-                auto offerB1Updated =
-                    OfferState{idr, usd, usdPriceOffer, 75 * assetMultiplier};
+                auto offerB1Updated = OfferState{idr, usd, usdPriceOffer, 75};
                 auto res = PathPaymentResult{};
-                market.requireChanges({{offerC1.key, OfferState::DELETED},
-                                       {offerB1.key, offerB1Updated}},
-                                      [&] {
-                                          res = a1.pay(
-                                              b1, usd, 250 * assetMultiplier,
-                                              idr, 125 * assetMultiplier, {});
-                                      });
+                market.requireChanges(
+                    {{offerC1.key, OfferState::DELETED},
+                     {offerB1.key, offerB1Updated}},
+                    [&] { res = a1.pay(b1, usd, 250, idr, 125, {}); });
 
                 auto exchanged = std::vector<ClaimOfferAtom>{
-                    offerC1.exchanged(1000000000, 1500000000),
-                    offerB1.exchanged(250000000, 500000000)};
+                    offerC1.exchanged(100, 150), offerB1.exchanged(25, 50)};
                 REQUIRE(res.success().offers == exchanged);
 
                 market.requireBalances(
-                    {{a1,
-                      {{usd, trustLineStartingBalance - 200 * assetMultiplier},
-                       {idr, 0}}},
+                    {{a1, {{usd, trustLineStartingBalance - 200}, {idr, 0}}},
                      {b1,
-                      {{usd, 50 * assetMultiplier},
-                       {idr,
-                        trustLineStartingBalance +
-                            (125 - 25) * assetMultiplier}}},
+                      {{usd, 50},
+                       {idr, trustLineStartingBalance + (125 - 25)}}},
                      {c1,
-                      {{usd, 150 * assetMultiplier},
-                       {idr,
-                        trustLineStartingBalance - 100 * assetMultiplier}}}});
+                      {{usd, 150}, {idr, trustLineStartingBalance - 100}}}});
             }
 
             SECTION("missing issuer")
@@ -292,12 +273,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                         gateway.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            market.requireChanges(
-                                {},
-                                [&] {
-                                    a1.pay(b1, usd, 250 * assetMultiplier, idr,
-                                           125 * assetMultiplier, {}, &idr);
-                                }),
+                            market.requireChanges({},
+                                                  [&] {
+                                                      a1.pay(b1, usd, 250, idr,
+                                                             125, {}, &idr);
+                                                  }),
                             ex_PATH_PAYMENT_NO_ISSUER);
                     }
                     SECTION("first")
@@ -306,27 +286,24 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                         gateway2.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            market.requireChanges(
-                                {},
-                                [&] {
-                                    a1.pay(b1, usd, 250 * assetMultiplier, idr,
-                                           125 * assetMultiplier, {}, &usd);
-                                }),
+                            market.requireChanges({},
+                                                  [&] {
+                                                      a1.pay(b1, usd, 250, idr,
+                                                             125, {}, &usd);
+                                                  }),
                             ex_PATH_PAYMENT_NO_ISSUER);
                     }
                     SECTION("mid")
                     {
                         SecretKey missing = getAccount("missing");
                         Asset btcCur = makeAsset(missing, "BTC");
-                        REQUIRE_THROWS_AS(
-                            market.requireChanges(
-                                {},
-                                [&] {
-                                    a1.pay(b1, usd, 250 * assetMultiplier, idr,
-                                           125 * assetMultiplier, {btcCur},
-                                           &btcCur);
-                                }),
-                            ex_PATH_PAYMENT_NO_ISSUER);
+                        REQUIRE_THROWS_AS(market.requireChanges(
+                                              {},
+                                              [&] {
+                                                  a1.pay(b1, usd, 250, idr, 125,
+                                                         {btcCur}, &btcCur);
+                                              }),
+                                          ex_PATH_PAYMENT_NO_ISSUER);
                     }
                 }
                 SECTION("dest is issuer")
@@ -339,12 +316,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                         gateway.merge(root);
 
                         REQUIRE_THROWS_AS(
-                            market.requireChanges(
-                                {},
-                                [&] {
-                                    a1.pay(gateway, usd, 250 * assetMultiplier,
-                                           idr, 125 * assetMultiplier, {});
-                                }),
+                            market.requireChanges({},
+                                                  [&] {
+                                                      a1.pay(gateway, usd, 250,
+                                                             idr, 125, {});
+                                                  }),
                             ex_PATH_PAYMENT_NO_DESTINATION);
                     }
                 }
@@ -370,23 +346,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             SECTION("send with path (takes own offer)")
             {
                 // raise A1's balance by what we're trying to send
-                root.pay(a1, 100 * assetMultiplier);
+                root.pay(a1, 100);
 
                 // offer is sell 100 USD for 100 XLM
                 market.requireChangesWithOffer({}, [&] {
-                    return market.addOffer(
-                        a1, {usd, xlm, Price(1, 1), 100 * assetMultiplier});
+                    return market.addOffer(a1, {usd, xlm, Price(1, 1), 100});
                 });
 
                 // A1: try to send 100 USD to B1 using XLM
 
                 REQUIRE_THROWS_AS(
-                    market.requireChanges({},
-                                          [&] {
-                                              a1.pay(b1, xlm,
-                                                     100 * assetMultiplier, usd,
-                                                     100 * assetMultiplier, {});
-                                          }),
+                    market.requireChanges(
+                        {}, [&] { a1.pay(b1, xlm, 100, usd, 100, {}); }),
                     ex_PATH_PAYMENT_OFFER_CROSS_SELF);
             }
 
@@ -394,45 +365,33 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             {
                 // make it such that C can only receive 120 USD (4/5th of
                 // offerC)
-                c1.changeTrust(usd, 120 * assetMultiplier);
+                c1.changeTrust(usd, 120);
 
                 // A1: try to send 105 IDR to B1 using USD
                 // cost 120 (C's offer maxed out at 4/5th of published
                 // amount)
                 //  50 (1/4 of B's offer)=170 USD
 
-                auto offerB1Updated =
-                    OfferState{idr, usd, usdPriceOffer, 75 * assetMultiplier};
+                auto offerB1Updated = OfferState{idr, usd, usdPriceOffer, 75};
                 auto res = PathPaymentResult{};
-                market.requireChanges({{offerC1.key, OfferState::DELETED},
-                                       {offerB1.key, offerB1Updated}},
-                                      [&] {
-                                          res = a1.pay(
-                                              b1, usd, 400 * assetMultiplier,
-                                              idr, 105 * assetMultiplier, {});
-                                      });
+                market.requireChanges(
+                    {{offerC1.key, OfferState::DELETED},
+                     {offerB1.key, offerB1Updated}},
+                    [&] { res = a1.pay(b1, usd, 400, idr, 105, {}); });
 
                 auto exchanged = std::vector<ClaimOfferAtom>{
-                    offerC1.exchanged(800000000, 1200000000),
-                    offerB1.exchanged(250000000, 500000000),
+                    offerC1.exchanged(80, 120), offerB1.exchanged(25, 50),
                 };
                 REQUIRE(res.success().offers == exchanged);
 
                 TrustFrame::pointer line;
 
                 market.requireBalances(
-                    {{a1,
-                      {{usd, trustLineStartingBalance - 170 * assetMultiplier},
-                       {idr, 0}}},
+                    {{a1, {{usd, trustLineStartingBalance - 170}, {idr, 0}}},
                      {b1,
-                      {{usd, 50 * assetMultiplier},
-                       {idr,
-                        trustLineStartingBalance +
-                            (105 - 25) * assetMultiplier}}},
-                     {c1,
-                      {{usd, 120 * assetMultiplier},
-                       {idr,
-                        trustLineStartingBalance - 80 * assetMultiplier}}}});
+                      {{usd, 50},
+                       {idr, trustLineStartingBalance + (105 - 25)}}},
+                     {c1, {{usd, 120}, {idr, trustLineStartingBalance - 80}}}});
             }
             SECTION("missing trust line")
             {
@@ -442,32 +401,23 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 // * B's offer 25 IDR by 50 USD
 
                 auto checkBalances = [&]() {
-                    auto offerB1Updated = OfferState{idr, usd, usdPriceOffer,
-                                                     75 * assetMultiplier};
+                    auto offerB1Updated =
+                        OfferState{idr, usd, usdPriceOffer, 75};
                     auto res = PathPaymentResult{};
                     market.requireChanges(
                         {{offerC1.key, OfferState::DELETED},
                          {offerB1.key, offerB1Updated}},
-                        [&] {
-                            res = a1.pay(b1, usd, 200 * assetMultiplier, idr,
-                                         25 * assetMultiplier, {});
-                        });
+                        [&] { res = a1.pay(b1, usd, 200, idr, 25, {}); });
 
                     // C1 offer was deleted
                     auto exchanged = std::vector<ClaimOfferAtom>{
-                        offerC1.exchanged(0, 0),
-                        offerB1.exchanged(250000000, 500000000),
+                        offerC1.exchanged(0, 0), offerB1.exchanged(25, 50),
                     };
                     REQUIRE(res.success().offers == exchanged);
 
                     market.requireBalances({
-                        {a1,
-                         {{usd,
-                           trustLineStartingBalance - 50 * assetMultiplier},
-                          {idr, 0}}},
-                        {b1,
-                         {{usd, 50 * assetMultiplier},
-                          {idr, trustLineStartingBalance}}},
+                        {a1, {{usd, trustLineStartingBalance - 50}, {idr, 0}}},
+                        {b1, {{usd, 50}, {idr, trustLineStartingBalance}}},
                     });
                 };
 
@@ -497,9 +447,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
             auto cny = issuer.asset("CNY");
             destination.changeTrust(cny, INT64_MAX);
-            seller.changeTrust(cny, 100000 * assetMultiplier);
+            seller.changeTrust(cny, 1000000000000);
 
-            issuer.pay(seller, cny, 170 * assetMultiplier);
+            issuer.pay(seller, cny, 1700000000);
             auto price = Price{2000, 29};
             auto sellerOffer = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(seller, {cny, xlm, price, 145000000});
@@ -509,30 +459,30 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             if (app.getLedgerManager().getCurrentLedgerVersion() <= 2)
             {
                 // bug, it should succeed
-                REQUIRE_THROWS_AS(market.requireChanges(
-                                      {},
-                                      [&] {
-                                          source.pay(destination, xlm,
-                                                     1382068965, cny,
-                                                     2 * assetMultiplier, path);
-                                      }),
-                                  ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+                REQUIRE_THROWS_AS(
+                    market.requireChanges({},
+                                          [&] {
+                                              source.pay(destination, xlm,
+                                                         1382068965, cny,
+                                                         20000000, path);
+                                          }),
+                    ex_PATH_PAYMENT_TOO_FEW_OFFERS);
             }
             else
             {
-                auto sellerOfferRemaining = OfferState{
-                    cny, xlm, price, 145000000 - 2 * assetMultiplier};
+                auto sellerOfferRemaining =
+                    OfferState{cny, xlm, price, 145000000 - 20000000};
                 market.requireChanges(
                     {{sellerOffer.key, sellerOfferRemaining}}, [&] {
-                        source.pay(destination, xlm, 1382068965, cny,
-                                   2 * assetMultiplier, path, nullptr);
+                        source.pay(destination, xlm, 1382068965, cny, 20000000,
+                                   path, nullptr);
                     });
 
                 // 1379310345 = round up(20000000 * price)
                 market.requireBalances(
                     {{source, {{xlm, 1989999000 - 100 - 1379310345}}},
-                     {seller, {{cny, 168 * assetMultiplier}}},
-                     {destination, {{cny, 2 * assetMultiplier}}}});
+                     {seller, {{cny, 1680000000}}},
+                     {destination, {{cny, 20000000}}}});
             }
         }
 
@@ -540,18 +490,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         {
             auto market = TestMarket{app};
 
-            auto paymentToReceive = 24 * assetMultiplier;
+            auto paymentToReceive = 240000000;
             auto offerSize = paymentToReceive / 2;
             auto initialBalance = app.getLedgerManager().getMinBalance(10) +
-                                  txfee * 10 + 100 * assetMultiplier;
+                                  txfee * 10 + 1000000000;
             auto mm = root.create("mm", initialBalance);
             auto source = root.create("source", initialBalance);
             auto destination = root.create("destination", initialBalance);
             mm.changeTrust(idr, trustLineLimit);
             mm.changeTrust(usd, trustLineLimit);
             destination.changeTrust(idr, trustLineLimit);
-            gateway.pay(mm, idr, 100 * assetMultiplier);
-            gateway2.pay(mm, usd, 100 * assetMultiplier);
+            gateway.pay(mm, idr, 1000000000);
+            gateway2.pay(mm, usd, 1000000000);
 
             auto idrCurCheapOffer = market.requireChangesWithOffer({}, [&] {
                 return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
@@ -615,8 +565,8 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
             auto market = TestMarket{app};
             auto paymentAmount =
-                10 * assetMultiplier; // amount of money that 'destination'
-                                      // account will receive
+                int64_t{100000000}; // amount of money that 'destination'
+                                    // account will receive
             auto offerAmount = 8 * paymentAmount; // amount of money in
                                                   // offer required to pass
                                                   // - needs 8x of payment
@@ -634,6 +584,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto setupAccount = [&](const std::string& name) {
                 // setup account with required trustlines and money both in
                 // native and assets
+
                 auto account = root.create(name, initialBalance);
                 account.changeTrust(idr, trustLineLimit);
                 gateway.pay(account, idr, initialBalance);

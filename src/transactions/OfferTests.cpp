@@ -44,9 +44,7 @@ TEST_CASE("create offer", "[tx][offers]")
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    const int64_t assetMultiplier = 1000000;
-
-    int64_t trustLineBalance = 100000 * assetMultiplier;
+    int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
@@ -78,13 +76,11 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto market = TestMarket{app};
         auto firstOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(a1,
-                                   {idr, usd, oneone, 100 * assetMultiplier});
+            return market.addOffer(a1, {idr, usd, oneone, 100});
         });
         auto secondOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(
-                b1,
-                {usd, idr, oneone, 100 * assetMultiplier, OfferType::PASSIVE});
+            return market.addOffer(b1,
+                                   {usd, idr, oneone, 100, OfferType::PASSIVE});
         });
 
         SECTION("create a passive offer with a better price")
@@ -93,11 +89,10 @@ TEST_CASE("create offer", "[tx][offers]")
                 // firstOffer is taken, new offer was not created
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
-                        return market.addOffer(b1,
-                                               {usd, idr, Price{99, 100},
-                                                100 * assetMultiplier,
-                                                OfferType::PASSIVE},
-                                               OfferState::DELETED);
+                        return market.addOffer(
+                            b1,
+                            {usd, idr, Price{99, 100}, 100, OfferType::PASSIVE},
+                            OfferState::DELETED);
                     });
             });
         }
@@ -105,10 +100,9 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             for_all_versions(app, [&] {
                 market.requireChangesWithOffer({}, [&] {
-                    return market.updateOffer(b1, secondOffer.key.offerID,
-                                              {usd, idr, Price{100, 99},
-                                               100 * assetMultiplier,
-                                               OfferType::PASSIVE});
+                    return market.updateOffer(
+                        b1, secondOffer.key.offerID,
+                        {usd, idr, Price{100, 99}, 100, OfferType::PASSIVE});
                 });
             });
         }
@@ -119,11 +113,10 @@ TEST_CASE("create offer", "[tx][offers]")
                 // firstOffer is taken with updated offer
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
-                        return market.updateOffer(b1, secondOffer.key.offerID,
-                                                  {usd, idr, Price{99, 100},
-                                                   100 * assetMultiplier,
-                                                   OfferType::PASSIVE},
-                                                  OfferState::DELETED);
+                        return market.updateOffer(
+                            b1, secondOffer.key.offerID,
+                            {usd, idr, Price{99, 100}, 100, OfferType::PASSIVE},
+                            OfferState::DELETED);
                     });
             });
         }
@@ -323,8 +316,7 @@ TEST_CASE("create offer", "[tx][offers]")
                         market.requireChangesWithOffer(
                             {},
                             [&] {
-                                return market.addOffer(
-                                    a, {xlm, idr, p, 150 * assetMultiplier});
+                                return market.addOffer(a, {xlm, idr, p, 150});
                             }),
                         ex_MANAGE_OFFER_MALFORMED);
                 }
@@ -468,8 +460,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             for_all_versions(app, [&] {
                 market.requireChangesWithOffer({}, [&] {
-                    return market.addOffer(
-                        a1, {xlm, idr, Price{3, 2}, 100 * assetMultiplier});
+                    return market.addOffer(a1, {xlm, idr, Price{3, 2}, 100});
                 });
             });
         }
@@ -478,8 +469,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             for_all_versions(app, [&] {
                 market.requireChangesWithOffer({}, [&] {
-                    return market.addOffer(
-                        a1, {idr, xlm, Price{3, 2}, 100 * assetMultiplier});
+                    return market.addOffer(a1, {idr, xlm, Price{3, 2}, 100});
                 });
             });
         }
@@ -492,8 +482,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             auto const price = Price{3, 2};
             auto exactCrossPrice = Price{2, 3};
-            auto offerState =
-                OfferState{idr, usd, price, 100 * assetMultiplier};
+            auto offerState = OfferState{idr, usd, price, 100};
             auto offers = std::vector<TestMarketOffer>{};
             for (auto i = 0; i < nbOffers; i++)
             {
@@ -504,11 +493,10 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("offer does not cross")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+                    issuer.pay(b1, usd, 20000);
                     // offer is sell 40 USD for 80 IDR ; sell USD @ 2
                     market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(
-                            b1, {usd, idr, Price{2, 1}, 40 * assetMultiplier});
+                        return market.addOffer(b1, {usd, idr, Price{2, 1}, 40});
                     });
                 });
             }
@@ -516,38 +504,36 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("offer crosses own")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(a1, usd, 20000 * assetMultiplier);
+                    issuer.pay(a1, usd, 20000);
 
                     // ensure we could receive proceeds from the offer
-                    a1.pay(issuer, idr, 100000 * assetMultiplier);
+                    a1.pay(issuer, idr, 100000);
 
                     // offer is sell 150 USD for 100 IDR; sell USD @ 1.5 /
                     // buy IRD @ 0.66
-                    REQUIRE_THROWS_AS(market.requireChangesWithOffer(
-                                          {},
-                                          [&] {
-                                              return market.addOffer(
-                                                  a1,
-                                                  {usd, idr, exactCrossPrice,
-                                                   150 * assetMultiplier});
-                                          }),
-                                      ex_MANAGE_OFFER_CROSS_SELF);
+                    REQUIRE_THROWS_AS(
+                        market.requireChangesWithOffer(
+                            {},
+                            [&] {
+                                return market.addOffer(
+                                    a1, {usd, idr, exactCrossPrice, 150});
+                            }),
+                        ex_MANAGE_OFFER_CROSS_SELF);
                 });
             }
 
             SECTION("offer crosses and removes first")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+                    issuer.pay(b1, usd, 20000);
 
                     // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
                     // buy IRD @ 0.66
                     market.requireChangesWithOffer(
                         {{offers[0].key, OfferState::DELETED}}, [&] {
-                            return market.addOffer(b1,
-                                                   {usd, idr, exactCrossPrice,
-                                                    150 * assetMultiplier},
-                                                   OfferState::DELETED);
+                            return market.addOffer(
+                                b1, {usd, idr, exactCrossPrice, 150},
+                                OfferState::DELETED);
                         });
                 });
             }
@@ -555,11 +541,10 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("offer crosses, removes first six and changes seventh")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+                    issuer.pay(b1, usd, 20000);
 
-                    market.requireBalances(
-                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
-                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
+                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
+                                            {b1, {{usd, 20000}, {idr, 0}}}});
 
                     // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
                     // -> buy USD @ 1.5
@@ -580,19 +565,15 @@ TEST_CASE("create offer", "[tx][offers]")
                          {offers[3].key, OfferState::DELETED},
                          {offers[4].key, OfferState::DELETED},
                          {offers[5].key, OfferState::DELETED},
-                         {offers[6].key, {idr, usd, price, 26666667}}},
+                         {offers[6].key, {idr, usd, price, 27}}},
                         [&] {
                             return market.addOffer(
-                                b1,
-                                {usd, idr, Price{1, 2}, 1010 * assetMultiplier},
+                                b1, {usd, idr, Price{1, 2}, 1010},
                                 OfferState::DELETED);
                         });
 
-                    market.requireBalances(
-                        {{a1,
-                          {{usd, 1010 * assetMultiplier}, {idr, 99326666667}}},
-                         {b1,
-                          {{usd, 18990 * assetMultiplier}, {idr, 673333333}}}});
+                    market.requireBalances({{a1, {{usd, 1010}, {idr, 99327}}},
+                                            {b1, {{usd, 18990}, {idr, 673}}}});
                 });
             }
 
@@ -600,33 +581,31 @@ TEST_CASE("create offer", "[tx][offers]")
                     "then remains")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+                    issuer.pay(b1, usd, 20000);
 
-                    market.requireBalances(
-                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
-                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
+                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
+                                            {b1, {{usd, 20000}, {idr, 0}}}});
 
                     auto c1 = root.create("C", minBalance3 + 10000);
 
                     // inject also an offer that should get cleaned up
                     c1.changeTrust(idr, trustLineLimit);
                     c1.changeTrust(usd, trustLineLimit);
-                    issuer.pay(c1, idr, 20000 * assetMultiplier);
+                    issuer.pay(c1, idr, 20000);
 
                     // matches the offer from A
                     auto cOffer = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(
-                            c1, {idr, usd, price, 100 * assetMultiplier});
+                        return market.addOffer(c1, {idr, usd, price, 100});
                     });
                     // drain account
-                    c1.pay(issuer, idr, 20000 * assetMultiplier);
+                    c1.pay(issuer, idr, 20000);
                     // offer should still be there
                     market.checkCurrentOffers();
 
                     // offer is sell 10000 USD for 5000 IDR; sell USD @ 0.5
 
-                    auto usdBalanceForSale = 10000000000;
-                    auto usdBalanceRemaining = 6700000000;
+                    auto usdBalanceForSale = 10000;
+                    auto usdBalanceRemaining = 6700;
                     auto offerPosted =
                         OfferState{usd, idr, Price{1, 2}, usdBalanceForSale};
                     auto offerRemaining =
@@ -642,28 +621,24 @@ TEST_CASE("create offer", "[tx][offers]")
                         return market.addOffer(b1, offerPosted, offerRemaining);
                     });
 
-                    market.requireBalances(
-                        {{a1, {{usd, 3300000000}, {idr, 97800000000}}},
-                         {b1, {{usd, 16700000000}, {idr, 2200000000}}}});
+                    market.requireBalances({{a1, {{usd, 3300}, {idr, 97800}}},
+                                            {b1, {{usd, 16700}, {idr, 2200}}}});
                 });
             }
 
             SECTION("multiple offers with small amount crosses")
             {
                 for_all_versions(app, [&] {
-                    issuer.pay(b1, usd, 20000 * assetMultiplier);
+                    issuer.pay(b1, usd, 20000);
 
-                    market.requireBalances(
-                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
-                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
+                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
+                                            {b1, {{usd, 20000}, {idr, 0}}}});
 
-                    auto offerPosted =
-                        OfferState{usd, idr, Price{1, 2}, 1 * assetMultiplier};
-                    auto offerChanged =
-                        OfferState{idr, usd, price, 100 * assetMultiplier};
+                    auto offerPosted = OfferState{usd, idr, Price{1, 2}, 10};
+                    auto offerChanged = OfferState{idr, usd, price, 100};
                     for (auto i = 0; i < 10; i++)
                     {
-                        offerChanged.amount -= 666666;
+                        offerChanged.amount -= 6;
                         market.requireChangesWithOffer(
                             {{offers[0].key, offerChanged}}, [&] {
                                 return market.addOffer(b1, offerPosted,
@@ -671,9 +646,8 @@ TEST_CASE("create offer", "[tx][offers]")
                             });
                     }
 
-                    market.requireBalances(
-                        {{a1, {{usd, 10000000}, {idr, 99993333340}}},
-                         {b1, {{usd, 19990000000}, {idr, 6666660}}}});
+                    market.requireBalances({{a1, {{usd, 100}, {idr, 99940}}},
+                                            {b1, {{usd, 19900}, {idr, 60}}}});
                 });
             }
         }
@@ -688,15 +662,13 @@ TEST_CASE("create offer", "[tx][offers]")
             // offer is sell 100 IDR for 150 USD; buy USD @ 1.5 = sell
             // IRD @ 0.66
             auto offerA1 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(
-                    a1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+                return market.addOffer(a1, {idr, usd, Price{3, 2}, 100});
             });
 
             // b1 sells the same thing
             issuer.pay(b1, idr, trustLineBalance);
             auto offerB1 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(
-                    b1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+                return market.addOffer(b1, {idr, usd, Price{3, 2}, 100});
             });
 
             auto c1 = root.create("C", minBalanceA + 10000);
@@ -708,7 +680,7 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 for_all_versions(app, [&] {
                     // fund C such that it's 150 IDR below its limit
-                    issuer.pay(c1, idr, trustLineLimit - 150 * assetMultiplier);
+                    issuer.pay(c1, idr, trustLineLimit - 150);
 
                     // try to create an offer:
                     // it will cross with the offers from A and B but
@@ -719,24 +691,23 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66
                     // USD
                     // -> sell USD @ 1.5 IDR
-                    auto offerChanged = OfferState{idr, usd, price, 50000000};
+                    auto offerChanged = OfferState{idr, usd, price, 50};
                     market.requireChangesWithOffer(
                         {{offerA1.key, OfferState::DELETED},
                          {offerB1.key, offerChanged}},
                         [&] {
-                            return market.addOffer(
-                                c1,
-                                {usd, idr, Price{2, 3}, 300 * assetMultiplier},
-                                OfferState::DELETED);
+                            return market.addOffer(c1,
+                                                   {usd, idr, Price{2, 3}, 300},
+                                                   OfferState::DELETED);
                         });
 
                     // A1's offer was taken entirely
                     // B1's offer was partially taken
                     // buyer may have paid a bit more to cross offers
                     market.requireBalances(
-                        {{a1, {{usd, 150000000}, {idr, 99900000000}}},
-                         {b1, {{usd, 75000000}, {idr, 99950000000}}},
-                         {c1, {{usd, 99775000000}, {idr, 1000000000000}}}});
+                        {{a1, {{usd, 150}, {idr, 99900}}},
+                         {b1, {{usd, 75}, {idr, 99950}}},
+                         {c1, {{usd, 99775}, {idr, 1000000}}}});
                 });
             }
 
@@ -768,9 +739,8 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is sell 100 IDR for 150 USD; buy USD @
                     // 1.5 = sell IRD @ 0.66
                     auto offerD1 = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(d1,
-                                               {idrAuth, usdAuth, Price{3, 2},
-                                                100 * assetMultiplier});
+                        return market.addOffer(
+                            d1, {idrAuth, usdAuth, Price{3, 2}, 100});
                     });
 
                     SECTION("D not authorized to hold USD")
@@ -794,9 +764,8 @@ TEST_CASE("create offer", "[tx][offers]")
                     issuerAuth.pay(e1, idrAuth, trustLineBalance);
 
                     auto offerE1 = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(e1,
-                                               {idrAuth, usdAuth, Price{3, 2},
-                                                100 * assetMultiplier});
+                        return market.addOffer(
+                            e1, {idrAuth, usdAuth, Price{3, 2}, 100});
                     });
 
                     // setup f1
@@ -819,10 +788,10 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     // offer is buy 200 IDR for 300 USD; buy IDR @
                     // 0.66 USD -> sell USD @ 1.5 IDR
-                    auto offerPosted = OfferState{usdAuth, idrAuth, Price{2, 3},
-                                                  300 * assetMultiplier};
-                    auto offerRemaining = OfferState{
-                        usdAuth, idrAuth, Price{2, 3}, 150 * assetMultiplier};
+                    auto offerPosted =
+                        OfferState{usdAuth, idrAuth, Price{2, 3}, 300};
+                    auto offerRemaining =
+                        OfferState{usdAuth, idrAuth, Price{2, 3}, 150};
                     auto offerF1 = market.requireChangesWithOffer(
                         {{offerD1.key, OfferState::DELETED},
                          {offerE1.key, OfferState::DELETED}},
@@ -836,9 +805,9 @@ TEST_CASE("create offer", "[tx][offers]")
                     // D1's offer was deleted
                     // E1's offer was taken
                     market.requireBalances(
-                        {{d1, {{usdAuth, 0}, {idrAuth, 100000000000}}},
-                         {e1, {{usdAuth, 150000000}, {idrAuth, 99900000000}}},
-                         {f1, {{usdAuth, 99850000000}, {idrAuth, 100000000}}}});
+                        {{d1, {{usdAuth, 0}, {idrAuth, 100000}}},
+                         {e1, {{usdAuth, 150}, {idrAuth, 99900}}},
+                         {f1, {{usdAuth, 99850}, {idrAuth, 100}}}});
                 });
             }
 
@@ -846,7 +815,7 @@ TEST_CASE("create offer", "[tx][offers]")
             {
                 for_all_versions(app, [&] {
                     // makes "A" only capable of holding 75 "USD"
-                    issuer.pay(a1, usd, trustLineLimit - 75 * assetMultiplier);
+                    issuer.pay(a1, usd, trustLineLimit - 75);
 
                     // try to create an offer:
                     // it will cross with the offer from B fully
@@ -857,10 +826,8 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is buy 200 IDR for 300 USD; buy IDR @
                     // 0.66 USD
                     // -> sell USD @ 1.5 IDR
-                    auto offerPosted = OfferState{usd, idr, Price{2, 3},
-                                                  300 * assetMultiplier};
-                    auto offerRemaining =
-                        OfferState{usd, idr, Price{2, 3}, 75 * assetMultiplier};
+                    auto offerPosted = OfferState{usd, idr, Price{2, 3}, 300};
+                    auto offerRemaining = OfferState{usd, idr, Price{2, 3}, 75};
                     market.requireChangesWithOffer(
                         {{offerA1.key, OfferState::DELETED},
                          {offerB1.key, OfferState::DELETED}},
@@ -878,13 +845,9 @@ TEST_CASE("create offer", "[tx][offers]")
                     market.requireBalances(
                         {{a1,
                           {{usd, trustLineLimit},
-                           {idr, trustLineBalance - 50 * assetMultiplier}}},
-                         {b1,
-                          {{usd, 150 * assetMultiplier},
-                           {idr, trustLineBalance - 100 * assetMultiplier}}},
-                         {c1,
-                          {{usd, trustLineBalance - 225 * assetMultiplier},
-                           {idr, 150 * assetMultiplier}}}});
+                           {idr, trustLineBalance - 50}}},
+                         {b1, {{usd, 150}, {idr, trustLineBalance - 100}}},
+                         {c1, {{usd, trustLineBalance - 225}, {idr, 150}}}});
                 });
             }
         }
@@ -892,8 +855,7 @@ TEST_CASE("create offer", "[tx][offers]")
         SECTION("issuer offers")
         {
             auto offerA1 = market.requireChangesWithOffer({}, [&] {
-                return market.addOffer(
-                    a1, {idr, usd, Price{3, 2}, 100 * assetMultiplier});
+                return market.addOffer(a1, {idr, usd, Price{3, 2}, 100});
             });
 
             SECTION("issuer creates an offer, claimed by somebody else")
@@ -901,27 +863,23 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_all_versions(app, [&] {
                     // sell 100 IDR for 90 USD
                     auto gwOffer = market.requireChangesWithOffer({}, [&] {
-                        return market.addOffer(
-                            issuer,
-                            {idr, usd, Price{9, 10}, 100 * assetMultiplier});
+                        return market.addOffer(issuer,
+                                               {idr, usd, Price{9, 10}, 100});
                     });
 
                     // fund a1 with some USD
-                    issuer.pay(a1, usd, 1000 * assetMultiplier);
+                    issuer.pay(a1, usd, 1000);
 
                     // sell USD for IDR
                     market.requireChangesWithOffer(
                         {{gwOffer.key, OfferState::DELETED}}, [&] {
-                            return market.addOffer(
-                                a1,
-                                {usd, idr, Price{1, 1}, 90 * assetMultiplier},
-                                OfferState::DELETED);
+                            return market.addOffer(a1,
+                                                   {usd, idr, Price{1, 1}, 90},
+                                                   OfferState::DELETED);
                         });
 
                     market.requireBalances({
-                        {a1,
-                         {{usd, 910 * assetMultiplier},
-                          {idr, trustLineBalance + 100 * assetMultiplier}}},
+                        {a1, {{usd, 910}, {idr, trustLineBalance + 100}}},
                     });
                 });
             }
@@ -931,16 +889,13 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_all_versions(app, [&] {
                     market.requireChangesWithOffer(
                         {{offerA1.key, OfferState::DELETED}}, [&] {
-                            return market.addOffer(
-                                issuer,
-                                {usd, idr, Price(2, 3), 150 * assetMultiplier},
-                                OfferState::DELETED);
+                            return market.addOffer(issuer,
+                                                   {usd, idr, Price(2, 3), 150},
+                                                   OfferState::DELETED);
                         });
 
                     market.requireBalances({
-                        {a1,
-                         {{usd, 150 * assetMultiplier},
-                          {idr, trustLineBalance - 100 * assetMultiplier}}},
+                        {a1, {{usd, 150}, {idr, trustLineBalance - 100}}},
                     });
                 });
             }
@@ -957,9 +912,9 @@ TEST_CASE("create offer", "[tx][offers]")
 
         auto askingAccount = root.create("asking offer account", 10000000000);
         auto biddingAccount = root.create("bidding offer account", 10000000000);
-        askingAccount.changeTrust(idr, trustLineLimit);
-        biddingAccount.changeTrust(idr, trustLineLimit);
-        issuer.pay(askingAccount, idr, trustLineBalance);
+        askingAccount.changeTrust(idr, 1000000000000);
+        biddingAccount.changeTrust(idr, 1000000000000);
+        issuer.pay(askingAccount, idr, 100000000000);
 
         auto bidding = OfferState{xlm, idr, bidPrice, bidAmount};
         auto asking = OfferState{idr, xlm, askPrice, askAmount};

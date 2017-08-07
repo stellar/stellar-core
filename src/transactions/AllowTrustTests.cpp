@@ -24,9 +24,8 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     app.start();
 
-    const int64_t assetMultiplier = 10000000;
     const int64_t trustLineLimit = INT64_MAX;
-    const int64_t trustLineStartingBalance = 20000 * assetMultiplier;
+    const int64_t trustLineStartingBalance = 20000;
 
     auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
 

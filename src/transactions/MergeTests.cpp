@@ -40,9 +40,7 @@ TEST_CASE("merge", "[tx][merge]")
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    const int64_t assetMultiplier = 1000000;
-
-    int64_t trustLineBalance = 100000 * assetMultiplier;
+    int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
     int64_t txfee = app.getLedgerManager().getTxFee();
@@ -348,7 +346,7 @@ TEST_CASE("merge", "[tx][merge]")
                 const Price somePrice(3, 2);
                 for (int i = 0; i < 4; i++)
                 {
-                    a1.manageOffer(0, xlm, usd, somePrice, 100 * assetMultiplier);
+                    a1.manageOffer(0, xlm, usd, somePrice, 100);
                 }
                 // empty out balance
                 a1.pay(gateway, usd, trustLineBalance);
