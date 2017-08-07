@@ -11,6 +11,13 @@ namespace Catch
 
 template <>
 std::string
+toString(stellar::ClaimOfferAtom const& coa)
+{
+    return xdr::xdr_to_string(coa);
+}
+
+template <>
+std::string
 toString(stellar::Hash const& tr)
 {
     return xdr::xdr_to_string(tr);

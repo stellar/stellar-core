@@ -262,15 +262,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                               idr, 125 * assetMultiplier, {});
                                       });
 
-                auto const& multi = res.success();
-
-                REQUIRE(multi.offers.size() == 2);
+                auto exchanged = std::vector<ClaimOfferAtom>{
+                    offerC1.exchanged(1000000000, 1500000000),
+                    offerB1.exchanged(250000000, 500000000)};
+                REQUIRE(res.success().offers == exchanged);
 
                 TrustFrame::pointer line;
 
                 // C1
                 // offer was taken
-                REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
                 line = loadTrustLine(c1, idr, app);
                 checkAmounts(line->getBalance(),
                              trustLineStartingBalance - 100 * assetMultiplier);
@@ -278,10 +278,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 checkAmounts(line->getBalance(), 150 * assetMultiplier);
 
                 // B1
-                auto const& b1Res = multi.offers[1];
-                REQUIRE(b1Res.offerID == offerB1.key.offerID);
-                REQUIRE(b1Res.sellerID == b1.getPublicKey());
-                checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
                 line = loadTrustLine(b1, idr, app);
                 // 125 where sent, 25 were consumed by B's offer
                 checkAmounts(line->getBalance(),
@@ -428,15 +424,16 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                               idr, 105 * assetMultiplier, {});
                                       });
 
-                auto& multi = res.success();
-
-                REQUIRE(multi.offers.size() == 2);
+                auto exchanged = std::vector<ClaimOfferAtom>{
+                    offerC1.exchanged(800000000, 1200000000),
+                    offerB1.exchanged(250000000, 500000000),
+                };
+                REQUIRE(res.success().offers == exchanged);
 
                 TrustFrame::pointer line;
 
                 // C1
                 // offer was taken
-                REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
                 line = loadTrustLine(c1, idr, app);
                 checkAmounts(line->getBalance(),
                              trustLineStartingBalance - 80 * assetMultiplier);
@@ -444,10 +441,6 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 checkAmounts(line->getBalance(), line->getTrustLine().limit);
 
                 // B1
-                auto const& b1Res = multi.offers[1];
-                REQUIRE(b1Res.offerID == offerB1.key.offerID);
-                REQUIRE(b1Res.sellerID == b1.getPublicKey());
-                checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
                 line = loadTrustLine(b1, idr, app);
                 // 105 where sent, 25 were consumed by B's offer
                 checkAmounts(line->getBalance(),
@@ -482,23 +475,16 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                          25 * assetMultiplier, {});
                         });
 
-                    auto& multi = res.success();
-
-                    REQUIRE(multi.offers.size() == 2);
+                    // C1 offer was deleted
+                    auto exchanged = std::vector<ClaimOfferAtom>{
+                        offerC1.exchanged(0, 0),
+                        offerB1.exchanged(250000000, 500000000),
+                    };
+                    REQUIRE(res.success().offers == exchanged);
 
                     TrustFrame::pointer line;
 
-                    // C1
-                    // offer was deleted
-                    REQUIRE(multi.offers[0].offerID == offerC1.key.offerID);
-                    REQUIRE(multi.offers[0].amountSold == 0);
-                    REQUIRE(multi.offers[0].amountBought == 0);
-
                     // B1
-                    auto const& b1Res = multi.offers[1];
-                    REQUIRE(b1Res.offerID == offerB1.key.offerID);
-                    REQUIRE(b1Res.sellerID == b1.getPublicKey());
-                    checkAmounts(b1Res.amountSold, 25 * assetMultiplier);
                     line = loadTrustLine(b1, idr, app);
                     // As B was the sole participant in the exchange, the
                     // IDR
@@ -619,28 +605,23 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto res = source.pay(destination, xlm, 8 * paymentToReceive, idr,
                                   paymentToReceive, path);
 
-            auto const& offers = res.success().offers;
-            REQUIRE(offers.size() == 4);
-            REQUIRE(std::find_if(std::begin(offers), std::end(offers),
-                                 [&](ClaimOfferAtom const& x) {
-                                     return x.offerID ==
-                                            idrCurCheapOffer.key.offerID;
-                                 }) != std::end(offers));
-            REQUIRE(std::find_if(std::begin(offers), std::end(offers),
-                                 [&](ClaimOfferAtom const& x) {
-                                     return x.offerID ==
-                                            idrCurMidBogusOffer.key.offerID;
-                                 }) != std::end(offers));
-            REQUIRE(std::find_if(std::begin(offers), std::end(offers),
-                                 [&](ClaimOfferAtom const& x) {
-                                     return x.offerID ==
-                                            idrCurExpensiveOffer.key.offerID;
-                                 }) != std::end(offers));
-            REQUIRE(std::find_if(std::begin(offers), std::end(offers),
-                                 [&](ClaimOfferAtom const& x) {
-                                     return x.offerID ==
-                                            usdCurOffer.key.offerID;
-                                 }) != std::end(offers));
+            auto exchanged =
+                app.getLedgerManager().getCurrentLedgerVersion() < 3
+                    ? std::vector<ClaimOfferAtom>{usdCurOffer.exchanged(
+                                                      90000000, 45000000),
+                                                  idrCurCheapOffer.exchanged(
+                                                      120000000, 30000000),
+                                                  idrCurMidBogusOffer.exchanged(
+                                                      0, 0),
+                                                  idrCurExpensiveOffer
+                                                      .exchanged(120000000,
+                                                                 60000000)}
+                    : std::vector<ClaimOfferAtom>{
+                          usdCurOffer.exchanged(90000001, 45000001),
+                          idrCurCheapOffer.exchanged(120000000, 30000000),
+                          idrCurMidBogusOffer.exchanged(1, 1),
+                          idrCurExpensiveOffer.exchanged(119999999, 60000000)};
+            REQUIRE(res.success().offers == exchanged);
         }
 
         SECTION("path payment with cycle")

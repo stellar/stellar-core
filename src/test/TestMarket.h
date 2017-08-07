@@ -70,6 +70,8 @@ struct TestMarketOffer
 {
     OfferKey key;
     OfferState state;
+
+    ClaimOfferAtom exchanged(int64_t sold, int64_t bought) const;
 };
 
 class TestMarket

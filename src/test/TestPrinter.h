@@ -17,6 +17,8 @@ struct OfferState;
 namespace Catch
 {
 
+template <> std::string toString(stellar::ClaimOfferAtom const& coa);
+
 template <> std::string toString(stellar::Hash const& tr);
 
 template <> std::string toString(stellar::OfferEntry const& oe);
