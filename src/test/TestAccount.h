@@ -44,6 +44,9 @@ class TestAccount
     void allowTrust(Asset const& asset, PublicKey const& trustor);
     void denyTrust(Asset const& asset, PublicKey const& trustor);
 
+    TrustLineEntry loadTrustLine(Asset const& asset) const;
+    bool hasTrustLine(Asset const& asset) const;
+
     void setOptions(AccountID* inflationDest, uint32_t* setFlags,
                     uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
                     Signer* signer, std::string* homeDomain);

@@ -557,12 +557,9 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_all_versions(app, [&] {
                     issuer.pay(b1, usd, 20000 * assetMultiplier);
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            100000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            20000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
+                    market.requireBalances(
+                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
+                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
 
                     // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
                     // -> buy USD @ 1.5
@@ -591,14 +588,11 @@ TEST_CASE("create offer", "[tx][offers]")
                                 OfferState::DELETED);
                         });
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            1010 * assetMultiplier);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            99326666667);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            18990 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
-                            673333333);
+                    market.requireBalances(
+                        {{a1,
+                          {{usd, 1010 * assetMultiplier}, {idr, 99326666667}}},
+                         {b1,
+                          {{usd, 18990 * assetMultiplier}, {idr, 673333333}}}});
                 });
             }
 
@@ -608,12 +602,9 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_all_versions(app, [&] {
                     issuer.pay(b1, usd, 20000 * assetMultiplier);
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            100000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            20000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
+                    market.requireBalances(
+                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
+                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
 
                     auto c1 = root.create("C", minBalance3 + 10000);
 
@@ -651,14 +642,9 @@ TEST_CASE("create offer", "[tx][offers]")
                         return market.addOffer(b1, offerPosted, offerRemaining);
                     });
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            3300000000);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            97800000000);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            16700000000);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
-                            2200000000);
+                    market.requireBalances(
+                        {{a1, {{usd, 3300000000}, {idr, 97800000000}}},
+                         {b1, {{usd, 16700000000}, {idr, 2200000000}}}});
                 });
             }
 
@@ -667,12 +653,9 @@ TEST_CASE("create offer", "[tx][offers]")
                 for_all_versions(app, [&] {
                     issuer.pay(b1, usd, 20000 * assetMultiplier);
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() == 0);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            100000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            20000 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() == 0);
+                    market.requireBalances(
+                        {{a1, {{usd, 0}, {idr, 100000 * assetMultiplier}}},
+                         {b1, {{usd, 20000 * assetMultiplier}, {idr, 0}}}});
 
                     auto offerPosted =
                         OfferState{usd, idr, Price{1, 2}, 1 * assetMultiplier};
@@ -688,14 +671,9 @@ TEST_CASE("create offer", "[tx][offers]")
                             });
                     }
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            10000000);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            99993333340);
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            19990000000);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
-                            6666660);
+                    market.requireBalances(
+                        {{a1, {{usd, 10000000}, {idr, 99993333340}}},
+                         {b1, {{usd, 19990000000}, {idr, 6666660}}}});
                 });
             }
         }
@@ -753,23 +731,12 @@ TEST_CASE("create offer", "[tx][offers]")
                         });
 
                     // A1's offer was taken entirely
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            150000000);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            99900000000);
-
                     // B1's offer was partially taken
                     // buyer may have paid a bit more to cross offers
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            75000000);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
-                            99950000000);
-
-                    // C1
-                    REQUIRE(loadTrustLine(c1, usd, app)->getBalance() ==
-                            99775000000);
-                    REQUIRE(loadTrustLine(c1, idr, app)->getBalance() ==
-                            1000000000000);
+                    market.requireBalances(
+                        {{a1, {{usd, 150000000}, {idr, 99900000000}}},
+                         {b1, {{usd, 75000000}, {idr, 99950000000}}},
+                         {c1, {{usd, 99775000000}, {idr, 1000000000000}}}});
                 });
             }
 
@@ -867,21 +834,11 @@ TEST_CASE("create offer", "[tx][offers]")
                     // USD ; 0.66
 
                     // D1's offer was deleted
-                    REQUIRE(loadTrustLine(d1, usdAuth, app)->getBalance() == 0);
-                    REQUIRE(loadTrustLine(d1, idrAuth, app)->getBalance() ==
-                            100000000000);
-
                     // E1's offer was taken
-                    REQUIRE(loadTrustLine(e1, usdAuth, app)->getBalance() ==
-                            150000000);
-                    REQUIRE(loadTrustLine(e1, idrAuth, app)->getBalance() ==
-                            99900000000);
-
-                    // F!
-                    REQUIRE(loadTrustLine(f1, usdAuth, app)->getBalance() ==
-                            99850000000);
-                    REQUIRE(loadTrustLine(f1, idrAuth, app)->getBalance() ==
-                            100000000);
+                    market.requireBalances(
+                        {{d1, {{usdAuth, 0}, {idrAuth, 100000000000}}},
+                         {e1, {{usdAuth, 150000000}, {idrAuth, 99900000000}}},
+                         {f1, {{usdAuth, 99850000000}, {idrAuth, 100000000}}}});
                 });
             }
 
@@ -917,22 +874,17 @@ TEST_CASE("create offer", "[tx][offers]")
                     // check balances
 
                     // A1's offer was deleted
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            trustLineLimit);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            trustLineBalance - 50 * assetMultiplier);
-
                     // B1's offer was taken
-                    REQUIRE(loadTrustLine(b1, usd, app)->getBalance() ==
-                            150 * assetMultiplier);
-                    REQUIRE(loadTrustLine(b1, idr, app)->getBalance() ==
-                            trustLineBalance - 100 * assetMultiplier);
-
-                    // C1
-                    REQUIRE(loadTrustLine(c1, usd, app)->getBalance() ==
-                            trustLineBalance - 225 * assetMultiplier);
-                    REQUIRE(loadTrustLine(c1, idr, app)->getBalance() ==
-                            150 * assetMultiplier);
+                    market.requireBalances(
+                        {{a1,
+                          {{usd, trustLineLimit},
+                           {idr, trustLineBalance - 50 * assetMultiplier}}},
+                         {b1,
+                          {{usd, 150 * assetMultiplier},
+                           {idr, trustLineBalance - 100 * assetMultiplier}}},
+                         {c1,
+                          {{usd, trustLineBalance - 225 * assetMultiplier},
+                           {idr, 150 * assetMultiplier}}}});
                 });
             }
         }
@@ -966,10 +918,11 @@ TEST_CASE("create offer", "[tx][offers]")
                                 OfferState::DELETED);
                         });
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            910 * assetMultiplier);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            trustLineBalance + 100 * assetMultiplier);
+                    market.requireBalances({
+                        {a1,
+                         {{usd, 910 * assetMultiplier},
+                          {idr, trustLineBalance + 100 * assetMultiplier}}},
+                    });
                 });
             }
 
@@ -984,10 +937,11 @@ TEST_CASE("create offer", "[tx][offers]")
                                 OfferState::DELETED);
                         });
 
-                    REQUIRE(loadTrustLine(a1, usd, app)->getBalance() ==
-                            150 * assetMultiplier);
-                    REQUIRE(loadTrustLine(a1, idr, app)->getBalance() ==
-                            trustLineBalance - 100 * assetMultiplier);
+                    market.requireBalances({
+                        {a1,
+                         {{usd, 150 * assetMultiplier},
+                          {idr, trustLineBalance - 100 * assetMultiplier}}},
+                    });
                 });
             }
         }

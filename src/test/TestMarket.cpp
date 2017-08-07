@@ -209,6 +209,27 @@ TestMarket::requireChangesWithOffer(std::vector<TestMarketOffer> changes,
 }
 
 void
+TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
+{
+    for (auto const& accountBalances : balances)
+    {
+        auto account = TestAccount{mApp, accountBalances.key};
+        for (auto const& assetBalance : accountBalances.balances)
+        {
+            if (assetBalance.asset.type() == ASSET_TYPE_NATIVE)
+            {
+                REQUIRE(account.getBalance() == assetBalance.balance);
+            }
+            else
+            {
+                REQUIRE(account.loadTrustLine(assetBalance.asset).balance ==
+                        assetBalance.balance);
+            }
+        }
+    }
+}
+
+void
 TestMarket::checkCurrentOffers()
 {
     checkState(mOffers, {});

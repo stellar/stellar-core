@@ -267,31 +267,19 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     offerB1.exchanged(250000000, 500000000)};
                 REQUIRE(res.success().offers == exchanged);
 
-                TrustFrame::pointer line;
-
-                // C1
-                // offer was taken
-                line = loadTrustLine(c1, idr, app);
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance - 100 * assetMultiplier);
-                line = loadTrustLine(c1, usd, app);
-                checkAmounts(line->getBalance(), 150 * assetMultiplier);
-
-                // B1
-                line = loadTrustLine(b1, idr, app);
-                // 125 where sent, 25 were consumed by B's offer
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance +
-                                 (125 - 25) * assetMultiplier);
-                line = loadTrustLine(b1, usd, app);
-                checkAmounts(line->getBalance(), 50 * assetMultiplier);
-
-                // A1
-                line = loadTrustLine(a1, idr, app);
-                checkAmounts(line->getBalance(), 0);
-                line = loadTrustLine(a1, usd, app);
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance - 200 * assetMultiplier);
+                market.requireBalances(
+                    {{a1,
+                      {{usd, trustLineStartingBalance - 200 * assetMultiplier},
+                       {idr, 0}}},
+                     {b1,
+                      {{usd, 50 * assetMultiplier},
+                       {idr,
+                        trustLineStartingBalance +
+                            (125 - 25) * assetMultiplier}}},
+                     {c1,
+                      {{usd, 150 * assetMultiplier},
+                       {idr,
+                        trustLineStartingBalance - 100 * assetMultiplier}}}});
             }
 
             SECTION("missing issuer")
@@ -432,29 +420,19 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
                 TrustFrame::pointer line;
 
-                // C1
-                // offer was taken
-                line = loadTrustLine(c1, idr, app);
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance - 80 * assetMultiplier);
-                line = loadTrustLine(c1, usd, app);
-                checkAmounts(line->getBalance(), line->getTrustLine().limit);
-
-                // B1
-                line = loadTrustLine(b1, idr, app);
-                // 105 where sent, 25 were consumed by B's offer
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance +
-                                 (105 - 25) * assetMultiplier);
-                line = loadTrustLine(b1, usd, app);
-                checkAmounts(line->getBalance(), 50 * assetMultiplier);
-
-                // A1
-                line = loadTrustLine(a1, idr, app);
-                checkAmounts(line->getBalance(), 0);
-                line = loadTrustLine(a1, usd, app);
-                checkAmounts(line->getBalance(),
-                             trustLineStartingBalance - 170 * assetMultiplier);
+                market.requireBalances(
+                    {{a1,
+                      {{usd, trustLineStartingBalance - 170 * assetMultiplier},
+                       {idr, 0}}},
+                     {b1,
+                      {{usd, 50 * assetMultiplier},
+                       {idr,
+                        trustLineStartingBalance +
+                            (105 - 25) * assetMultiplier}}},
+                     {c1,
+                      {{usd, 120 * assetMultiplier},
+                       {idr,
+                        trustLineStartingBalance - 80 * assetMultiplier}}}});
             }
             SECTION("missing trust line")
             {
@@ -482,25 +460,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     };
                     REQUIRE(res.success().offers == exchanged);
 
-                    TrustFrame::pointer line;
-
-                    // B1
-                    line = loadTrustLine(b1, idr, app);
-                    // As B was the sole participant in the exchange, the
-                    // IDR
-                    // balance should not have changed
-                    checkAmounts(line->getBalance(), trustLineStartingBalance);
-                    line = loadTrustLine(b1, usd, app);
-                    // but 25 USD cost 50 USD to send
-                    checkAmounts(line->getBalance(), 50 * assetMultiplier);
-
-                    // A1
-                    line = loadTrustLine(a1, idr, app);
-                    checkAmounts(line->getBalance(), 0);
-                    line = loadTrustLine(a1, usd, app);
-                    checkAmounts(line->getBalance(),
-                                 trustLineStartingBalance -
-                                     50 * assetMultiplier);
+                    market.requireBalances({
+                        {a1,
+                         {{usd,
+                           trustLineStartingBalance - 50 * assetMultiplier},
+                          {idr, 0}}},
+                        {b1,
+                         {{usd, 50 * assetMultiplier},
+                          {idr, trustLineStartingBalance}}},
+                    });
                 };
 
                 SECTION("deleted selling line")
@@ -561,12 +529,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                     });
 
                 // 1379310345 = round up(20000000 * price)
-                REQUIRE(loadAccount(source, app)->getBalance() ==
-                        1989999000 - 100 - 1379310345);
-                REQUIRE(loadTrustLine(seller, cny, app)->getBalance() ==
-                        168 * assetMultiplier);
-                REQUIRE(loadTrustLine(destination, cny, app)->getBalance() ==
-                        2 * assetMultiplier);
+                market.requireBalances(
+                    {{source, {{xlm, 1989999000 - 100 - 1379310345}}},
+                     {seller, {{cny, 168 * assetMultiplier}}},
+                     {destination, {{cny, 2 * assetMultiplier}}}});
             }
         }
 

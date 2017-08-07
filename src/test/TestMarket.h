@@ -74,6 +74,18 @@ struct TestMarketOffer
     ClaimOfferAtom exchanged(int64_t sold, int64_t bought) const;
 };
 
+struct TestMarketBalance
+{
+    Asset asset;
+    int64_t balance;
+};
+
+struct TestMarketBalances
+{
+    SecretKey key;
+    std::vector<TestMarketBalance> balances;
+};
+
 class TestMarket
 {
   public:
@@ -92,6 +104,8 @@ class TestMarket
     TestMarketOffer
     requireChangesWithOffer(std::vector<TestMarketOffer> changes,
                             std::function<TestMarketOffer()> const& f);
+
+    void requireBalances(std::vector<TestMarketBalances> const& balances);
 
     void checkCurrentOffers();
 
