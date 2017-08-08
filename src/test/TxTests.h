@@ -126,17 +126,12 @@ Operation setOptions(AccountID* inflationDest, uint32_t* setFlags,
                      Signer* signer, std::string* homeDomain);
 
 Asset makeNativeAsset();
+Asset makeInvalidAsset();
 Asset makeAsset(SecretKey const& issuer, std::string const& code);
 
 OperationFrame const& getFirstOperationFrame(TransactionFrame const& tx);
 OperationResult const& getFirstResult(TransactionFrame const& tx);
 OperationResultCode getFirstResultCode(TransactionFrame const& tx);
-
-// checks that b-maxd <= a <= b
-// bias towards seller means
-//    * amount left in an offer should be higher than the exact calculation
-//    * amount received by a seller should be higher than the exact calculation
-void checkAmounts(int64_t a, int64_t b, int64_t maxd = 1);
 
 // methods to check results based off meta data
 void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected);

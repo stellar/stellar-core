@@ -222,8 +222,14 @@ TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
             }
             else
             {
-                REQUIRE(account.loadTrustLine(assetBalance.asset).balance ==
-                        assetBalance.balance);
+                auto hasTrustLine = account.hasTrustLine(assetBalance.asset);
+                auto trustLineOk = hasTrustLine || assetBalance.balance == 0;
+                REQUIRE(trustLineOk);
+                if (hasTrustLine)
+                {
+                    REQUIRE(account.loadTrustLine(assetBalance.asset).balance ==
+                            assetBalance.balance);
+                }
             }
         }
     }
