@@ -65,7 +65,7 @@ class OverlayManagerStub : public OverlayManagerImpl
             pr.backOff(mApp.getClock());
             pr.storePeerRecord(mApp.getDatabase());
 
-            addConnectedPeer(Peer::pointer(new PeerStub(mApp)));
+            addConnectedPeer(std::make_shared<PeerStub>(mApp));
         }
     }
 };
