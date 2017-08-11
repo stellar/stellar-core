@@ -15,7 +15,6 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "database/Database.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
 #include "ledger/EntryFrame.h"
