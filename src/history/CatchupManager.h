@@ -83,6 +83,12 @@ class CatchupManager
     // Return the number of times the catchup has failed.
     virtual uint64_t getCatchupFailureCount() const = 0;
 
+    // Emit a log message and set StatusManager HISTORY_CATCHUP status to
+    // describe current catchup state. The `contiguous` argument is passed in
+    // to describe whether the ledger-manager's view of current catchup tasks
+    // is currently contiguous or discontiguous.
+    virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
+
     virtual ~CatchupManager(){};
 };
 }

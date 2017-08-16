@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/BatchDownloadWork.h"
+#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/Progress.h"
@@ -100,7 +101,7 @@ BatchDownloadWork::notify(std::string const& childChanged)
         mRunning.erase(i);
         addNextDownloadWorker();
     }
-    mApp.getHistoryManager().logAndUpdateStatus(true);
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
     advance();
 }
 }

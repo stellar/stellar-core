@@ -137,7 +137,7 @@ LedgerManagerImpl::setState(State s)
                              << getStateHuman();
         if (mState != LM_CATCHING_UP_STATE)
         {
-            mApp.getHistoryManager().logAndUpdateStatus(true);
+            mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
         }
     }
 }
@@ -417,7 +417,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         case SyncingLedgerChainAddResult::CONTIGUOUS:
             // Normal close while catching up
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-            mApp.getHistoryManager().logAndUpdateStatus(true);
+            mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
             break;
         case SyncingLedgerChainAddResult::TOO_OLD:
             CLOG(INFO, "Ledger") << "Skipping close ledger: latest known is "
@@ -435,7 +435,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
             CLOG(WARNING, "Ledger")
                 << "this round of catchup will fail and restart.";
 
-            mApp.getHistoryManager().logAndUpdateStatus(false);
+            mApp.getCatchupManager().logAndUpdateCatchupStatus(false);
             break;
         }
     }
@@ -797,7 +797,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 3
     hm.publishQueuedHistory();
-    hm.logAndUpdateStatus(true);
+    hm.logAndUpdatePublishStatus();
 
     // step 4
     if (getState() != LM_CATCHING_UP_STATE)

@@ -256,11 +256,9 @@ class HistoryManager
     // catchup probe.
     virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
 
-    // Emit a log message and set StatusManager HISTORY status to
-    // describe current catchup/publish state. The `contiguous` argument
-    // is passed in to describe whether the ledger-manager's view of
-    // current catchup tasks is currently contiguous or discontiguous.
-    virtual void logAndUpdateStatus(bool contiguous) = 0;
+    // Emit a log message and set StatusManager HISTORY_PUBLISH status to
+    // describe current publish state.
+    virtual void logAndUpdatePublishStatus() = 0;
 
     // Return the length of the current publishing queue.
     virtual size_t publishQueueLength() const = 0;

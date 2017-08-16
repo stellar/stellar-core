@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/VerifyLedgerChainWork.h"
+#include "history/CatchupManager.h"
 #include "history/FileTransferInfo.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/Progress.h"
@@ -180,7 +181,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 Work::State
 VerifyLedgerChainWork::onSuccess()
 {
-    mApp.getHistoryManager().logAndUpdateStatus(true);
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
     if (mCurrSeq > mLastSeq)
     {
