@@ -814,6 +814,9 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
         }
     }
 
+    // TODO NOTE this must be invoked as last
+    Logging::enableInMemoryLogging(mApp.getConfig().LOG_FILE_PATH, "error");
+
     retStr = root.toStyledString();
 }
 
