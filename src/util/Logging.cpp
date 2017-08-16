@@ -4,7 +4,9 @@
 
 #include "util/Logging.h"
 #include "main/Application.h"
+#include "util/InMemoryLogHandler.h"
 #include "util/types.h"
+#include <vector>
 
 /*
 Levels:
@@ -23,11 +25,14 @@ namespace
 {
 
 static const std::vector<std::string> loggers = {
-    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
-    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
+    "Fs",      "SCP",    "Bucket",    "Database", "History",
+    "Process", "Ledger", "Overlay",   "Herder",   "Tx",
+    "LoadGen", "Work",   "Invariant", "InMemory"};
 }
 
 el::Configurations Logging::gDefaultConf;
+
+const std::string Logging::inMemoryLoggerName = "InMemory";
 
 void
 Logging::setFmt(std::string const& peerID, bool timestamps)
@@ -37,8 +42,9 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
     {
         datetime = "%datetime{%Y-%M-%dT%H:%m:%s.%g}";
     }
-    std::string shortFmt = datetime + " " + peerID + " [%logger %level] %msg";
-    std::string longFmt = shortFmt + " [%fbase:%line]";
+    const std::string shortFmt =
+        datetime + " " + peerID + " [%logger %level] %msg";
+    const std::string longFmt = shortFmt + " [%fbase:%line]";
 
     gDefaultConf.setGlobally(el::ConfigurationType::Format, shortFmt);
     gDefaultConf.set(el::Level::Error, el::ConfigurationType::Format, longFmt);
@@ -227,5 +233,41 @@ Logging::rotate()
     {
         el::Loggers::getLogger(logger)->reconfigure();
     }
+}
+
+void
+Logging::enableInMemoryLogging(const std::string& logFilename,
+                               const std::string& pushLevel)
+{
+    std::vector<std::string> loggers;
+    el::Loggers::populateAllLoggerIds(&loggers);
+    for (auto loggerId : loggers)
+    {
+        el::Logger* logger = el::Loggers::getLogger(loggerId);
+        el::Configurations* config = logger->configurations();
+        auto logLevel = el::LevelHelper::castToInt(getLogLevel(loggerId));
+        auto startLevel = el::LevelHelper::castToInt(el::Level::Trace);
+        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config,
+                                                    logLevel]() -> bool {
+            el::Level thisLevel = el::LevelHelper::castFromInt(startLevel);
+            config->set(thisLevel, el::ConfigurationType::Enabled, "true");
+            if (startLevel < logLevel)
+            {
+                config->set(thisLevel, el::ConfigurationType::ToStandardOutput,
+                            "false");
+                config->set(thisLevel, el::ConfigurationType::ToFile, "false");
+            }
+            return false;
+        });
+        logger->configure(*config);
+    }
+
+    if (!logFilename.empty())
+    {
+        StaticMemoryHandler::setLogFilename(logFilename);
+    }
+    StaticMemoryHandler::setPushLevel(pushLevel);
+    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(
+        inMemoryLoggerName);
 }
 }
