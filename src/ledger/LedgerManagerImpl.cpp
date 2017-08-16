@@ -526,6 +526,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         CLOG(ERROR, "Ledger") << "Error catching up: " << ec.message();
         CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
         setState(LM_BOOTING_STATE);
+        mApp.getCatchupManager().historyCaughtup();
     }
     else
     {
@@ -561,6 +562,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
         CLOG(INFO, "Ledger") << "Caught up to LCL from history: "
                              << ledgerAbbrev(mLastClosedLedger);
+        mApp.getCatchupManager().historyCaughtup();
 
         // Now replay remaining txs from buffered local network history.
         for (auto const& lcd : mSyncingLedgers)

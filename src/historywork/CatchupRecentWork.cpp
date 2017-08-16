@@ -131,7 +131,6 @@ CatchupRecentWork::onSuccess()
 
     CLOG(INFO, "History") << "CATCHUP_RECENT finished inner CATCHUP_COMPLETE";
     // The second callback we make is CATCHUP_COMPLETE
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE, mLastApplied);
     return WORK_SUCCESS;
@@ -140,7 +139,6 @@ CatchupRecentWork::onSuccess()
 void
 CatchupRecentWork::onFailureRaise()
 {
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, CatchupManager::CATCHUP_RECENT, mFirstVerified);
 }
