@@ -202,8 +202,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorWrite.Mark();
-            CLOG(ERROR, "Overlay") << "TCPPeer::writeHandler error to "
-                                   << toString();
+            CLOG(WARNING, "Overlay") << "TCPPeer::writeHandler error to "
+                                     << toString();
         }
         drop();
     }
@@ -259,7 +259,7 @@ TCPPeer::getIncomingMsgLength()
         length > MAX_MESSAGE_SIZE)
     {
         mErrorRead.Mark();
-        CLOG(ERROR, "Overlay")
+        CLOG(WARNING, "Overlay")
             << "TCP: message size unacceptable: " << length
             << (isAuthenticated() ? "" : " while not authenticated");
         drop();
@@ -305,7 +305,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(ERROR, "Overlay")
+            CLOG(WARNING, "Overlay")
                 << "readHeaderHandler error: " << error.message() << " :"
                 << toString();
         }
@@ -337,7 +337,7 @@ TCPPeer::readBodyHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorRead.Mark();
-            CLOG(ERROR, "Overlay")
+            CLOG(WARNING, "Overlay")
                 << "readBodyHandler error: " << error.message() << " :"
                 << toString();
         }
@@ -359,7 +359,7 @@ TCPPeer::recvMessage()
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(ERROR, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
+        CLOG(WARNING, "Overlay") << "recvMessage got a corrupt xdr: " << e.what();
         Peer::drop(ERR_DATA, "received corrupt XDR");
     }
 }
@@ -402,8 +402,8 @@ TCPPeer::drop()
             asio::ip::tcp::socket::shutdown_both, ec);
         if (ec)
         {
-            CLOG(ERROR, "Overlay") << "TCPPeer::drop shutdown socket failed: "
-                                   << ec.message();
+            CLOG(WARNING, "Overlay") << "TCPPeer::drop shutdown socket failed: "
+                                     << ec.message();
         }
         self->getApp().getClock().getIOService().post([self]() {
             // Close fd associated with socket. Socket is already
@@ -420,8 +420,8 @@ TCPPeer::drop()
             self->mSocket->close(ec2);
             if (ec2)
             {
-                CLOG(ERROR, "Overlay") << "TCPPeer::drop close socket failed: "
-                                       << ec2.message();
+                CLOG(WARNING, "Overlay") << "TCPPeer::drop close socket failed: "
+                                         << ec2.message();
             }
         });
     });

@@ -134,7 +134,7 @@ StateSnapshot::writeHistoryBlocks() const
     // we issued them. Anyway this is transient and should go away upon retry.
     if (!((begin == 0 && nHeaders == count - 1) || nHeaders == count))
     {
-        CLOG(WARNING, "History")
+        CLOG(ERROR, "History")
             << "Only wrote " << nHeaders << " ledger headers for "
             << mLedgerSnapFile->localPath_nogz() << ", expecting " << count
             << ", will retry";

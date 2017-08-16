@@ -158,7 +158,7 @@ ProcessExitEvent::Impl::run()
     assert(!mProcManagerImpl->isShutdown());
     if (mRunning)
     {
-        CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
+        CLOG(FATAL, "Process") << "ProcessExitEvent::Impl already running";
         throw std::runtime_error("ProcessExitEvent::Impl already running");
     }
 
@@ -384,7 +384,7 @@ ProcessExitEvent::Impl::run()
     assert(!mProcManagerImpl->isShutdown());
     if (mRunning)
     {
-        CLOG(ERROR, "Process") << "ProcessExitEvent::Impl already running";
+        CLOG(FATAL, "Process") << "ProcessExitEvent::Impl already running";
         throw std::runtime_error("ProcessExitEvent::Impl already running");
     }
     std::lock_guard<std::recursive_mutex> guard(

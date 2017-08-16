@@ -84,7 +84,7 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     if (getHas->getState() == Work::WORK_SUCCESS)
     {
-        CLOG(ERROR, "History") << "History archive '" << arch
+        CLOG(FATAL, "History") << "History archive '" << arch
                                << "' already initialized!";
         return false;
     }
@@ -202,7 +202,7 @@ HistoryManager::checkSensibleConfig(Config const& cfg)
 
     if (badArchives)
     {
-        CLOG(ERROR, "History") << "History archives misconfigured.";
+        CLOG(FATAL, "History") << "History archives misconfigured.";
         return false;
     }
     return true;

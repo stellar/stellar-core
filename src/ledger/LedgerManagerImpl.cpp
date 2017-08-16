@@ -955,12 +955,14 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what();
+            CLOG(ERROR, "Ledger") << "Exception during tx->apply: " << e.what()
+                << " of " << xdr::xdr_to_string(tx->getEnvelope());
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         catch (...)
         {
-            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
+            CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply"
+                << " of " << xdr::xdr_to_string(tx->getEnvelope());
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
         tx->storeTransaction(*this, tm, ++index, txResultSet);

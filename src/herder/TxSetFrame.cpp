@@ -256,7 +256,7 @@ TxSetFrame::checkValid(Application& app) const
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
     {
-        CLOG(DEBUG, "Herder")
+        CLOG(ERROR, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
             << hexAbbrev(
@@ -266,7 +266,7 @@ TxSetFrame::checkValid(Application& app) const
 
     if (mTransactions.size() > lcl.header.maxTxSetSize)
     {
-        CLOG(DEBUG, "Herder") << "Got bad txSet: too many txs "
+        CLOG(ERROR, "Herder") << "Got bad txSet: too many txs "
                               << mTransactions.size() << " > "
                               << lcl.header.maxTxSetSize;
         return false;
@@ -280,7 +280,7 @@ TxSetFrame::checkValid(Application& app) const
         // make sure the set is sorted correctly
         if (tx->getFullHash() < lastHash)
         {
-            CLOG(DEBUG, "Herder")
+            CLOG(ERROR, "Herder")
                 << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                 << " not sorted correctly";
             return false;
@@ -301,7 +301,7 @@ TxSetFrame::checkValid(Application& app) const
         {
             if (!tx->checkValid(app, lastSeq))
             {
-                CLOG(DEBUG, "Herder")
+                CLOG(ERROR, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                     << " tx invalid"
                     << " lastSeq:" << lastSeq
@@ -323,7 +323,7 @@ TxSetFrame::checkValid(Application& app) const
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
                                  app.getLedgerManager()))
             {
-                CLOG(DEBUG, "Herder")
+                CLOG(ERROR, "Herder")
                     << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
                     << " account can't pay fee"
                     << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());

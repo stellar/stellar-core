@@ -94,7 +94,7 @@ CatchupCompleteImmediateWork::onSuccess()
             << "Last known ledger is later than current checkpoint: "
             << mLocalState.currentLedger << " > " << lastSeq;
         CLOG(INFO, "History") << "Wait until next checkpoint before retrying";
-        CLOG(ERROR, "History") << "Nothing to catchup to in COMPLETE_IMMEDIATE";
+        CLOG(WARNING, "History") << "Nothing to catchup to in COMPLETE_IMMEDIATE";
 
         mApp.getCatchupManager().historyCaughtup();
         asio::error_code ec = std::make_error_code(std::errc::invalid_argument);

@@ -56,10 +56,9 @@ VerifyBucketWork::onStart()
             }
             else
             {
-                CLOG(WARNING, "History") << "FAILED verifying hash for "
-                                         << filename;
-                CLOG(WARNING, "History") << "expected hash: " << binToHex(hash);
-                CLOG(WARNING, "History") << "computed hash: "
+                CLOG(ERROR, "History") << "FAILED verifying hash for "
+                                         << filename << " expected hash: "
+                                         << binToHex(hash) << "computed hash: "
                                          << binToHex(vHash);
                 ec = std::make_error_code(std::errc::io_error);
             }

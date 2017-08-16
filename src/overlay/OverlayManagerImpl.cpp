@@ -108,7 +108,7 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
     }
     catch (const std::runtime_error&)
     {
-        CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
+        CLOG(WARNING, "Overlay") << "Unable to add peer '" << peerStr << "'";
     }
 }
 
@@ -125,7 +125,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
     }
     else
     {
-        CLOG(ERROR, "Overlay")
+        CLOG(WARNING, "Overlay")
             << "trying to connect to a node we're already connected to"
             << pr.toString();
     }
@@ -151,7 +151,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         }
         catch (std::runtime_error&)
         {
-            CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
+            CLOG(WARNING, "Overlay") << "Unable to add peer '" << peerStr << "'";
         }
     }
 }
@@ -174,8 +174,8 @@ OverlayManagerImpl::storeConfigPeers()
         }
         catch (std::runtime_error&)
         {
-            CLOG(ERROR, "Overlay") << "Unable to add preferred peer '" << s
-                                   << "'";
+            CLOG(WARNING, "Overlay") << "Unable to add preferred peer '" << s
+                                     << "'";
         }
     }
 
