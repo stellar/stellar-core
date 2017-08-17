@@ -284,6 +284,10 @@ PubKeyUtils::verifySig(PublicKey const& key, Signature const& signature,
                        ByteSlice const& bin)
 {
     assert(key.type() == PUBLIC_KEY_TYPE_ED25519);
+    if (signature.size() != 64)
+    {
+        return false;
+    }
 
     auto cacheKey = verifySigCacheKey(key, signature, bin);
 
