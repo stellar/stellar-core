@@ -13,11 +13,11 @@
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "libinclude/soci.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
-#include "util/SociNoWarnings.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
 

@@ -53,7 +53,7 @@ hashHelper(uint64 slotIndex, Value const& prev,
 
 uint64
 SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                           int32_t roundNumber, NodeID const& nodeID)
+                           uint32_t roundNumber, NodeID const& nodeID)
 {
     return hashHelper(slotIndex, prev, [&](SHA256* h) {
         h->add(xdr::xdr_to_opaque(isPriority ? hash_P : hash_N));
@@ -64,7 +64,7 @@ SCPDriver::computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
 
 uint64
 SCPDriver::computeValueHash(uint64 slotIndex, Value const& prev,
-                            int32_t roundNumber, Value const& value)
+                            uint32_t roundNumber, Value const& value)
 {
     return hashHelper(slotIndex, prev, [&](SHA256* h) {
         h->add(xdr::xdr_to_opaque(hash_K));

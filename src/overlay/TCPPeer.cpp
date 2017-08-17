@@ -9,7 +9,7 @@
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <medida/meter.h>
@@ -243,10 +243,10 @@ TCPPeer::startRead()
                      });
 }
 
-int
+uint32_t
 TCPPeer::getIncomingMsgLength()
 {
-    int length = mIncomingHeader[0];
+    uint32_t length = mIncomingHeader[0];
     length &= 0x7f; // clear the XDR 'continuation' bit
     length <<= 8;
     length |= mIncomingHeader[1];
@@ -265,7 +265,7 @@ TCPPeer::getIncomingMsgLength()
         drop();
         length = 0;
     }
-    return (length);
+    return length;
 }
 
 void
@@ -287,7 +287,7 @@ TCPPeer::readHeaderHandler(asio::error_code const& error,
     if (!error)
     {
         receivedBytes(bytes_transferred, false);
-        int length = getIncomingMsgLength();
+        auto length = getIncomingMsgLength();
         if (length != 0)
         {
             mIncomingBody.resize(length);

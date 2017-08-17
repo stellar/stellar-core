@@ -370,7 +370,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 DataValue value;
                 value.resize(20);
-                for (int n = 0; n < 20; n++)
+                for (auto n = 0u; n < 20; n++)
                 {
                     value[n] = (unsigned char)n;
                 }

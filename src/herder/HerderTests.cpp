@@ -50,7 +50,7 @@ TEST_CASE("standalone", "[herder]")
     auto a1 = TestAccount{*app, getAccount("A")};
     auto b1 = TestAccount{*app, getAccount("B")};
 
-    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
+    auto const paymentAmount = app->getLedgerManager().getMinBalance(0);
 
     SECTION("basic ledger close on valid txs")
     {
@@ -170,23 +170,23 @@ TEST_CASE("txset", "[herder]")
 
     auto accounts = std::vector<TestAccount>{};
 
-    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
+    auto const paymentAmount = app->getLedgerManager().getMinBalance(0);
 
     int64_t amountPop =
-        nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
+        static_cast<int64_t>(nbAccounts * nbTransactions * app->getLedgerManager().getTxFee()) +
         paymentAmount;
 
     auto sourceAccount = root.create("source", amountPop);
 
     std::vector<std::vector<TransactionFramePtr>> transactions;
 
-    for (int i = 0; i < nbAccounts; i++)
+    for (auto i = 0u; i < nbAccounts; i++)
     {
         std::string accountName = "A";
         accountName += '0' + (char)i;
         accounts.push_back(TestAccount{*app, getAccount(accountName.c_str())});
         transactions.push_back(std::vector<TransactionFramePtr>());
-        for (int j = 0; j < nbTransactions; j++)
+        for (auto j = 0u; j < nbTransactions; j++)
         {
             if (j == 0)
             {
@@ -456,7 +456,7 @@ TEST_CASE("SCP Driver", "[herder]")
             root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
-    auto addTransactions = [&](TxSetFramePtr txSet, int n) {
+    auto addTransactions = [&](TxSetFramePtr txSet, uint32_t n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions), [&]() {
@@ -464,7 +464,7 @@ TEST_CASE("SCP Driver", "[herder]")
                               10000000)});
                       });
     };
-    auto makeTransactions = [&](Hash hash, int n) {
+    auto makeTransactions = [&](Hash hash, uint32_t n) {
         auto result = std::make_shared<TxSetFrame>(hash);
         addTransactions(result, n);
         return result;
@@ -514,7 +514,7 @@ TEST_CASE("SCP Driver", "[herder]")
 
     SECTION("accept qset and txset")
     {
-        auto makePublicKey = [](int i) {
+        auto makePublicKey = [](uint32_t i) {
             auto hash = sha256("NODE_SEED_" + std::to_string(i));
             auto secretKey = SecretKey::fromSeed(hash);
             return secretKey.getPublicKey();
@@ -528,7 +528,7 @@ TEST_CASE("SCP Driver", "[herder]")
         };
 
         auto keys = std::vector<PublicKey>{};
-        for (auto i = 0; i < 1001; i++)
+        for (auto i = 0u; i < 1001; i++)
         {
             keys.push_back(makePublicKey(i));
         }
@@ -541,7 +541,7 @@ TEST_CASE("SCP Driver", "[herder]")
         auto bigQSet = SCPQuorumSet{};
         bigQSet.threshold = 1;
         bigQSet.validators.push_back(keys[0]);
-        for (auto i = 0; i < 10; i++)
+        for (auto i = 0u; i < 10; i++)
         {
             bigQSet.innerSets.push_back({});
             bigQSet.innerSets.back().threshold = 1;
@@ -701,7 +701,7 @@ TEST_CASE("SCP State", "[herder]")
     // After changing node ids generated here from random to deterministics
     // this problem goes away, as the leader selection protocol uses node id
     // and round id for selecting leader.
-    for (int i = 0; i < 3; i++)
+    for (auto i = 0u; i < 3u; i++)
     {
         nodeKeys[i] = SecretKey::fromSeed(sha256("Node_" + std::to_string(i)));
         nodeIDs[i] = nodeKeys[i].getPublicKey();

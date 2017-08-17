@@ -18,7 +18,7 @@ class NominationProtocol
 {
     Slot& mSlot;
 
-    int32 mRoundNumber;
+    uint32_t mRoundNumber;
     std::set<Value> mVotes;                           // X
     std::set<Value> mAccepted;                        // Y
     std::set<Value> mCandidates;                      // Z

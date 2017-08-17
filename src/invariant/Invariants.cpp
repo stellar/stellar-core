@@ -6,8 +6,8 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/Invariant.h"
 #include "ledger/LedgerDelta.h"
+#include "libinclude/format.h"
 #include "util/Logging.h"
-#include <lib/util/format.h>
 #include <xdrpp/printer.h>
 
 namespace stellar

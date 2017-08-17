@@ -49,8 +49,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     auto root = TestAccount::createRoot(app);
     auto a1 = TestAccount{app, getAccount("A")};
 
-    const uint64_t paymentAmount =
-        app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
+    const int64_t paymentAmount =
+        static_cast<int64_t>(app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10);
 
     SECTION("outer envelope")
     {

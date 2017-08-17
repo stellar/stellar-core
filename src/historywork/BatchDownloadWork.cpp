@@ -6,8 +6,8 @@
 #include "history/HistoryManager.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/Progress.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
-#include <lib/util/format.h>
 
 namespace stellar
 {

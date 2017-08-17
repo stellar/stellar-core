@@ -9,7 +9,7 @@
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "overlay/Tracker.h"
 #include "util/Logging.h"
 #include <medida/metrics_registry.h>

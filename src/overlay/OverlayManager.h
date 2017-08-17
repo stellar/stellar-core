@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/Peer.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of

@@ -5,9 +5,10 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
-#include "history/HistoryArchive.h"
+#include "libinclude/asio.h"
 #include "StellarCoreVersion.h"
+#include "history/HistoryArchive.h"
+#include "libinclude/format.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
@@ -18,10 +19,6 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
-#include <cereal/archives/json.hpp>
-#include <cereal/cereal.hpp>
-#include <cereal/types/vector.hpp>
-#include <lib/util/format.h>
 
 #include <chrono>
 #include <fstream>

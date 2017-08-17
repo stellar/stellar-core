@@ -7,7 +7,7 @@
 #include "database/DatabaseConnectionString.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -277,7 +277,7 @@ Database::clearPreparedStatementCache()
         st.second->clean_up(true);
     }
     mStatements.clear();
-    mStatementsSize.set_count(mStatements.size());
+    mStatementsSize.set_count(static_cast<int64_t>(mStatements.size()));
 }
 
 void
@@ -394,7 +394,7 @@ Database::getPreparedStatement(std::string const& query)
         p->alloc();
         p->prepare(query);
         mStatements.insert(std::make_pair(query, p));
-        mStatementsSize.set_count(mStatements.size());
+        mStatementsSize.set_count(static_cast<int64_t>(mStatements.size()));
     }
     else
     {

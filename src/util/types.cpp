@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/types.h"
+#include "libinclude/uint128_t.h"
 #include <algorithm>
-#include <lib/util/uint128_t.h>
 #include <locale>
 
 namespace stellar
@@ -165,7 +165,7 @@ bigDivide(int64_t& result, int64_t A, int64_t B, int64_t C, Rounding rounding)
     if (res)
     {
         res = r2 <= INT64_MAX;
-        result = r2;
+        result = static_cast<int64_t>(r2);
     }
     return res;
 }

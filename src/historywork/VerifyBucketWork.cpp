@@ -46,7 +46,7 @@ VerifyBucketWork::onStart()
             while (in)
             {
                 in.read(buf, sizeof(buf));
-                hasher->add(ByteSlice(buf, in.gcount()));
+                hasher->add(ByteSlice(buf, static_cast<uint64_t>(in.gcount())));
             }
             uint256 vHash = hasher->finish();
             if (vHash == hash)

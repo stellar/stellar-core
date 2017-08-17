@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Application.h"
+#include "libinclude/xdrppautocheck.h"
 #include "main/Config.h"
 #include "process/ProcessManager.h"
 #include "test/test.h"
@@ -13,7 +14,6 @@
 #include <fstream>
 #include <lib/catch.hpp>
 #include <random>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 

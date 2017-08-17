@@ -282,7 +282,7 @@ LocalNode::isQuorum(
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), fNodes.begin(),
                                quorumFilter);
-        fNodes.resize(std::distance(fNodes.begin(), it));
+        fNodes.resize(static_cast<uint32_t>(std::distance(fNodes.begin(), it)));
         pNodes = fNodes;
     } while (count != pNodes.size());
 

@@ -1728,7 +1728,7 @@ TEST_CASE("payment", "[tx][payment]")
             };
 
             auto validateAccountAsset = [&](const TestAccount& account,
-                                            int assetIndex, int difference,
+                                            size_t assetIndex, int difference,
                                             int feeCount) {
                 if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
                 {
@@ -1743,7 +1743,7 @@ TEST_CASE("payment", "[tx][payment]")
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,
-                                                int assetIndex, int difference,
+                                                size_t assetIndex, int difference,
                                                 int feeCount) {
                 for (size_t i = 0; i < pathSize; i++)
                 {

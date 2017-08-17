@@ -8,9 +8,9 @@
 #include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
-#include <lib/util/format.h>
 
 namespace stellar
 {

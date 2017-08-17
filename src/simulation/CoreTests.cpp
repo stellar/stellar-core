@@ -12,9 +12,11 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
+#include "libinclude/format.h"
+#include "libinclude/xdrppautocheck.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "simulation/Topologies.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
@@ -22,12 +24,7 @@
 #include "util/Math.h"
 #include "util/make_unique.h"
 #include "util/types.h"
-#include <lib/catch.hpp>
-#include <lib/util/format.h>
-#include <lib/util/lrucache.hpp>
-#include <medida/stats/snapshot.h>
 #include <sstream>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -42,7 +39,7 @@ typedef std::unique_ptr<Application> appPtr;
 //
 
 void
-printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
+printStats(uint32_t nLedgers, std::chrono::system_clock::time_point tBegin,
            Simulation::pointer sim)
 {
     auto t = std::chrono::duration_cast<std::chrono::seconds>(
@@ -98,7 +95,7 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
 
         simulation->startAllNodes();
 
-        int nLedgers = 10;
+        auto nLedgers = 10u;
         simulation->crankUntil(
             [&simulation, nLedgers]() {
                 return simulation->haveAllExternalized(nLedgers + 1, 5);
@@ -133,7 +130,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
         Simulation::pointer sim = Topologies::core(size, 1.0, mode, networkID);
         sim->startAllNodes();
 
-        int nLedgers = 4;
+        auto nLedgers = 4u;
         sim->crankUntil(
             [&sim, nLedgers]() {
                 return sim->haveAllExternalized(nLedgers + 1, nLedgers);
@@ -147,7 +144,7 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
 }
 
 static void
-hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
+hierarchicalTopoTest(uint32_t nLedgers, int nBranches, Simulation::Mode mode,
                      Hash const& networkID)
 {
     auto tBegin = std::chrono::system_clock::now();
@@ -193,7 +190,7 @@ TEST_CASE("hierarchical topology scales 1..3", "[simulation]")
 }
 
 static void
-hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
+hierarchicalSimplifiedTest(uint32_t nLedgers, int nbCore, int nbOuterNodes,
                            Simulation::Mode mode, Hash const& networkID)
 {
     auto tBegin = std::chrono::system_clock::now();
@@ -412,13 +409,13 @@ closeLedger(Application& app)
 }
 
 static void
-generateAccountsAndCloseLedger(Application& app, int num)
+generateAccountsAndCloseLedger(Application& app, size_t num)
 {
     auto& lg = app.getLoadGenerator();
     std::vector<LoadGenerator::TxInfo> txs;
     uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
     int tries = num * 100;
-    while (tries-- > 0 && txs.size() < (size_t)num)
+    while (tries-- > 0 && txs.size() < num)
     {
         lg.maybeCreateAccount(ledgerNum, txs);
     }
@@ -431,13 +428,13 @@ generateAccountsAndCloseLedger(Application& app, int num)
 }
 
 static void
-generateTxsAndCloseLedger(Application& app, int num)
+generateTxsAndCloseLedger(Application& app, size_t num)
 {
     auto& lg = app.getLoadGenerator();
     std::vector<LoadGenerator::TxInfo> txs;
     uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
     int tries = num * 100;
-    while (tries-- > 0 && txs.size() < (size_t)num)
+    while (tries-- > 0 && txs.size() < num)
     {
         txs.push_back(lg.createRandomTransaction(0.5, ledgerNum));
     }
@@ -511,14 +508,14 @@ TEST_CASE("Accounts vs. latency", "[scalability][hide]")
 static void
 netTopologyTest(
     std::string const& name,
-    std::function<Simulation::pointer(int numNodes, int& cfgCount)> mkSim)
+    std::function<Simulation::pointer(uint32_t numNodes, uint32_t& cfgCount)> mkSim)
 {
     ScaleReporter r(
         {name + "nodes", "in-msg", "in-byte", "out-msg", "out-byte"});
 
-    for (int numNodes = 4; numNodes < 64; numNodes += 4)
+    for (auto numNodes = 4u; numNodes < 64; numNodes += 4)
     {
-        auto cfgCount = 0;
+        auto cfgCount = 0u;
         auto sim = mkSim(numNodes, cfgCount);
         sim->startAllNodes();
         auto nodes = sim->getNodes();
@@ -552,7 +549,7 @@ netTopologyTest(
 TEST_CASE("Mesh nodes vs. network traffic", "[scalability][hide]")
 {
     netTopologyTest(
-        "mesh", [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+        "mesh", [&](uint32_t numNodes, uint32_t & cfgCount) -> Simulation::pointer {
             return Topologies::core(
                 numNodes, 1.0, Simulation::OVER_LOOPBACK,
                 sha256(fmt::format("nodes-{:d}", numNodes)), [&]() -> Config {
@@ -567,7 +564,7 @@ TEST_CASE("Mesh nodes vs. network traffic", "[scalability][hide]")
 TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
 {
     netTopologyTest(
-        "cycle", [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+        "cycle", [&](int numNodes, uint32_t& cfgCount) -> Simulation::pointer {
             return Topologies::cycle(
                 numNodes, 1.0, Simulation::OVER_LOOPBACK,
                 sha256(fmt::format("nodes-{:d}", numNodes)), [&]() -> Config {
@@ -581,8 +578,8 @@ TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
 
 TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
 {
-    netTopologyTest("branchedcycle", [&](int numNodes,
-                                         int& cfgCount) -> Simulation::pointer {
+    netTopologyTest("branchedcycle", [&](uint32_t numNodes,
+                                         uint32_t& cfgCount) -> Simulation::pointer {
         return Topologies::branchedcycle(
             numNodes, 1.0, Simulation::OVER_LOOPBACK,
             sha256(fmt::format("nodes-{:d}", numNodes)), [&]() -> Config {

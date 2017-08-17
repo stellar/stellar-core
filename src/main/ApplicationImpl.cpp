@@ -8,7 +8,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
@@ -224,7 +224,7 @@ ApplicationImpl::~ApplicationImpl()
     LOG(INFO) << "Application destroyed";
 }
 
-uint64_t
+std::time_t
 ApplicationImpl::timeNow()
 {
     return VirtualClock::to_time_t(getClock().now());
@@ -533,7 +533,7 @@ ApplicationImpl::syncOwnMetrics()
 
     // Similarly, flush global process-table stats.
     mMetrics->NewCounter({"process", "memory", "handles"})
-        .set_count(mProcessManager->getNumRunningProcesses());
+        .set_count(static_cast<int64_t>(mProcessManager->getNumRunningProcesses()));
 }
 
 void

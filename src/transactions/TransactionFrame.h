@@ -6,7 +6,7 @@
 
 #include "ledger/AccountFrame.h"
 #include "ledger/LedgerManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/types.h"
 
 #include <memory>
@@ -49,7 +49,7 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
+    bool loadAccount(uint32_t ledgerProtocolVersion, LedgerDelta* delta, Database& app);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
                      LedgerDelta* delta, SequenceNumber current);
 
@@ -138,7 +138,7 @@ class TransactionFrame
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
+                        AccountFrame& account, uint32_t neededWeight);
 
     bool checkValid(Application& app, SequenceNumber current);
 
@@ -154,7 +154,7 @@ class TransactionFrame
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(int ledgerProtocolVersion,
+    AccountFrame::pointer loadAccount(uint32_t ledgerProtocolVersion,
                                       LedgerDelta* delta, Database& app,
                                       AccountID const& accountID);
 

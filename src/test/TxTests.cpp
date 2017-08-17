@@ -230,7 +230,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
 {
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
+    e.tx.fee = static_cast<int64_t>(ops.size()) * app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
@@ -630,13 +630,13 @@ checkAmounts(int64_t a, int64_t b, int64_t maxd)
 }
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected)
+checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected)
 {
     REQUIRE(r[index].first.result.result.code() == expected);
 };
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected,
         OperationResultCode code)
 {
     checkTx(index, r, expected);

@@ -16,7 +16,7 @@ namespace
 {
 
 SCPEnvelope
-makeEnvelope(int slotIndex)
+makeEnvelope(uint32_t slotIndex)
 {
     auto result = SCPEnvelope{};
     result.statement.slotIndex = slotIndex;

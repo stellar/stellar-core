@@ -8,7 +8,7 @@
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -175,7 +175,7 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         b = std::make_shared<Bucket>(canonicalName, hash);
         {
             mSharedBuckets.insert(std::make_pair(hash, b));
-            mSharedBucketsSize.set_count(mSharedBuckets.size());
+            mSharedBucketsSize.set_count(static_cast<int64_t>(mSharedBuckets.size()));
         }
     }
     assert(b);
@@ -206,7 +206,7 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
                               << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(hash, p));
-        mSharedBucketsSize.set_count(mSharedBuckets.size());
+        mSharedBucketsSize.set_count(static_cast<int64_t>(mSharedBuckets.size()));
         return p;
     }
     return std::shared_ptr<Bucket>();
@@ -273,7 +273,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             j->second->setRetain(true);
         }
     }
-    mSharedBucketsSize.set_count(mSharedBuckets.size());
+    mSharedBucketsSize.set_count(static_cast<int64_t>(mSharedBuckets.size()));
 }
 
 void
@@ -300,13 +300,13 @@ BucketManagerImpl::calculateSkipValues(LedgerHeader& currentHeader)
 
     if ((currentHeader.ledgerSeq % SKIP_1) == 0)
     {
-        int v = currentHeader.ledgerSeq - SKIP_1;
+        auto v = static_cast<int64_t>(currentHeader.ledgerSeq) - SKIP_1;
         if (v > 0 && (v % SKIP_2) == 0)
         {
-            v = currentHeader.ledgerSeq - SKIP_2 - SKIP_1;
+            v = static_cast<int64_t>(currentHeader.ledgerSeq) - SKIP_2 - SKIP_1;
             if (v > 0 && (v % SKIP_3) == 0)
             {
-                v = currentHeader.ledgerSeq - SKIP_3 - SKIP_2 - SKIP_1;
+                v = static_cast<int64_t>(currentHeader.ledgerSeq) - SKIP_3 - SKIP_2 - SKIP_1;
                 if (v > 0 && (v % SKIP_4) == 0)
                 {
 

@@ -8,6 +8,8 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "libinclude/basen.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
@@ -16,15 +18,12 @@
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
 
-
 #include "ExternalQueue.h"
 
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include <lib/http/server.hpp>
 #include <lib/json/json.h>
-#include <lib/util/basen.h>
-#include <lib/util/format.h>
 #include <medida/reporting/json_reporter.h>
 #include <regex>
 #include <xdrpp/marshal.h>
@@ -177,7 +176,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
                 ? TestAccount{mApp, getRoot(networkID)}
                 : TestAccount{mApp, getAccount(from->second.c_str())};
 
-        uint64_t paymentAmount = 0;
+        int64_t paymentAmount = 0;
         std::istringstream iss(amount->second);
         iss >> paymentAmount;
 
@@ -185,7 +184,7 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
         root["to_name"] = to->second;
         root["from_id"] = KeyUtils::toStrKey(fromAccount.getPublicKey());
         root["to_id"] = KeyUtils::toStrKey(toAccount.getPublicKey());
-        root["amount"] = (Json::UInt64)paymentAmount;
+        root["amount"] = (Json::Int64)paymentAmount;
 
         TransactionFramePtr txFrame;
         if (create != retMap.end() && create->second == "true")
@@ -357,10 +356,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         // Defaults are 200k accounts, 200k txs, 10 tx/s. This load-test will
         // therefore take 40k secs or about 12 hours.
 
-        uint32_t nAccounts = 200000;
-        uint32_t nTxs = 200000;
-        uint32_t txRate = 10;
-        bool autoRate = false;
+        auto nAccounts = 200000u;
+        auto nTxs = 200000u;
+        auto txRate = 10u;
+        auto autoRate = false;
 
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);

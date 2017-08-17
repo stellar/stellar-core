@@ -48,7 +48,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
             root.getSecretKey().sign(xdr::xdr_to_opaque(envelope.statement));
         return envelope;
     };
-    auto addTransactions = [&](TxSetFramePtr txSet, int n) {
+    auto addTransactions = [&](TxSetFramePtr txSet, uint16_t n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
                       std::end(txSet->mTransactions), [&]() {
@@ -56,13 +56,13 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
                               10000000)});
                       });
     };
-    auto makeTransactions = [&](Hash hash, int n) {
+    auto makeTransactions = [&](Hash hash, uint32_t n) {
         auto result = std::make_shared<TxSetFrame>(hash);
         addTransactions(result, n);
         return result;
     };
 
-    auto makePublicKey = [](int i) {
+    auto makePublicKey = [](uint32_t i) {
         auto hash = sha256("NODE_SEED_" + std::to_string(i));
         auto secretKey = SecretKey::fromSeed(hash);
         return secretKey.getPublicKey();
@@ -76,7 +76,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     };
 
     auto keys = std::vector<PublicKey>{};
-    for (auto i = 0; i < 1001; i++)
+    for (auto i = 0u; i < 1001; i++)
     {
         keys.push_back(makePublicKey(i));
     }
@@ -87,7 +87,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto bigQSet = SCPQuorumSet{};
     bigQSet.threshold = 1;
     bigQSet.validators.push_back(keys[0]);
-    for (auto i = 0; i < 10; i++)
+    for (auto i = 0u; i < 10; i++)
     {
         bigQSet.innerSets.push_back({});
         bigQSet.innerSets.back().threshold = 1;

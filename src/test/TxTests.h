@@ -9,7 +9,7 @@
 #include "ledger/AccountFrame.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "test/TestPrinter.h"
 #include "util/optional.h"
 
@@ -138,9 +138,9 @@ OperationResultCode getFirstResultCode(TransactionFrame const& tx);
 void checkAmounts(int64_t a, int64_t b, int64_t maxd = 1);
 
 // methods to check results based off meta data
-void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected);
+void checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected);
 
-void checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+void checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected,
              OperationResultCode code);
 
 } // end txtest namespace

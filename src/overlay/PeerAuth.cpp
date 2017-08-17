@@ -26,7 +26,7 @@ makeAuthCert(Application& app, Curve25519Public const& pub)
     AuthCert cert;
     // Certs are refreshed every half hour, good for an hour.
     cert.pubkey = pub;
-    cert.expiration = app.timeNow() + expirationLimit;
+    cert.expiration = static_cast<uint64_t>(app.timeNow()) + expirationLimit;
 
     auto hash = sha256(xdr::xdr_to_opaque(
         app.getNetworkID(), ENVELOPE_TYPE_AUTH, cert.expiration, cert.pubkey));
@@ -47,7 +47,7 @@ PeerAuth::PeerAuth(Application& app)
 AuthCert
 PeerAuth::getAuthCert()
 {
-    if (mCert.expiration < mApp.timeNow() + (expirationLimit / 2))
+    if (mCert.expiration < static_cast<uint64_t>(mApp.timeNow()) + (expirationLimit / 2))
     {
         mCert = makeAuthCert(mApp, mECDHPublicKey);
     }
@@ -57,7 +57,7 @@ PeerAuth::getAuthCert()
 bool
 PeerAuth::verifyRemoteAuthCert(NodeID const& remoteNode, AuthCert const& cert)
 {
-    if (cert.expiration < mApp.timeNow())
+    if (cert.expiration < static_cast<uint64_t>(mApp.timeNow()))
     {
         CLOG(ERROR, "Overlay") << "PeerAuth cert expired: "
                                << "expired= " << cert.expiration

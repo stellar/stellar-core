@@ -6,7 +6,7 @@
 
 #include "ledger/AccountFrame.h"
 #include "ledger/LedgerManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/types.h"
 #include <memory>
 
@@ -74,7 +74,7 @@ class OperationFrame
 
     // load account if needed
     // returns true on success
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db);
+    bool loadAccount(uint32_t ledgerProtocolVersion, LedgerDelta* delta, Database& db);
 
     OperationResult&
     getResult() const

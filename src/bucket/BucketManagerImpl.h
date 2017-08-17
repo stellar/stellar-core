@@ -2,7 +2,7 @@
 
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 
 #include <map>
 #include <memory>

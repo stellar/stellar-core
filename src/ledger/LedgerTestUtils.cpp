@@ -5,10 +5,11 @@
 #include "LedgerTestUtils.h"
 #include "crypto/SecretKey.h"
 #include "ledger/AccountFrame.h"
+#include "libinclude/xdrppautocheck.h"
 #include "util/types.h"
+
 #include <cctype>
 #include <string>
-#include <xdrpp/autocheck.h>
 
 namespace stellar
 {

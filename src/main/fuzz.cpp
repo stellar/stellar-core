@@ -2,10 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "StellarCoreVersion.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "libinclude/xdrppautocheck.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -19,7 +20,6 @@
 #include "main/fuzz.h"
 
 #include <signal.h>
-#include <xdrpp/autocheck.h>
 #include <xdrpp/printer.h>
 
 /**

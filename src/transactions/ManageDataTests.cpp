@@ -45,7 +45,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     DataValue value, value2;
     value.resize(64);
     value2.resize(64);
-    for (int n = 0; n < 64; n++)
+    for (auto n = 0u; n < 64; n++)
     {
         value[n] = (unsigned char)n;
         value2[n] = (unsigned char)n + 3;

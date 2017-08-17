@@ -197,10 +197,11 @@ maybeAdjustRate(double target, double actual, uint32_t& rate, bool increaseOk)
         {
             return false;
         }
+        auto newRate = static_cast<uint32_t>(static_cast<int32_t>(rate) + incr);
         CLOG(INFO, "LoadGen")
             << (incr > 0 ? "+++ Increasing" : "--- Decreasing")
-            << " auto-tx target rate from " << rate << " to " << rate + incr;
-        rate += incr;
+            << " auto-tx target rate from " << rate << " to " << newRate;
+        rate = newRate;
         return true;
     }
     return false;
@@ -449,8 +450,8 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                                    << (STEP_MSECS - totalms) << "ms spare";
 
             TxMetrics txm(app.getMetrics());
-            txm.mGateways.set_count(mGateways.size());
-            txm.mMarketMakers.set_count(mMarketMakers.size());
+            txm.mGateways.set_count(static_cast<int64_t>(mGateways.size()));
+            txm.mMarketMakers.set_count(static_cast<int64_t>(mMarketMakers.size()));
             txm.report();
         }
 
@@ -979,7 +980,7 @@ LoadGenerator::TxInfo::toTransactionFrames(
 
                 Price price;
                 price.d = 10000;
-                uint32_t diff = rand_uniform(1, 200);
+                int32_t diff = rand_uniform(1, 200);
                 price.n = rand_flip() ? (price.d + diff) : (price.d - diff);
 
                 offerOp.body.type(CREATE_PASSIVE_OFFER);

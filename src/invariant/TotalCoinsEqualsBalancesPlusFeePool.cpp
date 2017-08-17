@@ -5,7 +5,7 @@
 #include "TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "database/AccountQueries.h"
 #include "ledger/LedgerDelta.h"
-#include <lib/util/format.h>
+#include "libinclude/format.h"
 
 namespace stellar
 {

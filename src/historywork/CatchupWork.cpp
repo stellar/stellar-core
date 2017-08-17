@@ -5,8 +5,8 @@
 #include "historywork/CatchupWork.h"
 #include "history/HistoryManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
-#include <lib/util/format.h>
 
 namespace stellar
 {

@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "overlay/ItemFetcher.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -25,7 +25,7 @@ class HerderStub : public HerderImpl
   public:
     HerderStub(Application& app) : HerderImpl(app){};
 
-    std::vector<int> received;
+    std::vector<uint32_t> received;
 
   private:
     EnvelopeStatus
@@ -57,9 +57,9 @@ class ApplicationStub : public ApplicationImpl
 };
 
 SCPEnvelope
-makeEnvelope(int id)
+makeEnvelope(uint32_t id)
 {
-    static int slotIndex{0};
+    static auto slotIndex = uint32_t{0};
 
     auto result = SCPEnvelope{};
     result.statement.slotIndex = ++slotIndex;
@@ -121,7 +121,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(twelve);
         itemFetcher.recv(ten);
 
-        auto expectedReceived = std::vector<int>{12, 10};
+        auto expectedReceived = std::vector<uint32_t>{12, 10};
         REQUIRE(app.getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
@@ -145,7 +145,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(twelve);
         itemFetcher.recv(ten);
 
-        auto expectedReceived = std::vector<int>{10};
+        auto expectedReceived = std::vector<uint32_t>{10};
         REQUIRE(app.getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
@@ -164,7 +164,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(twelve);
         itemFetcher.recv(ten);
 
-        auto expectedReceived = std::vector<int>{12, 12, 10};
+        auto expectedReceived = std::vector<uint32_t>{12, 12, 10};
         REQUIRE(app.getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
@@ -188,7 +188,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                                                     // implementation, will
                                                     // re-fetch
 
-            expectedReceived = std::vector<int>{12, 12, 10, 0};
+            expectedReceived = std::vector<uint32_t>{12, 12, 10, 0};
             REQUIRE(app.getHerder().received == expectedReceived);
 
             REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) != 0);

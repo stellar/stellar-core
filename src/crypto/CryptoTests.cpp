@@ -8,11 +8,11 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/StrKey.h"
+#include "libinclude/autocheck.h"
+#include "libinclude/basen.h"
 #include "test/test.h"
 #include "util/Logging.h"
-#include <autocheck/autocheck.hpp>
 #include <lib/catch.hpp>
-#include <lib/util/basen.h>
 #include <map>
 #include <regex>
 #include <sodium.h>
@@ -216,7 +216,7 @@ TEST_CASE("StrKey tests", "[crypto]")
     uint8_t version = 2;
 
     // check round trip
-    for (int size = 0; size < 100; size++)
+    for (auto size = 0u; size < 100; size++)
     {
         std::vector<uint8_t> in(input(size));
 
@@ -257,7 +257,7 @@ TEST_CASE("StrKey tests", "[crypto]")
             for (int st = 0; st < 4; st++)
             {
                 std::string corrupted(encoded);
-                auto pos = corrupted.begin() + p;
+                auto pos = corrupted.begin() + static_cast<long>(p);
                 switch (st)
                 {
                 case 0:
@@ -328,7 +328,7 @@ TEST_CASE("base64 tests", "[crypto]")
 {
     autocheck::generator<std::vector<uint8_t>> input;
     // check round trip
-    for (int s = 0; s < 100; s++)
+    for (auto s = 0u; s < 100; s++)
     {
         std::vector<uint8_t> in(input(s));
 

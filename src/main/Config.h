@@ -4,7 +4,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/SecretValue.h"
 #include "util/optional.h"
 #include <lib/util/cpptoml.h>

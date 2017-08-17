@@ -10,7 +10,7 @@
 #include <memory>
 #include <set>
 
-#include "xdr/Stellar-SCP.h"
+#include "util/StellarXDR.h"
 
 namespace stellar
 {
@@ -84,13 +84,13 @@ class SCPDriver
     // `computeHashNode` is used by the nomination protocol to
     // randomize the order of messages between nodes.
     virtual uint64 computeHashNode(uint64 slotIndex, Value const& prev,
-                                   bool isPriority, int32_t roundNumber,
+                                   bool isPriority, uint32_t roundNumber,
                                    NodeID const& nodeID);
 
     // `computeValueHash` is used by the nomination protocol to
     // randomize the relative order between values.
     virtual uint64 computeValueHash(uint64 slotIndex, Value const& prev,
-                                    int32_t roundNumber, Value const& value);
+                                    uint32_t roundNumber, Value const& value);
 
     // `combineCandidates` computes the composite value based off a list
     // of candidate values.

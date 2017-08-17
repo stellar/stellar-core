@@ -3,19 +3,19 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerRecord.h"
+#include "libinclude/format.h"
+#include "libinclude/soci.h"
 #include "main/Application.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/Logging.h"
-#include "util/SociNoWarnings.h"
 #include "util/must_use.h"
 #include <algorithm>
 #include <cmath>
-#include <lib/util/format.h>
 #include <regex>
 #include <vector>
 
-#define SECONDS_PER_BACKOFF 10
-#define MAX_BACKOFF_EXPONENT 10
+auto const SECONDS_PER_BACKOFF = 10u;
+auto const MAX_BACKOFF_EXPONENT = 10u;
 
 namespace stellar
 {
@@ -42,13 +42,13 @@ PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
 {
     stringstream ss(ip);
     string item;
-    int n = 0;
-    while (getline(ss, item, '.') && n < 4)
+    auto n = 0u;
+    while (getline(ss, item, '.') && n < 4u)
     {
         ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
         n++;
     }
-    if (n != 4)
+    if (n != 4u)
         throw runtime_error("PeerRecord::ipToXdr: failed on `" + ip + "`");
 }
 
@@ -347,9 +347,8 @@ PeerRecord::computeBackoff(VirtualClock& clock)
 {
     uint32 backoffCount = std::min<uint32>(MAX_BACKOFF_EXPONENT, mNumFailures);
 
-    auto nsecs = std::chrono::seconds(
-        std::rand() %
-        (static_cast<uint32>(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF)));
+    auto maxSeconds = static_cast<uint32>(std::pow(2, backoffCount)) * SECONDS_PER_BACKOFF;
+    auto nsecs = std::chrono::seconds(static_cast<uint32>(std::rand()) % maxSeconds);
     mNextAttempt = clock.now() + nsecs;
     return nsecs;
 }

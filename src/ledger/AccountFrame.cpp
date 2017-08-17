@@ -10,10 +10,10 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
+#include "libinclude/basen.h"
+#include "libinclude/format.h"
 #include "util/types.h"
 #include <algorithm>
-#include <lib/util/basen.h>
-#include <lib/util/format.h>
 
 using namespace soci;
 using namespace std;
@@ -152,7 +152,7 @@ AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
 bool
 AccountFrame::addNumEntries(int count, LedgerManager const& lm)
 {
-    int newEntriesCount = mAccountEntry.numSubEntries + count;
+    auto newEntriesCount = static_cast<int64_t>(mAccountEntry.numSubEntries) + count;
     if (newEntriesCount < 0)
     {
         throw std::runtime_error("invalid account state");
@@ -163,7 +163,7 @@ AccountFrame::addNumEntries(int count, LedgerManager const& lm)
         // balance too low
         return false;
     }
-    mAccountEntry.numSubEntries = newEntriesCount;
+    mAccountEntry.numSubEntries = static_cast<uint32_t>(newEntriesCount);
     return true;
 }
 

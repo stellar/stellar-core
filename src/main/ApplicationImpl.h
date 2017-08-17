@@ -37,7 +37,7 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
-    virtual uint64_t timeNow() override;
+    virtual std::time_t timeNow() override;
 
     virtual Config const& getConfig() override;
 

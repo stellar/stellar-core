@@ -132,7 +132,7 @@ removePasswordFromConnectionString(std::string connectionString)
     try
     {
         auto end = std::end(connectionString);
-        auto it = std::begin(connectionString) + p + 3;
+        auto it = std::begin(connectionString) + static_cast<int64_t>(p) + 3;
         auto lastPasswordEnd = it;
         auto result = std::string{std::begin(connectionString), it};
 

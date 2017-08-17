@@ -15,7 +15,6 @@
 #include "util/Timer.h"
 #include "util/types.h"
 #include <lib/catch.hpp>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 

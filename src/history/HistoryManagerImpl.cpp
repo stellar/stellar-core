@@ -5,7 +5,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
@@ -21,9 +21,9 @@
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "historywork/RepairMissingBucketsWork.h"
 #include "ledger/LedgerManager.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
 #include "process/ProcessManager.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -33,10 +33,6 @@
 #include "work/WorkManager.h"
 
 #include <fstream>
-#include <lib/util/format.h>
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
-#include <xdrpp/marshal.h>
 #include <system_error>
 
 namespace stellar
@@ -274,7 +270,8 @@ HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
         ledger_duration = std::chrono::seconds(1);
     }
 
-    return (((next - ledger) + 5) * ledger_duration.count());
+    assert(ledger_duration.count() >= 0);
+    return (((next - ledger) + 5) * static_cast<uint64_t>(ledger_duration.count()));
 }
 
 void

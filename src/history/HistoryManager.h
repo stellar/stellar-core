@@ -6,7 +6,7 @@
 
 #include "history/HistoryArchive.h"
 #include "history/InferredQuorum.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include <functional>
 #include <memory>
 

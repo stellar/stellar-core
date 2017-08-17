@@ -4,6 +4,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#ifndef _WIN32
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wsign-conversion"
+#endif
+
 #if defined(ASIO_WINDOWS_RUNTIME)
 // Empty.
 #elif defined(_WINSOCKAPI_) && !defined(_WINSOCK2API_)
@@ -63,3 +69,7 @@
 #endif
 
 #include <asio.hpp>
+
+#ifndef _WIN32
+#pragma GCC diagnostic pop
+#endif
