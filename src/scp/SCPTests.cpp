@@ -5,15 +5,15 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 namespace stellar
 {

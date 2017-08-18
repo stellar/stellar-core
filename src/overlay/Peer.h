@@ -9,7 +9,7 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
-#include "xdrpp/message.h"
+#include <xdrpp/message.h>
 
 namespace medida
 {

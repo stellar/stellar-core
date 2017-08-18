@@ -5,10 +5,10 @@
 #include "TestAccount.h"
 
 #include "ledger/DataFrame.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

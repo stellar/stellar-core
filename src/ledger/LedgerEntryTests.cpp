@@ -10,16 +10,16 @@
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "xdrpp/autocheck.h"
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <xdrpp/autocheck.h>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 

@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "autocheck/autocheck.hpp"
-#include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
 #include "test/test.h"
 #include "util/Logging.h"
+#include <lib/catch.hpp>
+#include <lib/util/uint128_t.h>
 #include <limits>
 #include <ostream>
+#include <xdrpp/autocheck.h>
 
 // This file just cross-checks a selection of operators in the uint128_t class
 // against the values produced by native (compiler-provided) __int128 types,

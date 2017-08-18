@@ -4,10 +4,9 @@
 
 #include "work/Work.h"
 #include "work/WorkParent.h"
-
-#include "lib/util/format.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
+#include <lib/util/format.h>
 
 namespace stellar
 {

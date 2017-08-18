@@ -6,7 +6,6 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -18,6 +17,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

@@ -7,9 +7,9 @@
 #include "BallotProtocol.h"
 #include "LocalNode.h"
 #include "NominationProtocol.h"
-#include "lib/json/json-forwards.h"
 #include "scp/SCP.h"
 #include <functional>
+#include <lib/json/json-forwards.h>
 #include <memory>
 #include <set>
 #include <string>

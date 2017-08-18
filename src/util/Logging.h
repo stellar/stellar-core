@@ -11,7 +11,7 @@
 
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead
-#include "lib/util/easylogging++.h"
+#include <lib/util/easylogging++.h>
 #include <string>
 
 namespace stellar

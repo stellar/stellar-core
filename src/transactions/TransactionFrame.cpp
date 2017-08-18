@@ -17,15 +17,15 @@
 #include "util/Algoritm.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
-#include "util/basen.h"
-#include "xdrpp/marshal.h"
-#include <string>
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 #include <algorithm>
+#include <lib/util/basen.h>
 #include <numeric>
+#include <string>
 
 namespace stellar
 {
@@ -430,7 +430,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
                 return false;
             }
         }
- 
+
         if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !signatureChecker.checkAllSignaturesUsed())
         {
             res = false;

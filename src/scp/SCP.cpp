@@ -12,7 +12,7 @@
 #include "scp/Slot.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {

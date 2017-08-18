@@ -21,17 +21,17 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
-#include "medida/medida.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
-#include "xdrpp/message.h"
 #include <cassert>
 #include <future>
+#include <lib/util/format.h>
+#include <medida/medida.h>
+#include <xdrpp/message.h>
 
 namespace stellar
 {

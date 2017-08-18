@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/BitsetEnumerator.h"
-#include "lib/catch.hpp"
 #include "util/Logging.h"
+#include <lib/catch.hpp>
 #include <ostream>
 
 using namespace stellar;

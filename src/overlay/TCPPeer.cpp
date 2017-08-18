@@ -6,15 +6,15 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 using namespace soci;
 

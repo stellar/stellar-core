@@ -6,8 +6,8 @@
 
 #include "bucket/FutureBucket.h"
 #include "overlay/StellarXDR.h"
-#include "xdrpp/message.h"
 #include <future>
+#include <xdrpp/message.h>
 
 namespace stellar
 {

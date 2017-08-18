@@ -7,10 +7,10 @@
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
 #include <fstream>
 #include <string>
 #include <vector>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {

@@ -5,9 +5,9 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "scp/QuorumSetUtils.h"
 #include "xdr/Stellar-SCP.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

@@ -27,9 +27,9 @@
 #include "overlay/OverlayManager.h"
 #include "transactions/TransactionFrame.h"
 
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 
 #include <sstream>
 #include <stdexcept>

@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/Work.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/Math.h"
@@ -11,10 +10,10 @@
 #include "work/WorkManager.h"
 #include "work/WorkParent.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-
 #include <algorithm>
+#include <lib/util/format.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {

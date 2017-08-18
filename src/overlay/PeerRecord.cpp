@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/PeerRecord.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
@@ -11,6 +10,7 @@
 #include "util/must_use.h"
 #include <algorithm>
 #include <cmath>
+#include <lib/util/format.h>
 #include <regex>
 #include <vector>
 

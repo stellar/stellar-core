@@ -7,8 +7,8 @@
 #include "Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
-#include "medida/timer_context.h"
 #include "util/Timer.h"
+#include <medida/timer_context.h>
 #include <thread>
 
 namespace medida
