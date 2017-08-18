@@ -7,14 +7,12 @@
 #include "crypto/SecretKey.h"
 #include "overlay/Peer.h"
 #include "util/HashOfHash.h"
-#include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
-
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-
 #include "util/Timer.h"
+#include <lib/util/lrucache.hpp>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 
 namespace stellar
 {

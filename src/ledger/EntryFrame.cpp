@@ -11,8 +11,8 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 namespace stellar
 {

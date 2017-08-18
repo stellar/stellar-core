@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/types.h"
-#include "lib/util/uint128_t.h"
 #include <algorithm>
+#include <lib/util/uint128_t.h>
 #include <locale>
 
 namespace stellar

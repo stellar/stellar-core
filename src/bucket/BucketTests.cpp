@@ -17,20 +17,20 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
-#include "xdrpp/autocheck.h"
 #include <algorithm>
 #include <future>
+#include <lib/catch.hpp>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 

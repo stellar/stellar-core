@@ -4,8 +4,8 @@
 
 #include "main/Config.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "test/test.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 

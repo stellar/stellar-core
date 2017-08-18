@@ -5,14 +5,14 @@
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Timer.h"
-#include "xdrpp/printer.h"
 #include <algorithm>
+#include <lib/catch.hpp>
+#include <xdrpp/printer.h>
 
 using namespace stellar;
 using namespace stellar::txtest;

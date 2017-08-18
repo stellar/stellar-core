@@ -21,8 +21,8 @@
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {

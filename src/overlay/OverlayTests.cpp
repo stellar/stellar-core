@@ -5,7 +5,6 @@
 #include "BanManager.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -17,9 +16,10 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
+#include <lib/catch.hpp>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 
 using namespace stellar;
 

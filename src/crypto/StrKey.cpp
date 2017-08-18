@@ -4,8 +4,8 @@
 
 #include "StrKey.h"
 #include "util/SecretValue.h"
-#include "util/basen.h"
-#include "util/crc16.h"
+#include <lib/util/basen.h>
+#include <lib/util/crc16.h>
 
 namespace stellar
 {

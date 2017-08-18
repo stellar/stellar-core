@@ -21,11 +21,10 @@
 #include "util/Logging.h"
 #include "util/SociNoWarnings.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-
-#include "xdrpp/marshal.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/marshal.h>
 
 #include <time.h>
 

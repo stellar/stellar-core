@@ -13,7 +13,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "history/HistoryManager.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
@@ -22,6 +21,7 @@
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>
+#include <lib/util/format.h>
 
 #include <chrono>
 #include <fstream>

@@ -11,8 +11,6 @@
 #include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
-#include "lib/http/HttpClient.h"
-#include "lib/util/getopt.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
@@ -23,6 +21,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <lib/http/HttpClient.h>
+#include <lib/util/getopt.h>
 #include <locale>
 #include <sodium.h>
 

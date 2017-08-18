@@ -12,10 +12,7 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
-#include "lib/catch.hpp"
-#include "lib/util/format.h"
 #include "main/Application.h"
-#include "medida/stats/snapshot.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/StellarXDR.h"
 #include "simulation/Topologies.h"
@@ -25,8 +22,12 @@
 #include "util/Math.h"
 #include "util/make_unique.h"
 #include "util/types.h"
-#include "xdrpp/autocheck.h"
+#include <lib/catch.hpp>
+#include <lib/util/format.h>
+#include <lib/util/lrucache.hpp>
+#include <medida/stats/snapshot.h>
 #include <sstream>
+#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -53,8 +54,6 @@ printStats(int& nLedgers, std::chrono::system_clock::time_point tBegin,
 
     LOG(INFO) << sim->metricsSummary("scp");
 }
-
-#include "lib/util/lrucache.hpp"
 
 TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
 {

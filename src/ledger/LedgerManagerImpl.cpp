@@ -24,17 +24,17 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "util/format.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include "xdrpp/printer.h"
-#include "xdrpp/types.h"
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/printer.h>
+#include <xdrpp/types.h>
 
 #include <chrono>
+#include <lib/util/format.h>
 #include <sstream>
 
 /*

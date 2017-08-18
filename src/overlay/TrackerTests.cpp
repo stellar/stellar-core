@@ -5,9 +5,9 @@
 #include "overlay/Tracker.h"
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/test.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

@@ -7,7 +7,6 @@
 #include "main/Config.h"
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "test/TestAccount.h"
@@ -16,6 +15,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/SociNoWarnings.h"
 #include "util/Timer.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace std;
