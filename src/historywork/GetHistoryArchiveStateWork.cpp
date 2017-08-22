@@ -4,7 +4,6 @@
 
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "history/HistoryArchive.h"
-#include "historywork/ApplyLedgerChainWork.h"
 #include "historywork/GetRemoteFileWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
