@@ -5,7 +5,6 @@
 #include "historywork/VerifyLedgerChainWork.h"
 #include "history/CatchupManager.h"
 #include "history/FileTransferInfo.h"
-#include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/Progress.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
