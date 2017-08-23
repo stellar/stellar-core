@@ -17,6 +17,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
+#include <algorithm>
 #include <random>
 
 /*
@@ -195,6 +196,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
     // to work for both ip based and key based preferred mode).
     PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
                                 peers);
+    orderByPreferredPeers(peers);
 
     for (auto& pr : peers)
     {
@@ -211,6 +213,15 @@ OverlayManagerImpl::connectToMorePeers(int max)
             connectTo(pr);
         }
     }
+}
+
+void
+OverlayManagerImpl::orderByPreferredPeers(vector<PeerRecord>& peers)
+{
+    auto isPreferredPredicate = [this](PeerRecord& record) -> bool {
+        return mPreferredPeers.find(record.toString()) != mPreferredPeers.end();
+    };
+    std::stable_partition(peers.begin(), peers.end(), isPreferredPredicate);
 }
 
 // called every 2 seconds

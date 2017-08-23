@@ -96,5 +96,7 @@ class OverlayManagerImpl : public OverlayManager
     void shutdown() override;
 
     bool isShuttingDown() const override;
+private:
+    void orderByPreferredPeers(vector<PeerRecord>& peers);
 };
 }
