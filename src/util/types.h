@@ -55,6 +55,9 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
     std::copy(str.begin(), str.begin() + n, ret.begin());
 }
 
+bool addBalance(int64_t& balance, int64_t delta,
+                int64_t maxBalance = std::numeric_limits<int64_t>::max());
+
 enum Rounding
 {
     ROUND_DOWN,

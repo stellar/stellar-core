@@ -90,7 +90,11 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    otherAccount->getAccount().balance += sourceBalance;
+    if (!otherAccount->addBalance(sourceBalance))
+    {
+        throw std::runtime_error("merge overflowed destination balance");
+    }
+
     otherAccount->storeChange(delta, db);
     mSourceAccount->storeDelete(delta, db);
 

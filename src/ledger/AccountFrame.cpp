@@ -127,6 +127,12 @@ AccountFrame::getBalance() const
     return (mAccountEntry.balance);
 }
 
+bool
+AccountFrame::addBalance(int64_t delta)
+{
+    return stellar::addBalance(mAccountEntry.balance, delta);
+}
+
 int64_t
 AccountFrame::getMinimumBalance(LedgerManager const& lm) const
 {

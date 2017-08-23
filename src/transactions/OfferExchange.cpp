@@ -120,6 +120,9 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
                           int64_t maxWheatReceived, int64_t& numWheatReceived,
                           int64_t maxSheepSend, int64_t& numSheepSend)
 {
+    assert(maxWheatReceived > 0);
+    assert(maxSheepSend > 0);
+
     // we're about to make changes to the offer
     mDelta.recordEntry(sellingWheatOffer);
 
@@ -156,6 +159,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
                       sellingWheatOffer.getOffer().price),
          canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
          sellingWheatOffer.getOffer().amount});
+    assert(numWheatReceived >= 0);
+
     sellingWheatOffer.getOffer().amount = numWheatReceived;
     auto exchangeResult =
         mLedgerManager.getCurrentLedgerVersion() < 3
@@ -203,7 +208,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            accountB->getAccount().balance += numSheepSend;
+            if (!accountB->addBalance(numSheepSend))
+            {
+                return eOfferCantConvert;
+            }
             accountB->storeChange(mDelta, db);
         }
         else
@@ -220,7 +228,10 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            accountB->getAccount().balance -= numWheatReceived;
+            if (!accountB->addBalance(-numWheatReceived))
+            {
+                return eOfferCantConvert;
+            }
             accountB->storeChange(mDelta, db);
         }
         else
@@ -284,6 +295,11 @@ OfferExchange::convertWithOffers(
             CrossOfferResult cor =
                 crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
                            maxSheepSend, numSheepSend);
+
+            assert(numSheepSend >= 0);
+            assert(numSheepSend <= maxSheepSend);
+            assert(numWheatReceived >= 0);
+            assert(numWheatReceived <= maxWheatReceive);
 
             switch (cor)
             {
