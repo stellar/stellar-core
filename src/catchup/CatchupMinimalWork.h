@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "history/CatchupManager.h"
-#include "historywork/CatchupWork.h"
+#include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
 
 namespace stellar
 {

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "history/CatchupManager.h"
+#include "catchup/CatchupManager.h"
 #include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"

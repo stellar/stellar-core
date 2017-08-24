@@ -6,11 +6,11 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "history/CatchupManagerImpl.h"
-#include "historywork/CatchupCompleteImmediateWork.h"
-#include "historywork/CatchupCompleteWork.h"
-#include "historywork/CatchupMinimalWork.h"
-#include "historywork/CatchupRecentWork.h"
+#include "catchup/CatchupManagerImpl.h"
+#include "catchup/CatchupCompleteImmediateWork.h"
+#include "catchup/CatchupCompleteWork.h"
+#include "catchup/CatchupMinimalWork.h"
+#include "catchup/CatchupRecentWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "medida/meter.h"
