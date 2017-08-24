@@ -34,6 +34,8 @@ el::Configurations Logging::gDefaultConf;
 
 const std::string Logging::inMemoryLoggerName = "InMemory";
 
+bool Logging::enabledInMemoryLogging = false;
+
 void
 Logging::setFmt(std::string const& peerID, bool timestamps)
 {
@@ -51,6 +53,7 @@ Logging::setFmt(std::string const& peerID, bool timestamps)
     gDefaultConf.set(el::Level::Trace, el::ConfigurationType::Format, longFmt);
     gDefaultConf.set(el::Level::Fatal, el::ConfigurationType::Format, longFmt);
     el::Loggers::reconfigureAllLoggers(gDefaultConf);
+    reinitializeInMemoryLogger();
 }
 
 void
@@ -76,6 +79,7 @@ Logging::setLoggingToFile(std::string const& filename)
     gDefaultConf.setGlobally(el::ConfigurationType::ToFile, "true");
     gDefaultConf.setGlobally(el::ConfigurationType::Filename, filename);
     el::Loggers::reconfigureAllLoggers(gDefaultConf);
+    reinitializeInMemoryLogger();
 }
 
 el::Level
@@ -159,6 +163,8 @@ Logging::setLogLevel(el::Level level, const char* partition)
         el::Loggers::reconfigureLogger(partition, config);
     else
         el::Loggers::reconfigureAllLoggers(config);
+
+    reinitializeInMemoryLogger();
 }
 
 std::string
@@ -236,25 +242,47 @@ Logging::rotate()
 }
 
 void
-Logging::enableInMemoryLogging(const std::string& logFilename,
-                               const std::string& pushLevel)
+Logging::enableInMemoryLogging(std::string const& logFilename,
+                               std::string const& pushLevel)
 {
+    enabledInMemoryLogging = true;
+    reinitializeInMemoryLogger();
+
+    if (!logFilename.empty())
+    {
+        StaticMemoryHandler::setLogFilename(logFilename);
+    }
+    if (!pushLevel.empty())
+    {
+        StaticMemoryHandler::setPushLevel(pushLevel);
+    }
+    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(inMemoryLoggerName);
+}
+
+void
+Logging::reinitializeInMemoryLogger()
+{
+    if (!enabledInMemoryLogging)
+    {
+        return;
+    }
     std::vector<std::string> loggers;
     el::Loggers::populateAllLoggerIds(&loggers);
     for (auto loggerId : loggers)
     {
+        if (inMemoryLoggerName == loggerId)
+        {
+            continue;
+        }
         el::Logger* logger = el::Loggers::getLogger(loggerId);
         el::Configurations* config = logger->configurations();
-        auto logLevel = el::LevelHelper::castToInt(getLogLevel(loggerId));
         auto startLevel = el::LevelHelper::castToInt(el::Level::Trace);
-        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config,
-                                                    logLevel]() -> bool {
+        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config] () -> bool {
             el::Level thisLevel = el::LevelHelper::castFromInt(startLevel);
-            config->set(thisLevel, el::ConfigurationType::Enabled, "true");
-            if (startLevel < logLevel)
+            if ("false" == config->get(thisLevel, el::ConfigurationType::Enabled)->value())
             {
-                config->set(thisLevel, el::ConfigurationType::ToStandardOutput,
-                            "false");
+                config->set(thisLevel, el::ConfigurationType::Enabled, "true");
+                config->set(thisLevel, el::ConfigurationType::ToStandardOutput, "false");
                 config->set(thisLevel, el::ConfigurationType::ToFile, "false");
             }
             return false;
@@ -262,12 +290,10 @@ Logging::enableInMemoryLogging(const std::string& logFilename,
         logger->configure(*config);
     }
 
-    if (!logFilename.empty())
-    {
-        StaticMemoryHandler::setLogFilename(logFilename);
-    }
-    StaticMemoryHandler::setPushLevel(pushLevel);
-    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(
-        inMemoryLoggerName);
+    el::Logger* logger = el::Loggers::getLogger(Logging::inMemoryLoggerName);
+    el::Configurations* config = logger->configurations();
+    config->setGlobally(el::ConfigurationType::Enabled, "true");
+    config->setGlobally(el::ConfigurationType::ToStandardOutput, "false");
+    logger->configure(*config);
 }
 }

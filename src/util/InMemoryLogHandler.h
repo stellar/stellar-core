@@ -33,7 +33,7 @@ class InMemoryLogHandler
   public:
     InMemoryLogHandler();
 
-    explicit InMemoryLogHandler(LogBuffer buffer, LogFlushPredicate predicate);
+    explicit InMemoryLogHandler(LogBuffer buffer, LogFlushPredicate predicate, el::Logger* memoryLogger);
 
     static InMemoryLogHandler& getInstance();
 
