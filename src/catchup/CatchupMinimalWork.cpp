@@ -2,14 +2,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/CatchupMinimalWork.h"
+#include "catchup/CatchupMinimalWork.h"
+#include "catchup/ApplyBucketsWork.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
-#include "historywork/ApplyBucketsWork.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
-#include "historywork/VerifyLedgerChainWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
