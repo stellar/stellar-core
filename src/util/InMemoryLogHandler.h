@@ -4,12 +4,14 @@
 
 #include "util/CircularBuffer.h"
 #include "util/Logging.h"
+
+#include <memory>
 #include <string>
 
 namespace stellar
 {
 
-using LogEntry = std::string;
+using LogEntry = std::unique_ptr<el::LogMessage>;
 using LogBuffer = CircularBuffer<LogEntry>;
 
 // NOTE the only purpose of this class is to make the dispatch method of the
@@ -33,13 +35,12 @@ class InMemoryLogHandler
   public:
     InMemoryLogHandler();
 
-    explicit InMemoryLogHandler(LogBuffer buffer, LogFlushPredicate predicate, el::Logger* memoryLogger);
+    explicit InMemoryLogHandler(LogBuffer&& buffer, LogFlushPredicate predicate,
+                                el::Logger* memoryLogger);
 
     static InMemoryLogHandler& getInstance();
 
     void handle(el::LogDispatchData const* handlePtr);
-
-    void setLogFilename(std::string const& logFilename);
 
     void setPushLevel(std::string const& pushLevel);
 
@@ -49,6 +50,8 @@ class InMemoryLogHandler
     void pushLogs();
 
     std::string buildLogLine(el::LogDispatchData const& data) const;
+
+    void printToLog(el::LogMessage& logMessage);
 
     void printToLog(std::string const& message);
 
@@ -62,8 +65,6 @@ class InMemoryLogHandler
 class StaticMemoryHandler : public el::LogDispatchCallback
 {
   public:
-    static void setLogFilename(std::string const& logFilename);
-
     static void setPushLevel(std::string const& pushLevel);
 
   protected:

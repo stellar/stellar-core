@@ -31,11 +31,10 @@ class Logging
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
     static void rotate();
-    static void enableInMemoryLogging(std::string const& logFilename,
-                                      std::string const& pushLevel);
+    static void enableInMemoryLogging(std::string const& pushLevel);
     static const std::string inMemoryLoggerName;
 
-private:
+  private:
     static void reinitializeInMemoryLogger();
     static bool enabledInMemoryLogging;
 };

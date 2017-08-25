@@ -242,21 +242,17 @@ Logging::rotate()
 }
 
 void
-Logging::enableInMemoryLogging(std::string const& logFilename,
-                               std::string const& pushLevel)
+Logging::enableInMemoryLogging(std::string const& pushLevel)
 {
     enabledInMemoryLogging = true;
     reinitializeInMemoryLogger();
 
-    if (!logFilename.empty())
-    {
-        StaticMemoryHandler::setLogFilename(logFilename);
-    }
     if (!pushLevel.empty())
     {
         StaticMemoryHandler::setPushLevel(pushLevel);
     }
-    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(inMemoryLoggerName);
+    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(
+        inMemoryLoggerName);
 }
 
 void
@@ -277,12 +273,15 @@ Logging::reinitializeInMemoryLogger()
         el::Logger* logger = el::Loggers::getLogger(loggerId);
         el::Configurations* config = logger->configurations();
         auto startLevel = el::LevelHelper::castToInt(el::Level::Trace);
-        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config] () -> bool {
+        el::LevelHelper::forEachLevel(&startLevel, [&startLevel,
+                                                    config]() -> bool {
             el::Level thisLevel = el::LevelHelper::castFromInt(startLevel);
-            if ("false" == config->get(thisLevel, el::ConfigurationType::Enabled)->value())
+            if ("false" ==
+                config->get(thisLevel, el::ConfigurationType::Enabled)->value())
             {
                 config->set(thisLevel, el::ConfigurationType::Enabled, "true");
-                config->set(thisLevel, el::ConfigurationType::ToStandardOutput, "false");
+                config->set(thisLevel, el::ConfigurationType::ToStandardOutput,
+                            "false");
                 config->set(thisLevel, el::ConfigurationType::ToFile, "false");
             }
             return false;

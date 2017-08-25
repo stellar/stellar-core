@@ -3,39 +3,39 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/InMemoryLogHandler.h"
+#include "util/make_unique.h"
+
+#include <utility>
 
 namespace stellar
 {
 
-InMemoryLogHandler::InMemoryLogHandler(LogBuffer logBuffer,
+InMemoryLogHandler::InMemoryLogHandler(LogBuffer&& logBuffer,
                                        LogFlushPredicate predicate,
                                        el::Logger* memoryLogger)
-    : buffer{logBuffer}, logger{memoryLogger}, flushPredicate(predicate)
+    : buffer(std::move(logBuffer))
+    , logger{memoryLogger}
+    , flushPredicate(predicate)
 {
 }
 
 InMemoryLogHandler::InMemoryLogHandler()
-    : InMemoryLogHandler(LogBuffer(100), LogFlushPredicate(), el::Loggers::getLogger(Logging::inMemoryLoggerName))
+    : InMemoryLogHandler(LogBuffer(100), LogFlushPredicate(),
+                         el::Loggers::getLogger(Logging::inMemoryLoggerName))
 {
 }
 
 void
 InMemoryLogHandler::handle(el::LogDispatchData const* handlePtr)
 {
-    std::string logLine = buildLogLine(*handlePtr);
-    buffer.push(logLine);
+    const el::LogMessage* data = handlePtr->logMessage();
+    buffer.push(make_unique<el::LogMessage>(
+        data->level(), data->file(), data->line(), data->func(),
+        data->verboseLevel(), data->logger()));
     if (checkForPush(*handlePtr))
     {
         pushLogs();
     }
-}
-
-std::string
-InMemoryLogHandler::buildLogLine(el::LogDispatchData const& data) const
-{
-    return data.logMessage()->logger()->logBuilder()->build(
-        data.logMessage(),
-        data.dispatchAction() == el::base::DispatchAction::NormalLog);
 }
 
 void
@@ -49,15 +49,38 @@ InMemoryLogHandler::pushLogs()
 
     while (!buffer.empty())
     {
-        auto logLine = buffer.pop();
-        printToLog(logLine);
-        logLine.clear();
+        std::unique_ptr<el::LogMessage> logMessage = std::move(buffer.pop());
+        printToLog(*logMessage);
+        logMessage.reset(nullptr);
     }
 
     if (notEmpty)
     {
         printToLog("</in-memory-logger>\n");
     }
+}
+
+std::string
+InMemoryLogHandler::buildLogLine(el::LogDispatchData const& data) const
+{
+    return data.logMessage()->logger()->logBuilder()->build(
+        data.logMessage(),
+        data.dispatchAction() == el::base::DispatchAction::NormalLog);
+}
+
+void
+InMemoryLogHandler::printToLog(el::LogMessage& logMessage)
+{
+    auto data =
+        el::LogDispatchData(&logMessage, el::base::DispatchAction::NormalLog);
+    std::string logLine = buildLogLine(data);
+    auto newMessage =
+        el::LogMessage(logMessage.level(), logMessage.file(), logMessage.line(),
+                       logMessage.func(), logMessage.verboseLevel(), logger);
+    auto newData =
+        el::LogDispatchData(&newMessage, el::base::DispatchAction::NormalLog);
+
+    dispatchCallback.dispatch(logLine, &newData);
 }
 
 void
@@ -74,15 +97,6 @@ InMemoryLogHandler::checkForPush(el::LogDispatchData const& data) const
 {
     auto level = data.logMessage()->level();
     return flushPredicate.compareLessOrEqual(pushLevel, level);
-}
-
-void
-InMemoryLogHandler::setLogFilename(std::string const& logFilename)
-{
-    el::Configurations* config = logger->configurations();
-    config->setGlobally(el::ConfigurationType::ToFile, "true");
-    config->setGlobally(el::ConfigurationType::Filename, logFilename);
-    logger->configure(*config);
 }
 
 void
@@ -109,12 +123,6 @@ void
 StaticMemoryHandler::handle(el::LogDispatchData const* handlePtr)
 {
     InMemoryLogHandler::getInstance().handle(handlePtr);
-}
-
-void
-StaticMemoryHandler::setLogFilename(std::string const& logFilename)
-{
-    InMemoryLogHandler::getInstance().setLogFilename(logFilename);
 }
 
 void
