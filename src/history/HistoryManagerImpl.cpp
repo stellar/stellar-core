@@ -514,6 +514,7 @@ HistoryManagerImpl::queueCurrentHistory()
     // merges-in-progress, avoid restarting them.
 
     mPublishQueue.Mark();
+    mPublishQueueBuckets.addBuckets(has.allBuckets());
     takeSnapshotAndPublish(has);
 }
 
@@ -577,7 +578,7 @@ HistoryManagerImpl::getPublishQueueStates()
 }
 
 std::vector<std::string>
-HistoryManagerImpl::getBucketsReferencedByPublishQueue()
+HistoryManagerImpl::loadBucketsReferencedByPublishQueue()
 {
     auto states = getPublishQueueStates();
     std::set<std::string> buckets;
@@ -587,6 +588,24 @@ HistoryManagerImpl::getBucketsReferencedByPublishQueue()
         buckets.insert(sb.begin(), sb.end());
     }
     return std::vector<std::string>(buckets.begin(), buckets.end());
+}
+
+std::vector<std::string>
+HistoryManagerImpl::getBucketsReferencedByPublishQueue()
+{
+    if (!mPublishQueueBucketsFilled)
+    {
+        mPublishQueueBuckets.addBuckets(loadBucketsReferencedByPublishQueue());
+        mPublishQueueBucketsFilled = true;
+    }
+
+    std::vector<std::string> buckets;
+    for (auto const& s : mPublishQueueBuckets.map())
+    {
+        buckets.push_back(s.first);
+    }
+
+    return buckets;
 }
 
 std::vector<std::string>
@@ -603,7 +622,7 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
 }
 
 void
-HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
+HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets, bool success)
 {
     if (success)
     {
@@ -615,6 +634,8 @@ HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, bool success)
         st.exchange(soci::use(ledgerSeq));
         st.define_and_bind();
         st.execute(true);
+
+        mPublishQueueBuckets.removeBuckets(originalBuckets);
     }
     else
     {
