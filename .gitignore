@@ -74,6 +74,7 @@
 **/Build/*
 **/generated/*
 **/x64/*
-*.vcxproj.user
 *.opendb
+*.vcxproj.user
+**/.vs/*
 
