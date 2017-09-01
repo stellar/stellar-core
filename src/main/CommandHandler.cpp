@@ -19,6 +19,7 @@
 #include "util/StatusManager.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include "database/DatabaseConnectionString.h"
 
 #include "medida/reporting/json_reporter.h"
 #include "util/basen.h"
@@ -777,7 +778,7 @@ makeQuorumSetNode(stellar::SCPQuorumSet const& value) {
 
     Json::Value validators;
     for (auto const& key : value.validators) {
-        validators.append(KeyUtils::toShortString(key));
+        validators.append(KeyUtils::toStrKey(key));
     }
     node["validators"] = std::move(validators);
 
@@ -834,7 +835,7 @@ CommandHandler::showConfig(std::string const& params, std::string& retStr)
     root["HTTP_PORT"] = config.HTTP_PORT;
     root["PUBLIC_HTTP_PORT"] = config.PUBLIC_HTTP_PORT;
     root["HTTP_MAX_CLIENT"] = config.HTTP_MAX_CLIENT;
-    std::string NETWORK_PASSPHRASE; // identifier for the network
+    root["NETWORK_PASSPHRASE"] = config.NETWORK_PASSPHRASE;
     root["PEER_PORT"] = config.PEER_PORT;
     root["TARGET_PEER_CONNECTIONS"] = config.TARGET_PEER_CONNECTIONS;
     root["MAX_PEER_CONNECTIONS"] = config.MAX_PEER_CONNECTIONS;
@@ -855,14 +856,24 @@ CommandHandler::showConfig(std::string const& params, std::string& retStr)
         validatorNames.append(kv.second);
     }
     root["VALIDATOR_NAMES"] = validatorNames;
+    root["DATABASE"] = removePasswordFromConnectionString(config.DATABASE.value);
 
-    Json::Value history;
+    Json::Value historyMap;
     for (auto const& kv : config.HISTORY) {
-        history.append(kv.second->getName());
+		Json::Value history;
+		history["name"] = kv.second->getName();
+		if (kv.second->hasGetCmd()) {
+			history["getCmd"] = kv.second->getFileCmd("<remote>", "<local>");
+		}
+		if (kv.second->hasPutCmd()) {
+			history["putCmd"] = kv.second->putFileCmd("<local>", "<remote>");
+		}
+		if (kv.second->hasMkdirCmd()) {
+			history["mkdirCmd"] = kv.second->mkdirCmd("<remote_dir>");
+		}
+        historyMap[kv.first] = history;
     }
-    root["HISTORY"] = history;
-    
-    // TODO: should NODE_SEED and DATABASE be returned?
+    root["HISTORY"] = historyMap;
 
     addVector("COMMANDS", config.COMMANDS);
     addVector("REPORT_METRICS", config.REPORT_METRICS);
