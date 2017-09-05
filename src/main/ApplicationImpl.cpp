@@ -247,10 +247,6 @@ ApplicationImpl::start()
         mConfig.FORCE_SCP = true;
     }
 
-    if (mConfig.NETWORK_PASSPHRASE.empty())
-    {
-        throw std::invalid_argument("NETWORK_PASSPHRASE not configured");
-    }
     if (mConfig.QUORUM_SET.threshold == 0)
     {
         throw std::invalid_argument("Quorum not configured");

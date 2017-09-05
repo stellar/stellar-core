@@ -14,7 +14,7 @@ using namespace std;
 
 string PersistentState::mapping[kLastEntry] = {
     "lastclosedledger", "historyarchivestate", "forcescponnextlaunch",
-    "lastscpdata", "databaseschema"};
+    "lastscpdata", "databaseschema", "networkpassphrase"};
 
 string PersistentState::kSQLCreateStatement =
     "CREATE TABLE IF NOT EXISTS storestate ("
