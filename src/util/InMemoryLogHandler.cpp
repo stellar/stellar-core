@@ -8,19 +8,14 @@ namespace stellar
 {
 
 InMemoryLogHandler::InMemoryLogHandler(LogBuffer logBuffer,
-                                       LogFlushPredicate predicate)
-    : buffer{logBuffer}, flushPredicate(predicate)
+                                       LogFlushPredicate predicate,
+                                       el::Logger* memoryLogger)
+    : buffer{logBuffer}, logger{memoryLogger}, flushPredicate(predicate)
 {
-    logger = el::Loggers::getLogger(Logging::inMemoryLoggerName);
-    el::Configurations* config = logger->configurations();
-    config->set(el::Level::Global, el::ConfigurationType::Enabled, "true");
-    config->setGlobally(el::ConfigurationType::ToStandardOutput, "false");
-    config->setGlobally(el::ConfigurationType::ToFile, "false");
-    logger->configure(*config);
 }
 
 InMemoryLogHandler::InMemoryLogHandler()
-    : InMemoryLogHandler(LogBuffer(100), LogFlushPredicate())
+    : InMemoryLogHandler(LogBuffer(100), LogFlushPredicate(), el::Loggers::getLogger(Logging::inMemoryLoggerName))
 {
 }
 
