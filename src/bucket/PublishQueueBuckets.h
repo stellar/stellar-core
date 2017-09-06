@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <map>
+#include <string>
 #include <vector>
 
 namespace stellar
