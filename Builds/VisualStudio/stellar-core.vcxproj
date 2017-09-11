@@ -432,13 +432,10 @@
     <ClCompile Include="..\..\src\util\BigDivideTests.cpp" />
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp" />
     <ClCompile Include="..\..\src\util\BitsetEnumeratorTests.cpp" />
-    <ClCompile Include="..\..\src\util\CircularBufferTests.cpp" />
     <ClCompile Include="..\..\src\util\Fs.cpp" />
     <ClCompile Include="..\..\src\util\FsTests.cpp" />
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp" />
     <ClCompile Include="..\..\src\util\HashOfHash.cpp" />
-    <ClCompile Include="..\..\src\util\InMemoryLogHandler.cpp" />
-    <ClCompile Include="..\..\src\util\InMemoryLogHandlerTests.cpp" />
     <ClCompile Include="..\..\src\util\Math.cpp" />
     <ClCompile Include="..\..\src\util\NtpClient.cpp" />
     <ClCompile Include="..\..\src\util\NtpWork.cpp" />
@@ -632,11 +629,9 @@
     <ClInclude Include="..\..\lib\util\basen.h" />
     <ClInclude Include="..\..\lib\util\crc16.h" />
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h" />
-    <ClInclude Include="..\..\src\util\CircularBuffer.h" />
     <ClInclude Include="..\..\src\util\Fs.h" />
     <ClInclude Include="..\..\src\util\GlobalChecks.h" />
     <ClInclude Include="..\..\src\util\HashOfHash.h" />
-    <ClInclude Include="..\..\src\util\InMemoryLogHandler.h" />
     <ClInclude Include="..\..\src\util\Logging.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\Math.h" />

@@ -708,16 +708,7 @@
     <ClCompile Include="..\..\src\util\BigDivideTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\util\CircularBufferTests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\FsTests.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\InMemoryLogHandler.cpp">
-      <Filter>util</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\util\InMemoryLogHandlerTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\SecretValue.cpp">
@@ -1293,12 +1284,6 @@
       <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Algoritm.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\CircularBuffer.h">
-      <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\util\InMemoryLogHandler.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\SecretValue.h">
