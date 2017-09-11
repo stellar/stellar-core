@@ -138,7 +138,7 @@ restart:
         clock.crank(true);
     }
 
-    XDRInputFileStream in{MAX_MESSAGE_SIZE};
+    XDRInputFileStream in(MAX_MESSAGE_SIZE);
     in.open(filename);
     StellarMessage msg;
     size_t i = 0;

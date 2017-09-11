@@ -49,10 +49,10 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         ThresholdSetter th;
 
-        th.masterWeight = make_optional<uint8_t>(100);
-        th.lowThreshold = make_optional<uint8_t>(1);
-        th.medThreshold = make_optional<uint8_t>(10);
-        th.highThreshold = make_optional<uint8_t>(100);
+        th.masterWeight = make_optional<int>(100);
+        th.lowThreshold = make_optional<int>(1);
+        th.medThreshold = make_optional<int>(10);
+        th.highThreshold = make_optional<int>(100);
 
         SECTION("insufficient balance")
         {

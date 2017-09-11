@@ -144,8 +144,6 @@ class OverlayManagerTests
         auto c = TestAccount{app, getAccount("c")};
         auto d = TestAccount{app, getAccount("d")};
 
-        Hash const& networkID = app.getNetworkID();
-
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
         pm.broadcastMessage(AtoC);

@@ -230,7 +230,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
 {
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
+    e.tx.fee = static_cast<uint32_t>((ops.size() * app.getLedgerManager().getTxFee()) & UINT32_MAX);
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));

@@ -132,7 +132,7 @@ processExists(long pid)
         }
         if (bytesWritten / sizeof(DWORD) < buffer.size())
         {
-            auto found = std::find(buffer.begin(), buffer.end(), pid);
+            auto found = std::find(buffer.begin(), buffer.end(), static_cast<DWORD>(pid));
             return !(found == buffer.end());
         }
         // Need a larger buffer to hold all the ids.

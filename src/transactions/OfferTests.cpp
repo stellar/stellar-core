@@ -38,7 +38,6 @@ TEST_CASE("create offer", "[tx][offers]")
 
     VirtualClock clock;
     ApplicationEditableVersion app(clock, cfg);
-    Hash const& networkID = app.getNetworkID();
     app.start();
 
     // set up world

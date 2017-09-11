@@ -42,18 +42,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     VirtualClock clock;
     ApplicationEditableVersion app(clock, cfg);
-    Hash const& networkID = app.getNetworkID();
     app.start();
 
     // set up world
     auto root = TestAccount::createRoot(app);
-    auto a1 = TestAccount{app, getAccount("A")};
 
     const uint64_t paymentAmount =
         app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
 
     SECTION("outer envelope")
     {
+        auto a1 = TestAccount{ app, getAccount("A") };
         SECTION("no signature")
         {
             auto txFrame = root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
@@ -141,10 +140,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         ThresholdSetter th;
 
-        th.masterWeight = make_optional<uint8_t>(100);
-        th.lowThreshold = make_optional<uint8_t>(10);
-        th.medThreshold = make_optional<uint8_t>(50);
-        th.highThreshold = make_optional<uint8_t>(100);
+        th.masterWeight = make_optional<int>(100);
+        th.lowThreshold = make_optional<int>(10);
+        th.medThreshold = make_optional<int>(50);
+        th.highThreshold = make_optional<int>(100);
 
         a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
@@ -440,18 +439,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("multisig")
                 {
                     SecretKey s1 = getAccount("S1");
-                    Signer sk1(
+                    Signer sk1Org(
                         KeyUtils::convertKey<SignerKey>(s1.getPublicKey()),
                         95);
 
                     ThresholdSetter th;
 
-                    th.masterWeight = make_optional<uint8_t>(100);
-                    th.lowThreshold = make_optional<uint8_t>(10);
-                    th.medThreshold = make_optional<uint8_t>(50);
-                    th.highThreshold = make_optional<uint8_t>(100);
+                    th.masterWeight = make_optional<int>(100);
+                    th.lowThreshold = make_optional<int>(10);
+                    th.medThreshold = make_optional<int>(50);
+                    th.highThreshold = make_optional<int>(100);
 
-                    a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1,
+                    a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1Org,
                                     nullptr);
 
                     SECTION("not enough rights (envelope)")
@@ -636,10 +635,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             ThresholdSetter th;
 
-            th.masterWeight = make_optional<uint8_t>(100);
-            th.lowThreshold = make_optional<uint8_t>(10);
-            th.medThreshold = make_optional<uint8_t>(50);
-            th.highThreshold = make_optional<uint8_t>(100);
+            th.masterWeight = make_optional<int>(100);
+            th.lowThreshold = make_optional<int>(10);
+            th.medThreshold = make_optional<int>(50);
+            th.highThreshold = make_optional<int>(100);
 
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1,
                           nullptr);
@@ -650,7 +649,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().tx.seqNum++;
             a1.setSequenceNumber(a1.getLastSequenceNumber() - 1);
 
-            auto x = std::vector<uint8_t>{};
             SignerKey sk = SignerKeyUtils::hashXKey(x);
             Signer sk2(sk, 5); // below low rights
             a1.setOptions(nullptr, nullptr, nullptr, nullptr,
@@ -886,6 +884,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
     SECTION("common transaction")
     {
+        auto a1 = root.create("A", paymentAmount);
+
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
             app.getLedgerManager().getLastClosedLedgerHeader().hash);
 

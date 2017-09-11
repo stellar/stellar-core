@@ -31,7 +31,6 @@ TEST_CASE("manage data", "[tx][managedata]")
 
     VirtualClock clock;
     ApplicationEditableVersion app{clock, cfg};
-    auto& db = app.getDatabase();
 
     app.start();
 

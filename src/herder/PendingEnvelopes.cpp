@@ -319,11 +319,11 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
         mQuorumSetFetcher.fetch(h, envelope);
     }
 
-    for (auto const& h : getTxSetHashes(envelope))
+    for (auto const& h2 : getTxSetHashes(envelope))
     {
-        if (!mTxSetCache.exists(h))
+        if (!mTxSetCache.exists(h2))
         {
-            mTxSetFetcher.fetch(h, envelope);
+            mTxSetFetcher.fetch(h2, envelope);
         }
     }
 
@@ -337,9 +337,9 @@ PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
     Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     mQuorumSetFetcher.stopFetch(h, envelope);
 
-    for (auto const& h : getTxSetHashes(envelope))
+    for (auto const& h2 : getTxSetHashes(envelope))
     {
-        mTxSetFetcher.stopFetch(h, envelope);
+        mTxSetFetcher.stopFetch(h2, envelope);
     }
 
     CLOG(TRACE, "Herder") << "StopFetch i:" << envelope.statement.slotIndex

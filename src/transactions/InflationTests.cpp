@@ -280,7 +280,6 @@ TEST_CASE("inflation", "[tx][inflation]")
     clock.setCurrentTime(inflationStart);
 
     ApplicationEditableVersion app{clock, cfg};
-    Database& db = app.getDatabase();
 
     auto root = TestAccount::createRoot(app);
 

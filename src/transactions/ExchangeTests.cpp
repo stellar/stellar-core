@@ -351,7 +351,7 @@ TEST_CASE("Exchange", "[exchange]")
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX,
                          INT32_MAX, {1000ull * INT32_MAX, 1000, false});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX}, INT64_MAX,
-                         INT32_MAX, {999ul * INT32_MAX, 999, false});
+                         INT32_MAX, {999ull * INT32_MAX, 999, false});
                 validate(INT32_MAX, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX,
                          {INT32_MAX, 1, false});
                 REQUIRE(exchangeV2(0, Price{1, INT32_MAX}, INT64_MAX, INT32_MAX)
@@ -406,17 +406,17 @@ TEST_CASE("Exchange", "[exchange]")
             SECTION("750 * INT32_MAX")
             {
                 validate(1000ull * INT32_MAX, Price{1, INT32_MAX},
-                         750ul * INT32_MAX, INT64_MAX,
+                         750ull * INT32_MAX, INT64_MAX,
                          {750ull * INT32_MAX, 750, true});
                 validate(999ull * INT32_MAX, Price{1, INT32_MAX},
-                         750ul * INT32_MAX, INT64_MAX,
+                         750ull * INT32_MAX, INT64_MAX,
                          {750ull * INT32_MAX, 750, true});
-                validate(INT32_MAX, Price{1, INT32_MAX}, 750ul * INT32_MAX,
+                validate(INT32_MAX, Price{1, INT32_MAX}, 750ull * INT32_MAX,
                          INT64_MAX, {INT32_MAX, 1, false});
-                REQUIRE(exchangeV2(750, Price{1, INT32_MAX}, 750ul * INT32_MAX,
+                REQUIRE(exchangeV2(750, Price{1, INT32_MAX}, 750ull * INT32_MAX,
                                    INT64_MAX)
                             .type() == ExchangeResultType::BOGUS);
-                validateV3(750, Price{1, INT32_MAX}, 750ul * INT32_MAX,
+                validateV3(750, Price{1, INT32_MAX}, 750ull * INT32_MAX,
                            INT64_MAX, {750, 1, false});
             }
         }

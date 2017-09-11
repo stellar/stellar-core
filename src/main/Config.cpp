@@ -295,7 +295,7 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid CATCHUP_RECENT");
                 }
-                CATCHUP_RECENT = r;
+                CATCHUP_RECENT = static_cast<uint32_t>(r);
             }
             else if (item.first == "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING")
             {

@@ -46,7 +46,7 @@ getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
     case ThresholdLevel::HIGH:
         return account.getHighThreshold();
     default:
-        assert(false);
+        abort();
     }
 }
 }

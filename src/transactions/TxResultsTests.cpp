@@ -69,7 +69,7 @@ struct ExpectedOpResult
 };
 
 TransactionResult
-expectedResult(int64_t fee, int opsCount, TransactionResultCode code,
+expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
                std::vector<ExpectedOpResult> ops = {})
 {
     auto result = TransactionResult{};
@@ -84,7 +84,7 @@ expectedResult(int64_t fee, int opsCount, TransactionResultCode code,
         std::fill_n(std::back_inserter(ops), opsCount, PAYMENT_SUCCESS);
     }
 
-    result.result.results().resize(ops.size());
+    result.result.results().resize(static_cast<uint32_t>(ops.size()));
     for (auto i = 0; i < ops.size(); i++)
     {
         auto& r = result.result.results()[i];
@@ -233,6 +233,8 @@ TEST_CASE("txresults", "[tx][txresults]")
             return int64_t{0};
         case PaymentValidity::UNDERFUNDED:
             return startAmount * 2;
+        default:
+            abort();
         }
     };
 
@@ -734,10 +736,10 @@ TEST_CASE("txresults", "[tx][txresults]")
     SECTION("not enough signature weight")
     {
         auto th = ThresholdSetter{};
-        th.masterWeight = make_optional<uint8_t>(10);
-        th.lowThreshold = make_optional<uint8_t>(10);
-        th.medThreshold = make_optional<uint8_t>(50);
-        th.highThreshold = make_optional<uint8_t>(100);
+        th.masterWeight = make_optional<int>(10);
+        th.lowThreshold = make_optional<int>(10);
+        th.medThreshold = make_optional<int>(50);
+        th.highThreshold = make_optional<int>(100);
 
         SECTION("normal")
         {

@@ -28,10 +28,10 @@ typedef std::vector<std::pair<TransactionResultPair, LedgerEntryChanges>>
 
 struct ThresholdSetter
 {
-    optional<uint8_t> masterWeight;
-    optional<uint8_t> lowThreshold;
-    optional<uint8_t> medThreshold;
-    optional<uint8_t> highThreshold;
+    optional<int> masterWeight;
+    optional<int> lowThreshold;
+    optional<int> medThreshold;
+    optional<int> highThreshold;
 };
 
 bool applyCheck(TransactionFramePtr tx, Application& app);

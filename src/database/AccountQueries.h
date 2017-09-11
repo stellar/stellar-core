@@ -19,7 +19,7 @@ struct NumberOfSubentries
     uint64_t calculated;
 };
 
-uint64_t sumOfBalances(Database& db);
+int64_t sumOfBalances(Database& db);
 
 NumberOfSubentries numberOfSubentries(AccountID const& accountID, Database& db);
 }

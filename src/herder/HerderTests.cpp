@@ -42,7 +42,6 @@ TEST_CASE("standalone", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     // set up world
@@ -159,7 +158,6 @@ TEST_CASE("txset", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     // set up world
@@ -309,7 +307,6 @@ TEST_CASE("surge", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     auto& lm = app->getLedgerManager();
@@ -423,7 +420,6 @@ TEST_CASE("SCP Driver", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =

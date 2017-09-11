@@ -92,7 +92,6 @@ TEST_CASE("change trust", "[tx][changetrust]")
     }
     SECTION("trusting self")
     {
-        auto idr = makeAsset(gateway, "IDR");
         auto loadTrustLine = [&]() {
             return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr,
                                                 db);

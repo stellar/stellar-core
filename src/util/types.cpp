@@ -27,7 +27,7 @@ Hash&
 operator^=(Hash& l, Hash const& r)
 {
     std::transform(l.begin(), l.end(), r.begin(), l.begin(),
-                   [](uint8_t a, uint8_t b) { return a ^ b; });
+                   [](uint8_t a, uint8_t b) -> uint8_t { return a ^ b; });
     return l;
 }
 

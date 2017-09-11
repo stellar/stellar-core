@@ -43,7 +43,7 @@ TEST_CASE("merge", "[tx][merge]")
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    int64_t txfee = app.getLedgerManager().getTxFee();
+    auto txfee = app.getLedgerManager().getTxFee();
 
     const int64_t minBalance =
         app.getLedgerManager().getMinBalance(5) + 20 * txfee;
@@ -311,7 +311,7 @@ TEST_CASE("merge", "[tx][merge]")
 
             auto a1BalanceAfterFee = a1Balance - txFrame->getFee();
             REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
-            REQUIRE(a1Balance - txFrame->getFee() == a1.getBalance());
+            REQUIRE(a1BalanceAfterFee == a1.getBalance());
             REQUIRE(loadAccount(a1, app, false));
         });
     }

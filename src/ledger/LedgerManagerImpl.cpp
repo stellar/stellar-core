@@ -276,7 +276,7 @@ LedgerManagerImpl::getDatabase()
     return mApp.getDatabase();
 }
 
-int64_t
+uint32_t
 LedgerManagerImpl::getTxFee() const
 {
     return mCurrentLedger->mHeader.baseFee;

@@ -128,7 +128,7 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    int64_t getFee() const;
+    uint32_t getFee() const;
 
     int64_t getMinFee(LedgerManager const& lm) const;
 

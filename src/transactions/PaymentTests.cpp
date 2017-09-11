@@ -126,8 +126,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("a pays b, then a merge into b")
     {
-        auto paymentAmount = 1000000;
-        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmount;
+        auto paymentAmountMerge = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -137,7 +137,7 @@ TEST_CASE("payment", "[tx][payment]")
             {payment(b1, 200), accountMerge(b1)});
 
         for_all_versions(app, [&]{
-            auto res = applyCheck(txFrame, app);
+            applyCheck(txFrame, app);
 
             REQUIRE(!loadAccount(a1, app, false));
             REQUIRE(loadAccount(b1, app));
@@ -151,8 +151,8 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("a pays b, then b merge into a")
     {
-        auto paymentAmount = 1000000;
-        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmount;
+        auto paymentAmountMerge = 1000000;
+        auto amount = app.getLedgerManager().getMinBalance(0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -163,7 +163,7 @@ TEST_CASE("payment", "[tx][payment]")
         txFrame->addSignature(b1);
 
         for_all_versions(app, [&]{
-            auto res = applyCheck(txFrame, app);
+            applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(!loadAccount(b1, app, false));
@@ -186,7 +186,7 @@ TEST_CASE("payment", "[tx][payment]")
             {accountMerge(b1), payment(b1, 200)});
 
         for_versions_to(7, app, [&]{
-            auto res = applyCheck(txFrame, app);
+            applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -197,7 +197,7 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, app, [&]{
-            auto res = applyCheck(txFrame, app);
+            applyCheck(txFrame, app);
 
             REQUIRE(loadAccount(a1, app));
             REQUIRE(loadAccount(b1, app));
@@ -298,7 +298,6 @@ TEST_CASE("payment", "[tx][payment]")
         auto payAmount = 200000000;
         auto sourceAccount = root.create("source", amount);
         auto createSourceAccount = TestAccount{app, getAccount("create")};
-        auto balanceBefore = sourceAccount.getBalance();
         auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
@@ -353,7 +352,6 @@ TEST_CASE("payment", "[tx][payment]")
         auto sourceAccount = root.create("source", amount);
         auto createSourceAccount = TestAccount{app, getAccount("create")};
         auto payAccount = root.create("pay", amount);
-        auto balanceBefore = sourceAccount.getBalance() + payAccount.getBalance();
         auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
 
         auto tx = sourceAccount.tx({
@@ -402,8 +400,6 @@ TEST_CASE("payment", "[tx][payment]")
         auto pay2Amount = 200000000;
         auto sourceAccount = root.create("source", amount);
         auto payAndMergeDestination = root.create("payAndMerge", amount);
-        auto balanceBefore = sourceAccount.getBalance()
-                + payAndMergeDestination.getBalance();
         auto sourceSeqNum = sourceAccount.getLastSequenceNumber();
         auto payAndMergeDestinationSeqNum = payAndMergeDestination.getLastSequenceNumber();
 
@@ -1050,20 +1046,20 @@ TEST_CASE("payment", "[tx][payment]")
                 Pay payWithTrustLineFull;
             };
 
-            Pay payOk = [&sendToSelf](Asset const& asset, int amount) {
+            Pay payOk = [&sendToSelf](Asset const& asset, int64_t amount) {
                 sendToSelf.pay(sendToSelf, asset, amount);
             };
-            Pay payNoTrust = [&sendToSelf](Asset const& asset, int amount) {
+            Pay payNoTrust = [&sendToSelf](Asset const& asset, int64_t amount) {
                 REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount),
                                     ex_PAYMENT_NO_TRUST);
             };
             Pay payLineFull = [&sendToSelf](Asset const& asset,
-                                            int amount) {
+                                            int64_t amount) {
                 REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount),
                                     ex_PAYMENT_LINE_FULL);
             };
             Pay payNoIssuer = [&sendToSelf](Asset const& asset,
-                                            int amount) {
+                                            int64_t amount) {
                 REQUIRE_THROWS_AS(sendToSelf.pay(sendToSelf, asset, amount),
                                     ex_PAYMENT_NO_ISSUER);
             };
@@ -1189,7 +1185,7 @@ TEST_CASE("payment", "[tx][payment]")
         }
     });
 
-    auto amount = 1;
+    int amount = 1;
     SECTION("fee less than base reserve")
     {
         SECTION("account has only base reserve + amount")
@@ -1256,6 +1252,11 @@ TEST_CASE("payment", "[tx][payment]")
             });
         }
     }
+}
+
+TEST_CASE("payment fees", "[tx][payment]")
+{
+    int amount = 1;
 
     SECTION("fee equal to base reserve")
     {
@@ -1428,7 +1429,6 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
     app->start();
 
     auto root = TestAccount::createRoot(*app);
-    SecretKey a1 = getAccount("A");
     int64_t txfee = app->getLedgerManager().getTxFee();
     const int64_t paymentAmount =
         app->getLedgerManager().getMinBalance(1) + txfee * 10;
