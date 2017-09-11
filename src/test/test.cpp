@@ -26,6 +26,16 @@
 #define CATCH_CONFIG_RUNNER
 #include "lib/catch.hpp"
 
+#include "test/DotReporter.h"
+
+namespace Catch
+{
+
+DotReporter::~DotReporter()
+{}
+
+}
+
 namespace stellar
 {
 
