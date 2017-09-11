@@ -2090,53 +2090,54 @@ void Storage::setApplicationArguments(int argc, char** argv) {
 // DefaultLogDispatchCallback
 
 void DefaultLogDispatchCallback::handle(const LogDispatchData* data) {
-  dispatch(data->logMessage()->logger()->logBuilder()->build(data->logMessage(),
-           data->dispatchAction() == base::DispatchAction::NormalLog), data);
+  m_data = data;
+  dispatch(m_data->logMessage()->logger()->logBuilder()->build(m_data->logMessage(),
+           m_data->dispatchAction() == base::DispatchAction::NormalLog));
 }
 
-void DefaultLogDispatchCallback::dispatch(base::type::string_t&& logLine, const LogDispatchData* data) {
-  if (data->dispatchAction() == base::DispatchAction::NormalLog) {
-    if (data->logMessage()->logger()->m_typedConfigurations->toFile(data->logMessage()->level())) {
-      base::type::fstream_t* fs = data->logMessage()->logger()->m_typedConfigurations->fileStream(
-                                    data->logMessage()->level());
+void DefaultLogDispatchCallback::dispatch(base::type::string_t&& logLine) {
+  if (m_data->dispatchAction() == base::DispatchAction::NormalLog) {
+    if (m_data->logMessage()->logger()->m_typedConfigurations->toFile(m_data->logMessage()->level())) {
+      base::type::fstream_t* fs = m_data->logMessage()->logger()->m_typedConfigurations->fileStream(
+                                    m_data->logMessage()->level());
       if (fs != nullptr) {
         fs->write(logLine.c_str(), logLine.size());
         if (fs->fail()) {
           ELPP_INTERNAL_ERROR("Unable to write log to file ["
-                              << data->logMessage()->logger()->m_typedConfigurations->filename(data->logMessage()->level()) << "].\n"
+                              << m_data->logMessage()->logger()->m_typedConfigurations->filename(m_data->logMessage()->level()) << "].\n"
                               << "Few possible reasons (could be something else):\n" << "      * Permission denied\n"
                               << "      * Disk full\n" << "      * Disk is not writable", true);
         } else {
           if (ELPP->hasFlag(LoggingFlag::ImmediateFlush)
-              || (data->logMessage()->logger()->isFlushNeeded(data->logMessage()->level()))) {
-            data->logMessage()->logger()->flush(data->logMessage()->level(), fs);
+              || (m_data->logMessage()->logger()->isFlushNeeded(m_data->logMessage()->level()))) {
+            m_data->logMessage()->logger()->flush(m_data->logMessage()->level(), fs);
           }
         }
       } else {
-        ELPP_INTERNAL_ERROR("Log file for [" << LevelHelper::convertToString(data->logMessage()->level()) << "] "
+        ELPP_INTERNAL_ERROR("Log file for [" << LevelHelper::convertToString(m_data->logMessage()->level()) << "] "
                             << "has not been configured but [TO_FILE] is configured to TRUE. [Logger ID: "
-                            << data->logMessage()->logger()->id() << "]", false);
+                            << m_data->logMessage()->logger()->id() << "]", false);
       }
     }
-    if (data->logMessage()->logger()->m_typedConfigurations->toStandardOutput(data->logMessage()->level())) {
+    if (m_data->logMessage()->logger()->m_typedConfigurations->toStandardOutput(m_data->logMessage()->level())) {
       if (ELPP->hasFlag(LoggingFlag::ColoredTerminalOutput))
-        data->logMessage()->logger()->logBuilder()->convertToColoredOutput(&logLine, data->logMessage()->level());
+        m_data->logMessage()->logger()->logBuilder()->convertToColoredOutput(&logLine, m_data->logMessage()->level());
       ELPP_COUT << ELPP_COUT_LINE(logLine);
     }
   }
 #if defined(ELPP_SYSLOG)
-  else if (data->dispatchAction() == base::DispatchAction::SysLog) {
+  else if (m_data->dispatchAction() == base::DispatchAction::SysLog) {
     // Determine syslog priority
     int sysLogPriority = 0;
-    if (data->logMessage()->level() == Level::Fatal)
+    if (m_data->logMessage()->level() == Level::Fatal)
       sysLogPriority = LOG_EMERG;
-    else if (data->logMessage()->level() == Level::Error)
+    else if (m_data->logMessage()->level() == Level::Error)
       sysLogPriority = LOG_ERR;
-    else if (data->logMessage()->level() == Level::Warning)
+    else if (m_data->logMessage()->level() == Level::Warning)
       sysLogPriority = LOG_WARNING;
-    else if (data->logMessage()->level() == Level::Info)
+    else if (m_data->logMessage()->level() == Level::Info)
       sysLogPriority = LOG_INFO;
-    else if (data->logMessage()->level() == Level::Debug)
+    else if (m_data->logMessage()->level() == Level::Debug)
       sysLogPriority = LOG_DEBUG;
     else
       sysLogPriority = LOG_NOTICE;

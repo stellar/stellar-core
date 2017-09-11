@@ -2207,7 +2207,6 @@ class Callback : protected base::threading::ThreadSafe {
 class LogDispatchData {
  public:
   LogDispatchData() : m_logMessage(nullptr), m_dispatchAction(base::DispatchAction::None) {}
-  LogDispatchData(LogMessage* logMessage, base::DispatchAction dispatchAction) : m_logMessage(logMessage), m_dispatchAction(dispatchAction) {}
   inline const LogMessage* logMessage(void) const {
     return m_logMessage;
   }
@@ -2763,7 +2762,9 @@ extern ELPP_EXPORT base::type::StoragePointer elStorage;
 class DefaultLogDispatchCallback : public LogDispatchCallback {
  protected:
   void handle(const LogDispatchData* data);
-  void dispatch(base::type::string_t&& logLine, const LogDispatchData* data);
+ private:
+  const LogDispatchData* m_data;
+  void dispatch(base::type::string_t&& logLine);
 };
 #if ELPP_ASYNC_LOGGING
 class AsyncLogDispatchCallback : public LogDispatchCallback {

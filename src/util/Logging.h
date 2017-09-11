@@ -13,7 +13,6 @@
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead
 #include "lib/util/easylogging++.h"
-#include <string>
 
 namespace stellar
 {
@@ -32,8 +31,5 @@ class Logging
     static bool logDebug(std::string const& partition);
     static bool logTrace(std::string const& partition);
     static void rotate();
-    static void enableInMemoryLogging(const std::string& logFilename,
-                                      const std::string& pushLevel);
-    static const std::string inMemoryLoggerName;
 };
 }
