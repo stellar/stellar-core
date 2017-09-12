@@ -1,7 +1,7 @@
 //
 //  Bismillah ar-Rahmaan ar-Raheem
 //
-//  Easylogging++ v9.94.2
+//  Easylogging++ v9.95.0
 //  Cross-platform logging library for C++ applications
 //
 //  Copyright (c) 2017 muflihun.com
@@ -615,7 +615,10 @@ void Logger::flush(Level level, base::type::fstream_t* fs) {
   }
   if (fs != nullptr) {
     fs->flush();
-    m_unflushedCount.find(level)->second = 0;
+    std::map<Level, unsigned int>::iterator iter = m_unflushedCount.find(level);
+    if (iter != m_unflushedCount.end()) {
+      iter->second = 0;
+    }
   }
 }
 
@@ -1000,6 +1003,8 @@ const std::string OS::getBashOutput(const char* command) {
       hBuff[strlen(hBuff) - 1] = '\0';
     }
     return std::string(hBuff);
+  } else {
+    pclose(proc);
   }
   return std::string();
 #else
@@ -1151,7 +1156,11 @@ struct ::tm* DateTime::buildTimeInfo(struct timeval* currTime, struct ::tm* time
 #  if ELPP_COMPILER_MSVC
   ELPP_UNUSED(currTime);
   time_t t;
+#    if defined(_USE_32BIT_TIME_T)
+  _time32(&t);
+#    else
   _time64(&t);
+#    endif
   elpptime_s(timeInfo, &t);
   return timeInfo;
 #  else
@@ -1265,7 +1274,8 @@ bool CommandLineArgs::hasParamWithValue(const char* paramKey) const {
 }
 
 const char* CommandLineArgs::getParamValue(const char* paramKey) const {
-  return m_paramsWithValue.find(std::string(paramKey))->second.c_str();
+  std::map<std::string, std::string>::const_iterator iter = m_paramsWithValue.find(std::string(paramKey));
+  return iter != m_paramsWithValue.end() ? iter->second.c_str() : "";
 }
 
 bool CommandLineArgs::hasParam(const char* paramKey) const {
@@ -1938,9 +1948,11 @@ bool VRegistry::allowed(base::type::VerboseLevel vlevel, const char* file) {
   if (m_modules.empty() || file == nullptr) {
     return vlevel <= m_level;
   } else {
+    char baseFilename[base::consts::kSourceFilenameMaxLength] = "";
+    base::utils::File::buildBaseFilename(file, baseFilename);
     std::map<std::string, base::type::VerboseLevel>::iterator it = m_modules.begin();
     for (; it != m_modules.end(); ++it) {
-      if (base::utils::Str::wildCardMatch(file, it->first.c_str())) {
+      if (base::utils::Str::wildCardMatch(baseFilename, it->first.c_str())) {
         return vlevel <= it->second;
       }
     }
@@ -2974,11 +2986,12 @@ void Loggers::clearVModules(void) {
 // VersionInfo
 
 const std::string VersionInfo::version(void) {
-  return std::string("9.94.2");
+  return std::string("9.95.0");
 }
 /// @brief Release date of current version
 const std::string VersionInfo::releaseDate(void) {
-  return std::string("12-04-2017 1621hrs");
+  return std::string("02-08-2017 2312hrs");
 }
 
 } // namespace el
+
