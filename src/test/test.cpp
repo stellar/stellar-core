@@ -152,7 +152,10 @@ test(int argc, char* const* argv, el::Level ll,
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
-    return Catch::Session().run(argc, argv);
+    int r = Catch::Session().run(argc, argv);
+    gTestRoots.clear();
+    gTestCfg->clear();
+    return r;
 }
 
 void
