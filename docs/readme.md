@@ -15,18 +15,18 @@ For more detail on the Stellar Consensus Protocol and how it establishes this
 guarantee see [`src/scp/readme.md`](/src/scp/readme.md).
 
 
-- [Building & Installing] (/INSTALL.md)
-- [Stellar-core administration] (software/admin.md)
-- [Architecture] (architecture.md)
-- [Key Concepts] (https://www.stellar.org/developers/guides/)
-- [Integration with other services] (integration.md)
-- [Major Components] (#major-components)
-- [Supporting Code Directories] (#supporting-code-directories)
-- [Contributing] (/CONTRIBUTING.md)
+- [Building & Installing](/INSTALL.md)
+- [Stellar-core administration](software/admin.md)
+- [Architecture](architecture.md)
+- [Key Concepts](https://www.stellar.org/developers/guides/)
+- [Integration with other services](integration.md)
+- [Major Components](#major-components)
+- [Supporting Code Directories](#supporting-code-directories)
+- [Contributing](/CONTRIBUTING.md)
 
 
 
-##Major Components
+## Major Components
 
 There are a few major components of the system. Each component has a dedicated
 source directory and its own dedicated `readme.md`.
