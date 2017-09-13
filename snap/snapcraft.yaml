@@ -1,0 +1,33 @@
+name: stellar-core
+version: master
+summary: the backbone of the Stellar network
+description: |
+  It maintains a local copy of the ledger, communicating and staying in sync
+  with other instances of stellar-core on the network. Optionally, stellar-core
+  can store historical records of the ledger and participate in consensus.
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: devmode # use 'strict' once you have the right plugs and slots
+
+apps:
+  stellar-core:
+    command: stellar-core
+
+parts:
+  stellar-core:
+    source: .
+    source-type: git
+    plugin: autotools
+    build-packages:
+      - build-essential
+      - pkg-config
+      - autoconf
+      - automake
+      - libtool
+      - bison
+      - flex
+      - libpq-dev
+      - clang
+      - gcc
+      - g++
+      - cpp
