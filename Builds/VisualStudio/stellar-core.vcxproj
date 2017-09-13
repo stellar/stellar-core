@@ -791,7 +791,7 @@
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\lib\libsodium\builds\msvc\vs2013\libsodium\libsodium.vcxproj">
+    <ProjectReference Include="..\..\lib\libsodium\builds\msvc\vs2017\libsodium\libsodium.vcxproj">
       <Project>{a185b162-6cb6-4502-b03f-b56f7699a8d9}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\lib\xdrpp\msvc_xdrpp\xdrc\xdrc.vcxproj">
