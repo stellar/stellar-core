@@ -51,10 +51,10 @@ committer=$(committer_of HEAD) \
 
 case $committer in
     "David Mazieres")
-        config_flags="--enable-asan --enable-ccache"
+        config_flags="--enable-asan --enable-ccache CXXFLAGS=-w"
 	;;
     *)
-	config_flags="--enable-asan --enable-ccache --enable-sdfprefs"
+	config_flags="--enable-asan --enable-ccache --enable-sdfprefs CXXFLAGS=-w"
 	;;
 esac
 
