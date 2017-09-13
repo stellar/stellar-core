@@ -817,7 +817,7 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="..\..\INSTALL-Windows.txt" />
+    <Text Include="..\..\INSTALL-Windows.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
