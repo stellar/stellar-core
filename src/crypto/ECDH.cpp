@@ -23,7 +23,10 @@ Curve25519Public
 EcdhDerivePublic(Curve25519Secret const& sec)
 {
     Curve25519Public out;
-    crypto_scalarmult_base(out.key.data(), sec.key.data());
+    if (crypto_scalarmult_base(out.key.data(), sec.key.data()) != 0)
+    {
+        throw std::runtime_error("Could not derive key (mult_base)");
+    }
     return out;
 }
 
@@ -36,7 +39,10 @@ EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
     auto const& publicB = localFirst ? remotePublic : localPublic;
 
     unsigned char q[crypto_scalarmult_BYTES];
-    crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data());
+    if (crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data()) != 0)
+    {
+        throw std::runtime_error("Could not derive shared key (mult)");
+    }
     std::vector<uint8_t> buf(q, q + crypto_scalarmult_BYTES);
     buf.insert(buf.end(), publicA.key.begin(), publicA.key.end());
     buf.insert(buf.end(), publicB.key.begin(), publicB.key.end());

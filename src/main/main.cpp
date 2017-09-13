@@ -450,8 +450,13 @@ main(int argc, char* const* argv)
 {
     using namespace stellar;
 
-    sodium_init();
     Logging::init();
+    if (sodium_init() != 0)
+    {
+        LOG(FATAL) << "Could not initialize crypto";
+        return 1;
+    }
+
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
