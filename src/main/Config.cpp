@@ -782,7 +782,7 @@ Config::toJson() const
     
     Json::Value validatorNames;
     for (auto const& kv : VALIDATOR_NAMES) {
-        validatorNames.append(kv.second);
+        validatorNames[kv.first] = kv.second;
     }
     root["VALIDATOR_NAMES"] = validatorNames;
     root["DATABASE"] = removePasswordFromConnectionString(DATABASE.value);
