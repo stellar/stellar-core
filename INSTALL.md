@@ -25,6 +25,7 @@ When running a node, the best bet is to go with the latest release.
 - `pkg-config`
 - `bison` and `flex`
 - `libpq-devel` unless you `./configure --disable-postgres` in the build step below.
+- 64-bit system
 
 
 ### Ubuntu 14.04
@@ -44,9 +45,9 @@ When building on OSX, here's some dependencies you'll need:
 - brew install libtool
 - brew install automake
 - brew install pkg-config
-- brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')* 
+- brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
 
-### Windows 
+### Windows
 See [INSTALL-Windows.txt](INSTALL-Windows.txt)
 
 ## Basic Installation
