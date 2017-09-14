@@ -73,7 +73,6 @@ CatchupCompleteWork::onSuccess()
                           << LedgerManager::ledgerAbbrev(
                                  mCatchupTransactionsWork->getLastApplied())
                           << " for nextLedger=" << nextLedger();
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
                 mCatchupTransactionsWork->getLastApplied());
@@ -84,7 +83,6 @@ CatchupCompleteWork::onSuccess()
 void
 CatchupCompleteWork::onFailureRaise()
 {
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
                 mCatchupTransactionsWork

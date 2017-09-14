@@ -96,7 +96,6 @@ CatchupCompleteImmediateWork::onSuccess()
         CLOG(INFO, "History") << "Wait until next checkpoint before retrying";
         CLOG(ERROR, "History") << "Nothing to catchup to in COMPLETE_IMMEDIATE";
 
-        mApp.getCatchupManager().historyCaughtup();
         asio::error_code ec = std::make_error_code(std::errc::invalid_argument);
         mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
                     LedgerHeaderHistoryEntry{});
@@ -115,7 +114,6 @@ CatchupCompleteImmediateWork::onSuccess()
     CLOG(INFO, "History") << "Completed catchup COMPLETE_IMMEDIATE to state "
                           << LedgerManager::ledgerAbbrev(
                                  mCatchupTransactionsWork->getLastApplied());
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec;
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
                 mCatchupTransactionsWork->getLastApplied());
@@ -126,7 +124,6 @@ CatchupCompleteImmediateWork::onSuccess()
 void
 CatchupCompleteImmediateWork::onFailureRaise()
 {
-    mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
                 mCatchupTransactionsWork

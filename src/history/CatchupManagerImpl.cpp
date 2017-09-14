@@ -16,6 +16,8 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/StatusManager.h"
+#include "util/format.h"
 #include "util/make_unique.h"
 #include "work/WorkManager.h"
 
@@ -129,5 +131,32 @@ uint64_t
 CatchupManagerImpl::getCatchupFailureCount() const
 {
     return mCatchupFailure.count();
+}
+
+void
+CatchupManagerImpl::logAndUpdateCatchupStatus(bool contiguous)
+{
+    auto catchupStatus = getStatus();
+
+    if (!catchupStatus.empty())
+    {
+        auto contiguousString =
+            contiguous ? "" : " (discontiguous; will fail and restart)";
+        auto state =
+            fmt::format("Catching up{}: {}", contiguousString, catchupStatus);
+        auto existing = mApp.getStatusManager().getStatusMessage(
+            StatusCategory::HISTORY_CATCHUP);
+        if (existing != state)
+        {
+            CLOG(INFO, "History") << state;
+            mApp.getStatusManager().setStatusMessage(
+                StatusCategory::HISTORY_CATCHUP, state);
+        }
+    }
+    else
+    {
+        mApp.getStatusManager().removeStatusMessage(
+            StatusCategory::HISTORY_CATCHUP);
+    }
 }
 }

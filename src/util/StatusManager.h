@@ -15,9 +15,10 @@ namespace stellar
  */
 enum class StatusCategory
 {
-    HISTORY,
+    HISTORY_CATCHUP,
+    HISTORY_PUBLISH,
     NTP,
-    NUM
+    COUNT
 };
 
 /*

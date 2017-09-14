@@ -49,7 +49,7 @@ class HistoryManagerImpl : public HistoryManager
     uint32_t nextCheckpointLedger(uint32_t ledger) override;
     uint64_t nextCheckpointCatchupProbe(uint32_t ledger) override;
 
-    void logAndUpdateStatus(bool contiguous) override;
+    void logAndUpdatePublishStatus() override;
 
     size_t publishQueueLength() const override;
 
