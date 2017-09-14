@@ -3,18 +3,16 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "work/Work.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
+#include "libinclude/format.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/make_unique.h"
 #include "work/WorkManager.h"
 #include "work/WorkParent.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-
 #include <algorithm>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -75,11 +73,11 @@ Work::getStatus() const
     }
 }
 
-uint64_t
+int64_t
 Work::getRetryETA() const
 {
-    uint64_t now = mApp.timeNow();
-    uint64_t retry =
+    auto now = mApp.timeNow();
+    auto retry =
         mRetryTimer ? VirtualClock::to_time_t(mRetryTimer->expiry_time()) : 0;
     return now > retry ? 0 : retry - now;
 }
@@ -88,7 +86,7 @@ VirtualClock::duration
 Work::getRetryDelay() const
 {
     // Cap to 4096sec == a little over an hour.
-    uint64_t m = 2 << std::min(uint64_t(12), uint64_t(mRetries));
+    auto m = 2ull << std::min(12ul, mRetries);
     return std::chrono::seconds(rand_uniform<uint64_t>(1ULL, m));
 }
 

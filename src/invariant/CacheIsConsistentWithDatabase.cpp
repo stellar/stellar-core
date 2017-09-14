@@ -4,8 +4,8 @@
 
 #include "CacheIsConsistentWithDatabase.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/util/format.h"
-#include "xdrpp/printer.h"
+#include "libinclude/format.h"
+#include <xdrpp/printer.h>
 
 namespace stellar
 {

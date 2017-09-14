@@ -39,7 +39,7 @@ class TCPPeer : public Peer
 
     void messageSender();
 
-    int getIncomingMsgLength();
+    uint32_t getIncomingMsgLength();
     virtual void connected() override;
     void startRead();
 

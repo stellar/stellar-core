@@ -76,7 +76,7 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 }
 
 Simulation::pointer
-Topologies::separate(int nNodes, float quorumThresoldFraction,
+Topologies::separate(uint16_t nNodes, float quorumThresoldFraction,
                      Simulation::Mode mode, Hash const& networkID,
                      std::function<Config()> confGen)
 {
@@ -84,7 +84,7 @@ Topologies::separate(int nNodes, float quorumThresoldFraction,
         make_shared<Simulation>(mode, networkID, confGen);
 
     vector<SecretKey> keys;
-    for (int i = 0; i < nNodes; i++)
+    for (auto i = 0u; i < nNodes; i++)
     {
         keys.push_back(
             SecretKey::fromSeed(sha256("NODE_SEED_" + to_string(i))));
@@ -93,7 +93,7 @@ Topologies::separate(int nNodes, float quorumThresoldFraction,
     SCPQuorumSet qSet;
     assert(quorumThresoldFraction >= 0.5);
     qSet.threshold =
-        min(nNodes, static_cast<int>(ceil(nNodes * quorumThresoldFraction)));
+        min(nNodes, static_cast<uint16_t>(ceil(nNodes * quorumThresoldFraction)));
     for (auto const& k : keys)
     {
         qSet.validators.push_back(k.getPublicKey());
@@ -107,7 +107,7 @@ Topologies::separate(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::core(int nNodes, float quorumThresoldFraction,
+Topologies::core(uint16_t nNodes, float quorumThresoldFraction,
                  Simulation::Mode mode, Hash const& networkID,
                  std::function<Config()> confGen)
 {
@@ -117,9 +117,9 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(nodes.size() == nNodes);
 
-    for (int from = 0; from < nNodes - 1; from++)
+    for (auto from = 0u; from < nNodes - 1u; from++)
     {
-        for (int to = from + 1; to < nNodes; to++)
+        for (auto to = from + 1; to < nNodes; to++)
         {
             simulation->addPendingConnection(nodes[from], nodes[to]);
         }
@@ -129,7 +129,7 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::cycle(int nNodes, float quorumThresoldFraction,
+Topologies::cycle(uint16_t nNodes, float quorumThresoldFraction,
                   Simulation::Mode mode, Hash const& networkID,
                   std::function<Config()> confGen)
 {
@@ -139,9 +139,9 @@ Topologies::cycle(int nNodes, float quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(nodes.size() == nNodes);
 
-    for (int from = 0; from < nNodes; from++)
+    for (auto from = 0u; from < nNodes; from++)
     {
-        int to = (from + 1) % nNodes;
+        auto to = (from + 1) % nNodes;
         simulation->addPendingConnection(nodes[from], nodes[to]);
     }
 
@@ -149,7 +149,7 @@ Topologies::cycle(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::branchedcycle(int nNodes, float quorumThresoldFraction,
+Topologies::branchedcycle(uint16_t nNodes, float quorumThresoldFraction,
                           Simulation::Mode mode, Hash const& networkID,
                           std::function<Config()> confGen)
 {
@@ -159,12 +159,12 @@ Topologies::branchedcycle(int nNodes, float quorumThresoldFraction,
     auto nodes = simulation->getNodeIDs();
     assert(nodes.size() == nNodes);
 
-    for (int from = 0; from < nNodes; from++)
+    for (auto from = 0u; from < nNodes; from++)
     {
-        int to = (from + 1) % nNodes;
+        auto to = (from + 1) % nNodes;
         simulation->addPendingConnection(nodes[from], nodes[to]);
 
-        int other = (from + (nNodes / 2)) % nNodes;
+        auto other = (from + (nNodes / 2)) % nNodes;
         simulation->addPendingConnection(nodes[from], nodes[other]);
     }
 
@@ -172,7 +172,7 @@ Topologies::branchedcycle(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer Topologies::hierarchicalQuorum(
-    int nBranches, Simulation::Mode mode, Hash const& networkID,
+    uint16_t nBranches, Simulation::Mode mode, Hash const& networkID,
     std::function<Config()> confGen) // Figure 3 from the paper
 {
     auto sim = Topologies::core(4, 0.75, mode, networkID, confGen);
@@ -189,11 +189,11 @@ Simulation::pointer Topologies::hierarchicalQuorum(
         qSetTopTier.validators.push_back(coreNodeID);
     }
 
-    for (int i = 0; i < nBranches; i++)
+    for (auto i = 0u; i < nBranches; i++)
     {
         // middle tier nodes
         vector<SecretKey> middletierKeys;
-        for (int j = 0; j < 1; j++)
+        for (auto j = 0u; j < 1; j++)
         {
             middletierKeys.push_back(SecretKey::fromSeed(sha256(
                 "NODE_SEED_" + to_string(i) + "_middle_" + to_string(j))));
@@ -236,7 +236,7 @@ Simulation::pointer Topologies::hierarchicalQuorum(
 }
 
 Simulation::pointer
-Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
+Topologies::hierarchicalQuorumSimplified(uint16_t coreSize, uint16_t nbOuterNodes,
                                          Simulation::Mode mode,
                                          Hash const& networkID,
                                          std::function<Config()> confGen)
@@ -246,9 +246,9 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
 
     // each additional node considers themselves as validator
     // with a quorum set that also includes the core
-    int n = coreSize + 1;
+    auto n = coreSize + 1u;
     SCPQuorumSet qSetBuilder;
-    qSetBuilder.threshold = n - (n - 1) / 3;
+    qSetBuilder.threshold = n - (n - 1u) / 3u;
     vector<NodeID> coreNodeIDs;
     for (auto const& coreNodeID : sim->getNodeIDs())
     {
@@ -256,7 +256,7 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
         coreNodeIDs.emplace_back(coreNodeID);
     }
     qSetBuilder.validators.emplace_back();
-    for (int i = 0; i < nbOuterNodes; i++)
+    for (auto i = 0u; i < nbOuterNodes; i++)
     {
         SecretKey sk =
             SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));

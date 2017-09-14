@@ -13,7 +13,7 @@
 #include "overlay/Floodgate.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/Timer.h"
 #include <set>
 #include <vector>
@@ -83,7 +83,7 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(std::string const& ip,
                                    unsigned short port) override;
 
-    void connectToMorePeers(int max);
+    void connectToMorePeers(uint32_t max);
     std::vector<Peer::pointer> getRandomPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;

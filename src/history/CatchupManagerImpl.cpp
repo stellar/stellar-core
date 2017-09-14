@@ -5,7 +5,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "history/CatchupManagerImpl.h"
 #include "historywork/CatchupCompleteImmediateWork.h"
 #include "historywork/CatchupCompleteWork.h"
@@ -13,11 +13,11 @@
 #include "historywork/CatchupRecentWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "work/WorkManager.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {

@@ -7,10 +7,10 @@
 #include "crypto/ByteSlice.h"
 #include "crypto/SHA.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
 #include <fstream>
 #include <string>
 #include <vector>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -23,10 +23,10 @@ class XDRInputFileStream
 {
     std::ifstream mIn;
     std::vector<char> mBuf;
-    int mSizeLimit;
+    uint64_t mSizeLimit;
 
   public:
-    XDRInputFileStream(int sizeLimit = 0) : mSizeLimit{sizeLimit}
+    XDRInputFileStream(uint64_t sizeLimit = 0) : mSizeLimit{sizeLimit}
     {
     }
 

@@ -5,6 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "xdr/Stellar-types.h"
+
+#include <ctime>
 #include <memory>
 #include <string>
 
@@ -151,7 +153,7 @@ class Application
 
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
-    virtual uint64_t timeNow() = 0;
+    virtual std::time_t timeNow() = 0;
 
     // Return a reference to the Application-local copy of the Config object
     // that the Application was constructed with.

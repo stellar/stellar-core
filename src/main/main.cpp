@@ -1,7 +1,7 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
 #include "crypto/Hex.h"
@@ -11,8 +11,6 @@
 #include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
-#include "lib/http/HttpClient.h"
-#include "lib/util/getopt.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
@@ -23,6 +21,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <lib/http/HttpClient.h>
+#include <lib/util/getopt.h>
 #include <locale>
 #include <sodium.h>
 

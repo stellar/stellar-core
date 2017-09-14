@@ -7,13 +7,13 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
-#include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "xdrpp/marshal.h"
 #include <algorithm>
+#include <lib/json/json.h>
 #include <unordered_set>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -282,7 +282,7 @@ LocalNode::isQuorum(
         };
         auto it = std::copy_if(pNodes.begin(), pNodes.end(), fNodes.begin(),
                                quorumFilter);
-        fNodes.resize(std::distance(fNodes.begin(), it));
+        fNodes.resize(static_cast<uint32_t>(std::distance(fNodes.begin(), it)));
         pNodes = fNodes;
     } while (count != pNodes.size());
 

@@ -20,19 +20,19 @@
 #include "invariant/Invariants.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "util/format.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include "xdrpp/printer.h"
-#include "xdrpp/types.h"
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/printer.h>
+#include <xdrpp/types.h>
 
 #include <chrono>
 #include <sstream>
@@ -402,7 +402,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
             assert(mSyncingLedgers.size() == 0);
             auto addResult = mSyncingLedgers.add(ledgerData);
             assert(addResult == SyncingLedgerChainAddResult::CONTIGUOUS);
-            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+            mSyncingLedgersSize.set_count(static_cast<int64_t>(mSyncingLedgers.size()));
             CLOG(INFO, "Ledger") << "Close of ledger "
                                  << ledgerData.getLedgerSeq()
                                  << " buffered, starting catchup";
@@ -416,7 +416,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         {
         case SyncingLedgerChainAddResult::CONTIGUOUS:
             // Normal close while catching up
-            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+            mSyncingLedgersSize.set_count(static_cast<int64_t>(mSyncingLedgers.size()));
             mApp.getHistoryManager().logAndUpdateStatus(true);
             break;
         case SyncingLedgerChainAddResult::TOO_OLD:
@@ -624,7 +624,7 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << "Flushing buffer and restarting at ledger "
                     << lastBuffered.getLedgerSeq();
                 mSyncingLedgers = {};
-                mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+                mSyncingLedgersSize.set_count(static_cast<int64_t>(mSyncingLedgers.size()));
                 startCatchUp(lastBuffered.getLedgerSeq(), getCatchupMode(mApp));
                 return;
             }
@@ -638,14 +638,14 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
     // Either way, we're done processing the ledgers backlog
     mSyncingLedgers = {};
-    mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+    mSyncingLedgersSize.set_count(static_cast<int64_t>(mSyncingLedgers.size()));
 }
 
 uint64_t
 LedgerManagerImpl::secondsSinceLastLedgerClose() const
 {
-    uint64_t ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
-    uint64_t now = mApp.timeNow();
+    auto ct = getLastClosedLedgerHeader().header.scpValue.closeTime;
+    auto now = static_cast<uint64_t>(mApp.timeNow());
     return (now > ct) ? (now - ct) : 0;
 }
 
@@ -661,7 +661,7 @@ LedgerManagerImpl::syncMetrics()
         mLedgerStateChanges.Update(now - mLastStateChange);
         mLastStateChange = now;
     }
-    mLedgerAge.set_count(secondsSinceLastLedgerClose());
+    mLedgerAge.set_count(static_cast<int64_t>(secondsSinceLastLedgerClose()));
     mApp.syncOwnMetrics();
 }
 

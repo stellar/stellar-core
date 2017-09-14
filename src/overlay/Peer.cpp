@@ -11,21 +11,20 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "libinclude/soci.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/Logging.h"
-#include "util/SociNoWarnings.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-
-#include "xdrpp/marshal.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/marshal.h>
 
 #include <time.h>
 
@@ -1058,7 +1057,7 @@ Peer::recvGetPeers(StellarMessage const& msg)
 void
 Peer::recvPeers(StellarMessage const& msg)
 {
-    const uint32 NEW_PEER_WINDOW_SECONDS = 10;
+    auto const NEW_PEER_WINDOW_SECONDS = 10;
 
     for (auto const& peer : msg.peers())
     {

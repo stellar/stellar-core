@@ -5,11 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TxSetFrame.h"
-#include "lib/json/json-forwards.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
 #include <functional>
+#include <lib/json/json-forwards.h>
 #include <memory>
 #include <string>
 

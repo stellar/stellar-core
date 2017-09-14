@@ -6,9 +6,9 @@
 #include "database/Database.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 using namespace soci;
 

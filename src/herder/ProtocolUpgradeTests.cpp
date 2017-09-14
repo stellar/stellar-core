@@ -4,22 +4,22 @@
 
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
-#include "lib/catch.hpp"
 #include "overlay/LoopbackPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 
 struct LedgerUpgradeNode
 {
-    int ledgerProtocolVersion;
+    uint32_t ledgerProtocolVersion;
     optional<std::tm> preferredUpdateDatetime;
-    std::vector<int> quorumIndexes;
-    int quorumTheshold;
+    std::vector<uint32_t> quorumIndexes;
+    uint32_t quorumTheshold;
 };
 
 struct LedgerUpgradeSimulationResult
@@ -48,7 +48,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
 
     auto keys = std::vector<SecretKey>{};
     auto configs = std::vector<Config>{};
-    for (auto i = 0; i < nodes.size(); i++)
+    for (auto i = 0u; i < nodes.size(); i++)
     {
         keys.push_back(
             SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
@@ -58,7 +58,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
             nodes[i].preferredUpdateDatetime;
     }
 
-    for (auto i = 0; i < nodes.size(); i++)
+    for (auto i = 0u; i < nodes.size(); i++)
     {
         auto qSet = SCPQuorumSet{};
         qSet.threshold = nodes[i].quorumTheshold;
@@ -67,7 +67,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
         simulation->addNode(keys[i], qSet, simulation->getClock(), &configs[i]);
     }
 
-    for (auto i = 0; i < nodes.size(); i++)
+    for (auto i = 0u; i < nodes.size(); i++)
         for (auto j = i + 1; j < nodes.size(); j++)
             simulation->addPendingConnection(keys[i].getPublicKey(),
                                              keys[j].getPublicKey());
@@ -78,7 +78,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
     {
         simulation->crankUntil(VirtualClock::tmToPoint(result.time), false);
 
-        for (auto i = 0; i < nodes.size(); i++)
+        for (auto i = 0u; i < nodes.size(); i++)
         {
             auto const& node = simulation->getNode(keys[i].getPublicKey());
             REQUIRE(node->getLedgerManager()
@@ -90,7 +90,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
 
     simulation->crankForAtLeast(std::chrono::seconds{20}, true);
 
-    for (auto i = 0; i < nodes.size(); i++)
+    for (auto i = 0u; i < nodes.size(); i++)
     {
         auto const& node = simulation->getNode(keys[i].getPublicKey());
         REQUIRE(

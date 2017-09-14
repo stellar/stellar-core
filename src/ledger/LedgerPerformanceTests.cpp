@@ -7,7 +7,6 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
@@ -16,7 +15,6 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
-#include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 #include "util/optional.h"
@@ -148,10 +146,10 @@ class LedgerPerformanceTests : public Simulation
 
 TEST_CASE("ledger performance test", "[performance][hide]")
 {
-    int nAccounts = 10000000;
-    int nLedgers =
-        9 /* weeks */ * 7 * 24 * 60 * 60 / 5 /* seconds between ledgers */;
-    int nTransactionsPerLedger = 3;
+    auto nAccounts = 10000000u;
+    auto nLedgers =
+        9u /* weeks */ * 7u * 24u * 60u * 60u / 5u /* seconds between ledgers */;
+    auto nTransactionsPerLedger = 3u;
 
     auto cfg = getTestConfig(1);
 
@@ -187,7 +185,7 @@ TEST_CASE("ledger performance test", "[performance][hide]")
                   << " accounts, starting";
         sim.resizeAccounts(iAccounts);
 
-        for (int iLedgers = 0; iLedgers < nLedgers; iLedgers++)
+        for (auto iLedgers = 0u; iLedgers < nLedgers; iLedgers++)
         {
             auto txs = sim.createRandomTransactions_uniformLoadingCreating(
                 nTransactionsPerLedger);

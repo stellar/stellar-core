@@ -4,8 +4,7 @@
 
 #include "work/Work.h"
 #include "work/WorkParent.h"
-
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 

@@ -5,10 +5,10 @@
 #include "TestAccount.h"
 
 #include "ledger/DataFrame.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {
@@ -62,7 +62,7 @@ TestAccount::createRoot(Application& app)
 }
 
 TestAccount
-TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
+TestAccount::create(SecretKey const& secretKey, int64_t initialBalance)
 {
     auto toCreate = loadAccount(secretKey.getPublicKey(), mApp, false);
     auto self = loadAccount(getSecretKey().getPublicKey(), mApp);
@@ -88,7 +88,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 }
 
 TestAccount
-TestAccount::create(std::string const& name, uint64_t initialBalance)
+TestAccount::create(std::string const& name, int64_t initialBalance)
 {
     return create(getAccount(name.c_str()), initialBalance);
 }

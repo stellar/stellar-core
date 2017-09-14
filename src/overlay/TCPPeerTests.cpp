@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TCPPeer.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -12,6 +11,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

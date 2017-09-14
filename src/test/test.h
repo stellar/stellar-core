@@ -13,30 +13,30 @@ namespace stellar
 class ApplicationEditableVersion;
 class Config;
 
-Config const& getTestConfig(int instanceNumber = 0,
+Config const& getTestConfig(uint32_t instanceNumber = 0u,
                             Config::TestDbMode mode = Config::TESTDB_DEFAULT);
 int test(int argc, char* const* argv, el::Level logLevel,
          std::vector<std::string> const& metrics);
 
 extern bool force_sqlite;
 
-void for_versions_to(int to, ApplicationEditableVersion& app,
+void for_versions_to(uint32_t to, ApplicationEditableVersion& app,
                      std::function<void(void)> const& f);
 
-void for_versions_from(int from, ApplicationEditableVersion& app,
+void for_versions_from(uint32_t from, ApplicationEditableVersion& app,
                        std::function<void(void)> const& f);
 
-void for_versions_from(std::vector<int> const& versions,
+void for_versions_from(std::vector<uint32_t> const& versions,
                        ApplicationEditableVersion& app,
                        std::function<void(void)> const& f);
 
 void for_all_versions(ApplicationEditableVersion& app,
                       std::function<void(void)> const& f);
 
-void for_versions(int from, int to, ApplicationEditableVersion& app,
+void for_versions(uint32_t from, uint32_t to, ApplicationEditableVersion& app,
                   std::function<void(void)> const& f);
 
-void for_versions(std::vector<int> const& versions,
+void for_versions(std::vector<uint32_t> const& versions,
                   ApplicationEditableVersion& app,
                   std::function<void(void)> const& f);
 }

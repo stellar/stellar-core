@@ -5,7 +5,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
@@ -17,20 +17,20 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "libinclude/xdrppautocheck.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
-#include "xdrpp/autocheck.h"
 #include <algorithm>
 #include <future>
+#include <lib/catch.hpp>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 
 using namespace stellar;
 
@@ -44,7 +44,7 @@ mask(uint32_t v, uint32_t m)
 uint32_t
 size(size_t level)
 {
-    return 1 << (2 * (level + 1));
+    return 1u << (2u * (level + 1u));
 }
 uint32_t
 half(size_t level)

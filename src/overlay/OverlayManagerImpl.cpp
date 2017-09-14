@@ -13,9 +13,9 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 #include <algorithm>
 #include <random>
@@ -185,7 +185,7 @@ OverlayManagerImpl::storeConfigPeers()
 }
 
 void
-OverlayManagerImpl::connectToMorePeers(int max)
+OverlayManagerImpl::connectToMorePeers(uint32_t max)
 {
     vector<PeerRecord> peers;
 
@@ -234,8 +234,7 @@ OverlayManagerImpl::tick()
 
     if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        connectToMorePeers(static_cast<int>(
-            mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
+        connectToMorePeers(mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size());
     }
 
     mTimer.expires_from_now(std::chrono::seconds(2));
@@ -272,7 +271,7 @@ OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
     CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
-    mPeersSize.set_count(mPeers.size());
+    mPeersSize.set_count(static_cast<int64_t>(mPeers.size()));
 }
 
 void
@@ -287,7 +286,7 @@ OverlayManagerImpl::dropPeer(Peer::pointer peer)
         mPeers.erase(iter);
     else
         CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
-    mPeersSize.set_count(mPeers.size());
+    mPeersSize.set_count(static_cast<int64_t>(mPeers.size()));
 }
 
 bool
@@ -364,7 +363,7 @@ OverlayManagerImpl::getRandomPeers()
                            [](std::shared_ptr<Peer> const& p) {
                                return p && p->isAuthenticated();
                            });
-    goodPeers.resize(std::distance(goodPeers.begin(), it));
+    goodPeers.resize(static_cast<size_t>(std::distance(goodPeers.begin(), it)));
 
     std::random_shuffle(goodPeers.begin(), goodPeers.end());
 

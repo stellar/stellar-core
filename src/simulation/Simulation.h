@@ -8,13 +8,13 @@
 #include "crypto/SHA.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/medida.h"
 #include "overlay/LoopbackPeer.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "simulation/LoadGenerator.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-types.h"
+#include <medida/medida.h>
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("NODE_SEED_" #N);                          \
@@ -87,7 +87,7 @@ class Simulation : public LoadGenerator
 
     VirtualClock mClock;
     Mode mMode;
-    int mConfigCount;
+    uint32_t mConfigCount;
     Application::pointer mIdleApp;
     std::map<NodeID, Config::pointer> mConfigs;
     std::map<NodeID, Application::pointer> mNodes;

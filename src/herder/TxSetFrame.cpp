@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "TxSetFrame.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
@@ -10,10 +10,9 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
 #include <algorithm>
-
-#include "xdrpp/printer.h"
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 namespace stellar
 {
@@ -156,7 +155,7 @@ struct SurgeSorter
 void
 TxSetFrame::surgePricingFilter(LedgerManager const& lm)
 {
-    size_t max = lm.getMaxTxSetSize();
+    auto max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!
         CLOG(WARNING, "Herder") << "surge pricing in effect! "
@@ -179,7 +178,7 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm)
         std::vector<TransactionFramePtr> tempList = mTransactions;
         std::sort(tempList.begin(), tempList.end(), SurgeSorter(accountFeeMap));
 
-        for (auto iter = tempList.begin() + max; iter != tempList.end(); iter++)
+        for (auto iter = tempList.begin() + static_cast<int64_t>(max); iter != tempList.end(); iter++)
         {
             removeTx(*iter);
         }

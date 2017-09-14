@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -18,6 +17,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -1736,7 +1736,7 @@ TEST_CASE("payment", "[tx][payment]")
             };
 
             auto validateAccountAsset = [&](const TestAccount& account,
-                                            int assetIndex, int difference,
+                                            size_t assetIndex, int difference,
                                             int feeCount) {
                 if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
                 {
@@ -1751,7 +1751,7 @@ TEST_CASE("payment", "[tx][payment]")
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,
-                                                int assetIndex, int difference,
+                                                size_t assetIndex, int difference,
                                                 int feeCount) {
                 for (size_t i = 0; i < pathSize; i++)
                 {

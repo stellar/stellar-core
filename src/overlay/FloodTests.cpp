@@ -6,7 +6,6 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -18,6 +17,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {
@@ -30,7 +30,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
     // make closing very slow
     auto cfgGen = []() {
-        static int cfgNum = 1;
+        static auto cfgNum = 1u;
         Config cfg = getTestConfig(cfgNum++);
         cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 10000;
         return cfg;
@@ -128,7 +128,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
 
     SECTION("transaction flooding")
     {
-        auto injectTransaction = [&](int i) {
+        auto injectTransaction = [&](uint32_t i) {
             const int64 txAmount = 10000000;
 
             SecretKey dest = SecretKey::random();
@@ -155,8 +155,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             {
                 okCount +=
                     (app->getHerder().getMaxSeqInPendingTxs(s) == expectedSeq)
-                        ? 1
-                        : 0;
+                        ? 1u
+                        : 0u;
             }
             bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
@@ -205,7 +205,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
         // a quorum set
         // a valid transaction set
 
-        auto injectSCP = [&](int i) {
+        auto injectSCP = [&](uint32_t i) {
             const int64 txAmount = 10000000;
 
             SecretKey dest = SecretKey::random();

@@ -2,8 +2,6 @@
 // under the ISC License. See the COPYING file at the top-level directory of
 // this distribution or at http://opensource.org/licenses/ISC
 
-#include "lib/catch.hpp"
-#include "lib/json/json.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
@@ -13,7 +11,9 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
+#include <lib/json/json.h>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -45,7 +45,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     DataValue value, value2;
     value.resize(64);
     value2.resize(64);
-    for (int n = 0; n < 64; n++)
+    for (auto n = 0u; n < 64; n++)
     {
         value[n] = (unsigned char)n;
         value2[n] = (unsigned char)n + 3;

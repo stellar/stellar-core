@@ -4,7 +4,7 @@
 
 #include "overlay/LoadManager.h"
 #include "database/Database.h"
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -24,9 +24,9 @@ std::string
 byteMag(uint64_t bytes)
 {
     static char const* sz[7] = {"B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB"};
-    for (int i = 6; i >= 0; --i)
+    for (auto i = 0u; i < 7u; i++)
     {
-        uint64_t mag = i * 10;
+        auto mag = (6u - i) * 10u;
         if (bytes >= (1ULL << mag))
         {
             return fmt::format("{:>d}{:s}", bytes >> mag, sz[i]);
@@ -184,13 +184,14 @@ LoadManager::PeerContext::~PeerContext()
         auto recv = Peer::getByteReadMeter(mApp).count() - mBytesRecvStart;
         auto query =
             (mApp.getDatabase().getQueryMeter().count() - mSQLQueriesStart);
+        assert(time.count() >= 0);
         if (Logging::logTrace("Overlay"))
             CLOG(TRACE, "Overlay")
                 << "Debiting peer " << mApp.getConfig().toShortString(mNode)
-                << " time:" << timeMag(time.count())
+                << " time:" << timeMag(static_cast<uint64_t>(time.count()))
                 << " send:" << byteMag(send) << " recv:" << byteMag(recv)
                 << " query:" << query;
-        pc->mTimeSpent.Mark(time.count());
+        pc->mTimeSpent.Mark(static_cast<uint64_t>(time.count()));
         pc->mBytesSend.Mark(send);
         pc->mBytesRecv.Mark(recv);
         pc->mSQLQueries.Mark(query);

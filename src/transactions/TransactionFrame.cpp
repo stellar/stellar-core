@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "TransactionFrame.h"
 #include "OperationFrame.h"
 #include "crypto/Hex.h"
@@ -11,21 +11,21 @@
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerDelta.h"
+#include "libinclude/basen.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
-#include "util/basen.h"
-#include "xdrpp/marshal.h"
-#include <string>
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 #include <algorithm>
 #include <numeric>
+#include <string>
 
 namespace stellar
 {
@@ -112,14 +112,8 @@ TransactionFrame::getFee() const
 int64_t
 TransactionFrame::getMinFee(LedgerManager const& lm) const
 {
-    size_t count = mOperations.size();
-
-    if (count == 0)
-    {
-        count = 1;
-    }
-
-    return lm.getTxFee() * count;
+    size_t count = std::max(mOperations.size(), 1lu);
+    return lm.getTxFee() * static_cast<int64_t>(count);
 }
 
 void
@@ -138,7 +132,7 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 AccountFrame& account, int32_t neededWeight)
+                                 AccountFrame& account, uint32_t neededWeight)
 {
     std::vector<Signer> signers;
     if (account.getAccount().thresholds[0])
@@ -153,7 +147,7 @@ TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
 }
 
 AccountFrame::pointer
-TransactionFrame::loadAccount(int ledgerProtocolVersion,
+TransactionFrame::loadAccount(uint32_t ledgerProtocolVersion,
                               LedgerDelta* delta, Database& db,
                               AccountID const& accountID)
 {
@@ -175,7 +169,7 @@ TransactionFrame::loadAccount(int ledgerProtocolVersion,
 }
 
 bool
-TransactionFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
+TransactionFrame::loadAccount(uint32_t ledgerProtocolVersion, LedgerDelta* delta, Database& db)
 {
     mSigningAccount = loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
     return !!mSigningAccount;

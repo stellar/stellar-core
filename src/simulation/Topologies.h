@@ -19,31 +19,31 @@ class Topologies
     static Simulation::pointer
     cycle4(Hash const& networkID, std::function<Config()> confGen = nullptr);
 
-    static Simulation::pointer core(int nNodes, float quorumThresoldFraction,
+    static Simulation::pointer core(uint16_t nNodes, float quorumThresoldFraction,
                                     Simulation::Mode mode,
                                     Hash const& networkID,
                                     std::function<Config()> confGen = nullptr);
 
-    static Simulation::pointer cycle(int nNodes, float quorumThresoldFraction,
+    static Simulation::pointer cycle(uint16_t nNodes, float quorumThresoldFraction,
                                      Simulation::Mode mode,
                                      Hash const& networkID,
                                      std::function<Config()> confGen = nullptr);
 
     static Simulation::pointer
-    branchedcycle(int nNodes, float quorumThresoldFraction,
+    branchedcycle(uint16_t nNodes, float quorumThresoldFraction,
                   Simulation::Mode mode, Hash const& networkID,
                   std::function<Config()> confGen = nullptr);
 
     static Simulation::pointer
-    separate(int nNodes, float quorumThresoldFraction, Simulation::Mode mode,
+    separate(uint16_t nNodes, float quorumThresoldFraction, Simulation::Mode mode,
              Hash const& networkID, std::function<Config()> confGen = nullptr);
 
     static Simulation::pointer
-    hierarchicalQuorum(int nBranches, Simulation::Mode mode,
+    hierarchicalQuorum(uint16_t nBranches, Simulation::Mode mode,
                        Hash const& networkID,
                        std::function<Config()> confGen = nullptr);
     static Simulation::pointer
-    hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
+    hierarchicalQuorumSimplified(uint16_t coreSize, uint16_t nbOuterNodes,
                                  Simulation::Mode mode, Hash const& networkID,
                                  std::function<Config()> confGen = nullptr);
 };

@@ -3,14 +3,15 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Timer.h"
-#include "autocheck/autocheck.hpp"
-#include "lib/catch.hpp"
+#include "libinclude/autocheck.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include <chrono>
+#include <lib/catch.hpp>
+#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 

@@ -5,12 +5,9 @@
 #include "history/InferredQuorum.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "lib/catch.hpp"
-#include "main/Config.h"
 #include "test/test.h"
-#include "util/Logging.h"
-#include "xdrpp/marshal.h"
-#include <xdrpp/autocheck.h>
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 

@@ -2,19 +2,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
-#include "util/Logging.h"
-#include <algorithm>
-
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include "util/Logging.h"
+
+#include <algorithm>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -156,10 +156,10 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         SimplePaymentResult(mPathPayment.destination, curB, curBReceived);
 
     // now, walk the path backwards
-    for (int i = (int)fullPath.size() - 1; i >= 0; i--)
+    for (auto i = 0u; i < fullPath.size(); i++)
     {
         int64_t curASent, actualCurBReceived;
-        Asset const& curA = fullPath[i];
+        Asset const& curA = fullPath[fullPath.size() - i - 1];
 
         if (curA == curB)
         {

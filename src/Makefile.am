@@ -6,6 +6,9 @@ bin_PROGRAMS = stellar-core
 include $(top_srcdir)/common.mk
 include $(srcdir)/src.mk
 
+AM_CFLAGS = -Werror=sign-compare -Werror=sign-conversion
+AM_CPPFLAGS += -Werror=sign-compare -Werror=sign-conversion
+
 noinst_HEADERS = $(SRC_H_FILES)
 
 stellar_core_SOURCES = $(SRC_CXX_FILES)

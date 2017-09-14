@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
@@ -14,7 +14,6 @@
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
@@ -33,8 +32,8 @@
 
 #include <cstdio>
 #include <fstream>
+#include <lib/catch.hpp>
 #include <random>
-#include <xdrpp/autocheck.h>
 
 using namespace stellar;
 
@@ -205,7 +204,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
     std::string fname = hm.localFilename("compressme");
     {
         std::ofstream out(fname, std::ofstream::binary);
-        out.write(s.data(), s.size());
+        out.write(s.data(), static_cast<int64_t>(s.size()));
     }
     std::string compressed = fname + ".gz";
     auto& wm = app.getWorkManager();
@@ -260,9 +259,9 @@ HistoryTests::generateRandomLedger()
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
     uint32_t ledgerSeq = lm.getLedgerNum();
-    uint64_t minBalance = lm.getMinBalance(5);
-    uint64_t big = minBalance + ledgerSeq;
-    uint64_t small = 100 + ledgerSeq;
+    int64_t minBalance = lm.getMinBalance(5);
+    int64_t big = minBalance + ledgerSeq;
+    int64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
     auto root = TestAccount{app, getRoot(app.getNetworkID())};
@@ -381,7 +380,7 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
     CLOG(INFO, "History") << "****";
 
     mCfgs.emplace_back(
-        getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
+        getTestConfig(mCfgs.size() + 1u, dbMode));
     if (resumeMode == CatchupManager::CATCHUP_RECENT)
     {
         mCfgs.back().CATCHUP_RECENT = recent;

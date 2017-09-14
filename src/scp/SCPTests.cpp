@@ -1,19 +1,19 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
-#include "util/asio.h"
+#include "libinclude/asio.h"
 
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "scp/SCP.h"
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
 #include "util/types.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 namespace stellar
 {
@@ -137,7 +137,7 @@ class TestSCP : public SCPDriver
     // more predictable.
     uint64
     computeHashNode(uint64 slotIndex, Value const& prev, bool isPriority,
-                    int32_t roundNumber, NodeID const& nodeID) override
+                    uint32_t roundNumber, NodeID const& nodeID) override
     {
         uint64 res;
         if (isPriority)
@@ -153,7 +153,7 @@ class TestSCP : public SCPDriver
 
     // override the value hashing, to make tests more predictable.
     uint64
-    computeValueHash(uint64 slotIndex, Value const& prev, int32_t roundNumber,
+    computeValueHash(uint64 slotIndex, Value const& prev, uint32_t roundNumber,
                      Value const& value) override
     {
         return mHashValueCalculator(value);

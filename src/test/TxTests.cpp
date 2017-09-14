@@ -8,7 +8,6 @@
 #include "invariant/Invariants.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "test/TestExceptions.h"
@@ -28,6 +27,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/types.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -230,7 +230,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
 {
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
-    e.tx.fee = ops.size() * app.getLedgerManager().getTxFee();
+    e.tx.fee = static_cast<int64_t>(ops.size()) * app.getLedgerManager().getTxFee();
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
@@ -630,13 +630,13 @@ checkAmounts(int64_t a, int64_t b, int64_t maxd)
 }
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected)
+checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected)
 {
     REQUIRE(r[index].first.result.result.code() == expected);
 };
 
 void
-checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
+checkTx(uint32_t index, TxSetResultMeta& r, TransactionResultCode expected,
         OperationResultCode code)
 {
     checkTx(index, r, expected);

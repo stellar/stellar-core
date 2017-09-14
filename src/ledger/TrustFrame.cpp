@@ -95,7 +95,7 @@ TrustFrame::getBalance() const
 bool
 TrustFrame::isAuthorized() const
 {
-    return (mTrustLine.flags & AUTHORIZED_FLAG) != 0;
+    return (mTrustLine.flags & static_cast<uint32_t>(AUTHORIZED_FLAG)) != 0;
 }
 
 void
@@ -103,11 +103,11 @@ TrustFrame::setAuthorized(bool authorized)
 {
     if (authorized)
     {
-        mTrustLine.flags |= AUTHORIZED_FLAG;
+        mTrustLine.flags |= static_cast<uint32_t>(AUTHORIZED_FLAG);
     }
     else
     {
-        mTrustLine.flags &= ~AUTHORIZED_FLAG;
+        mTrustLine.flags &= ~static_cast<uint32_t>(AUTHORIZED_FLAG);
     }
 }
 

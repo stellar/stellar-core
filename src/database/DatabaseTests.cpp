@@ -2,16 +2,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "database/Database.h"
 #include "crypto/Hex.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
+#include <lib/catch.hpp>
 #include <random>
 
 using namespace stellar;
@@ -275,7 +275,7 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
                 soci::transaction sqltx(session);
                 for (int64_t j = 0; j < sz; ++j)
                 {
-                    int64_t r = dist(gen);
+                    auto r = dist(gen);
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(j);
                 }
@@ -295,7 +295,7 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
                 soci::transaction subtx(session);
                 for (int64_t k = 0; k < div; ++k)
                 {
-                    int64_t r = dist(gen);
+                    auto r = dist(gen);
                     pk++;
                     session << "insert into txtest (a,b,c) values (:a,:b,:c)",
                         soci::use(r), soci::use(pk), soci::use(k);

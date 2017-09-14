@@ -6,7 +6,7 @@
 
 #include "crypto/SecretKey.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/HashOfHash.h"
 #include <string>
 #include <unordered_map>

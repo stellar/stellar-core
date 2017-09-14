@@ -4,7 +4,7 @@
 
 #include "historywork/Progress.h"
 #include "history/HistoryManager.h"
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 
 namespace stellar

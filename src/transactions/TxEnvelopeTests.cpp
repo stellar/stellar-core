@@ -6,8 +6,6 @@
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
-#include "lib/json/json.h"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
@@ -23,6 +21,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include <lib/catch.hpp>
+#include <lib/json/json.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -49,8 +49,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     auto root = TestAccount::createRoot(app);
     auto a1 = TestAccount{app, getAccount("A")};
 
-    const uint64_t paymentAmount =
-        app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
+    const int64_t paymentAmount =
+        static_cast<int64_t>(app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10);
 
     SECTION("outer envelope")
     {

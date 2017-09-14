@@ -88,7 +88,7 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         throw std::invalid_argument("too many levels in quorum set");
     }
 
-    int thresholdPercent = 67;
+    auto thresholdPercent = 67u;
     qset.threshold = 0;
 
     for (auto& item : *group)
@@ -104,7 +104,7 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
             {
                 throw std::invalid_argument("invalid THRESHOLD_PERCENT");
             }
-            thresholdPercent = (uint32_t)f;
+            thresholdPercent = static_cast<uint64_t>(f);
         }
         else if (item.first == "VALIDATORS")
         {
@@ -420,7 +420,7 @@ Config::load(std::string const& filename)
                         "invalid TARGET_PEER_CONNECTIONS");
                 }
                 TARGET_PEER_CONNECTIONS =
-                    (int)item.second->as<int64_t>()->value();
+                    item.second->as<int64_t>()->value();
             }
             else if (item.first == "MAX_PEER_CONNECTIONS")
             {
@@ -428,7 +428,7 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
                 }
-                MAX_PEER_CONNECTIONS = (int)item.second->as<int64_t>()->value();
+                MAX_PEER_CONNECTIONS = item.second->as<int64_t>()->value();
             }
             else if (item.first == "PREFERRED_PEERS")
             {
@@ -701,12 +701,13 @@ Config::validateConfig()
     {
         // calculates default value for safety assuming flat quorum
         // n = 3f+1
-        FAILURE_SAFETY = (static_cast<uint32>(nodes.size()) - 1) / 3;
+        FAILURE_SAFETY = (nodes.size() - 1) / 3;
     }
 
     try
     {
-        if (FAILURE_SAFETY >= r.size())
+        assert(FAILURE_SAFETY >= 0);
+        if (static_cast<uint32>(FAILURE_SAFETY) >= r.size())
         {
             LOG(ERROR) << "Not enough nodes / thresholds too strict in your "
                           "Quorum set to ensure your desired level of "

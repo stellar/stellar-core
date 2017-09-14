@@ -1,6 +1,6 @@
-#include "lib/catch.hpp"
 #include "scp/LocalNode.h"
 #include "simulation/Simulation.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

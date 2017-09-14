@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
@@ -20,11 +20,11 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
-#include <string>
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <string>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -34,7 +34,7 @@ using namespace std;
 namespace
 {
 
-int32_t
+uint32_t
 getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
 {
     switch (level)
@@ -130,7 +130,7 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
+OperationFrame::loadAccount(uint32_t ledgerProtocolVersion, LedgerDelta* delta, Database& db)
 {
     mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
     return !!mSourceAccount;

@@ -8,7 +8,7 @@
 #include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/ResolveSnapshotWork.h"
 #include "historywork/WriteSnapshotWork.h"
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 

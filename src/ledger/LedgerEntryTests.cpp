@@ -10,16 +10,16 @@
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
-#include "lib/catch.hpp"
+#include "libinclude/xdrppautocheck.h"
 #include "main/Application.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "xdrpp/autocheck.h"
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 
@@ -110,7 +110,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
                     auto& tl = le.data.trustLine();
                     tl = LedgerTestUtils::generateValidTrustLineEntry(5);
                     tl.accountID = newA.accountID;
-                    newA.numSubEntries += proc(le);
+                    newA.numSubEntries = static_cast<uint64_t>(static_cast<int64_t>(newA.numSubEntries) + proc(le));
                 }
             });
         };
@@ -172,7 +172,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
                     auto& of = le.data.offer();
                     of = LedgerTestUtils::generateValidOfferEntry(5000);
                     of.sellerID = newA.accountID;
-                    newA.numSubEntries += proc(le);
+                    newA.numSubEntries = static_cast<uint64_t>(static_cast<int64_t>(newA.numSubEntries) + proc(le));
                 }
             });
         };

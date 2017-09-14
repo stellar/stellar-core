@@ -6,7 +6,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
@@ -21,17 +21,17 @@
 #include "ledger/LedgerDelta.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
-#include "medida/medida.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
-#include "xdrpp/message.h"
 #include <cassert>
 #include <future>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 
 namespace stellar
 {

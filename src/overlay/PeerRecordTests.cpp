@@ -4,12 +4,11 @@
 
 #include "PeerRecord.h"
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "test/test.h"
-#include "util/SociNoWarnings.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

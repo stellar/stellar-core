@@ -6,8 +6,8 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {

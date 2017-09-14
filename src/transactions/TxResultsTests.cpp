@@ -5,14 +5,14 @@
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Timer.h"
-#include "xdrpp/printer.h"
 #include <algorithm>
+#include <lib/catch.hpp>
+#include <xdrpp/printer.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -85,7 +85,7 @@ expectedResult(int64_t fee, int opsCount, TransactionResultCode code,
     }
 
     result.result.results().resize(ops.size());
-    for (auto i = 0; i < ops.size(); i++)
+    for (auto i = 0u; i < ops.size(); i++)
     {
         auto& r = result.result.results()[i];
         auto& o = ops[i];
@@ -253,10 +253,10 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     auto makeValidationResult =
         [&](std::vector<Signed> const& opSigned,
-            std::vector<PaymentValidity> const& opPayment, int ledgerVersion) {
+            std::vector<PaymentValidity> const& opPayment, uint32_t ledgerVersion) {
             assert(opSigned.size() == opPayment.size());
 
-            auto fee = static_cast<int64_t>(baseFee * opPayment.size());
+            auto fee = baseFee * static_cast<int64_t>(opPayment.size());
             auto doubleSigned = false;
             if (ledgerVersion != 7)
             {
@@ -274,7 +274,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             if (ledgerVersion != 7)
             {
-                for (auto i = 1; i < opSigned.size(); i++)
+                for (auto i = 1u; i < opSigned.size(); i++)
                 {
                     switch (opSigned[i])
                     {
@@ -312,10 +312,10 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     auto makeApplyResult = [&](std::vector<Signed> const& opSigned,
                                std::vector<PaymentValidity> const& opPayment,
-                               int ledgerVersion) {
+                               uint32_t ledgerVersion) {
         assert(opSigned.size() == opPayment.size());
 
-        auto fee = static_cast<int64_t>(baseFee * opPayment.size());
+        auto fee = baseFee * static_cast<int64_t>(opPayment.size());
         auto validationResult =
             makeValidationResult(opSigned, opPayment, ledgerVersion);
         if (validationResult.code != txSUCCESS)
@@ -326,7 +326,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto opResults = std::vector<ExpectedOpResult>{};
         auto firstUnderfunded = true;
 
-        for (auto i = 0; i < opPayment.size(); i++)
+        for (auto i = 0u; i < opPayment.size(); i++)
         {
             if (ledgerVersion != 7)
             {
@@ -598,14 +598,14 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     auto signSectionName = [](std::vector<Signed> const& signs) {
         auto result = std::string{"tx and op1 " + signedNames[signs[0]]};
-        for (auto i = 1; i < signs.size(); i++)
+        for (auto i = 1u; i < signs.size(); i++)
             result +=
                 ", op" + std::to_string(i + 1) + " " + signedNames[signs[i]];
         return result;
     };
     auto opSectionName = [](std::vector<PaymentValidity> const& ops) {
         auto result = std::string{"op1 " + paymentValidityNames[ops[0]]};
-        for (auto i = 1; i < ops.size(); i++)
+        for (auto i = 1u; i < ops.size(); i++)
             result += ", op" + std::to_string(i + 1) + " " +
                       paymentValidityNames[ops[i]];
         return result;
@@ -615,7 +615,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto makeTx = [&](std::vector<Signed> const& signs,
                       std::vector<PaymentValidity> const& ops) {
         auto operations = std::vector<Operation>{};
-        for (auto i = 0; i < ops.size(); i++)
+        for (auto i = 0u; i < ops.size(); i++)
         {
             auto destination = accounts[(i + 1) % ops.size()];
             auto op = payment(*destination, amount(ops[i]));
@@ -627,7 +627,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto tx = a.tx(operations);
         tx->getEnvelope().signatures.clear();
 
-        for (auto i = 0; i < signs.size(); i++)
+        for (auto i = 0u; i < signs.size(); i++)
         {
             sign(tx, *accounts[i], signs[i]);
         }

@@ -1,10 +1,10 @@
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
 #include "transactions/SignatureUtils.h"
-#include "util/basen.h"
 #include "util/Fs.h"
 #include "util/XDRStream.h"
 #include <iostream>
+#include "libinclude/basen.h"
 #include <regex>
 #include <xdrpp/printer.h>
 
@@ -142,11 +142,11 @@ set_echo_flag(int fd, bool flag)
     struct termios tios;
     if (tcgetattr(fd, &tios))
         return -1;
-    int old = !!(tios.c_lflag & ECHO);
+    int old = !!(tios.c_lflag & static_cast<uint64_t>(ECHO));
     if (flag)
-        tios.c_lflag |= ECHO;
+        tios.c_lflag |= static_cast<uint64_t>(ECHO);
     else
-        tios.c_lflag &= ~ECHO;
+        tios.c_lflag &= ~static_cast<uint64_t>(ECHO);
     return tcsetattr(fd, TCSAFLUSH, &tios) == 0 ? old : -1;
 #else  // !HAVE_TERMIOS
     // Sorry, Windows.  Might need to use something like this:
@@ -213,7 +213,7 @@ readSecret(const std::string& prompt, bool force_tty)
     char* p = static_cast<char*>(std::memchr(buf, '\n', sizeof(buf)));
     if (!p)
         throw std::runtime_error("line too long");
-    ret.assign(buf, p - buf);
+    ret.assign(buf, static_cast<size_t>(p - buf));
     memset(buf, 0, sizeof(buf));
     return ret;
 }
@@ -257,7 +257,7 @@ signtxn(std::string const& filename, bool base64)
         if (base64)
             cout << bn::encode_b64(out) << std::endl;
         else
-            cout.write(reinterpret_cast<char*>(out.data()), out.size());
+            cout.write(reinterpret_cast<char*>(out.data()), static_cast<int64_t>(out.size()));
     }
     catch (const std::exception& e)
     {

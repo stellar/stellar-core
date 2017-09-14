@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -16,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -370,7 +370,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 DataValue value;
                 value.resize(20);
-                for (int n = 0; n < 20; n++)
+                for (auto n = 0u; n < 20; n++)
                 {
                     value[n] = (unsigned char)n;
                 }

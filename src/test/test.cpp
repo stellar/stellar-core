@@ -24,7 +24,7 @@
 #endif
 
 #define CATCH_CONFIG_RUNNER
-#include "lib/catch.hpp"
+#include <lib/catch.hpp>
 
 #include "test/DotReporter.h"
 
@@ -46,7 +46,7 @@ static std::vector<TmpDir> gTestRoots;
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 Config const&
-getTestConfig(int instanceNumber, Config::TestDbMode mode)
+getTestConfig(uint32_t instanceNumber, Config::TestDbMode mode)
 {
     if (mode == Config::TESTDB_DEFAULT)
     {
@@ -153,21 +153,21 @@ test(int argc, char* const* argv, el::Level ll,
 }
 
 void
-for_versions_to(int to, ApplicationEditableVersion& app,
+for_versions_to(uint32_t to, ApplicationEditableVersion& app,
                 std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
 
 void
-for_versions_from(int from, ApplicationEditableVersion& app,
+for_versions_from(uint32_t from, ApplicationEditableVersion& app,
                   std::function<void(void)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
 void
-for_versions_from(std::vector<int> const& versions,
+for_versions_from(std::vector<uint32_t> const& versions,
                   ApplicationEditableVersion& app,
                   std::function<void(void)> const& f)
 {
@@ -183,10 +183,10 @@ for_all_versions(ApplicationEditableVersion& app,
 }
 
 void
-for_versions(int from, int to, ApplicationEditableVersion& app,
+for_versions(uint32_t from, uint32_t to, ApplicationEditableVersion& app,
              std::function<void(void)> const& f)
 {
-    auto versions = std::vector<int>{};
+    auto versions = std::vector<uint32_t>{};
     versions.resize(to - from + 1);
     std::iota(std::begin(versions), std::end(versions), from);
 
@@ -194,7 +194,7 @@ for_versions(int from, int to, ApplicationEditableVersion& app,
 }
 
 void
-for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
+for_versions(std::vector<uint32_t> const& versions, ApplicationEditableVersion& app,
              std::function<void(void)> const& f)
 {
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();

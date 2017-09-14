@@ -8,9 +8,9 @@
 #include "history/HistoryManager.h"
 #include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
-#include "lib/xdrpp/xdrpp/printer.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
-#include "util/format.h"
+#include <xdrpp/printer.h>
 
 namespace stellar
 {

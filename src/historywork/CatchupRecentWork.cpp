@@ -5,7 +5,7 @@
 #include "historywork/CatchupRecentWork.h"
 #include "historywork/CatchupCompleteWork.h"
 #include "historywork/CatchupMinimalWork.h"
-#include "lib/util/format.h"
+#include "libinclude/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"

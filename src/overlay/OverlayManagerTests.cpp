@@ -2,19 +2,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "util/asio.h"
+#include "libinclude/asio.h"
 #include "main/ApplicationImpl.h"
 #include "main/Config.h"
 
 #include "database/Database.h"
-#include "lib/catch.hpp"
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
-#include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -137,7 +135,7 @@ class OverlayManagerTests
 
         pm.storePeerList(fourPeers);
         pm.storePeerList(threePeers);
-        pm.connectToMorePeers(5);
+        pm.connectToMorePeers(5u);
         REQUIRE(pm.mPeers.size() == 5);
         auto a = TestAccount{app, getAccount("a")};
         auto b = TestAccount{app, getAccount("b")};

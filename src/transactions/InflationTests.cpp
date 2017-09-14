@@ -5,7 +5,6 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
@@ -17,6 +16,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <functional>
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -26,7 +26,7 @@ typedef std::unique_ptr<Application> appPtr;
 static const unsigned maxWinners = 2000u;
 
 static SecretKey
-getTestAccount(int i)
+getTestAccount(uint32_t i)
 {
     std::stringstream name;
     name << "A" << i;
@@ -34,9 +34,9 @@ getTestAccount(int i)
 }
 
 static void
-createTestAccounts(Application& app, int nbAccounts,
-                   std::function<int64(int)> getBalance,
-                   std::function<int(int)> getVote)
+createTestAccounts(Application& app, uint32_t nbAccounts,
+                   std::function<int64(uint32_t)> getBalance,
+                   std::function<int32_t(uint32_t)> getVote)
 {
     // set up world
     auto root = TestAccount::createRoot(app);
@@ -47,7 +47,7 @@ createTestAccounts(Application& app, int nbAccounts,
     int64 setupBalance = lm.getMinBalance(0);
 
     LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
-    for (int i = 0; i < nbAccounts; i++)
+    for (auto i = 0u; i < nbAccounts; i++)
     {
         int64 bal = getBalance(i);
         if (bal >= 0)
@@ -58,8 +58,13 @@ createTestAccounts(Application& app, int nbAccounts,
             AccountFrame::pointer act;
             act = loadAccount(to.getPublicKey(), app);
             act->getAccount().balance = bal;
-            act->getAccount().inflationDest.activate() =
-                getTestAccount(getVote(i)).getPublicKey();
+
+            auto vote = getVote(i);
+            if (vote >= 0)
+            {
+                act->getAccount().inflationDest.activate() =
+                    getTestAccount(static_cast<uint32_t>(vote)).getPublicKey();
+            }
             act->storeChange(delta, db);
         }
     }
@@ -67,21 +72,21 @@ createTestAccounts(Application& app, int nbAccounts,
 
 // computes the resulting balance of each test account
 static std::vector<int64>
-simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& totFees,
-                  std::function<int64(int)> getBalance,
-                  std::function<int(int)> getVote)
+simulateInflation(uint32_t ledgerVersion, uint32_t nbAccounts, int64& totCoins, int64& totFees,
+                  std::function<int64(uint32_t)> getBalance,
+                  std::function<int32_t(uint32_t)> getVote)
 {
-    std::map<int, int64> balances;
-    std::map<int, int64> votes;
+    std::map<uint32_t, int64_t> balances;
+    std::map<uint32_t, int64_t> votes;
 
-    std::vector<std::pair<int, int64>> votesV;
+    std::vector<std::pair<uint32_t, int64_t>> votesV;
 
     int64 minBalance = (totCoins * 5) / 10000; // .05%
 
     // computes all votes
-    for (int i = 0; i < nbAccounts; i++)
+    for (auto i = 0u; i < nbAccounts; i++)
     {
-        int64 bal = getBalance(i);
+        auto bal = getBalance(i);
         balances[i] = bal;
         // negative balance means the account does not exist
         if (bal >= 0)
@@ -90,7 +95,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& tot
             // negative means inflationdest is not set for this account
             if (vote >= 0)
             {
-                votes[vote] += bal;
+                votes[static_cast<uint32_t>(vote)] += bal;
             }
         }
     }
@@ -101,8 +106,8 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& tot
     }
 
     // sort by votes, then by ID in descending order
-    std::sort(votesV.begin(), votesV.end(), [](std::pair<int, int64> const& l,
-                                               std::pair<int, int64> const& r) {
+    std::sort(votesV.begin(), votesV.end(), [](std::pair<uint32_t, uint32_t> const& l,
+                                               std::pair<uint32_t, uint32_t> const& r) {
         if (l.second > r.second)
         {
             return true;
@@ -117,7 +122,7 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& tot
         }
     });
 
-    std::vector<int> winners;
+    std::vector<uint32_t> winners;
     int64 totVotes = totCoins;
     for (size_t i = 0u; i < maxWinners && i < votesV.size(); i++)
     {
@@ -164,17 +169,17 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& tot
 }
 
 static void
-doInflation(Application& app, int ledgerVersion, int nbAccounts,
-            std::function<int64(int)> getBalance,
-            std::function<int(int)> getVote, int expectedWinnerCount)
+doInflation(Application& app, uint32_t ledgerVersion, uint32_t nbAccounts,
+            std::function<int64(uint32_t)> getBalance,
+            std::function<int32_t(uint32_t)> getVote, int expectedWinnerCount)
 {
     using xdr::operator==;
 
     // simulate the expected inflation based off the current ledger state
-    std::map<int, int64> balances;
+    std::map<uint32_t, int64> balances;
 
     // load account balances
-    for (int i = 0; i < nbAccounts; i++)
+    for (auto i = 0u; i < nbAccounts; i++)
     {
         if (getBalance(i) < 0)
         {
@@ -189,7 +194,9 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
             // double check that inflationDest is setup properly
             if (act->getAccount().inflationDest)
             {
-                REQUIRE(getTestAccount(getVote(i)).getPublicKey() ==
+                auto vote = getVote(i);
+                REQUIRE(vote >= 0);
+                REQUIRE(getTestAccount(static_cast<uint32_t>(vote)).getPublicKey() ==
                         *act->getAccount().inflationDest);
             }
             else
@@ -213,7 +220,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
 
     expectedBalances =
         simulateInflation(ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,
-                          [&](int i) { return balances[i]; }, getVote);
+                          [&](uint32_t i) { return balances[i]; }, getVote);
 
     // perform actual inflation
     applyTx(txFrame, app);
@@ -230,7 +237,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     auto const& payouts = infResult.payouts();
     int actualChanges = 0;
 
-    for (int i = 0; i < nbAccounts; i++)
+    for (auto i = 0u; i < nbAccounts; i++)
     {
         auto const& k = getTestAccount(i);
         if (expectedBalances[i] < 0)
@@ -452,7 +459,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         for_all_versions(app, [&]{
             std::function<int(int)> voteFunc;
             std::function<int64(int)> balanceFunc;
-            int nbAccounts = 0;
+            auto nbAccounts = 0u;
             int expectedWinners = 0;
 
             auto verify = [&]() {
@@ -470,8 +477,8 @@ TEST_CASE("inflation", "[tx][inflation]")
             {
                 nbAccounts = 120;
                 expectedWinners = 2;
-                voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
-                balanceFunc = [&](int n) {
+                voteFunc = [&](uint32_t n) { return (n + 1) % nbAccounts; };
+                balanceFunc = [&](uint32_t n) {
                     if (n == 0 || n == 5)
                     {
                         return winnerVote;
@@ -495,8 +502,8 @@ TEST_CASE("inflation", "[tx][inflation]")
                     nbAccounts = 2200;
                     expectedWinners = 0;
                 }
-                voteFunc = [&](int n) { return (n + 1) % nbAccounts; };
-                balanceFunc = [&](int n) {
+                voteFunc = [&](uint32_t n) { return (n + 1) % nbAccounts; };
+                balanceFunc = [&](uint32_t n) {
                     int64 balance = (n + 1) * minVote;
                     assert(balance < winnerVote);
                     return balance;
@@ -507,42 +514,42 @@ TEST_CASE("inflation", "[tx][inflation]")
             {
                 nbAccounts = 12;
                 expectedWinners = 1;
-                voteFunc = [&](int n) { return 0; };
-                balanceFunc = [&](int n) { return 1 + (winnerVote / nbAccounts); };
+                voteFunc = [&](uint32_t) { return 0; };
+                balanceFunc = [&](uint32_t) { return 1 + (winnerVote / nbAccounts); };
                 verify();
             }
             SECTION("50/50 split")
             {
                 nbAccounts = 12;
                 expectedWinners = 2;
-                const int midPoint = nbAccounts / 2;
+                const auto midPoint = nbAccounts / 2;
 
                 const int64 each =
                     bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
 
-                voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
-                balanceFunc = [&](int n) { return each; };
+                voteFunc = [&](uint32_t n) { return (n < midPoint) ? 0 : 1; };
+                balanceFunc = [&](uint32_t n) { return each; };
                 verify();
             }
             SECTION("no winner")
             {
                 nbAccounts = 12;
                 expectedWinners = 0;
-                voteFunc = [&](int n) { return -1; };
-                balanceFunc = [&](int n) { return (n + 1) * minVote; };
+                voteFunc = [&](uint32_t n) { return -1; };
+                balanceFunc = [&](uint32_t n) { return (n + 1) * minVote; };
                 verify();
             }
             SECTION("some winner does not exist")
             {
                 nbAccounts = 13;
                 expectedWinners = 1;
-                const int midPoint = nbAccounts / 2;
+                const auto midPoint = nbAccounts / 2;
 
                 const int64 each =
                     bigDivide(winnerVote, 2, nbAccounts, ROUND_DOWN) + minVote;
 
-                voteFunc = [&](int n) { return (n < midPoint) ? 0 : 1; };
-                balanceFunc = [&](int n) {
+                voteFunc = [&](uint32_t n) { return (n < midPoint) ? 0 : 1; };
+                balanceFunc = [&](uint32_t n) {
                     // account "0" does not exist
                     return (n == 0) ? -1 : each;
                 };

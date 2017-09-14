@@ -121,7 +121,7 @@ void PermutationEnumerator::operator++()
 // PowersetEnumerator
 ///////////////////////////////////////////////////////////////////////////
 
-PowersetEnumerator::PowersetEnumerator(size_t nBits) : mCur(1), mLim(1 << nBits)
+PowersetEnumerator::PowersetEnumerator(size_t nBits) : mCur(1), mLim(1u << nBits)
 {
     assert(nBits < 64);
 }

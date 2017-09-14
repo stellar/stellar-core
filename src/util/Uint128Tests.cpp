@@ -2,11 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "autocheck/autocheck.hpp"
-#include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
-#include "test/test.h"
-#include "util/Logging.h"
+#include "libinclude/uint128_t.h"
+#include "libinclude/xdrppautocheck.h"
+#include <lib/catch.hpp>
 #include <limits>
 #include <ostream>
 

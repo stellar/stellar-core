@@ -28,13 +28,13 @@ SignatureChecker::SignatureChecker(
 bool
 SignatureChecker::checkSignature(AccountID const& accountID,
                                  std::vector<Signer> const& signersV,
-                                 int neededWeight)
+                                 uint32_t neededWeight)
 {
     auto signers =
         split(signersV, [](const Signer& s) { return s.key.type(); });
 
     // calculate the weight of the signatures
-    int totalWeight = 0;
+    auto totalWeight = uint32_t{0};
 
     // compare all available SIGNER_KEY_TYPE_PRE_AUTH_TX with current
     // transaction hash

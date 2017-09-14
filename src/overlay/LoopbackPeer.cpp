@@ -5,14 +5,14 @@
 #include "overlay/LoopbackPeer.h"
 #include "crypto/Random.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/StellarXDR.h"
+#include "util/StellarXDR.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -89,7 +89,7 @@ damageMessage(default_random_engine& gen, xdr::msg_ptr& msg)
     size_t bitsFlipped = 0;
     char* d = msg->raw_data();
     char* e = msg->end();
-    size_t sz = e - d;
+    auto sz = static_cast<size_t>(e - d);
     if (sz > 0)
     {
         auto dist = uniform_int_distribution<size_t>(0, sz - 1);

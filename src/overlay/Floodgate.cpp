@@ -7,11 +7,11 @@
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -50,7 +50,7 @@ Floodgate::clearBelow(uint32_t currentLedger)
             ++it;
         }
     }
-    mFloodMapSize.set_count(mFloodMap.size());
+    mFloodMapSize.set_count(static_cast<int64_t>(mFloodMap.size()));
 }
 
 bool
@@ -66,7 +66,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     { // we have never seen this message
         mFloodMap[index] = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), peer);
-        mFloodMapSize.set_count(mFloodMap.size());
+        mFloodMapSize.set_count(static_cast<int64_t>(mFloodMap.size()));
         return true;
     }
     else
@@ -93,7 +93,7 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
         FloodRecord::pointer record = std::make_shared<FloodRecord>(
             msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
         result = mFloodMap.insert(std::make_pair(index, record)).first;
-        mFloodMapSize.set_count(mFloodMap.size());
+        mFloodMapSize.set_count(static_cast<int64_t>(mFloodMap.size()));
     }
     // send it to people that haven't sent it to us
     std::set<Peer::pointer>& peersTold = result->second->mPeersTold;

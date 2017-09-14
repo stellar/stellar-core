@@ -5,9 +5,9 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "scp/QuorumSetUtils.h"
 #include "xdr/Stellar-SCP.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {
@@ -200,7 +200,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     {
         auto qSet = SCPQuorumSet{};
         qSet.threshold = 1;
-        for (auto i = 0; i < 1000; i++)
+        for (auto i = 0u; i < 1000; i++)
             qSet.validators.push_back(keys[i]);
 
         check(qSet, true, qSet);
@@ -210,7 +210,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     {
         auto qSet = SCPQuorumSet{};
         qSet.threshold = 1;
-        for (auto i = 0; i < 1001; i++)
+        for (auto i = 0u; i < 1001; i++)
             qSet.validators.push_back(keys[i]);
 
         check(qSet, false, qSet);
@@ -222,11 +222,11 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         auto qSet = SCPQuorumSet{};
         qSet.threshold = 1;
         qSet.validators.push_back(keys[0]);
-        for (auto i = 0; i < 10; i++)
+        for (auto i = 0u; i < 10; i++)
         {
             qSet.innerSets.push_back({});
             qSet.innerSets.back().threshold = 1;
-            for (auto j = i * 100 + 1; j <= (i + 1) * 100; j++)
+            for (auto j = i * 100u + 1u; j <= (i + 1u) * 100u; j++)
                 qSet.innerSets.back().validators.push_back(keys[j]);
         }
 

@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
+#include "libinclude/uint128_t.h"
 #include "util/types.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 
@@ -29,10 +29,10 @@ template <typename T> class BigDivideTester
                 for (auto c : mValues)
                     if (c != 0 && p(uint128_t{a}, uint128_t{b}, uint128_t{c}))
                         mVerify(a, b, c,
-                                static_cast<uint64_t>(downResult(
-                                    uint128_t{a}, uint128_t{b}, uint128_t{c})),
-                                static_cast<uint64_t>(upResult(
-                                    uint128_t{a}, uint128_t{b}, uint128_t{c})));
+                                static_cast<T>(static_cast<uint64_t>(downResult(
+                                    uint128_t{a}, uint128_t{b}, uint128_t{c}))),
+                                static_cast<T>(static_cast<uint64_t>(upResult(
+                                    uint128_t{a}, uint128_t{b}, uint128_t{c}))));
     }
 
   private:

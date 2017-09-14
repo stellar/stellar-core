@@ -4,9 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/StellarXDR.h"
-#include "xdrpp/message.h"
+#include "util/StellarXDR.h"
 #include <vector>
+#include <xdrpp/message.h>
 
 namespace stellar
 {
@@ -42,7 +42,7 @@ assetCodeToStr(xdr::opaque_array<N> const& code, std::string& retStr)
         {
             break;
         }
-        retStr.push_back(c);
+        retStr.push_back(static_cast<char>(c));
     }
 };
 
@@ -52,7 +52,7 @@ strToAssetCode(xdr::opaque_array<N>& ret, std::string const& str)
 {
     ret.fill(0);
     size_t n = std::min(ret.size(), str.size());
-    std::copy(str.begin(), str.begin() + n, ret.begin());
+    std::copy(str.begin(), str.begin() + static_cast<int64_t>(n), ret.begin());
 }
 
 bool addBalance(int64_t& balance, int64_t delta,

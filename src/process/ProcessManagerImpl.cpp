@@ -7,7 +7,7 @@
 // ASIO is somewhat particular about when it gets included -- it wants to be the
 // first to include <windows.h> -- so we try to include it before everything
 // else.
-#include "util/asio.h"
+#include "libinclude/asio.h"
 
 #include "main/Application.h"
 #include "main/Config.h"
@@ -16,8 +16,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
 
 #include <algorithm>
 #include <functional>

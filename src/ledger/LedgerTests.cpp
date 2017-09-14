@@ -8,14 +8,13 @@
 #include "ledger/EntryFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/types.h"
-#include <xdrpp/autocheck.h>
+#include <lib/catch.hpp>
 
 using namespace stellar;
 

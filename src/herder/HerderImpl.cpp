@@ -10,7 +10,7 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerManager.h"
-#include "lib/json/json.h"
+#include "libinclude/basen.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
@@ -19,16 +19,15 @@
 #include "scp/Slot.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/XDRStream.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "util/XDRStream.h"
-#include "util/basen.h"
-#include "xdrpp/marshal.h"
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 #include <ctime>
+#include <lib/json/json.h>
 
 using namespace std;
 using namespace soci;
@@ -236,8 +235,9 @@ HerderImpl::validateValueHelper(uint64 slotIndex, StellarValue const& b)
     }
 
     // Check closeTime (not too far in future)
-    uint64_t timeNow = mApp.timeNow();
-    if (b.closeTime > timeNow + MAX_TIME_SLIP_SECONDS.count())
+    auto timeNow = mApp.timeNow();
+    assert(MAX_TIME_SLIP_SECONDS.count() >= 0);
+    if (b.closeTime > static_cast<uint64_t>(timeNow + MAX_TIME_SLIP_SECONDS.count()))
     {
         return SCPDriver::kInvalidValue;
     }
@@ -484,20 +484,20 @@ HerderImpl::ballotDidHearFromQuorum(uint64 slotIndex, SCPBallot const& ballot)
 void
 HerderImpl::updateSCPCounters()
 {
-    mSCPMetrics.mKnownSlotsSize.set_count(mSCP.getKnownSlotsCount());
+    mSCPMetrics.mKnownSlotsSize.set_count(static_cast<int64_t>(mSCP.getKnownSlotsCount()));
     mSCPMetrics.mCumulativeStatements.set_count(
-        mSCP.getCumulativeStatemtCount());
+        static_cast<int64_t>(mSCP.getCumulativeStatemtCount()));
 }
 
-static uint64_t
+static int64_t
 countTxs(HerderImpl::AccountTxMap const& acc)
 {
-    uint64_t sz = 0;
+    uint32_t sz = 0;
     for (auto const& a : acc)
     {
         sz += a.second->mTransactions.size();
     }
-    return sz;
+    return static_cast<int64_t>(sz);
 }
 
 static std::shared_ptr<HerderImpl::TxMap>
@@ -1345,7 +1345,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // We pick as next close time the current time unless it's before the last
     // close time. We don't know how much time it will take to reach consensus
     // so this is the most appropriate value to use as closeTime.
-    uint64_t nextCloseTime = VirtualClock::to_time_t(mLastTrigger);
+    auto signedCloseTime = VirtualClock::to_time_t(mLastTrigger);
+    assert(signedCloseTime >= 0);
+    auto nextCloseTime = static_cast<uint64_t>(signedCloseTime);
     if (nextCloseTime <= lcl.header.scpValue.closeTime)
     {
         nextCloseTime = lcl.header.scpValue.closeTime + 1;

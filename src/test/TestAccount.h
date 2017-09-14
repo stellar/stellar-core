@@ -33,8 +33,8 @@ class TestAccount
     TransactionFramePtr tx(std::vector<Operation> const& ops, SequenceNumber sn = 0);
     Operation op(Operation operation);
 
-    TestAccount create(SecretKey const& secretKey, uint64_t initialBalance);
-    TestAccount create(std::string const& name, uint64_t initialBalance);
+    TestAccount create(SecretKey const& secretKey, int64_t initialBalance);
+    TestAccount create(std::string const& name, int64_t initialBalance);
     void merge(PublicKey const& into);
     void inflation();
 

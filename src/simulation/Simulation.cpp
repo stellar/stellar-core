@@ -14,8 +14,8 @@
 #include "util/Math.h"
 #include "util/types.h"
 
-#include "medida/medida.h"
-#include "medida/reporting/console_reporter.h"
+#include <medida/medida.h>
+#include <medida/reporting/console_reporter.h>
 
 #include <thread>
 

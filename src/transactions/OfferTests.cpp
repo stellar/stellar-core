@@ -3,8 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
+#include "libinclude/uint128_t.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -233,7 +232,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             // there should be no pending offer at this point in the system
             OfferFrame offer;
-            for (int i = 0; i < 9; i++)
+            for (auto i = 0u; i < 9u; i++)
             {
                 REQUIRE(!a1.hasOffer(i));
             }
@@ -500,7 +499,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                     MANAGE_OFFER_DELETED);
 
                     // and the state of a1 offers
-                    for (int i = 0; i < nbOffers; i++)
+                    for (auto i = 0u; i < nbOffers; i++)
                     {
                         uint64_t a1Offer = a1OfferID[i];
 
@@ -643,7 +642,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
 
-                    for (int i = 0; i < nbOffers; i++)
+                    for (auto i = 0u; i < nbOffers; i++)
                     {
                         uint64_t a1Offer = a1OfferID[i];
 
@@ -710,7 +709,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     int64_t idrSend = bigDivide(usdRecv, 2, 3, ROUND_DOWN);
 
-                    for (int j = 0; j < 10; j++)
+                    for (auto j = 0u; j < 10; j++)
                     {
                         // offer is sell 1 USD for 0.5 IDR; sell USD @ 0.5
 
@@ -719,7 +718,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                         MANAGE_OFFER_DELETED);
                     }
 
-                    for (int i = 0; i < nbOffers; i++)
+                    for (auto i = 0u; i < nbOffers; i++)
                     {
                         uint64_t a1Offer = a1OfferID[i];
 
@@ -810,7 +809,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     // check that the bogus offer was cleared
                     REQUIRE(!c1.hasOffer(cOfferID));
 
-                    for (int i = 0; i < nbOffers; i++)
+                    for (auto i = 0u; i < nbOffers; i++)
                     {
                         uint64_t a1Offer = a1OfferID[i];
                         REQUIRE(!a1.hasOffer(a1Offer));
