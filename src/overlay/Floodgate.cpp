@@ -7,11 +7,11 @@
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {

@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Fs.h"
-#include "lib/catch.hpp"
+#include <lib/catch.hpp>
 
 using namespace stellar::fs;
 

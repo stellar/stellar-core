@@ -13,13 +13,13 @@
 #include "historywork/CatchupRecentWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/format.h"
 #include "util/make_unique.h"
 #include "work/WorkManager.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {

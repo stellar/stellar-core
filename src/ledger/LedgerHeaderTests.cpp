@@ -5,15 +5,14 @@
 #include "util/asio.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/Config.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
-#include "xdrpp/marshal.h"
-
-#include "main/Config.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 using namespace std;

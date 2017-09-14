@@ -7,9 +7,8 @@
 #include "bucket/Bucket.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
+#include <medida/timer_context.h>
 #include <memory>
-
-#include "medida/timer_context.h"
 
 namespace stellar
 {

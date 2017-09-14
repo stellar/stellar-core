@@ -3,8 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
-#include "lib/util/uint128_t.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoopbackPeer.h"
@@ -17,6 +15,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include <lib/catch.hpp>
+#include <lib/util/uint128_t.h>
 
 using namespace stellar;
 using namespace stellar::txtest;

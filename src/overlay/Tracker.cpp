@@ -8,10 +8,10 @@
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/medida.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+#include <medida/medida.h>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {

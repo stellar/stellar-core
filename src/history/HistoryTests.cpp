@@ -14,7 +14,6 @@
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
@@ -33,6 +32,7 @@
 
 #include <cstdio>
 #include <fstream>
+#include <lib/catch.hpp>
 #include <random>
 #include <xdrpp/autocheck.h>
 

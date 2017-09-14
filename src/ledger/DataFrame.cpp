@@ -9,8 +9,8 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "transactions/ManageDataOpFrame.h"
-#include "util/basen.h"
 #include "util/types.h"
+#include <lib/util/basen.h>
 
 using namespace std;
 using namespace soci;

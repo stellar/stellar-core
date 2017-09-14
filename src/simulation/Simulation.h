@@ -8,13 +8,13 @@
 #include "crypto/SHA.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/medida.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/StellarXDR.h"
 #include "simulation/LoadGenerator.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
 #include "xdr/Stellar-types.h"
+#include <medida/medida.h>
 
 #define SIMULATION_CREATE_NODE(N)                                              \
     const Hash v##N##VSeed = sha256("NODE_SEED_" #N);                          \

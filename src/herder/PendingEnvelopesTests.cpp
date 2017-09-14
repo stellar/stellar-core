@@ -5,12 +5,12 @@
 #include "herder/PendingEnvelopes.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 using namespace stellar::txtest;

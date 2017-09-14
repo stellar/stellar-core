@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/DatabaseConnectionString.h"
-#include "lib/catch.hpp"
 #include "util/SociNoWarnings.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 

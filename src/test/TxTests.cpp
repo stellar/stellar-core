@@ -8,7 +8,6 @@
 #include "invariant/Invariants.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/LoopbackPeer.h"
 #include "test/TestExceptions.h"
@@ -28,6 +27,7 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/types.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;

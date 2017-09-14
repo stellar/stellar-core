@@ -4,13 +4,13 @@
 
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
-#include "lib/catch.hpp"
 #include "overlay/LoopbackPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 

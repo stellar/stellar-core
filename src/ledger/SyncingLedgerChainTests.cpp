@@ -5,7 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/SyncingLedgerChain.h"
-#include "lib/catch.hpp"
+#include <lib/catch.hpp>
 
 #include <memory>
 

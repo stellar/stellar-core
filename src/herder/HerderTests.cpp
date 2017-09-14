@@ -14,13 +14,13 @@
 #include "database/Database.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/CommandHandler.h"
 #include "overlay/OverlayManager.h"
 #include "simulation/Simulation.h"
 #include "test/TxTests.h"
 
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 using namespace stellar::txtest;

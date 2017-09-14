@@ -10,10 +10,9 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
 #include <algorithm>
-
-#include "xdrpp/printer.h"
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 namespace stellar
 {

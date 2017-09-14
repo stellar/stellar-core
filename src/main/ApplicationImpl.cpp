@@ -25,11 +25,6 @@
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/NtpSynchronizationChecker.h"
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/reporting/console_reporter.h"
-#include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "process/ProcessManager.h"
@@ -43,6 +38,11 @@
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
 
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/reporting/console_reporter.h>
+#include <medida/timer.h>
 #include <set>
 #include <string>
 

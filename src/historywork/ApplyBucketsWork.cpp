@@ -12,8 +12,8 @@
 #include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
-#include "util/format.h"
 #include "util/make_unique.h"
+#include <lib/util/format.h>
 
 namespace stellar
 {

@@ -8,9 +8,6 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "lib/http/server.hpp"
-#include "lib/json/json.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/BanManager.h"
@@ -19,16 +16,19 @@
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
 
-#include "medida/reporting/json_reporter.h"
-#include "util/basen.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
 
 #include "ExternalQueue.h"
 
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include <lib/http/server.hpp>
+#include <lib/json/json.h>
+#include <lib/util/basen.h>
+#include <lib/util/format.h>
+#include <medida/reporting/json_reporter.h>
 #include <regex>
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 using namespace stellar::txtest;
 

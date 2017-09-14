@@ -7,12 +7,12 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
 #include "test/test.h"
 #include "xdr/Stellar-types.h"
+#include <lib/catch.hpp>
 
 namespace stellar
 {

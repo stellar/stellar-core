@@ -2,8 +2,8 @@
 
 #include "crypto/ECDH.h"
 #include "overlay/Peer.h"
-#include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
+#include <lib/util/lrucache.hpp>
 
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root

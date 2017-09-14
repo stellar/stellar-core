@@ -7,7 +7,6 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "main/PersistentState.h"
@@ -20,6 +19,7 @@
 #include "util/Timer.h"
 #include "util/make_unique.h"
 #include "util/optional.h"
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace std;

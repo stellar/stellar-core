@@ -21,11 +21,8 @@
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "historywork/RepairMissingBucketsWork.h"
 #include "ledger/LedgerManager.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/StellarXDR.h"
 #include "process/ProcessManager.h"
 #include "util/Logging.h"
@@ -34,9 +31,12 @@
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
 #include "work/WorkManager.h"
-#include "xdrpp/marshal.h"
 
 #include <fstream>
+#include <lib/util/format.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 #include <system_error>
 
 namespace stellar

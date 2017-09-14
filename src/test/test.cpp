@@ -24,7 +24,7 @@
 #endif
 
 #define CATCH_CONFIG_RUNNER
-#include "lib/catch.hpp"
+#include <lib/catch.hpp>
 
 #include "test/DotReporter.h"
 

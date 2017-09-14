@@ -13,9 +13,9 @@
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
-#include "medida/counter.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
+#include <medida/counter.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 #include <algorithm>
 #include <random>

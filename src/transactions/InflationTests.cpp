@@ -5,7 +5,6 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "test/TestAccount.h"
@@ -17,6 +16,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <functional>
+#include <lib/catch.hpp>
 
 using namespace stellar;
 using namespace stellar::txtest;

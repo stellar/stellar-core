@@ -8,11 +8,11 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/StrKey.h"
-#include "lib/catch.hpp"
 #include "test/test.h"
 #include "util/Logging.h"
-#include "util/basen.h"
 #include <autocheck/autocheck.hpp>
+#include <lib/catch.hpp>
+#include <lib/util/basen.h>
 #include <map>
 #include <regex>
 #include <sodium.h>
