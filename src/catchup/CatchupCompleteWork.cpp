@@ -5,6 +5,7 @@
 #include "catchup/CatchupCompleteWork.h"
 #include "catchup/CatchupTransactionsWork.h"
 #include "history/HistoryManager.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"

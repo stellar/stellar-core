@@ -14,11 +14,10 @@ namespace stellar
 {
 
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app, WorkParent& parent, HistoryArchiveState& state,
+    Application& app, WorkParent& parent, std::string const& uniqueName,
     uint32_t seq, VirtualClock::duration const& initialDelay,
     std::shared_ptr<HistoryArchive const> archive, size_t maxRetries)
-    : Work(app, parent, "get-history-archive-state", maxRetries)
-    , mState(state)
+    : Work(app, parent, uniqueName, maxRetries)
     , mSeq(seq)
     , mInitialDelay(initialDelay)
     , mArchive(archive)
@@ -75,7 +74,7 @@ GetHistoryArchiveStateWork::onRun()
 {
     try
     {
-        mState.load(mLocalFilename);
+        mRemoteState.load(mLocalFilename);
         scheduleSuccess();
     }
     catch (std::runtime_error& e)

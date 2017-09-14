@@ -47,7 +47,7 @@ FetchRecentQsetsWork::onSuccess()
     if (!mGetHistoryArchiveStateWork)
     {
         mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-            mRemoteState, 0, std::chrono::seconds(0));
+            "get-history-archive-state", 0, std::chrono::seconds(0));
         return WORK_PENDING;
     }
 
@@ -57,7 +57,8 @@ FetchRecentQsetsWork::onSuccess()
     uint32_t numCheckpoints = 100;
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     uint32_t window = numCheckpoints * step;
-    uint32_t lastSeq = mRemoteState.currentLedger;
+    uint32_t lastSeq =
+        mGetHistoryArchiveStateWork->getRemoteState().currentLedger;
     uint32_t firstSeq = lastSeq < window ? (step - 1) : (lastSeq - window);
 
     if (!mDownloadSCPMessagesWork)

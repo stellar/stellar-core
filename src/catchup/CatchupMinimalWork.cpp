@@ -9,6 +9,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/VerifyBucketWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
@@ -110,7 +111,8 @@ CatchupMinimalWork::onSuccess()
         CLOG(INFO, "History")
             << "Catchup MINIMAL downloading and verifying buckets";
         std::vector<std::string> buckets =
-            mRemoteState.differingBuckets(mLocalState);
+            mGetHistoryArchiveStateWork->getRemoteState().differingBuckets(
+                mLocalState);
         mDownloadBucketsWork = addWork<Work>("download and verify buckets");
         for (auto const& hash : buckets)
         {
@@ -133,8 +135,9 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL applying buckets for state "
                               << LedgerManager::ledgerAbbrev(mFirstVerified);
-        mApplyWork =
-            addWork<ApplyBucketsWork>(mBuckets, mRemoteState, mFirstVerified);
+        mApplyWork = addWork<ApplyBucketsWork>(
+            mBuckets, mGetHistoryArchiveStateWork->getRemoteState(),
+            mFirstVerified);
         return WORK_PENDING;
     }
 

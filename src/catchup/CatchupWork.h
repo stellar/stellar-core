@@ -9,13 +9,14 @@
 namespace stellar
 {
 
+class GetHistoryArchiveStateWork;
+
 class CatchupWork : public BucketDownloadWork
 {
   protected:
-    HistoryArchiveState mRemoteState;
     uint32_t const mInitLedger;
     bool const mManualCatchup;
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+    std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
 
     uint32_t nextLedger() const;
     virtual uint32_t archiveStateSeq() const;

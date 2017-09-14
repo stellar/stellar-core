@@ -43,7 +43,7 @@ PutSnapshotFilesWork::onSuccess()
     if (!mGetHistoryArchiveStateWork)
     {
         mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-            mRemoteState, 0, std::chrono::seconds(0), mArchive);
+            "get-history-archive-state", 0, std::chrono::seconds(0), mArchive);
         return WORK_PENDING;
     }
 
@@ -58,7 +58,8 @@ PutSnapshotFilesWork::onSuccess()
             mSnapshot->mSCPHistorySnapFile};
 
         std::vector<std::string> bucketsToSend =
-            mSnapshot->mLocalState.differingBuckets(mRemoteState);
+            mSnapshot->mLocalState.differingBuckets(
+                mGetHistoryArchiveStateWork->getRemoteState());
 
         for (auto const& hash : bucketsToSend)
         {

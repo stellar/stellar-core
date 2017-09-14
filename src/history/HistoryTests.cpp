@@ -241,13 +241,12 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     crankTillDone();
     REQUIRE(put->getState() == Work::WORK_SUCCESS);
 
-    HistoryArchiveState has2;
     auto get = wm.addWork<GetHistoryArchiveStateWork>(
-        has2, 0, std::chrono::seconds(0), archive);
+        "get-history-archive-state", 0, std::chrono::seconds(0), archive);
     wm.advanceChildren();
     crankTillDone();
     REQUIRE(get->getState() == Work::WORK_SUCCESS);
-    REQUIRE(has2.currentLedger == 0x1234);
+    REQUIRE(get->getRemoteState().currentLedger == 0x1234);
 }
 
 extern LedgerEntry generateValidLedgerEntry();

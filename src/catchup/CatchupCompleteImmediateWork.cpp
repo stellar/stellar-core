@@ -5,6 +5,7 @@
 #include "catchup/CatchupCompleteImmediateWork.h"
 #include "catchup/CatchupTransactionsWork.h"
 #include "history/HistoryManager.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -59,7 +60,7 @@ CatchupCompleteImmediateWork::lastCheckpointSeq() const
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
     return mApp.getHistoryManager().nextCheckpointLedger(
-               mRemoteState.currentLedger) -
+               mGetHistoryArchiveStateWork->getRemoteState().currentLedger) -
            1;
 }
 

@@ -72,11 +72,10 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     auto& wm = app.getWorkManager();
 
     // First check that there's no existing HAS in the archive
-    HistoryArchiveState existing;
     CLOG(INFO, "History") << "Probing history archive '" << arch
                           << "' for existing state";
     auto getHas = wm.addWork<GetHistoryArchiveStateWork>(
-        existing, 0, std::chrono::seconds(0), i->second, 0);
+        "get-history-archive-state", 0, std::chrono::seconds(0), i->second, 0);
     wm.advanceChildren();
     while (!wm.allChildrenDone())
     {

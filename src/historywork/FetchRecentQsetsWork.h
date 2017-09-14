@@ -10,6 +10,7 @@
 namespace stellar
 {
 
+class GetHistoryArchiveStateWork;
 class TmpDir;
 struct InferredQuorum;
 
@@ -20,8 +21,7 @@ class FetchRecentQsetsWork : public Work
     handler mEndHandler;
     std::unique_ptr<TmpDir> mDownloadDir;
     InferredQuorum& mInferredQuorum;
-    HistoryArchiveState mRemoteState;
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+    std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
     std::shared_ptr<Work> mDownloadSCPMessagesWork;
 
   public:
