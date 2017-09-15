@@ -69,7 +69,8 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 
     try
     {
-        applyTx(tx({createAccount(secretKey.getPublicKey(), initialBalance)}), mApp);
+        applyTx(tx({createAccount(secretKey.getPublicKey(), initialBalance)}),
+                mApp);
     }
     catch (...)
     {
@@ -108,6 +109,12 @@ TestAccount::inflation()
     applyTx(tx({txtest::inflation()}), mApp);
 }
 
+Asset
+TestAccount::asset(std::string const& name)
+{
+    return txtest::makeAsset(*this, name);
+}
+
 void
 TestAccount::changeTrust(Asset const& asset, int64_t limit)
 {
@@ -126,13 +133,27 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
     applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
 }
 
+TrustLineEntry
+TestAccount::loadTrustLine(Asset const& asset) const
+{
+    return txtest::loadTrustLine(getSecretKey(), asset, mApp, true)
+        ->getTrustLine();
+}
+
+bool
+TestAccount::hasTrustLine(Asset const& asset) const
+{
+    return !!txtest::loadTrustLine(getSecretKey(), asset, mApp, false);
+}
+
 void
 TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
                         Signer* signer, std::string* homeDomain)
 {
     applyTx(tx({txtest::setOptions(inflationDest, setFlags, clearFlags, thrs,
-                                   signer, homeDomain)}), mApp);
+                                   signer, homeDomain)}),
+            mApp);
 }
 
 void
@@ -153,10 +174,10 @@ TestAccount::manageData(std::string const& name, DataValue* value)
     }
 }
 
-OfferFrame::pointer
+OfferEntry
 TestAccount::loadOffer(uint64_t offerID) const
 {
-    return txtest::loadOffer(getPublicKey(), offerID, mApp, true);
+    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->getOffer();
 }
 
 bool
@@ -225,16 +246,21 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
                  int64_t sendMax, Asset const& destCur, int64_t destAmount,
                  std::vector<Asset> const& path, Asset* noIssuer)
 {
-    auto transaction = tx({pathPayment(destination, sendCur, sendMax,
-                                               destCur, destAmount, path)});
+    auto transaction = tx({pathPayment(destination, sendCur, sendMax, destCur,
+                                       destAmount, path)});
     try
     {
         applyTx(transaction, mApp);
     }
-    catch (ex_PATH_PAYMENT_NO_ISSUER &)
+    catch (ex_PATH_PAYMENT_NO_ISSUER&)
     {
         REQUIRE(noIssuer);
-        REQUIRE(*noIssuer == transaction->getResult().result.results()[0].tr().pathPaymentResult().noIssuer());
+        REQUIRE(*noIssuer ==
+                transaction->getResult()
+                    .result.results()[0]
+                    .tr()
+                    .pathPaymentResult()
+                    .noIssuer());
         throw;
     }
 

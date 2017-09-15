@@ -317,6 +317,22 @@ createCreditPaymentTx(Application& app, SecretKey const& from,
 }
 
 Asset
+makeNativeAsset()
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_NATIVE);
+    return asset;
+}
+
+Asset
+makeInvalidAsset()
+{
+    Asset asset;
+    asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
+    return asset;
+}
+
+Asset
 makeAsset(SecretKey const& issuer, std::string const& code)
 {
     Asset asset;
@@ -445,7 +461,7 @@ applyManageOffer(Application& app, uint64 offerId, SecretKey const& source,
 
     auto& success = createOfferRes.success().offer;
     REQUIRE(success.effect() == expectedEffect);
-    return success.effect() == MANAGE_OFFER_CREATED ? success.offer().offerID
+    return success.effect() != MANAGE_OFFER_DELETED ? success.offer().offerID
                                                     : 0;
 }
 
@@ -619,14 +635,6 @@ OperationResultCode
 getFirstResultCode(TransactionFrame const& tx)
 {
     return getFirstOperationFrame(tx).getResultCode();
-}
-
-void
-checkAmounts(int64_t a, int64_t b, int64_t maxd)
-{
-    int64_t d = b - maxd;
-    REQUIRE(a >= d);
-    REQUIRE(a <= b);
 }
 
 void
