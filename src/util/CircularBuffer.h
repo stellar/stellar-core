@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <utility>
 #include <vector>
 
 namespace stellar
@@ -19,7 +20,7 @@ template <typename T> class CircularBuffer
     }
 
     void
-    push(T elem)
+    push(T&& elem)
     {
         size_t size = buffer.size();
         size_t ix = (start + count) % size;
@@ -31,7 +32,7 @@ template <typename T> class CircularBuffer
         {
             start = (start + 1) % size;
         }
-        buffer[ix] = elem;
+        buffer[ix] = std::move(elem);
     }
 
     T&

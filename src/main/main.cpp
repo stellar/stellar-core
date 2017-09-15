@@ -599,8 +599,7 @@ main(int argc, char* const* argv)
         if (cfg.LOG_FILE_PATH.size())
             Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         Logging::setLogLevel(logLevel, nullptr);
-        // TODO NOTE this must be invoked as last
-        Logging::enableInMemoryLogging(cfg.LOG_FILE_PATH, "fatal");
+        Logging::enableInMemoryLogging("fatal");
 
         cfg.REPORT_METRICS = metrics;
 
