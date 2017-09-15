@@ -20,19 +20,28 @@ class VerifyLedgerChainWork : public Work
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
     bool mManualCatchup;
-    LedgerHeaderHistoryEntry& mFirstVerified;
-    LedgerHeaderHistoryEntry& mLastVerified;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastVerified;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, uint32_t firstSeq,
-                          uint32_t lastSeq, bool manualCatchup,
-                          LedgerHeaderHistoryEntry& firstVerified,
-                          LedgerHeaderHistoryEntry& lastVerified);
+                          uint32_t lastSeq, bool manualCatchup);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
+
+    LedgerHeaderHistoryEntry
+    getFirstVerified() const
+    {
+        return mFirstVerified;
+    }
+    LedgerHeaderHistoryEntry
+    getLastVerified() const
+    {
+        return mLastVerified;
+    }
 };
 }

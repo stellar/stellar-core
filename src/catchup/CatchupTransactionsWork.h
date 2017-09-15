@@ -13,6 +13,7 @@ namespace stellar
 
 class ApplyLedgerChainWork;
 class TmpDir;
+class VerifyLedgerChainWork;
 struct LedgerHeaderHistoryEntry;
 
 class CatchupTransactionsWork : public Work
@@ -27,22 +28,20 @@ class CatchupTransactionsWork : public Work
     void onReset() override;
     Work::State onSuccess() override;
 
-    const LedgerHeaderHistoryEntry& getFirstVerified() const;
-    const LedgerHeaderHistoryEntry& getLastVerified() const;
+    LedgerHeaderHistoryEntry getFirstVerified() const;
+    LedgerHeaderHistoryEntry getLastVerified() const;
     LedgerHeaderHistoryEntry getLastApplied() const;
 
   private:
     std::shared_ptr<Work> mDownloadLedgersWork;
     std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<Work> mVerifyWork;
+    std::shared_ptr<VerifyLedgerChainWork> mVerifyWork;
     std::shared_ptr<ApplyLedgerChainWork> mApplyWork;
 
     TmpDir& mDownloadDir;
     uint32_t mFirstSeq;
     uint32_t mLastSeq;
     bool mManualCatchup;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
     std::string mCatchupTypeName;
 };
 }

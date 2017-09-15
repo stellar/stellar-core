@@ -90,10 +90,8 @@ CatchupTransactionsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " verifying history";
-        mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
-        mVerifyWork = addWork<VerifyLedgerChainWork>(
-            mDownloadDir, mFirstSeq, mLastSeq, mManualCatchup, mFirstVerified,
-            mLastVerified);
+        mVerifyWork = addWork<VerifyLedgerChainWork>(mDownloadDir, mFirstSeq,
+                                                     mLastSeq, mManualCatchup);
         return WORK_PENDING;
     }
 
@@ -110,15 +108,18 @@ CatchupTransactionsWork::onSuccess()
     return WORK_SUCCESS;
 }
 
-const LedgerHeaderHistoryEntry&
+LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getFirstVerified() const
 {
-    return mFirstVerified;
+    return mVerifyWork ? mVerifyWork->getFirstVerified()
+                       : LedgerHeaderHistoryEntry{};
 }
-const LedgerHeaderHistoryEntry&
+
+LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getLastVerified() const
 {
-    return mLastVerified;
+    return mVerifyWork ? mVerifyWork->getLastVerified()
+                       : LedgerHeaderHistoryEntry{};
 }
 
 LedgerHeaderHistoryEntry

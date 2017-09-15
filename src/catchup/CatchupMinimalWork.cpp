@@ -100,8 +100,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
         mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
-            mLastVerified);
+            *mDownloadDir, firstSeq, lastSeq, mManualCatchup);
         return WORK_PENDING;
     }
 
@@ -134,18 +133,21 @@ CatchupMinimalWork::onSuccess()
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup MINIMAL applying buckets for state "
-                              << LedgerManager::ledgerAbbrev(mFirstVerified);
+                              << LedgerManager::ledgerAbbrev(
+                                     mVerifyLedgersWork->getFirstVerified());
         mApplyWork = addWork<ApplyBucketsWork>(
             mBuckets, mGetHistoryArchiveStateWork->getRemoteState(),
-            mFirstVerified);
+            mVerifyLedgersWork->getFirstVerified());
         return WORK_PENDING;
     }
 
     CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
-                          << LedgerManager::ledgerAbbrev(mFirstVerified)
+                          << LedgerManager::ledgerAbbrev(
+                                 mVerifyLedgersWork->getFirstVerified())
                           << " for nextLedger=" << nextLedger();
     asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mFirstVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
+                mVerifyLedgersWork->getFirstVerified());
 
     return WORK_SUCCESS;
 }
@@ -154,6 +156,8 @@ void
 CatchupMinimalWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mLastVerified);
+    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
+                mVerifyLedgersWork ? mVerifyLedgersWork->getLastVerified()
+                                   : LedgerHeaderHistoryEntry{});
 }
 }

@@ -47,19 +47,17 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
     return HistoryManager::VERIFY_HASH_OK;
 }
 
-VerifyLedgerChainWork::VerifyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, bool manualCatchup,
-    LedgerHeaderHistoryEntry& firstVerified,
-    LedgerHeaderHistoryEntry& lastVerified)
+VerifyLedgerChainWork::VerifyLedgerChainWork(Application& app,
+                                             WorkParent& parent,
+                                             TmpDir const& downloadDir,
+                                             uint32_t first, uint32_t last,
+                                             bool manualCatchup)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
     , mCurrSeq(first)
     , mLastSeq(last)
     , mManualCatchup(manualCatchup)
-    , mFirstVerified(firstVerified)
-    , mLastVerified(lastVerified)
 {
 }
 
@@ -159,7 +157,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             mManualCatchup)
         {
             CLOG(WARNING, "History")
-                << "Accepting unknown-hash ledger due to manual catchup";
+                << "Accepting unknown-hash ledger due to manual or "
+                   "command-line catchup";
             status = HistoryManager::VERIFY_HASH_OK;
         }
     }
