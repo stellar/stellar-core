@@ -13,6 +13,7 @@ namespace stellar
 {
 
 class ApplyLedgerChainWork;
+class DownloadAndVerifyLedgersWork;
 class TmpDir;
 class VerifyLedgerChainWork;
 struct LedgerHeaderHistoryEntry;
@@ -33,9 +34,8 @@ class CatchupTransactionsWork : public Work
     LedgerHeaderHistoryEntry getLastApplied() const;
 
   private:
-    std::shared_ptr<Work> mDownloadLedgersWork;
+    std::shared_ptr<DownloadAndVerifyLedgersWork> mDownloadAndVerifyLedgersWork;
     std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<VerifyLedgerChainWork> mVerifyWork;
     std::shared_ptr<ApplyLedgerChainWork> mApplyWork;
 
     TmpDir& mDownloadDir;

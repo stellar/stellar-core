@@ -12,6 +12,7 @@ namespace stellar
 
 class DownloadAndApplyBucketsWork;
 class VerifyLedgerChainWork;
+class DownloadAndVerifyLedgersWork;
 
 class CatchupMinimalWork : public CatchupWork
 {
@@ -22,8 +23,7 @@ class CatchupMinimalWork : public CatchupWork
         handler;
 
   protected:
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<VerifyLedgerChainWork> mVerifyLedgersWork;
+    std::shared_ptr<DownloadAndVerifyLedgersWork> mDownloadAndVerifyLedgersWork;
     std::shared_ptr<DownloadAndApplyBucketsWork> mDownloadAndApplyBucketsWork;
     handler mEndHandler;
     virtual uint32_t firstCheckpointSeq() const override;

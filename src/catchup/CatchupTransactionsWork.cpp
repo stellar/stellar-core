@@ -4,7 +4,7 @@
 
 #include "catchup/CatchupTransactionsWork.h"
 #include "catchup/ApplyLedgerChainWork.h"
-#include "catchup/VerifyLedgerChainWork.h"
+#include "catchup/DownloadAndVerifyLedgersWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -35,17 +35,13 @@ CatchupTransactionsWork::getStatus() const
         {
             return mApplyWork->getStatus();
         }
-        else if (mVerifyWork)
-        {
-            return mVerifyWork->getStatus();
-        }
         else if (mDownloadTransactionsWork)
         {
             return mDownloadTransactionsWork->getStatus();
         }
-        else if (mDownloadLedgersWork)
+        else if (mDownloadAndVerifyLedgersWork)
         {
-            return mDownloadLedgersWork->getStatus();
+            return mDownloadAndVerifyLedgersWork->getStatus();
         }
     }
     return Work::getStatus();
@@ -54,23 +50,22 @@ CatchupTransactionsWork::getStatus() const
 void
 CatchupTransactionsWork::onReset()
 {
-    mDownloadLedgersWork.reset();
+    mDownloadAndVerifyLedgersWork.reset();
     mDownloadTransactionsWork.reset();
-    mVerifyWork.reset();
     mApplyWork.reset();
 }
 
 Work::State
 CatchupTransactionsWork::onSuccess()
 {
-    // Phase 1: download and decompress the ledgers.
-    if (!mDownloadLedgersWork)
+    // Phase 1: download and verify the ledgers.
+    if (!mDownloadAndVerifyLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
-                              << " downloading ledgers [" << mRange.first()
-                              << ", " << mRange.last() << "]";
-        mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            mRange, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
+        CLOG(INFO, "History")
+            << "Catchup downloading and veryfing ledger chain for range ["
+            << mRange.first() << ".." << mRange.last() << "]";
+        mDownloadAndVerifyLedgersWork = addWork<DownloadAndVerifyLedgersWork>(
+            mRange, mManualCatchup, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -84,17 +79,7 @@ CatchupTransactionsWork::onSuccess()
         return WORK_PENDING;
     }
 
-    // Phase 3: verify the ledger chain.
-    if (!mVerifyWork)
-    {
-        CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
-                              << " verifying history";
-        mVerifyWork = addWork<VerifyLedgerChainWork>(mDownloadDir, mRange,
-                                                     mManualCatchup);
-        return WORK_PENDING;
-    }
-
-    // Phase 4: apply the transactions.
+    // Phase 3: apply the transactions.
     if (!mApplyWork)
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
@@ -109,15 +94,17 @@ CatchupTransactionsWork::onSuccess()
 LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getFirstVerified() const
 {
-    return mVerifyWork ? mVerifyWork->getFirstVerified()
-                       : LedgerHeaderHistoryEntry{};
+    return mDownloadAndVerifyLedgersWork
+               ? mDownloadAndVerifyLedgersWork->getFirstVerified()
+               : LedgerHeaderHistoryEntry{};
 }
 
 LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getLastVerified() const
 {
-    return mVerifyWork ? mVerifyWork->getLastVerified()
-                       : LedgerHeaderHistoryEntry{};
+    return mDownloadAndVerifyLedgersWork
+               ? mDownloadAndVerifyLedgersWork->getLastVerified()
+               : LedgerHeaderHistoryEntry{};
 }
 
 LedgerHeaderHistoryEntry

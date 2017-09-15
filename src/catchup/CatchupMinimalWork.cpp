@@ -4,7 +4,7 @@
 
 #include "catchup/CatchupMinimalWork.h"
 #include "catchup/DownloadAndApplyBucketsWork.h"
-#include "catchup/VerifyLedgerChainWork.h"
+#include "catchup/DownloadAndVerifyLedgersWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
@@ -45,13 +45,9 @@ CatchupMinimalWork::getStatus() const
         {
             return mDownloadAndApplyBucketsWork->getStatus();
         }
-        else if (mVerifyLedgersWork)
+        else if (mDownloadAndVerifyLedgersWork)
         {
-            return mVerifyLedgersWork->getStatus();
-        }
-        else if (mDownloadLedgersWork)
-        {
-            return mDownloadLedgersWork->getStatus();
+            return mDownloadAndVerifyLedgersWork->getStatus();
         }
         else if (mGetHistoryArchiveStateWork)
         {
@@ -65,8 +61,7 @@ void
 CatchupMinimalWork::onReset()
 {
     CatchupWork::onReset();
-    mDownloadLedgersWork.reset();
-    mVerifyLedgersWork.reset();
+    mDownloadAndVerifyLedgersWork.reset();
     mDownloadAndApplyBucketsWork.reset();
 }
 
@@ -80,26 +75,18 @@ CatchupMinimalWork::onSuccess()
 
     auto range = CheckpointRange{firstCheckpointSeq(), lastCheckpointSeq()};
 
-    // Phase 2: download the ledger chain that validates the state
-    // we're about to assume.
-    if (!mDownloadLedgersWork)
+    // Phase 2: download and verify the ledgers.
+    if (!mDownloadAndVerifyLedgersWork)
     {
-        CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
-        mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            range, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+        CLOG(INFO, "History")
+            << "Catchup downloading and veryfing ledger chain for range ["
+            << range.first() << ".." << range.last() << "]";
+        mDownloadAndVerifyLedgersWork = addWork<DownloadAndVerifyLedgersWork>(
+            range, mManualCatchup, *mDownloadDir);
         return WORK_PENDING;
     }
 
-    // Phase 3: Verify the ledger chain
-    if (!mVerifyLedgersWork)
-    {
-        CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
-        mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, range, mManualCatchup);
-        return WORK_PENDING;
-    }
-
-    // Phase 4: download, verify and apply buckets themselves.
+    // Phase 3: download, verify and apply buckets themselves.
     if (!mDownloadAndApplyBucketsWork)
     {
         CLOG(INFO, "History")
@@ -109,21 +96,21 @@ CatchupMinimalWork::onSuccess()
                 mLocalState);
         mDownloadAndApplyBucketsWork = addWork<DownloadAndApplyBucketsWork>(
             mGetHistoryArchiveStateWork->getRemoteState(), buckets,
-            mVerifyLedgersWork->getFirstVerified(), *mDownloadDir);
+            mDownloadAndVerifyLedgersWork->getFirstVerified(), *mDownloadDir);
         return WORK_PENDING;
     }
 
-    assert(mDownloadLedgersWork->getState() == WORK_SUCCESS);
-    assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);
+    assert(mDownloadAndVerifyLedgersWork->getState() == WORK_SUCCESS);
     assert(mDownloadAndApplyBucketsWork->getState() == WORK_SUCCESS);
 
-    CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
-                          << LedgerManager::ledgerAbbrev(
-                                 mVerifyLedgersWork->getFirstVerified())
-                          << " for nextLedger=" << nextLedger();
+    CLOG(INFO, "History")
+        << "Completed catchup MINIMAL to state "
+        << LedgerManager::ledgerAbbrev(
+               mDownloadAndVerifyLedgersWork->getFirstVerified())
+        << " for nextLedger=" << nextLedger();
     asio::error_code ec;
     mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
-                mVerifyLedgersWork->getFirstVerified());
+                mDownloadAndVerifyLedgersWork->getFirstVerified());
 
     return WORK_SUCCESS;
 }
@@ -133,8 +120,9 @@ CatchupMinimalWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
-                mVerifyLedgersWork ? mVerifyLedgersWork->getLastVerified()
-                                   : LedgerHeaderHistoryEntry{});
+                mDownloadAndVerifyLedgersWork
+                    ? mDownloadAndVerifyLedgersWork->getLastVerified()
+                    : LedgerHeaderHistoryEntry{});
 }
 
 LedgerHeaderHistoryEntry
