@@ -4,8 +4,9 @@
 
 #pragma once
 
-#include "history/FileTransferInfo.h"
 #include "work/Work.h"
+
+#include "history/FileTransferInfo.h"
 
 namespace stellar
 {

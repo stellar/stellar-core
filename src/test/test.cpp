@@ -4,6 +4,8 @@
 
 #define CATCH_CONFIG_RUNNER
 
+#include "util/asio.h"
+
 #include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"

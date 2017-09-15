@@ -5,6 +5,7 @@
 #include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
 #include "util/types.h"
+#include <functional>
 
 using namespace stellar;
 

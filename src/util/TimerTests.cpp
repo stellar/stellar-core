@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Timer.h"
+
 #include "autocheck/autocheck.hpp"
 #include "lib/catch.hpp"
 #include "main/Application.h"

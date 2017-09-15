@@ -4,6 +4,7 @@
 
 #include "util/Fs.h"
 #include "lib/catch.hpp"
+#include <tuple>
 
 using namespace stellar::fs;
 
