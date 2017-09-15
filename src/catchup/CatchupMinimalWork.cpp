@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupMinimalWork.h"
-#include "catchup/ApplyBucketsWork.h"
+#include "catchup/DownloadAndApplyBucketsWork.h"
 #include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
@@ -41,13 +41,9 @@ CatchupMinimalWork::getStatus() const
 {
     if (mState == WORK_PENDING)
     {
-        if (mApplyWork)
+        if (mDownloadAndApplyBucketsWork)
         {
-            return mApplyWork->getStatus();
-        }
-        else if (mDownloadBucketsWork)
-        {
-            return mDownloadBucketsWork->getStatus();
+            return mDownloadAndApplyBucketsWork->getStatus();
         }
         else if (mVerifyLedgersWork)
         {
@@ -71,8 +67,7 @@ CatchupMinimalWork::onReset()
     CatchupWork::onReset();
     mDownloadLedgersWork.reset();
     mVerifyLedgersWork.reset();
-    mDownloadBucketsWork.reset();
-    mApplyWork.reset();
+    mDownloadAndApplyBucketsWork.reset();
 }
 
 Work::State
@@ -104,42 +99,23 @@ CatchupMinimalWork::onSuccess()
         return WORK_PENDING;
     }
 
-    // Phase 4: download and verify the buckets themselves.
-    if (!mDownloadBucketsWork)
+    // Phase 4: download, verify and apply buckets themselves.
+    if (!mDownloadAndApplyBucketsWork)
     {
         CLOG(INFO, "History")
-            << "Catchup MINIMAL downloading and verifying buckets";
+            << "Catchup MINIMAL downloading, verifying and applying buckets";
         std::vector<std::string> buckets =
             mGetHistoryArchiveStateWork->getRemoteState().differingBuckets(
                 mLocalState);
-        mDownloadBucketsWork = addWork<Work>("download and verify buckets");
-        for (auto const& hash : buckets)
-        {
-            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-            // Each bucket gets its own work-chain of download->gunzip->verify
-
-            auto verify = mDownloadBucketsWork->addWork<VerifyBucketWork>(
-                mBuckets, ft.localPath_nogz(), hexToBin256(hash));
-            verify->addWork<GetAndUnzipRemoteFileWork>(ft);
-        }
+        mDownloadAndApplyBucketsWork = addWork<DownloadAndApplyBucketsWork>(
+            mGetHistoryArchiveStateWork->getRemoteState(), buckets,
+            mVerifyLedgersWork->getFirstVerified(), *mDownloadDir);
         return WORK_PENDING;
     }
 
     assert(mDownloadLedgersWork->getState() == WORK_SUCCESS);
     assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);
-    assert(mDownloadBucketsWork->getState() == WORK_SUCCESS);
-
-    // Phase 3: apply the buckets.
-    if (!mApplyWork)
-    {
-        CLOG(INFO, "History") << "Catchup MINIMAL applying buckets for state "
-                              << LedgerManager::ledgerAbbrev(
-                                     mVerifyLedgersWork->getFirstVerified());
-        mApplyWork = addWork<ApplyBucketsWork>(
-            mBuckets, mGetHistoryArchiveStateWork->getRemoteState(),
-            mVerifyLedgersWork->getFirstVerified());
-        return WORK_PENDING;
-    }
+    assert(mDownloadAndApplyBucketsWork->getState() == WORK_SUCCESS);
 
     CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
                           << LedgerManager::ledgerAbbrev(
