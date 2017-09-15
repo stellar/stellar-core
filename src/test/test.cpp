@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#define CATCH_CONFIG_RUNNER
+
 #include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"
@@ -22,9 +24,6 @@
 #define GETPID getpid
 #include <sys/stat.h>
 #endif
-
-#define CATCH_CONFIG_RUNNER
-#include "lib/catch.hpp"
 
 #include "test/DotReporter.h"
 
