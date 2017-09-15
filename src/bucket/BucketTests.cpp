@@ -29,10 +29,21 @@
 #include "util/TmpDir.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
+#include "xdrpp/printer.h"
 #include <algorithm>
 #include <future>
 
 using namespace stellar;
+
+namespace Catch
+{
+
+std::string toString(Hash const& value)
+{
+    return xdr::xdr_to_string(value);
+}
+
+}
 
 namespace BucketTests
 {
@@ -108,6 +119,8 @@ TEST_CASE("skip list", "[bucket]")
             Hash h5 = HashUtils::random();
             Hash h6 = HashUtils::random();
             Hash h7 = HashUtils::random();
+            Hash h8 = HashUtils::random();
+            Hash h9 = HashUtils::random();
 
             // up first entry
             LedgerHeader header;
@@ -119,7 +132,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1;
+            header.ledgerSeq = 50;
             header.bucketListHash = h2;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h2);
@@ -127,7 +140,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1 * 2;
+            header.ledgerSeq = 100;
             header.bucketListHash = h3;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h3);
@@ -135,7 +148,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_1 * 2 + 1;
+            header.ledgerSeq = 101;
             header.bucketListHash = h2;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h3);
@@ -143,7 +156,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_2;
+            header.ledgerSeq = 5000;
             header.bucketListHash = h4;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h4);
@@ -151,7 +164,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_2 + SKIP_1;
+            header.ledgerSeq = 5050;
             header.bucketListHash = h5;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h5);
@@ -159,7 +172,7 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_3 + SKIP_2;
+            header.ledgerSeq = 55000;
             header.bucketListHash = h6;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h6);
@@ -167,13 +180,29 @@ TEST_CASE("skip list", "[bucket]")
             REQUIRE(header.skipList[2] == h0);
             REQUIRE(header.skipList[3] == h0);
 
-            header.ledgerSeq = SKIP_3 + SKIP_2 + SKIP_1;
+            header.ledgerSeq = 55050;
             header.bucketListHash = h7;
             calculateSkipValues(header);
             REQUIRE(header.skipList[0] == h7);
             REQUIRE(header.skipList[1] == h6);
             REQUIRE(header.skipList[2] == h4);
             REQUIRE(header.skipList[3] == h0);
+
+            header.ledgerSeq = 555050;
+            header.bucketListHash = h8;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h8);
+            REQUIRE(header.skipList[1] == h7);
+            REQUIRE(header.skipList[2] == h6);
+            REQUIRE(header.skipList[3] == h4);
+
+            header.ledgerSeq = 1055050;
+            header.bucketListHash = h9;
+            calculateSkipValues(header);
+            REQUIRE(header.skipList[0] == h9);
+            REQUIRE(header.skipList[1] == h8);
+            REQUIRE(header.skipList[2] == h7);
+            REQUIRE(header.skipList[3] == h6);
         }
     };
 
