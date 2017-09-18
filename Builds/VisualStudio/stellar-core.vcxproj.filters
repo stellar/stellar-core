@@ -106,6 +106,9 @@
     <Filter Include="invariant">
       <UniqueIdentifier>{14c0c4a6-b8d4-4493-aa4c-6b12d4cafcea}</UniqueIdentifier>
     </Filter>
+    <Filter Include="invariant\tests">
+      <UniqueIdentifier>{838dd219-d470-4c89-a08d-4395e2ede31e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -687,16 +690,7 @@
     <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\ChangedAccountsSubnetriesCountIsValid.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\Invariant.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\Invariants.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.cpp">
@@ -740,6 +734,30 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp">
       <Filter>ledger\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\AllowTrustTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\ExchangeTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\PathPaymentTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\TxResultsTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\TestMarket.cpp">
+      <Filter>test</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
+      <Filter>invariant\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1268,9 +1286,6 @@
     <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h">
       <Filter>invariant</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\invariant\ChangedAccountsSubnetriesCountIsValid.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\invariant\Invariant.h">
       <Filter>invariant</Filter>
     </ClInclude>
@@ -1306,6 +1321,21 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">
       <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\DotReporter.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\TestMarket.h">
+      <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManager.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
+      <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1396,6 +1426,9 @@
     <None Include="..\..\docs\software\testnet.md">
       <Filter>docs\software</Filter>
     </None>
+    <None Include="..\..\CONTRIBUTING.md" />
+    <None Include="..\..\README" />
+    <None Include="..\..\travis-build.sh" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
@@ -1418,6 +1451,7 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <Text Include="..\..\INSTALL-Windows.txt" />
+    <Text Include="..\..\INSTALL-Windows.md" />
+    <Text Include="..\..\LICENSE-APACHE.txt" />
   </ItemGroup>
 </Project>

@@ -288,10 +288,10 @@
     <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp" />
-    <ClCompile Include="..\..\src\invariant\ChangedAccountsSubnetriesCountIsValid.cpp" />
-    <ClCompile Include="..\..\src\invariant\Invariant.cpp" />
+    <ClCompile Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp" />
-    <ClCompile Include="..\..\src\invariant\Invariants.cpp" />
+    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp" />
     <ClCompile Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />
@@ -401,13 +401,16 @@
     <ClCompile Include="..\..\src\test\test.cpp" />
     <ClCompile Include="..\..\src\test\TestAccount.cpp" />
     <ClCompile Include="..\..\src\test\TestExceptions.cpp" />
+    <ClCompile Include="..\..\src\test\TestMarket.cpp" />
     <ClCompile Include="..\..\src\test\TestPrinter.cpp" />
     <ClCompile Include="..\..\src\test\TestUtils.cpp" />
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\AllowTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\ExchangeTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageDataTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ManageOfferOpFrame.cpp" />
@@ -419,6 +422,7 @@
     <ClCompile Include="..\..\src\transactions\OfferTests.cpp" />
     <ClCompile Include="..\..\src\transactions\OperationFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PathPaymentOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\PathPaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\PaymentTests.cpp" />
     <ClCompile Include="..\..\src\transactions\SetOptionsOpFrame.cpp" />
@@ -428,6 +432,7 @@
     <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
+    <ClCompile Include="..\..\src\transactions\TxResultsTests.cpp" />
     <ClCompile Include="..\..\src\util\BalanceTests.cpp" />
     <ClCompile Include="..\..\src\util\BigDivideTests.cpp" />
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp" />
@@ -524,9 +529,11 @@
     <ClInclude Include="..\..\src\history\CatchupManagerImpl.h" />
     <ClInclude Include="..\..\src\history\InferredQuorum.h" />
     <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h" />
-    <ClInclude Include="..\..\src\invariant\ChangedAccountsSubnetriesCountIsValid.h" />
+    <ClInclude Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\Invariant.h" />
     <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h" />
+    <ClInclude Include="..\..\src\invariant\InvariantManager.h" />
+    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
     <ClInclude Include="..\..\src\invariant\Invariants.h" />
     <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />
@@ -602,9 +609,11 @@
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
+    <ClInclude Include="..\..\src\test\DotReporter.h" />
     <ClInclude Include="..\..\src\test\test.h" />
     <ClInclude Include="..\..\src\test\TestAccount.h" />
     <ClInclude Include="..\..\src\test\TestExceptions.h" />
+    <ClInclude Include="..\..\src\test\TestMarket.h" />
     <ClInclude Include="..\..\src\test\TestPrinter.h" />
     <ClInclude Include="..\..\src\test\TestUtils.h" />
     <ClInclude Include="..\..\src\test\TxTests.h" />
@@ -662,6 +671,7 @@
     <None Include="..\..\AUTHORS" />
     <None Include="..\..\autogen.sh" />
     <None Include="..\..\ChangeLog" />
+    <None Include="..\..\CONTRIBUTING.md" />
     <None Include="..\..\COPYING" />
     <None Include="..\..\docs\architecture.md" />
     <None Include="..\..\docs\db-schema.md" />
@@ -682,6 +692,7 @@
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
+    <None Include="..\..\README" />
     <None Include="..\..\README.md" />
     <None Include="..\..\src\bucket\readme.md" />
     <None Include="..\..\src\crypto\readme.md" />
@@ -783,6 +794,7 @@
     <None Include="..\..\src\overlay\readme.md" />
     <None Include="..\..\src\scp\readme.md" />
     <None Include="..\..\src\transactions\readme.md" />
+    <None Include="..\..\travis-build.sh" />
     <None Include="libmedida\libmedida.vcxproj" />
   </ItemGroup>
   <ItemGroup>
@@ -818,6 +830,7 @@
   </ItemGroup>
   <ItemGroup>
     <Text Include="..\..\INSTALL-Windows.md" />
+    <Text Include="..\..\LICENSE-APACHE.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
