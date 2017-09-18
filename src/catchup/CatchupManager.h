@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "catchup/CatchupWork.h"
 #include <functional>
 #include <memory>
 #include <system_error>
@@ -76,12 +77,9 @@ class CatchupManager
     // checkpoint presumed to have been made at `initLedger` (i.e. with
     // checkpoint ledger number equal to initLedger-1). This 'manual' catchup
     // mode exists to support catching-up to manually created checkpoints.
-    virtual void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup = false) = 0;
+    virtual void catchupHistory(uint32_t initLedger, CatchupMode mode,
+                                CatchupWork::ProgressHandler handler,
+                                bool manualCatchup = false) = 0;
 
     // Return status of catchup for or empty string, if no catchup in progress
     virtual std::string getStatus() const = 0;

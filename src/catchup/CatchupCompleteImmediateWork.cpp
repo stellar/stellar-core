@@ -13,13 +13,11 @@
 namespace stellar
 {
 
-CatchupCompleteImmediateWork::CatchupCompleteImmediateWork(Application& app,
-                                                           WorkParent& parent,
-                                                           uint32_t initLedger,
-                                                           bool manualCatchup,
-                                                           handler endHandler)
+CatchupCompleteImmediateWork::CatchupCompleteImmediateWork(
+    Application& app, WorkParent& parent, uint32_t initLedger,
+    bool manualCatchup, ProgressHandler progressHandler)
     : CatchupWork(app, parent, initLedger, "complete-immediate", manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -98,8 +96,8 @@ CatchupCompleteImmediateWork::onSuccess()
         CLOG(ERROR, "History") << "Nothing to catchup to in COMPLETE_IMMEDIATE";
 
         asio::error_code ec = std::make_error_code(std::errc::invalid_argument);
-        mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-                    LedgerHeaderHistoryEntry{});
+        mProgressHandler(ec, ProgressState::FINISHED,
+                         LedgerHeaderHistoryEntry{});
     }
 
     auto range = CheckpointRange{firstSeq, lastSeq};
@@ -118,8 +116,10 @@ CatchupCompleteImmediateWork::onSuccess()
                           << LedgerManager::ledgerAbbrev(
                                  mCatchupTransactionsWork->getLastApplied());
     asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-                mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::APPLIED_TRANSACTIONS,
+                     mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork->getLastApplied());
 
     return WORK_SUCCESS;
 }
@@ -128,9 +128,9 @@ void
 CatchupCompleteImmediateWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-                mCatchupTransactionsWork
-                    ? mCatchupTransactionsWork->getLastVerified()
-                    : LedgerHeaderHistoryEntry{});
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork
+                         ? mCatchupTransactionsWork->getLastVerified()
+                         : LedgerHeaderHistoryEntry{});
 }
 }

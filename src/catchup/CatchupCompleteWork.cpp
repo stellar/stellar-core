@@ -15,9 +15,10 @@ namespace stellar
 
 CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
-                                         bool manualCatchup, handler endHandler)
+                                         bool manualCatchup,
+                                         ProgressHandler progressHandler)
     : CatchupWork(app, parent, initLedger, "complete", manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -76,8 +77,10 @@ CatchupCompleteWork::onSuccess()
                                  mCatchupTransactionsWork->getLastApplied())
                           << " for nextLedger=" << nextLedger();
     asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
-                mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::APPLIED_TRANSACTIONS,
+                     mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork->getLastApplied());
 
     return WORK_SUCCESS;
 }
@@ -86,10 +89,10 @@ void
 CatchupCompleteWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
-                mCatchupTransactionsWork
-                    ? mCatchupTransactionsWork->getLastVerified()
-                    : LedgerHeaderHistoryEntry{});
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork
+                         ? mCatchupTransactionsWork->getLastVerified()
+                         : LedgerHeaderHistoryEntry{});
 }
 
 LedgerHeaderHistoryEntry

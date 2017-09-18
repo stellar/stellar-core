@@ -21,9 +21,9 @@ namespace stellar
 
 CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
                                        uint32_t initLedger, bool manualCatchup,
-                                       handler endHandler)
+                                       ProgressHandler progressHandler)
     : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -112,8 +112,10 @@ CatchupMinimalWork::onSuccess()
                mDownloadAndVerifyLedgersWork->getFirstVerified())
         << " for nextLedger=" << nextLedger();
     asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
-                mDownloadAndVerifyLedgersWork->getFirstVerified());
+    mProgressHandler(ec, ProgressState::APPLIED_BUCKETS,
+                     mDownloadAndVerifyLedgersWork->getFirstVerified());
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mDownloadAndVerifyLedgersWork->getFirstVerified());
 
     return WORK_SUCCESS;
 }
@@ -122,16 +124,17 @@ void
 CatchupMinimalWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL,
-                mDownloadAndVerifyLedgersWork
-                    ? mDownloadAndVerifyLedgersWork->getLastVerified()
-                    : LedgerHeaderHistoryEntry{});
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mDownloadAndVerifyLedgersWork
+                         ? mDownloadAndVerifyLedgersWork->getLastVerified()
+                         : LedgerHeaderHistoryEntry{});
 }
 
 LedgerHeaderHistoryEntry
 CatchupMinimalWork::getFirstVerified() const
 {
-    return mVerifyLedgersWork ? mVerifyLedgersWork->getFirstVerified()
-                              : LedgerHeaderHistoryEntry{};
+    return mDownloadAndVerifyLedgersWork
+               ? mDownloadAndVerifyLedgersWork->getFirstVerified()
+               : LedgerHeaderHistoryEntry{};
 }
 }

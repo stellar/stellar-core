@@ -17,21 +17,16 @@ class DownloadAndVerifyLedgersWork;
 class CatchupMinimalWork : public CatchupWork
 {
   public:
-    typedef std::function<void(asio::error_code const& ec,
-                               CatchupManager::CatchupMode mode,
-                               LedgerHeaderHistoryEntry const& lastClosed)>
-        handler;
-
   protected:
     std::shared_ptr<DownloadAndVerifyLedgersWork> mDownloadAndVerifyLedgersWork;
     std::shared_ptr<DownloadAndApplyBucketsWork> mDownloadAndApplyBucketsWork;
-    handler mEndHandler;
+    ProgressHandler mProgressHandler;
     virtual uint32_t firstCheckpointSeq() const override;
 
   public:
     CatchupMinimalWork(Application& app, WorkParent& parent,
                        uint32_t initLedger, bool manualCatchup,
-                       handler endHandler);
+                       ProgressHandler progressHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

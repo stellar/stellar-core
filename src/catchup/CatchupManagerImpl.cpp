@@ -53,12 +53,9 @@ CatchupManagerImpl::historyCaughtup()
 }
 
 void
-CatchupManagerImpl::catchupHistory(
-    uint32_t initLedger, CatchupMode mode,
-    std::function<void(asio::error_code const& ec, CatchupMode mode,
-                       LedgerHeaderHistoryEntry const& lastClosed)>
-        handler,
-    bool manualCatchup)
+CatchupManagerImpl::catchupHistory(uint32_t initLedger, CatchupMode mode,
+                                   CatchupWork::ProgressHandler handler,
+                                   bool manualCatchup)
 {
     if (mCatchupWork)
     {

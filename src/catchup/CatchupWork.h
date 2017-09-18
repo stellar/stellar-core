@@ -13,6 +13,18 @@ class GetHistoryArchiveStateWork;
 
 class CatchupWork : public BucketDownloadWork
 {
+  public:
+    enum class ProgressState
+    {
+        APPLIED_BUCKETS,
+        APPLIED_TRANSACTIONS,
+        FINISHED
+    };
+
+    using ProgressHandler = std::function<void(
+        asio::error_code const& ec, ProgressState progressState,
+        LedgerHeaderHistoryEntry const& lastClosed)>;
+
   protected:
     uint32_t const mInitLedger;
     bool const mManualCatchup;
