@@ -1,4 +1,4 @@
-#How to contribute
+# How to contribute
 
 We're striving to keep master's history with minimal merge bubbles. To achieve this, we're asking PRs to be submitted rebased on top of master.
 
@@ -16,7 +16,7 @@ stellar.org also uses these same github issues to keep track of what we are work
 
 Of course feel free to make your own issues if you think something needs to added or fixed.
 
-#Basic quality checks
+# Basic quality checks
 
 Please ensure that all tests pass before submitting changes. The local testsuite can be run as `make check` or `src/stellar-core --test`,
 see [README](./README.md) for details on running tests.
@@ -25,7 +25,7 @@ Code formatting wise, we have a `.clang-format` config file that you should use 
 
 Try to separate logically distinct changes into separate commits and thematically distinct commits into separate pull requests.
 
-#Submitting Changes
+# Submitting Changes
 
 Please [sign the Contributor License Agreement](https://docs.google.com/forms/d/1g7EF6PERciwn7zfmfke5Sir2n10yddGGSXyZsq98tVY/viewform).
 
