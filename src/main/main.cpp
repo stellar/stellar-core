@@ -246,8 +246,12 @@ catchup(Config const& cfg)
         }
         app->getCatchupManager().catchupHistory(
             0, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-            [&app](asio::error_code const& ec, CatchupManager::CatchupMode,
+            [&app](asio::error_code const& ec, CatchupWork::ProgressState sate,
                    LedgerHeaderHistoryEntry const&) {
+                if (sate != CatchupWork::ProgressState::FINISHED)
+                {
+                    return;
+                }
                 if (ec)
                 {
                     throw std::runtime_error(

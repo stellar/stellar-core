@@ -19,9 +19,9 @@ namespace stellar
 
 CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
                                        uint32_t initLedger, bool manualCatchup,
-                                       handler endHandler)
+                                       ProgressHandler progressHandler)
     : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -141,8 +141,8 @@ CatchupMinimalWork::onSuccess()
     CLOG(INFO, "History") << "Completed catchup MINIMAL to state "
                           << LedgerManager::ledgerAbbrev(mFirstVerified)
                           << " for nextLedger=" << nextLedger();
-    asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mFirstVerified);
+    mProgressHandler({}, ProgressState::APPLIED_BUCKETS, mFirstVerified);
+    mProgressHandler({}, ProgressState::FINISHED, mFirstVerified);
 
     return WORK_SUCCESS;
 }
@@ -151,6 +151,6 @@ void
 CatchupMinimalWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_MINIMAL, mLastVerified);
+    mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{});
 }
 }

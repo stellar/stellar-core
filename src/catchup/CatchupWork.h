@@ -11,6 +11,35 @@ namespace stellar
 
 class CatchupWork : public BucketDownloadWork
 {
+  public:
+    enum class ProgressState
+    {
+        APPLIED_BUCKETS,
+        APPLIED_TRANSACTIONS,
+        FINISHED
+    };
+
+    // ProgressHandler is called in different phases of catchup with following
+    // values of ProgressState argument:
+    // - APPLIED_BUCKETS - called after buckets had been applied at lastClosed
+    // ledger
+    // - APPLIED_TRANSACTIONS - called after transactions had been applied,
+    // last one at lastClosed ledger
+    // - FINISHED - called after buckets and transaction had been applied,
+    // lastClosed is the same as value from previous call
+    //
+    // Different types of catchup causes different sequence of calls:
+    // - CATCHUP_MINIMAL calls APPLIED_BUCKETS then FINISHED
+    // - CATCHUP_COMPLETE calls APPLIED_TRANSACTIONS then FINISHED
+    // - CATCHUP_RECENT calls APPLIED_BUCKETS, APPLIED_TRANSACTIONS then
+    // FINISHED
+    //
+    // In case of error this callback is called with non-zero ec parameter and
+    // the rest of them does not matter.
+    using ProgressHandler = std::function<void(
+        asio::error_code const& ec, ProgressState progressState,
+        LedgerHeaderHistoryEntry const& lastClosed)>;
+
   protected:
     HistoryArchiveState mRemoteState;
     uint32_t const mInitLedger;

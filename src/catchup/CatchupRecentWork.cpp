@@ -13,14 +13,14 @@
 namespace stellar
 {
 
-CatchupRecentWork::CatchupRecentWork(Application& app, WorkParent& parent,
-                                     uint32_t initLedger, bool manualCatchup,
-                                     handler endHandler)
+CatchupRecentWork::CatchupRecentWork(
+    Application& app, WorkParent& parent, uint32_t initLedger,
+    bool manualCatchup, CatchupWork::ProgressHandler progressHandler)
     : Work(app, parent, fmt::format("catchup-recent-{:d}-from-{:08x}",
                                     app.getConfig().CATCHUP_RECENT, initLedger))
     , mInitLedger(initLedger)
     , mManualCatchup(manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -51,35 +51,43 @@ CatchupRecentWork::onReset()
     mLastApplied = LedgerHeaderHistoryEntry();
 }
 
-CatchupRecentWork::handler
+CatchupWork::ProgressHandler
 CatchupRecentWork::writeFirstVerified()
 {
     std::weak_ptr<CatchupRecentWork> weak =
         std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
-    return [weak](asio::error_code const& ec, CatchupManager::CatchupMode mode,
+    return [weak](asio::error_code const& ec,
+                  CatchupWork::ProgressState progressState,
                   LedgerHeaderHistoryEntry const& ledger) {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
-        self->mFirstVerified = ledger;
+        if (progressState == CatchupWork::ProgressState::FINISHED)
+        {
+            self->mFirstVerified = ledger;
+        }
     };
 }
 
-CatchupRecentWork::handler
+CatchupWork::ProgressHandler
 CatchupRecentWork::writeLastApplied()
 {
     std::weak_ptr<CatchupRecentWork> weak =
         std::static_pointer_cast<CatchupRecentWork>(shared_from_this());
-    return [weak](asio::error_code const& ec, CatchupManager::CatchupMode mode,
+    return [weak](asio::error_code const& ec,
+                  CatchupWork::ProgressState progressState,
                   LedgerHeaderHistoryEntry const& ledger) {
         auto self = weak.lock();
         if (!self)
         {
             return;
         }
-        self->mLastApplied = ledger;
+        if (progressState == CatchupWork::ProgressState::FINISHED)
+        {
+            self->mLastApplied = ledger;
+        }
     };
 }
 
@@ -101,11 +109,8 @@ CatchupRecentWork::onSuccess()
             << "CATCHUP_RECENT finished inner CATCHUP_MINIMAL";
         assert(mCatchupMinimalWork &&
                mCatchupMinimalWork->getState() == WORK_SUCCESS);
-        // We make an initial callback in mode CATCHUP_RECENT, to drive the
-        // CATCHUP_MINIMAL LCL we just got through to the LM, and prepare
-        // it for the upcoming CATCHUP_COMPLETE replay.
-        asio::error_code ec;
-        mEndHandler(ec, CatchupManager::CATCHUP_RECENT, mFirstVerified);
+        mProgressHandler({}, CatchupWork::ProgressState::APPLIED_BUCKETS,
+                         mFirstVerified);
 
         CLOG(INFO, "History")
             << "CATCHUP_RECENT starting inner CATCHUP_COMPLETE";
@@ -131,8 +136,9 @@ CatchupRecentWork::onSuccess()
 
     CLOG(INFO, "History") << "CATCHUP_RECENT finished inner CATCHUP_COMPLETE";
     // The second callback we make is CATCHUP_COMPLETE
-    asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE, mLastApplied);
+    mProgressHandler({}, CatchupWork::ProgressState::APPLIED_TRANSACTIONS,
+                     mLastApplied);
+    mProgressHandler({}, CatchupWork::ProgressState::FINISHED, mLastApplied);
     return WORK_SUCCESS;
 }
 
@@ -140,6 +146,7 @@ void
 CatchupRecentWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_RECENT, mFirstVerified);
+    mProgressHandler(ec, CatchupWork::ProgressState::FINISHED,
+                     LedgerHeaderHistoryEntry{});
 }
 }

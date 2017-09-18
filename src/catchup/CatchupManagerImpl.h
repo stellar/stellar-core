@@ -33,12 +33,9 @@ class CatchupManagerImpl : public CatchupManager
 
     void historyCaughtup() override;
 
-    void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup) override;
+    void catchupHistory(uint32_t initLedger, CatchupMode mode,
+                        CatchupWork::ProgressHandler handler,
+                        bool manualCatchup) override;
 
     std::string getStatus() const override;
 
