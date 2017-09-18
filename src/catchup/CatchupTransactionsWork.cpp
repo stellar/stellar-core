@@ -102,8 +102,8 @@ CatchupTransactionsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " applying history";
-        mApplyWork = addWork<ApplyLedgerChainWork>(mDownloadDir, mFirstSeq,
-                                                   mLastSeq, mLastApplied);
+        mApplyWork =
+            addWork<ApplyLedgerChainWork>(mDownloadDir, mFirstSeq, mLastSeq);
         return WORK_PENDING;
     }
 
@@ -120,9 +120,11 @@ CatchupTransactionsWork::getLastVerified() const
 {
     return mLastVerified;
 }
-const LedgerHeaderHistoryEntry&
+
+LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getLastApplied() const
 {
-    return mLastApplied;
+    return mApplyWork ? mApplyWork->getLastApplied()
+                      : LedgerHeaderHistoryEntry{};
 }
 }

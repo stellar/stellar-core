@@ -15,15 +15,14 @@
 namespace stellar
 {
 
-ApplyLedgerChainWork::ApplyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
+ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
+                                           TmpDir const& downloadDir,
+                                           uint32_t first, uint32_t last)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
     , mFirstSeq(first)
     , mCurrSeq(first)
     , mLastSeq(last)
-    , mLastApplied(lastApplied)
 {
 }
 
@@ -84,8 +83,8 @@ ApplyLedgerChainWork::getCurrentTxSet()
     {
         if (mTxHistoryEntry.ledgerSeq < seq)
         {
-            CLOG(DEBUG, "History")
-                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
+            CLOG(DEBUG, "History") << "Skipping txset for ledger "
+                                   << mTxHistoryEntry.ledgerSeq;
         }
         else if (mTxHistoryEntry.ledgerSeq > seq)
         {
@@ -122,8 +121,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // If we are >1 before LCL, skip
     if (header.ledgerSeq + 1 < lclHeader.header.ledgerSeq)
     {
-        CLOG(DEBUG, "History")
-            << "Catchup skipping old ledger " << header.ledgerSeq;
+        CLOG(DEBUG, "History") << "Catchup skipping old ledger "
+                               << header.ledgerSeq;
         return true;
     }
 
@@ -155,8 +154,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
                             LedgerManager::ledgerAbbrev(hHeader),
                             LedgerManager::ledgerAbbrev(lclHeader)));
         }
-        CLOG(DEBUG, "History")
-            << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
+        CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq
+                               << ", hash correct";
         return true;
     }
 

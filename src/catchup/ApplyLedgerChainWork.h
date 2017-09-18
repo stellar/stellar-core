@@ -25,7 +25,7 @@ class ApplyLedgerChainWork : public Work
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
-    LedgerHeaderHistoryEntry& mLastApplied;
+    LedgerHeaderHistoryEntry mLastApplied;
 
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
@@ -34,11 +34,17 @@ class ApplyLedgerChainWork : public Work
   public:
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
                          TmpDir const& downloadDir, uint32_t first,
-                         uint32_t last, LedgerHeaderHistoryEntry& lastApplied);
+                         uint32_t last);
     std::string getStatus() const override;
     void onReset() override;
     void onStart() override;
     void onRun() override;
     Work::State onSuccess() override;
+
+    LedgerHeaderHistoryEntry
+    getLastApplied() const
+    {
+        return mLastApplied;
+    }
 };
 }
