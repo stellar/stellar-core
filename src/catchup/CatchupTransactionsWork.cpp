@@ -3,11 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupTransactionsWork.h"
-#include "catchup/ApplyLedgerChainWork.h"
+#include "catchup/DownloadAndApplyTransactionsWork.h"
 #include "catchup/DownloadAndVerifyLedgersWork.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
-#include "historywork/BatchDownloadWork.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 
@@ -31,13 +30,9 @@ CatchupTransactionsWork::getStatus() const
 {
     if (mState == WORK_PENDING)
     {
-        if (mApplyWork)
+        if (mDownloadAndApplyTransactionsWork)
         {
-            return mApplyWork->getStatus();
-        }
-        else if (mDownloadTransactionsWork)
-        {
-            return mDownloadTransactionsWork->getStatus();
+            return mDownloadAndApplyTransactionsWork->getStatus();
         }
         else if (mDownloadAndVerifyLedgersWork)
         {
@@ -51,8 +46,7 @@ void
 CatchupTransactionsWork::onReset()
 {
     mDownloadAndVerifyLedgersWork.reset();
-    mDownloadTransactionsWork.reset();
-    mApplyWork.reset();
+    mDownloadAndApplyTransactionsWork.reset();
 }
 
 Work::State
@@ -69,22 +63,14 @@ CatchupTransactionsWork::onSuccess()
         return WORK_PENDING;
     }
 
-    // Phase 2: download and decompress the transactions.
-    if (!mDownloadTransactionsWork)
+    // Phase 2: download and apply the transactions.
+    if (!mDownloadAndApplyTransactionsWork)
     {
-        CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
-                              << " downloading transactions";
-        mDownloadTransactionsWork = addWork<BatchDownloadWork>(
-            mRange, HISTORY_FILE_TYPE_TRANSACTIONS, mDownloadDir);
-        return WORK_PENDING;
-    }
-
-    // Phase 3: apply the transactions.
-    if (!mApplyWork)
-    {
-        CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
-                              << " applying history";
-        mApplyWork = addWork<ApplyLedgerChainWork>(mDownloadDir, mRange);
+        CLOG(INFO, "History")
+            << "Catchup downloading and applying transactions for range ["
+            << mRange.first() << ".." << mRange.last() << "]";
+        mDownloadAndApplyTransactionsWork =
+            addWork<DownloadAndApplyTransactionsWork>(mRange, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -110,7 +96,8 @@ CatchupTransactionsWork::getLastVerified() const
 LedgerHeaderHistoryEntry
 CatchupTransactionsWork::getLastApplied() const
 {
-    return mApplyWork ? mApplyWork->getLastApplied()
-                      : LedgerHeaderHistoryEntry{};
+    return mDownloadAndApplyTransactionsWork
+               ? mDownloadAndApplyTransactionsWork->getLastApplied()
+               : LedgerHeaderHistoryEntry{};
 }
 }

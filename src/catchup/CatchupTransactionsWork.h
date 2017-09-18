@@ -12,7 +12,7 @@
 namespace stellar
 {
 
-class ApplyLedgerChainWork;
+class DownloadAndApplyTransactionsWork;
 class DownloadAndVerifyLedgersWork;
 class TmpDir;
 class VerifyLedgerChainWork;
@@ -35,8 +35,8 @@ class CatchupTransactionsWork : public Work
 
   private:
     std::shared_ptr<DownloadAndVerifyLedgersWork> mDownloadAndVerifyLedgersWork;
-    std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<ApplyLedgerChainWork> mApplyWork;
+    std::shared_ptr<DownloadAndApplyTransactionsWork>
+        mDownloadAndApplyTransactionsWork;
 
     TmpDir& mDownloadDir;
     CheckpointRange mRange;
