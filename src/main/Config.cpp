@@ -341,6 +341,15 @@ Config::load(std::string const& filename)
                 }
                 ALLOW_LOCALHOST_FOR_TESTING = item.second->as<bool>()->value();
             }
+            else if (item.first == "MAINTENANCE_ON_STARTUP")
+            {
+                if (!item.second->as<bool>())
+                {
+                    throw std::invalid_argument(
+                        "invalid MAINTENANCE_ON_STARTUP");
+                }
+                MAINTENANCE_ON_STARTUP = item.second->as<bool>()->value();
+            }
             else if (item.first == "MANUAL_CLOSE")
             {
                 if (!item.second->as<bool>())
