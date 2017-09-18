@@ -11,6 +11,7 @@
 namespace stellar
 {
 
+enum class VerifyLedgerMode;
 class TmpDir;
 struct LedgerHeaderHistoryEntry;
 
@@ -19,7 +20,7 @@ class VerifyLedgerChainWork : public Work
     TmpDir const& mDownloadDir;
     CheckpointRange mRange;
     uint32_t mCurrSeq;
-    bool mManualCatchup;
+    VerifyLedgerMode mVerifyMode;
     LedgerHeaderHistoryEntry mFirstVerified;
     LedgerHeaderHistoryEntry mLastVerified;
 
@@ -28,7 +29,7 @@ class VerifyLedgerChainWork : public Work
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, CheckpointRange range,
-                          bool manualCatchup);
+                          VerifyLedgerMode verifyMode);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

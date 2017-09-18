@@ -13,11 +13,11 @@ namespace stellar
 
 DownloadAndVerifyLedgersWork::DownloadAndVerifyLedgersWork(
     Application& app, WorkParent& parent, CheckpointRange range,
-    bool manualCatchup, TmpDir const& downloadDir)
+    VerifyLedgerMode verifyMode, TmpDir const& downloadDir)
     : Work(app, parent, "download-and-verify-ledgers")
     , mDownloadDir{downloadDir}
     , mRange{std::move(range)}
-    , mManualCatchup{manualCatchup}
+    , mVerifyMode{verifyMode}
 {
 }
 
@@ -62,8 +62,8 @@ DownloadAndVerifyLedgersWork::onSuccess()
     if (!mVerifyLedgersWork)
     {
         CLOG(INFO, "History") << "Verifying ledger chain";
-        mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            mDownloadDir, mRange, mManualCatchup);
+        mVerifyLedgersWork =
+            addWork<VerifyLedgerChainWork>(mDownloadDir, mRange, mVerifyMode);
         return WORK_PENDING;
     }
     assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);

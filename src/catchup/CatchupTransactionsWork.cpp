@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupTransactionsWork.h"
+#include "catchup/CatchupManager.h"
 #include "catchup/DownloadAndApplyTransactionsWork.h"
 #include "catchup/DownloadAndVerifyLedgersWork.h"
 #include "history/FileTransferInfo.h"
@@ -58,8 +59,11 @@ CatchupTransactionsWork::onSuccess()
         CLOG(INFO, "History")
             << "Catchup downloading and veryfing ledger chain for range ["
             << mRange.first() << ".." << mRange.last() << "]";
+        auto verifyMode = mManualCatchup
+                              ? VerifyLedgerMode::DO_NOT_VERIFY_BUFFERED_LEDGERS
+                              : VerifyLedgerMode::VERIFY_BUFFERED_LEDGERS;
         mDownloadAndVerifyLedgersWork = addWork<DownloadAndVerifyLedgersWork>(
-            mRange, mManualCatchup, mDownloadDir);
+            mRange, verifyMode, mDownloadDir);
         return WORK_PENDING;
     }
 

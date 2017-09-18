@@ -18,8 +18,20 @@ namespace stellar
 {
 
 class Application;
-struct HistoryArchiveState;
-struct LedgerHeaderHistoryEntry;
+class LedgerHeaderHistoryEntry;
+
+// Verification mode for downloaded ledgers. VERIFY_BUFFERED_LEDGERS means
+// that ledgers download from history will be compared with ledgers buffered
+// in LedgerManager during catchup, and last downloaded ledger have to be
+// present in that buffered list.
+//
+// When doing manual or command line catchup use DO_NOT_VERIFY_BUFFERED_LEDGERS
+// as buffered ledgers in LedgerManager are not available then.
+enum class VerifyLedgerMode
+{
+    VERIFY_BUFFERED_LEDGERS,
+    DO_NOT_VERIFY_BUFFERED_LEDGERS
+};
 
 class CatchupManager
 {

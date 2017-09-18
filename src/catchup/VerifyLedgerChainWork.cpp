@@ -51,12 +51,12 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(Application& app,
                                              WorkParent& parent,
                                              TmpDir const& downloadDir,
                                              CheckpointRange range,
-                                             bool manualCatchup)
+                                             VerifyLedgerMode verifyMode)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrSeq(range.first())
-    , mManualCatchup(manualCatchup)
+    , mVerifyMode(verifyMode)
 {
 }
 
@@ -153,7 +153,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
         if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
              status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
-            mManualCatchup)
+            (mVerifyMode == VerifyLedgerMode::DO_NOT_VERIFY_BUFFERED_LEDGERS))
         {
             CLOG(WARNING, "History")
                 << "Accepting unknown-hash ledger due to manual or "

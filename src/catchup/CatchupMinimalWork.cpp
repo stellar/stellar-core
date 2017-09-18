@@ -81,8 +81,11 @@ CatchupMinimalWork::onSuccess()
         CLOG(INFO, "History")
             << "Catchup downloading and veryfing ledger chain for range ["
             << range.first() << ".." << range.last() << "]";
+        auto verifyMode = mManualCatchup
+                              ? VerifyLedgerMode::DO_NOT_VERIFY_BUFFERED_LEDGERS
+                              : VerifyLedgerMode::VERIFY_BUFFERED_LEDGERS;
         mDownloadAndVerifyLedgersWork = addWork<DownloadAndVerifyLedgersWork>(
-            range, mManualCatchup, *mDownloadDir);
+            range, verifyMode, *mDownloadDir);
         return WORK_PENDING;
     }
 
