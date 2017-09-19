@@ -16,12 +16,11 @@ namespace stellar
 
 CatchupTransactionsWork::CatchupTransactionsWork(
     Application& app, WorkParent& parent, TmpDir& downloadDir,
-    uint32_t firstSeq, uint32_t lastSeq, bool manualCatchup,
-    std::string catchupTypeName, std::string const& name, size_t maxRetries)
+    CheckpointRange range, bool manualCatchup, std::string catchupTypeName,
+    std::string const& name, size_t maxRetries)
     : Work{app, parent, "catchup-transactions-" + name, maxRetries}
     , mDownloadDir(downloadDir)
-    , mFirstSeq{firstSeq}
-    , mLastSeq{lastSeq}
+    , mRange{range}
     , mManualCatchup{manualCatchup}
     , mCatchupTypeName{std::move(catchupTypeName)}
 {
@@ -68,10 +67,10 @@ CatchupTransactionsWork::onSuccess()
     if (!mDownloadLedgersWork)
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
-                              << " downloading ledgers [" << mFirstSeq << ", "
-                              << mLastSeq << "]";
+                              << " downloading ledgers [" << mRange.first()
+                              << ", " << mRange.last() << "]";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            mFirstSeq, mLastSeq, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
+            mRange, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -81,7 +80,7 @@ CatchupTransactionsWork::onSuccess()
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " downloading transactions";
         mDownloadTransactionsWork = addWork<BatchDownloadWork>(
-            mFirstSeq, mLastSeq, HISTORY_FILE_TYPE_TRANSACTIONS, mDownloadDir);
+            mRange, HISTORY_FILE_TYPE_TRANSACTIONS, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -90,8 +89,8 @@ CatchupTransactionsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " verifying history";
-        mVerifyWork = addWork<VerifyLedgerChainWork>(mDownloadDir, mFirstSeq,
-                                                     mLastSeq, mManualCatchup);
+        mVerifyWork = addWork<VerifyLedgerChainWork>(mDownloadDir, mRange,
+                                                     mManualCatchup);
         return WORK_PENDING;
     }
 
@@ -100,8 +99,7 @@ CatchupTransactionsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " applying history";
-        mApplyWork =
-            addWork<ApplyLedgerChainWork>(mDownloadDir, mFirstSeq, mLastSeq);
+        mApplyWork = addWork<ApplyLedgerChainWork>(mDownloadDir, mRange);
         return WORK_PENDING;
     }
 

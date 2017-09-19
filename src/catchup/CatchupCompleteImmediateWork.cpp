@@ -102,12 +102,14 @@ CatchupCompleteImmediateWork::onSuccess()
                     LedgerHeaderHistoryEntry{});
     }
 
+    auto range = CheckpointRange{firstSeq, lastSeq};
+
     // Phase 2: do the catchup.
     if (!mCatchupTransactionsWork)
     {
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup,
-            "COMPLETE_IMMEDIATE", "complete-immediate",
+            *mDownloadDir, range, mManualCatchup, "COMPLETE_IMMEDIATE",
+            "complete-immediate",
             0); // never retry
         return WORK_PENDING;
     }

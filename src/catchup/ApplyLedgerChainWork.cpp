@@ -17,12 +17,11 @@ namespace stellar
 
 ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
                                            TmpDir const& downloadDir,
-                                           uint32_t first, uint32_t last)
+                                           CheckpointRange range)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
-    , mFirstSeq(first)
-    , mCurrSeq(first)
-    , mLastSeq(last)
+    , mRange(range)
+    , mCurrSeq(mRange.first())
 {
 }
 
@@ -32,7 +31,7 @@ ApplyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -44,11 +43,11 @@ ApplyLedgerChainWork::onReset()
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
-                          << (1 + ((mLastSeq - mFirstSeq) / step))
+                          << (1 + ((mRange.last() - mRange.first()) / step))
                           << " transaction-history files from LCL "
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
-    mCurrSeq = mFirstSeq;
+    mCurrSeq = mRange.first();
     mHdrIn.close();
     mTxIn.close();
 }
@@ -58,7 +57,7 @@ ApplyLedgerChainWork::openCurrentInputFiles()
 {
     mHdrIn.close();
     mTxIn.close();
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         return;
     }
@@ -240,7 +239,7 @@ ApplyLedgerChainWork::onRun()
 Work::State
 ApplyLedgerChainWork::onSuccess()
 {
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         return WORK_SUCCESS;
     }

@@ -11,6 +11,7 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/VerifyBucketWork.h"
+#include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -82,8 +83,7 @@ CatchupMinimalWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    auto firstSeq = firstCheckpointSeq();
-    auto lastSeq = lastCheckpointSeq();
+    auto range = CheckpointRange{firstCheckpointSeq(), lastCheckpointSeq()};
 
     // Phase 2: download the ledger chain that validates the state
     // we're about to assume.
@@ -91,7 +91,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+            range, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -100,7 +100,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
         mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup);
+            *mDownloadDir, range, mManualCatchup);
         return WORK_PENDING;
     }
 

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ledger/CheckpointRange.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -23,8 +24,7 @@ class BatchDownloadWork : public Work
     // backlog in the ProcessManager).
     std::deque<uint32_t> mFinished;
     std::map<std::string, uint32_t> mRunning;
-    uint32_t mFirst;
-    uint32_t mLast;
+    CheckpointRange mRange;
     uint32_t mNext;
     std::string mFileType;
     TmpDir const& mDownloadDir;
@@ -32,8 +32,8 @@ class BatchDownloadWork : public Work
     void addNextDownloadWorker();
 
   public:
-    BatchDownloadWork(Application& app, WorkParent& parent, uint32_t first,
-                      uint32_t last, std::string const& type,
+    BatchDownloadWork(Application& app, WorkParent& parent,
+                      CheckpointRange range, std::string const& type,
                       TmpDir const& downloadDir);
     std::string getStatus() const override;
     void onReset() override;

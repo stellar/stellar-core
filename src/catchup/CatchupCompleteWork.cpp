@@ -60,12 +60,13 @@ CatchupCompleteWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
+    auto range = CheckpointRange{firstCheckpointSeq(), lastCheckpointSeq()};
+
     // Phase 2: do the catchup.
     if (!mCatchupTransactionsWork)
     {
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
-            *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
-            mManualCatchup, "COMPLETE", "complete",
+            *mDownloadDir, range, mManualCatchup, "COMPLETE", "complete",
             0); // never retry
         return WORK_PENDING;
     }

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "ledger/CheckpointRange.h"
 #include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
@@ -20,9 +21,8 @@ class CatchupTransactionsWork : public Work
 {
   public:
     CatchupTransactionsWork(Application& app, WorkParent& parent,
-                            TmpDir& downloadDir, uint32_t firstSeq,
-                            uint32_t lastSeq, bool manualCatchup,
-                            std::string catchupTypeName,
+                            TmpDir& downloadDir, CheckpointRange range,
+                            bool manualCatchup, std::string catchupTypeName,
                             std::string const& name, size_t maxRetries = 0);
     std::string getStatus() const override;
     void onReset() override;
@@ -39,8 +39,7 @@ class CatchupTransactionsWork : public Work
     std::shared_ptr<ApplyLedgerChainWork> mApplyWork;
 
     TmpDir& mDownloadDir;
-    uint32_t mFirstSeq;
-    uint32_t mLastSeq;
+    CheckpointRange mRange;
     bool mManualCatchup;
     std::string mCatchupTypeName;
 };

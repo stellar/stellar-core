@@ -5,6 +5,7 @@
 #pragma once
 
 #include "herder/TxSetFrame.h"
+#include "ledger/CheckpointRange.h"
 #include "util/XDRStream.h"
 #include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
@@ -19,9 +20,8 @@ class TmpDir;
 class ApplyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    uint32_t mFirstSeq;
+    CheckpointRange mRange;
     uint32_t mCurrSeq;
-    uint32_t mLastSeq;
     XDRInputFileStream mHdrIn;
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
@@ -33,8 +33,7 @@ class ApplyLedgerChainWork : public Work
 
   public:
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
-                         TmpDir const& downloadDir, uint32_t first,
-                         uint32_t last);
+                         TmpDir const& downloadDir, CheckpointRange range);
     std::string getStatus() const override;
     void onReset() override;
     void onStart() override;

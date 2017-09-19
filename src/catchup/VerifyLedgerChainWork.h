@@ -5,6 +5,7 @@
 #pragma once
 
 #include "history/HistoryManager.h"
+#include "ledger/CheckpointRange.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -16,9 +17,8 @@ struct LedgerHeaderHistoryEntry;
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    uint32_t mFirstSeq;
+    CheckpointRange mRange;
     uint32_t mCurrSeq;
-    uint32_t mLastSeq;
     bool mManualCatchup;
     LedgerHeaderHistoryEntry mFirstVerified;
     LedgerHeaderHistoryEntry mLastVerified;
@@ -27,8 +27,8 @@ class VerifyLedgerChainWork : public Work
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, uint32_t firstSeq,
-                          uint32_t lastSeq, bool manualCatchup);
+                          TmpDir const& downloadDir, CheckpointRange range,
+                          bool manualCatchup);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
