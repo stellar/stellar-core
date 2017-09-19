@@ -160,4 +160,11 @@ CatchupMinimalWork::onFailureRaise()
                 mVerifyLedgersWork ? mVerifyLedgersWork->getLastVerified()
                                    : LedgerHeaderHistoryEntry{});
 }
+
+LedgerHeaderHistoryEntry
+CatchupMinimalWork::getFirstVerified() const
+{
+    return mVerifyLedgersWork ? mVerifyLedgersWork->getFirstVerified()
+                              : LedgerHeaderHistoryEntry{};
+}
 }

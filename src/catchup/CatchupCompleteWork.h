@@ -32,5 +32,6 @@ class CatchupCompleteWork : public CatchupWork
     void onReset() override;
     Work::State onSuccess() override;
     void onFailureRaise() override;
+    LedgerHeaderHistoryEntry getLastApplied() const;
 };
 }

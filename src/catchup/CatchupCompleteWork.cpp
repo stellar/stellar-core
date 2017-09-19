@@ -91,4 +91,11 @@ CatchupCompleteWork::onFailureRaise()
                     ? mCatchupTransactionsWork->getLastVerified()
                     : LedgerHeaderHistoryEntry{});
 }
+
+LedgerHeaderHistoryEntry
+CatchupCompleteWork::getLastApplied() const
+{
+    return mCatchupTransactionsWork ? mCatchupTransactionsWork->getLastApplied()
+                                    : LedgerHeaderHistoryEntry{};
+}
 }

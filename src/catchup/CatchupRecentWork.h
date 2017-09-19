@@ -12,6 +12,9 @@
 namespace stellar
 {
 
+class CatchupCompleteWork;
+class CatchupMinimalWork;
+
 // Catchup-recent is just a catchup-minimal to (now - N),
 // followed by a catchup-complete to now.
 class CatchupRecentWork : public Work
@@ -23,16 +26,11 @@ class CatchupRecentWork : public Work
         handler;
 
   protected:
-    std::shared_ptr<Work> mCatchupMinimalWork;
-    std::shared_ptr<Work> mCatchupCompleteWork;
+    std::shared_ptr<CatchupMinimalWork> mCatchupMinimalWork;
+    std::shared_ptr<CatchupCompleteWork> mCatchupCompleteWork;
     uint32_t mInitLedger;
     bool mManualCatchup;
     handler mEndHandler;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
-
-    handler writeFirstVerified();
-    handler writeLastApplied();
 
   public:
     CatchupRecentWork(Application& app, WorkParent& parent, uint32_t initLedger,

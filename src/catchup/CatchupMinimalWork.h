@@ -36,5 +36,6 @@ class CatchupMinimalWork : public CatchupWork
     void onReset() override;
     Work::State onSuccess() override;
     void onFailureRaise() override;
+    LedgerHeaderHistoryEntry getFirstVerified() const;
 };
 }
