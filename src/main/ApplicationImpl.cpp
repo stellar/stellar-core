@@ -16,10 +16,9 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "history/HistoryManager.h"
+#include "invariant/InvariantManager.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
-#include "invariant/ChangedAccountsSubnetriesCountIsValid.h"
-#include "invariant/Invariant.h"
-#include "invariant/Invariants.h"
+#include "invariant/ChangedAccountsSubentriesCountIsValid.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
@@ -99,12 +98,17 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
-    mInvariants = make_unique<Invariants>(enabledInvariants());
+    mInvariantManager = InvariantManager::create(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+
+    CacheIsConsistentWithDatabase::registerInvariant(*this);
+    ChangedAccountsSubentriesCountIsValid::registerInvariant(*this);
+    TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(*this);
+    enableInvariantsFromConfig();
 
     if (!cfg.NTP_SERVER.empty())
     {
@@ -586,10 +590,10 @@ ApplicationImpl::getHerder()
     return *mHerder;
 }
 
-Invariants&
-ApplicationImpl::getInvariants()
+InvariantManager&
+ApplicationImpl::getInvariantManager()
 {
-    return *mInvariants;
+    return *mInvariantManager;
 }
 
 OverlayManager&
@@ -640,25 +644,23 @@ ApplicationImpl::getWorkerIOService()
     return mWorkerIOService;
 }
 
-std::vector<std::unique_ptr<Invariant>>
-ApplicationImpl::enabledInvariants() const
+void
+ApplicationImpl::enableInvariantsFromConfig()
 {
-    auto result = std::vector<std::unique_ptr<Invariant>>{};
     if (mConfig.INVARIANT_CHECK_BALANCE)
     {
-        result.push_back(
-            make_unique<TotalCoinsEqualsBalancesPlusFeePool>(getDatabase()));
+        mInvariantManager->enableInvariant(
+                TotalCoinsEqualsBalancesPlusFeePool::kName);
     }
     if (mConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT)
     {
-        result.push_back(
-            make_unique<ChangedAccountsSubnetriesCountIsValid>(getDatabase()));
+        mInvariantManager->enableInvariant(
+                ChangedAccountsSubentriesCountIsValid::kName);
     }
     if (mConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE)
     {
-        result.push_back(
-            make_unique<CacheIsConsistentWithDatabase>(getDatabase()));
+        mInvariantManager->enableInvariant(
+                CacheIsConsistentWithDatabase::kName);
     }
-    return result;
 }
 }
