@@ -53,7 +53,7 @@ class LedgerManagerImpl : public LedgerManager
     SyncingLedgerChain mSyncingLedgers;
 
     void historyCaughtup(asio::error_code const& ec,
-                         CatchupManager::CatchupMode mode,
+                         CatchupWork::ProgressState progressState,
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
@@ -63,6 +63,7 @@ class LedgerManagerImpl : public LedgerManager
                            TransactionResultSet& txResultSet);
 
     void ledgerClosed(LedgerDelta const& delta);
+    void storeCurrentLedger();
     void advanceLedgerPointers();
 
     State mState;

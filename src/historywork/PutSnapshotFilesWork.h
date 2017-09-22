@@ -10,15 +10,15 @@
 namespace stellar
 {
 
+class GetHistoryArchiveStateWork;
 struct StateSnapshot;
 
 class PutSnapshotFilesWork : public Work
 {
     std::shared_ptr<HistoryArchive const> mArchive;
     std::shared_ptr<StateSnapshot> mSnapshot;
-    HistoryArchiveState mRemoteState;
 
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
+    std::shared_ptr<GetHistoryArchiveStateWork> mGetHistoryArchiveStateWork;
     std::shared_ptr<Work> mPutFilesWork;
     std::shared_ptr<Work> mPutHistoryArchiveStateWork;
 

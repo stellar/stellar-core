@@ -5,34 +5,44 @@
 #pragma once
 
 #include "history/HistoryManager.h"
+#include "ledger/CheckpointRange.h"
 #include "work/Work.h"
 
 namespace stellar
 {
 
+enum class VerifyLedgerMode;
 class TmpDir;
 struct LedgerHeaderHistoryEntry;
 
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    uint32_t mFirstSeq;
+    CheckpointRange mRange;
     uint32_t mCurrSeq;
-    uint32_t mLastSeq;
-    bool mManualCatchup;
-    LedgerHeaderHistoryEntry& mFirstVerified;
-    LedgerHeaderHistoryEntry& mLastVerified;
+    VerifyLedgerMode mVerifyMode;
+    LedgerHeaderHistoryEntry mFirstVerified;
+    LedgerHeaderHistoryEntry mLastVerified;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, uint32_t firstSeq,
-                          uint32_t lastSeq, bool manualCatchup,
-                          LedgerHeaderHistoryEntry& firstVerified,
-                          LedgerHeaderHistoryEntry& lastVerified);
+                          TmpDir const& downloadDir, CheckpointRange range,
+                          VerifyLedgerMode verifyMode);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
+
+    LedgerHeaderHistoryEntry
+    getFirstVerified() const
+    {
+        return mFirstVerified;
+    }
+    LedgerHeaderHistoryEntry
+    getLastVerified() const
+    {
+        return mLastVerified;
+    }
 };
 }

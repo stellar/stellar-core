@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "history/CatchupManager.h"
+#include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
 #include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
@@ -12,31 +13,24 @@
 namespace stellar
 {
 
+class CatchupCompleteWork;
+class CatchupMinimalWork;
+
 // Catchup-recent is just a catchup-minimal to (now - N),
 // followed by a catchup-complete to now.
 class CatchupRecentWork : public Work
 {
-  public:
-    typedef std::function<void(asio::error_code const& ec,
-                               CatchupManager::CatchupMode mode,
-                               LedgerHeaderHistoryEntry const& ledger)>
-        handler;
-
   protected:
-    std::shared_ptr<Work> mCatchupMinimalWork;
-    std::shared_ptr<Work> mCatchupCompleteWork;
+    std::shared_ptr<CatchupMinimalWork> mCatchupMinimalWork;
+    std::shared_ptr<CatchupCompleteWork> mCatchupCompleteWork;
     uint32_t mInitLedger;
     bool mManualCatchup;
-    handler mEndHandler;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
-
-    handler writeFirstVerified();
-    handler writeLastApplied();
+    CatchupWork::ProgressHandler mProgressHandler;
 
   public:
     CatchupRecentWork(Application& app, WorkParent& parent, uint32_t initLedger,
-                      bool manualCatchup, handler endHandler);
+                      bool manualCatchup,
+                      CatchupWork::ProgressHandler progressHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

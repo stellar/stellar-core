@@ -2,10 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/VerifyLedgerChainWork.h"
-#include "history/CatchupManager.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
-#include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/Progress.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
@@ -49,19 +47,16 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
     return HistoryManager::VERIFY_HASH_OK;
 }
 
-VerifyLedgerChainWork::VerifyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, bool manualCatchup,
-    LedgerHeaderHistoryEntry& firstVerified,
-    LedgerHeaderHistoryEntry& lastVerified)
+VerifyLedgerChainWork::VerifyLedgerChainWork(Application& app,
+                                             WorkParent& parent,
+                                             TmpDir const& downloadDir,
+                                             CheckpointRange range,
+                                             VerifyLedgerMode verifyMode)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
-    , mFirstSeq(first)
-    , mCurrSeq(first)
-    , mLastSeq(last)
-    , mManualCatchup(manualCatchup)
-    , mFirstVerified(firstVerified)
-    , mLastVerified(lastVerified)
+    , mRange(range)
+    , mCurrSeq(range.first())
+    , mVerifyMode(verifyMode)
 {
 }
 
@@ -71,7 +66,7 @@ VerifyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "verifying checkpoint";
-        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -92,7 +87,7 @@ VerifyLedgerChainWork::onReset()
     {
         mLastVerified = setLedger;
     }
-    mCurrSeq = mFirstSeq;
+    mCurrSeq = mRange.first();
 }
 
 HistoryManager::VerifyHashStatus
@@ -151,24 +146,25 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     auto status = HistoryManager::VERIFY_HASH_OK;
-    if (mCurrSeq == mLastSeq)
+    if (mCurrSeq == mRange.last())
     {
         CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
                               << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
         if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
              status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
-            mManualCatchup)
+            (mVerifyMode == VerifyLedgerMode::DO_NOT_VERIFY_BUFFERED_LEDGERS))
         {
             CLOG(WARNING, "History")
-                << "Accepting unknown-hash ledger due to manual catchup";
+                << "Accepting unknown-hash ledger due to manual or "
+                   "command-line catchup";
             status = HistoryManager::VERIFY_HASH_OK;
         }
     }
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
-        if (mCurrSeq == mFirstSeq)
+        if (mCurrSeq == mRange.first())
         {
             mFirstVerified = curr;
         }
@@ -183,7 +179,7 @@ VerifyLedgerChainWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         throw std::runtime_error("Verification overshot target ledger");
     }
@@ -192,10 +188,10 @@ VerifyLedgerChainWork::onSuccess()
     switch (verifyHistoryOfSingleCheckpoint())
     {
     case HistoryManager::VERIFY_HASH_OK:
-        if (mCurrSeq == mLastSeq)
+        if (mCurrSeq == mRange.last())
         {
-            CLOG(INFO, "History") << "History chain [" << mFirstSeq << ","
-                                  << mLastSeq << "] verified";
+            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
+                                  << mRange.last() << "] verified";
             return WORK_SUCCESS;
         }
 

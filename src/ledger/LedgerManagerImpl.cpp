@@ -518,7 +518,7 @@ LedgerManagerImpl::verifyCatchupCandidate(
 
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
-                                   CatchupManager::CatchupMode mode,
+                                   CatchupWork::ProgressState progressState,
                                    LedgerHeaderHistoryEntry const& lastClosed)
 {
     if (ec)
@@ -530,34 +530,34 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
     }
     else
     {
-        // If we're in CATCHUP_RECENT mode, we actually only got part way
-        // through catchup -- we did the minimal prefix part -- and will
-        // get another callback as CATCHUP_COMPLETE when recent-replay is
-        // done. So for now just deposit LCL and prepare for replay.
-        if (mode == CatchupManager::CATCHUP_RECENT)
+        switch (progressState)
         {
-            mLastClosedLedger = lastClosed;
-            CLOG(INFO, "Ledger") << "First phase of CATCHUP_RECENT done: "
-                                 << ledgerAbbrev(mLastClosedLedger);
-            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
-            return;
-        }
+            case CatchupWork::ProgressState::APPLIED_BUCKETS:
+            {
+                mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed.header);
+                storeCurrentLedger();
 
-        // If we were in CATCHUP_MINIMAL mode, LCL has not been updated
-        // and we need to pick it up here.
-        if (mode == CatchupManager::CATCHUP_MINIMAL)
-        {
-            mLastClosedLedger = lastClosed;
-            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
-        }
-        else
-        {
-            // In this case we should actually have been caught-up during the
-            // replay process and, if judged successful, our LCL should be the
-            // one provided as well.
-            assert(mode == CatchupManager::CATCHUP_COMPLETE);
-            assert(lastClosed.hash == mLastClosedLedger.hash);
-            assert(lastClosed.header == mLastClosedLedger.header);
+                mLastClosedLedger = lastClosed;
+                mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
+                return;
+            }
+            case CatchupWork::ProgressState::APPLIED_TRANSACTIONS:
+            {
+                // In this case we should actually have been caught-up during the
+                // replay process and, if judged successful, our LCL should be the
+                // one provided as well.
+                assert(lastClosed.hash == mLastClosedLedger.hash);
+                assert(lastClosed.header == mLastClosedLedger.header);
+                return;
+            }
+            case CatchupWork::ProgressState::FINISHED:
+            {
+                break;
+            }
+            default:
+            {
+                assert(false);
+            }
         }
 
         CLOG(INFO, "Ledger") << "Caught up to LCL from history: "
@@ -627,7 +627,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.getLedgerSeq();
                 mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                startCatchUp(lastBuffered.getLedgerSeq(), getCatchupMode(mApp));
+                auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
+                    lastBuffered.getLedgerSeq()) - 1;
+                startCatchUp(initLedger, getCatchupMode(mApp),
+                             false);
                 return;
             }
         }
@@ -970,15 +973,8 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
 }
 
 void
-LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
+LedgerManagerImpl::storeCurrentLedger()
 {
-    delta.markMeters(mApp);
-    mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
-                                     delta.getLiveEntries(),
-                                     delta.getDeadEntries());
-
-    mApp.getBucketManager().snapshotLedger(mCurrentLedger->mHeader);
-
     mCurrentLedger->storeInsert(*this);
 
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
@@ -1002,6 +998,18 @@ LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 
+}
+
+void
+LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
+{
+    delta.markMeters(mApp);
+    mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
+                                     delta.getLiveEntries(),
+                                     delta.getDeadEntries());
+
+    mApp.getBucketManager().snapshotLedger(mCurrentLedger->mHeader);
+    storeCurrentLedger();
     advanceLedgerPointers();
 }
 }

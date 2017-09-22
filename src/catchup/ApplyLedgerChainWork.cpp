@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/ApplyLedgerChainWork.h"
+#include "catchup/ApplyLedgerChainWork.h"
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
@@ -15,15 +15,13 @@
 namespace stellar
 {
 
-ApplyLedgerChainWork::ApplyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
+ApplyLedgerChainWork::ApplyLedgerChainWork(Application& app, WorkParent& parent,
+                                           TmpDir const& downloadDir,
+                                           CheckpointRange range)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
-    , mFirstSeq(first)
-    , mCurrSeq(first)
-    , mLastSeq(last)
-    , mLastApplied(lastApplied)
+    , mRange(range)
+    , mCurrSeq(mRange.first())
 {
 }
 
@@ -33,7 +31,7 @@ ApplyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -45,11 +43,11 @@ ApplyLedgerChainWork::onReset()
     uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
     CLOG(INFO, "History") << "Replaying contents of "
-                          << (1 + ((mLastSeq - mFirstSeq) / step))
+                          << (1 + ((mRange.last() - mRange.first()) / step))
                           << " transaction-history files from LCL "
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
-    mCurrSeq = mFirstSeq;
+    mCurrSeq = mRange.first();
     mHdrIn.close();
     mTxIn.close();
 }
@@ -59,7 +57,7 @@ ApplyLedgerChainWork::openCurrentInputFiles()
 {
     mHdrIn.close();
     mTxIn.close();
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         return;
     }
@@ -84,8 +82,8 @@ ApplyLedgerChainWork::getCurrentTxSet()
     {
         if (mTxHistoryEntry.ledgerSeq < seq)
         {
-            CLOG(DEBUG, "History")
-                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
+            CLOG(DEBUG, "History") << "Skipping txset for ledger "
+                                   << mTxHistoryEntry.ledgerSeq;
         }
         else if (mTxHistoryEntry.ledgerSeq > seq)
         {
@@ -122,8 +120,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // If we are >1 before LCL, skip
     if (header.ledgerSeq + 1 < lclHeader.header.ledgerSeq)
     {
-        CLOG(DEBUG, "History")
-            << "Catchup skipping old ledger " << header.ledgerSeq;
+        CLOG(DEBUG, "History") << "Catchup skipping old ledger "
+                               << header.ledgerSeq;
         return true;
     }
 
@@ -155,8 +153,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
                             LedgerManager::ledgerAbbrev(hHeader),
                             LedgerManager::ledgerAbbrev(lclHeader)));
         }
-        CLOG(DEBUG, "History")
-            << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
+        CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq
+                               << ", hash correct";
         return true;
     }
 
@@ -241,7 +239,7 @@ ApplyLedgerChainWork::onRun()
 Work::State
 ApplyLedgerChainWork::onSuccess()
 {
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         return WORK_SUCCESS;
     }

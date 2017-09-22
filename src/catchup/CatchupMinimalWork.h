@@ -4,38 +4,33 @@
 
 #pragma once
 
-#include "history/CatchupManager.h"
-#include "historywork/CatchupWork.h"
+#include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
 
 namespace stellar
 {
 
+class DownloadAndApplyBucketsWork;
+class VerifyLedgerChainWork;
+class DownloadAndVerifyLedgersWork;
+
 class CatchupMinimalWork : public CatchupWork
 {
   public:
-    typedef std::function<void(asio::error_code const& ec,
-                               CatchupManager::CatchupMode mode,
-                               LedgerHeaderHistoryEntry const& lastClosed)>
-        handler;
-
   protected:
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mVerifyLedgersWork;
-    std::shared_ptr<Work> mDownloadBucketsWork;
-    std::shared_ptr<Work> mApplyWork;
-    LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
-    LedgerHeaderHistoryEntry mLastApplied;
-    handler mEndHandler;
+    std::shared_ptr<DownloadAndVerifyLedgersWork> mDownloadAndVerifyLedgersWork;
+    std::shared_ptr<DownloadAndApplyBucketsWork> mDownloadAndApplyBucketsWork;
+    ProgressHandler mProgressHandler;
     virtual uint32_t firstCheckpointSeq() const override;
 
   public:
     CatchupMinimalWork(Application& app, WorkParent& parent,
                        uint32_t initLedger, bool manualCatchup,
-                       handler endHandler);
+                       ProgressHandler progressHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
     void onFailureRaise() override;
+    LedgerHeaderHistoryEntry getFirstVerified() const;
 };
 }

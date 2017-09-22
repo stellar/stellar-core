@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/ApplyBucketsWork.h"
+#include "catchup/ApplyBucketsWork.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/BucketList.h"
@@ -21,12 +21,11 @@ namespace stellar
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState,
-    LedgerHeaderHistoryEntry const& firstVerified)
+    HistoryArchiveState applyState, LedgerHeaderHistoryEntry applyAt)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
-    , mApplyState(applyState)
-    , mFirstVerified(firstVerified)
+    , mApplyState(std::move(applyState))
+    , mApplyAt{std::move(applyAt)}
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
 {
@@ -34,12 +33,12 @@ ApplyBucketsWork::ApplyBucketsWork(
     // since we're about to clobber a bunch of DB state with new buckets
     // held in firstVerified's state.
     auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
+    if (mApplyAt.header.ledgerSeq < lcl.header.ledgerSeq)
     {
         throw std::runtime_error(
             fmt::format("ApplyBucketsWork applying ledger earlier than local "
                         "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(firstVerified),
+                        LedgerManager::ledgerAbbrev(mApplyAt),
                         LedgerManager::ledgerAbbrev(lcl)));
     }
 }
@@ -163,13 +162,13 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
-        CLOG(DEBUG, "History")
-            << "ApplyBuckets : starting next level: " << mLevel;
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting next level: "
+                               << mLevel;
         return WORK_PENDING;
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
+    getBucketList().restartMerges(mApp, mApplyAt.header.ledgerSeq);
     return WORK_SUCCESS;
 }
 }

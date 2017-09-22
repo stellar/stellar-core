@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "catchup/CatchupWork.h"
 #include <functional>
 #include <memory>
 #include <system_error>
@@ -18,8 +19,20 @@ namespace stellar
 {
 
 class Application;
-struct HistoryArchiveState;
-struct LedgerHeaderHistoryEntry;
+class LedgerHeaderHistoryEntry;
+
+// Verification mode for downloaded ledgers. VERIFY_BUFFERED_LEDGERS means
+// that ledgers download from history will be compared with ledgers buffered
+// in LedgerManager during catchup, and last downloaded ledger have to be
+// present in that buffered list.
+//
+// When doing manual or command line catchup use DO_NOT_VERIFY_BUFFERED_LEDGERS
+// as buffered ledgers in LedgerManager are not available then.
+enum class VerifyLedgerMode
+{
+    VERIFY_BUFFERED_LEDGERS,
+    DO_NOT_VERIFY_BUFFERED_LEDGERS
+};
 
 class CatchupManager
 {
@@ -64,12 +77,9 @@ class CatchupManager
     // checkpoint presumed to have been made at `initLedger` (i.e. with
     // checkpoint ledger number equal to initLedger-1). This 'manual' catchup
     // mode exists to support catching-up to manually created checkpoints.
-    virtual void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup = false) = 0;
+    virtual void catchupHistory(uint32_t initLedger, CatchupMode mode,
+                                CatchupWork::ProgressHandler handler,
+                                bool manualCatchup = false) = 0;
 
     // Return status of catchup for or empty string, if no catchup in progress
     virtual std::string getStatus() const = 0;

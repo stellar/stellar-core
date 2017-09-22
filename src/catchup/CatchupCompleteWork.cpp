@@ -2,9 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/CatchupCompleteWork.h"
+#include "catchup/CatchupCompleteWork.h"
+#include "catchup/CatchupTransactionsWork.h"
 #include "history/HistoryManager.h"
-#include "historywork/CatchupTransactionsWork.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"
@@ -14,9 +15,10 @@ namespace stellar
 
 CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
-                                         bool manualCatchup, handler endHandler)
+                                         bool manualCatchup,
+                                         ProgressHandler progressHandler)
     : CatchupWork(app, parent, initLedger, "complete", manualCatchup)
-    , mEndHandler(endHandler)
+    , mProgressHandler(progressHandler)
 {
 }
 
@@ -59,12 +61,13 @@ CatchupCompleteWork::onSuccess()
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
+    auto range = CheckpointRange{firstCheckpointSeq(), lastCheckpointSeq()};
+
     // Phase 2: do the catchup.
     if (!mCatchupTransactionsWork)
     {
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
-            *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
-            mManualCatchup, "COMPLETE", "complete",
+            *mDownloadDir, range, mManualCatchup, "COMPLETE", "complete",
             0); // never retry
         return WORK_PENDING;
     }
@@ -74,8 +77,10 @@ CatchupCompleteWork::onSuccess()
                                  mCatchupTransactionsWork->getLastApplied())
                           << " for nextLedger=" << nextLedger();
     asio::error_code ec;
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
-                mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::APPLIED_TRANSACTIONS,
+                     mCatchupTransactionsWork->getLastApplied());
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork->getLastApplied());
 
     return WORK_SUCCESS;
 }
@@ -84,9 +89,16 @@ void
 CatchupCompleteWork::onFailureRaise()
 {
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec, CatchupManager::CATCHUP_COMPLETE,
-                mCatchupTransactionsWork
-                    ? mCatchupTransactionsWork->getLastVerified()
-                    : LedgerHeaderHistoryEntry{});
+    mProgressHandler(ec, ProgressState::FINISHED,
+                     mCatchupTransactionsWork
+                         ? mCatchupTransactionsWork->getLastVerified()
+                         : LedgerHeaderHistoryEntry{});
+}
+
+LedgerHeaderHistoryEntry
+CatchupCompleteWork::getLastApplied() const
+{
+    return mCatchupTransactionsWork ? mCatchupTransactionsWork->getLastApplied()
+                                    : LedgerHeaderHistoryEntry{};
 }
 }

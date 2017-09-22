@@ -4,11 +4,11 @@
 #include "util/asio.h"
 #include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
+#include "catchup/CatchupManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/HttpClient.h"
@@ -248,8 +248,12 @@ catchup(Config const& cfg)
         }
         app->getCatchupManager().catchupHistory(
             0, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-            [&app](asio::error_code const& ec, CatchupManager::CatchupMode,
+            [&app](asio::error_code const& ec, CatchupWork::ProgressState sate,
                    LedgerHeaderHistoryEntry const&) {
+                if (sate != CatchupWork::ProgressState::FINISHED)
+                {
+                    return;
+                }
                 if (ec)
                 {
                     throw std::runtime_error(
@@ -525,7 +529,8 @@ main(int argc, char* const* argv)
         case OPT_GENSEED:
         {
             SecretKey key = SecretKey::random();
-            std::cout << "Secret seed: " << key.getStrKeySeed().value << std::endl;
+            std::cout << "Secret seed: " << key.getStrKeySeed().value
+                      << std::endl;
             std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
             return 0;
         }

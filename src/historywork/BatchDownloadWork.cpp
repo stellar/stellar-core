@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/BatchDownloadWork.h"
-#include "history/CatchupManager.h"
+#include "catchup/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/Progress.h"
@@ -14,14 +14,13 @@ namespace stellar
 {
 
 BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
-                                     uint32_t first, uint32_t last,
+                                     CheckpointRange range,
                                      std::string const& type,
                                      TmpDir const& downloadDir)
-    : Work(app, parent,
-           fmt::format("batch-download-{:s}-{:08x}-{:08x}", type, first, last))
-    , mFirst(first)
-    , mLast(last)
-    , mNext(first)
+    : Work(app, parent, fmt::format("batch-download-{:s}-{:08x}-{:08x}", type,
+                                    range.first(), range.last()))
+    , mRange(range)
+    , mNext(mRange.first())
     , mFileType(type)
     , mDownloadDir(downloadDir)
 {
@@ -33,7 +32,7 @@ BatchDownloadWork::getStatus() const
     if (mState == WORK_RUNNING || mState == WORK_PENDING)
     {
         auto task = fmt::format("downloading {:s} files", mFileType);
-        return fmtProgress(mApp, task, mFirst, mLast, mNext);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mNext);
     }
     return Work::getStatus();
 }
@@ -41,7 +40,7 @@ BatchDownloadWork::getStatus() const
 void
 BatchDownloadWork::addNextDownloadWorker()
 {
-    if (mNext > mLast)
+    if (mNext > mRange.last())
     {
         return;
     }
@@ -66,12 +65,12 @@ BatchDownloadWork::addNextDownloadWorker()
 void
 BatchDownloadWork::onReset()
 {
-    mNext = mFirst;
+    mNext = mRange.first();
     mRunning.clear();
     mFinished.clear();
     clearChildren();
     size_t nChildren = mApp.getConfig().MAX_CONCURRENT_SUBPROCESSES;
-    while (mChildren.size() < nChildren && mNext <= mLast)
+    while (mChildren.size() < nChildren && mNext <= mRange.last())
     {
         addNextDownloadWorker();
     }

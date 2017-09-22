@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "history/HistoryArchive.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -19,8 +20,8 @@ struct LedgerHeaderHistoryEntry;
 class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
-    HistoryArchiveState& mApplyState;
-    LedgerHeaderHistoryEntry const& mFirstVerified;
+    HistoryArchiveState mApplyState;
+    LedgerHeaderHistoryEntry mApplyAt;
 
     bool mApplying;
     size_t mLevel;
@@ -36,8 +37,8 @@ class ApplyBucketsWork : public Work
   public:
     ApplyBucketsWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                     HistoryArchiveState& applyState,
-                     LedgerHeaderHistoryEntry const& firstVerified);
+                     HistoryArchiveState applyState,
+                     LedgerHeaderHistoryEntry applyAt);
     ~ApplyBucketsWork();
 
     void onReset() override;

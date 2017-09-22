@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/CatchupWork.h"
+#include "catchup/CatchupWork.h"
 #include "history/HistoryManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "lib/util/format.h"
@@ -51,6 +51,7 @@ CatchupWork::onReset()
                        : mApp.getHistoryManager().nextCheckpointCatchupProbe(
                              lastCheckpointSeq());
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        mRemoteState, archiveStateSeq(), std::chrono::seconds(sleepSeconds));
+        "get-history-archive-state", archiveStateSeq(),
+        std::chrono::seconds(sleepSeconds));
 }
 }

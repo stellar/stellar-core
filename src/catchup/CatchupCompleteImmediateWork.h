@@ -4,8 +4,8 @@
 
 #pragma once
 
-#include "history/CatchupManager.h"
-#include "historywork/CatchupWork.h"
+#include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
 
 namespace stellar
 {
@@ -14,14 +14,8 @@ class CatchupTransactionsWork;
 
 class CatchupCompleteImmediateWork : public CatchupWork
 {
-
-    typedef std::function<void(asio::error_code const& ec,
-                               CatchupManager::CatchupMode mode,
-                               LedgerHeaderHistoryEntry const& lastClosed)>
-        handler;
-
     std::shared_ptr<CatchupTransactionsWork> mCatchupTransactionsWork;
-    handler mEndHandler;
+    ProgressHandler mProgressHandler;
     virtual uint32_t archiveStateSeq() const override;
     virtual uint32_t firstCheckpointSeq() const override;
     virtual uint32_t lastCheckpointSeq() const override;
@@ -29,7 +23,7 @@ class CatchupCompleteImmediateWork : public CatchupWork
   public:
     CatchupCompleteImmediateWork(Application& app, WorkParent& parent,
                                  uint32_t initLedger, bool manualCatchup,
-                                 handler endHandler);
+                                 ProgressHandler progressHandler);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;
