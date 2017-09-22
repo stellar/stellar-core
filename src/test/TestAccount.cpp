@@ -181,9 +181,15 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 }
 
 void
-TestAccount::bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range)
+TestAccount::bumpSequence(AccountID const& account, std::vector<SecretKey>* pSigners, SequenceNumber to, BumpSeqValidRange* range)
 {
-    applyTx(tx({txtest::bumpSequence(account, to, range)}), mApp);
+    auto pTx = tx({txtest::bumpSequence(account, to, range)});
+    if (pSigners) {
+        for (auto& from : *pSigners) {
+            pTx->addSignature(from);
+        }
+    }
+    applyTx(pTx, mApp);
 }
 
 OfferEntry

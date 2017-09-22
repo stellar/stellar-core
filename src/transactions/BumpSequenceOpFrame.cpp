@@ -1,8 +1,9 @@
-// Copyright 2014 Stellar Development Foundation and contributors. Licensed
+// Copyright 2017 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/BumpSequenceOpFrame.h"
+#include "transactions/TransactionFrame.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
@@ -34,19 +35,10 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 {
     Database& db = ledgerManager.getDatabase();
 
-    AccountFrame::pointer bumpAccount = AccountFrame::loadAccount(delta, mBumpSequence.bumpAccount, db);
+    AccountFrame& bumpAccount = getSourceAccount();
 
-    if (!bumpAccount)
-    {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "no-account"},
-                    "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQ_NO_ACCOUNT);
-        return false;
-    }
 
-    SequenceNumber current = bumpAccount->getSeqNum();
+    SequenceNumber current = bumpAccount.getSeqNum();
     if (mBumpSequence.range && (current < mBumpSequence.range->min || current > mBumpSequence.range->max)) {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "out-of-range"},
@@ -56,19 +48,19 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    bumpAccount->setSeqNum(std::max(mBumpSequence.bumpTo, current));
+    bumpAccount.setSeqNum(std::max(mBumpSequence.bumpTo, current));
     app.getMetrics()
         .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(BUMP_SEQ_SUCCESS);
-    bumpAccount->storeChange(delta, db);
+    bumpAccount.storeChange(delta, db);
     return true;
 }
 
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
-    if (mBumpSequence.bumpAccount == getSourceID()) {
+    if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID()) {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "no-self-bump"},
                     "operation")

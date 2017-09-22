@@ -701,8 +701,8 @@ Operation
 bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range)
 {
     Operation op;
+    op.sourceAccount.activate() = account;
     op.body.type(BUMP_SEQ);
-    op.body.bumpSequenceOp().bumpAccount = account;
     op.body.bumpSequenceOp().bumpTo = to;
     if (range) {
         op.body.bumpSequenceOp().range.activate() = *range;

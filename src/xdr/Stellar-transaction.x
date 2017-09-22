@@ -235,7 +235,6 @@ struct BumpSeqValidRange {
 };
 struct BumpSequenceOp
 {
-    AccountID bumpAccount;
     SequenceNumber bumpTo;
     BumpSeqValidRange* range;
 };
