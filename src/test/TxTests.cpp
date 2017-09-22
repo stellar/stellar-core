@@ -15,6 +15,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/InflationOpFrame.h"
@@ -693,6 +694,19 @@ manageData(std::string const& name, DataValue* value)
     if (value)
         op.body.manageDataOp().dataValue.activate() = *value;
 
+    return op;
+}
+
+Operation
+bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range)
+{
+    Operation op;
+    op.body.type(BUMP_SEQ);
+    op.body.bumpSequenceOp().bumpAccount = account;
+    op.body.bumpSequenceOp().bumpTo = to;
+    if (range) {
+        op.body.bumpSequenceOp().range.activate() = *range;
+    }
     return op;
 }
 

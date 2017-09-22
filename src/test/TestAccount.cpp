@@ -180,6 +180,12 @@ TestAccount::manageData(std::string const& name, DataValue* value)
     }
 }
 
+void
+TestAccount::bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range)
+{
+    applyTx(tx({txtest::bumpSequence(account, to, range)}), mApp);
+}
+
 OfferEntry
 TestAccount::loadOffer(uint64_t offerID) const
 {

@@ -25,7 +25,8 @@ enum OperationType
     ALLOW_TRUST = 7,
     ACCOUNT_MERGE = 8,
     INFLATION = 9,
-    MANAGE_DATA = 10
+    MANAGE_DATA = 10,
+    BUMP_SEQ = 11,
 };
 
 /* CreateAccount
@@ -221,6 +222,24 @@ struct ManageDataOp
     DataValue* dataValue;   // set to null to clear
 };
 
+/* Bump Sequence
+
+    increases the sequence to a given level
+
+    Result: BumpSequenceResult
+*/
+
+struct BumpSeqValidRange {
+    SequenceNumber min;
+    SequenceNumber max;
+};
+struct BumpSequenceOp
+{
+    AccountID bumpAccount;
+    SequenceNumber bumpTo;
+    BumpSeqValidRange* range;
+};
+
 /* An operation is the lowest unit of work that a transaction does */
 struct Operation
 {
@@ -253,6 +272,8 @@ struct Operation
         void;
     case MANAGE_DATA:
         ManageDataOp manageDataOp;
+    case BUMP_SEQ:
+        BumpSequenceOp bumpSequenceOp;
     }
     body;
 };
@@ -646,6 +667,27 @@ default:
     void;
 };
 
+/******* BumpSequence Result ********/
+
+enum BumpSequenceResultCode
+{
+    // codes considered as "success" for the operation
+    BUMP_SEQ_SUCCESS = 0,
+    // codes considered as "failure" for the operation
+    BUMP_SEQ_NOT_SUPPORTED_YET = -1, // The network hasn't moved to this protocol change yet
+    BUMP_SEQ_NO_ACCOUNT = -2,    // Trying to bump an account that doesn't exist
+    BUMP_SEQ_INVALID_RANGE = -3,    // The range is invalid (min > max)
+    BUMP_SEQ_OUT_OF_RANGE = -4,    // The range is invalid !(min <= current_seq <= max)
+    BUMP_SEQ_NO_SELF_BUMP = -5,    // Can't bump source account
+};
+
+union BumpSequenceResult switch (BumpSequenceResultCode code)
+{
+case BUMP_SEQ_SUCCESS:
+    void;
+default:
+    void;
+};
 /* High level Operation Result */
 
 enum OperationResultCode
@@ -683,6 +725,8 @@ case opINNER:
         InflationResult inflationResult;
     case MANAGE_DATA:
         ManageDataResult manageDataResult;
+    case BUMP_SEQ:
+        BumpSequenceResult bumpSeqResult;
     }
     tr;
 default:

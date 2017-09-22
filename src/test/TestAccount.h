@@ -54,6 +54,8 @@ class TestAccount
 
     void manageData(std::string const& name, DataValue* value);
 
+    void bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range);
+
     OfferEntry loadOffer(uint64_t offerID) const;
     bool hasOffer(uint64_t offerID) const;
 

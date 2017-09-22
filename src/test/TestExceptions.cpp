@@ -261,6 +261,28 @@ throwIf(ManageDataResult const& result)
 }
 
 void
+throwIf(BumpSequenceResult const& result)
+{
+    switch (result.code())
+    {
+    case BUMP_SEQ_NOT_SUPPORTED_YET:
+        throw ex_BUMP_SEQ_NOT_SUPPORTED_YET{};
+    case BUMP_SEQ_NO_ACCOUNT:
+        throw ex_BUMP_SEQ_NO_ACCOUNT{};
+    case BUMP_SEQ_INVALID_RANGE:
+        throw ex_BUMP_SEQ_INVALID_RANGE{};
+    case BUMP_SEQ_OUT_OF_RANGE:
+        throw ex_BUMP_SEQ_OUT_OF_RANGE{};
+    case BUMP_SEQ_NO_SELF_BUMP:
+        throw ex_BUMP_SEQ_NO_SELF_BUMP{};
+    case BUMP_SEQ_SUCCESS:
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    }
+}
+
+void
 throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
@@ -313,6 +335,9 @@ throwIf(TransactionResult const& result)
         break;
     case MANAGE_DATA:
         throwIf(opResult.tr().manageDataResult());
+        break;
+    case BUMP_SEQ:
+        throwIf(opResult.tr().bumpSeqResult());
         break;
     }
 }

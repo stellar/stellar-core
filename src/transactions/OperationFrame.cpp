@@ -8,6 +8,7 @@
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
 #include "transactions/AllowTrustOpFrame.h"
+#include "transactions/BumpSequenceOpFrame.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/CreateAccountOpFrame.h"
 #include "transactions/CreatePassiveOfferOpFrame.h"
@@ -79,7 +80,8 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<InflationOpFrame>(op, res, tx);
     case MANAGE_DATA:
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
-
+    case BUMP_SEQ:
+        return std::make_shared<BumpSequenceOpFrame>(op, res, tx);
     default:
         ostringstream err;
         err << "Unknown Tx type: " << op.body.type();
