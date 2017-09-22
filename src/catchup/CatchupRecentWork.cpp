@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/CatchupRecentWork.h"
-#include "historywork/CatchupCompleteWork.h"
-#include "historywork/CatchupMinimalWork.h"
+#include "catchup/CatchupRecentWork.h"
+#include "catchup/CatchupCompleteWork.h"
+#include "catchup/CatchupMinimalWork.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"

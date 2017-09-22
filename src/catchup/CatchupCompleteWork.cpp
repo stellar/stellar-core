@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/CatchupCompleteWork.h"
+#include "catchup/CatchupCompleteWork.h"
+#include "catchup/CatchupTransactionsWork.h"
 #include "history/HistoryManager.h"
-#include "historywork/CatchupTransactionsWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/Logging.h"

@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/ApplyLedgerChainWork.h"
+#include "catchup/ApplyLedgerChainWork.h"
 #include "herder/LedgerCloseData.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
