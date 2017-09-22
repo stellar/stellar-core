@@ -3,7 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/LedgerCloseData.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledgerdelta/LedgerDeltaLayer.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -42,11 +44,10 @@ createTestAccounts(Application& app, int nbAccounts,
     auto root = TestAccount::createRoot(app);
 
     auto& lm = app.getLedgerManager();
-    auto& db = app.getDatabase();
+    auto& entries = app.getLedgerEntries();
 
     int64 setupBalance = lm.getMinBalance(0);
 
-    LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
         int64 bal = getBalance(i);
@@ -55,12 +56,12 @@ createTestAccounts(Application& app, int nbAccounts,
             SecretKey to = getTestAccount(i);
             root.create(to, setupBalance);
 
-            AccountFrame::pointer act;
-            act = loadAccount(to.getPublicKey(), app);
-            act->getAccount().balance = bal;
-            act->getAccount().inflationDest.activate() =
-                getTestAccount(getVote(i)).getPublicKey();
-            act->storeChange(delta, db);
+            LedgerDelta ledgerDelta(lm.getCurrentLedgerHeader(), entries);
+            auto act = AccountFrame{*ledgerDelta.loadAccount(to.getPublicKey())};
+            act.setBalance(bal);
+            act.setInflationDest(getTestAccount(getVote(i)).getPublicKey());
+            ledgerDelta.updateEntry(act);
+            app.getLedgerManager().apply(ledgerDelta);
         }
     }
 }
@@ -183,14 +184,13 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(getTestAccount(i).getPublicKey(), app);
-            balances[i] = act->getBalance();
+            auto act = AccountFrame{*loadAccount(getTestAccount(i).getPublicKey(), app)};
+            balances[i] = act.getBalance();
             // double check that inflationDest is setup properly
-            if (act->getAccount().inflationDest)
+            if (act.getInflationDest())
             {
                 REQUIRE(getTestAccount(getVote(i)).getPublicKey() ==
-                        *act->getAccount().inflationDest);
+                        *act.getInflationDest());
             }
             else
             {
@@ -240,9 +240,8 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(k.getPublicKey(), app);
-            REQUIRE(expectedBalances[i] == act->getBalance());
+            auto act = AccountFrame{*loadAccount(k.getPublicKey(), app)};
+            REQUIRE(expectedBalances[i] == act.getBalance());
 
             if (expectedBalances[i] != balances[i])
             {

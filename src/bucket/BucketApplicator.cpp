@@ -5,15 +5,18 @@
 #include "util/asio.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
-#include "ledger/LedgerDelta.h"
+#include "database/Database.h"
+#include "database/EntryQueries.h"
+#include "ledger/EntryFrame.h"
+#include "ledger/LedgerEntries.h"
 #include "util/Logging.h"
 
 namespace stellar
 {
 
-BucketApplicator::BucketApplicator(Database& db,
+BucketApplicator::BucketApplicator(LedgerEntries& entries,
                                    std::shared_ptr<const Bucket> bucket)
-    : mDb(db), mBucket(bucket)
+    : mEntries(entries), mBucket(bucket)
 {
     if (!bucket->getFilename().empty())
     {
@@ -29,30 +32,35 @@ BucketApplicator::operator bool() const
 void
 BucketApplicator::advance()
 {
-    soci::transaction sqlTx(mDb.getSession());
+    soci::transaction sqlTx(mEntries.getDatabase().getSession());
     BucketEntry entry;
     while (mIn && mIn.readOne(entry))
     {
         LedgerHeader lh;
-        LedgerDelta delta(lh, mDb, false);
         if (entry.type() == LIVEENTRY)
         {
-            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-            ep->storeAddOrChange(delta, mDb);
+            EntryFrame live{entry.liveEntry()};
+            if (entryExists(live.getKey(), mEntries.getDatabase()))
+            {
+                updateEntry(live.getEntry(), mEntries.getDatabase());
+            }
+            else
+            {
+                insertEntry(live.getEntry(), mEntries.getDatabase());
+            }
         }
         else
         {
-            EntryFrame::storeDelete(delta, mDb, entry.deadEntry());
+            deleteEntry(entry.deadEntry(), mEntries.getDatabase());
         }
-        // No-op, just to avoid needless rollback.
-        delta.commit();
         if ((++mSize & 0xff) == 0xff)
         {
             break;
         }
     }
     sqlTx.commit();
-    mDb.clearPreparedStatementCache();
+    mEntries.flushCache();
+    mEntries.getDatabase().clearPreparedStatementCache();
 
     if (!mIn || (mSize & 0xfff) == 0xfff)
     {

@@ -49,6 +49,7 @@ class ApplicationImpl : public Application
     virtual void syncOwnMetrics() override;
     virtual void syncAllMetrics() override;
     virtual TmpDirManager& getTmpDirManager() override;
+    virtual LedgerEntries& getLedgerEntries() const override;
     virtual LedgerManager& getLedgerManager() override;
     virtual BucketManager& getBucketManager() override;
     virtual CatchupManager& getCatchupManager() override;
@@ -123,6 +124,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<asio::io_service::work> mWork;
 
     std::unique_ptr<Database> mDatabase;
+    std::unique_ptr<LedgerEntries> mLedgerEntries;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;

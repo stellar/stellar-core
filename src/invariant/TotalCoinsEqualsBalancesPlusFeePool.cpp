@@ -4,8 +4,10 @@
 
 #include "TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "database/AccountQueries.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "lib/util/format.h"
+#include "xdr/Stellar-SCP.h"
+#include "xdr/Stellar-ledger.h"
 
 namespace stellar
 {
@@ -28,6 +30,8 @@ TotalCoinsEqualsBalancesPlusFeePool::getName() const
 std::string
 TotalCoinsEqualsBalancesPlusFeePool::check(LedgerDelta const& delta) const
 {
+    assert(delta.isCollapsed());
+
     auto& lh = delta.getHeader();
     if (lh.ledgerVersion < 7)   // due to bugs in previous versions
     {

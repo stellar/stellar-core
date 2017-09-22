@@ -22,7 +22,7 @@ class CreateAccountOpFrame : public OperationFrame
     CreateAccountOpFrame(Operation const& op, OperationResult& res,
                          TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
+    bool doApply(Application& app, LedgerDelta& ledgerDelta,
                  LedgerManager& ledgerManager) override;
     bool doCheckValid(Application& app) override;
 

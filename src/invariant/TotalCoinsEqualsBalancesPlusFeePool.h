@@ -10,7 +10,7 @@ namespace stellar
 {
 
 class Database;
-class LedgerDelta;
+class LedgerDeltaLayer;
 
 class TotalCoinsEqualsBalancesPlusFeePool : public Invariant
 {

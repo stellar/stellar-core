@@ -5,7 +5,7 @@
 #include "Invariants.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/Invariant.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "lib/util/format.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
@@ -23,6 +23,8 @@ Invariants::~Invariants() = default;
 void
 Invariants::check(TxSetFramePtr const& txSet, LedgerDelta const& delta) const
 {
+    assert(delta.isCollapsed());
+
     for (auto const& invariant : mInvariants)
     {
         auto s = invariant->check(delta);

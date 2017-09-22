@@ -4,6 +4,8 @@
 
 #include "ChangeTrustOpFrame.h"
 #include "database/Database.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
@@ -21,20 +23,15 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
 {
 }
 bool
-ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
+ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                             LedgerManager& ledgerManager)
 {
-    Database& db = ledgerManager.getDatabase();
-
-    auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line,
-                                               db, delta);
-
-    auto& trustLine = tlI.first;
-    auto& issuer = tlI.second;
+    auto trustLine = ledgerDelta.loadTrustLine(getSourceID(), mChangeTrust.line);
+    auto issuer = ledgerDelta.loadAccount(getIssuer(mChangeTrust.line));
 
     if (app.getLedgerManager().getCurrentLedgerVersion() > 2)
     {
-        if (issuer && (issuer->getID() == getSourceID()))
+        if (issuer && (AccountFrame{*issuer}.getAccountID() == getSourceID()))
         { // since version 3 it is
             // not allowed to use
             // CHANGE_TRUST on self
@@ -50,7 +47,8 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
     if (trustLine)
     { // we are modifying an old trustline
 
-        if (mChangeTrust.limit < trustLine->getBalance())
+        auto trust = TrustFrame{*trustLine};
+        if (mChangeTrust.limit < trust.getBalance())
         { // Can't drop the limit
             // below the balance you
             // are holding with them
@@ -65,9 +63,10 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         if (mChangeTrust.limit == 0)
         {
             // line gets deleted
-            trustLine->storeDelete(delta, db);
-            mSourceAccount->addNumEntries(-1, ledgerManager);
-            mSourceAccount->storeChange(delta, db);
+            ledgerDelta.deleteEntry(trust.getKey());
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+            sourceAccount.addNumEntries(-1, ledgerManager);
+            ledgerDelta.updateEntry(sourceAccount);
         }
         else
         {
@@ -80,8 +79,8 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
                 return false;
             }
-            trustLine->getTrustLine().limit = mChangeTrust.limit;
-            trustLine->storeChange(delta, db);
+            trust.setLimit(mChangeTrust.limit);
+            ledgerDelta.updateEntry(trust);
         }
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")
@@ -109,15 +108,10 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
-        trustLine = std::make_shared<TrustFrame>();
-        auto& tl = trustLine->getTrustLine();
-        tl.accountID = getSourceID();
-        tl.asset = mChangeTrust.line;
-        tl.limit = mChangeTrust.limit;
-        tl.balance = 0;
-        trustLine->setAuthorized(!issuer->isAuthRequired());
 
-        if (!mSourceAccount->addNumEntries(1, ledgerManager))
+        auto trust = TrustFrame{getSourceID(), mChangeTrust.line, mChangeTrust.limit, !AccountFrame{*issuer}.isAuthRequired()};
+        auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+        if (!sourceAccount.addNumEntries(1, ledgerManager))
         {
             app.getMetrics()
                 .NewMeter({"op-change-trust", "failure", "low-reserve"},
@@ -127,8 +121,8 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        mSourceAccount->storeChange(delta, db);
-        trustLine->storeAdd(delta, db);
+        ledgerDelta.updateEntry(sourceAccount);
+        ledgerDelta.addEntry(trust);
 
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")

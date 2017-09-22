@@ -4,7 +4,9 @@
 
 #include "transactions/AllowTrustOpFrame.h"
 #include "database/Database.h"
+#include "ledger/AccountFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -26,7 +28,7 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
+AllowTrustOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                            LedgerManager& ledgerManager)
 {
     if (ledgerManager.getCurrentLedgerVersion() > 2)
@@ -44,7 +46,8 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
     }
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
+    auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+    if (!sourceAccount.isAuthRequired())
     { // this account doesn't require authorization to
         // hold credit
         app.getMetrics()
@@ -55,8 +58,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
-        !mAllowTrust.authorize)
+    if (!sourceAccount.isRevocableAuth() && !mAllowTrust.authorize)
     {
         app.getMetrics()
             .NewMeter({"op-allow-trust", "failure", "cant-revoke"}, "operation")
@@ -78,10 +80,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         ci.alphaNum12().issuer = getSourceID();
     }
 
-    Database& db = ledgerManager.getDatabase();
-    TrustFrame::pointer trustLine;
-    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
-
+    auto trustLine = ledgerDelta.loadTrustLine(mAllowTrust.trustor, ci);
     if (!trustLine)
     {
         app.getMetrics()
@@ -92,14 +91,14 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
+    auto trust = TrustFrame{*trustLine};
     app.getMetrics()
         .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
 
-    trustLine->setAuthorized(mAllowTrust.authorize);
-
-    trustLine->storeChange(delta, db);
+    trust.setAuthorized(mAllowTrust.authorize);
+    ledgerDelta.updateEntry(trust);
 
     return true;
 }

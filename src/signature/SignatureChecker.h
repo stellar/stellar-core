@@ -22,6 +22,7 @@ class SignatureChecker
 {
   public:
     explicit SignatureChecker(
+        bool alwaysOk,
         Hash const& contentsHash,
         xdr::xvector<DecoratedSignature, 20> const& signatures);
 
@@ -33,6 +34,7 @@ class SignatureChecker
     const UsedOneTimeSignerKeys& usedOneTimeSignerKeys() const;
 
   private:
+    bool mAlwaysOk;
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
 

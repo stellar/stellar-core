@@ -104,7 +104,7 @@ ApplyBucketsWork::onStart()
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator =
-            make_unique<BucketApplicator>(mApp.getDatabase(), mSnapBucket);
+            make_unique<BucketApplicator>(mApp.getLedgerEntries(), mSnapBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
@@ -113,7 +113,7 @@ ApplyBucketsWork::onStart()
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator =
-            make_unique<BucketApplicator>(mApp.getDatabase(), mCurrBucket);
+            make_unique<BucketApplicator>(mApp.getLedgerEntries(), mCurrBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;

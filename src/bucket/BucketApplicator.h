@@ -5,14 +5,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/Bucket.h"
-#include "database/Database.h"
 #include "util/XDRStream.h"
 #include <memory>
 
 namespace stellar
 {
 
-class Database;
+class LedgerEntries;
 
 // Class that represents a single apply-bucket-to-database operation in
 // progress. Used during history catchup to split up the task of applying
@@ -20,13 +19,13 @@ class Database;
 
 class BucketApplicator
 {
-    Database& mDb;
+    LedgerEntries& mEntries;
     std::shared_ptr<const Bucket> mBucket;
     XDRInputFileStream mIn;
     size_t mSize{0};
 
   public:
-    BucketApplicator(Database& db, std::shared_ptr<const Bucket> bucket);
+    BucketApplicator(LedgerEntries& entries, std::shared_ptr<const Bucket> bucket);
     operator bool() const;
     void advance();
 };

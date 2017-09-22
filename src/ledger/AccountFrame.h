@@ -5,153 +5,82 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/EntryFrame.h"
-#include <functional>
-#include <map>
-#include <unordered_map>
-
-namespace soci
-{
-class session;
-namespace details
-{
-class prepare_temp_type;
-}
-}
 
 namespace stellar
 {
+
 class LedgerManager;
+
+LedgerKey accountKey(AccountID accountID);
 
 class AccountFrame : public EntryFrame
 {
-    void storeUpdate(LedgerDelta& delta, Database& db, bool insert);
-    bool mUpdateSigners;
-
-    AccountEntry& mAccountEntry;
-
-    void normalize();
-
-    bool isValid();
-
-    static std::vector<Signer> loadSigners(Database& db,
-                                           std::string const& actIDStrKey);
-    void applySigners(Database& db, bool insert);
-
   public:
-    typedef std::shared_ptr<AccountFrame> pointer;
+    AccountFrame(AccountID accountID, int64_t balance, SequenceNumber seqNum);
+    AccountFrame(AccountID accountID);
+    AccountFrame(AccountEntry account);
+    AccountFrame(LedgerEntry entry);
 
-    AccountFrame();
-    AccountFrame(LedgerEntry const& from);
-    AccountFrame(AccountFrame const& from);
-    AccountFrame(AccountID const& id);
+    AccountID const& getAccountID() const;
+    void setAccountID(AccountID accountID);
 
-    // builds an accountFrame for the sole purpose of authentication
-    static AccountFrame::pointer makeAuthOnlyAccount(AccountID const& id);
-
-    EntryFrame::pointer
-    copy() const override
-    {
-        return std::make_shared<AccountFrame>(*this);
-    }
-
-    void
-    setUpdateSigners()
-    {
-        normalize();
-        mUpdateSigners = true;
-    }
+    void setHomeDomain(string32 homeDomain);
 
     // actual balance for the account
     int64_t getBalance() const;
+    void setBalance(int64_t balance);
 
     // update balance for account
     bool addBalance(int64_t delta);
 
     // reserve balance that the account must always hold
-    int64_t getMinimumBalance(LedgerManager const& lm) const;
+    int64_t getMinimumBalance(LedgerManager const& lm);
 
     // balance that can be spent (above the limit)
-    int64_t getBalanceAboveReserve(LedgerManager const& lm) const;
+    int64_t getBalanceAboveReserve(LedgerManager const& lm);
+
+    int getNumSubEntries() const;
+
+    xdr::xvector<Signer, 20> const& getSigners() const;
+    void setSigners(xdr::xvector<Signer, 20> signers);
+    int getNumSigners() const;
 
     // returns true if successfully updated,
     // false if balance is not sufficient
     bool addNumEntries(int count, LedgerManager const& lm);
 
-    bool isAuthRequired() const;
-    bool isImmutableAuth() const;
-    AccountID const& getID() const;
+    bool isAuthRequired();
+    bool isRevocableAuth();
+    bool isImmutableAuth();
+    void setFlags(uint32_t flags);
+    void clearFlags(uint32_t flags);
+
+    xdr::pointer<AccountID> const& getInflationDest() const;
+    void setInflationDest(AccountID inflationDest);
 
     uint32_t getMasterWeight() const;
+    void setMasterWeight(uint32_t masterWeight);
     uint32_t getHighThreshold() const;
+    void setHighThreshold(uint32_t highThreshold);
     uint32_t getMediumThreshold() const;
+    void setMediumThreshold(uint32_t mediumThreshold);
     uint32_t getLowThreshold() const;
+    void setLowThreshold(uint32_t lowThreshold);
 
-    void
-    setSeqNum(SequenceNumber seq)
-    {
-        clearCached();
-        mAccountEntry.seqNum = seq;
-    }
-    SequenceNumber
-    getSeqNum() const
-    {
-        return mAccountEntry.seqNum;
-    }
+    void setSeqNum(SequenceNumber seq);
+    SequenceNumber getSeqNum() const;
 
-    AccountEntry const&
-    getAccount() const
-    {
-        return mAccountEntry;
-    }
-
-    AccountEntry&
-    getAccount()
-    {
-        clearCached();
-        return mAccountEntry;
-    }
-
-    // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
-
-    // Static helper that don't assume an instance.
-    static void storeDelete(LedgerDelta& delta, Database& db,
-                            LedgerKey const& key);
-    static bool exists(Database& db, LedgerKey const& key);
-    static uint64_t countObjects(soci::session& sess);
-
-    // database utilities
-    static AccountFrame::pointer
-    loadAccount(LedgerDelta& delta, AccountID const& accountID, Database& db);
-    static AccountFrame::pointer loadAccount(AccountID const& accountID,
-                                             Database& db);
+    bool isValid();
 
     // compare signers, ignores weight
-    static bool signerCompare(Signer const& s1, Signer const& s2);
-
-    // inflation helper
-
-    struct InflationVotes
+    static bool
+    signerCompare(Signer const& s1, Signer const& s2)
     {
-        int64 mVotes;
-        AccountID mInflationDest;
-    };
+        using xdr::operator<;
+        return s1.key < s2.key;
+    }
 
-    // inflationProcessor returns true to continue processing, false otherwise
-    static void processForInflation(
-        std::function<bool(InflationVotes const&)> inflationProcessor,
-        int maxWinners, Database& db);
-
-    // loads all accounts from database and checks for consistency (slow!)
-    static std::unordered_map<AccountID, AccountFrame::pointer>
-    checkDB(Database& db);
-
-    static void dropAll(Database& db);
-    static const char* kSQLCreateStatement1;
-    static const char* kSQLCreateStatement2;
-    static const char* kSQLCreateStatement3;
-    static const char* kSQLCreateStatement4;
+    friend bool operator==(AccountFrame const& x, AccountFrame const& y);
+    friend bool operator!=(AccountFrame const& x, AccountFrame const& y);
 };
 }

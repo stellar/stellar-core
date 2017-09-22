@@ -56,12 +56,6 @@ LedgerHeaderFrame::getStartingSequenceNumber() const
 }
 
 uint64_t
-LedgerHeaderFrame::getLastGeneratedID() const
-{
-    return mHeader.idPool;
-}
-
-uint64_t
 LedgerHeaderFrame::generateID()
 {
     return ++mHeader.idPool;
@@ -209,8 +203,8 @@ LedgerHeaderFrame::copyLedgerHeadersToStream(Database& db, soci::session& sess,
         LedgerHeaderFrame::pointer lhf = decodeFromData(headerEncoded);
         lhe.hash = lhf->getHash();
         lhe.header = lhf->mHeader;
-        CLOG(DEBUG, "Ledger") << "Streaming ledger-header "
-                              << lhe.header.ledgerSeq;
+        CLOG(DEBUG, "Ledger")
+            << "Streaming ledger-header " << lhe.header.ledgerSeq;
         headersOut.writeOne(lhe);
         ++n;
         st.fetch();

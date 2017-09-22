@@ -3,99 +3,128 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/TrustFrame.h"
-#include "LedgerDelta.h"
-#include "crypto/KeyUtils.h"
-#include "crypto/SHA.h"
-#include "crypto/SecretKey.h"
-#include "database/Database.h"
 #include "util/types.h"
-
-using namespace std;
-using namespace soci;
 
 namespace stellar
 {
 using xdr::operator==;
 
-// note: the primary key omits assettype as assetcodes are non overlapping
-const char* TrustFrame::kSQLCreateStatement1 =
-    "CREATE TABLE trustlines"
-    "("
-    "accountid    VARCHAR(56)     NOT NULL,"
-    "assettype    INT             NOT NULL,"
-    "issuer       VARCHAR(56)     NOT NULL,"
-    "assetcode    VARCHAR(12)     NOT NULL,"
-    "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
-    "balance      BIGINT          NOT NULL CHECK (balance >= 0),"
-    "flags        INT             NOT NULL,"
-    "lastmodified INT             NOT NULL,"
-    "PRIMARY KEY  (accountid, issuer, assetcode)"
-    ");";
+LedgerKey trustLineKey(AccountID accountID, Asset line)
+{
+    auto k = LedgerKey{};
+    k.type(TRUSTLINE);
+    k.trustLine().accountID = std::move(accountID);
+    k.trustLine().asset = std::move(line);
+    return k;
+}
 
 TrustFrame::TrustFrame()
-    : EntryFrame(TRUSTLINE)
-    , mTrustLine(mEntry.data.trustLine())
-    , mIsIssuer(false)
 {
+    mEntry.data.type(TRUSTLINE);
 }
 
-TrustFrame::TrustFrame(LedgerEntry const& from)
-    : EntryFrame(from), mTrustLine(mEntry.data.trustLine()), mIsIssuer(false)
+TrustFrame::TrustFrame(AccountID accountID, Asset line, int64 limit,
+                       bool authorized)
 {
-    assert(isValid());
-}
-
-TrustFrame::TrustFrame(TrustFrame const& from) : TrustFrame(from.mEntry)
-{
-}
-
-TrustFrame&
-TrustFrame::operator=(TrustFrame const& other)
-{
-    if (&other != this)
+    mEntry.data.type(TRUSTLINE);
+    mEntry.data.trustLine().accountID = std::move(accountID);
+    if (authorized)
     {
-        mTrustLine = other.mTrustLine;
-        mKey = other.mKey;
-        mKeyCalculated = other.mKeyCalculated;
-        mIsIssuer = other.mIsIssuer;
+        mEntry.data.trustLine().flags |= AUTHORIZED_FLAG;
     }
-    return *this;
+    mEntry.data.trustLine().balance = 0;
+    mEntry.data.trustLine().asset = std::move(line);
+    mEntry.data.trustLine().limit = limit;
+}
+
+TrustFrame::TrustFrame(Asset line)
+{
+    mEntry.data.type(TRUSTLINE);
+    mEntry.data.trustLine().accountID = getIssuer(line);
+    mEntry.data.trustLine().flags |= AUTHORIZED_FLAG;
+    mEntry.data.trustLine().balance = INT64_MAX;
+    mEntry.data.trustLine().asset = std::move(line);
+    mEntry.data.trustLine().limit = INT64_MAX;
+}
+
+TrustFrame::TrustFrame(TrustLineEntry trustLine)
+{
+    mEntry.data.type(TRUSTLINE);
+    mEntry.data.trustLine() = std::move(trustLine);
+}
+
+TrustFrame::TrustFrame(LedgerEntry entry) : EntryFrame{std::move(entry)}
+{
+    assert(mEntry.data.type() == TRUSTLINE);
+}
+
+AccountID const&
+TrustFrame::getAccountID() const
+{
+    return mEntry.data.trustLine().accountID;
 }
 
 void
-TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
-                         std::string& issuerStrKey, std::string& assetCode)
+TrustFrame::setAccountID(AccountID accountID)
 {
-    actIDStrKey = KeyUtils::toStrKey(key.trustLine().accountID);
-    if (key.trustLine().asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        issuerStrKey =
-            KeyUtils::toStrKey(key.trustLine().asset.alphaNum4().issuer);
-        assetCodeToStr(key.trustLine().asset.alphaNum4().assetCode, assetCode);
-    }
-    else if (key.trustLine().asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        issuerStrKey =
-            KeyUtils::toStrKey(key.trustLine().asset.alphaNum12().issuer);
-        assetCodeToStr(key.trustLine().asset.alphaNum12().assetCode, assetCode);
-    }
+    mEntry.data.trustLine().accountID = std::move(accountID);
+}
 
-    if (actIDStrKey == issuerStrKey)
-        throw std::runtime_error("Issuer's own trustline should not be used "
-                                 "outside of OperationFrame");
+Asset const&
+TrustFrame::getAsset() const
+{
+    return mEntry.data.trustLine().asset;
+}
+
+void
+TrustFrame::setAsset(Asset asset)
+{
+    mEntry.data.trustLine().asset = std::move(asset);
 }
 
 int64_t
 TrustFrame::getBalance() const
 {
     assert(isValid());
-    return mTrustLine.balance;
+    return mEntry.data.trustLine().balance;
+}
+bool
+TrustFrame::addBalance(int64_t delta)
+{
+    if (isIssuer() || delta == 0)
+    {
+        return true;
+    }
+    if ((mEntry.data.trustLine().flags & AUTHORIZED_FLAG) == 0)
+    {
+        return false;
+    }
+    return stellar::addBalance(mEntry.data.trustLine().balance,
+                               delta, mEntry.data.trustLine().limit);
+}
+
+int64_t
+TrustFrame::getLimit() const
+{
+    return mEntry.data.trustLine().limit;
+}
+
+void
+TrustFrame::setLimit(int64_t limit)
+{
+    mEntry.data.trustLine().limit = limit;
+}
+
+uint32_t
+TrustFrame::getFlags() const
+{
+    return mEntry.data.trustLine().flags;
 }
 
 bool
 TrustFrame::isAuthorized() const
 {
-    return (mTrustLine.flags & AUTHORIZED_FLAG) != 0;
+    return (mEntry.data.trustLine().flags & AUTHORIZED_FLAG) != 0;
 }
 
 void
@@ -103,412 +132,46 @@ TrustFrame::setAuthorized(bool authorized)
 {
     if (authorized)
     {
-        mTrustLine.flags |= AUTHORIZED_FLAG;
+        mEntry.data.trustLine().flags |= AUTHORIZED_FLAG;
     }
     else
     {
-        mTrustLine.flags &= ~AUTHORIZED_FLAG;
+        mEntry.data.trustLine().flags &= ~AUTHORIZED_FLAG;
     }
-}
-
-bool
-TrustFrame::addBalance(int64_t delta)
-{
-    if (mIsIssuer || delta == 0)
-    {
-        return true;
-    }
-    if (!isAuthorized())
-    {
-        return false;
-    }
-    return stellar::addBalance(mTrustLine.balance, delta, mTrustLine.limit);
 }
 
 int64_t
 TrustFrame::getMaxAmountReceive() const
 {
-    int64_t amount = 0;
-    if (mIsIssuer)
+    assert(mEntry.data.type() == TRUSTLINE);
+
+    if (isIssuer())
     {
-        amount = INT64_MAX;
+        return INT64_MAX;
     }
-    else if (isAuthorized())
+    else if (mEntry.data.trustLine().flags & AUTHORIZED_FLAG)
     {
-        amount = mTrustLine.limit - mTrustLine.balance;
+        return mEntry.data.trustLine().limit - mEntry.data.trustLine().balance;
     }
-    return amount;
+    return 0;
 }
 
 bool
-TrustFrame::isValid(TrustLineEntry const& tl)
+TrustFrame::isIssuer() const
 {
-    bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
-    res = res && isAssetValid(tl.asset);
-    res = res && (tl.balance >= 0);
-    res = res && (tl.limit > 0);
-    res = res && (tl.balance <= tl.limit);
-    return res;
+    return mEntry.data.trustLine().accountID ==
+           getIssuer(mEntry.data.trustLine().asset);
 }
 
 bool
 TrustFrame::isValid() const
 {
-    return isValid(mTrustLine);
-}
-
-bool
-TrustFrame::exists(Database& db, LedgerKey const& key)
-{
-    if (cachedEntryExists(key, db) && getCachedEntry(key, db) != nullptr)
-    {
-        return true;
-    }
-
-    std::string actIDStrKey, issuerStrKey, assetCode;
-    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
-    int exists = 0;
-    auto timer = db.getSelectTimer("trust-exists");
-    auto prep = db.getPreparedStatement(
-        "SELECT EXISTS (SELECT NULL FROM trustlines "
-        "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3)");
-    auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-    st.exchange(use(issuerStrKey));
-    st.exchange(use(assetCode));
-    st.exchange(into(exists));
-    st.define_and_bind();
-    st.execute(true);
-    return exists != 0;
-}
-
-uint64_t
-TrustFrame::countObjects(soci::session& sess)
-{
-    uint64_t count = 0;
-    sess << "SELECT COUNT(*) FROM trustlines;", into(count);
-    return count;
-}
-
-void
-TrustFrame::storeDelete(LedgerDelta& delta, Database& db) const
-{
-    storeDelete(delta, db, getKey());
-}
-
-void
-TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
-{
-    flushCachedEntry(key, db);
-
-    std::string actIDStrKey, issuerStrKey, assetCode;
-    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
-
-    auto timer = db.getDeleteTimer("trust");
-    db.getSession() << "DELETE FROM trustlines "
-                       "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3",
-        use(actIDStrKey), use(issuerStrKey), use(assetCode);
-
-    delta.deleteEntry(key);
-}
-
-void
-TrustFrame::storeChange(LedgerDelta& delta, Database& db)
-{
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid TrustEntry");
-    }
-
-    auto key = getKey();
-    flushCachedEntry(key, db);
-
-    if (mIsIssuer)
-        return;
-
-    touch(delta);
-
-    std::string actIDStrKey, issuerStrKey, assetCode;
-    getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
-
-    auto prep = db.getPreparedStatement(
-        "UPDATE trustlines "
-        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm "
-        "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
-    auto& st = prep.statement();
-    st.exchange(use(mTrustLine.balance));
-    st.exchange(use(mTrustLine.limit));
-    st.exchange(use(mTrustLine.flags));
-    st.exchange(use(getLastModified()));
-    st.exchange(use(actIDStrKey));
-    st.exchange(use(issuerStrKey));
-    st.exchange(use(assetCode));
-    st.define_and_bind();
-    {
-        auto timer = db.getUpdateTimer("trust");
-        st.execute(true);
-    }
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-
-    delta.modEntry(*this);
-}
-
-void
-TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
-{
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid TrustEntry");
-    }
-
-    auto key = getKey();
-    flushCachedEntry(key, db);
-
-    if (mIsIssuer)
-        return;
-
-    touch(delta);
-
-    std::string actIDStrKey, issuerStrKey, assetCode;
-    unsigned int assetType = getKey().trustLine().asset.type();
-    getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
-
-    auto prep = db.getPreparedStatement(
-        "INSERT INTO trustlines "
-        "(accountid, assettype, issuer, assetcode, balance, tlimit, flags, "
-        "lastmodified) "
-        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8)");
-    auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-    st.exchange(use(assetType));
-    st.exchange(use(issuerStrKey));
-    st.exchange(use(assetCode));
-    st.exchange(use(mTrustLine.balance));
-    st.exchange(use(mTrustLine.limit));
-    st.exchange(use(mTrustLine.flags));
-    st.exchange(use(getLastModified()));
-    st.define_and_bind();
-    {
-        auto timer = db.getInsertTimer("trust");
-        st.execute(true);
-    }
-
-    if (st.get_affected_rows() != 1)
-    {
-        throw std::runtime_error("Could not update data in SQL");
-    }
-
-    delta.addEntry(*this);
-}
-
-static const char* trustLineColumnSelector =
-    "SELECT "
-    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified "
-    "FROM trustlines";
-
-TrustFrame::pointer
-TrustFrame::createIssuerFrame(Asset const& issuer)
-{
-    pointer res = make_shared<TrustFrame>();
-    res->mIsIssuer = true;
-    TrustLineEntry& tl = res->mEntry.data.trustLine();
-
-    tl.accountID = getIssuer(issuer);
-
-    tl.flags |= AUTHORIZED_FLAG;
-    tl.balance = INT64_MAX;
-    tl.asset = issuer;
-    tl.limit = INT64_MAX;
+    bool res = mEntry.data.trustLine().asset.type() != ASSET_TYPE_NATIVE;
+    res = res && isAssetValid(mEntry.data.trustLine().asset);
+    res = res && (mEntry.data.trustLine().balance >= 0);
+    res = res && (mEntry.data.trustLine().limit > 0);
+    res = res &&
+          (mEntry.data.trustLine().balance <= mEntry.data.trustLine().limit);
     return res;
-}
-
-TrustFrame::pointer
-TrustFrame::loadTrustLine(AccountID const& accountID, Asset const& asset,
-                          Database& db, LedgerDelta* delta)
-{
-    if (asset.type() == ASSET_TYPE_NATIVE)
-    {
-        throw std::runtime_error("XLM TrustLine?");
-    }
-    else
-    {
-        if (accountID == getIssuer(asset))
-        {
-            return createIssuerFrame(asset);
-        }
-    }
-
-    LedgerKey key;
-    key.type(TRUSTLINE);
-    key.trustLine().accountID = accountID;
-    key.trustLine().asset = asset;
-    if (cachedEntryExists(key, db))
-    {
-        auto p = getCachedEntry(key, db);
-        if (p)
-        {
-            pointer ret = std::make_shared<TrustFrame>(*p);
-            if (delta)
-            {
-                delta->recordEntry(*ret);
-            }
-            return ret;
-        }
-    }
-
-    std::string accStr, issuerStr, assetStr;
-
-    accStr = KeyUtils::toStrKey(accountID);
-    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
-    {
-        assetCodeToStr(asset.alphaNum4().assetCode, assetStr);
-        issuerStr = KeyUtils::toStrKey(asset.alphaNum4().issuer);
-    }
-    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
-    {
-        assetCodeToStr(asset.alphaNum12().assetCode, assetStr);
-        issuerStr = KeyUtils::toStrKey(asset.alphaNum12().issuer);
-    }
-
-    auto query = std::string(trustLineColumnSelector);
-    query += (" WHERE accountid = :id "
-              " AND issuer = :issuer "
-              " AND assetcode = :asset");
-    auto prep = db.getPreparedStatement(query);
-    auto& st = prep.statement();
-    st.exchange(use(accStr));
-    st.exchange(use(issuerStr));
-    st.exchange(use(assetStr));
-
-    pointer retLine;
-    auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLine](LedgerEntry const& trust) {
-        retLine = make_shared<TrustFrame>(trust);
-    });
-
-    if (retLine)
-    {
-        retLine->putCachedEntry(db);
-    }
-    else
-    {
-        putCachedEntry(key, nullptr, db);
-    }
-
-    if (delta && retLine)
-    {
-        delta->recordEntry(*retLine);
-    }
-    return retLine;
-}
-
-std::pair<TrustFrame::pointer, AccountFrame::pointer>
-TrustFrame::loadTrustLineIssuer(AccountID const& accountID, Asset const& asset,
-                                Database& db, LedgerDelta& delta)
-{
-    std::pair<TrustFrame::pointer, AccountFrame::pointer> res;
-
-    res.first = loadTrustLine(accountID, asset, db, &delta);
-    res.second = AccountFrame::loadAccount(delta, getIssuer(asset), db);
-    return res;
-}
-
-void
-TrustFrame::loadLines(StatementContext& prep,
-                      std::function<void(LedgerEntry const&)> trustProcessor)
-{
-    string actIDStrKey;
-    std::string issuerStrKey, assetCode;
-    unsigned int assetType;
-
-    LedgerEntry le;
-    le.data.type(TRUSTLINE);
-
-    TrustLineEntry& tl = le.data.trustLine();
-
-    auto& st = prep.statement();
-    st.exchange(into(actIDStrKey));
-    st.exchange(into(assetType));
-    st.exchange(into(issuerStrKey));
-    st.exchange(into(assetCode));
-    st.exchange(into(tl.limit));
-    st.exchange(into(tl.balance));
-    st.exchange(into(tl.flags));
-    st.exchange(into(le.lastModifiedLedgerSeq));
-    st.define_and_bind();
-
-    st.execute(true);
-    while (st.got_data())
-    {
-        tl.accountID = KeyUtils::fromStrKey<PublicKey>(actIDStrKey);
-        tl.asset.type((AssetType)assetType);
-        if (assetType == ASSET_TYPE_CREDIT_ALPHANUM4)
-        {
-            tl.asset.alphaNum4().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
-            strToAssetCode(tl.asset.alphaNum4().assetCode, assetCode);
-        }
-        else if (assetType == ASSET_TYPE_CREDIT_ALPHANUM12)
-        {
-            tl.asset.alphaNum12().issuer =
-                KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
-            strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
-        }
-
-        if (!isValid(tl))
-        {
-            throw std::runtime_error("Invalid TrustEntry");
-        }
-
-        trustProcessor(le);
-
-        st.fetch();
-    }
-}
-
-void
-TrustFrame::loadLines(AccountID const& accountID,
-                      std::vector<TrustFrame::pointer>& retLines, Database& db)
-{
-    std::string actIDStrKey;
-    actIDStrKey = KeyUtils::toStrKey(accountID);
-
-    auto query = std::string(trustLineColumnSelector);
-    query += (" WHERE accountid = :id ");
-    auto prep = db.getPreparedStatement(query);
-    auto& st = prep.statement();
-    st.exchange(use(actIDStrKey));
-
-    auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLines](LedgerEntry const& cur) {
-        retLines.emplace_back(make_shared<TrustFrame>(cur));
-    });
-}
-
-std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
-TrustFrame::loadAllLines(Database& db)
-{
-    std::unordered_map<AccountID, std::vector<TrustFrame::pointer>> retLines;
-
-    auto query = std::string(trustLineColumnSelector);
-    query += (" ORDER BY accountid");
-    auto prep = db.getPreparedStatement(query);
-
-    auto timer = db.getSelectTimer("trust");
-    loadLines(prep, [&retLines](LedgerEntry const& cur) {
-        auto& thisUserLines = retLines[cur.data.trustLine().accountID];
-        thisUserLines.emplace_back(make_shared<TrustFrame>(cur));
-    });
-    return retLines;
-}
-
-void
-TrustFrame::dropAll(Database& db)
-{
-    db.getSession() << "DROP TABLE IF EXISTS trustlines;";
-    db.getSession() << kSQLCreateStatement1;
 }
 }

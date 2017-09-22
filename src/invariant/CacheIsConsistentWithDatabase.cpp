@@ -3,7 +3,10 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "CacheIsConsistentWithDatabase.h"
-#include "ledger/LedgerDelta.h"
+#include "database/EntryQueries.h"
+#include "ledgerdelta/LedgerDeltaLayer.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
 #include "lib/util/format.h"
 #include "xdrpp/printer.h"
 
@@ -11,8 +14,8 @@ namespace stellar
 {
 
 CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(
-    Database& db)
-    : mDb{db}
+    LedgerEntries& entries)
+    : mEntries{entries}
 {
 }
 
@@ -28,18 +31,20 @@ CacheIsConsistentWithDatabase::getName() const
 std::string
 CacheIsConsistentWithDatabase::check(LedgerDelta const& delta) const
 {
-    for (auto const& l : delta.getLiveEntries())
+    assert(delta.isCollapsed());
+
+    for (auto const& l : delta.top().getLiveEntries())
     {
-        auto s = EntryFrame::checkAgainstDatabase(l, mDb);
+        auto s = checkAgainstDatabase(l, mEntries.getDatabase());
         if (!s.empty())
         {
             return s;
         }
     }
 
-    for (auto const& d : delta.getDeadEntries())
+    for (auto const& d : delta.top().getDeadEntries())
     {
-        if (EntryFrame::exists(mDb, d))
+        if (entryExists(d, mEntries.getDatabase()))
         {
             return fmt::format("Inconsistent state; entry should not exist in database: {}",
                                 xdr::xdr_to_string(d));

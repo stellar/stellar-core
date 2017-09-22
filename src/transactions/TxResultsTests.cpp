@@ -4,7 +4,7 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerDelta.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -182,8 +182,8 @@ TEST_CASE("txresults", "[tx][txresults]")
     ApplicationEditableVersion app(clock, cfg);
     app.start();
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
+    LedgerDelta delta{app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getLedgerEntries()};
 
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,

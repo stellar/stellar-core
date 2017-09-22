@@ -4,9 +4,13 @@
 
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
+#include "database/OfferQueries.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
+#include "main/Application.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -16,7 +20,7 @@ namespace
 {
 
 int64_t
-canBuyAtMost(const Asset& asset, TrustFrame::pointer trustLine, Price& price)
+canBuyAtMost(Asset const& asset, optional<LedgerEntry const> trustLine, Price const& price)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
@@ -24,7 +28,7 @@ canBuyAtMost(const Asset& asset, TrustFrame::pointer trustLine, Price& price)
     }
 
     // compute value based on what the account can receive
-    auto sellerMaxSheep = trustLine ? trustLine->getMaxAmountReceive() : 0;
+    auto sellerMaxSheep = trustLine ? TrustFrame{*trustLine}.getMaxAmountReceive() : 0;
 
     auto result = int64_t{};
     if (!bigDivide(result, sellerMaxSheep, price.d, price.n, ROUND_DOWN))
@@ -36,18 +40,18 @@ canBuyAtMost(const Asset& asset, TrustFrame::pointer trustLine, Price& price)
 }
 
 int64_t
-canSellAtMost(AccountFrame::pointer account, const Asset& asset,
-              TrustFrame::pointer trustLine, LedgerManager& ledgerManager)
+canSellAtMost(AccountFrame &account, Asset const& asset,
+              optional<LedgerEntry const> trustLine, LedgerManager& ledgerManager)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         // can only send above the minimum balance
-        return account->getBalanceAboveReserve(ledgerManager);
+        return account.getBalanceAboveReserve(ledgerManager);
     }
 
-    if (trustLine && trustLine->isAuthorized())
+    if (trustLine && TrustFrame{*trustLine}.isAuthorized())
     {
-        return trustLine->getBalance();
+        return TrustFrame{*trustLine}.getBalance();
     }
 
     return 0;
@@ -110,13 +114,13 @@ exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
     return result;
 }
 
-OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
-    : mDelta(delta), mLedgerManager(ledgerManager)
+OfferExchange::OfferExchange(Application& app)
+    : mApp(app)
 {
 }
 
 OfferExchange::CrossOfferResult
-OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
+OfferExchange::crossOffer(LedgerDelta& ledgerDelta, OfferFrame sellingWheatOffer,
                           int64_t maxWheatReceived, int64_t& numWheatReceived,
                           int64_t maxSheepSend, int64_t& numSheepSend)
 {
@@ -124,49 +128,45 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     assert(maxSheepSend > 0);
 
     // we're about to make changes to the offer
-    mDelta.recordEntry(sellingWheatOffer);
+    ledgerDelta.recordEntry(sellingWheatOffer);
 
-    Asset& sheep = sellingWheatOffer.getOffer().buying;
-    Asset& wheat = sellingWheatOffer.getOffer().selling;
-    AccountID& accountBID = sellingWheatOffer.getOffer().sellerID;
+    auto const& sheep = sellingWheatOffer.getBuying();
+    auto const& wheat = sellingWheatOffer.getSelling();
+    auto const& accountBID = sellingWheatOffer.getSellerID();
 
-    Database& db = mLedgerManager.getDatabase();
-
-    AccountFrame::pointer accountB;
-    accountB = AccountFrame::loadAccount(mDelta, accountBID, db);
+    auto accountB = ledgerDelta.loadAccount(accountBID);
     if (!accountB)
     {
         throw std::runtime_error(
             "invalid database state: offer must have matching account");
     }
+    auto accountBFrame = AccountFrame{*accountB};
 
-    TrustFrame::pointer wheatLineAccountB;
+    optional<LedgerEntry const> wheatLineAccountB;
     if (wheat.type() != ASSET_TYPE_NATIVE)
     {
-        wheatLineAccountB =
-            TrustFrame::loadTrustLine(accountBID, wheat, db, &mDelta);
+        wheatLineAccountB = ledgerDelta.loadTrustLine(accountBID, wheat);
     }
 
-    TrustFrame::pointer sheepLineAccountB;
+    optional<LedgerEntry const> sheepLineAccountB;
     if (sheep.type() != ASSET_TYPE_NATIVE)
     {
-        sheepLineAccountB =
-            TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
+        sheepLineAccountB = ledgerDelta.loadTrustLine(accountBID, sheep);
     }
 
+    auto& ledgerManager = mApp.getLedgerManager();
     numWheatReceived = std::min(
         {canBuyAtMost(sheep, sheepLineAccountB,
-                      sellingWheatOffer.getOffer().price),
-         canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
-         sellingWheatOffer.getOffer().amount});
+                      sellingWheatOffer.getPrice()),
+         canSellAtMost(accountBFrame, wheat, wheatLineAccountB, ledgerManager),
+         sellingWheatOffer.getAmount()});
     assert(numWheatReceived >= 0);
-
-    sellingWheatOffer.getOffer().amount = numWheatReceived;
+    sellingWheatOffer.setAmount(numWheatReceived);
     auto exchangeResult =
-        mLedgerManager.getCurrentLedgerVersion() < 3
-            ? exchangeV2(numWheatReceived, sellingWheatOffer.getOffer().price,
+        ledgerManager.getCurrentLedgerVersion() < 3
+            ? exchangeV2(numWheatReceived, sellingWheatOffer.getPrice(),
                          maxWheatReceived, maxSheepSend)
-            : exchangeV3(numWheatReceived, sellingWheatOffer.getOffer().price,
+            : exchangeV3(numWheatReceived, sellingWheatOffer.getPrice(),
                          maxWheatReceived, maxSheepSend);
 
     numWheatReceived = exchangeResult.numWheatReceived;
@@ -189,18 +189,19 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     }
 
     offerTaken =
-        offerTaken || sellingWheatOffer.getOffer().amount <= numWheatReceived;
+        offerTaken || sellingWheatOffer.getAmount() <= numWheatReceived;
     if (offerTaken)
     { // entire offer is taken
-        sellingWheatOffer.storeDelete(mDelta, db);
+        ledgerDelta.deleteEntry(sellingWheatOffer.getKey());
 
-        accountB->addNumEntries(-1, mLedgerManager);
-        accountB->storeChange(mDelta, db);
+        auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+        accountBFrame.addNumEntries(-1, ledgerManager);
+        ledgerDelta.updateEntry(accountBFrame);
     }
     else
     {
-        sellingWheatOffer.getOffer().amount -= numWheatReceived;
-        sellingWheatOffer.storeChange(mDelta, db);
+        sellingWheatOffer.setAmount(sellingWheatOffer.getAmount() - numWheatReceived);
+        ledgerDelta.updateEntry(sellingWheatOffer);
     }
 
     // Adjust balances
@@ -208,19 +209,21 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(numSheepSend))
+            auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+            if (!accountBFrame.addBalance(numSheepSend))
             {
                 return eOfferCantConvert;
             }
-            accountB->storeChange(mDelta, db);
+            ledgerDelta.updateEntry(accountBFrame);
         }
         else
         {
-            if (!sheepLineAccountB->addBalance(numSheepSend))
+            auto sheepTrust = TrustFrame{*sheepLineAccountB};
+            if (!sheepTrust.addBalance(numSheepSend))
             {
                 return eOfferCantConvert;
             }
-            sheepLineAccountB->storeChange(mDelta, db);
+            ledgerDelta.updateEntry(sheepTrust);
         }
     }
 
@@ -228,24 +231,26 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(-numWheatReceived))
+            auto accountBFrame = AccountFrame{*ledgerDelta.loadAccount(accountBID)};
+            if (!accountBFrame.addBalance(-numWheatReceived))
             {
                 return eOfferCantConvert;
             }
-            accountB->storeChange(mDelta, db);
+            ledgerDelta.updateEntry(accountBFrame);
         }
         else
         {
-            if (!wheatLineAccountB->addBalance(-numWheatReceived))
+            auto wheatTrust = TrustFrame{*wheatLineAccountB};
+            if (!wheatTrust.addBalance(-numWheatReceived))
             {
                 return eOfferCantConvert;
             }
-            wheatLineAccountB->storeChange(mDelta, db);
+            ledgerDelta.updateEntry(wheatTrust);
         }
     }
 
     mOfferTrail.push_back(
-        ClaimOfferAtom(accountB->getID(), sellingWheatOffer.getOfferID(), wheat,
+        ClaimOfferAtom(accountBFrame.getAccountID(), sellingWheatOffer.getOfferID(), wheat,
                        numWheatReceived, sheep, numSheepSend));
 
     return offerTaken ? eOfferTaken : eOfferPartial;
@@ -253,14 +258,16 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
 OfferExchange::ConvertResult
 OfferExchange::convertWithOffers(
+    LedgerDelta &ledgerDelta,
     Asset const& sheep, int64_t maxSheepSend, int64_t& sheepSend,
     Asset const& wheat, int64_t maxWheatReceive, int64_t& wheatReceived,
-    std::function<OfferFilterResult(OfferFrame const&)> filter)
+    std::function<OfferFilterResult(LedgerEntry const&)> filter)
 {
     sheepSend = 0;
     wheatReceived = 0;
 
-    Database& db = mLedgerManager.getDatabase();
+    auto& ledgerManager = mApp.getLedgerManager();
+    auto& db = ledgerManager.getDatabase();
 
     size_t offerOffset = 0;
 
@@ -268,16 +275,14 @@ OfferExchange::convertWithOffers(
 
     while (needMore)
     {
-        std::vector<OfferFrame::pointer> retList;
-        OfferFrame::loadBestOffers(5, offerOffset, wheat, sheep, retList, db);
-
+        auto retList = selectBestOffers(5, offerOffset, wheat, sheep, db);
         offerOffset += retList.size();
 
         for (auto& wheatOffer : retList)
         {
             if (filter)
             {
-                OfferFilterResult r = filter(*wheatOffer);
+                OfferFilterResult r = filter(wheatOffer);
                 switch (r)
                 {
                 case eKeep:
@@ -293,7 +298,8 @@ OfferExchange::convertWithOffers(
             int64_t numSheepSend;
 
             CrossOfferResult cor =
-                crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
+                crossOffer(ledgerDelta,
+                           OfferFrame{wheatOffer}, maxWheatReceive, numWheatReceived,
                            maxSheepSend, numSheepSend);
 
             assert(numSheepSend >= 0);

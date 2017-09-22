@@ -4,13 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/OfferFrame.h"
 #include "transactions/OperationFrame.h"
 #include <functional>
 #include <vector>
 
 namespace stellar
 {
+
+class OfferFrame;
 
 enum class ExchangeResultType
 {
@@ -44,13 +45,12 @@ ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
 class OfferExchange
 {
 
-    LedgerDelta& mDelta;
-    LedgerManager& mLedgerManager;
+    Application& mApp;
 
     std::vector<ClaimOfferAtom> mOfferTrail;
 
   public:
-    OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager);
+    OfferExchange(Application& app);
 
     // buys wheat with sheep from a single offer
     enum CrossOfferResult
@@ -59,7 +59,8 @@ class OfferExchange
         eOfferTaken,
         eOfferCantConvert
     };
-    CrossOfferResult crossOffer(OfferFrame& sellingWheatOffer,
+    CrossOfferResult crossOffer(LedgerDelta& ledgerDelta,
+                                OfferFrame sellingWheatOffer,
                                 int64_t maxWheatReceived,
                                 int64_t& numWheatReceived, int64_t maxSheepSend,
                                 int64_t& numSheepSent);
@@ -79,9 +80,10 @@ class OfferExchange
     };
     // buys wheat with sheep, crossing as many offers as necessary
     ConvertResult convertWithOffers(
+        LedgerDelta &ledgerDelta,
         Asset const& sheep, int64_t maxSheepSent, int64_t& sheepSend,
         Asset const& wheat, int64_t maxWheatReceive, int64_t& weatReceived,
-        std::function<OfferFilterResult(OfferFrame const&)> filter);
+        std::function<OfferFilterResult(LedgerEntry const&)> filter);
 
     std::vector<ClaimOfferAtom> const&
     getOfferTrail() const

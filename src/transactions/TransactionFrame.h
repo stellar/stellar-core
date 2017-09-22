@@ -12,24 +12,28 @@
 #include <memory>
 #include <set>
 
+/*
+A transaction in its exploded form.
+We can get it in from the DB or from the wire
+*/
 namespace soci
 {
 class session;
 }
 
-/*
-A transaction in its exploded form.
-We can get it in from the DB or from the wire
-*/
 namespace stellar
 {
+class AccountFrame;
 class Application;
 class OperationFrame;
 class LedgerDelta;
+class LedgerEntries;
 class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
 class SHA256;
+enum class ThresholdLevel;
+struct SigningAccount;
 
 class TransactionFrame;
 using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
@@ -40,8 +44,6 @@ class TransactionFrame
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    AccountFrame::pointer mSigningAccount;
-
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
@@ -49,24 +51,26 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
-                     LedgerDelta* delta, SequenceNumber current);
+                     LedgerDelta* ledgerDelta, SequenceNumber current);
 
-    void resetSigningAccount();
     void resetResults();
     bool checkAllSignaturesUsed();
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager);
+                                     LedgerDelta& ledgerDelta,
+                                     Application& app);
     void removeUsedOneTimeSignerKeys(const AccountID& accountId,
                                      const std::set<SignerKey>& keys,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager) const;
-    bool removeAccountSigner(const AccountFrame::pointer& account,
-                             const SignerKey& signerKey,
+                                     LedgerDelta& ledgerDelta,
+                                     Application& app) const;
+    bool removeAccountSigner(AccountFrame& account,
+                             SignerKey const& signerKey,
                              LedgerManager& ledgerManager) const;
     void markResultFailed();
+    bool applyOperations(SignatureChecker& signatureChecker,
+                         LedgerDelta& ledgerDelta,
+                         TransactionMeta& meta,
+                         Application& app);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -115,13 +119,6 @@ class TransactionFrame
         return mEnvelope.tx.seqNum;
     }
 
-    AccountFrame const&
-    getSourceAccount() const
-    {
-        assert(mSigningAccount);
-        return *mSigningAccount;
-    }
-
     AccountID const&
     getSourceID() const
     {
@@ -138,25 +135,21 @@ class TransactionFrame
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
+                        SigningAccount const& account, ThresholdLevel threshold);
 
     bool checkValid(Application& app, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void processFeeSeqNum(int ledgerVersion, LedgerDelta& ledgerDelta, LedgerEntries &entries);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
+    bool apply(LedgerDelta& ledgerDelta, TransactionMeta& meta, Application& app);
 
     // version without meta
-    bool apply(LedgerDelta& delta, Application& app);
+    bool apply(LedgerDelta& ledgerDelta, Application& app);
 
     StellarMessage toStellarMessage() const;
-
-    AccountFrame::pointer loadAccount(int ledgerProtocolVersion,
-                                      LedgerDelta* delta, Database& app,
-                                      AccountID const& accountID);
 
     // transaction history
     void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,

@@ -2,6 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "database/TrustLineQueries.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerEntries.h"
+#include "ledger/TrustFrame.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -25,7 +29,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     VirtualClock clock;
     ApplicationEditableVersion app{clock, cfg};
-    Database& db = app.getDatabase();
+    auto& entries = app.getLedgerEntries();
 
     app.start();
 
@@ -64,7 +68,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // delete the trust line
             root.changeTrust(idr, 0);
-            REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idr, db)));
+            REQUIRE(!(selectTrustLine(root.getPublicKey(), idr, entries.getDatabase())));
         });
     }
     SECTION("issuer does not exist")
@@ -94,13 +98,13 @@ TEST_CASE("change trust", "[tx][changetrust]")
     {
         auto idr = makeAsset(gateway, "IDR");
         auto loadTrustLine = [&]() {
-            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr,
-                                                db);
+            LedgerDelta ledgerDelta(app.getLedgerManager().getCurrentLedgerHeader(),
+                                        app.getLedgerEntries());
+            return TrustFrame{*ledgerDelta.loadTrustLine(gateway.getPublicKey(), idr)};
         };
         auto validateTrustLineIsConst = [&]() {
             auto trustLine = loadTrustLine();
-            REQUIRE(trustLine);
-            REQUIRE(trustLine->getBalance() == INT64_MAX);
+            REQUIRE(trustLine.getBalance() == INT64_MAX);
         };
 
         validateTrustLineIsConst();
@@ -115,12 +119,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.changeTrust(idr, INT64_MAX);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, app);
+            auto gatewayAccountBefore = AccountFrame{*loadAccount(gateway, app)};
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
+            auto gatewayAccountAfter = AccountFrame{*loadAccount(gateway, app)};
+            REQUIRE(gatewayAccountAfter.getBalance() ==
+                    (gatewayAccountBefore.getBalance() -
                      app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX
@@ -143,12 +147,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, app);
+            auto gatewayAccountBefore = AccountFrame{*loadAccount(gateway, app)};
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
+            auto gatewayAccountAfter = AccountFrame{*loadAccount(gateway, app)};
+            REQUIRE(gatewayAccountAfter.getBalance() ==
+                    (gatewayAccountBefore.getBalance() -
                      app.getLedgerManager().getTxFee()));
 
             // lower the limit will fail, because it is still INT64_MAX

@@ -6,15 +6,16 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
+#include "ledger/AccountFrame.h"
+#include "ledgerdelta/LedgerDelta.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/TrustFrame.h"
 #include "util/Logging.h"
-#include <algorithm>
-
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+
+#include <algorithm>
 
 namespace stellar
 {
@@ -31,15 +32,10 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
+CreateAccountOpFrame::doApply(Application& app, LedgerDelta& ledgerDelta,
                               LedgerManager& ledgerManager)
 {
-    AccountFrame::pointer destAccount;
-
-    Database& db = ledgerManager.getDatabase();
-
-    destAccount =
-        AccountFrame::loadAccount(delta, mCreateAccount.destination, db);
+    auto destAccount = ledgerDelta.loadAccount(mCreateAccount.destination);
     if (!destAccount)
     {
         if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
@@ -53,10 +49,10 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         else
         {
-            int64_t minBalance =
-                mSourceAccount->getMinimumBalance(ledgerManager);
+            auto sourceAccount = AccountFrame{*ledgerDelta.loadAccount(getSourceID())};
+            int64_t minBalance = sourceAccount.getMinimumBalance(ledgerManager);
 
-            if ((mSourceAccount->getAccount().balance - minBalance) <
+            if ((sourceAccount.getBalance() - minBalance) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
                 app.getMetrics()
@@ -67,18 +63,14 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
-            auto ok =
-                mSourceAccount->addBalance(-mCreateAccount.startingBalance);
-            assert(ok);
+            sourceAccount.addBalance(-mCreateAccount.startingBalance);
+            ledgerDelta.updateEntry(sourceAccount);
 
-            mSourceAccount->storeChange(delta, db);
-
-            destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
-            destAccount->getAccount().seqNum =
-                delta.getHeaderFrame().getStartingSequenceNumber();
-            destAccount->getAccount().balance = mCreateAccount.startingBalance;
-
-            destAccount->storeAdd(delta, db);
+            auto newAccount = AccountFrame{
+                mCreateAccount.destination,
+                mCreateAccount.startingBalance,
+                ledgerDelta.getHeaderFrame().getStartingSequenceNumber()};
+            ledgerDelta.addEntry(newAccount);
 
             app.getMetrics()
                 .NewMeter({"op-create-account", "success", "apply"},

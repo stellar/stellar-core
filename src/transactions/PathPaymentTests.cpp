@@ -3988,7 +3988,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 else
                 {
                     REQUIRE(loadTrustLine(account, assets[assetIndex], app)
-                                ->getBalance() == initialBalance + difference);
+                                ->data.trustLine().balance == initialBalance + difference);
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,

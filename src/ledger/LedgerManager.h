@@ -13,6 +13,7 @@ namespace stellar
 
 class LedgerHeaderFrame;
 class LedgerCloseData;
+class LedgerDelta;
 class Database;
 
 /**
@@ -124,7 +125,7 @@ class LedgerManager
     virtual void syncMetrics() = 0;
 
     // Return a mutable reference to the current ledger header; this is used
-    // solely by LedgerDelta to _modify_ the current ledger-in-progress.
+    // solely by LedgerDeltaLayer to _modify_ the current ledger-in-progress.
     virtual LedgerHeader& getCurrentLedgerHeader() = 0;
 
     virtual Database& getDatabase() = 0;
@@ -173,6 +174,9 @@ class LedgerManager
 
     // checks the database for inconsistencies between objects
     virtual void checkDbState() = 0;
+
+    // applies LedgerDelta
+    virtual void apply(LedgerDelta const& delta) = 0;
 
     virtual ~LedgerManager()
     {

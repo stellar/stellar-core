@@ -8,7 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "crypto/SignerKey.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "util/Algoritm.h"
 
 namespace stellar
@@ -18,9 +18,10 @@ using xdr::operator<;
 using xdr::operator==;
 
 SignatureChecker::SignatureChecker(
+    bool alwaysOk,
     Hash const& contentsHash,
     xdr::xvector<DecoratedSignature, 20> const& signatures)
-    : mContentsHash(contentsHash), mSignatures(signatures)
+    : mAlwaysOk{alwaysOk}, mContentsHash{contentsHash}, mSignatures{signatures}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
@@ -30,6 +31,11 @@ SignatureChecker::checkSignature(AccountID const& accountID,
                                  std::vector<Signer> const& signersV,
                                  int neededWeight)
 {
+    if (mAlwaysOk)
+    {
+        return true;
+    }
+
     auto signers =
         split(signersV, [](const Signer& s) { return s.key.type(); });
 
@@ -104,6 +110,11 @@ SignatureChecker::checkSignature(AccountID const& accountID,
 bool
 SignatureChecker::checkAllSignaturesUsed() const
 {
+    if (mAlwaysOk)
+    {
+        return true;
+    }
+
     for (auto sigb : mUsedSignatures)
     {
         if (!sigb)

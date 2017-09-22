@@ -23,6 +23,7 @@ namespace stellar
 class VirtualClock;
 class Config;
 class TmpDirManager;
+class LedgerEntries;
 class LedgerManager;
 class BucketManager;
 class CatchupManager;
@@ -179,6 +180,7 @@ class Application
 
     // Get references to each of the "subsystem" objects.
     virtual TmpDirManager& getTmpDirManager() = 0;
+    virtual LedgerEntries& getLedgerEntries() const = 0;
     virtual LedgerManager& getLedgerManager() = 0;
     virtual BucketManager& getBucketManager() = 0;
     virtual CatchupManager& getCatchupManager() = 0;

@@ -57,7 +57,7 @@ class LedgerManagerImpl : public LedgerManager
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            LedgerDelta& delta);
+                            LedgerDelta& ledgerDelta);
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
                            LedgerDelta& ledgerDelta,
                            TransactionResultSet& txResultSet);
@@ -102,6 +102,7 @@ class LedgerManagerImpl : public LedgerManager
     HistoryManager::VerifyHashStatus
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
     void closeLedger(LedgerCloseData const& ledgerData) override;
+    void apply(LedgerDelta const& delta) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq) override;
     void checkDbState() override;
 };

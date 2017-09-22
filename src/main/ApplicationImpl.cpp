@@ -21,6 +21,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/Invariants.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
+#include "ledger/LedgerEntries.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -90,6 +91,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     // These must be constructed _after_ because they frequently call back
     // into App.getFoo() to get information / start up.
     mDatabase = make_unique<Database>(*this);
+    mLedgerEntries = make_unique<LedgerEntries>(*mDatabase);
     mPersistentState = make_unique<PersistentState>(*this);
 
     mTmpDirManager = make_unique<TmpDirManager>(cfg.BUCKET_DIR_PATH + "/tmp");
@@ -550,6 +552,12 @@ ApplicationImpl::getTmpDirManager()
     return *mTmpDirManager;
 }
 
+LedgerEntries&
+ApplicationImpl::getLedgerEntries() const
+{
+    return *mLedgerEntries;
+}
+
 LedgerManager&
 ApplicationImpl::getLedgerManager()
 {
@@ -657,7 +665,7 @@ ApplicationImpl::enabledInvariants() const
     if (mConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE)
     {
         result.push_back(
-            make_unique<CacheIsConsistentWithDatabase>(getDatabase()));
+            make_unique<CacheIsConsistentWithDatabase>(getLedgerEntries()));
     }
     return result;
 }

@@ -19,7 +19,7 @@
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"

@@ -4,6 +4,7 @@
 
 #include "TestAccount.h"
 
+#include "database/DataQueries.h"
 #include "ledger/DataFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -18,7 +19,7 @@ using namespace txtest;
 SequenceNumber
 TestAccount::loadSequenceNumber() const
 {
-    return loadAccount(getPublicKey(), mApp)->getSeqNum();
+    return AccountFrame{*loadAccount(getPublicKey(), mApp)}.getSeqNum();
 }
 
 void
@@ -33,7 +34,7 @@ TestAccount::updateSequenceNumber()
 int64_t
 TestAccount::getBalance() const
 {
-    return loadAccount(getPublicKey(), mApp)->getBalance();
+    return AccountFrame{*loadAccount(getPublicKey(), mApp)}.getBalance();
 }
 
 TransactionFramePtr
@@ -79,7 +80,7 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
         REQUIRE(!!toCreate == !!toCreateAfter);
         if (toCreate && toCreateAfter)
         {
-            REQUIRE(toCreate->getAccount() == toCreateAfter->getAccount());
+            REQUIRE(*toCreate == *toCreateAfter);
         }
         throw;
     }
@@ -137,7 +138,7 @@ TrustLineEntry
 TestAccount::loadTrustLine(Asset const& asset) const
 {
     return txtest::loadTrustLine(getSecretKey(), asset, mApp, true)
-        ->getTrustLine();
+        ->data.trustLine();
 }
 
 bool
@@ -161,12 +162,11 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
-    auto dataFrame =
-        DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
+    auto dataFrame = selectData(getPublicKey(), name, mApp.getDatabase());
     if (value)
     {
         REQUIRE(dataFrame != nullptr);
-        REQUIRE(dataFrame->getData().dataValue == *value);
+        REQUIRE(DataFrame{*dataFrame}.getValue() == *value);
     }
     else
     {
@@ -177,7 +177,7 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 OfferEntry
 TestAccount::loadOffer(uint64_t offerID) const
 {
-    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->getOffer();
+    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->data.offer();
 }
 
 bool
@@ -224,7 +224,7 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter)
         {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
+            REQUIRE(*toAccount == *toAccountAfter);
         }
         throw;
     }

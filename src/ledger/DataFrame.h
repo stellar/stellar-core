@@ -5,79 +5,19 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/EntryFrame.h"
-#include <functional>
-#include <unordered_map>
-
-namespace soci
-{
-class session;
-}
 
 namespace stellar
 {
-class ManageDataOpFrame;
-class StatementContext;
+
+LedgerKey dataKey(AccountID accountID, std::string name);
 
 class DataFrame : public EntryFrame
 {
-    static void loadData(StatementContext& prep,
-                         std::function<void(LedgerEntry const&)> dataProcessor);
-
-    DataEntry& mData;
-
-    void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
-
   public:
-    typedef std::shared_ptr<DataFrame> pointer;
+    explicit DataFrame(AccountID accountID, std::string name, DataValue value);
+    explicit DataFrame(LedgerEntry entry);
 
-    DataFrame();
-    DataFrame(LedgerEntry const& from);
-    DataFrame(DataFrame const& from);
-
-    DataFrame& operator=(DataFrame const& other);
-
-    EntryFrame::pointer
-    copy() const override
-    {
-        return std::make_shared<DataFrame>(*this);
-    }
-
-    std::string const& getName() const;
-    stellar::DataValue const& getValue() const;
-    AccountID const& getAccountID() const;
-
-    DataEntry const&
-    getData() const
-    {
-        return mData;
-    }
-
-    DataEntry&
-    getData()
-    {
-        return mData;
-    }
-
-    // Instance-based overrides of EntryFrame.
-    void storeDelete(LedgerDelta& delta, Database& db) const override;
-    void storeChange(LedgerDelta& delta, Database& db) override;
-    void storeAdd(LedgerDelta& delta, Database& db) override;
-
-    // Static helpers that don't assume an instance.
-    static void storeDelete(LedgerDelta& delta, Database& db,
-                            LedgerKey const& key);
-    static bool exists(Database& db, LedgerKey const& key);
-    static uint64_t countObjects(soci::session& sess);
-
-    // database utilities
-    static pointer loadData(AccountID const& accountID, std::string dataName,
-                            Database& db);
-
-    // load all data entries from the database (very slow)
-    static std::unordered_map<AccountID, std::vector<DataFrame::pointer>>
-    loadAllData(Database& db);
-
-    static void dropAll(Database& db);
-    static const char* kSQLCreateStatement1;
+    DataValue getValue() const;
+    void setValue(DataValue value);
 };
 }

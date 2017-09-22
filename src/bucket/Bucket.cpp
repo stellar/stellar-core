@@ -14,13 +14,15 @@
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
+#include "database/AccountQueries.h"
 #include "database/Database.h"
+#include "database/DataQueries.h"
+#include "database/OfferQueries.h"
+#include "database/TrustLineQueries.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
 #include "ledger/EntryFrame.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerEntries.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "medida/medida.h"
@@ -284,9 +286,9 @@ Bucket::countLiveAndDeadEntries() const
 }
 
 void
-Bucket::apply(Database& db) const
+Bucket::apply(LedgerEntries& entries) const
 {
-    BucketApplicator applicator(db, shared_from_this());
+    BucketApplicator applicator(entries, shared_from_this());
     while (applicator)
     {
         applicator.advance();
@@ -448,7 +450,7 @@ compareSizes(std::string const& objType, uint64_t inDatabase,
 
 void
 checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
-                      BucketManager& bucketManager, Database& db,
+                      BucketManager& bucketManager, Database &db,
                       BucketList& bl)
 {
     CLOG(INFO, "Bucket") << "CheckDB starting";
@@ -523,7 +525,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
                     ++nData;
                     break;
                 }
-                auto s = EntryFrame::checkAgainstDatabase(e.liveEntry(), db);
+                auto s = checkAgainstDatabase(e.liveEntry(), db);
                 if (!s.empty())
                 {
                     throw std::runtime_error{s};
@@ -538,10 +540,9 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
     }
 
     // Step 4: confirm size of datasets matches size of datasets in DB.
-    soci::session& sess = db.getSession();
-    compareSizes("account", AccountFrame::countObjects(sess), nAccounts);
-    compareSizes("trustline", TrustFrame::countObjects(sess), nTrustLines);
-    compareSizes("offer", OfferFrame::countObjects(sess), nOffers);
-    compareSizes("data", DataFrame::countObjects(sess), nData);
+    compareSizes("account", countAccounts(db), nAccounts);
+    compareSizes("trustline", countTrustLines(db), nTrustLines);
+    compareSizes("offer", countOffers(db), nOffers);
+    compareSizes("data", countData(db), nData);
 }
 }

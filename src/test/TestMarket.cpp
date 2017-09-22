@@ -249,7 +249,7 @@ TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
     {
         REQUIRE(OfferState{txtest::loadOffer(o.first.sellerID, o.first.offerID,
                                              mApp, true)
-                               ->getOffer()} == o.second);
+                               ->data.offer()} == o.second);
     }
     for (auto const& o : deletedOffers)
     {
