@@ -12,9 +12,6 @@
 namespace stellar
 {
 
-const std::string CacheIsConsistentWithDatabase::kName
-    = "CacheIsConsistentWithDatabase";
-
 std::shared_ptr<Invariant>
 CacheIsConsistentWithDatabase::registerInvariant(Application& app)
 {
@@ -31,7 +28,7 @@ CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(
 
 std::string
 CacheIsConsistentWithDatabase::getName() const {
-    return kName;
+    return "CacheIsConsistentWithDatabase";
 }
 
 std::string

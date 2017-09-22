@@ -12,9 +12,6 @@
 namespace stellar
 {
 
-const std::string TotalCoinsEqualsBalancesPlusFeePool::kName
-    = "TotalCoinsEqualsBalancesPlusFeePool";
-
 std::shared_ptr<Invariant>
 TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(Application& app)
 {
@@ -31,7 +28,7 @@ TotalCoinsEqualsBalancesPlusFeePool::TotalCoinsEqualsBalancesPlusFeePool(
 
 std::string
 TotalCoinsEqualsBalancesPlusFeePool::getName() const {
-    return kName;
+    return "TotalCoinsEqualsBalancesPlusFeePool";
 }
 
 std::string

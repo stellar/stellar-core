@@ -68,10 +68,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
 
     DATABASE = SecretValue{"sqlite3://:memory:"};
     NTP_SERVER = "pool.ntp.org";
-
-    INVARIANT_CHECK_BALANCE = false;
-    INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT = false;
-    INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE = false;
 }
 
 void
@@ -599,34 +595,22 @@ Config::load(std::string const& filename)
                 PREFERRED_UPGRADE_DATETIME =
                     make_optional<std::tm>(item.second->as<std::tm>()->value());
             }
-            else if (item.first == "INVARIANT_CHECK_BALANCE")
+            else if (item.first == "INVARIANT_CHECKS")
             {
-                if (!item.second->as<bool>())
+                if (!item.second->is_array())
                 {
                     throw std::invalid_argument(
-                        "invalid INVARIANT_CHECK_BALANCE");
+                        "INVARIANT_CHECKS must be an array");
                 }
-                INVARIANT_CHECK_BALANCE = item.second->as<bool>()->value();
-            }
-            else if (item.first == "INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT")
-            {
-                if (!item.second->as<bool>())
+                for (auto v : item.second->as_array()->array())
                 {
-                    throw std::invalid_argument(
-                        "invalid INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT");
+                    if (!v->as<std::string>())
+                    {
+                        throw std::invalid_argument(
+                            "elements of INVARIANT_CHECKS must be strings");
+                    }
+                    INVARIANT_CHECKS.push_back(v->as<std::string>()->value());
                 }
-                INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT =
-                    item.second->as<bool>()->value();
-            }
-            else if (item.first == "INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE")
-            {
-                if (!item.second->as<bool>())
-                {
-                    throw std::invalid_argument(
-                        "invalid INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE");
-                }
-                INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE =
-                    item.second->as<bool>()->value();
             }
             else
             {

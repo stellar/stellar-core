@@ -647,20 +647,9 @@ ApplicationImpl::getWorkerIOService()
 void
 ApplicationImpl::enableInvariantsFromConfig()
 {
-    if (mConfig.INVARIANT_CHECK_BALANCE)
+    for (auto name : mConfig.INVARIANT_CHECKS)
     {
-        mInvariantManager->enableInvariant(
-                TotalCoinsEqualsBalancesPlusFeePool::kName);
-    }
-    if (mConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT)
-    {
-        mInvariantManager->enableInvariant(
-                ChangedAccountsSubentriesCountIsValid::kName);
-    }
-    if (mConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE)
-    {
-        mInvariantManager->enableInvariant(
-                CacheIsConsistentWithDatabase::kName);
+        mInvariantManager->enableInvariant(name);
     }
 }
 }

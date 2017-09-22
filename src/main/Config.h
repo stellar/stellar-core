@@ -166,9 +166,7 @@ class Config : public std::enable_shared_from_this<Config>
     stellar::SCPQuorumSet QUORUM_SET;
 
     // Invariants
-    bool INVARIANT_CHECK_BALANCE;
-    bool INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT;
-    bool INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE;
+    std::vector<std::string> INVARIANT_CHECKS;
 
     std::map<std::string, std::string> VALIDATOR_NAMES;
 

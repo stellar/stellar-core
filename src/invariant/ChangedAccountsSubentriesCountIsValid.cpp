@@ -14,9 +14,6 @@
 namespace stellar
 {
 
-const std::string ChangedAccountsSubentriesCountIsValid::kName
-    = "ChangedAccountsSubentriesCountIsValid";
-
 std::shared_ptr<Invariant>
 ChangedAccountsSubentriesCountIsValid::registerInvariant(Application& app)
 {
@@ -111,7 +108,7 @@ ChangedAccountsSubentriesCountIsValid::ChangedAccountsSubentriesCountIsValid(
 
 std::string
 ChangedAccountsSubentriesCountIsValid::getName() const {
-    return kName;
+    return "ChangedAccountsSubentriesCountIsValid";
 }
 
 std::string

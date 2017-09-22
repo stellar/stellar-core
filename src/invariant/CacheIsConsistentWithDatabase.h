@@ -17,8 +17,6 @@ class LedgerDelta;
 class CacheIsConsistentWithDatabase : public Invariant
 {
   public:
-    static const std::string kName;
-
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
     explicit CacheIsConsistentWithDatabase(Database& db);

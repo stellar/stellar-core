@@ -16,8 +16,6 @@ class Database;
 class ChangedAccountsSubentriesCountIsValid : public Invariant
 {
   public:
-    static const std::string kName;
-
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
     explicit ChangedAccountsSubentriesCountIsValid(Database& db);
