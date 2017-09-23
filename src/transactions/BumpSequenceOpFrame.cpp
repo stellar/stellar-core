@@ -34,11 +34,22 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
     Database& db = ledgerManager.getDatabase();
+    // Account must be loaded from loadAccount to ensure data is fresh & account not deleted
+    AccountFrame::pointer bumpAccount =
+        AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+    SequenceNumber current = bumpAccount->getSeqNum();
 
-    AccountFrame& bumpAccount = getSourceAccount();
+    // fail if the account couldn't be found
+    if (!bumpAccount)
+    {
+        app.getMetrics()
+            .NewMeter({"op-bump-sequence", "failure", "no-account"}, "operation")
+            .Mark();
+        innerResult().code(BUMP_SEQ_NO_ACCOUNT);
+        return false;
+    }
 
-
-    SequenceNumber current = bumpAccount.getSeqNum();
+    // fail if the current sequence is not in the allowed range (inclusive)
     if (mBumpSequence.range && (current < mBumpSequence.range->min || current > mBumpSequence.range->max)) {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "out-of-range"},
@@ -48,18 +59,22 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    bumpAccount.setSeqNum(std::max(mBumpSequence.bumpTo, current));
+    // Apply the bump (bump succeeds silently if bumpTo < current)
+    bumpAccount->setSeqNum(std::max(mBumpSequence.bumpTo, current));
+    bumpAccount->storeChange(delta, db);
+
+    // Return successful results
+    innerResult().code(BUMP_SEQ_SUCCESS);
     app.getMetrics()
         .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
         .Mark();
-    innerResult().code(BUMP_SEQ_SUCCESS);
-    bumpAccount.storeChange(delta, db);
     return true;
 }
 
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
+    // Check that we aren't self-bumping
     if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID()) {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "no-self-bump"},
@@ -69,6 +84,7 @@ BumpSequenceOpFrame::doCheckValid(Application& app)
         return false;
     }
 
+    // Sanity check the range argument
     if (mBumpSequence.range) {
         if (mBumpSequence.range->max < mBumpSequence.range->min) {
             app.getMetrics()
