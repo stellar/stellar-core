@@ -13,7 +13,10 @@ stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
 	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
 
-BUILT_SOURCES = $(SRC_X_FILES:.x=.h) StellarCoreVersion.h
+TESTDATA_DIR = testdata
+TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg $(TESTDATA_DIR)/stellar-core_testnet.cfg
+
+BUILT_SOURCES = $(SRC_X_FILES:.x=.h) StellarCoreVersion.h $(TEST_FILES)
 
 SUFFIXES = .x .h
 .x.h: $(XDRC)
@@ -21,6 +24,9 @@ SUFFIXES = .x .h
 
 $(srcdir)/src.mk: $(top_srcdir)/make-mks
 	cd $(top_srcdir) && ./make-mks
+
+$(TESTDATA_DIR)/%.cfg : $(top_srcdir)/docs/%.cfg
+	mkdir -p $(@D) && cp $< $@
 
 .PHONY: always
 always:
