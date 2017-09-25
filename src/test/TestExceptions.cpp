@@ -267,8 +267,6 @@ throwIf(BumpSequenceResult const& result)
     {
     case BUMP_SEQ_NOT_SUPPORTED_YET:
         throw ex_BUMP_SEQ_NOT_SUPPORTED_YET{};
-    case BUMP_SEQ_NO_ACCOUNT:
-        throw ex_BUMP_SEQ_NO_ACCOUNT{};
     case BUMP_SEQ_INVALID_RANGE:
         throw ex_BUMP_SEQ_INVALID_RANGE{};
     case BUMP_SEQ_OUT_OF_RANGE:

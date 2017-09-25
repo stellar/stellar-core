@@ -22,6 +22,15 @@ using namespace stellar::txtest;
 
 typedef std::unique_ptr<Application> appPtr;
 
+template <typename Callable>
+void
+for_versions_bumpseq(ApplicationEditableVersion& app, Callable&& f) {
+    for_versions_to(std::max(8, //Config::CURRENT_LEDGER_PROTOCOL_VERSION // TODO: For some reason I'm getting a linker error on this const?
+                9), app, f);
+}
+
+#define BUMPSEQ_ENABLED() (app.getLedgerManager().getCurrentLedgerVersion() >= 9)
+
 TEST_CASE("bump sequence", "[tx][bumpsequence]")
 {
     using xdr::operator==;
@@ -41,32 +50,45 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
 
     SECTION("tests without a range")
     {
-        auto num = a1.loadSequenceNumber();
         SECTION("test no-account")
         {
 
-            auto not_created = TestAccount{app, getAccount("not created"), 1};
+            SequenceNumber num = 1;
+            auto not_created = TestAccount{app, getAccount("not created"), num};
             std::vector<SecretKey> signers2 {not_created.getSecretKey()};
-            for_all_versions(app, [&]{
-                    REQUIRE_THROWS_AS(a1.bumpSequence(not_created.getPublicKey(), &signers2, num+110, nullptr),
-                            ex_txNO_ACCOUNT);
+            for_versions_bumpseq(app, [&]{
+                    if (BUMPSEQ_ENABLED())
+                        REQUIRE_THROWS_AS(a1.bumpSequence(not_created.getPublicKey(), &signers2, num+110, nullptr),
+                                ex_txNO_ACCOUNT);
+                    else
+                        REQUIRE_THROWS_AS(a1.bumpSequence(not_created.getPublicKey(), &signers2, num+110, nullptr),
+                                ex_txNO_ACCOUNT);
                 });
 
         }
         SECTION("test self-bump")
         {
-            for_all_versions(app, [&]{
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a1.getPublicKey(),&signers, num+110, nullptr),
-                            ex_BUMP_SEQ_NO_SELF_BUMP);
+            for_versions_bumpseq(app, [&]{
+                    auto num = a2.loadSequenceNumber();
+                    if (BUMPSEQ_ENABLED())
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a1.getPublicKey(),&signers, num+110, nullptr),
+                                ex_BUMP_SEQ_NO_SELF_BUMP);
+                    else
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a1.getPublicKey(),&signers, num+110, nullptr),
+                                ex_BUMP_SEQ_NOT_SUPPORTED_YET);
                     REQUIRE(num == a2.loadSequenceNumber());
                 });
         }
         SECTION("test success")
         {
-            for_all_versions(app, [&]{
+            for_versions_bumpseq(app, [&]{
                     auto num = a2.loadSequenceNumber();
-                    REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, nullptr));
-                    REQUIRE(num+100 == a2.loadSequenceNumber());
+                    if (BUMPSEQ_ENABLED()) {
+                        REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, nullptr));
+                        REQUIRE(num+100 == a2.loadSequenceNumber());
+                    } else {
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, nullptr), ex_BUMP_SEQ_NOT_SUPPORTED_YET);
+                    }
                 });
         }
     }
@@ -76,10 +98,14 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
         SECTION("test invalid-range")
         {
             BumpSeqValidRange invalid_range{1000, 100};
-            for_all_versions(app, [&]{
+            for_versions_bumpseq(app, [&]{
                     auto num = a2.loadSequenceNumber();
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, 110, &invalid_range),
-                            ex_BUMP_SEQ_INVALID_RANGE);
+                    if (BUMPSEQ_ENABLED())
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, 110, &invalid_range),
+                                ex_BUMP_SEQ_INVALID_RANGE);
+                    else
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, 110, &invalid_range),
+                                ex_BUMP_SEQ_NOT_SUPPORTED_YET);
                     REQUIRE(num == a2.loadSequenceNumber());
                 });
         }
@@ -87,31 +113,43 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
         {
             SECTION("below range")
             {
-                for_all_versions(app, [&]{
+                for_versions_bumpseq(app, [&]{
                         auto num = a2.loadSequenceNumber();
                         BumpSeqValidRange below_range{num+10, num+20};
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &below_range),
-                                ex_BUMP_SEQ_OUT_OF_RANGE);
+                        if (BUMPSEQ_ENABLED())
+                            REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &below_range),
+                                    ex_BUMP_SEQ_OUT_OF_RANGE);
+                        else
+                            REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &below_range),
+                                    ex_BUMP_SEQ_NOT_SUPPORTED_YET);
                         REQUIRE(num == a2.loadSequenceNumber());
                     });
             }
             SECTION("above range")
             {
-                for_all_versions(app, [&]{
+                for_versions_bumpseq(app, [&]{
                         auto num = a2.loadSequenceNumber();
                         BumpSeqValidRange above_range{num - 3, num-2};
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &above_range),
-                                ex_BUMP_SEQ_OUT_OF_RANGE);
+                        if (BUMPSEQ_ENABLED())
+                            REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &above_range),
+                                    ex_BUMP_SEQ_OUT_OF_RANGE);
+                        else
+                            REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+300, &above_range),
+                                    ex_BUMP_SEQ_NOT_SUPPORTED_YET);
                         REQUIRE(num == a2.loadSequenceNumber());
                     });
             }
             SECTION("in range")
             {
-                for_all_versions(app, [&]{
+                for_versions_bumpseq(app, [&]{
                         auto num = a2.loadSequenceNumber();
                         BumpSeqValidRange in_range{num - 10, num + 10};
-                        REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num + 100, &in_range));
-                        REQUIRE(num+100 == a2.loadSequenceNumber());
+                        if (BUMPSEQ_ENABLED()) {
+                            REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num + 100, &in_range));
+                            REQUIRE(num+100 == a2.loadSequenceNumber());
+                        } else {
+                            REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num + 100, &in_range), ex_BUMP_SEQ_NOT_SUPPORTED_YET);
+                        }
                     });
             }
         }
@@ -119,9 +157,13 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
         {
             auto num = a2.loadSequenceNumber();
             BumpSeqValidRange exact_range{num, num};
-            for_all_versions(app, [&]{
-                    REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, &exact_range));
-                    REQUIRE(num+100 == a2.loadSequenceNumber());
+            for_versions_bumpseq(app, [&]{
+                    if (BUMPSEQ_ENABLED()) {
+                        REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, &exact_range));
+                        REQUIRE(num+100 == a2.loadSequenceNumber());
+                    } else {
+                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),&signers, num+100, &exact_range), ex_BUMP_SEQ_NOT_SUPPORTED_YET);
+                    }
                 });
         }
     }

@@ -33,22 +33,10 @@ bool
 BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
                            LedgerManager& ledgerManager)
 {
-    Database& db = ledgerManager.getDatabase();
-    // Account must be loaded from loadAccount to ensure data is fresh & account not deleted
-    AccountFrame::pointer bumpAccount =
-        AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-    SequenceNumber current = bumpAccount->getSeqNum();
+    // sourceAccount guaranteed to exist as precondition to calling doApply.
+    AccountFrame& bumpAccount = getSourceAccount();
 
-    // fail if the account couldn't be found
-    if (!bumpAccount)
-    {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "no-account"}, "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQ_NO_ACCOUNT);
-        return false;
-    }
-
+    SequenceNumber current = bumpAccount.getSeqNum();
     // fail if the current sequence is not in the allowed range (inclusive)
     if (mBumpSequence.range && (current < mBumpSequence.range->min || current > mBumpSequence.range->max)) {
         app.getMetrics()
@@ -60,8 +48,8 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
     }
 
     // Apply the bump (bump succeeds silently if bumpTo < current)
-    bumpAccount->setSeqNum(std::max(mBumpSequence.bumpTo, current));
-    bumpAccount->storeChange(delta, db);
+    bumpAccount.setSeqNum(std::max(mBumpSequence.bumpTo, current));
+    bumpAccount.storeChange(delta, ledgerManager.getDatabase());
 
     // Return successful results
     innerResult().code(BUMP_SEQ_SUCCESS);
@@ -74,6 +62,16 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
+    if (app.getLedgerManager().getCurrentLedgerVersion() < 9)
+    {
+        app.getMetrics()
+            .NewMeter({"op-bump-sequence", "failure", "not-supported-yet"},
+                    "operation")
+            .Mark();
+        innerResult().code(BUMP_SEQ_NOT_SUPPORTED_YET);
+        return false;
+    }
+
     // Check that we aren't self-bumping
     if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID()) {
         app.getMetrics()
@@ -96,6 +94,7 @@ BumpSequenceOpFrame::doCheckValid(Application& app)
         }
 
     }
+
 
     return true;
 }
