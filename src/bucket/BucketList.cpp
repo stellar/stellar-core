@@ -298,7 +298,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketList::restartMerges(Application& app, uint32_t currLedger)
+BucketList::restartMerges(Application& app)
 {
     size_t i = 0;
     for (auto& level : mLevels)

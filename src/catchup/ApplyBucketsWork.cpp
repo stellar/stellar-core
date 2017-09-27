@@ -23,12 +23,10 @@ namespace stellar
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState,
-    LedgerHeaderHistoryEntry const& firstVerified)
+    HistoryArchiveState& applyState)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
-    , mFirstVerified(firstVerified)
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
     , mBucketApplyStart(app.getMetrics().NewMeter(
@@ -38,18 +36,6 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mBucketApplyFailure(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "failure"}, "event"))
 {
-    // Consistency check: LCL should be in the _past_ from firstVerified,
-    // since we're about to clobber a bunch of DB state with new buckets
-    // held in firstVerified's state.
-    auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
-    {
-        throw std::runtime_error(
-            fmt::format("ApplyBucketsWork applying ledger earlier than local "
-                        "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(firstVerified),
-                        LedgerManager::ledgerAbbrev(lcl)));
-    }
 }
 
 ApplyBucketsWork::~ApplyBucketsWork()
@@ -57,16 +43,10 @@ ApplyBucketsWork::~ApplyBucketsWork()
     clearChildren();
 }
 
-BucketList&
-ApplyBucketsWork::getBucketList()
-{
-    return mApp.getBucketManager().getBucketList();
-}
-
 BucketLevel&
 ApplyBucketsWork::getBucketLevel(size_t level)
 {
-    return getBucketList().getLevel(level);
+    return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
 std::shared_ptr<Bucket>
@@ -172,9 +152,6 @@ ApplyBucketsWork::onSuccess()
     mSnapApplicator.reset();
     mCurrApplicator.reset();
 
-    HistoryStateBucket& i = mApplyState.currentBuckets.at(mLevel);
-    level.setNext(i.next);
-
     if (mLevel != 0)
     {
         --mLevel;
@@ -184,7 +161,7 @@ ApplyBucketsWork::onSuccess()
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
+    mApp.getBucketManager().assumeState(mApplyState);
     return WORK_SUCCESS;
 }
 

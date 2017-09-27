@@ -298,7 +298,7 @@ class BucketList
     // merging buckets between levels. This needs to be called after forcing a
     // BucketList to adopt a new state, either at application restart or when
     // catching up from buckets loaded over the network.
-    void restartMerges(Application& app, uint32_t currLedger);
+    void restartMerges(Application& app);
 
     // Add a batch of live and dead entries to the bucketlist, representing the
     // entries effected by closing `currLedger`. The bucketlist will incorporate

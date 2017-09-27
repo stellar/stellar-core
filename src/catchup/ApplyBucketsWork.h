@@ -25,7 +25,6 @@ class ApplyBucketsWork : public Work
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     HistoryArchiveState& mApplyState;
-    LedgerHeaderHistoryEntry const& mFirstVerified;
 
     bool mApplying;
     size_t mLevel;
@@ -40,13 +39,11 @@ class ApplyBucketsWork : public Work
 
     std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(size_t level);
-    BucketList& getBucketList();
 
   public:
     ApplyBucketsWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                     HistoryArchiveState& applyState,
-                     LedgerHeaderHistoryEntry const& firstVerified);
+                     HistoryArchiveState& applyState);
     ~ApplyBucketsWork();
 
     void onReset() override;
