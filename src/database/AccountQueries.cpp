@@ -10,10 +10,10 @@
 namespace stellar
 {
 
-uint64_t
+int64_t
 sumOfBalances(Database& db)
 {
-    auto sum = uint64_t{0};
+    int64_t sum = 0;
     auto prep = db.getPreparedStatement("SELECT SUM(balance) FROM accounts;");
 
     auto& st = prep.statement();

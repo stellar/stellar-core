@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "overlay/ItemFetcher.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "lib/catch.hpp"
 #include "main/ApplicationImpl.h"
+#include "overlay/ItemFetcher.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
 #include "test/test.h"

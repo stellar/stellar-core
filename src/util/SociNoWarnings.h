@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#ifdef _WIN32
+#if defined(_MSC_VER)
 #include <soci.h>
 #else
 #pragma GCC diagnostic push

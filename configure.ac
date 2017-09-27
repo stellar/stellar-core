@@ -40,8 +40,6 @@ AM_PROG_CC_C_O
 LT_INIT([disable-shared])
 AC_SUBST(LIBTOOL_DEPS)
 
-LIBSODIUM_MIN_VERSION="1.0.0"
-
 AC_LANG(C++)
 AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
 AX_FRESH_COMPILER
@@ -137,6 +135,8 @@ if test yes = "$sqlite3_INTERNAL"; then
 fi
 AC_SUBST(sqlite3_CFLAGS)
 AC_SUBST(sqlite3_LIBS)
+
+PKG_CHECK_MODULES(libsodium, [libsodium >= 1.0.13], :, libsodium_INTERNAL=yes)
 
 AX_PKGCONFIG_SUBDIR(lib/libsodium)
 if test -n "$libsodium_INTERNAL"; then

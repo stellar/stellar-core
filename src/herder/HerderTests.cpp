@@ -42,7 +42,6 @@ TEST_CASE("standalone", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     // set up world
@@ -159,7 +158,6 @@ TEST_CASE("txset", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     // set up world
@@ -190,13 +188,13 @@ TEST_CASE("txset", "[herder]")
         {
             if (j == 0)
             {
-                transactions[i].emplace_back(
-                    sourceAccount.tx({createAccount(accounts[i].getPublicKey(), paymentAmount)}));
+                transactions[i].emplace_back(sourceAccount.tx({createAccount(
+                    accounts[i].getPublicKey(), paymentAmount)}));
             }
             else
             {
-                transactions[i].emplace_back(
-                    sourceAccount.tx({payment(accounts[i].getPublicKey(), paymentAmount)}));
+                transactions[i].emplace_back(sourceAccount.tx(
+                    {payment(accounts[i].getPublicKey(), paymentAmount)}));
             }
         }
     }
@@ -250,8 +248,8 @@ TEST_CASE("txset", "[herder]")
         {
             SECTION("gap after")
             {
-                auto tx = sourceAccount.tx({payment(
-                    accounts[0], paymentAmount)});
+                auto tx =
+                    sourceAccount.tx({payment(accounts[0], paymentAmount)});
                 tx->getEnvelope().tx.seqNum += 5;
                 txSet->add(tx);
                 txSet->sortForHash();
@@ -309,7 +307,6 @@ TEST_CASE("surge", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     auto& lm = app->getLedgerManager();
@@ -423,7 +420,6 @@ TEST_CASE("SCP Driver", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    Hash const& networkID = app->getNetworkID();
     app->start();
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
@@ -459,10 +455,8 @@ TEST_CASE("SCP Driver", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions), [&]() {
-                          return root.tx({createAccount(a1,
-                              10000000)});
-                      });
+                      std::end(txSet->mTransactions),
+                      [&]() { return root.tx({createAccount(a1, 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

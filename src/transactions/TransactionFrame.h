@@ -49,7 +49,8 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
+                     Database& app);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
                      LedgerDelta* delta, SequenceNumber current);
 
@@ -128,7 +129,7 @@ class TransactionFrame
         return mEnvelope.tx.sourceAccount;
     }
 
-    int64_t getFee() const;
+    uint32_t getFee() const;
 
     int64_t getMinFee(LedgerManager const& lm) const;
 

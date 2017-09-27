@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugNoPostgres|Win32">
       <Configuration>DebugNoPostgres</Configuration>
@@ -27,45 +27,46 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{AE4B5814-D3D5-431F-9792-88689D1BC708}</ProjectGuid>
-    <RootNamespace>libsoci_sqlite3</RootNamespace>
+    <ProjectGuid>{274A9F25-F6AE-4484-B5D1-5812C1B7A48D}</ProjectGuid>
+    <RootNamespace>libmedida</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -91,22 +92,20 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <TargetExt>.lib</TargetExt>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'">
-    <TargetExt>.lib</TargetExt>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
-    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetExt>.lib</TargetExt>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <TargetExt>.lib</TargetExt>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'">
+    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -121,78 +120,58 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <EnableParallelCodeGeneration>
-      </EnableParallelCodeGeneration>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <EnableParallelCodeGeneration>
-      </EnableParallelCodeGeneration>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <EnableParallelCodeGeneration>
-      </EnableParallelCodeGeneration>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4244</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib>
-      <TargetMachine>MachineX64</TargetMachine>
-    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <EnableParallelCodeGeneration>
-      </EnableParallelCodeGeneration>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4244</DisableSpecificWarnings>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib>
-      <TargetMachine>MachineX64</TargetMachine>
-    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -201,7 +180,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
@@ -213,14 +192,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
-      <Optimization>MaxSpeed</Optimization>
+      <Optimization>Disabled</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;..\..\..\lib\sqlite</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\lib\libmedida\src</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BrowseInformation>false</BrowseInformation>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -229,20 +207,50 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\blob.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\common.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\factory.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\row-id.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\session.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\standard-into-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\standard-use-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\statement.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\vector-into-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\backends\sqlite3\vector-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\counter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\histogram.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\meter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metrics_registry.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metric_name.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\metric_processor.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\abstract_polling_reporter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\console_reporter.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\json_reporter.cc">
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">4244;4996</DisableSpecificWarnings>
+      <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">4244;4996</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\reporting\util.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\ewma.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer.cc" />
+    <ClCompile Include="..\..\..\lib\libmedida\src\medida\timer_context.cc" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\lib\soci\src\backends\sqlite3\common.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\backends\sqlite3\soci-sqlite3.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\counter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\histogram.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\medida.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\meter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metered_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metrics_registry.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_name.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\metric_processor.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\abstract_polling_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\console_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\json_reporter.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\reporting\util.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\sampling_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\ewma.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\exp_decay_sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\snapshot.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\stats\uniform_sample.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\summarizable_interface.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\timer.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\timer_context.h" />
+    <ClInclude Include="..\..\..\lib\libmedida\src\medida\types.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

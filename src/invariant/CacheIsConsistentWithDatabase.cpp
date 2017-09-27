@@ -16,18 +16,17 @@ std::shared_ptr<Invariant>
 CacheIsConsistentWithDatabase::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-              .registerInvariant<CacheIsConsistentWithDatabase>(
-                        app.getDatabase());
+        .registerInvariant<CacheIsConsistentWithDatabase>(app.getDatabase());
 }
 
-CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(
-    Database& db)
+CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(Database& db)
     : mDb{db}
 {
 }
 
 std::string
-CacheIsConsistentWithDatabase::getName() const {
+CacheIsConsistentWithDatabase::getName() const
+{
     return "CacheIsConsistentWithDatabase";
 }
 
@@ -47,8 +46,9 @@ CacheIsConsistentWithDatabase::checkOnLedgerClose(LedgerDelta const& delta)
     {
         if (EntryFrame::exists(mDb, d))
         {
-            return fmt::format("Inconsistent state; entry should not exist in database: {}",
-                                xdr::xdr_to_string(d));
+            return fmt::format(
+                "Inconsistent state; entry should not exist in database: {}",
+                xdr::xdr_to_string(d));
         }
     }
 

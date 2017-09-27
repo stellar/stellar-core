@@ -67,8 +67,8 @@ createTestAccounts(Application& app, int nbAccounts,
 
 // computes the resulting balance of each test account
 static std::vector<int64>
-simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins, int64& totFees,
-                  std::function<int64(int)> getBalance,
+simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
+                  int64& totFees, std::function<int64(int)> getBalance,
                   std::function<int(int)> getVote)
 {
     std::map<int, int64> balances;
@@ -211,9 +211,9 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     auto txFrame = root.tx({inflation()});
     expectedFees += txFrame->getFee();
 
-    expectedBalances =
-        simulateInflation(ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,
-                          [&](int i) { return balances[i]; }, getVote);
+    expectedBalances = simulateInflation(
+        ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,
+        [&](int i) { return balances[i]; }, getVote);
 
     // perform actual inflation
     applyTx(txFrame, app);
@@ -280,7 +280,6 @@ TEST_CASE("inflation", "[tx][inflation]")
     clock.setCurrentTime(inflationStart);
 
     ApplicationEditableVersion app{clock, cfg};
-    Database& db = app.getDatabase();
 
     auto root = TestAccount::createRoot(app);
 
@@ -288,44 +287,51 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     SECTION("not time")
     {
-        for_all_versions(app, [&]{
+        for_all_versions(app, [&] {
             closeLedgerOn(app, 2, 30, 6, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
 
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    0);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                0);
 
             closeLedgerOn(app, 3, 1, 7, 2014);
 
             auto txFrame = root.tx({inflation()});
 
             closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    1);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                1);
 
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    1);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                1);
 
             closeLedgerOn(app, 5, 8, 7, 2014);
             root.inflation();
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    2);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                2);
 
             closeLedgerOn(app, 6, 14, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    2);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                2);
 
             closeLedgerOn(app, 7, 15, 7, 2014);
             root.inflation();
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    3);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                3);
 
             closeLedgerOn(app, 8, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                    3);
+            REQUIRE(
+                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                3);
         });
     }
 
@@ -349,7 +355,8 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target1tx = root.tx({createAccount(target1, minBalance)});
         auto target2tx = root.tx({createAccount(target2, minBalance)});
 
-        closeLedgerOn(app, 2, 21, 7, 2014, {voter1tx, voter2tx, target1tx, target2tx});
+        closeLedgerOn(app, 2, 21, 7, 2014,
+                      {voter1tx, voter2tx, target1tx, target2tx});
 
         clh = app.getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000299);
@@ -357,10 +364,13 @@ TEST_CASE("inflation", "[tx][inflation]")
 
         auto t1Public = target1.getPublicKey();
         auto t2Public = target2.getPublicKey();
-        auto setInflationDestination1 = voter1.tx({setOptions(&t1Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
-        auto setInflationDestination2 = voter2.tx({setOptions(&t2Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
+        auto setInflationDestination1 = voter1.tx({setOptions(
+            &t1Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
+        auto setInflationDestination2 = voter2.tx({setOptions(
+            &t2Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
 
-        closeLedgerOn(app, 3, 21, 7, 2014, {setInflationDestination1, setInflationDestination2});
+        closeLedgerOn(app, 3, 21, 7, 2014,
+                      {setInflationDestination1, setInflationDestination2});
 
         clh = app.getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000499);
@@ -372,17 +382,14 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto beforeInflationTarget1 = target1.getBalance();
         auto beforeInflationTarget2 = target2.getBalance();
 
-        REQUIRE(
-            beforeInflationRoot +
-            beforeInflationVoter1 +
-            beforeInflationVoter2 +
-            beforeInflationTarget1 +
-            beforeInflationTarget2 +
-            clh.feePool == clh.totalCoins);
+        REQUIRE(beforeInflationRoot + beforeInflationVoter1 +
+                    beforeInflationVoter2 + beforeInflationTarget1 +
+                    beforeInflationTarget2 + clh.feePool ==
+                clh.totalCoins);
 
         auto inflationTx = root.tx({inflation()});
 
-        for_versions_to(7, app, [&]{
+        for_versions_to(7, app, [&] {
             closeLedgerOn(app, 4, 21, 7, 2014, {inflationTx});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
@@ -399,19 +406,18 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
             REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
             REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
-            REQUIRE(beforeInflationTarget1 == afterInflationTarget1 - 31787000000099);
-            REQUIRE(beforeInflationTarget2 == afterInflationTarget2 - 63574000000199);
+            REQUIRE(beforeInflationTarget1 ==
+                    afterInflationTarget1 - 31787000000099);
+            REQUIRE(beforeInflationTarget2 ==
+                    afterInflationTarget2 - 63574000000199);
 
-            REQUIRE(
-                afterInflationRoot +
-                afterInflationVoter1 +
-                afterInflationVoter2 +
-                afterInflationTarget1 +
-                afterInflationTarget2 +
-                clh.feePool == clh.totalCoins + inflationError);
+            REQUIRE(afterInflationRoot + afterInflationVoter1 +
+                        afterInflationVoter2 + afterInflationTarget1 +
+                        afterInflationTarget2 + clh.feePool ==
+                    clh.totalCoins + inflationError);
         });
 
-        for_versions_from(8, app, [&]{
+        for_versions_from(8, app, [&] {
             closeLedgerOn(app, 4, 21, 7, 2014, {inflationTx});
 
             clh = app.getLedgerManager().getCurrentLedgerHeader();
@@ -427,16 +433,15 @@ TEST_CASE("inflation", "[tx][inflation]")
             REQUIRE(beforeInflationRoot == afterInflationRoot + 100);
             REQUIRE(beforeInflationVoter1 == afterInflationVoter1);
             REQUIRE(beforeInflationVoter2 == afterInflationVoter2);
-            REQUIRE(beforeInflationTarget1 == afterInflationTarget1 - 31787000000099);
-            REQUIRE(beforeInflationTarget2 == afterInflationTarget2 - 63574000000199);
+            REQUIRE(beforeInflationTarget1 ==
+                    afterInflationTarget1 - 31787000000099);
+            REQUIRE(beforeInflationTarget2 ==
+                    afterInflationTarget2 - 63574000000199);
 
-            REQUIRE(
-                afterInflationRoot +
-                afterInflationVoter1 +
-                afterInflationVoter2 +
-                afterInflationTarget1 +
-                afterInflationTarget2 +
-                clh.feePool == clh.totalCoins);
+            REQUIRE(afterInflationRoot + afterInflationVoter1 +
+                        afterInflationVoter2 + afterInflationTarget1 +
+                        afterInflationTarget2 + clh.feePool ==
+                    clh.totalCoins);
         });
     }
 
@@ -449,7 +454,7 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     SECTION("inflation scenarios")
     {
-        for_all_versions(app, [&]{
+        for_all_versions(app, [&] {
             std::function<int(int)> voteFunc;
             std::function<int64(int)> balanceFunc;
             int nbAccounts = 0;
@@ -461,8 +466,9 @@ TEST_CASE("inflation", "[tx][inflation]")
                     createTestAccounts(app, nbAccounts, balanceFunc, voteFunc);
                     closeLedgerOn(app, 2, 21, 7, 2014);
 
-                    doInflation(app, app.getLedgerManager().getCurrentLedgerVersion(),
-                                nbAccounts, balanceFunc, voteFunc, expectedWinners);
+                    doInflation(
+                        app, app.getLedgerManager().getCurrentLedgerVersion(),
+                        nbAccounts, balanceFunc, voteFunc, expectedWinners);
                 }
             };
 
@@ -508,7 +514,9 @@ TEST_CASE("inflation", "[tx][inflation]")
                 nbAccounts = 12;
                 expectedWinners = 1;
                 voteFunc = [&](int n) { return 0; };
-                balanceFunc = [&](int n) { return 1 + (winnerVote / nbAccounts); };
+                balanceFunc = [&](int n) {
+                    return 1 + (winnerVote / nbAccounts);
+                };
                 verify();
             }
             SECTION("50/50 split")

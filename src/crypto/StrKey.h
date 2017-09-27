@@ -14,13 +14,14 @@ struct SecretValue;
 namespace strKey
 {
 
-typedef enum {
+enum StrKeyVersionByte : uint8_t
+{
     // version bytes - 5 bits only
     STRKEY_PUBKEY_ED25519 = 6, // 'G'
     STRKEY_SEED_ED25519 = 18,  // 'S'
     STRKEY_PRE_AUTH_TX = 19,   // 'T',
     STRKEY_HASH_X = 23         // 'X'
-} StrKeyVersionByte;
+};
 
 // Encode a version byte and ByteSlice into StrKey
 SecretValue toStrKey(uint8_t ver, ByteSlice const& bin);

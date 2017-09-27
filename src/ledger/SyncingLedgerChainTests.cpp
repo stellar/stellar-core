@@ -24,8 +24,7 @@ makeLedgerCloseData(uint32_t ledgerSeq)
 }
 }
 
-TEST_CASE("empty syncing ledger had not 'TOO_NEW'",
-          "[ledger][ledgerchain]")
+TEST_CASE("empty syncing ledger had not 'TOO_NEW'", "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
     REQUIRE(ledgerChain.size() == 0);

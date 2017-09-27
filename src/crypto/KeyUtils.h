@@ -42,7 +42,8 @@ typename std::enable_if<!std::is_same<T, SecretKey>::value, std::string>::type
 toStrKey(T const& key)
 {
     return strKey::toStrKey(KeyFunctions<T>::toKeyVersion(key.type()),
-                            KeyFunctions<T>::getKeyValue(key)).value;
+                            KeyFunctions<T>::getKeyValue(key))
+        .value;
 }
 
 template <typename T>

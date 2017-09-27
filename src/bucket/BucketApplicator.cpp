@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "bucket/Bucket.h"
 #include "bucket/BucketApplicator.h"
+#include "bucket/Bucket.h"
 #include "ledger/LedgerDelta.h"
 #include "util/Logging.h"
 

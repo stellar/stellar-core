@@ -110,7 +110,8 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
             }
             if (!winner->addBalance(toDoleThisWinner))
             {
-                throw std::runtime_error("inflation overflowed destination balance");
+                throw std::runtime_error(
+                    "inflation overflowed destination balance");
             }
             winner->storeChange(inflationDelta, db);
             payouts.emplace_back(w.mInflationDest, toDoleThisWinner);

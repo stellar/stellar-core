@@ -1,7 +1,7 @@
 //
 //  Bismillah ar-Rahmaan ar-Raheem
 //
-//  Easylogging++ v9.94.2
+//  Easylogging++ v9.95.0
 //  Cross-platform logging library for C++ applications
 //
 //  Copyright (c) 2017 muflihun.com
@@ -615,7 +615,10 @@ void Logger::flush(Level level, base::type::fstream_t* fs) {
   }
   if (fs != nullptr) {
     fs->flush();
-    m_unflushedCount.find(level)->second = 0;
+    std::map<Level, unsigned int>::iterator iter = m_unflushedCount.find(level);
+    if (iter != m_unflushedCount.end()) {
+      iter->second = 0;
+    }
   }
 }
 
@@ -1000,6 +1003,8 @@ const std::string OS::getBashOutput(const char* command) {
       hBuff[strlen(hBuff) - 1] = '\0';
     }
     return std::string(hBuff);
+  } else {
+    pclose(proc);
   }
   return std::string();
 #else
@@ -1151,7 +1156,11 @@ struct ::tm* DateTime::buildTimeInfo(struct timeval* currTime, struct ::tm* time
 #  if ELPP_COMPILER_MSVC
   ELPP_UNUSED(currTime);
   time_t t;
+#    if defined(_USE_32BIT_TIME_T)
+  _time32(&t);
+#    else
   _time64(&t);
+#    endif
   elpptime_s(timeInfo, &t);
   return timeInfo;
 #  else
@@ -1265,7 +1274,8 @@ bool CommandLineArgs::hasParamWithValue(const char* paramKey) const {
 }
 
 const char* CommandLineArgs::getParamValue(const char* paramKey) const {
-  return m_paramsWithValue.find(std::string(paramKey))->second.c_str();
+  std::map<std::string, std::string>::const_iterator iter = m_paramsWithValue.find(std::string(paramKey));
+  return iter != m_paramsWithValue.end() ? iter->second.c_str() : "";
 }
 
 bool CommandLineArgs::hasParam(const char* paramKey) const {
@@ -1938,9 +1948,11 @@ bool VRegistry::allowed(base::type::VerboseLevel vlevel, const char* file) {
   if (m_modules.empty() || file == nullptr) {
     return vlevel <= m_level;
   } else {
+    char baseFilename[base::consts::kSourceFilenameMaxLength] = "";
+    base::utils::File::buildBaseFilename(file, baseFilename);
     std::map<std::string, base::type::VerboseLevel>::iterator it = m_modules.begin();
     for (; it != m_modules.end(); ++it) {
-      if (base::utils::Str::wildCardMatch(file, it->first.c_str())) {
+      if (base::utils::Str::wildCardMatch(baseFilename, it->first.c_str())) {
         return vlevel <= it->second;
       }
     }
@@ -2090,53 +2102,54 @@ void Storage::setApplicationArguments(int argc, char** argv) {
 // DefaultLogDispatchCallback
 
 void DefaultLogDispatchCallback::handle(const LogDispatchData* data) {
-  dispatch(data->logMessage()->logger()->logBuilder()->build(data->logMessage(),
-           data->dispatchAction() == base::DispatchAction::NormalLog), data);
+  m_data = data;
+  dispatch(m_data->logMessage()->logger()->logBuilder()->build(m_data->logMessage(),
+           m_data->dispatchAction() == base::DispatchAction::NormalLog));
 }
 
-void DefaultLogDispatchCallback::dispatch(base::type::string_t&& logLine, const LogDispatchData* data) {
-  if (data->dispatchAction() == base::DispatchAction::NormalLog) {
-    if (data->logMessage()->logger()->m_typedConfigurations->toFile(data->logMessage()->level())) {
-      base::type::fstream_t* fs = data->logMessage()->logger()->m_typedConfigurations->fileStream(
-                                    data->logMessage()->level());
+void DefaultLogDispatchCallback::dispatch(base::type::string_t&& logLine) {
+  if (m_data->dispatchAction() == base::DispatchAction::NormalLog) {
+    if (m_data->logMessage()->logger()->m_typedConfigurations->toFile(m_data->logMessage()->level())) {
+      base::type::fstream_t* fs = m_data->logMessage()->logger()->m_typedConfigurations->fileStream(
+                                    m_data->logMessage()->level());
       if (fs != nullptr) {
         fs->write(logLine.c_str(), logLine.size());
         if (fs->fail()) {
           ELPP_INTERNAL_ERROR("Unable to write log to file ["
-                              << data->logMessage()->logger()->m_typedConfigurations->filename(data->logMessage()->level()) << "].\n"
+                              << m_data->logMessage()->logger()->m_typedConfigurations->filename(m_data->logMessage()->level()) << "].\n"
                               << "Few possible reasons (could be something else):\n" << "      * Permission denied\n"
                               << "      * Disk full\n" << "      * Disk is not writable", true);
         } else {
           if (ELPP->hasFlag(LoggingFlag::ImmediateFlush)
-              || (data->logMessage()->logger()->isFlushNeeded(data->logMessage()->level()))) {
-            data->logMessage()->logger()->flush(data->logMessage()->level(), fs);
+              || (m_data->logMessage()->logger()->isFlushNeeded(m_data->logMessage()->level()))) {
+            m_data->logMessage()->logger()->flush(m_data->logMessage()->level(), fs);
           }
         }
       } else {
-        ELPP_INTERNAL_ERROR("Log file for [" << LevelHelper::convertToString(data->logMessage()->level()) << "] "
+        ELPP_INTERNAL_ERROR("Log file for [" << LevelHelper::convertToString(m_data->logMessage()->level()) << "] "
                             << "has not been configured but [TO_FILE] is configured to TRUE. [Logger ID: "
-                            << data->logMessage()->logger()->id() << "]", false);
+                            << m_data->logMessage()->logger()->id() << "]", false);
       }
     }
-    if (data->logMessage()->logger()->m_typedConfigurations->toStandardOutput(data->logMessage()->level())) {
+    if (m_data->logMessage()->logger()->m_typedConfigurations->toStandardOutput(m_data->logMessage()->level())) {
       if (ELPP->hasFlag(LoggingFlag::ColoredTerminalOutput))
-        data->logMessage()->logger()->logBuilder()->convertToColoredOutput(&logLine, data->logMessage()->level());
+        m_data->logMessage()->logger()->logBuilder()->convertToColoredOutput(&logLine, m_data->logMessage()->level());
       ELPP_COUT << ELPP_COUT_LINE(logLine);
     }
   }
 #if defined(ELPP_SYSLOG)
-  else if (data->dispatchAction() == base::DispatchAction::SysLog) {
+  else if (m_data->dispatchAction() == base::DispatchAction::SysLog) {
     // Determine syslog priority
     int sysLogPriority = 0;
-    if (data->logMessage()->level() == Level::Fatal)
+    if (m_data->logMessage()->level() == Level::Fatal)
       sysLogPriority = LOG_EMERG;
-    else if (data->logMessage()->level() == Level::Error)
+    else if (m_data->logMessage()->level() == Level::Error)
       sysLogPriority = LOG_ERR;
-    else if (data->logMessage()->level() == Level::Warning)
+    else if (m_data->logMessage()->level() == Level::Warning)
       sysLogPriority = LOG_WARNING;
-    else if (data->logMessage()->level() == Level::Info)
+    else if (m_data->logMessage()->level() == Level::Info)
       sysLogPriority = LOG_INFO;
-    else if (data->logMessage()->level() == Level::Debug)
+    else if (m_data->logMessage()->level() == Level::Debug)
       sysLogPriority = LOG_DEBUG;
     else
       sysLogPriority = LOG_NOTICE;
@@ -2973,11 +2986,12 @@ void Loggers::clearVModules(void) {
 // VersionInfo
 
 const std::string VersionInfo::version(void) {
-  return std::string("9.94.2");
+  return std::string("9.95.0");
 }
 /// @brief Release date of current version
 const std::string VersionInfo::releaseDate(void) {
-  return std::string("12-04-2017 1621hrs");
+  return std::string("02-08-2017 2312hrs");
 }
 
 } // namespace el
+

@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="DebugNoPostgres|Win32">
       <Configuration>DebugNoPostgres</Configuration>
@@ -26,108 +26,47 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\..\lib\soci\src\core\backend-loader.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\blob.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\connection-parameters.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\connection-pool.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\error.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\into-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\once-temp-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\prepare-temp-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\procedure.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\ref-counted-prepare-info.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\ref-counted-statement.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\row.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\rowid.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\session.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\soci-simple.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\statement.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\transaction.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\use-type.cpp" />
-    <ClCompile Include="..\..\..\lib\soci\src\core\values.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\..\lib\soci\src\core\backend-loader.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\blob-exchange.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\blob.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\connection-parameters.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\connection-pool.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\error.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\exchange-traits.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\into-type.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\into.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\once-temp-type.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\prepare-temp-type.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\procedure.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\query_transformation.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\ref-counted-prepare-info.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\ref-counted-statement.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\row-exchange.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\row.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\rowid-exchange.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\rowid.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\rowset.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\session.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci-backend.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci-config.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci-platform.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci-simple.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\soci_backends_config.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\statement.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\transaction.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\type-conversion-traits.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\type-conversion.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\type-holder.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\type-ptr.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\unsigned-types.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\use-type.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\use.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\values-exchange.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\values.h" />
-    <ClInclude Include="..\..\..\lib\soci\src\core\version.h" />
-  </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{BBD512EB-DB2A-4FA1-BDB8-3BA3D2FCF51B}</ProjectGuid>
-    <RootNamespace>libsoci</RootNamespace>
+    <ProjectGuid>{AF73D670-3D56-4949-BEC5-B8E5F7BCA2E5}</ProjectGuid>
+    <RootNamespace>libsoci_postgresql</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.15063.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'" Label="Configuration">
-    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v140</PlatformToolset>
+    <PlatformToolset>v141</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -155,12 +94,10 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'">
     <TargetExt>.lib</TargetExt>
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -172,7 +109,6 @@
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <OutDir>$(SolutionDir)$(Platform)\$(Configuration)\</OutDir>
     <IntDir>$(SolutionDir)\Build\$(Platform)\$(Configuration)\$(ProjectName)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -183,49 +119,54 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib />
+    <Lib>
+      <AdditionalDependencies>C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
-    <Lib />
+    <Lib>
+      <AdditionalDependencies>C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
+      <AdditionalDependencies>C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
       <TargetMachine>MachineX64</TargetMachine>
     </Lib>
   </ItemDefinitionGroup>
@@ -234,17 +175,18 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <MinimalRebuild>false</MinimalRebuild>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <BrowseInformation>false</BrowseInformation>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <Lib>
+      <AdditionalDependencies>C:\Program Files\PostgreSQL\9.4\lib\libpq.lib</AdditionalDependencies>
       <TargetMachine>MachineX64</TargetMachine>
     </Lib>
   </ItemDefinitionGroup>
@@ -255,7 +197,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -270,9 +212,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <BrowseInformation>false</BrowseInformation>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <BrowseInformation>false</BrowseInformation>
+      <AdditionalIncludeDirectories>..\..\..\lib\soci\src\core;c:\Program Files\PostgreSQL\9.4\include</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -280,6 +222,23 @@
       <OptimizeReferences>true</OptimizeReferences>
     </Link>
   </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\blob.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\common.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\error.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\factory.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\row-id.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\session.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\standard-use-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\statement.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-into-type.cpp" />
+    <ClCompile Include="..\..\..\lib\soci\src\backends\postgresql\vector-use-type.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\common.h" />
+    <ClInclude Include="..\..\..\lib\soci\src\backends\postgresql\soci-postgresql.h" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

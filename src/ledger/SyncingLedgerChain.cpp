@@ -9,14 +9,14 @@ namespace stellar
 {
 
 SyncingLedgerChain::SyncingLedgerChain() = default;
-SyncingLedgerChain::SyncingLedgerChain(SyncingLedgerChain const&) =
-    default;
+SyncingLedgerChain::SyncingLedgerChain(SyncingLedgerChain const&) = default;
 SyncingLedgerChain::~SyncingLedgerChain() = default;
 
 SyncingLedgerChainAddResult
 SyncingLedgerChain::add(LedgerCloseData lcd)
 {
-    if (mChain.empty() || mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())
+    if (mChain.empty() ||
+        mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())
     {
         mChain.emplace_back(std::move(lcd));
         return SyncingLedgerChainAddResult::CONTIGUOUS;

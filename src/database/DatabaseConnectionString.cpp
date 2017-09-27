@@ -12,7 +12,7 @@ namespace stellar
 namespace
 {
 
-class ParserException : std::runtime_error
+class ParserException : public std::runtime_error
 {
   public:
     explicit ParserException(std::string const& what) : std::runtime_error{what}

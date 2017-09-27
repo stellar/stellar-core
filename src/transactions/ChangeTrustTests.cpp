@@ -37,10 +37,10 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     SECTION("basic tests")
     {
-        for_all_versions(app, [&]{
+        for_all_versions(app, [&] {
             // create a trustline with a limit of 0
             REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
-                            ex_CHANGE_TRUST_INVALID_LIMIT);
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // create a trustline with a limit of 100
             root.changeTrust(idr, 100);
@@ -50,11 +50,11 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // can't lower the limit below balance
             REQUIRE_THROWS_AS(root.changeTrust(idr, 89),
-                            ex_CHANGE_TRUST_INVALID_LIMIT);
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // can't delete if there is a balance
             REQUIRE_THROWS_AS(root.changeTrust(idr, 0),
-                            ex_CHANGE_TRUST_INVALID_LIMIT);
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
 
             // lower the limit at the balance
             root.changeTrust(idr, 90);
@@ -71,31 +71,29 @@ TEST_CASE("change trust", "[tx][changetrust]")
     {
         SECTION("new trust line")
         {
-            for_all_versions(app, [&]{
+            for_all_versions(app, [&] {
                 Asset usd = makeAsset(getAccount("non-existing"), "IDR");
                 REQUIRE_THROWS_AS(root.changeTrust(usd, 100),
-                                ex_CHANGE_TRUST_NO_ISSUER);
+                                  ex_CHANGE_TRUST_NO_ISSUER);
             });
         }
         SECTION("edit existing")
         {
-            for_all_versions(app, [&]{
+            for_all_versions(app, [&] {
                 root.changeTrust(idr, 100);
                 // Merge gateway back into root (the trustline still exists)
                 gateway.merge(root);
 
                 REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
-                                ex_CHANGE_TRUST_NO_ISSUER);
+                                  ex_CHANGE_TRUST_NO_ISSUER);
                 REQUIRE(!loadAccount(gateway, app, false));
             });
         }
     }
     SECTION("trusting self")
     {
-        auto idr = makeAsset(gateway, "IDR");
         auto loadTrustLine = [&]() {
-            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr,
-                                                db);
+            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr, db);
         };
         auto validateTrustLineIsConst = [&]() {
             auto trustLine = loadTrustLine();
@@ -105,7 +103,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
         validateTrustLineIsConst();
 
-        for_versions_to(2, app, [&]{
+        for_versions_to(2, app, [&] {
             // create a trustline with a limit of INT64_MAX - 1 wil lfail
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
                               ex_CHANGE_TRUST_INVALID_LIMIT);
@@ -134,7 +132,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             validateTrustLineIsConst();
         });
 
-        for_versions_from(3, app, [&]{
+        for_versions_from(3, app, [&] {
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, INT64_MAX - 1),
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();

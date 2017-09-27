@@ -4,9 +4,7 @@
 
 #include "util/Logging.h"
 #include "main/Application.h"
-#include "util/InMemoryLogHandler.h"
 #include "util/types.h"
-#include <vector>
 
 /*
 Levels:
@@ -24,15 +22,12 @@ namespace stellar
 namespace
 {
 
-static const std::vector<std::string> loggers = {
-    "Fs",      "SCP",    "Bucket",    "Database", "History",
-    "Process", "Ledger", "Overlay",   "Herder",   "Tx",
-    "LoadGen", "Work",   "Invariant", "InMemory"};
+static const std::vector<std::string> kLoggers = {
+    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
+    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
 }
 
 el::Configurations Logging::gDefaultConf;
-
-const std::string Logging::inMemoryLoggerName = "InMemory";
 
 void
 Logging::setFmt(std::string const& peerID, bool timestamps)
@@ -59,7 +54,7 @@ Logging::init()
     // el::Loggers::addFlag(el::LoggingFlag::HierarchicalLogging);
     el::Loggers::addFlag(el::LoggingFlag::DisableApplicationAbortOnFatalLog);
 
-    for (auto const& logger : loggers)
+    for (auto const& logger : kLoggers)
     {
         el::Loggers::getLogger(logger);
     }
@@ -229,45 +224,9 @@ void
 Logging::rotate()
 {
     el::Loggers::getLogger("default")->reconfigure();
-    for (auto const& logger : loggers)
+    for (auto const& logger : kLoggers)
     {
         el::Loggers::getLogger(logger)->reconfigure();
     }
-}
-
-void
-Logging::enableInMemoryLogging(const std::string& logFilename,
-                               const std::string& pushLevel)
-{
-    std::vector<std::string> loggers;
-    el::Loggers::populateAllLoggerIds(&loggers);
-    for (auto loggerId : loggers)
-    {
-        el::Logger* logger = el::Loggers::getLogger(loggerId);
-        el::Configurations* config = logger->configurations();
-        auto logLevel = el::LevelHelper::castToInt(getLogLevel(loggerId));
-        auto startLevel = el::LevelHelper::castToInt(el::Level::Trace);
-        el::LevelHelper::forEachLevel(&startLevel, [&startLevel, config,
-                                                    logLevel]() -> bool {
-            el::Level thisLevel = el::LevelHelper::castFromInt(startLevel);
-            config->set(thisLevel, el::ConfigurationType::Enabled, "true");
-            if (startLevel < logLevel)
-            {
-                config->set(thisLevel, el::ConfigurationType::ToStandardOutput,
-                            "false");
-                config->set(thisLevel, el::ConfigurationType::ToFile, "false");
-            }
-            return false;
-        });
-        logger->configure(*config);
-    }
-
-    if (!logFilename.empty())
-    {
-        StaticMemoryHandler::setLogFilename(logFilename);
-    }
-    StaticMemoryHandler::setPushLevel(pushLevel);
-    el::Helpers::installLogDispatchCallback<StaticMemoryHandler>(
-        inMemoryLoggerName);
 }
 }

@@ -250,8 +250,6 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     REQUIRE(has2.currentLedger == 0x1234);
 }
 
-extern LedgerEntry generateValidLedgerEntry();
-
 void
 HistoryTests::generateRandomLedger()
 {

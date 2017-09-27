@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "herder/PendingEnvelopes.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include "herder/PendingEnvelopes.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -51,10 +51,8 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto addTransactions = [&](TxSetFramePtr txSet, int n) {
         txSet->mTransactions.resize(n);
         std::generate(std::begin(txSet->mTransactions),
-                      std::end(txSet->mTransactions), [&]() {
-                          return root.tx({createAccount(a1,
-                              10000000)});
-                      });
+                      std::end(txSet->mTransactions),
+                      [&]() { return root.tx({createAccount(a1, 10000000)}); });
     };
     auto makeTransactions = [&](Hash hash, int n) {
         auto result = std::make_shared<TxSetFrame>(hash);

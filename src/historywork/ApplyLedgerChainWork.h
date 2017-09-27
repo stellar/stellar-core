@@ -4,9 +4,10 @@
 
 #pragma once
 
+#include "work/Work.h"
+
 #include "herder/TxSetFrame.h"
 #include "util/XDRStream.h"
-#include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
 

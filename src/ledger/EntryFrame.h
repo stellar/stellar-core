@@ -64,7 +64,8 @@ class EntryFrame : public NonMovableOrCopyable
     void flushCachedEntry(Database& db) const;
     void putCachedEntry(Database& db) const;
 
-    static std::string checkAgainstDatabase(LedgerEntry const& entry, Database& db);
+    static std::string checkAgainstDatabase(LedgerEntry const& entry,
+                                            Database& db);
 
     virtual EntryFrame::pointer copy() const = 0;
 

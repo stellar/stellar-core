@@ -450,8 +450,12 @@ main(int argc, char* const* argv)
 {
     using namespace stellar;
 
-    sodium_init();
     Logging::init();
+    if (sodium_init() != 0)
+    {
+        LOG(FATAL) << "Could not initialize crypto";
+        return 1;
+    }
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
@@ -525,7 +529,8 @@ main(int argc, char* const* argv)
         case OPT_GENSEED:
         {
             SecretKey key = SecretKey::random();
-            std::cout << "Secret seed: " << key.getStrKeySeed().value << std::endl;
+            std::cout << "Secret seed: " << key.getStrKeySeed().value
+                      << std::endl;
             std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
             return 0;
         }
@@ -599,8 +604,6 @@ main(int argc, char* const* argv)
         if (cfg.LOG_FILE_PATH.size())
             Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
         Logging::setLogLevel(logLevel, nullptr);
-        // TODO NOTE this must be invoked as last
-        Logging::enableInMemoryLogging(cfg.LOG_FILE_PATH, "fatal");
 
         cfg.REPORT_METRICS = metrics;
 

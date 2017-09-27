@@ -314,6 +314,5 @@ throwIf(TransactionResult const& result)
         break;
     }
 }
-
 }
 }

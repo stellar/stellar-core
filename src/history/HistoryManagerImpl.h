@@ -26,7 +26,7 @@ class HistoryManagerImpl : public HistoryManager
     std::unique_ptr<TmpDir> mWorkDir;
     std::shared_ptr<Work> mPublishWork;
     PublishQueueBuckets mPublishQueueBuckets;
-    bool mPublishQueueBucketsFilled {false};
+    bool mPublishQueueBucketsFilled{false};
 
     medida::Meter& mPublishSkip;
     medida::Meter& mPublishQueue;
@@ -74,7 +74,9 @@ class HistoryManagerImpl : public HistoryManager
 
     std::vector<HistoryArchiveState> getPublishQueueStates();
 
-    void historyPublished(uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets, bool success) override;
+    void historyPublished(uint32_t ledgerSeq,
+                          std::vector<std::string> const& originalBuckets,
+                          bool success) override;
 
     void downloadMissingBuckets(
         HistoryArchiveState desiredState,
