@@ -14,15 +14,15 @@ class AccountFrame;
 
 struct SigningAccount
 {
-    AccountID accountID;
-    xdr::xvector<Signer, 20> signers {};
-    uint32_t weight {1};
-    uint32_t lowThreshold {0};
-    uint32_t mediumThreshold {0};
-    uint32_t highThreshold {0};
+    AccountID mAccountID;
+    xdr::xvector<Signer, 20> mSigners {};
+    uint32_t mWeight {1};
+    uint32_t mLowThreshold {0};
+    uint32_t mMediumThreshold {0};
+    uint32_t mHighThreshold {0};
 
     SigningAccount() = default;
-    explicit SigningAccount(AccountID accountID);
+    explicit SigningAccount(AccountID const& accountID);
     explicit SigningAccount(AccountFrame const& accountFrame);
 };
 

@@ -8,18 +8,18 @@
 namespace stellar
 {
 
-SigningAccount::SigningAccount(AccountID accountID) :
-    accountID{std::move(accountID)}
+SigningAccount::SigningAccount(AccountID const& accountID) :
+    mAccountID{accountID}
 {
 }
 
 SigningAccount::SigningAccount(AccountFrame const& accountFrame) :
-    accountID{accountFrame.getAccount().accountID},
-    signers{accountFrame.getAccount().signers},
-    weight{accountFrame.getMasterWeight()},
-    lowThreshold{accountFrame.getLowThreshold()},
-    mediumThreshold{accountFrame.getMediumThreshold()},
-    highThreshold{accountFrame.getHighThreshold()}
+    mAccountID{accountFrame.getAccount().accountID},
+    mSigners{accountFrame.getAccount().signers},
+    mWeight{accountFrame.getMasterWeight()},
+    mLowThreshold{accountFrame.getLowThreshold()},
+    mMediumThreshold{accountFrame.getMediumThreshold()},
+    mHighThreshold{accountFrame.getHighThreshold()}
 {
 }
 

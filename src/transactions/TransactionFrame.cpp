@@ -139,29 +139,40 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 SigningAccount const& signingAccount, ThresholdLevel threshold)
+                                 SigningAccount const& signingAccount,
+                                 ThresholdLevel threshold)
 {
     std::vector<Signer> signers;
-    if (signingAccount.weight)
+    if (signingAccount.mWeight)
         signers.push_back(
-            Signer(KeyUtils::convertKey<SignerKey>(signingAccount.accountID),
-                   signingAccount.weight));
-    signers.insert(signers.end(), std::begin(signingAccount.signers),
-                   std::end(signingAccount.signers));
+            Signer(KeyUtils::convertKey<SignerKey>(signingAccount.mAccountID),
+                   signingAccount.mWeight));
+    signers.insert(signers.end(), std::begin(signingAccount.mSigners),
+                   std::end(signingAccount.mSigners));
 
-    auto neededWeight = [&](){;
-        switch (threshold)
-        {
-        case ThresholdLevel::LOW:
-            return signingAccount.lowThreshold;
-        case ThresholdLevel::MEDIUM:
-            return signingAccount.mediumThreshold;
-        case ThresholdLevel::HIGH:
-            return signingAccount.highThreshold;
-        };
-    }();
+    auto neededWeight = 0u;
+    switch (threshold)
+    {
+    case ThresholdLevel::LOW:
+    {
+        neededWeight = signingAccount.mLowThreshold;
+        break;
+    }
+    case ThresholdLevel::MEDIUM:
+    {
+        neededWeight = signingAccount.mMediumThreshold;
+        break;
+    }
+    case ThresholdLevel::HIGH:
+    {
+        neededWeight = signingAccount.mHighThreshold;
+        break;
+    }
+    default:
+        abort();
+    };
 
-    return signatureChecker.checkSignature(signingAccount.accountID, signers,
+    return signatureChecker.checkSignature(signingAccount.mAccountID, signers,
                                            neededWeight);
 }
 
@@ -300,7 +311,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (!checkSignature(signatureChecker, *mSigningAccount,
+    if (!checkSignature(signatureChecker, signingAccount,
                         ThresholdLevel::LOW))
     {
         app.getMetrics()
