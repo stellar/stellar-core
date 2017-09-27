@@ -214,7 +214,7 @@ PeerRecord::loadPeerRecords(Database& db, uint32_t max,
     }
     catch (soci_error& err)
     {
-        LOG(ERROR) << "loadPeers Error: " << err.what();
+        LOG(WARNING) << "loadPeers Error: " << err.what();
     }
 }
 

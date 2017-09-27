@@ -528,7 +528,7 @@ Peer::recvMessage(xdr::msg_ptr const& msg)
     }
     catch (xdr::xdr_runtime_error& e)
     {
-        CLOG(ERROR, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
+        CLOG(WARNING, "Overlay") << "received corrupt xdr::msg_ptr " << e.what();
         mDropInRecvMessageDecodeMeter.Mark();
         drop();
         return;
@@ -565,7 +565,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
     {
         if (msg.v0().sequence != mRecvMacSeq)
         {
-            CLOG(ERROR, "Overlay") << "Unexpected message-auth sequence";
+            CLOG(WARNING, "Overlay") << "Unexpected message-auth sequence";
             mDropInRecvMessageSeqMeter.Mark();
             ++mRecvMacSeq;
             drop(ERR_AUTH, "unexpected auth sequence");
@@ -576,7 +576,7 @@ Peer::recvMessage(AuthenticatedMessage const& msg)
                 msg.v0().mac, mRecvMacKey,
                 xdr::xdr_to_opaque(msg.v0().sequence, msg.v0().message)))
         {
-            CLOG(ERROR, "Overlay") << "Message-auth check failed";
+            CLOG(WARNING, "Overlay") << "Message-auth check failed";
             mDropInRecvMessageMacMeter.Mark();
             ++mRecvMacSeq;
             drop(ERR_AUTH, "unexpected MAC");
@@ -860,8 +860,8 @@ Peer::noteHandshakeSuccessInPeerRecord()
 {
     if (getIP().empty() || getRemoteListeningPort() == 0)
     {
-        CLOG(ERROR, "Overlay") << "unable to handshake with " << getIP() << ":"
-                               << getRemoteListeningPort();
+        CLOG(WARNING, "Overlay") << "unable to handshake with " << getIP() << ":"
+                                 << getRemoteListeningPort();
         mDropInRecvAuthInvalidPeerMeter.Mark();
         drop();
         return;
@@ -891,7 +891,7 @@ Peer::recvHello(Hello const& elo)
 
     if (mState >= GOT_HELLO)
     {
-        CLOG(ERROR, "Overlay") << "received unexpected HELLO";
+        CLOG(WARNING, "Overlay") << "received unexpected HELLO";
         mDropInRecvHelloUnexpectedMeter.Mark();
         drop();
         return;
@@ -900,7 +900,7 @@ Peer::recvHello(Hello const& elo)
     auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
-        CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";
+        CLOG(WARNING, "Overlay") << "failed to verify remote peer auth cert";
         mDropInRecvHelloCertMeter.Mark();
         drop();
         return;
@@ -908,7 +908,7 @@ Peer::recvHello(Hello const& elo)
 
     if (mApp.getBanManager().isBanned(elo.peerID))
     {
-        CLOG(ERROR, "Overlay") << "Node is banned";
+        CLOG(WARNING, "Overlay") << "Node is banned";
         mDropInRecvHelloBanMeter.Mark();
         drop();
         return;
@@ -943,8 +943,8 @@ Peer::recvHello(Hello const& elo)
         mRemoteOverlayVersion < mApp.getConfig().OVERLAY_PROTOCOL_MIN_VERSION ||
         mRemoteOverlayMinVersion > mApp.getConfig().OVERLAY_PROTOCOL_VERSION)
     {
-        CLOG(ERROR, "Overlay") << "connection from peer with incompatible "
-                                  "overlay protocol version";
+        CLOG(WARNING, "Overlay") << "connection from peer with incompatible "
+                                    "overlay protocol version";
         CLOG(DEBUG, "Overlay")
             << "Protocol = [" << mRemoteOverlayMinVersion << ","
             << mRemoteOverlayVersion << "] expected: ["
