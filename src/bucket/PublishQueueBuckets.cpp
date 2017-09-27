@@ -7,7 +7,8 @@
 namespace stellar
 {
 
-void PublishQueueBuckets::addBuckets(std::vector<std::string> const& buckets)
+void
+PublishQueueBuckets::addBuckets(std::vector<std::string> const& buckets)
 {
     for (auto const& bucket : buckets)
     {
@@ -15,12 +16,14 @@ void PublishQueueBuckets::addBuckets(std::vector<std::string> const& buckets)
     }
 }
 
-void PublishQueueBuckets::addBucket(std::string const& bucket)
+void
+PublishQueueBuckets::addBucket(std::string const& bucket)
 {
     mBucketUsage[bucket]++;
 }
 
-void PublishQueueBuckets::removeBuckets(std::vector<std::string> const& buckets)
+void
+PublishQueueBuckets::removeBuckets(std::vector<std::string> const& buckets)
 {
     for (auto const& bucket : buckets)
     {
@@ -28,7 +31,8 @@ void PublishQueueBuckets::removeBuckets(std::vector<std::string> const& buckets)
     }
 }
 
-void PublishQueueBuckets::removeBucket(std::string const& bucket)
+void
+PublishQueueBuckets::removeBucket(std::string const& bucket)
 {
     auto it = mBucketUsage.find(bucket);
     if (it == std::end(mBucketUsage))
@@ -42,5 +46,4 @@ void PublishQueueBuckets::removeBucket(std::string const& bucket)
         mBucketUsage.erase(it);
     }
 }
-
 }

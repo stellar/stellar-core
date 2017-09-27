@@ -457,7 +457,6 @@ main(int argc, char* const* argv)
         return 1;
     }
 
-
     std::string cfgFile("stellar-core.cfg");
     std::string command;
     el::Level logLevel = el::Level::Info;
@@ -530,7 +529,8 @@ main(int argc, char* const* argv)
         case OPT_GENSEED:
         {
             SecretKey key = SecretKey::random();
-            std::cout << "Secret seed: " << key.getStrKeySeed().value << std::endl;
+            std::cout << "Secret seed: " << key.getStrKeySeed().value
+                      << std::endl;
             std::cout << "Public: " << key.getStrKeyPublic() << std::endl;
             return 0;
         }

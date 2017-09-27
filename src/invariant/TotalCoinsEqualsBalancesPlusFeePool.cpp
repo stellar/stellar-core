@@ -2,12 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "database/AccountQueries.h"
 #include "invariant/InvariantManager.h"
-#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerDelta.h"
-#include "main/Application.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
 
 namespace stellar
 {
@@ -16,8 +16,8 @@ std::shared_ptr<Invariant>
 TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-              .registerInvariant<TotalCoinsEqualsBalancesPlusFeePool>(
-                        app.getDatabase());
+        .registerInvariant<TotalCoinsEqualsBalancesPlusFeePool>(
+            app.getDatabase());
 }
 
 TotalCoinsEqualsBalancesPlusFeePool::TotalCoinsEqualsBalancesPlusFeePool(
@@ -27,7 +27,8 @@ TotalCoinsEqualsBalancesPlusFeePool::TotalCoinsEqualsBalancesPlusFeePool(
 }
 
 std::string
-TotalCoinsEqualsBalancesPlusFeePool::getName() const {
+TotalCoinsEqualsBalancesPlusFeePool::getName() const
+{
     return "TotalCoinsEqualsBalancesPlusFeePool";
 }
 
@@ -36,7 +37,7 @@ TotalCoinsEqualsBalancesPlusFeePool::checkOnLedgerClose(
     LedgerDelta const& delta)
 {
     auto& lh = delta.getHeader();
-    if (lh.ledgerVersion < 7)   // due to bugs in previous versions
+    if (lh.ledgerVersion < 7) // due to bugs in previous versions
     {
         return {};
     }

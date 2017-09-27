@@ -157,7 +157,8 @@ LedgerManagerImpl::getStateHuman() const
 }
 
 void
-LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee, uint32_t baseReserve, uint32_t maxTxSetSize)
+LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
+                                  uint32_t baseReserve, uint32_t maxTxSetSize)
 {
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
@@ -188,7 +189,7 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee, uint32_t ba
 void
 LedgerManagerImpl::startNewLedger()
 {
-     // 100 tx/ledger max
+    // 100 tx/ledger max
     startNewLedger(1000000000000000000, 100, 100000000, 100);
 }
 
@@ -462,12 +463,16 @@ HistoryManager::VerifyHashStatus
 LedgerManagerImpl::verifyCatchupCandidate(
     LedgerHeaderHistoryEntry const& candidate) const
 {
-// This is a callback from CatchupStateMachine when it's considering whether
-// to treat a retrieved history block as legitimate. It asks LedgerManagerImpl
-// if it's seen (in its previous, current, or buffer of ledgers-to-close that
-// have queued up since catchup began) whether it believes the candidate is a
-// legitimate part of history. LedgerManagerImpl is allowed to answer "unknown"
-// here, which causes CatchupStateMachine to pause and retry later.
+    // This is a callback from CatchupStateMachine when it's considering whether
+    // to treat a retrieved history block as legitimate. It asks
+    // LedgerManagerImpl
+    // if it's seen (in its previous, current, or buffer of ledgers-to-close
+    // that
+    // have queued up since catchup began) whether it believes the candidate is
+    // a
+    // legitimate part of history. LedgerManagerImpl is allowed to answer
+    // "unknown"
+    // here, which causes CatchupStateMachine to pause and retry later.
 
     struct LedgerInfo
     {
@@ -476,8 +481,8 @@ LedgerManagerImpl::verifyCatchupCandidate(
     };
 
     auto infos = std::vector<LedgerInfo>{};
-    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq,
-                               mLastClosedLedger.hash});
+    infos.push_back(
+        LedgerInfo{mLastClosedLedger.header.ledgerSeq, mLastClosedLedger.hash});
     infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq - 1,
                                mLastClosedLedger.header.previousLedgerHash});
     infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
@@ -491,9 +496,9 @@ LedgerManagerImpl::verifyCatchupCandidate(
 
     auto matchingSequenceId =
         std::find_if(std::begin(infos), std::end(infos),
-                     [&candidate](LedgerInfo const& info){
+                     [&candidate](LedgerInfo const& info) {
                          return info.seq == candidate.header.ledgerSeq;
-                    });
+                     });
     if (matchingSequenceId == std::end(infos))
     {
         if (mSyncingLedgers.hadTooNew())
@@ -952,7 +957,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 assert(delta.getHeader() == ledgerDelta.getHeader());
             }
         }
-        catch (InvariantDoesNotHold &e)
+        catch (InvariantDoesNotHold& e)
         {
             throw e;
         }

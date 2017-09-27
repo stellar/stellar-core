@@ -39,6 +39,6 @@ class SyncingLedgerChain final
 
   private:
     storage mChain;
-    bool mHadTooNew {false};
+    bool mHadTooNew{false};
 };
 }

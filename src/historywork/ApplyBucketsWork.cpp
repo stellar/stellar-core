@@ -163,8 +163,8 @@ ApplyBucketsWork::onSuccess()
     if (mLevel != 0)
     {
         --mLevel;
-        CLOG(DEBUG, "History")
-            << "ApplyBuckets : starting next level: " << mLevel;
+        CLOG(DEBUG, "History") << "ApplyBuckets : starting next level: "
+                               << mLevel;
         return WORK_PENDING;
     }
 

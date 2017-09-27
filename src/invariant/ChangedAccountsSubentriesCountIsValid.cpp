@@ -8,8 +8,8 @@
 #include "database/AccountQueries.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
-#include "main/Application.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
 
 namespace stellar
 {
@@ -18,8 +18,8 @@ std::shared_ptr<Invariant>
 ChangedAccountsSubentriesCountIsValid::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-              .registerInvariant<ChangedAccountsSubentriesCountIsValid>(
-                        app.getDatabase());
+        .registerInvariant<ChangedAccountsSubentriesCountIsValid>(
+            app.getDatabase());
 }
 
 AccountID
@@ -107,13 +107,14 @@ ChangedAccountsSubentriesCountIsValid::ChangedAccountsSubentriesCountIsValid(
 }
 
 std::string
-ChangedAccountsSubentriesCountIsValid::getName() const {
+ChangedAccountsSubentriesCountIsValid::getName() const
+{
     return "ChangedAccountsSubentriesCountIsValid";
 }
 
 std::string
 ChangedAccountsSubentriesCountIsValid::checkOnLedgerClose(
-        LedgerDelta const& delta)
+    LedgerDelta const& delta)
 {
     for (auto const& account : getAddedOrUpdatedAccounts(delta))
     {

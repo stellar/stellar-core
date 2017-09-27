@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "database/Database.h"
 #include "crypto/Hex.h"
+#include "database/Database.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"

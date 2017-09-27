@@ -1,9 +1,9 @@
 #include "main/dumpxdr.h"
 #include "crypto/SecretKey.h"
 #include "transactions/SignatureUtils.h"
-#include "util/basen.h"
 #include "util/Fs.h"
 #include "util/XDRStream.h"
+#include "util/basen.h"
 #include <iostream>
 #include <regex>
 #include <xdrpp/printer.h>
@@ -111,7 +111,8 @@ readFile(const std::string& filename, bool base64 = false)
             throw_perror(filename);
         input << file.rdbuf();
     }
-    if (base64) {
+    if (base64)
+    {
         string ret;
         bn::decode_b64(input.str(), ret);
         return ret;
@@ -123,7 +124,8 @@ readFile(const std::string& filename, bool base64 = false)
 void
 printtxn(const std::string& filename, bool base64)
 {
-    try {
+    try
+    {
         using xdr::operator<<;
         TransactionEnvelope txenv;
         xdr::xdr_from_opaque(readFile(filename, base64), txenv);
@@ -269,9 +271,10 @@ void
 priv2pub()
 {
     using namespace std;
-    try {
-        SecretKey sk(SecretKey::fromStrKeySeed(
-            readSecret("Secret key seed: ", false)));
+    try
+    {
+        SecretKey sk(
+            SecretKey::fromStrKeySeed(readSecret("Secret key seed: ", false)));
         cout << sk.getStrKeyPublic() << endl;
     }
     catch (const std::exception& e)

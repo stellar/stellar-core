@@ -39,7 +39,8 @@ EcdhDeriveSharedKey(Curve25519Secret const& localSecret,
     auto const& publicB = localFirst ? remotePublic : localPublic;
 
     unsigned char q[crypto_scalarmult_BYTES];
-    if (crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data()) != 0)
+    if (crypto_scalarmult(q, localSecret.key.data(), remotePublic.key.data()) !=
+        0)
     {
         throw std::runtime_error("Could not derive shared key (mult)");
     }

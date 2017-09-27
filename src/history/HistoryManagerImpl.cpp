@@ -613,7 +613,9 @@ HistoryManagerImpl::getMissingBucketsReferencedByPublishQueue()
 }
 
 void
-HistoryManagerImpl::historyPublished(uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets, bool success)
+HistoryManagerImpl::historyPublished(
+    uint32_t ledgerSeq, std::vector<std::string> const& originalBuckets,
+    bool success)
 {
     if (success)
     {

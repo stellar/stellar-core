@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
+#include "invariant/InvariantDoesNotHold.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/util/format.h"
@@ -28,9 +28,8 @@ InvariantManagerImpl::InvariantManagerImpl()
 }
 
 void
-InvariantManagerImpl::checkOnLedgerClose(
-        TxSetFramePtr const& txSet,
-        LedgerDelta const& delta)
+InvariantManagerImpl::checkOnLedgerClose(TxSetFramePtr const& txSet,
+                                         LedgerDelta const& delta)
 {
     for (auto invariant : mEnabled)
     {
@@ -44,16 +43,15 @@ InvariantManagerImpl::checkOnLedgerClose(
         txSet->toXDR(transactions);
         auto message =
             fmt::format(R"(invariant "{}" does not hold on ledger {}: {}{}{})",
-                        invariant->getName(), delta.getHeader().ledgerSeq, result,
-                        "\n", xdr::xdr_to_string(transactions));
+                        invariant->getName(), delta.getHeader().ledgerSeq,
+                        result, "\n", xdr::xdr_to_string(transactions));
         CLOG(FATAL, "Invariant") << message;
         throw InvariantDoesNotHold{message};
     }
 }
 
 void
-InvariantManagerImpl::registerInvariant(
-        std::shared_ptr<Invariant> invariant)
+InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
 {
     auto name = invariant->getName();
     auto iter = mInvariants.find(name);
@@ -79,11 +77,11 @@ InvariantManagerImpl::enableInvariant(std::string const& name)
         {
             using value_type = decltype(mInvariants)::value_type;
             std::string registered = std::accumulate(
-                    std::next(mInvariants.cbegin()), mInvariants.cend(),
-                    mInvariants.cbegin()->first,
-                    [] (std::string const& lhs, value_type const& rhs) {
-                        return lhs + ", " + rhs.first;
-                    });
+                std::next(mInvariants.cbegin()), mInvariants.cend(),
+                mInvariants.cbegin()->first,
+                [](std::string const& lhs, value_type const& rhs) {
+                    return lhs + ", " + rhs.first;
+                });
             message += " Registered invariants are: " + registered;
         }
         else
@@ -93,8 +91,8 @@ InvariantManagerImpl::enableInvariant(std::string const& name)
         throw std::runtime_error{message};
     }
 
-    auto iter = std::find(mEnabled.begin(), mEnabled.end(),
-                          registryIter->second);
+    auto iter =
+        std::find(mEnabled.begin(), mEnabled.end(), registryIter->second);
     if (iter == mEnabled.end())
     {
         mEnabled.push_back(registryIter->second);

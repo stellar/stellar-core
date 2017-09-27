@@ -676,8 +676,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     {
         SECTION("normal")
         {
-            auto tx = a.tx({payment(b, 1000),
-                            accountMerge(root)});
+            auto tx = a.tx({payment(b, 1000), accountMerge(root)});
 
             auto applyResult =
                 expectedResult(baseFee * 2, 2, txSUCCESS,
@@ -693,9 +692,8 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx = a.tx({payment(b, 1000),
-                            accountMerge(root),
-                            payment(c, 1000)});
+            auto tx =
+                a.tx({payment(b, 1000), accountMerge(root), payment(c, 1000)});
 
             for_all_versions(app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
@@ -719,9 +717,8 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with payment after")
         {
-            auto tx = root.tx(
-                {createAccount(f, startAmount),
-                 a.op(payment(root, startAmount / 2))});
+            auto tx = root.tx({createAccount(f, startAmount),
+                               a.op(payment(root, startAmount / 2))});
             tx->addSignature(a);
 
             for_all_versions(app, [&] {
@@ -743,9 +740,9 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("normal")
         {
-            auto tx = a.tx({payment(b, 1000),
-                            setOptions(nullptr, nullptr, nullptr, &th, nullptr,
-                                       nullptr)});
+            auto tx =
+                a.tx({payment(b, 1000), setOptions(nullptr, nullptr, nullptr,
+                                                   &th, nullptr, nullptr)});
             for_all_versions(app, [&] {
                 validate(
                     tx, {baseFee * 2, txSUCCESS},
@@ -756,10 +753,10 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx = a.tx({payment(b, 1000),
-                            setOptions(nullptr, nullptr, nullptr, &th, nullptr,
-                                       nullptr),
-                            payment(c, 1000)});
+            auto tx =
+                a.tx({payment(b, 1000), setOptions(nullptr, nullptr, nullptr,
+                                                   &th, nullptr, nullptr),
+                      payment(c, 1000)});
 
             for_versions_to(6, app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},

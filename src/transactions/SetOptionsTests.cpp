@@ -56,25 +56,24 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("insufficient balance")
         {
-            for_all_versions(app, [&]{
-                REQUIRE_THROWS_AS(
-                    a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr),
-                    ex_SET_OPTIONS_LOW_RESERVE);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, &th,
+                                                &sk1, nullptr),
+                                  ex_SET_OPTIONS_LOW_RESERVE);
             });
         }
 
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
-            for_all_versions(app, [&]{
-                REQUIRE_THROWS_AS(
-                    a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk, nullptr),
-                    ex_SET_OPTIONS_BAD_SIGNER);
+            for_all_versions(app, [&] {
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
+                                                nullptr, &sk, nullptr),
+                                  ex_SET_OPTIONS_BAD_SIGNER);
             });
         }
 
-
-        for_versions_to(2, app, [&]{
+        for_versions_to(2, app, [&] {
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
 
@@ -150,7 +149,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             REQUIRE(a1Account->getAccount().signers.size() == 0);
         });
 
-        for_versions_from(3, app, [&]{
+        for_versions_from(3, app, [&] {
             // add some funds
             root.pay(a1, app.getLedgerManager().getMinBalance(2));
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
@@ -226,46 +225,50 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         SECTION("Can't set and clear same flag")
         {
-            for_all_versions(app, [&]{
+            for_all_versions(app, [&] {
                 uint32_t setFlags = AUTH_REQUIRED_FLAG;
                 uint32_t clearFlags = AUTH_REQUIRED_FLAG;
                 REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
                                                 nullptr, nullptr, nullptr),
-                                ex_SET_OPTIONS_BAD_FLAGS);
+                                  ex_SET_OPTIONS_BAD_FLAGS);
             });
         }
         SECTION("auth flags")
         {
-            for_all_versions(app, [&]{
+            for_all_versions(app, [&] {
                 uint32_t flags;
 
                 flags = AUTH_REQUIRED_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
+                              nullptr);
 
                 flags = AUTH_REVOCABLE_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
+                              nullptr);
 
                 // clear flag
-                a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr, nullptr);
+                a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr,
+                              nullptr);
 
                 flags = AUTH_IMMUTABLE_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
+                              nullptr);
 
                 // at this point trying to change any flag should fail
 
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
-                                                nullptr, nullptr),
-                                ex_SET_OPTIONS_CANT_CHANGE);
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags,
+                                                nullptr, nullptr, nullptr),
+                                  ex_SET_OPTIONS_CANT_CHANGE);
 
                 flags = AUTH_REQUIRED_FLAG;
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags, nullptr,
-                                                nullptr, nullptr),
-                                ex_SET_OPTIONS_CANT_CHANGE);
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags,
+                                                nullptr, nullptr, nullptr),
+                                  ex_SET_OPTIONS_CANT_CHANGE);
 
                 flags = AUTH_REVOCABLE_FLAG;
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr, nullptr,
-                                                nullptr, nullptr),
-                                ex_SET_OPTIONS_CANT_CHANGE);
+                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr,
+                                                nullptr, nullptr, nullptr),
+                                  ex_SET_OPTIONS_CANT_CHANGE);
             });
         }
     }
@@ -274,13 +277,14 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         SECTION("invalid home domain")
         {
-            for_all_versions(app, [&]{
-                std::string bad[] = {"abc\r", "abc\x7F", std::string("ab\000c", 4)};
+            for_all_versions(app, [&] {
+                std::string bad[] = {"abc\r", "abc\x7F",
+                                     std::string("ab\000c", 4)};
                 for (auto& s : bad)
                 {
                     REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
                                                     nullptr, nullptr, &s),
-                                    ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
+                                      ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
                 }
             });
         }

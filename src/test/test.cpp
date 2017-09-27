@@ -6,9 +6,9 @@
 
 #include "util/asio.h"
 
-#include "test.h"
 #include "StellarCoreVersion.h"
 #include "main/Config.h"
+#include "test.h"
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -33,8 +33,8 @@ namespace Catch
 {
 
 DotReporter::~DotReporter()
-{}
-
+{
+}
 }
 
 namespace stellar
@@ -79,10 +79,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECKS = {
-            "CacheIsConsistentWithDatabase",
-            "ChangedAccountsSubentriesCountIsValid",
-            "TotalCoinsEqualsBalancesPlusFeePool"};
+        thisConfig.INVARIANT_CHECKS = {"CacheIsConsistentWithDatabase",
+                                       "ChangedAccountsSubentriesCountIsValid",
+                                       "TotalCoinsEqualsBalancesPlusFeePool"};
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 

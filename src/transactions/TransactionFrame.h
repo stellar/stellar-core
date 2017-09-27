@@ -49,7 +49,8 @@ class TransactionFrame
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
 
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& app);
+    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
+                     Database& app);
     bool commonValid(SignatureChecker& signatureChecker, Application& app,
                      LedgerDelta* delta, SequenceNumber current);
 

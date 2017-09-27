@@ -6,9 +6,9 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
-#include "ledger/SyncingLedgerChain.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Timer.h"
@@ -85,7 +85,8 @@ class LedgerManagerImpl : public LedgerManager
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
 
-    void startNewLedger(int64_t balance, uint32_t baseFee, uint32_t baseReserve, uint32_t maxTxSetSize);
+    void startNewLedger(int64_t balance, uint32_t baseFee, uint32_t baseReserve,
+                        uint32_t maxTxSetSize);
     void startNewLedger() override;
     void loadLastKnownLedger(
         std::function<void(asio::error_code const& ec)> handler) override;

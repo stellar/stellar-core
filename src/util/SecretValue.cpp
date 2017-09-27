@@ -7,14 +7,15 @@
 namespace stellar
 {
 
-bool operator==(SecretValue const& x, SecretValue const& y)
+bool
+operator==(SecretValue const& x, SecretValue const& y)
 {
     return x.value == y.value;
 }
 
-bool operator!=(SecretValue const& x, SecretValue const& y)
+bool
+operator!=(SecretValue const& x, SecretValue const& y)
 {
     return !(x == y);
 }
-
 }

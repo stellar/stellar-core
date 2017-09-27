@@ -130,9 +130,11 @@ OperationFrame::getSourceID() const
 }
 
 bool
-OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta, Database& db)
+OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
+                            Database& db)
 {
-    mSourceAccount = mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
+    mSourceAccount =
+        mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
     return !!mSourceAccount;
 }
 
@@ -151,7 +153,8 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
                            LedgerDelta* delta)
 {
     bool forApply = (delta != nullptr);
-    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta, app.getDatabase()))
+    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta,
+                     app.getDatabase()))
     {
         if (forApply || !mOperation.sourceAccount)
         {
@@ -168,7 +171,8 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
     }
 
-    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 && !checkSignature(signatureChecker))
+    if (app.getLedgerManager().getCurrentLedgerVersion() != 7 &&
+        !checkSignature(signatureChecker))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")

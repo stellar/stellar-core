@@ -88,10 +88,9 @@ TEST_CASE("create offer", "[tx][offers]")
                 // firstOffer is taken, new offer was not created
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
-                        return market.addOffer(
-                            b1,
-                            {usd, idr, Price{99, 100}, 100, OfferType::PASSIVE},
-                            OfferState::DELETED);
+                        return market.addOffer(b1, {usd, idr, Price{99, 100},
+                                                    100, OfferType::PASSIVE},
+                                               OfferState::DELETED);
                     });
             });
         }
@@ -162,9 +161,8 @@ TEST_CASE("create offer", "[tx][offers]")
                                       {},
                                       [&] {
                                           return market.addOffer(
-                                              a1,
-                                              {makeAsset(fakeIssuer, "IDR"),
-                                               usd, oneone, 100});
+                                              a1, {makeAsset(fakeIssuer, "IDR"),
+                                                   usd, oneone, 100});
                                       }),
                                   ex_MANAGE_OFFER_SELL_NO_ISSUER);
             });
@@ -212,10 +210,9 @@ TEST_CASE("create offer", "[tx][offers]")
                                       {},
                                       [&] {
                                           return market.addOffer(
-                                              a1,
-                                              {idr,
-                                               makeAsset(fakeIssuer, "USD"),
-                                               oneone, 100});
+                                              a1, {idr,
+                                                   makeAsset(fakeIssuer, "USD"),
+                                                   oneone, 100});
                                       }),
                                   ex_MANAGE_OFFER_BUY_NO_ISSUER);
             });

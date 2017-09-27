@@ -23,7 +23,8 @@ class Invariant
 
     virtual std::string getName() const = 0;
 
-    virtual std::string checkOnLedgerClose(LedgerDelta const& delta)
+    virtual std::string
+    checkOnLedgerClose(LedgerDelta const& delta)
     {
         return std::string{};
     }

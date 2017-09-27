@@ -131,7 +131,8 @@ TEST_CASE("sign tests", "[crypto]")
 {
     auto sk = SecretKey::random();
     auto pk = sk.getPublicKey();
-    LOG(DEBUG) << "generated random secret key seed: " << sk.getStrKeySeed().value;
+    LOG(DEBUG) << "generated random secret key seed: "
+               << sk.getStrKeySeed().value;
     LOG(DEBUG) << "corresponding public key: " << KeyUtils::toStrKey(pk);
 
     CHECK(SecretKey::fromStrKeySeed(sk.getStrKeySeed().value) == sk);

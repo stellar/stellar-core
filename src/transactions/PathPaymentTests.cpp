@@ -627,21 +627,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 9});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 9});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -685,21 +679,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 9});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 9});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -743,21 +731,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 9});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 9});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -799,21 +781,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source, {cur2, cur1, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur2, cur1, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -855,21 +831,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(source, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -911,21 +881,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(source, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -971,27 +935,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source,
-                                       {cur2, cur1, Price{100, 99}, 10});
-            });
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur2, cur1, Price{100, 99}, 10});
+        });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1048,27 +1003,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source,
-                                       {cur3, cur2, Price{100, 99}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur3, cur2, Price{100, 99}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1125,27 +1071,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(source, cur4, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(source,
-                                       {cur4, cur3, Price{100, 99}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(source, {cur4, cur3, Price{100, 99}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1232,21 +1169,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
@@ -1336,22 +1267,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(destination,
-                                       {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(destination, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1402,22 +1326,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(destination, cur3, 10);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(destination,
-                                       {cur3, cur2, Price{1, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(destination, {cur3, cur2, Price{1, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1467,22 +1384,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 10);
         gateway2.pay(destination, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(destination,
-                                       {cur4, cur3, Price{1, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{1, 1}, 10});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{1, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(destination, {cur4, cur3, Price{1, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1538,26 +1448,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 10});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 10});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1616,26 +1518,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 15});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 10});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 15});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 10});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1694,26 +1588,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 2});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 2});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -1772,26 +1658,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm12a.changeTrust(cur1, 5);
 
@@ -1852,26 +1730,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm23a.changeTrust(cur2, 5);
 
@@ -1932,26 +1802,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm34a.changeTrust(cur3, 2);
 
@@ -2012,26 +1874,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         SECTION("missing selling line")
         {
@@ -2130,26 +1984,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         SECTION("missing selling line")
         {
@@ -2248,26 +2094,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         SECTION("missing selling line")
         {
@@ -2367,26 +2205,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm12a.pay(gateway, cur2, 40);
 
@@ -2448,26 +2278,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm23a.pay(gateway2, cur3, 20);
 
@@ -2529,26 +2351,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm34a.pay(gateway2, cur4, 10);
 
@@ -2610,26 +2424,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway.pay(mm12a, cur1, 200);
 
@@ -2691,26 +2497,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway.pay(mm23a, cur2, 200);
 
@@ -2772,26 +2570,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway2.pay(mm34a, cur3, 200);
 
@@ -2853,26 +2643,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{1, 2}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{1, 2}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm12a.pay(gateway, cur2, 39);
 
@@ -2962,26 +2744,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{1, 2}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{1, 2}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm23a.pay(gateway2, cur3, 19);
 
@@ -3071,26 +2845,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{1, 2}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{1, 2}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         mm34a.pay(gateway2, cur4, 9);
 
@@ -3180,26 +2946,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12a, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12b, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway.pay(mm12a, cur1, 199);
 
@@ -3261,26 +3019,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23b, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23a, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23b, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway.pay(mm23a, cur2, 199);
 
@@ -3342,26 +3092,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34a, cur4, 10);
         gateway2.pay(mm34b, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34a, {cur4, cur3, Price{2, 1}, 10});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         gateway2.pay(mm34a, cur3, 199);
 
@@ -3418,21 +3160,15 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 20);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 40});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 20});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -3485,60 +3221,40 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 17);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
-            });
-        auto o1c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
-            });
-        auto o2c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
-            });
-        auto o3c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+        });
+        auto o1c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+        });
+        auto o2c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+        });
+        auto o3c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+        });
 
         for_versions_to(2, app, [&] {
-            market.requireChanges(
-                {},
-                [&] {
-                    REQUIRE_THROWS_AS(source.pay(destination, cur1, 45, cur4,
-                                                 10, {cur1, cur2, cur3, cur4}),
-                                      ex_PATH_PAYMENT_TOO_FEW_OFFERS);
-                });
+            market.requireChanges({}, [&] {
+                REQUIRE_THROWS_AS(source.pay(destination, cur1, 45, cur4, 10,
+                                             {cur1, cur2, cur3, cur4}),
+                                  ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+            });
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 45}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -3608,60 +3324,40 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 17);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
-            });
-        auto o1b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
-            });
-        auto o1c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
-            });
-        auto o2a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
-            });
-        auto o2b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
-            });
-        auto o2c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
-            });
-        auto o3a = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
-            });
-        auto o3b = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
-            });
-        auto o3c = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
-            });
+        auto o1a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+        });
+        auto o1b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+        });
+        auto o1c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+        });
+        auto o2a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+        });
+        auto o2b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+        });
+        auto o2c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+        });
+        auto o3a = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+        });
+        auto o3b = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+        });
+        auto o3c = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+        });
 
         for_versions_to(2, app, [&] {
-            market.requireChanges(
-                {},
-                [&] {
-                    REQUIRE_THROWS_AS(source.pay(destination, cur1, 29, cur4, 8,
-                                                 {cur1, cur2, cur3, cur4}),
-                                      ex_PATH_PAYMENT_TOO_FEW_OFFERS);
-                });
+            market.requireChanges({}, [&] {
+                REQUIRE_THROWS_AS(source.pay(destination, cur1, 29, cur4, 8,
+                                             {cur1, cur2, cur3, cur4}),
+                                  ex_PATH_PAYMENT_TOO_FEW_OFFERS);
+            });
             // clang-format off
             market.requireBalances(
                 {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 45}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
@@ -3735,26 +3431,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm34, cur4, 8000);
         gateway.pay(mm41, cur1, 8000);
 
-        auto o1 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 1000});
-            });
-        auto o2 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 1000});
-            });
-        auto o3 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1000});
-            });
-        auto o4 = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
-            });
+        auto o1 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 1000});
+        });
+        auto o2 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 1000});
+        });
+        auto o3 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 1000});
+        });
+        auto o4 = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
+        });
 
         for_all_versions(app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -3803,11 +3491,9 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         issuer.pay(seller, cny, 1700000000);
         auto price = Price{2000, 29};
-        auto sellerOffer = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(seller, {cny, xlm, price, 145000000});
-            });
+        auto sellerOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(seller, {cny, xlm, price, 145000000});
+        });
 
         auto path = std::vector<Asset>{};
         for_versions_to(2, app, [&] {
@@ -3824,15 +3510,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto sellerOfferRemaining =
                 OfferState{cny, xlm, price, 145000000 - 20000000};
             auto actual = std::vector<ClaimOfferAtom>{};
-            market.requireChanges({{sellerOffer.key, sellerOfferRemaining}},
-                                  [&] {
-                                      actual =
-                                          source
-                                              .pay(destination, xlm, 1382068965,
-                                                   cny, 20000000, path, nullptr)
-                                              .success()
-                                              .offers;
-                                  });
+            market.requireChanges(
+                {{sellerOffer.key, sellerOfferRemaining}}, [&] {
+                    actual = source
+                                 .pay(destination, xlm, 1382068965, cny,
+                                      20000000, path, nullptr)
+                                 .success()
+                                 .offers;
+                });
             // 1379310345 = round up(20000000 * price)
             auto expected = std::vector<ClaimOfferAtom>{
                 sellerOffer.exchanged(20000000, 1379310345)};
@@ -3862,27 +3547,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(mm, idr, 1000000000);
         gateway2.pay(mm, usd, 1000000000);
 
-        auto idrCurCheapOffer = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
-            });
-        auto idrCurMidBogusOffer = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});
-            });
-        auto idrCurExpensiveOffer = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});
-            });
-        auto usdCurOffer = market.requireChangesWithOffer(
-            {},
-            [&] {
-                return market.addOffer(mm,
-                                       {usd, xlm, Price{1, 2}, 2 * offerSize});
-            });
+        auto idrCurCheapOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
+        });
+        auto idrCurMidBogusOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});
+        });
+        auto idrCurExpensiveOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});
+        });
+        auto usdCurOffer = market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(mm, {usd, xlm, Price{1, 2}, 2 * offerSize});
+        });
 
         auto path = std::vector<Asset>{xlm, usd};
 

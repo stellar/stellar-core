@@ -20,9 +20,8 @@ class InvariantManagerImpl : public InvariantManager
   public:
     InvariantManagerImpl();
 
-    virtual void
-    checkOnLedgerClose(TxSetFramePtr const& txSet,
-                       LedgerDelta const& delta) override;
+    virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
+                                    LedgerDelta const& delta) override;
 
     virtual void
     registerInvariant(std::shared_ptr<Invariant> invariant) override;

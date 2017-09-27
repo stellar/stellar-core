@@ -55,7 +55,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     std::string t3("test3");
     std::string t4("test4");
 
-    for_versions({1}, app, [&]{
+    for_versions({1}, app, [&] {
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value),
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value),
@@ -81,12 +81,12 @@ TEST_CASE("manage data", "[tx][managedata]")
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
     });
 
-    for_versions_from({2, 4}, app, [&]{
+    for_versions_from({2, 4}, app, [&] {
         gateway.manageData(t1, &value);
         gateway.manageData(t2, &value);
         // try to add too much data
         REQUIRE_THROWS_AS(gateway.manageData(t3, &value),
-                            ex_MANAGE_DATA_LOW_RESERVE);
+                          ex_MANAGE_DATA_LOW_RESERVE);
 
         // modify an existing data entry
         gateway.manageData(t1, &value2);
@@ -99,10 +99,10 @@ TEST_CASE("manage data", "[tx][managedata]")
 
         // fail to remove data entry that isn't present
         REQUIRE_THROWS_AS(gateway.manageData(t4, nullptr),
-                            ex_MANAGE_DATA_NAME_NOT_FOUND);
+                          ex_MANAGE_DATA_NAME_NOT_FOUND);
     });
 
-    for_versions({3}, app, [&]{
+    for_versions({3}, app, [&] {
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINTERNAL_ERROR);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINTERNAL_ERROR);
         // try to add too much data

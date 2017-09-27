@@ -382,7 +382,8 @@ Work::getState() const
 bool
 Work::isDone() const
 {
-    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE || mState == WORK_FAILURE_FATAL;
+    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE ||
+           mState == WORK_FAILURE_FATAL;
 }
 
 void

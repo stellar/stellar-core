@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "work/WorkManagerImpl.h"
 #include "work/Work.h"
 #include "work/WorkManager.h"
-#include "work/WorkManagerImpl.h"
 #include "work/WorkParent.h"
 
 #include "lib/util/format.h"
