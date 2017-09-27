@@ -5,21 +5,25 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
+#include <memory>
 
 namespace stellar
 {
 
+class Application;
 class Database;
 class LedgerDelta;
 
 class TotalCoinsEqualsBalancesPlusFeePool : public Invariant
 {
   public:
+    static std::shared_ptr<Invariant> registerInvariant(Application& app);
+
     explicit TotalCoinsEqualsBalancesPlusFeePool(Database& db);
-    virtual ~TotalCoinsEqualsBalancesPlusFeePool() override;
 
     virtual std::string getName() const override;
-    virtual std::string check(LedgerDelta const& delta) const override;
+
+    virtual std::string checkOnLedgerClose(LedgerDelta const& delta) override;
 
   private:
     Database& mDb;

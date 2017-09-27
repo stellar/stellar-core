@@ -17,7 +17,7 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
-#include "invariant/Invariants.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
@@ -767,7 +767,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    mApp.getInvariants().check(ledgerData.getTxSet(), ledgerDelta);
+    mApp.getInvariantManager().checkOnLedgerClose(ledgerData.getTxSet(),
+                                                  ledgerDelta);
 
     ledgerDelta.commit();
     ledgerClosed(ledgerDelta);

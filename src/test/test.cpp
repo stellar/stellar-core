@@ -78,9 +78,11 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECK_BALANCE = true;
-        thisConfig.INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT = true;
-        thisConfig.INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE = true;
+        thisConfig.INVARIANT_CHECKS = {
+            "CacheIsConsistentWithDatabase",
+            "ChangedAccountsSubentriesCountIsValid",
+            "TotalCoinsEqualsBalancesPlusFeePool"};
+
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
         // Tests are run in standalone by default, meaning that no external

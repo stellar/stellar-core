@@ -2,18 +2,25 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ChangedAccountsSubnetriesCountIsValid.h"
+#include "ChangedAccountsSubentriesCountIsValid.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/AccountQueries.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "main/Application.h"
 #include "lib/util/format.h"
 
 namespace stellar
 {
 
-namespace
+std::shared_ptr<Invariant>
+ChangedAccountsSubentriesCountIsValid::registerInvariant(Application& app)
 {
+    return app.getInvariantManager()
+              .registerInvariant<ChangedAccountsSubentriesCountIsValid>(
+                        app.getDatabase());
+}
 
 AccountID
 getAccount(LedgerEntry const& entry)
@@ -92,25 +99,21 @@ getDeletedAccounts(LedgerDelta const& delta)
     }
     return result;
 }
-}
 
-ChangedAccountsSubnetriesCountIsValid::ChangedAccountsSubnetriesCountIsValid(
+ChangedAccountsSubentriesCountIsValid::ChangedAccountsSubentriesCountIsValid(
     Database& db)
     : mDb{db}
 {
 }
 
-ChangedAccountsSubnetriesCountIsValid::
-    ~ChangedAccountsSubnetriesCountIsValid() = default;
-
 std::string
-ChangedAccountsSubnetriesCountIsValid::getName() const
-{
-    return "subentries count";
+ChangedAccountsSubentriesCountIsValid::getName() const {
+    return "ChangedAccountsSubentriesCountIsValid";
 }
 
 std::string
-ChangedAccountsSubnetriesCountIsValid::check(LedgerDelta const& delta) const
+ChangedAccountsSubentriesCountIsValid::checkOnLedgerClose(
+        LedgerDelta const& delta)
 {
     for (auto const& account : getAddedOrUpdatedAccounts(delta))
     {

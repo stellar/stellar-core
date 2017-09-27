@@ -29,7 +29,7 @@ class CatchupManager;
 class HistoryManager;
 class ProcessManager;
 class Herder;
-class Invariants;
+class InvariantManager;
 class OverlayManager;
 class Database;
 class PersistentState;
@@ -185,7 +185,7 @@ class Application
     virtual HistoryManager& getHistoryManager() = 0;
     virtual ProcessManager& getProcessManager() = 0;
     virtual Herder& getHerder() = 0;
-    virtual Invariants& getInvariants() = 0;
+    virtual InvariantManager& getInvariantManager() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;

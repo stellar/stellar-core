@@ -5,7 +5,7 @@
 #include "TxTests.h"
 
 #include "crypto/ByteSlice.h"
-#include "invariant/Invariants.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
@@ -97,7 +97,7 @@ applyCheck(TransactionFramePtr tx, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
-    app.getInvariants().check(txSet, delta);
+    app.getInvariantManager().checkOnLedgerClose(txSet, delta);
     delta.commit();
 
     return res;
