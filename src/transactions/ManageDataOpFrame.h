@@ -22,6 +22,8 @@ class ManageDataOpFrame : public OperationFrame
   public:
     ManageDataOpFrame(Operation const& op, OperationResult& res,
                       TransactionFrame& parentTx);
+    ManageDataOpFrame(Operation&&, OperationResult&,
+                      TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

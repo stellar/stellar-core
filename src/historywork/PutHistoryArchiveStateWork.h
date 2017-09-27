@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "history/HistoryArchive.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -14,14 +15,14 @@ struct HistoryArchiveState;
 
 class PutHistoryArchiveStateWork : public Work
 {
-    HistoryArchiveState const& mState;
+    HistoryArchiveState mState;
     std::shared_ptr<HistoryArchive const> mArchive;
     std::string mLocalFilename;
     std::shared_ptr<Work> mPutRemoteFileWork;
 
   public:
     PutHistoryArchiveStateWork(Application& app, WorkParent& parent,
-                               HistoryArchiveState const& state,
+                               HistoryArchiveState state,
                                std::shared_ptr<HistoryArchive const> archive);
     void onReset() override;
     void onRun() override;

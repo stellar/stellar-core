@@ -20,6 +20,8 @@ class ChangeTrustOpFrame : public OperationFrame
   public:
     ChangeTrustOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
+    ChangeTrustOpFrame(Operation&&, OperationResult&,
+                       TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

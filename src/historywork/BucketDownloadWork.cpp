@@ -5,7 +5,7 @@
 #include "historywork/BucketDownloadWork.h"
 #include "main/Application.h"
 #include "util/TmpDir.h"
-#include "util/make_unique.h"
+#include <memory>
 
 namespace stellar
 {
@@ -16,7 +16,7 @@ BucketDownloadWork::BucketDownloadWork(Application& app, WorkParent& parent,
     : Work(app, parent, uniqueName)
     , mLocalState(localState)
     , mDownloadDir(
-          make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName())))
+          std::make_shared<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName())))
 {
 }
 

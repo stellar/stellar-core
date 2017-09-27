@@ -21,6 +21,8 @@ class MergeOpFrame : public OperationFrame
   public:
     MergeOpFrame(Operation const& op, OperationResult& res,
                  TransactionFrame& parentTx);
+    MergeOpFrame(Operation&&, OperationResult&,
+                 TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

@@ -41,9 +41,9 @@ TransactionFrame::makeTransactionFromWire(Hash const& networkID,
     return res;
 }
 
-TransactionFrame::TransactionFrame(Hash const& networkID,
-                                   TransactionEnvelope const& envelope)
-    : mEnvelope(envelope), mNetworkID(networkID)
+TransactionFrame::TransactionFrame(Hash networkID,
+                                   TransactionEnvelope envelope)
+    : mEnvelope{std::move(envelope)}, mNetworkID{std::move(networkID)}
 {
 }
 

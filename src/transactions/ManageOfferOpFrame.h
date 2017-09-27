@@ -37,6 +37,8 @@ class ManageOfferOpFrame : public OperationFrame
   public:
     ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
+    ManageOfferOpFrame(Operation&&, OperationResult&,
+                       TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

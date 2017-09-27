@@ -22,8 +22,8 @@ class SignatureChecker
 {
   public:
     explicit SignatureChecker(
-        Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        Hash contentsHash,
+        xdr::xvector<DecoratedSignature, 20> signatures);
 
     bool checkSignature(AccountID const& accountID,
                         std::vector<Signer> const& signersV,
@@ -33,8 +33,8 @@ class SignatureChecker
     const UsedOneTimeSignerKeys& usedOneTimeSignerKeys() const;
 
   private:
-    Hash const& mContentsHash;
-    xdr::xvector<DecoratedSignature, 20> const& mSignatures;
+    Hash mContentsHash;
+    xdr::xvector<DecoratedSignature, 20> mSignatures;
 
     std::vector<bool> mUsedSignatures;
     UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;

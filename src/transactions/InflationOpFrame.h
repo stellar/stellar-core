@@ -21,6 +21,8 @@ class InflationOpFrame : public OperationFrame
   public:
     InflationOpFrame(Operation const& op, OperationResult& res,
                      TransactionFrame& parentTx);
+    InflationOpFrame(Operation&&, OperationResult&,
+                     TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

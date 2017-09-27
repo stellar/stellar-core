@@ -21,5 +21,7 @@ class CreatePassiveOfferOpFrame : public ManageOfferOpHolder,
   public:
     CreatePassiveOfferOpFrame(Operation const& op, OperationResult& res,
                               TransactionFrame& parentTx);
+    CreatePassiveOfferOpFrame(Operation&&, OperationResult&,
+                              TransactionFrame&) = delete;
 };
 }

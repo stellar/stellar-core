@@ -22,11 +22,11 @@ ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     HistoryArchiveState& applyState,
-    LedgerHeaderHistoryEntry const& firstVerified)
+    LedgerHeaderHistoryEntry firstVerified)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
-    , mFirstVerified(firstVerified)
+    , mFirstVerified(std::move(firstVerified))
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
 {

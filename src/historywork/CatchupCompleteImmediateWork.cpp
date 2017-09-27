@@ -105,7 +105,7 @@ CatchupCompleteImmediateWork::onSuccess()
     if (!mCatchupTransactionsWork)
     {
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup,
+            mDownloadDir, firstSeq, lastSeq, mManualCatchup,
             "COMPLETE_IMMEDIATE", "complete-immediate",
             0); // never retry
         return WORK_PENDING;

@@ -27,14 +27,14 @@ class BatchDownloadWork : public Work
     uint32_t mLast;
     uint32_t mNext;
     std::string mFileType;
-    TmpDir const& mDownloadDir;
+    std::shared_ptr<TmpDir const> mDownloadDir;
 
     void addNextDownloadWorker();
 
   public:
     BatchDownloadWork(Application& app, WorkParent& parent, uint32_t first,
                       uint32_t last, std::string const& type,
-                      TmpDir const& downloadDir);
+                      std::shared_ptr<TmpDir const> downloadDir);
     std::string getStatus() const override;
     void onReset() override;
     void notify(std::string const& childChanged) override;

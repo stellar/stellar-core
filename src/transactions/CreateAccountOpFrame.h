@@ -21,6 +21,8 @@ class CreateAccountOpFrame : public OperationFrame
   public:
     CreateAccountOpFrame(Operation const& op, OperationResult& res,
                          TransactionFrame& parentTx);
+    CreateAccountOpFrame(Operation&&, OperationResult&,
+                         TransactionFrame&) = delete;
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

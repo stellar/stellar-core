@@ -12,10 +12,10 @@ namespace stellar
 {
 
 PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
-    Application& app, WorkParent& parent, HistoryArchiveState const& state,
+    Application& app, WorkParent& parent, HistoryArchiveState state,
     std::shared_ptr<HistoryArchive const> archive)
     : Work(app, parent, "put-history-archive-state")
-    , mState(state)
+    , mState(std::move(state))
     , mArchive(archive)
     , mLocalFilename(HistoryArchiveState::localName(app, archive->getName()))
 {

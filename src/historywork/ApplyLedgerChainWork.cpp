@@ -16,7 +16,7 @@ namespace stellar
 {
 
 ApplyLedgerChainWork::ApplyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
+    Application& app, WorkParent& parent, std::shared_ptr<TmpDir const> downloadDir,
     uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
@@ -63,8 +63,8 @@ ApplyLedgerChainWork::openCurrentInputFiles()
     {
         return;
     }
-    FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
-    FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
+    FileTransferInfo hi(*mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
+    FileTransferInfo ti(*mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
     CLOG(DEBUG, "History") << "Replaying ledger headers from "
                            << hi.localPath_nogz();
     CLOG(DEBUG, "History") << "Replaying transactions from "

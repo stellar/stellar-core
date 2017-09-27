@@ -18,9 +18,9 @@ using xdr::operator<;
 using xdr::operator==;
 
 SignatureChecker::SignatureChecker(
-    Hash const& contentsHash,
-    xdr::xvector<DecoratedSignature, 20> const& signatures)
-    : mContentsHash(contentsHash), mSignatures(signatures)
+    Hash contentsHash,
+    xdr::xvector<DecoratedSignature, 20> signatures)
+    : mContentsHash{std::move(contentsHash)}, mSignatures{std::move(signatures)}
 {
     mUsedSignatures.resize(mSignatures.size());
 }

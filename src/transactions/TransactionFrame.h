@@ -43,7 +43,7 @@ class TransactionFrame
     AccountFrame::pointer mSigningAccount;
 
     void clearCached();
-    Hash const& mNetworkID;     // used to change the way we compute signatures
+    Hash mNetworkID;            // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
@@ -69,8 +69,8 @@ class TransactionFrame
     void markResultFailed();
 
   public:
-    TransactionFrame(Hash const& networkID,
-                     TransactionEnvelope const& envelope);
+    TransactionFrame(Hash networkID,
+                     TransactionEnvelope envelope);
     TransactionFrame(TransactionFrame const&) = delete;
     TransactionFrame() = delete;
 
