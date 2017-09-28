@@ -18,9 +18,11 @@ using xdr::operator<;
 using xdr::operator==;
 
 SignatureChecker::SignatureChecker(
-    Hash const& contentsHash,
+    uint32_t protocolVersion, Hash const& contentsHash,
     xdr::xvector<DecoratedSignature, 20> const& signatures)
-    : mContentsHash(contentsHash), mSignatures(signatures)
+    : mProtocolVersion{protocolVersion}
+    , mContentsHash{contentsHash}
+    , mSignatures{signatures}
 {
     mUsedSignatures.resize(mSignatures.size());
 }
@@ -30,6 +32,11 @@ SignatureChecker::checkSignature(AccountID const& accountID,
                                  std::vector<Signer> const& signersV,
                                  int neededWeight)
 {
+    if (mProtocolVersion == 7)
+    {
+        return true;
+    }
+
     auto signers =
         split(signersV, [](const Signer& s) { return s.key.type(); });
 
@@ -104,6 +111,11 @@ SignatureChecker::checkSignature(AccountID const& accountID,
 bool
 SignatureChecker::checkAllSignaturesUsed() const
 {
+    if (mProtocolVersion == 7)
+    {
+        return true;
+    }
+
     for (auto sigb : mUsedSignatures)
     {
         if (!sigb)
