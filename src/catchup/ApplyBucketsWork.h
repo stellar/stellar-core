@@ -23,13 +23,13 @@ struct LedgerHeaderHistoryEntry;
 
 class ApplyBucketsWork : public Work
 {
-    std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
-    HistoryArchiveState& mApplyState;
+    std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
+    const HistoryArchiveState& mApplyState;
 
     bool mApplying;
     size_t mLevel;
-    std::shared_ptr<Bucket> mSnapBucket;
-    std::shared_ptr<Bucket> mCurrBucket;
+    std::shared_ptr<Bucket const> mSnapBucket;
+    std::shared_ptr<Bucket const> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;
     std::unique_ptr<BucketApplicator> mCurrApplicator;
 
@@ -37,13 +37,13 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplySuccess;
     medida::Meter& mBucketApplyFailure;
 
-    std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
+    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(size_t level);
 
   public:
     ApplyBucketsWork(Application& app, WorkParent& parent,
-                     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-                     HistoryArchiveState& applyState);
+                     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+                     HistoryArchiveState const& applyState);
     ~ApplyBucketsWork();
 
     void onReset() override;

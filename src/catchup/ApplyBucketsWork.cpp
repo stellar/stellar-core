@@ -8,6 +8,7 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "crypto/SecretKey.h"
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "ledger/LedgerManager.h"
@@ -22,8 +23,8 @@ namespace stellar
 
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState)
+    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+    HistoryArchiveState const& applyState)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
@@ -49,11 +50,11 @@ ApplyBucketsWork::getBucketLevel(size_t level)
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<Bucket const>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
-    std::shared_ptr<Bucket> b;
-    if (hash.find_first_not_of('0') == std::string::npos)
+    std::shared_ptr<Bucket const> b;
+    if (isZero(hexToBin256(hash)))
     {
         b = std::make_shared<Bucket>();
     }
@@ -88,7 +89,7 @@ void
 ApplyBucketsWork::onStart()
 {
     auto& level = getBucketLevel(mLevel);
-    HistoryStateBucket& i = mApplyState.currentBuckets.at(mLevel);
+    HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
     if (mApplying || i.snap != binToHex(level.getSnap()->getHash()))
     {
         mSnapBucket = getBucket(i.snap);
