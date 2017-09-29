@@ -174,7 +174,7 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
     genesisHeader.baseReserve = baseReserve;
     genesisHeader.maxTxSetSize = maxTxSetSize;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.ledgerSeq = 1;
+    genesisHeader.ledgerSeq = HistoryManager::GENESIS_LEDGER_SEQ;
 
     LedgerDelta delta(genesisHeader, getDatabase());
     masterAccount.storeAdd(delta, this->getDatabase());

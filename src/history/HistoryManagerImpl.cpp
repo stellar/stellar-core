@@ -49,6 +49,8 @@ static string kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS publishqueue ("
                                     "state    TEXT"
                                     "); ";
 
+const uint32_t HistoryManager::GENESIS_LEDGER_SEQ = 1;
+
 void
 HistoryManager::dropAll(Database& db)
 {

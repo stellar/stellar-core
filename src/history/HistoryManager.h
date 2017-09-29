@@ -184,6 +184,8 @@ struct StateSnapshot;
 class HistoryManager
 {
   public:
+    static const uint32_t GENESIS_LEDGER_SEQ;
+
     // Status code returned from LedgerManager::verifyCatchupCandidate. The
     // HistoryManager's catchup algorithm downloads _untrusted_ history from a
     // configured history archive, then (once it has done internal consistency
