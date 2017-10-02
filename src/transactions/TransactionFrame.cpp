@@ -161,6 +161,7 @@ TransactionFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
     if (ledgerProtocolVersion < 8 && mSigningAccount &&
         mSigningAccount->getID() == accountID)
     {
+        // this is buggy caching that existed in old versions of the protocol
         res = mSigningAccount;
     }
     else if (delta)
@@ -411,8 +412,8 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
     resetSigningAccount();
     resetResults();
     SignatureChecker signatureChecker{
-        app.getLedgerManager().getCurrentLedgerVersion(),
-        getContentsHash(), mEnvelope.signatures};
+        app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
+        mEnvelope.signatures};
     bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
@@ -480,8 +481,8 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 {
     resetSigningAccount();
     SignatureChecker signatureChecker{
-        app.getLedgerManager().getCurrentLedgerVersion(),
-        getContentsHash(), mEnvelope.signatures};
+        app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
+        mEnvelope.signatures};
     if (!commonValid(signatureChecker, app, &delta, 0))
     {
         return false;

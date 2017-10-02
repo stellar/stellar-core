@@ -54,8 +54,10 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (ledgerManager.getCurrentLedgerVersion() > 4)
+    if (ledgerManager.getCurrentLedgerVersion() > 4 &&
+        ledgerManager.getCurrentLedgerVersion() < 8)
     {
+        // in versions < 8, merge account could be called with a stale account
         AccountFrame::pointer thisAccount =
             AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
         if (!thisAccount)
@@ -96,7 +98,26 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
     }
 
     otherAccount->storeChange(delta, db);
-    mSourceAccount->storeDelete(delta, db);
+
+    if (ledgerManager.getCurrentLedgerVersion() < 8)
+    {
+        // we have to compensate for buggy behavior in version < 8
+        // to avoid tripping invariants
+        AccountFrame::pointer thisAccount =
+            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+        if (!thisAccount)
+        {
+            // ignore double delete
+        }
+        else
+        {
+            mSourceAccount->storeDelete(delta, db);
+        }
+    }
+    else
+    {
+        mSourceAccount->storeDelete(delta, db);
+    }
 
     app.getMetrics()
         .NewMeter({"op-merge", "success", "apply"}, "operation")
