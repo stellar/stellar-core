@@ -241,6 +241,8 @@ ApplyLedgerChainWork::onRun()
 Work::State
 ApplyLedgerChainWork::onSuccess()
 {
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+
     if (mCurrSeq > mLastSeq)
     {
         return WORK_SUCCESS;
