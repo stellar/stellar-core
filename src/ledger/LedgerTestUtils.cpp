@@ -35,22 +35,24 @@ clampHigh(T high, T& v)
     }
 }
 
+// mutate string such that it doesn't contain control characters
+// and is at least minSize characters long
 template <typename T>
 void
-stripControlCharacters(T& s)
+replaceControlCharacters(T& s, int minSize)
 {
     std::locale loc("C");
-
-    for (auto it = s.begin(); it != s.end();)
+    if (s.size() < minSize)
+    {
+        s.resize(minSize);
+    }
+    for (auto it = s.begin(); it != s.end(); it++)
     {
         char c = static_cast<char>(*it);
         if (c < 0 || std::iscntrl(c))
         {
-            it = s.erase(it);
-        }
-        else
-        {
-            it++;
+            auto b = autocheck::generator<char>{}(autocheck::detail::nalnums);
+            *it = b;
         }
     }
 }
@@ -69,8 +71,12 @@ makeValid(AccountEntry& a)
         a.balance = -a.balance;
     }
 
-    stripControlCharacters(a.homeDomain);
-    a.inflationDest.activate() = PubKeyUtils::random();
+    replaceControlCharacters(a.homeDomain, 0);
+
+    if (a.inflationDest)
+    {
+        *a.inflationDest = PubKeyUtils::random();
+    }
 
     std::sort(a.signers.begin(), a.signers.end(), &AccountFrame::signerCompare);
     a.signers.erase(
@@ -78,12 +84,15 @@ makeValid(AccountEntry& a)
         a.signers.end());
     for (auto& s : a.signers)
     {
+        s.weight = s.weight & UINT8_MAX;
         if (s.weight == 0)
         {
             s.weight = 100;
         }
     }
     a.numSubEntries = (uint32)a.signers.size();
+    a.seqNum = a.seqNum & INT64_MAX;
+    a.flags = a.flags & MASK_ACCOUNT_FLAGS;
 }
 
 void
@@ -93,35 +102,38 @@ makeValid(TrustLineEntry& tl)
     {
         tl.balance = -tl.balance;
     }
-    if (tl.limit < 0)
-    {
-        tl.limit = -tl.limit;
-    }
+    tl.limit = std::abs(tl.limit);
+    clampLow<int64>(1, tl.limit);
     tl.asset.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(tl.asset.alphaNum4().assetCode, "USD");
-    clampLow<int64_t>(0, tl.balance);
-    clampLow<int64_t>(1, tl.limit);
     clampHigh<int64_t>(tl.limit, tl.balance);
+    tl.flags = tl.flags & MASK_TRUSTLINE_FLAGS;
 }
 void
 makeValid(OfferEntry& o)
 {
+    o.offerID = o.offerID & INT64_MAX;
     o.selling.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(o.selling.alphaNum4().assetCode, "CAD");
 
     o.buying.type(ASSET_TYPE_CREDIT_ALPHANUM4);
     strToAssetCode(o.buying.alphaNum4().assetCode, "EUR");
 
-    clampLow<int64_t>(0, o.amount);
-    clampLow(0, o.price.n);
+    o.amount = std::abs(o.amount);
+    clampLow<int64>(1, o.amount);
+
+    o.price.n = std::abs(o.price.n);
+    o.price.d = std::abs(o.price.d);
+    clampLow(1, o.price.n);
     clampLow(1, o.price.d);
+
+    o.flags = o.flags & MASK_OFFERENTRY_FLAGS;
 }
 
 void
 makeValid(DataEntry& d)
 {
-    stripControlCharacters(d.dataName);
-    stripControlCharacters(d.dataValue);
+    replaceControlCharacters(d.dataName, 1);
 }
 
 static auto validLedgerEntryGenerator = autocheck::map(
