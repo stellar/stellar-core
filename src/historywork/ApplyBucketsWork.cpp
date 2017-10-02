@@ -137,6 +137,8 @@ ApplyBucketsWork::onRun()
 Work::State
 ApplyBucketsWork::onSuccess()
 {
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+
     if ((mSnapApplicator && *mSnapApplicator) ||
         (mCurrApplicator && *mCurrApplicator))
     {
