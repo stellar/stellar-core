@@ -149,6 +149,8 @@ class AccountFrame : public EntryFrame
     checkDB(Database& db);
 
     static void dropAll(Database& db);
+
+  private:
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
     static const char* kSQLCreateStatement3;

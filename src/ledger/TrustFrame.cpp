@@ -141,20 +141,24 @@ TrustFrame::getMaxAmountReceive() const
 }
 
 bool
-TrustFrame::isValid(TrustLineEntry const& tl)
+TrustFrame::isValid(LedgerEntry const& le)
 {
-    bool res = tl.asset.type() != ASSET_TYPE_NATIVE;
+    bool res = (le.lastModifiedLedgerSeq <= INT32_MAX);
+    TrustLineEntry const& tl = le.data.trustLine();
+
+    res = res && (tl.asset.type() != ASSET_TYPE_NATIVE);
     res = res && isAssetValid(tl.asset);
     res = res && (tl.balance >= 0);
     res = res && (tl.limit > 0);
     res = res && (tl.balance <= tl.limit);
+    res = res && ((tl.flags & ~MASK_TRUSTLINE_FLAGS) == 0);
     return res;
 }
 
 bool
 TrustFrame::isValid() const
 {
-    return isValid(mTrustLine);
+    return isValid(mEntry);
 }
 
 bool
@@ -458,7 +462,7 @@ TrustFrame::loadLines(StatementContext& prep,
             strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
         }
 
-        if (!isValid(tl))
+        if (!isValid(le))
         {
             throw std::runtime_error("Invalid TrustEntry");
         }

@@ -118,15 +118,25 @@ OfferFrame::getFlags() const
 }
 
 bool
-OfferFrame::isValid(OfferEntry const& oe)
+OfferFrame::isValid(LedgerEntry const& le)
 {
-    return isAssetValid(oe.buying) && isAssetValid(oe.selling);
+    bool res = (le.lastModifiedLedgerSeq <= INT32_MAX);
+    OfferEntry const& oe = le.data.offer();
+
+    res = res && (oe.offerID <= INT64_MAX);
+    res = res && (oe.amount > 0);
+    res = res && (oe.price.n > 0);
+    res = res && (oe.price.d >= 1);
+    res = res && isAssetValid(oe.selling);
+    res = res && isAssetValid(oe.buying);
+    res = res && ((oe.flags & ~MASK_OFFERENTRY_FLAGS) == 0);
+    return res;
 }
 
 bool
 OfferFrame::isValid() const
 {
-    return isValid(mOffer);
+    return isValid(mEntry);
 }
 
 OfferFrame::pointer
@@ -246,9 +256,9 @@ OfferFrame::loadOffers(StatementContext& prep,
             }
         }
 
-        if (!isValid(oe))
+        if (!isValid(le))
         {
-            throw std::runtime_error("Invalid asset");
+            throw std::runtime_error("Invalid offer");
         }
 
         offerProcessor(le);
@@ -434,7 +444,7 @@ OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 
     if (!isValid())
     {
-        throw std::runtime_error("Invalid asset");
+        throw std::runtime_error("Invalid offer");
     }
 
     std::string actIDStrKey = KeyUtils::toStrKey(mOffer.sellerID);
