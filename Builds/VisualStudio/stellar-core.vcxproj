@@ -712,6 +712,7 @@ exit /b 0
     <None Include="..\..\INSTALL.md" />
     <None Include="..\..\Makefile.am" />
     <None Include="..\..\NEWS" />
+    <None Include="..\..\ISSUE_TEMPLATE.md" />
     <None Include="..\..\README" />
     <None Include="..\..\README.md" />
     <None Include="..\..\src\bucket\readme.md" />
