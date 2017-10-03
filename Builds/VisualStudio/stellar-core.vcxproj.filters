@@ -549,9 +549,6 @@
     <ClCompile Include="..\..\src\main\ApplicationTests.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\main\ConfigTests.cpp">
-      <Filter>main</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -752,6 +749,9 @@
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.cpp">
       <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\ConfigTests.cpp">
+      <Filter>main\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
       <Filter>invariant</Filter>

@@ -138,3 +138,20 @@ TEST_CASE("resolve node id", "[config]")
             publicKey));
     }
 }
+
+TEST_CASE("load example configs", "[config]")
+{
+    Config c;
+    std::vector<std::string> testFiles = {"stellar-core_example.cfg",
+                                          "stellar-core_standalone.cfg",
+                                          "stellar-core_testnet.cfg"};
+    for (auto const& fn : testFiles)
+    {
+        std::string fnPath = "testdata/";
+        fnPath += fn;
+        SECTION("load config " + fnPath)
+        {
+            c.load(fnPath);
+        }
+    }
+}
