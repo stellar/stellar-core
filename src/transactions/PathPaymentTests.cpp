@@ -20,14 +20,22 @@ using namespace stellar::txtest;
 namespace
 {
 
-long operator*(long x, const Price& y)
+int64_t operator*(int64_t x, const Price& y)
 {
-    return x * y.n / y.d;
+    bool xNegative = (x < 0);
+    int64_t m = bigDivide(xNegative ? -x : x, y.n, y.d, Rounding::ROUND_DOWN);
+    return xNegative ? -m : m;
 }
 
 Price operator*(const Price& x, const Price& y)
 {
-    return Price{x.n * y.n, x.d * y.d};
+    int64_t n = int64_t(x.n) * int64_t(y.n);
+    int64_t d = int64_t(x.d) * int64_t(y.d);
+    assert(n <= std::numeric_limits<int32_t>::max());
+    assert(n >= 0);
+    assert(d <= std::numeric_limits<int32_t>::max());
+    assert(d >= 1);
+    return Price{(int32_t)n, (int32_t)d};
 }
 
 template <typename T>
@@ -3636,7 +3644,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto txFee = app.getLedgerManager().getTxFee();
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
-            auto pathSize = assets.size();
+            int pathSize = (int)assets.size();
             auto accounts = std::deque<TestAccount>{};
 
             auto setupAccount = [&](const std::string& name) {
@@ -3654,7 +3662,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             };
 
             auto validateAccountAsset = [&](const TestAccount& account,
-                                            int assetIndex, int difference,
+                                            int assetIndex, int64_t difference,
                                             int feeCount) {
                 if (assets[assetIndex].type() == ASSET_TYPE_NATIVE)
                 {
@@ -3668,17 +3676,18 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,
-                                             int assetIndex, int difference,
+                                             int assetIndex, int64_t difference,
                                              int feeCount) {
-                for (size_t i = 0; i < pathSize; i++)
+                for (int i = 0; i < pathSize; i++)
                 {
                     validateAccountAsset(account, i,
                                          (assetIndex == i) ? difference : 0,
                                          feeCount);
                 }
             };
-            auto validateOffer = [offerAmount](
-                const TestAccount& account, uint64_t offerId, int difference) {
+            auto validateOffer = [offerAmount](const TestAccount& account,
+                                               uint64_t offerId,
+                                               int64_t difference) {
                 auto offer = account.loadOffer(offerId);
                 REQUIRE(offer.amount == offerAmount + difference);
             };
@@ -3686,14 +3695,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             auto source = setupAccount("S");
             auto destination = setupAccount("D");
 
-            auto validateSource = [&](int difference) {
+            auto validateSource = [&](int64_t difference) {
                 validateAccountAssets(source, 0, difference, 3);
             };
-            auto validateDestination = [&](int difference) {
+            auto validateDestination = [&](int64_t difference) {
                 validateAccountAssets(destination, 0, difference, 2);
             };
 
-            for (size_t i = 0; i < pathSize;
+            for (int i = 0; i < pathSize;
                  i++) // create account for each known asset
             {
                 accounts.emplace_back(
@@ -3707,7 +3716,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 SECTION(name)
                 {
                     auto offers = std::deque<uint64_t>{};
-                    for (size_t i = 0; i < pathSize; i++)
+                    for (int i = 0; i < pathSize; i++)
                     {
                         offers.push_back(
                             market
@@ -3724,7 +3733,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                         validateOffer(accounts[i], offers[i], 0);
                     }
 
-                    for (size_t i = 0; i < pathSize; i++)
+                    for (int i = 0; i < pathSize; i++)
                     {
                         auto path = std::vector<Asset>{assets[1], assets[2]};
                         SECTION(std::string{"send with path ("} +
@@ -3746,7 +3755,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                            maxMultipler * paymentAmount,
                                            assets[0], paymentAmount, path);
 
-                            for (size_t j = 0; j < pathSize; j++)
+                            for (int j = 0; j < pathSize; j++)
                             {
                                 auto index = (pathSize - j) %
                                              pathSize; // it is done from
