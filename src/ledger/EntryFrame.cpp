@@ -153,15 +153,24 @@ EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
     auto key = LedgerEntryKey(entry);
     flushCachedEntry(key, db);
     auto const& fromDb = EntryFrame::storeLoad(key, db);
-    if (fromDb->mEntry == entry)
+    if (fromDb != nullptr)
     {
-        return {};
-    }
+        if (fromDb->mEntry == entry)
+        {
+            return {};
+        }
 
-    auto s = std::string{"Inconsistent state between objects: "};
-    s += xdr::xdr_to_string(fromDb->mEntry, "db");
-    s += xdr::xdr_to_string(entry, "live");
-    return s;
+        std::string s{"Inconsistent state between objects: "};
+        s += xdr::xdr_to_string(fromDb->mEntry, "db");
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
+    else
+    {
+        std::string s{"Inconsistent state between objects (not found in database): "};
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
 }
 
 EntryFrame::EntryFrame(LedgerEntryType type) : mKeyCalculated(false)
