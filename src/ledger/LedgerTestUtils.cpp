@@ -183,6 +183,13 @@ static auto validOfferEntryGenerator = autocheck::map(
     },
     autocheck::generator<OfferEntry>());
 
+static auto validDataEntryGenerator = autocheck::map(
+    [](DataEntry&& d, size_t s) {
+        makeValid(d);
+        return d;
+    },
+    autocheck::generator<DataEntry>());
+
 LedgerEntry
 generateValidLedgerEntry(size_t b)
 {
@@ -232,6 +239,19 @@ std::vector<OfferEntry>
 generateValidOfferEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validOfferEntryGenerator);
+    return vecgen(n);
+}
+
+DataEntry
+generateValidDataEntry(size_t b)
+{
+    return validDataEntryGenerator(b);
+}
+
+std::vector<DataEntry>
+generateValidDataEntries(size_t n)
+{
+    static auto vecgen = autocheck::list_of(validDataEntryGenerator);
     return vecgen(n);
 }
 }
