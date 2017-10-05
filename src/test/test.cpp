@@ -209,6 +209,12 @@ for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
     for (auto v : versions)
     {
+#ifdef TEST_ONLY_CURRENT_PROTOCOL
+        if (v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            continue;
+        }
+#endif
         SECTION("protocol version " + std::to_string(v))
         {
             app.getLedgerManager().setCurrentLedgerVersion(v);
