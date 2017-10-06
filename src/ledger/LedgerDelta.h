@@ -87,6 +87,7 @@ class LedgerDelta
 
     void markMeters(Application& app) const;
 
+    // helper methods for generating data compatible with bucketlist
     std::vector<LedgerEntry> getLiveEntries() const;
     std::vector<LedgerKey> getDeadEntries() const;
 

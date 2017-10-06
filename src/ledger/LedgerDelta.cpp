@@ -134,12 +134,13 @@ LedgerDelta::deleteEntry(LedgerKey const& k)
     }
     else
     {
-        if (mDelete.find(k) == mDelete.end())
-        {
-            mDelete.insert(k);
-        } // else already being deleted
+        // double delete here means there is buggy code upstream
+        // and we cannot keep going as this may corrupt the bucket list
+        assert(mDelete.find(k) == mDelete.end());
 
+        // mod + delete -> delete
         mMod.erase(k);
+        mDelete.insert(k);
     }
 }
 
