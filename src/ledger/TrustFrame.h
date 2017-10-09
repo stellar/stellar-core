@@ -68,6 +68,8 @@ class TrustFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess);
     static uint64_t countObjects(soci::session& sess,
                                  LedgerRange const& ledgers);
+    static void deleteTrustLinesModifiedOnOrAfterLedger(Database& db,
+                                 uint32_t oldestLedger);
 
     // returns the specified trustline or a generated one for issuers
     static pointer loadTrustLine(AccountID const& accountID, Asset const& asset,

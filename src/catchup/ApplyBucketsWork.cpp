@@ -13,6 +13,10 @@
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/TrustFrame.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/DataFrame.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -91,7 +95,25 @@ ApplyBucketsWork::onStart()
 {
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
-    if (mApplying || i.snap != binToHex(level.getSnap()->getHash()))
+
+    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
+    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
+    if (!mApplying && (applySnap || applyCurr))
+    {
+        uint32_t oldestLedger = applySnap
+            ? BucketList::oldestLedgerInSnap(mApplyState.currentLedger, mLevel)
+            : BucketList::oldestLedgerInCurr(mApplyState.currentLedger, mLevel);
+        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        OfferFrame::deleteOffersModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        DataFrame::deleteDataModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+    }
+
+    if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator =
@@ -101,7 +123,7 @@ ApplyBucketsWork::onStart()
         mApplying = true;
         mBucketApplyStart.Mark();
     }
-    if (mApplying || i.curr != binToHex(level.getCurr()->getHash()))
+    if (mApplying || applyCurr)
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator =

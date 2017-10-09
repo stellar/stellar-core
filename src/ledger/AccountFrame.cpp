@@ -379,6 +379,36 @@ AccountFrame::countObjects(soci::session& sess,
 }
 
 void
+AccountFrame::deleteAccountsModifiedOnOrAfterLedger(
+        Database& db, uint32_t oldestLedger)
+{
+    db.getEntryCache().erase_if(
+            [oldestLedger] (std::shared_ptr<LedgerEntry const> le) -> bool
+            {
+                return le && le->data.type() == ACCOUNT &&
+                       le->lastModifiedLedgerSeq >= oldestLedger;
+            });
+
+    {
+        auto prep = db.getPreparedStatement(
+            "DELETE FROM signers WHERE accountid IN"
+            " (SELECT accountid FROM accounts WHERE lastmodified >= :v1)");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+    {
+        auto prep = db.getPreparedStatement(
+            "DELETE FROM accounts WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+}
+
+void
 AccountFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
     storeDelete(delta, db, getKey());

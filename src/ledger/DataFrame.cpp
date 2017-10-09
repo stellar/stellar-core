@@ -193,6 +193,27 @@ DataFrame::countObjects(soci::session& sess,
 }
 
 void
+DataFrame::deleteDataModifiedOnOrAfterLedger(
+        Database& db, uint32_t oldestLedger)
+{
+    db.getEntryCache().erase_if(
+            [oldestLedger] (std::shared_ptr<LedgerEntry const> le) -> bool
+            {
+                return le && le->data.type() == DATA &&
+                       le->lastModifiedLedgerSeq >= oldestLedger;
+            });
+
+    {
+        auto prep = db.getPreparedStatement(
+            "DELETE FROM accountdata WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+}
+
+void
 DataFrame::storeDelete(LedgerDelta& delta, Database& db) const
 {
     storeDelete(delta, db, getKey());

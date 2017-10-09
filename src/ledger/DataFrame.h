@@ -74,6 +74,8 @@ class DataFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess);
     static uint64_t countObjects(soci::session& sess,
                                  LedgerRange const& ledgers);
+    static void deleteDataModifiedOnOrAfterLedger(Database& db,
+                           uint32_t oldestLedger);
 
     // database utilities
     static pointer loadData(AccountID const& accountID, std::string dataName,
