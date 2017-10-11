@@ -18,7 +18,7 @@ class GunzipFileWork : public RunCommandWork
   public:
     GunzipFileWork(Application& app, WorkParent& parent,
                    std::string const& filenameGz, bool keepExisting = false,
-                   size_t maxRetries = Work::RETRY_A_FEW);
+                   size_t maxRetries = Work::RETRY_NEVER);
     void onReset() override;
 };
 }
