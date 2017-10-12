@@ -7,6 +7,11 @@
 #include "history/HistoryManager.h"
 #include "work/Work.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -22,6 +27,14 @@ class VerifyLedgerChainWork : public Work
     bool mManualCatchup;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
+
+    medida::Meter& mVerifyLedgerSuccessOld;
+    medida::Meter& mVerifyLedgerSuccess;
+    medida::Meter& mVerifyLedgerFailureOvershot;
+    medida::Meter& mVerifyLedgerFailureLink;
+    medida::Meter& mVerifyLedgerChainSuccess;
+    medida::Meter& mVerifyLedgerChainFailure;
+    medida::Meter& mVerifyLedgerChainFailureEnd;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
 

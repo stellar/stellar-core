@@ -14,6 +14,8 @@
 #include "main/Application.h"
 #include "util/format.h"
 #include "util/make_unique.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -29,6 +31,12 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mFirstVerified(firstVerified)
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
+    , mBucketApplyStart(app.getMetrics().NewMeter(
+          {"history", "bucket-apply", "start"}, "event"))
+    , mBucketApplySuccess(app.getMetrics().NewMeter(
+          {"history", "bucket-apply", "success"}, "event"))
+    , mBucketApplyFailure(app.getMetrics().NewMeter(
+          {"history", "bucket-apply", "failure"}, "event"))
 {
     // Consistency check: LCL should be in the _past_ from firstVerified,
     // since we're about to clobber a bunch of DB state with new buckets
@@ -108,6 +116,7 @@ ApplyBucketsWork::onStart()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
+        mBucketApplyStart.Mark();
     }
     if (mApplying || i.curr != binToHex(level.getCurr()->getHash()))
     {
@@ -117,6 +126,7 @@ ApplyBucketsWork::onStart()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;
+        mBucketApplyStart.Mark();
     }
 }
 
@@ -149,10 +159,12 @@ ApplyBucketsWork::onSuccess()
     if (mSnapBucket)
     {
         level.setSnap(mSnapBucket);
+        mBucketApplySuccess.Mark();
     }
     if (mCurrBucket)
     {
         level.setCurr(mCurrBucket);
+        mBucketApplySuccess.Mark();
     }
     mSnapBucket.reset();
     mCurrBucket.reset();
@@ -173,5 +185,19 @@ ApplyBucketsWork::onSuccess()
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
     getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
     return WORK_SUCCESS;
+}
+
+void
+ApplyBucketsWork::onFailureRetry()
+{
+    mBucketApplyFailure.Mark();
+    Work::onFailureRetry();
+}
+
+void
+ApplyBucketsWork::onFailureRaise()
+{
+    mBucketApplyFailure.Mark();
+    Work::onFailureRaise();
 }
 }

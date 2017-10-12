@@ -6,6 +6,11 @@
 
 #include "work/Work.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -20,6 +25,10 @@ class GetHistoryArchiveStateWork : public Work
     std::shared_ptr<HistoryArchive const> mArchive;
     std::string mLocalFilename;
 
+    medida::Meter& mGetHistoryArchiveStateStart;
+    medida::Meter& mGetHistoryArchiveStateSuccess;
+    medida::Meter& mGetHistoryArchiveStateFailure;
+
   public:
     GetHistoryArchiveStateWork(
         Application& app, WorkParent& parent, HistoryArchiveState& state,
@@ -31,5 +40,9 @@ class GetHistoryArchiveStateWork : public Work
     VirtualClock::duration getRetryDelay() const override;
     void onReset() override;
     void onRun() override;
+
+    State onSuccess() override;
+    void onFailureRetry() override;
+    void onFailureRaise() override;
 };
 }

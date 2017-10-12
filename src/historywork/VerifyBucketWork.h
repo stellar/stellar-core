@@ -7,6 +7,11 @@
 #include "work/Work.h"
 #include "xdr/Stellar-types.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -18,6 +23,9 @@ class VerifyBucketWork : public Work
     std::string mBucketFile;
     uint256 mHash;
 
+    medida::Meter& mVerifyBucketSuccess;
+    medida::Meter& mVerifyBucketFailure;
+
   public:
     VerifyBucketWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
@@ -25,5 +33,7 @@ class VerifyBucketWork : public Work
     void onRun() override;
     void onStart() override;
     Work::State onSuccess() override;
+    void onFailureRetry() override;
+    void onFailureRaise() override;
 };
 }

@@ -9,6 +9,8 @@
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "util/Logging.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -26,6 +28,12 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
           archive ? HistoryArchiveState::localName(app, archive->getName())
                   : app.getHistoryManager().localFilename(
                         HistoryArchiveState::baseName()))
+    , mGetHistoryArchiveStateStart(app.getMetrics().NewMeter(
+          {"history", "download-history-archive-state", "start"}, "event"))
+    , mGetHistoryArchiveStateSuccess(app.getMetrics().NewMeter(
+          {"history", "download-history-archive-state", "success"}, "event"))
+    , mGetHistoryArchiveStateFailure(app.getMetrics().NewMeter(
+          {"history", "download-history-archive-state", "failure"}, "event"))
 {
 }
 
@@ -68,6 +76,10 @@ GetHistoryArchiveStateWork::onReset()
         setState(WORK_FAILURE_RETRY);
         scheduleRetry();
     }
+    else
+    {
+        mGetHistoryArchiveStateStart.Mark();
+    }
 }
 
 void
@@ -83,5 +95,26 @@ GetHistoryArchiveStateWork::onRun()
         CLOG(ERROR, "History") << "error loading history state: " << e.what();
         scheduleFailure();
     }
+}
+
+Work::State
+GetHistoryArchiveStateWork::onSuccess()
+{
+    mGetHistoryArchiveStateSuccess.Mark();
+    return Work::onSuccess();
+}
+
+void
+GetHistoryArchiveStateWork::onFailureRetry()
+{
+    mGetHistoryArchiveStateFailure.Mark();
+    Work::onFailureRetry();
+}
+
+void
+GetHistoryArchiveStateWork::onFailureRaise()
+{
+    mGetHistoryArchiveStateFailure.Mark();
+    Work::onFailureRaise();
 }
 }

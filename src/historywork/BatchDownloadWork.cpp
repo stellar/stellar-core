@@ -9,6 +9,8 @@
 #include "historywork/Progress.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -24,6 +26,14 @@ BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
     , mNext(first)
     , mFileType(type)
     , mDownloadDir(downloadDir)
+    , mDownloadCached(app.getMetrics().NewMeter(
+          {"history", "download-" + type, "cached"}, "event"))
+    , mDownloadStart(app.getMetrics().NewMeter(
+          {"history", "download-" + type, "start"}, "event"))
+    , mDownloadSuccess(app.getMetrics().NewMeter(
+          {"history", "download-" + type, "success"}, "event"))
+    , mDownloadFailure(app.getMetrics().NewMeter(
+          {"history", "download-" + type, "failure"}, "event"))
 {
 }
 
@@ -51,6 +61,7 @@ BatchDownloadWork::addNextDownloadWorker()
     {
         CLOG(DEBUG, "History") << "already have " << mFileType
                                << " for checkpoint " << mNext;
+        mDownloadCached.Mark();
     }
     else
     {
@@ -59,6 +70,7 @@ BatchDownloadWork::addNextDownloadWorker()
         auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
         assert(mRunning.find(getAndUnzip->getUniqueName()) == mRunning.end());
         mRunning.insert(std::make_pair(getAndUnzip->getUniqueName(), mNext));
+        mDownloadStart.Mark();
     }
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
 }
@@ -78,8 +90,30 @@ BatchDownloadWork::onReset()
 }
 
 void
-BatchDownloadWork::notify(std::string const& childChanged)
+BatchDownloadWork::notify(std::string const& child)
 {
+    auto i = mChildren.find(child);
+    if (i == mChildren.end())
+    {
+        CLOG(WARNING, "Work") << "BatchDownloadWork notified by unknown child "
+                              << child;
+        return;
+    }
+
+    switch (i->second->getState())
+    {
+    case Work::WORK_SUCCESS:
+        mDownloadSuccess.Mark();
+        break;
+    case Work::WORK_FAILURE_RETRY:
+    case Work::WORK_FAILURE_FATAL:
+    case Work::WORK_FAILURE_RAISE:
+        mDownloadFailure.Mark();
+        break;
+    default:
+        break;
+    }
+
     std::vector<std::string> done;
     for (auto const& c : mChildren)
     {

@@ -6,6 +6,11 @@
 
 #include "work/Work.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -29,6 +34,10 @@ class ApplyBucketsWork : public Work
     std::unique_ptr<BucketApplicator> mSnapApplicator;
     std::unique_ptr<BucketApplicator> mCurrApplicator;
 
+    medida::Meter& mBucketApplyStart;
+    medida::Meter& mBucketApplySuccess;
+    medida::Meter& mBucketApplyFailure;
+
     std::shared_ptr<Bucket> getBucket(std::string const& bucketHash);
     BucketLevel& getBucketLevel(size_t level);
     BucketList& getBucketList();
@@ -44,5 +53,7 @@ class ApplyBucketsWork : public Work
     void onStart() override;
     void onRun() override;
     Work::State onSuccess() override;
+    void onFailureRetry() override;
+    void onFailureRaise() override;
 };
 }

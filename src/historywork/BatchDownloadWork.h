@@ -6,6 +6,11 @@
 
 #include "work/Work.h"
 
+namespace medida
+{
+class Meter;
+}
+
 namespace stellar
 {
 
@@ -29,6 +34,11 @@ class BatchDownloadWork : public Work
     std::string mFileType;
     TmpDir const& mDownloadDir;
 
+    medida::Meter& mDownloadCached;
+    medida::Meter& mDownloadStart;
+    medida::Meter& mDownloadSuccess;
+    medida::Meter& mDownloadFailure;
+
     void addNextDownloadWorker();
 
   public:
@@ -37,6 +47,6 @@ class BatchDownloadWork : public Work
                       TmpDir const& downloadDir);
     std::string getStatus() const override;
     void onReset() override;
-    void notify(std::string const& childChanged) override;
+    void notify(std::string const& child) override;
 };
 }

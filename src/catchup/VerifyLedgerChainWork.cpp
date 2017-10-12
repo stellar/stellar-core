@@ -9,6 +9,8 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/XDRStream.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -60,6 +62,20 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mManualCatchup(manualCatchup)
     , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
+    , mVerifyLedgerSuccessOld(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "success-old"}, "event"))
+    , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "success"}, "event"))
+    , mVerifyLedgerFailureOvershot(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "failure-overshot"}, "event"))
+    , mVerifyLedgerFailureLink(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "failure-link"}, "event"))
+    , mVerifyLedgerChainSuccess(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "success"}, "event"))
+    , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "failure"}, "event"))
+    , mVerifyLedgerChainFailureEnd(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "failure-end"}, "event"))
 {
 }
 
@@ -109,7 +125,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     while (hdrIn && hdrIn.readOne(curr))
     {
-
         if (prev.header.ledgerSeq == 0)
         {
             // When we have no previous state to connect up with
@@ -118,6 +133,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             // verify the chain continuously from here, and against the
             // live network.
             prev = curr;
+            mVerifyLedgerSuccess.Mark();
             continue;
         }
 
@@ -125,6 +141,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         if (curr.header.ledgerSeq < expectedSeq)
         {
             // Harmless prehistory
+            mVerifyLedgerSuccessOld.Mark();
             continue;
         }
         else if (curr.header.ledgerSeq > expectedSeq)
@@ -132,19 +149,23 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             CLOG(ERROR, "History")
                 << "History chain overshot expected ledger seq " << expectedSeq
                 << ", got " << curr.header.ledgerSeq << " instead";
+            mVerifyLedgerFailureOvershot.Mark();
             return HistoryManager::VERIFY_HASH_BAD;
         }
         if (verifyLedgerHistoryLink(prev.hash, curr) !=
             HistoryManager::VERIFY_HASH_OK)
         {
+            mVerifyLedgerFailureLink.Mark();
             return HistoryManager::VERIFY_HASH_BAD;
         }
+        mVerifyLedgerSuccess.Mark();
         prev = curr;
     }
 
     if (curr.header.ledgerSeq != mCurrSeq)
     {
         CLOG(ERROR, "History") << "History chain did not end with " << mCurrSeq;
+        mVerifyLedgerChainFailureEnd.Mark();
         return HistoryManager::VERIFY_HASH_BAD;
     }
 
@@ -166,11 +187,16 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
+        mVerifyLedgerChainSuccess.Mark();
         if (mCurrSeq == mFirstSeq)
         {
             mFirstVerified = curr;
         }
         mLastVerified = curr;
+    }
+    else
+    {
+        mVerifyLedgerChainFailure.Mark();
     }
 
     return status;

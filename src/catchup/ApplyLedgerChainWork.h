@@ -4,12 +4,16 @@
 
 #pragma once
 
-#include "work/Work.h"
-
 #include "herder/TxSetFrame.h"
 #include "util/XDRStream.h"
+#include "work/Work.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger.h"
+
+namespace medida
+{
+class Meter;
+}
 
 namespace stellar
 {
@@ -47,6 +51,15 @@ class ApplyLedgerChainWork : public Work
     XDRInputFileStream mTxIn;
     TransactionHistoryEntry mTxHistoryEntry;
     LedgerHeaderHistoryEntry& mLastApplied;
+
+    medida::Meter& mApplyLedgerStart;
+    medida::Meter& mApplyLedgerSkip;
+    medida::Meter& mApplyLedgerSuccess;
+    medida::Meter& mApplyLedgerFailureInvalidHash;
+    medida::Meter& mApplyLedgerFailurePastCurrent;
+    medida::Meter& mApplyLedgerFailureInvalidLCLHash;
+    medida::Meter& mApplyLedgerFailureInvalidTxSetHash;
+    medida::Meter& mApplyLedgerFailureInvalidResultHash;
 
     TxSetFramePtr getCurrentTxSet();
     void openCurrentInputFiles();
