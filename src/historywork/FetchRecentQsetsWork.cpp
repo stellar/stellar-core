@@ -47,7 +47,8 @@ FetchRecentQsetsWork::onSuccess()
     if (!mGetHistoryArchiveStateWork)
     {
         mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-            mRemoteState, 0, std::chrono::seconds(0));
+            "get-history-archive-state", mRemoteState, 0,
+            std::chrono::seconds(0));
         return WORK_PENDING;
     }
 

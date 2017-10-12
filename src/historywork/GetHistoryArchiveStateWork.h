@@ -31,8 +31,8 @@ class GetHistoryArchiveStateWork : public Work
 
   public:
     GetHistoryArchiveStateWork(
-        Application& app, WorkParent& parent, HistoryArchiveState& state,
-        uint32_t seq = 0,
+        Application& app, WorkParent& parent, std::string uniqueName,
+        HistoryArchiveState& state, uint32_t seq = 0,
         VirtualClock::duration const& intitialDelay = std::chrono::seconds(0),
         std::shared_ptr<HistoryArchive const> archive = nullptr,
         size_t maxRetries = Work::RETRY_A_FEW);

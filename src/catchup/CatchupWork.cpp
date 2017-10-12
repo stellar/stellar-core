@@ -51,6 +51,7 @@ CatchupWork::onReset()
                        : mApp.getHistoryManager().nextCheckpointCatchupProbe(
                              lastCheckpointSeq());
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        mRemoteState, archiveStateSeq(), std::chrono::seconds(sleepSeconds));
+        "get-history-archive-state", mRemoteState, archiveStateSeq(),
+        std::chrono::seconds(sleepSeconds));
 }
 }
