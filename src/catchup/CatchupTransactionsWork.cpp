@@ -92,7 +92,7 @@ CatchupTransactionsWork::onSuccess()
                               << " verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
         mVerifyWork = addWork<VerifyLedgerChainWork>(
-            mDownloadDir, mFirstSeq, mLastSeq, mManualCatchup, mFirstVerified,
+            mDownloadDir, mFirstSeq, mLastSeq, !mManualCatchup, mFirstVerified,
             mLastVerified);
         return WORK_PENDING;
     }

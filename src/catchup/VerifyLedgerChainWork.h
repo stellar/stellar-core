@@ -24,7 +24,7 @@ class VerifyLedgerChainWork : public Work
     uint32_t mFirstSeq;
     uint32_t mCurrSeq;
     uint32_t mLastSeq;
-    bool mManualCatchup;
+    bool mVerifyWithBufferedLedgers;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
@@ -41,7 +41,7 @@ class VerifyLedgerChainWork : public Work
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, uint32_t firstSeq,
-                          uint32_t lastSeq, bool manualCatchup,
+                          uint32_t lastSeq, bool verifyWithBufferedLedgers,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     std::string getStatus() const override;

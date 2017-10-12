@@ -99,7 +99,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
         mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, mManualCatchup, mFirstVerified,
+            *mDownloadDir, firstSeq, lastSeq, !mManualCatchup, mFirstVerified,
             mLastVerified);
         return WORK_PENDING;
     }
