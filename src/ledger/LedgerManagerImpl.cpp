@@ -337,14 +337,12 @@ LedgerManagerImpl::getLastClosedLedgerNum() const
     return mLastClosedLedger.header.ledgerSeq;
 }
 
-CatchupManager::CatchupMode
-getCatchupMode(Application& app)
+uint32_t
+getCatchupCount(Application& app)
 {
     return app.getConfig().CATCHUP_COMPLETE
-               ? CatchupManager::CATCHUP_COMPLETE
-               : (app.getConfig().CATCHUP_RECENT == 0
-                      ? CatchupManager::CATCHUP_MINIMAL
-                      : CatchupManager::CATCHUP_RECENT);
+               ? std::numeric_limits<uint32_t>::max()
+               : app.getConfig().CATCHUP_RECENT;
 }
 
 // called by txherder
@@ -407,7 +405,11 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
             CLOG(INFO, "Ledger") << "Close of ledger "
                                  << ledgerData.getLedgerSeq()
                                  << " buffered, starting catchup";
-            startCatchUp(ledgerData.getLedgerSeq(), getCatchupMode(mApp));
+
+            auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
+                                  ledgerData.getLedgerSeq()) -
+                              1;
+            startCatchUp({initLedger, getCatchupCount(mApp)}, false);
         }
         break;
 
@@ -448,15 +450,21 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 }
 
 void
-LedgerManagerImpl::startCatchUp(uint32_t initLedger,
-                                CatchupManager::CatchupMode resume,
+LedgerManagerImpl::startCatchUp(CatchupConfiguration configuration,
                                 bool manualCatchup)
 {
+    auto lastClosedLedger = getLastClosedLedgerNum();
+    if ((configuration.toLedger() != CatchupConfiguration::CURRENT) &&
+        (configuration.toLedger() <= lastClosedLedger))
+    {
+        throw std::invalid_argument("Target ledger is not newer than LCL");
+    }
+
     setState(LM_CATCHING_UP_STATE);
+
     mApp.getCatchupManager().catchupHistory(
-        initLedger, resume,
-        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3),
-        manualCatchup);
+        configuration, manualCatchup,
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 
 HistoryManager::VerifyHashStatus
@@ -632,8 +640,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << lastBuffered.getLedgerSeq();
                 mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                startCatchUp(lastBuffered.getLedgerSeq(), getCatchupMode(mApp),
-                             false);
+                auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
+                                      lastBuffered.getLedgerSeq()) -
+                                  1;
+                startCatchUp({initLedger, getCatchupCount(mApp)}, false);
                 return;
             }
         }
@@ -896,6 +906,7 @@ LedgerManagerImpl::advanceLedgerPointers()
 
     mLastClosedLedger.hash = mCurrentLedger->getHash();
     mLastClosedLedger.header = mCurrentLedger->mHeader;
+
     mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
     CLOG(DEBUG, "Ledger") << "New current ledger: seq="
                           << mCurrentLedger->mHeader.ledgerSeq;

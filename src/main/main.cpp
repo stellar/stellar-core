@@ -244,30 +244,48 @@ catchup(Config const& cfg)
         {
             clock.crank(true);
         }
-        app->getCatchupManager().catchupHistory(
-            0, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-            [&app](asio::error_code const& ec, CatchupWork::ProgressState sate,
-                   LedgerHeaderHistoryEntry const&) {
-                if (sate != CatchupWork::ProgressState::FINISHED)
-                {
-                    return;
-                }
-                if (ec)
-                {
-                    throw std::runtime_error(
-                        "Unable to perform complete catchup");
-                }
-                LOG(INFO) << "*";
-                LOG(INFO) << "* Catchup complete finished.";
-                LOG(INFO) << "*";
-                app->gracefulStop();
-            },
-            true);
+
+        try
+        {
+            app->getLedgerManager().startCatchUp(
+                {0, std::numeric_limits<uint32_t>::max()}, true);
+        }
+        catch (std::invalid_argument const&)
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Target ledger (current) "
+                      << " is not newer than last closed ledger"
+                      << " - nothing to do";
+            LOG(INFO) << "*";
+            return;
+        }
 
         auto& io = clock.getIOService();
         asio::io_service::work mainWork(io);
         while (!io.stopped())
         {
+            switch (app->getLedgerManager().getState())
+            {
+            case LedgerManager::LM_BOOTING_STATE:
+            {
+                LOG(INFO) << "*";
+                LOG(INFO) << "* Catchup failed.";
+                LOG(INFO) << "*";
+                app->gracefulStop();
+                break;
+            }
+            case LedgerManager::LM_SYNCED_STATE:
+            {
+                LOG(INFO) << "*";
+                LOG(INFO) << "* Catchup finished.";
+                LOG(INFO) << "*";
+                app->gracefulStop();
+                break;
+            }
+            case LedgerManager::LM_CATCHING_UP_STATE:
+                break;
+            }
+
             clock.crank();
         }
     }

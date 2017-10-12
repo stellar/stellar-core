@@ -99,8 +99,9 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchUp(uint32_t initLedger, CatchupManager::CatchupMode resume,
-                      bool manualCatchup = false) override;
+    void startCatchUp(CatchupConfiguration configuration,
+                      bool manualCatchup) override;
+
     HistoryManager::VerifyHashStatus
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
     void closeLedger(LedgerCloseData const& ledgerData) override;

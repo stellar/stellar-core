@@ -134,16 +134,14 @@ class LedgerManager
     virtual void loadLastKnownLedger(
         std::function<void(asio::error_code const& ec)> handler) = 0;
 
-    // Forcibly switch the application into catchup mode, treating `initLedger`
-    // as the current ledger number (to begin catchup from). Normally this
-    // happens automatically when LedgerManager detects it is desynchronized
-    // from SCP's consensus ledger; this methos is present in the public
-    // interface to permit testing. Pass `manualCatchup=true` to catch up in
-    // "manual mode", in which rounding up and down to checkpoint frequencies is
-    // disabled.
-    virtual void startCatchUp(uint32_t initLedger,
-                              CatchupManager::CatchupMode resume,
-                              bool manualCatchup = false) = 0;
+    // Forcibly switch the application into catchup mode, treating `toLedger`
+    // as the destination ledger number and count as the number of past ledgers
+    // that should be replayed. Normally this happens automatically when
+    // LedgerManager detects it is desynchronized from SCP's consensus ledger.
+    // This method is present in the public interface to permit testing and
+    // command line catchups.
+    virtual void startCatchUp(CatchupConfiguration configuration,
+                              bool manualCatchup) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
     // LedgerManager whether or not the HistoryManager should trust (thus: begin
