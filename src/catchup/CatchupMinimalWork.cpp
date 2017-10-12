@@ -83,6 +83,8 @@ CatchupMinimalWork::onSuccess()
 
     auto firstSeq = firstCheckpointSeq();
     auto lastSeq = lastCheckpointSeq();
+    auto range = CheckpointRange{
+        firstSeq, lastSeq, mApp.getHistoryManager().getCheckpointFrequency()};
 
     // Phase 2: download the ledger chain that validates the state
     // we're about to assume.
@@ -90,7 +92,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL downloading ledger chain";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
+            range, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -99,7 +101,7 @@ CatchupMinimalWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup MINIMAL verifying ledger chain";
         mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-            *mDownloadDir, firstSeq, lastSeq, !mManualCatchup, mFirstVerified,
+            *mDownloadDir, range, !mManualCatchup, mFirstVerified,
             mLastVerified);
         return WORK_PENDING;
     }

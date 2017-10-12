@@ -64,8 +64,9 @@ FetchRecentQsetsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Downloading recent SCP messages: ["
                               << firstSeq << ", " << lastSeq << "]";
+        auto range = CheckpointRange{firstSeq, lastSeq, step};
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
-            firstSeq, lastSeq, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
+            range, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
         return WORK_PENDING;
     }
 

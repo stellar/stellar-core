@@ -7,6 +7,7 @@
 #include "history/FileTransferInfo.h"
 #include "history/HistoryManager.h"
 #include "historywork/Progress.h"
+#include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
@@ -19,12 +20,12 @@ namespace stellar
 
 ApplyLedgerChainWork::ApplyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, LedgerHeaderHistoryEntry& lastApplied)
+    LedgerRange range, LedgerHeaderHistoryEntry& lastApplied)
     : Work(app, parent, std::string("apply-ledger-chain"))
     , mDownloadDir(downloadDir)
-    , mFirstSeq(first)
-    , mCurrSeq(first)
-    , mLastSeq(last)
+    , mRange(range)
+    , mCurrSeq(
+          mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1)
     , mLastApplied(lastApplied)
     , mApplyLedgerStart(app.getMetrics().NewMeter(
           {"history", "apply-ledger", "start"}, "event"))
@@ -51,7 +52,7 @@ ApplyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -60,14 +61,15 @@ void
 ApplyLedgerChainWork::onReset()
 {
     mLastApplied = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    uint32_t step = mApp.getHistoryManager().getCheckpointFrequency();
     auto& lm = mApp.getLedgerManager();
+    auto& hm = mApp.getHistoryManager();
     CLOG(INFO, "History") << "Replaying contents of "
-                          << (1 + ((mLastSeq - mFirstSeq) / step))
+                          << CheckpointRange{mRange, hm}.count()
                           << " transaction-history files from LCL "
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
-    mCurrSeq = mFirstSeq;
+    mCurrSeq =
+        mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1;
     mHdrIn.close();
     mTxIn.close();
 }
@@ -77,10 +79,6 @@ ApplyLedgerChainWork::openCurrentInputFiles()
 {
     mHdrIn.close();
     mTxIn.close();
-    if (mCurrSeq > mLastSeq)
-    {
-        return;
-    }
     FileTransferInfo hi(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
     FileTransferInfo ti(mDownloadDir, HISTORY_FILE_TYPE_TRANSACTIONS, mCurrSeq);
     CLOG(DEBUG, "History") << "Replaying ledger headers from "
@@ -273,7 +271,9 @@ ApplyLedgerChainWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if (mCurrSeq > mLastSeq)
+    auto& lm = mApp.getLedgerManager();
+    auto const& lclHeader = lm.getLastClosedLedgerHeader();
+    if (lclHeader.header.ledgerSeq == mRange.last())
     {
         return WORK_SUCCESS;
     }

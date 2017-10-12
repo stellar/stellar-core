@@ -64,6 +64,9 @@ CatchupTransactionsWork::onReset()
 Work::State
 CatchupTransactionsWork::onSuccess()
 {
+    auto range = CheckpointRange{
+        mFirstSeq, mLastSeq, mApp.getHistoryManager().getCheckpointFrequency()};
+
     // Phase 1: download and decompress the ledgers.
     if (!mDownloadLedgersWork)
     {
@@ -71,7 +74,7 @@ CatchupTransactionsWork::onSuccess()
                               << " downloading ledgers [" << mFirstSeq << ", "
                               << mLastSeq << "]";
         mDownloadLedgersWork = addWork<BatchDownloadWork>(
-            mFirstSeq, mLastSeq, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
+            range, HISTORY_FILE_TYPE_LEDGER, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -81,7 +84,7 @@ CatchupTransactionsWork::onSuccess()
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " downloading transactions";
         mDownloadTransactionsWork = addWork<BatchDownloadWork>(
-            mFirstSeq, mLastSeq, HISTORY_FILE_TYPE_TRANSACTIONS, mDownloadDir);
+            range, HISTORY_FILE_TYPE_TRANSACTIONS, mDownloadDir);
         return WORK_PENDING;
     }
 
@@ -91,9 +94,9 @@ CatchupTransactionsWork::onSuccess()
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " verifying history";
         mLastVerified = mApp.getLedgerManager().getLastClosedLedgerHeader();
-        mVerifyWork = addWork<VerifyLedgerChainWork>(
-            mDownloadDir, mFirstSeq, mLastSeq, !mManualCatchup, mFirstVerified,
-            mLastVerified);
+        mVerifyWork =
+            addWork<VerifyLedgerChainWork>(mDownloadDir, range, !mManualCatchup,
+                                           mFirstVerified, mLastVerified);
         return WORK_PENDING;
     }
 
@@ -102,8 +105,9 @@ CatchupTransactionsWork::onSuccess()
     {
         CLOG(INFO, "History") << "Catchup " << mCatchupTypeName
                               << " applying history";
-        mApplyWork = addWork<ApplyLedgerChainWork>(mDownloadDir, mFirstSeq,
-                                                   mLastSeq, mLastApplied);
+        mApplyWork = addWork<ApplyLedgerChainWork>(
+            mDownloadDir, LedgerRange{range.first(), range.last()},
+            mLastApplied);
         return WORK_PENDING;
     }
 
