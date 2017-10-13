@@ -72,7 +72,6 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     Application::pointer result = Application::create(clock, *cfg, newDB);
 
     NodeID nodeID = nodeKey.getPublicKey();
-    mConfigs[nodeID] = cfg;
     mNodes[nodeID] = result;
 
     return nodeID;

@@ -89,7 +89,6 @@ class Simulation : public LoadGenerator
     Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
-    std::map<NodeID, Config::pointer> mConfigs;
     std::map<NodeID, Application::pointer> mNodes;
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
