@@ -52,29 +52,20 @@ Simulation::getClock()
     return mClock;
 }
 
-NodeID
+Application::pointer
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
                     Config const* cfg2, bool newDB)
 {
-    std::shared_ptr<Config> cfg;
-    if (!cfg2)
-    {
-        cfg = std::make_shared<Config>(newConfig());
-    }
-    else
-    {
-        cfg = std::make_shared<Config>(*cfg2);
-    }
+    auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
+                    : std::make_shared<Config>(newConfig());
     cfg->NODE_SEED = nodeKey;
     cfg->QUORUM_SET = qSet;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    Application::pointer result = Application::create(clock, *cfg, newDB);
+    auto result = Application::create(clock, *cfg, newDB);
+    mNodes[nodeKey.getPublicKey()] = result;
 
-    NodeID nodeID = nodeKey.getPublicKey();
-    mNodes[nodeID] = result;
-
-    return nodeID;
+    return result;
 }
 
 Application::pointer

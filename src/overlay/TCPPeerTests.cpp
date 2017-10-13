@@ -28,12 +28,12 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     SCPQuorumSet n0_qset;
     n0_qset.threshold = 1;
     n0_qset.validators.push_back(v10SecretKey.getPublicKey());
-    auto n0 = s->getNode(s->addNode(v10SecretKey, n0_qset, s->getClock()));
+    auto n0 = s->addNode(v10SecretKey, n0_qset, s->getClock());
 
     SCPQuorumSet n1_qset;
     n1_qset.threshold = 1;
     n1_qset.validators.push_back(v11SecretKey.getPublicKey());
-    auto n1 = s->getNode(s->addNode(v11SecretKey, n1_qset, s->getClock()));
+    auto n1 = s->addNode(v11SecretKey, n1_qset, s->getClock());
 
     s->addPendingConnection(v10SecretKey.getPublicKey(),
                             v11SecretKey.getPublicKey());
