@@ -86,6 +86,14 @@ class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
+    medida::Meter& mFlushCacheMeter;
+    medida::Meter& mCachedEntryExistsCalledMeter;
+    medida::Meter& mCachedEntryExistsTrueMeter;
+    medida::Meter& mCachedEntryExistsFalseMeter;
+    medida::Meter& mGetCachedEntryMeter;
+    medida::Meter& mGetCachedEntryExistsMeter;
+    medida::Meter& mGetCachedEntryDoesNotExistMeter;
+    medida::Meter& mPutCachedEntryMeter;
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
 
