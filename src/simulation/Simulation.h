@@ -81,10 +81,12 @@ class Simulation : public LoadGenerator
     std::string metricsSummary(std::string domain = "");
 
     void addConnection(NodeID initiator, NodeID acceptor);
+    void dropConnection(NodeID initiator, NodeID acceptor);
     Config newConfig(); // generates a new config
 
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
+    void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
 
     VirtualClock mClock;
