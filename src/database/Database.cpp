@@ -30,6 +30,7 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "xdrpp/marshal.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -341,10 +342,33 @@ Database::getPool()
     return *mPool;
 }
 
-cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-Database::getEntryCache()
+void
+Database::flushCachedEntry(LedgerKey const& key)
 {
-    return mEntryCache;
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    mEntryCache.erase_if_exists(s);
+}
+
+bool
+Database::cachedEntryExists(LedgerKey const& key)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    return mEntryCache.exists(s);
+}
+
+std::shared_ptr<LedgerEntry const>
+Database::getCachedEntry(LedgerKey const& key)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    return mEntryCache.get(s);
+}
+
+void
+Database::putCachedEntry(LedgerKey const& key,
+                         std::shared_ptr<LedgerEntry const> p)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    mEntryCache.put(s, p);
 }
 
 class SQLLogContext : NonCopyable

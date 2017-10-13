@@ -109,30 +109,26 @@ EntryFrame::touch(LedgerDelta const& delta)
 void
 EntryFrame::flushCachedEntry(LedgerKey const& key, Database& db)
 {
-    auto s = binToHex(xdr::xdr_to_opaque(key));
-    db.getEntryCache().erase_if_exists(s);
+    db.flushCachedEntry(key);
 }
 
 bool
 EntryFrame::cachedEntryExists(LedgerKey const& key, Database& db)
 {
-    auto s = binToHex(xdr::xdr_to_opaque(key));
-    return db.getEntryCache().exists(s);
+    return db.cachedEntryExists(key);
 }
 
 std::shared_ptr<LedgerEntry const>
 EntryFrame::getCachedEntry(LedgerKey const& key, Database& db)
 {
-    auto s = binToHex(xdr::xdr_to_opaque(key));
-    return db.getEntryCache().get(s);
+    return db.getCachedEntry(key);
 }
 
 void
 EntryFrame::putCachedEntry(LedgerKey const& key,
                            std::shared_ptr<LedgerEntry const> p, Database& db)
 {
-    auto s = binToHex(xdr::xdr_to_opaque(key));
-    db.getEntryCache().put(s, p);
+    db.putCachedEntry(key, p);
 }
 
 void
