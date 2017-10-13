@@ -5,7 +5,6 @@
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "lib/catch.hpp"
-#include "overlay/LoopbackPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
