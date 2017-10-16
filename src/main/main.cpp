@@ -139,8 +139,6 @@ usage(int err = 1)
           "secret key\n"
           "      --netid STRING     Specify network ID for subsequent signtxn\n"
           "                         (Default is STELLAR_NETWORK_ID environment"
-          "      --netid STRING     Specify network ID for subsequent signtxn\n"
-          "                         (Default is STELLAR_NETWORK_ID environment"
           "variable)\n"
           "      --test             Run self-tests\n"
           "      --version          Print version information\n";
