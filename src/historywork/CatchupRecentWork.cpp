@@ -15,9 +15,10 @@ namespace stellar
 
 CatchupRecentWork::CatchupRecentWork(Application& app, WorkParent& parent,
                                      uint32_t initLedger, bool manualCatchup,
-                                     handler endHandler)
+                                     handler endHandler, size_t maxRetries)
     : Work(app, parent, fmt::format("catchup-recent-{:d}-from-{:08x}",
-                                    app.getConfig().CATCHUP_RECENT, initLedger))
+                                    app.getConfig().CATCHUP_RECENT, initLedger),
+           maxRetries)
     , mInitLedger(initLedger)
     , mManualCatchup(manualCatchup)
     , mEndHandler(endHandler)
@@ -91,7 +92,7 @@ CatchupRecentWork::onSuccess()
         CLOG(INFO, "History")
             << "CATCHUP_RECENT starting inner CATCHUP_MINIMAL";
         mCatchupMinimalWork = addWork<CatchupMinimalWork>(
-            mInitLedger, mManualCatchup, writeFirstVerified());
+            mInitLedger, mManualCatchup, writeFirstVerified(), RETRY_A_FEW);
         return WORK_PENDING;
     }
 
@@ -111,7 +112,7 @@ CatchupRecentWork::onSuccess()
             << "CATCHUP_RECENT starting inner CATCHUP_COMPLETE";
         // Now make a CATCHUP_COMPLETE inner worker, for replay.
         mCatchupCompleteWork = addWork<CatchupCompleteWork>(
-            mInitLedger, mManualCatchup, writeLastApplied());
+            mInitLedger, mManualCatchup, writeLastApplied(), RETRY_A_FEW);
 
         // Transfer the download dir used by the minimal catchup to the
         // complete catchup, to avoid re-downloading the ledger history.

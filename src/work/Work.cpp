@@ -19,6 +19,12 @@
 namespace stellar
 {
 
+size_t const Work::RETRY_NEVER;
+size_t const Work::RETRY_ONCE;
+size_t const Work::RETRY_A_FEW;
+size_t const Work::RETRY_A_LOT;
+size_t const Work::RETRY_FOREVER;
+
 Work::Work(Application& app, WorkParent& parent, std::string uniqueName,
            size_t maxRetries)
     : WorkParent(app)

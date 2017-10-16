@@ -24,7 +24,7 @@ class CatchupWork : public BucketDownloadWork
 
   public:
     CatchupWork(Application& app, WorkParent& parent, uint32_t initLedger,
-                std::string const& mode, bool manualCatchup);
+                std::string const& mode, bool manualCatchup, size_t maxRetries);
     virtual void onReset() override;
 };
 }

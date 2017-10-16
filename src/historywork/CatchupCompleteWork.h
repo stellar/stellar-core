@@ -27,7 +27,7 @@ class CatchupCompleteWork : public CatchupWork
   public:
     CatchupCompleteWork(Application& app, WorkParent& parent,
                         uint32_t initLedger, bool manualCatchup,
-                        handler endHandler);
+                        handler endHandler, size_t maxRetries);
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

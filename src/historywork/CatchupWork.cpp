@@ -13,10 +13,11 @@ namespace stellar
 
 CatchupWork::CatchupWork(Application& app, WorkParent& parent,
                          uint32_t initLedger, std::string const& mode,
-                         bool manualCatchup)
+                         bool manualCatchup, size_t maxRetries)
     : BucketDownloadWork(
           app, parent, fmt::format("catchup-{:s}-{:08x}", mode, initLedger),
-          app.getHistoryManager().getLastClosedHistoryArchiveState())
+          app.getHistoryManager().getLastClosedHistoryArchiveState(),
+          maxRetries)
     , mInitLedger(initLedger)
     , mManualCatchup(manualCatchup)
 {

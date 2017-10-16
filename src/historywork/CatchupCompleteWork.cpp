@@ -14,8 +14,10 @@ namespace stellar
 
 CatchupCompleteWork::CatchupCompleteWork(Application& app, WorkParent& parent,
                                          uint32_t initLedger,
-                                         bool manualCatchup, handler endHandler)
-    : CatchupWork(app, parent, initLedger, "complete", manualCatchup)
+                                         bool manualCatchup, handler endHandler,
+                                         size_t maxRetries)
+    : CatchupWork(app, parent, initLedger, "complete", manualCatchup,
+                  maxRetries)
     , mEndHandler(endHandler)
 {
 }
@@ -65,7 +67,7 @@ CatchupCompleteWork::onSuccess()
         mCatchupTransactionsWork = addWork<CatchupTransactionsWork>(
             *mDownloadDir, firstCheckpointSeq(), lastCheckpointSeq(),
             mManualCatchup, "COMPLETE", "complete",
-            0); // never retry
+            Work::RETRY_NEVER);
         return WORK_PENDING;
     }
 

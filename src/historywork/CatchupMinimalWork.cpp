@@ -19,8 +19,9 @@ namespace stellar
 
 CatchupMinimalWork::CatchupMinimalWork(Application& app, WorkParent& parent,
                                        uint32_t initLedger, bool manualCatchup,
-                                       handler endHandler)
-    : CatchupWork(app, parent, initLedger, "minimal", manualCatchup)
+                                       handler endHandler, size_t maxRetries)
+    : CatchupWork(app, parent, initLedger, "minimal", manualCatchup,
+                  maxRetries)
     , mEndHandler(endHandler)
 {
 }
