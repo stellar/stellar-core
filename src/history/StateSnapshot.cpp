@@ -8,7 +8,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
-#include "herder/Herder.h"
+#include "herder/HerderPersistence.h"
 #include "history/FileTransferInfo.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryManager.h"
@@ -108,7 +108,7 @@ StateSnapshot::writeHistoryBlocks() const
                                << " and "
                                << mTransactionResultSnapFile->localPath_nogz();
 
-        nbSCPMessages = Herder::copySCPHistoryToStream(
+        nbSCPMessages = HerderPersistence::copySCPHistoryToStream(
             mApp.getDatabase(), sess, begin, count, scpHistory);
 
         CLOG(DEBUG, "History") << "Wrote " << nbSCPMessages

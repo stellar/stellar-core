@@ -15,7 +15,7 @@
 #include "util/types.h"
 
 #include "bucket/BucketManager.h"
-#include "herder/Herder.h"
+#include "herder/HerderPersistence.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
@@ -114,7 +114,7 @@ Database::applySchemaUpgrade(unsigned long vers)
     switch (vers)
     {
     case 2:
-        Herder::dropAll(*this);
+        HerderPersistence::dropAll(*this);
         break;
 
     case 3:

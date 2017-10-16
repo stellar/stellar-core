@@ -13,6 +13,7 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/HerderPersistence.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
 #include "history/HistoryManager.h"
@@ -830,7 +831,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq)
 {
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq);
     TransactionFrame::deleteOldEntries(db, ledgerSeq);
-    Herder::deleteOldEntries(db, ledgerSeq);
+    HerderPersistence::deleteOldEntries(db, ledgerSeq);
 }
 
 void
