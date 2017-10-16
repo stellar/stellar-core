@@ -147,7 +147,7 @@ TEST_CASE("load example configs", "[config]")
                                           "stellar-core_testnet.cfg"};
     for (auto const& fn : testFiles)
     {
-        std::string fnPath = "testdata/";
+        std::string fnPath = "src/testdata/";
         fnPath += fn;
         SECTION("load config " + fnPath)
         {
