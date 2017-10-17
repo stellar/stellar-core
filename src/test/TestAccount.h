@@ -28,6 +28,7 @@ class TestAccount
     explicit TestAccount(Application& app, SecretKey sk, SequenceNumber sn = 0)
         : mApp(app), mSk{std::move(sk)}, mSn{sn}
     {
+        mAccountID = KeyUtils::toStrKey(mSk.getPublicKey());
     }
 
     TransactionFramePtr tx(std::vector<Operation> const& ops,
@@ -90,7 +91,7 @@ class TestAccount
     PublicKey
     getPublicKey() const
     {
-        return getSecretKey().getPublicKey();
+        return mSk.getPublicKey();
     }
 
     void
@@ -119,6 +120,7 @@ class TestAccount
   private:
     Application& mApp;
     SecretKey mSk;
+    std::string mAccountID;
     SequenceNumber mSn;
 
     void updateSequenceNumber();
