@@ -5,6 +5,7 @@
 #include "TxTests.h"
 
 #include "crypto/ByteSlice.h"
+#include "database/Database.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
@@ -42,6 +43,8 @@ namespace txtest
 bool
 applyCheck(TransactionFramePtr tx, Application& app)
 {
+    app.getDatabase().clearPreparedStatementCache();
+
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
 
