@@ -37,7 +37,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
 
     SECTION("round trip with database")
     {
-        std::vector<LedgerEntry> accounts(100);
+        std::vector<LedgerEntry> accounts(50);
 
         std::unordered_map<AccountID, LedgerEntry> accountsMap;
 
@@ -102,7 +102,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
         auto trustLineProcessor = [&](std::function<int(LedgerEntry&)> proc) {
             entriesProcessor([&](LedgerEntry& account) {
                 AccountEntry& newA = account.data.account();
-                uint8_t nbLines = intGen() % 64;
+                uint8_t nbLines = intGen() % 32;
                 for (uint8_t i = 0; i < nbLines; i++)
                 {
                     LedgerEntry le;
@@ -164,7 +164,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
         auto offerProcessor = [&](std::function<int(LedgerEntry&)> proc) {
             entriesProcessor([&](LedgerEntry& account) {
                 AccountEntry& newA = account.data.account();
-                uint8_t nbOffers = intGen() % 64;
+                uint8_t nbOffers = intGen() % 32;
                 for (uint8_t i = 0; i < nbOffers; i++)
                 {
                     LedgerEntry le;

@@ -56,7 +56,6 @@ class TransactionFrame
 
     void resetSigningAccount();
     void resetResults();
-    bool checkAllSignaturesUsed();
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
                                      LedgerDelta& delta,
                                      LedgerManager& ledgerManager);

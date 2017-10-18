@@ -104,10 +104,12 @@ class TrustFrame : public EntryFrame
         return mTrustLine;
     }
 
-    static bool isValid(TrustLineEntry const& tl);
+    static void dropAll(Database& db);
+
+  private:
+    static bool isValid(LedgerEntry const& le);
     bool isValid() const;
 
-    static void dropAll(Database& db);
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
 };

@@ -30,6 +30,9 @@ class OfferFrame : public EntryFrame
 
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
+    bool isValid() const;
+    static bool isValid(LedgerEntry const& le);
+
   public:
     typedef std::shared_ptr<OfferFrame> pointer;
 
@@ -69,9 +72,6 @@ class OfferFrame : public EntryFrame
         return mOffer;
     }
 
-    static bool isValid(OfferEntry const& oe);
-    bool isValid() const;
-
     // Instance-based overrides of EntryFrame.
     void storeDelete(LedgerDelta& delta, Database& db) const override;
     void storeChange(LedgerDelta& delta, Database& db) override;
@@ -97,6 +97,8 @@ class OfferFrame : public EntryFrame
     loadAllOffers(Database& db);
 
     static void dropAll(Database& db);
+
+  private:
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
     static const char* kSQLCreateStatement3;

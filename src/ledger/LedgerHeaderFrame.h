@@ -57,9 +57,11 @@ class LedgerHeaderFrame
     static void deleteOldEntries(Database& db, uint32_t ledgerSeq);
 
     static void dropAll(Database& db);
-    static const char* kSQLCreateStatement;
 
   private:
+    static bool isValid(LedgerHeader const& lh);
     static LedgerHeaderFrame::pointer decodeFromData(std::string const& data);
+
+    static const char* kSQLCreateStatement;
 };
 }

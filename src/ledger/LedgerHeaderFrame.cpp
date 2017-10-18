@@ -38,6 +38,17 @@ LedgerHeaderFrame::LedgerHeaderFrame(LedgerHeaderHistoryEntry const& lastClosed)
     mHash.fill(0);
 }
 
+bool
+LedgerHeaderFrame::isValid(LedgerHeader const& lh)
+{
+    bool res = (lh.ledgerSeq <= INT32_MAX);
+
+    res = res && (lh.scpValue.closeTime <= INT64_MAX);
+    res = res && (lh.feePool >= 0);
+    res = res && (lh.idPool <= INT64_MAX);
+    return res;
+}
+
 Hash const&
 LedgerHeaderFrame::getHash() const
 {
@@ -70,6 +81,11 @@ LedgerHeaderFrame::generateID()
 void
 LedgerHeaderFrame::storeInsert(LedgerManager& ledgerManager) const
 {
+    if (!isValid(mHeader))
+    {
+        throw std::runtime_error("invalid ledger header (insert)");
+    }
+
     getHash();
 
     string hash(binToHex(mHash)),
@@ -117,6 +133,11 @@ LedgerHeaderFrame::decodeFromData(std::string const& data)
     xdr::xdr_get g(&decoded.front(), &decoded.back() + 1);
     xdr::xdr_argpack_archive(g, lh);
     g.done();
+
+    if (!isValid(lh))
+    {
+        throw std::runtime_error("invalid ledger header (load)");
+    }
 
     return make_shared<LedgerHeaderFrame>(lh);
 }

@@ -25,6 +25,9 @@ class DataFrame : public EntryFrame
 
     DataEntry& mData;
 
+    static bool isValid(LedgerEntry const& le);
+    bool isValid();
+
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
   public:
@@ -78,6 +81,8 @@ class DataFrame : public EntryFrame
     loadAllData(Database& db);
 
     static void dropAll(Database& db);
+
+  private:
     static const char* kSQLCreateStatement1;
 };
 }
