@@ -109,6 +109,12 @@
     <Filter Include="invariant\tests">
       <UniqueIdentifier>{838dd219-d470-4c89-a08d-4395e2ede31e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="catchup">
+      <UniqueIdentifier>{6ca5dac1-6d6d-46ec-8d41-6193e13d17a5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="catchup\tests">
+      <UniqueIdentifier>{dd381b70-e6b6-497d-9b7b-d32da125b981}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -171,9 +177,6 @@
     <ClCompile Include="..\..\src\main\CommandHandler.cpp">
       <Filter>main</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp">
       <Filter>process</Filter>
     </ClCompile>
@@ -194,9 +197,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
       <Filter>ledger</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
-      <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
       <Filter>crypto</Filter>
@@ -312,9 +312,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
-      <Filter>history\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
@@ -368,9 +365,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\simulation\Topologies.cpp">
       <Filter>simulation</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
-      <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\main\PersistentState.cpp">
       <Filter>main</Filter>
@@ -501,9 +495,6 @@
     <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\work\Work.cpp">
       <Filter>work</Filter>
     </ClCompile>
@@ -518,12 +509,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\InferredQuorum.cpp">
-      <Filter>history</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
-      <Filter>history\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\BitsetEnumerator.cpp">
       <Filter>util</Filter>
@@ -596,93 +581,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
       <Filter>herder</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\ApplyBucketsWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\ApplyLedgerChainWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupCompleteImmediateWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupCompleteWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupMinimalWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupRecentWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupTransactionsWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\CatchupWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GetHistoryArchiveStateWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GetRemoteFileWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\MakeRemoteDirWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\Progress.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\PublishWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\PutHistoryArchiveStateWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\PutRemoteFileWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\PutSnapshotFilesWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\RepairMissingBucketsWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\RunCommandWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\VerifyBucketWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\VerifyLedgerChainWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp">
-      <Filter>historyWork</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\history\CatchupManagerImpl.cpp">
-      <Filter>history</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp">
       <Filter>invariant</Filter>
@@ -758,6 +656,114 @@
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
       <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\ApplyLedgerChainWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\CatchupConfiguration.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\CatchupManagerImpl.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\CatchupWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\DownloadBucketsWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp">
+      <Filter>catchup</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\catchup\CatchupWorkTests.cpp">
+      <Filter>catchup\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LedgerRange.cpp">
+      <Filter>ledger</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GetHistoryArchiveStateWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GetRemoteFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\MakeRemoteDirWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\Progress.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\PublishWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\PutHistoryArchiveStateWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\PutRemoteFileWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\PutSnapshotFilesWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\RepairMissingBucketsWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\ResolveSnapshotWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\RunCommandWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\VerifyBucketWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\FileTransferInfo.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryArchive.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorum.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTests.cpp">
+      <Filter>history\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -836,12 +842,6 @@
     <ClInclude Include="..\..\src\main\CommandHandler.h">
       <Filter>main</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\history\HistoryManager.h">
-      <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
-      <Filter>history</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\process\ProcessManager.h">
       <Filter>process</Filter>
     </ClInclude>
@@ -853,9 +853,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ledger\LedgerDelta.h">
       <Filter>ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\HistoryArchive.h">
-      <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\database\Database.h">
       <Filter>database</Filter>
@@ -973,9 +970,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\simulation\Topologies.h">
       <Filter>simulation</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\FileTransferInfo.h">
-      <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\PersistentState.h">
       <Filter>main</Filter>
@@ -1112,9 +1106,6 @@
     <ClInclude Include="..\..\src\ledger\DataFrame.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\history\StateSnapshot.h">
-      <Filter>history</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\work\Work.h">
       <Filter>work</Filter>
     </ClInclude>
@@ -1129,9 +1120,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h">
       <Filter>bucket</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\InferredQuorum.h">
-      <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\BitsetEnumerator.h">
       <Filter>util</Filter>
@@ -1193,96 +1181,6 @@
     <ClInclude Include="..\..\src\herder\HerderUtils.h">
       <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\historywork\ApplyBucketsWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\ApplyLedgerChainWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupCompleteImmediateWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupCompleteWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupMinimalWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupRecentWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupTransactionsWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\CatchupWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GetHistoryArchiveStateWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GetRemoteFileWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GunzipFileWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\GzipFileWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\Progress.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\PublishWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\PutHistoryArchiveStateWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\PutRemoteFileWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\PutSnapshotFilesWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\RepairMissingBucketsWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\RunCommandWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\VerifyBucketWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\VerifyLedgerChainWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h">
-      <Filter>historyWork</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\CatchupManager.h">
-      <Filter>history</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\history\CatchupManagerImpl.h">
-      <Filter>history</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h">
       <Filter>invariant</Filter>
     </ClInclude>
@@ -1337,6 +1235,114 @@
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
       <Filter>invariant</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\ApplyLedgerChainWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupConfiguration.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupManager.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupManagerImpl.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\DownloadBucketsWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h">
+      <Filter>catchup</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\catchup\CatchupWorkTests.h">
+      <Filter>catchup\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\CheckpointRange.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ledger\LedgerRange.h">
+      <Filter>ledger</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GetHistoryArchiveStateWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GetRemoteFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GunzipFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\GzipFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\Progress.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\PublishWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\PutHistoryArchiveStateWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\PutRemoteFileWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\PutSnapshotFilesWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\RepairMissingBucketsWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\ResolveSnapshotWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\RunCommandWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\VerifyBucketWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\FileTransferInfo.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryArchive.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryManager.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\InferredQuorum.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\StateSnapshot.h">
+      <Filter>history</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -1358,9 +1364,6 @@
     </None>
     <None Include="..\..\src\database\readme.md">
       <Filter>database</Filter>
-    </None>
-    <None Include="..\..\src\history\readme.md">
-      <Filter>history</Filter>
     </None>
     <None Include="..\..\src\ledger\readme.md">
       <Filter>ledger</Filter>
@@ -1430,6 +1433,9 @@
     <None Include="..\..\README" />
     <None Include="..\..\travis-build.sh" />
     <None Include="..\..\ISSUE_TEMPLATE.md" />
+    <None Include="..\..\src\history\readme.md">
+      <Filter>history</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
