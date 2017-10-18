@@ -184,6 +184,8 @@ struct StateSnapshot;
 class HistoryManager
 {
   public:
+    static const uint32_t GENESIS_LEDGER_SEQ;
+
     // Status code returned from LedgerManager::verifyCatchupCandidate. The
     // HistoryManager's catchup algorithm downloads _untrusted_ history from a
     // configured history archive, then (once it has done internal consistency
@@ -234,14 +236,14 @@ class HistoryManager
     // Checkpoints are made every getCheckpointFrequency() ledgers.
     // This should normally be a constant (64) but in testing cases
     // may be different (see ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING).
-    virtual uint32_t getCheckpointFrequency() = 0;
+    virtual uint32_t getCheckpointFrequency() const = 0;
 
     // Given a "current ledger" (not LCL) for a node, return the "current
     // ledger" value at which the previous scheduled checkpoint should have
     // occurred, by rounding-down to the next multiple of checkpoint
     // frequency. This does not consult the network nor take account of manual
     // checkpoints.
-    virtual uint32_t prevCheckpointLedger(uint32_t ledger) = 0;
+    virtual uint32_t prevCheckpointLedger(uint32_t ledger) const = 0;
 
     // Given a "current ledger" (not LCL) for a node, return the "current
     // ledger" value at which the next checkpoint should occur; usually this
@@ -250,11 +252,11 @@ class HistoryManager
     // checkpoint it will return the ledger passed in, indicating that the
     // "next" checkpoint-ledger to look forward to is the same as the "init"
     // ledger of the catchup operation.
-    virtual uint32_t nextCheckpointLedger(uint32_t ledger) = 0;
+    virtual uint32_t nextCheckpointLedger(uint32_t ledger) const = 0;
 
     // Given a ledger, tell the number of seconds to sleep until the next
     // catchup probe.
-    virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) = 0;
+    virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) const = 0;
 
     // Emit a log message and set StatusManager HISTORY_PUBLISH status to
     // describe current publish state.

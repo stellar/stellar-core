@@ -25,7 +25,7 @@ class GetRemoteFileWork : public RunCommandWork
     GetRemoteFileWork(Application& app, WorkParent& parent,
                       std::string const& remote, std::string const& local,
                       std::shared_ptr<HistoryArchive const> archive = nullptr,
-                      size_t maxRetries = Work::RETRY_A_FEW);
+                      size_t maxRetries = Work::RETRY_A_LOT);
     void onReset() override;
 };
 }

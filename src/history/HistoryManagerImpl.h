@@ -44,10 +44,10 @@ class HistoryManagerImpl : public HistoryManager
     std::shared_ptr<HistoryArchive>
     selectRandomReadableHistoryArchive() override;
 
-    uint32_t getCheckpointFrequency() override;
-    uint32_t prevCheckpointLedger(uint32_t ledger) override;
-    uint32_t nextCheckpointLedger(uint32_t ledger) override;
-    uint64_t nextCheckpointCatchupProbe(uint32_t ledger) override;
+    uint32_t getCheckpointFrequency() const override;
+    uint32_t prevCheckpointLedger(uint32_t ledger) const override;
+    uint32_t nextCheckpointLedger(uint32_t ledger) const override;
+    uint64_t nextCheckpointCatchupProbe(uint32_t ledger) const override;
 
     void logAndUpdatePublishStatus() override;
 

@@ -48,8 +48,8 @@ GetAndUnzipRemoteFileWork::onReset()
 
     CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName()
                            << ": downloading";
-    mGetRemoteFileWork =
-        addWork<GetRemoteFileWork>(mFt.remoteName(), mFt.localPath_gz_tmp());
+    mGetRemoteFileWork = addWork<GetRemoteFileWork>(
+        mFt.remoteName(), mFt.localPath_gz_tmp(), nullptr, RETRY_NEVER);
 }
 
 Work::State
@@ -106,7 +106,8 @@ GetAndUnzipRemoteFileWork::onSuccess()
 
     CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName()
                            << ": unzipping";
-    mGunzipFileWork = addWork<GunzipFileWork>(mFt.localPath_gz(), false, 1);
+    mGunzipFileWork =
+        addWork<GunzipFileWork>(mFt.localPath_gz(), false, RETRY_NEVER);
     return WORK_PENDING;
 }
 

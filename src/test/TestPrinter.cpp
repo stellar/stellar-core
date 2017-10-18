@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestPrinter.h"
-#include "lib/util/format.h"
 #include "test/TestMarket.h"
+#include <lib/util/format.h>
 
 namespace Catch
 {
@@ -46,5 +46,13 @@ std::string
 toString(stellar::TransactionResult const& tr)
 {
     return xdr::xdr_to_string(tr);
+}
+
+template <>
+std::string
+toString(stellar::CatchupRange const& cr)
+{
+    return fmt::format("[{}..{}], applyBuckets: {}", cr.first.first(),
+                       cr.first.last(), cr.second);
 }
 }

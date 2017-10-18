@@ -9,6 +9,8 @@
 #include "main/Application.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 #include <fstream>
 
@@ -24,6 +26,10 @@ VerifyBucketWork::VerifyBucketWork(
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)
+    , mVerifyBucketSuccess{app.getMetrics().NewMeter(
+          {"history", "verify-bucket", "success"}, "event")}
+    , mVerifyBucketFailure{app.getMetrics().NewMeter(
+          {"history", "verify-bucket", "failure"}, "event")}
 {
     fs::checkNoGzipSuffix(mBucketFile);
 }
@@ -79,6 +85,21 @@ VerifyBucketWork::onSuccess()
 {
     auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
     mBuckets[binToHex(mHash)] = b;
+    mVerifyBucketSuccess.Mark();
     return WORK_SUCCESS;
+}
+
+void
+VerifyBucketWork::onFailureRetry()
+{
+    mVerifyBucketFailure.Mark();
+    Work::onFailureRetry();
+}
+
+void
+VerifyBucketWork::onFailureRaise()
+{
+    mVerifyBucketFailure.Mark();
+    Work::onFailureRaise();
 }
 }

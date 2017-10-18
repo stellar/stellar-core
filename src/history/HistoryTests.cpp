@@ -5,6 +5,9 @@
 #include "util/asio.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "catchup/CatchupConfiguration.h"
+#include "catchup/CatchupWork.h"
+#include "catchup/CatchupWorkTests.h"
 #include "crypto/Hex.h"
 #include "herder/LedgerCloseData.h"
 #include "history/HistoryArchive.h"
@@ -13,6 +16,7 @@
 #include "historywork/GunzipFileWork.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
+#include "ledger/CheckpointRange.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -33,6 +37,9 @@
 
 #include <cstdio>
 #include <fstream>
+#include <lib/util/format.h>
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
 #include <random>
 #include <xdrpp/autocheck.h>
 
@@ -91,6 +98,166 @@ class TmpDirConfigurator : public Configurator
     }
 };
 
+struct CatchupMetrics
+{
+    uint32_t mHistoryArchiveStatesDownloaded;
+    uint32_t mLedgersDownloaded;
+    uint32_t mLedgersVerified;
+    uint32_t mLedgerChainsVerificationFailed;
+    uint32_t mBucketsDownloaded;
+    uint32_t mBucketsApplied;
+    uint32_t mTransactionsDownloaded;
+    uint32_t mTransactionsApplied;
+
+    CatchupMetrics()
+        : mHistoryArchiveStatesDownloaded{0}
+        , mLedgersDownloaded{0}
+        , mLedgersVerified{0}
+        , mLedgerChainsVerificationFailed{0}
+        , mBucketsDownloaded{false}
+        , mBucketsApplied{false}
+        , mTransactionsDownloaded{0}
+        , mTransactionsApplied{0}
+    {
+    }
+
+    CatchupMetrics(uint32_t historyArchiveStatesDownloaded,
+                   uint32_t ledgersDownloaded, uint32_t ledgersVerified,
+                   uint32_t ledgerChainsVerificationFailed,
+                   uint32_t bucketsDownloaded, uint32_t bucketsApplied,
+                   uint32_t transactionsDownloaded,
+                   uint32_t transactionsApplied)
+        : mHistoryArchiveStatesDownloaded{historyArchiveStatesDownloaded}
+        , mLedgersDownloaded{ledgersDownloaded}
+        , mLedgersVerified{ledgersVerified}
+        , mLedgerChainsVerificationFailed{ledgerChainsVerificationFailed}
+        , mBucketsDownloaded{bucketsDownloaded}
+        , mBucketsApplied{bucketsApplied}
+        , mTransactionsDownloaded{transactionsDownloaded}
+        , mTransactionsApplied{transactionsApplied}
+    {
+    }
+
+    friend CatchupMetrics
+    operator-(CatchupMetrics const& x, CatchupMetrics const& y)
+    {
+        return CatchupMetrics{x.mHistoryArchiveStatesDownloaded -
+                                  y.mHistoryArchiveStatesDownloaded,
+                              x.mLedgersDownloaded - y.mLedgersDownloaded,
+                              x.mLedgersVerified - y.mLedgersVerified,
+                              x.mLedgerChainsVerificationFailed -
+                                  y.mLedgerChainsVerificationFailed,
+                              x.mBucketsDownloaded - y.mBucketsDownloaded,
+                              x.mBucketsApplied - y.mBucketsApplied,
+                              x.mTransactionsDownloaded -
+                                  y.mTransactionsDownloaded,
+                              x.mTransactionsApplied - y.mTransactionsApplied};
+    }
+};
+
+struct CatchupPerformedWork
+{
+    uint32_t mHistoryArchiveStatesDownloaded;
+    uint32_t mLedgersDownloaded;
+    uint32_t mLedgersVerified;
+    uint32_t mLedgerChainsVerificationFailed;
+    bool mBucketsDownloaded;
+    bool mBucketsApplied;
+    uint32_t mTransactionsDownloaded;
+    uint32_t mTransactionsApplied;
+
+    CatchupPerformedWork(CatchupMetrics const& metrics)
+        : mHistoryArchiveStatesDownloaded{metrics
+                                              .mHistoryArchiveStatesDownloaded}
+        , mLedgersDownloaded{metrics.mLedgersDownloaded}
+        , mLedgersVerified{metrics.mLedgersVerified}
+        , mLedgerChainsVerificationFailed{metrics
+                                              .mLedgerChainsVerificationFailed}
+        , mBucketsDownloaded{metrics.mBucketsDownloaded > 0}
+        , mBucketsApplied{metrics.mBucketsApplied > 0}
+        , mTransactionsDownloaded{metrics.mTransactionsDownloaded}
+        , mTransactionsApplied{metrics.mTransactionsApplied}
+    {
+    }
+
+    CatchupPerformedWork(uint32_t historyArchiveStatesDownloaded,
+                         uint32_t ledgersDownloaded, uint32_t ledgersVerified,
+                         uint32_t ledgerChainsVerificationFailed,
+                         bool bucketsDownloaded, bool bucketsApplied,
+                         uint32_t transactionsDownloaded,
+                         uint32_t transactionsApplied)
+        : mHistoryArchiveStatesDownloaded{historyArchiveStatesDownloaded}
+        , mLedgersDownloaded{ledgersDownloaded}
+        , mLedgersVerified{ledgersVerified}
+        , mLedgerChainsVerificationFailed{ledgerChainsVerificationFailed}
+        , mBucketsDownloaded{bucketsDownloaded}
+        , mBucketsApplied{bucketsApplied}
+        , mTransactionsDownloaded{transactionsDownloaded}
+        , mTransactionsApplied{transactionsApplied}
+    {
+    }
+
+    friend bool
+    operator==(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
+    {
+        if (x.mHistoryArchiveStatesDownloaded !=
+            y.mHistoryArchiveStatesDownloaded)
+        {
+            return false;
+        }
+        if (x.mLedgersDownloaded != y.mLedgersDownloaded)
+        {
+            return false;
+        }
+        if (x.mLedgersVerified != y.mLedgersVerified)
+        {
+            return false;
+        }
+        if (x.mLedgerChainsVerificationFailed !=
+            y.mLedgerChainsVerificationFailed)
+        {
+            return false;
+        }
+        if (x.mBucketsDownloaded != y.mBucketsDownloaded)
+        {
+            return false;
+        }
+        if (x.mBucketsApplied != y.mBucketsApplied)
+        {
+            return false;
+        }
+        if (x.mTransactionsDownloaded != y.mTransactionsDownloaded)
+        {
+            return false;
+        }
+        if (x.mTransactionsApplied != y.mTransactionsApplied)
+        {
+            return false;
+        }
+        return true;
+    }
+    friend bool
+    operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
+    {
+        return !(x == y);
+    }
+};
+
+namespace Catch
+{
+template <>
+std::string
+toString(CatchupPerformedWork const& cm)
+{
+    return fmt::format("{}, {}, {}, {}, {}, {}, {}, {}",
+                       cm.mHistoryArchiveStatesDownloaded,
+                       cm.mLedgersDownloaded, cm.mLedgersVerified,
+                       cm.mLedgerChainsVerificationFailed,
+                       cm.mBucketsDownloaded, cm.mBucketsApplied,
+                       cm.mTransactionsDownloaded, cm.mTransactionsApplied);
+}
+}
+
 class HistoryTests
 {
   protected:
@@ -139,15 +306,20 @@ class HistoryTests
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
 
-    Application::pointer
-    catchupNewApplication(uint32_t initLedger, Config::TestDbMode dbMode,
-                          CatchupManager::CatchupMode resumeMode,
-                          std::string const& appName, uint32_t recent = 80);
+    Application::pointer catchupNewApplication(uint32_t initLedger,
+                                               uint32_t count, bool manual,
+                                               Config::TestDbMode dbMode,
+                                               std::string const& appName);
 
-    bool catchupApplication(uint32_t initLedger,
-                            CatchupManager::CatchupMode resumeMode,
+    bool catchupApplication(uint32_t initLedger, uint32_t count, bool manual,
                             Application::pointer app2, bool doStart = true,
                             uint32_t gap = 0);
+
+    CatchupMetrics getCatchupMetrics(Application::pointer app);
+    CatchupPerformedWork computeCatchupPerformedWork(
+        uint32_t lastClosedLedger,
+        CatchupConfiguration const& catchupConfiguration,
+        HistoryManager const& historyManager);
 
     bool
     flip()
@@ -243,7 +415,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 
     HistoryArchiveState has2;
     auto get = wm.addWork<GetHistoryArchiveStateWork>(
-        has2, 0, std::chrono::seconds(0), archive);
+        "get-history-archive-state", has2, 0, std::chrono::seconds(0), archive);
     wm.advanceChildren();
     crankTillDone();
     REQUIRE(get->getState() == Work::WORK_SUCCESS);
@@ -367,10 +539,9 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
 }
 
 Application::pointer
-HistoryTests::catchupNewApplication(uint32_t initLedger,
-                                    Config::TestDbMode dbMode,
-                                    CatchupManager::CatchupMode resumeMode,
-                                    std::string const& appName, uint32_t recent)
+HistoryTests::catchupNewApplication(uint32_t initLedger, uint32_t count,
+                                    bool manual, Config::TestDbMode dbMode,
+                                    std::string const& appName)
 {
 
     CLOG(INFO, "History") << "****";
@@ -380,30 +551,36 @@ HistoryTests::catchupNewApplication(uint32_t initLedger,
 
     mCfgs.emplace_back(
         getTestConfig(static_cast<int>(mCfgs.size()) + 1, dbMode));
-    if (resumeMode == CatchupManager::CATCHUP_RECENT)
+    mCfgs.back().CATCHUP_COMPLETE =
+        count == std::numeric_limits<uint32_t>::max();
+    if (count != std::numeric_limits<uint32_t>::max())
     {
-        mCfgs.back().CATCHUP_RECENT = recent;
+        mCfgs.back().CATCHUP_RECENT = count;
     }
     Application::pointer app2 = Application::create(
         clock, mConfigurator->configure(mCfgs.back(), false));
 
     app2->start();
-    CHECK(catchupApplication(initLedger, resumeMode, app2) == true);
+    CHECK(catchupApplication(initLedger, count, manual, app2) == true);
     return app2;
 }
 
 bool
-HistoryTests::catchupApplication(uint32_t initLedger,
-                                 CatchupManager::CatchupMode resumeMode,
-                                 Application::pointer app2, bool doStart,
-                                 uint32_t gap)
+HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
+                                 bool manual, Application::pointer app2,
+                                 bool doStart, uint32_t gap)
 {
+    auto startCatchupMetrics = getCatchupMetrics(app2);
+
     auto root = TestAccount{*app2, getRoot(app.getNetworkID())};
     auto alice = TestAccount{*app2, getAccount("alice")};
     auto bob = TestAccount{*app2, getAccount("bob")};
     auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
+    auto toLedger =
+        manual ? initLedger
+               : app2->getHistoryManager().nextCheckpointLedger(initLedger) - 1;
     if (doStart)
     {
         // Normally Herder calls LedgerManager.externalizeValue(initLedger) and
@@ -421,7 +598,8 @@ HistoryTests::catchupApplication(uint32_t initLedger,
 
         CLOG(INFO, "History") << "force-starting catchup at initLedger="
                               << initLedger;
-        lm.startCatchUp(initLedger, resumeMode);
+
+        lm.startCatchUp({toLedger, count}, manual);
     }
 
     // Push publishing side forward one-ledger into a history block if it's
@@ -441,34 +619,38 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // and as near as we can get to the first ledger of the block after
     // initLedger (inclusive), so that there's something to knit-up with. Do not
     // externalize anything we haven't yet published, of course.
-    uint32_t nextBlockStart =
-        app.getHistoryManager().nextCheckpointLedger(initLedger);
-    // use uint64_t for n to prevent overflows
-    for (uint64_t n = initLedger; n <= nextBlockStart; ++n)
+    if (!manual)
     {
-        // Remember the vectors count from 2, not 0.
-        if (n - 2 >= mLedgerCloseDatas.size())
-        {
-            break;
-        }
-        if (n == gap)
-        {
-            CLOG(INFO, "History")
-                << "simulating LedgerClose transmit gap at ledger " << n;
-        }
-        else
+        uint32_t nextBlockStart =
+            app.getHistoryManager().nextCheckpointLedger(initLedger);
+        // use uint64_t for n to prevent overflows
+        for (uint64_t n = initLedger; n <= nextBlockStart; ++n)
         {
             // Remember the vectors count from 2, not 0.
-            auto const& lcd = mLedgerCloseDatas.at(n - 2);
-            CLOG(INFO, "History")
-                << "force-externalizing LedgerCloseData for " << n
-                << " has txhash:"
-                << hexAbbrev(lcd.getTxSet()->getContentsHash());
-            lm.valueExternalized(lcd);
+            if (n - 2 >= mLedgerCloseDatas.size())
+            {
+                break;
+            }
+            if (n == gap)
+            {
+                CLOG(INFO, "History")
+                    << "simulating LedgerClose transmit gap at ledger " << n;
+            }
+            else
+            {
+                // Remember the vectors count from 2, not 0.
+                auto const& lcd = mLedgerCloseDatas.at(n - 2);
+                CLOG(INFO, "History")
+                    << "force-externalizing LedgerCloseData for " << n
+                    << " has txhash:"
+                    << hexAbbrev(lcd.getTxSet()->getContentsHash());
+                lm.valueExternalized(lcd);
+            }
         }
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
+    auto catchupConfiguration = CatchupConfiguration(toLedger, count);
 
     assert(!app2->getClock().getIOService().stopped());
 
@@ -481,6 +663,14 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     {
         return false;
     }
+
+    auto endCatchupMetrics = getCatchupMetrics(app2);
+    auto catchupPerformedWork =
+        CatchupPerformedWork{endCatchupMetrics - startCatchupMetrics};
+
+    REQUIRE(catchupPerformedWork ==
+            computeCatchupPerformedWork(lastLedger, catchupConfiguration,
+                                        app2->getHistoryManager()));
 
     uint32_t nextLedger = lm.getLedgerNum();
 
@@ -502,94 +692,196 @@ HistoryTests::catchupApplication(uint32_t initLedger,
     // So cumulatively: we want to probe local history slot i = nextLedger - 3.
 
     assert(nextLedger != 0);
-    size_t i = nextLedger - 3;
+    if (nextLedger >= 3)
+    {
+        size_t i = nextLedger - 3;
 
-    auto wantSeq = mLedgerSeqs.at(i);
-    auto wantHash = mLedgerHashes.at(i);
-    auto wantBucketListHash = mBucketListHashes.at(i);
-    auto wantBucket0Hash = mBucket0Hashes.at(i);
-    auto wantBucket1Hash = mBucket1Hashes.at(i);
+        auto wantSeq = mLedgerSeqs.at(i);
+        auto wantHash = mLedgerHashes.at(i);
+        auto wantBucketListHash = mBucketListHashes.at(i);
+        auto wantBucket0Hash = mBucket0Hashes.at(i);
+        auto wantBucket1Hash = mBucket1Hashes.at(i);
 
-    auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
-    auto haveHash = lm.getLastClosedLedgerHeader().hash;
-    auto haveBucketListHash =
-        lm.getLastClosedLedgerHeader().header.bucketListHash;
-    auto haveBucket0Hash = app2->getBucketManager()
-                               .getBucketList()
-                               .getLevel(0)
-                               .getCurr()
-                               ->getHash();
-    auto haveBucket1Hash = app2->getBucketManager()
-                               .getBucketList()
-                               .getLevel(2)
-                               .getCurr()
-                               ->getHash();
+        auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        auto haveHash = lm.getLastClosedLedgerHeader().hash;
+        auto haveBucketListHash =
+            lm.getLastClosedLedgerHeader().header.bucketListHash;
+        auto haveBucket0Hash = app2->getBucketManager()
+                                   .getBucketList()
+                                   .getLevel(0)
+                                   .getCurr()
+                                   ->getHash();
+        auto haveBucket1Hash = app2->getBucketManager()
+                                   .getBucketList()
+                                   .getLevel(2)
+                                   .getCurr()
+                                   ->getHash();
 
-    CLOG(INFO, "History") << "Caught up: want Seq[" << i << "] = " << wantSeq;
-    CLOG(INFO, "History") << "Caught up: have Seq[" << i << "] = " << haveSeq;
+        CLOG(INFO, "History") << "Caught up: want Seq[" << i
+                              << "] = " << wantSeq;
+        CLOG(INFO, "History") << "Caught up: have Seq[" << i
+                              << "] = " << haveSeq;
 
-    CLOG(INFO, "History") << "Caught up: want Hash[" << i
-                          << "] = " << hexAbbrev(wantHash);
-    CLOG(INFO, "History") << "Caught up: have Hash[" << i
-                          << "] = " << hexAbbrev(haveHash);
+        CLOG(INFO, "History") << "Caught up: want Hash[" << i
+                              << "] = " << hexAbbrev(wantHash);
+        CLOG(INFO, "History") << "Caught up: have Hash[" << i
+                              << "] = " << hexAbbrev(haveHash);
 
-    CLOG(INFO, "History") << "Caught up: want BucketListHash[" << i
-                          << "] = " << hexAbbrev(wantBucketListHash);
-    CLOG(INFO, "History") << "Caught up: have BucketListHash[" << i
-                          << "] = " << hexAbbrev(haveBucketListHash);
+        CLOG(INFO, "History") << "Caught up: want BucketListHash[" << i
+                              << "] = " << hexAbbrev(wantBucketListHash);
+        CLOG(INFO, "History") << "Caught up: have BucketListHash[" << i
+                              << "] = " << hexAbbrev(haveBucketListHash);
 
-    CLOG(INFO, "History") << "Caught up: want Bucket0Hash[" << i
-                          << "] = " << hexAbbrev(wantBucket0Hash);
-    CLOG(INFO, "History") << "Caught up: have Bucket0Hash[" << i
-                          << "] = " << hexAbbrev(haveBucket0Hash);
+        CLOG(INFO, "History") << "Caught up: want Bucket0Hash[" << i
+                              << "] = " << hexAbbrev(wantBucket0Hash);
+        CLOG(INFO, "History") << "Caught up: have Bucket0Hash[" << i
+                              << "] = " << hexAbbrev(haveBucket0Hash);
 
-    CLOG(INFO, "History") << "Caught up: want Bucket1Hash[" << i
-                          << "] = " << hexAbbrev(wantBucket1Hash);
-    CLOG(INFO, "History") << "Caught up: have Bucket1Hash[" << i
-                          << "] = " << hexAbbrev(haveBucket1Hash);
+        CLOG(INFO, "History") << "Caught up: want Bucket1Hash[" << i
+                              << "] = " << hexAbbrev(wantBucket1Hash);
+        CLOG(INFO, "History") << "Caught up: have Bucket1Hash[" << i
+                              << "] = " << hexAbbrev(haveBucket1Hash);
 
-    CHECK(nextLedger == haveSeq + 1);
-    CHECK(wantSeq == haveSeq);
-    CHECK(wantBucketListHash == haveBucketListHash);
-    CHECK(wantHash == haveHash);
+        CHECK(nextLedger == haveSeq + 1);
+        CHECK(wantSeq == haveSeq);
+        CHECK(wantBucketListHash == haveBucketListHash);
+        CHECK(wantHash == haveHash);
 
-    CHECK(app2->getBucketManager().getBucketByHash(wantBucket0Hash));
-    CHECK(app2->getBucketManager().getBucketByHash(wantBucket1Hash));
-    CHECK(wantBucket0Hash == haveBucket0Hash);
-    CHECK(wantBucket1Hash == haveBucket1Hash);
+        CHECK(app2->getBucketManager().getBucketByHash(wantBucket0Hash));
+        CHECK(app2->getBucketManager().getBucketByHash(wantBucket1Hash));
+        CHECK(wantBucket0Hash == haveBucket0Hash);
+        CHECK(wantBucket1Hash == haveBucket1Hash);
 
-    auto haveRootBalance = rootBalances.at(i);
-    auto haveAliceBalance = aliceBalances.at(i);
-    auto haveBobBalance = bobBalances.at(i);
-    auto haveCarolBalance = carolBalances.at(i);
+        auto haveRootBalance = rootBalances.at(i);
+        auto haveAliceBalance = aliceBalances.at(i);
+        auto haveBobBalance = bobBalances.at(i);
+        auto haveCarolBalance = carolBalances.at(i);
 
-    auto haveRootSeq = rootSeqs.at(i);
-    auto haveAliceSeq = aliceSeqs.at(i);
-    auto haveBobSeq = bobSeqs.at(i);
-    auto haveCarolSeq = carolSeqs.at(i);
+        auto haveRootSeq = rootSeqs.at(i);
+        auto haveAliceSeq = aliceSeqs.at(i);
+        auto haveBobSeq = bobSeqs.at(i);
+        auto haveCarolSeq = carolSeqs.at(i);
 
-    auto wantRootBalance = root.getBalance();
-    auto wantAliceBalance = alice.getBalance();
-    auto wantBobBalance = bob.getBalance();
-    auto wantCarolBalance = carol.getBalance();
+        auto wantRootBalance = root.getBalance();
+        auto wantAliceBalance = alice.getBalance();
+        auto wantBobBalance = bob.getBalance();
+        auto wantCarolBalance = carol.getBalance();
 
-    auto wantRootSeq = root.loadSequenceNumber();
-    auto wantAliceSeq = alice.loadSequenceNumber();
-    auto wantBobSeq = bob.loadSequenceNumber();
-    auto wantCarolSeq = carol.loadSequenceNumber();
+        auto wantRootSeq = root.loadSequenceNumber();
+        auto wantAliceSeq = alice.loadSequenceNumber();
+        auto wantBobSeq = bob.loadSequenceNumber();
+        auto wantCarolSeq = carol.loadSequenceNumber();
 
-    CHECK(haveRootBalance == wantRootBalance);
-    CHECK(haveAliceBalance == wantAliceBalance);
-    CHECK(haveBobBalance == wantBobBalance);
-    CHECK(haveCarolBalance == wantCarolBalance);
+        CHECK(haveRootBalance == wantRootBalance);
+        CHECK(haveAliceBalance == wantAliceBalance);
+        CHECK(haveBobBalance == wantBobBalance);
+        CHECK(haveCarolBalance == wantCarolBalance);
 
-    CHECK(haveRootSeq == wantRootSeq);
-    CHECK(haveAliceSeq == wantAliceSeq);
-    CHECK(haveBobSeq == wantBobSeq);
-    CHECK(haveCarolSeq == wantCarolSeq);
+        CHECK(haveRootSeq == wantRootSeq);
+        CHECK(haveAliceSeq == wantAliceSeq);
+        CHECK(haveBobSeq == wantBobSeq);
+        CHECK(haveCarolSeq == wantCarolSeq);
+    }
 
     app.getLedgerManager().checkDbState();
     return true;
+}
+
+CatchupMetrics
+HistoryTests::getCatchupMetrics(Application::pointer app)
+{
+    auto& getHistoryArchiveStateSuccess = app->getMetrics().NewMeter(
+        {"history", "download-history-archive-state", "success"}, "event");
+    uint32_t historyArchiveStatesDownloaded =
+        getHistoryArchiveStateSuccess.count();
+
+    auto& downloadLedgersCached = app->getMetrics().NewMeter(
+        {"history", "download-ledger", "cached"}, "event");
+    auto& downloadLedgersSuccess = app->getMetrics().NewMeter(
+        {"history", "download-ledger", "success"}, "event");
+
+    uint32_t ledgersDownloaded =
+        downloadLedgersSuccess.count() + downloadLedgersCached.count();
+
+    auto& verifyLedgerSuccess = app->getMetrics().NewMeter(
+        {"history", "verify-ledger", "success"}, "event");
+    auto& verifyLedgerChainFailure = app->getMetrics().NewMeter(
+        {"history", "verify-ledger-chain", "failure"}, "event");
+
+    uint32_t ledgersVerified = verifyLedgerSuccess.count();
+    uint32_t ledgerChainsVerificationFailed = verifyLedgerChainFailure.count();
+
+    auto& downloadBucketSuccess = app->getMetrics().NewMeter(
+        {"history", "download-bucket", "success"}, "event");
+
+    uint32_t bucketsDownloaded = downloadBucketSuccess.count();
+
+    auto& bucketApplySuccess = app->getMetrics().NewMeter(
+        {"history", "bucket-apply", "success"}, "event");
+
+    uint32_t bucketsApplied = bucketApplySuccess.count();
+
+    auto& downloadTransactionsCached = app->getMetrics().NewMeter(
+        {"history", "download-transactions", " cached "}, "event");
+    auto& downloadTransactionsSuccess = app->getMetrics().NewMeter(
+        {"history", "download-transactions", "success"}, "event");
+
+    uint32_t transactionsDownloaded = downloadTransactionsSuccess.count() +
+                                      downloadTransactionsCached.count();
+
+    auto& applyLedgerSuccess = app->getMetrics().NewMeter(
+        {"history", "apply-ledger", "success"}, "event");
+
+    uint32_t transactionsApplied = applyLedgerSuccess.count();
+
+    return CatchupMetrics{
+        historyArchiveStatesDownloaded, ledgersDownloaded,  ledgersVerified,
+        ledgerChainsVerificationFailed, bucketsDownloaded,  bucketsApplied,
+        transactionsDownloaded,         transactionsApplied};
+}
+
+CatchupPerformedWork
+HistoryTests::computeCatchupPerformedWork(
+    uint32_t lastClosedLedger, CatchupConfiguration const& catchupConfiguration,
+    HistoryManager const& historyManager)
+{
+    auto catchupRange = CatchupWork::makeCatchupRange(
+        lastClosedLedger, catchupConfiguration, historyManager);
+    auto checkpointRange = CheckpointRange{catchupRange.first, historyManager};
+
+    uint32_t historyArchiveStatesDownloaded = 1;
+    if (catchupRange.second &&
+        checkpointRange.first() != checkpointRange.last())
+    {
+        historyArchiveStatesDownloaded++;
+    }
+
+    uint32_t filesDownloaded = checkpointRange.count();
+    uint32_t ledgersVerified =
+        checkpointRange.count() * checkpointRange.frequency();
+    if (checkpointRange.first() == checkpointRange.frequency() - 1)
+    {
+        ledgersVerified--;
+    }
+    uint32_t transactionsApplied = 0;
+    if (catchupRange.second)
+    {
+        transactionsApplied =
+            catchupConfiguration.toLedger() - checkpointRange.first();
+    }
+    else
+    {
+        transactionsApplied =
+            catchupConfiguration.toLedger() - lastClosedLedger;
+    }
+    return {historyArchiveStatesDownloaded,
+            filesDownloaded,
+            ledgersVerified,
+            0,
+            catchupRange.second,
+            catchupRange.second,
+            filesDownloaded,
+            transactionsApplied};
 }
 
 TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
@@ -598,18 +890,16 @@ TEST_CASE_METHOD(HistoryTests, "History publish", "[history]")
 }
 
 static std::string
-resumeModeName(CatchupManager::CatchupMode mode)
+resumeModeName(uint32_t count)
 {
-    switch (mode)
+    switch (count)
     {
-    case CatchupManager::CATCHUP_MINIMAL:
+    case 0:
         return "CATCHUP_MINIMAL";
-    case CatchupManager::CATCHUP_COMPLETE:
+    case std::numeric_limits<uint32_t>::max():
         return "CATCHUP_COMPLETE";
-    case CatchupManager::CATCHUP_RECENT:
-        return "CATCHUP_RECENT";
     default:
-        abort();
+        return "CATCHUP_RECENT";
     }
 }
 
@@ -640,10 +930,8 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 
     std::vector<Application::pointer> apps;
 
-    std::vector<CatchupManager::CatchupMode> resumeModes = {
-        CatchupManager::CATCHUP_MINIMAL, CatchupManager::CATCHUP_COMPLETE,
-        CatchupManager::CATCHUP_RECENT,
-    };
+    std::vector<uint32_t> counts = {0, std::numeric_limits<uint32_t>::max(),
+                                    60};
 
     std::vector<Config::TestDbMode> dbModes = {Config::TESTDB_IN_MEMORY_SQLITE,
                                                Config::TESTDB_ON_DISK_SQLITE};
@@ -654,12 +942,13 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 
     for (auto dbMode : dbModes)
     {
-        for (auto resumeMode : resumeModes)
+        for (auto count : counts)
         {
-            apps.push_back(catchupNewApplication(
-                initLedger, dbMode, resumeMode, std::string("full, ") +
-                                                    resumeModeName(resumeMode) +
-                                                    ", " + dbModeName(dbMode)));
+            auto app = catchupNewApplication(initLedger, count, false, dbMode,
+                                             std::string("full, ") +
+                                                 resumeModeName(count) + ", " +
+                                                 dbModeName(dbMode));
+            apps.push_back(app);
         }
     }
 }
@@ -686,8 +975,8 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 
     auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
     auto app2 =
-        catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                              CatchupManager::CATCHUP_COMPLETE,
+        catchupNewApplication(initLedger, std::numeric_limits<uint32_t>::max(),
+                              false, Config::TESTDB_IN_MEMORY_SQLITE,
                               std::string("Catchup to delayed history"));
     CHECK(app2->getLedgerManager().getLedgerNum() ==
           app.getLedgerManager().getLedgerNum());
@@ -701,18 +990,21 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
 
     // First attempt catchup to 10, prefix of 64. Should round up to 64.
     // Should replay the 64th (since it gets externalized) and land on 65.
-    apps.push_back(catchupNewApplication(
-        10, Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
-        std::string("Catchup to prefix of published history")));
+    auto app = catchupNewApplication(
+        10, std::numeric_limits<uint32_t>::max(), false,
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        std::string("Catchup to prefix of published history"));
+    apps.push_back(app);
     uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
-    apps.push_back(catchupNewApplication(
-        freq + 10, Config::TESTDB_IN_MEMORY_SQLITE,
-        CatchupManager::CATCHUP_COMPLETE,
-        std::string("Catchup to second prefix of published history")));
+    app = catchupNewApplication(
+        freq + 10, std::numeric_limits<uint32_t>::max(), false,
+        Config::TESTDB_IN_MEMORY_SQLITE,
+        std::string("Catchup to second prefix of published history"));
+    apps.push_back(app);
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == 2 * freq + 1);
 }
 
@@ -720,7 +1012,8 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
                  "[history][historycatchup][catchupalternation]")
 {
     // Publish in app, catch up in app2 and app3.
-    // App2 will catch up using CATCHUP_COMPLETE, app3 will use CATCHUP_MINIMAL.
+    // App2 will catch up using CATCHUP_COMPLETE, app3 will use
+    // CATCHUP_MINIMAL.
     generateAndPublishInitialHistory(3);
 
     Application::pointer app2, app3;
@@ -729,12 +1022,12 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
-    app2 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                                 CatchupManager::CATCHUP_COMPLETE,
-                                 std::string("app2"));
+    app2 = catchupNewApplication(
+        initLedger, std::numeric_limits<uint32_t>::max(), false,
+        Config::TESTDB_IN_MEMORY_SQLITE, std::string("app2"));
 
-    app3 = catchupNewApplication(initLedger, Config::TESTDB_IN_MEMORY_SQLITE,
-                                 CatchupManager::CATCHUP_MINIMAL,
+    app3 = catchupNewApplication(initLedger, 0, false,
+                                 Config::TESTDB_IN_MEMORY_SQLITE,
                                  std::string("app3"));
 
     CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -747,8 +1040,9 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
         initLedger = lm.getLastClosedLedgerNum();
 
-        catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE, app2);
-        catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL, app3);
+        catchupApplication(initLedger, std::numeric_limits<uint32_t>::max(),
+                           false, app2);
+        catchupApplication(initLedger, 0, false, app3);
 
         CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
         CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -774,21 +1068,19 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE,
-                                  app2, true);
+    caughtup = catchupApplication(
+        initLedger, std::numeric_limits<uint32_t>::max(), false, app2);
     CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL,
-                                  app3, true);
+    caughtup = catchupApplication(initLedger, 0, false, app3);
     CHECK(!caughtup);
 
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_COMPLETE,
-                                  app2, false);
+    caughtup = catchupApplication(
+        initLedger, std::numeric_limits<uint32_t>::max(), false, app2, false);
     CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, CatchupManager::CATCHUP_MINIMAL,
-                                  app3, false);
+    caughtup = catchupApplication(initLedger, 0, false, app3, false);
     CHECK(caughtup);
 }
 
@@ -799,7 +1091,8 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
 
     // Forcibly resolve any merges in progress, so we have a calm state to
     // repair;
-    // NB: we cannot repair lost buckets from merges-in-progress, as they're not
+    // NB: we cannot repair lost buckets from merges-in-progress, as they're
+    // not
     // necessarily _published_ anywhere.
     HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
                             app.getBucketManager().getBucketList());
@@ -827,7 +1120,8 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
 
     // Forcibly resolve any merges in progress, so we have a calm state to
     // repair;
-    // NB: we cannot repair lost buckets from merges-in-progress, as they're not
+    // NB: we cannot repair lost buckets from merges-in-progress, as they're
+    // not
     // necessarily _published_ anywhere.
     HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
                             app.getBucketManager().getBucketList());
@@ -906,8 +1200,8 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3", "[hide][s3]")
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
-        Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
-        "s3");
+        std::numeric_limits<uint32_t>::max(), false,
+        Config::TESTDB_IN_MEMORY_SQLITE, "s3");
 }
 
 TEST_CASE("persist publish queue", "[history]")
@@ -982,10 +1276,9 @@ TEST_CASE("persist publish queue", "[history]")
 // cause catchup to fail, but that failure should itself just flush the
 // ledgermanager's buffer and get kicked back into catchup mode when the
 // network moves further ahead.
-//
+
 // (Both the hard-failure and the clear/reset weren't working when this
 // test was written)
-
 TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
                  "[history][catchupstall]")
 {
@@ -994,8 +1287,8 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     // Catch up successfully the first time
     auto app2 = catchupNewApplication(
         app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
-        Config::TESTDB_IN_MEMORY_SQLITE, CatchupManager::CATCHUP_COMPLETE,
-        "app2");
+        std::numeric_limits<uint32_t>::max(), false,
+        Config::TESTDB_IN_MEMORY_SQLITE, "app2");
 
     // Now generate a little more history
     generateAndPublishHistory(1);
@@ -1005,9 +1298,8 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Now start a catchup on that _fails_ due to a gap
     LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    caughtup = catchupApplication(init, CatchupManager::CATCHUP_COMPLETE, app2,
-                                  true, init + 10);
-
+    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                                  false, app2, true, init + 10);
     assert(!caughtup);
 
     app2->getWorkManager().clearChildren();
@@ -1017,7 +1309,8 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // And catchup successfully
     init = app.getLedgerManager().getLastClosedLedgerNum();
-    caughtup = catchupApplication(init, CatchupManager::CATCHUP_COMPLETE, app2);
+    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                                  false, app2);
     assert(caughtup);
 }
 
@@ -1028,7 +1321,6 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 {
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
-    auto catchupMode = CatchupManager::CATCHUP_RECENT;
     std::vector<Application::pointer> apps;
 
     generateAndPublishInitialHistory(3);
@@ -1047,7 +1339,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
     {
         auto name = std::string("catchup-recent-") + std::to_string(r);
         apps.push_back(
-            catchupNewApplication(initLedger, dbMode, catchupMode, name, r));
+            catchupNewApplication(initLedger, r, false, dbMode, name));
     }
 
     // Now push network along a little bit and see that they can all still
@@ -1057,22 +1349,62 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 
     for (auto a : apps)
     {
-        catchupApplication(initLedger, CatchupManager::CATCHUP_RECENT, a);
+        catchupApplication(initLedger, 80, false, a);
     }
 
-    // Now push network along a _lot_ futher along see that they can all still
+    // Now push network along a _lot_ futher along see that they can all
+    // still
     // catch up properly.
     generateAndPublishHistory(25);
     initLedger = app.getLedgerManager().getLastClosedLedgerNum();
 
     for (auto a : apps)
     {
-        catchupApplication(initLedger, CatchupManager::CATCHUP_RECENT, a);
+        catchupApplication(initLedger, 80, false, a);
+    }
+}
+
+/*
+ * Test a variety of LCL/initLedger/count modes.
+ */
+TEST_CASE_METHOD(HistoryTests, "Catchup manual", "[history][catchupmanual]")
+{
+    auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
+    std::vector<Application::pointer> apps;
+
+    generateAndPublishInitialHistory(6);
+    auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    REQUIRE(initLedger == 383);
+
+    for (auto const& test : stellar::gCatchupRangeCases)
+    {
+        auto lastClosedLedger = test.first;
+        auto configuration = test.second;
+        auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
+                                lastClosedLedger, configuration.toLedger(),
+                                configuration.count());
+        // manual catchup-recent
+        auto app =
+            catchupNewApplication(configuration.toLedger(),
+                                  configuration.count(), true, dbMode, name);
+        // manual catchup-complete
+        catchupApplication(initLedger, std::numeric_limits<uint32_t>::max(),
+                           true, app);
+        apps.push_back(app);
+    }
+
+    // Now push network along a little bit and see that they can all still
+    // catch up properly.
+    generateAndPublishHistory(2);
+    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+
+    for (auto a : apps)
+    {
+        catchupApplication(initLedger, 80, false, a);
     }
 }
 
 // Check that initializing a history store that already exists, fails.
-
 TEST_CASE("initialize existing history store fails", "[history]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));

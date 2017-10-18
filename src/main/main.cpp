@@ -4,11 +4,14 @@
 #include "util/asio.h"
 #include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
+#include "catchup/CatchupConfiguration.h"
+#include "catchup/CatchupManager.h"
+#include "catchup/CatchupWork.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "history/CatchupManager.h"
 #include "history/HistoryManager.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/HttpClient.h"
@@ -23,6 +26,8 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include <lib/util/format.h>
+#include <limits>
 #include <locale>
 #include <sodium.h>
 
@@ -35,7 +40,10 @@ using namespace std;
 
 enum opttag
 {
+    OPT_CATCHUP_AT,
     OPT_CATCHUP_COMPLETE,
+    OPT_CATCHUP_RECENT,
+    OPT_CATCHUP_TO,
     OPT_CMD,
     OPT_CONF,
     OPT_CONVERTID,
@@ -64,7 +72,10 @@ enum opttag
 };
 
 static const struct option stellar_core_options[] = {
+    {"catchup-at", required_argument, nullptr, OPT_CATCHUP_AT},
     {"catchup-complete", no_argument, nullptr, OPT_CATCHUP_COMPLETE},
+    {"catchup-recent", required_argument, nullptr, OPT_CATCHUP_RECENT},
+    {"catchup-to", required_argument, nullptr, OPT_CATCHUP_TO},
     {"c", required_argument, nullptr, OPT_CMD},
     {"conf", required_argument, nullptr, OPT_CONF},
     {"convertid", required_argument, nullptr, OPT_CONVERTID},
@@ -98,50 +109,67 @@ usage(int err = 1)
     std::ostream& os = err ? std::cerr : std::cout;
     os << "usage: stellar-core [OPTIONS]\n"
           "where OPTIONS can be any of:\n"
-          "      --base64        Use base64 for --printtxn and --signtxn\n"
-          "      --catchup-complete Do a complete catchup, then quit\n"
-          "      --c                Send a command to local stellar-core. try "
+          "      --base64             Use base64 for --printtxn and --signtxn\n"
+          "      --catchup-at SEQ     Do a catchup at ledger SEQ, then quit\n"
+          "                           Use current as SEQ to catchup to "
+          "'current'"
+          "history checkpoint\n"
+          "      --catchup-complete   Do a complete catchup, then quit\n"
+          "      --catchup-recent NUM Do a recent catchup for NUM ledgers, "
+          "then quit\n"
+          "      --catchup-to SEQ     Do a catchup to ledger SEQ, then quit\n"
+          "                           Use current as SEQ to catchup to "
+          "'current'"
+          "history checkpoint\n"
+          "      --c                  Send a command to local stellar-core. "
+          "try "
           "'--c help' for more information\n"
-          "      --conf FILE        Specify a config file ('-' for STDIN, "
+          "      --conf FILE          Specify a config file ('-' for STDIN, "
           "default 'stellar-core.cfg')\n"
-          "      --convertid ID     Displays ID in all known forms\n"
-          "      --dumpxdr FILE     Dump an XDR file, for debugging\n"
-          "      --loadxdr FILE     Load an XDR bucket file, for testing\n"
-          "      --forcescp         Next time stellar-core is run, SCP will "
+          "      --convertid ID       Displays ID in all known forms\n"
+          "      --dumpxdr FILE       Dump an XDR file, for debugging\n"
+          "      --loadxdr FILE       Load an XDR bucket file, for testing\n"
+          "      --forcescp           Next time stellar-core is run, SCP will "
           "start "
           "with the local ledger rather than waiting to hear from the "
           "network.\n"
-          "      --fuzz FILE        Run a single fuzz input and exit\n"
-          "      --genfuzz FILE     Generate a random fuzzer input file\n"
-          "      --genseed          Generate and print a random node seed\n"
-          "      --help             Display this string\n"
-          "      --inferquorum      Print a quorum set inferred from history\n"
-          "      --checkquorum      Check quorum intersection from history\n"
-          "      --graphquorum      Print a quorum set graph from history\n"
-          "      --offlineinfo      Return information for an offline "
+          "      --fuzz FILE          Run a single fuzz input and exit\n"
+          "      --genfuzz FILE       Generate a random fuzzer input file\n"
+          "      --genseed            Generate and print a random node seed\n"
+          "      --help               Display this string\n"
+          "      --inferquorum        Print a quorum set inferred from "
+          "history\n"
+          "      --checkquorum        Check quorum intersection from history\n"
+          "      --graphquorum        Print a quorum set graph from history\n"
+          "      --offlineinfo        Return information for an offline "
           "instance\n"
-          "      --ll LEVEL         Set the log level. (redundant with --c ll "
+          "      --ll LEVEL           Set the log level. (redundant with --c "
+          "ll "
           "but "
           "you need this form for the tests.)\n"
-          "                         LEVEL can be: trace, debug, info, error, "
+          "                           LEVEL can be: trace, debug, info, error, "
           "fatal\n"
-          "      --metric METRIC    Report metric METRIC on exit\n"
-          "      --newdb            Creates or restores the DB to the genesis "
+          "      --metric METRIC      Report metric METRIC on exit\n"
+          "      --newdb              Creates or restores the DB to the "
+          "genesis "
           "ledger\n"
-          "      --newhist ARCH     Initialize the named history archive ARCH\n"
-          "      --printtxn FILE    Pretty-print one transaction envelope,"
+          "      --newhist ARCH       Initialize the named history archive "
+          "ARCH\n"
+          "      --printtxn FILE      Pretty-print one transaction envelope,"
           " then quit\n"
-          "      --signtxn FILE     Add signature to transaction envelope,"
+          "      --signtxn FILE       Add signature to transaction envelope,"
           " then quit\n"
-          "                         (Key is read from stdin or terminal, as"
+          "                           (Key is read from stdin or terminal, as"
           " appropriate.)\n"
-          "      --sec2pub          Print the public key corresponding to a "
+          "      --sec2pub            Print the public key corresponding to a "
           "secret key\n"
-          "      --netid STRING     Specify network ID for subsequent signtxn\n"
-          "                         (Default is STELLAR_NETWORK_ID environment"
+          "      --netid STRING       Specify network ID for subsequent "
+          "signtxn\n"
+          "                           (Default is STELLAR_NETWORK_ID "
+          "environment\n"
           "variable)\n"
-          "      --test             Run self-tests\n"
-          "      --version          Print version information\n";
+          "      --test               Run self-tests\n"
+          "      --version            Print version information\n";
     exit(err);
 }
 
@@ -221,7 +249,7 @@ checkInitialized(Application::pointer app)
 }
 
 static void
-catchup(Config const& cfg)
+catchup(Config const& cfg, uint32_t to, uint32_t count)
 {
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg, false);
@@ -244,29 +272,110 @@ catchup(Config const& cfg)
         {
             clock.crank(true);
         }
-        app->getCatchupManager().catchupHistory(
-            0, CatchupManager::CATCHUP_COMPLETE_IMMEDIATE,
-            [&app](asio::error_code const& ec, CatchupManager::CatchupMode,
-                   LedgerHeaderHistoryEntry const&) {
-                if (ec)
-                {
-                    throw std::runtime_error(
-                        "Unable to perform complete catchup");
-                }
-                LOG(INFO) << "*";
-                LOG(INFO) << "* Catchup complete finished.";
-                LOG(INFO) << "*";
-                app->gracefulStop();
-            },
-            true);
+
+        try
+        {
+            app->getLedgerManager().startCatchUp({to, count}, true);
+        }
+        catch (std::invalid_argument const&)
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Target ledger " << to
+                      << " is not newer than last closed ledger"
+                      << " - nothing to do";
+            LOG(INFO) << "* If you really want to catchup to " << to
+                      << " run stellar-core with --newdb parameter.";
+            LOG(INFO) << "*";
+            return;
+        }
 
         auto& io = clock.getIOService();
         asio::io_service::work mainWork(io);
         while (!io.stopped())
         {
+            switch (app->getLedgerManager().getState())
+            {
+            case LedgerManager::LM_BOOTING_STATE:
+            {
+                LOG(INFO) << "*";
+                LOG(INFO) << "* Catchup failed.";
+                LOG(INFO) << "*";
+                app->gracefulStop();
+                break;
+            }
+            case LedgerManager::LM_SYNCED_STATE:
+            {
+                LOG(INFO) << "*";
+                LOG(INFO) << "* Catchup finished.";
+                LOG(INFO) << "*";
+                app->gracefulStop();
+                break;
+            }
+            case LedgerManager::LM_CATCHING_UP_STATE:
+                break;
+            }
+
             clock.crank();
         }
     }
+}
+
+static void
+catchupAt(Config const& cfg, uint32_t at)
+{
+    catchup(cfg, at, 0);
+}
+
+static void
+catchupComplete(Config const& cfg)
+{
+    catchup(cfg, CatchupConfiguration::CURRENT,
+            std::numeric_limits<uint32_t>::max());
+}
+
+static void
+catchupRecent(Config const& cfg, uint32_t count)
+{
+    catchup(cfg, CatchupConfiguration::CURRENT, count);
+}
+
+static void
+catchupTo(Config const& cfg, uint32_t to)
+{
+    catchup(cfg, to, std::numeric_limits<uint32_t>::max());
+}
+
+static uint32_t
+parseLedger(std::string const& str)
+{
+    if (str == "current")
+    {
+        return CatchupConfiguration::CURRENT;
+    }
+
+    auto pos = std::size_t{0};
+    auto result = std::stoul(str, &pos);
+    if (pos < str.length() || result < 2)
+    {
+        throw std::runtime_error(
+            fmt::format("{} is not a valid ledger number", str));
+    }
+
+    return result;
+}
+
+static uint32_t
+parseLedgerCount(std::string const& str)
+{
+    auto pos = std::size_t{0};
+    auto result = std::stoul(str, &pos);
+    if (pos < str.length())
+    {
+        throw std::runtime_error(
+            fmt::format("{} is not a valid ledger count", str));
+    }
+
+    return result;
 }
 
 static void
@@ -462,7 +571,13 @@ main(int argc, char* const* argv)
 
     optional<bool> forceSCP = nullptr;
     bool base64 = false;
-    bool catchupComplete = false;
+    bool doCatchupAt = false;
+    uint32_t catchupAtTarget = 0;
+    bool doCatchupComplete = false;
+    bool doCatchupRecent = false;
+    uint32_t catchupRecentCount = 0;
+    bool doCatchupTo = false;
+    uint32_t catchupToTarget = 0;
     bool inferQuorum = false;
     bool checkQuorum = false;
     bool graphQuorum = false;
@@ -481,8 +596,20 @@ main(int argc, char* const* argv)
         case OPT_BASE64:
             base64 = true;
             break;
+        case OPT_CATCHUP_AT:
+            doCatchupAt = true;
+            catchupAtTarget = parseLedger(optarg);
+            break;
         case OPT_CATCHUP_COMPLETE:
-            catchupComplete = true;
+            doCatchupComplete = true;
+            break;
+        case OPT_CATCHUP_RECENT:
+            doCatchupRecent = true;
+            catchupRecentCount = parseLedgerCount(optarg);
+            break;
+        case OPT_CATCHUP_TO:
+            doCatchupTo = true;
+            catchupToTarget = parseLedger(optarg);
             break;
         case 'c':
         case OPT_CMD:
@@ -606,13 +733,20 @@ main(int argc, char* const* argv)
         cfg.REPORT_METRICS = metrics;
 
         if (forceSCP || newDB || getOfflineInfo || !loadXdrBucket.empty() ||
-            inferQuorum || graphQuorum || checkQuorum || catchupComplete)
+            inferQuorum || graphQuorum || checkQuorum || doCatchupAt ||
+            doCatchupComplete || doCatchupRecent || doCatchupTo)
         {
             setNoListen(cfg);
             if (newDB)
                 initializeDatabase(cfg);
-            if (catchupComplete)
-                catchup(cfg);
+            if (doCatchupAt)
+                catchupAt(cfg, catchupAtTarget);
+            if (doCatchupComplete)
+                catchupComplete(cfg);
+            if (doCatchupRecent)
+                catchupRecent(cfg, catchupRecentCount);
+            if (doCatchupTo)
+                catchupTo(cfg, catchupToTarget);
             if (forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
             if (getOfflineInfo)

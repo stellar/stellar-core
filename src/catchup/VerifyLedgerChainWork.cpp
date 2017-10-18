@@ -2,15 +2,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "historywork/VerifyLedgerChainWork.h"
-#include "history/CatchupManager.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "history/FileTransferInfo.h"
-#include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/Progress.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/XDRStream.h"
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -51,17 +51,31 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    uint32_t first, uint32_t last, bool manualCatchup,
+    CheckpointRange range, bool verifyWithBufferedLedgers,
     LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
-    , mFirstSeq(first)
-    , mCurrSeq(first)
-    , mLastSeq(last)
-    , mManualCatchup(manualCatchup)
+    , mRange(range)
+    , mCurrSeq(
+          mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1)
+    , mVerifyWithBufferedLedgers(verifyWithBufferedLedgers)
     , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
+    , mVerifyLedgerSuccessOld(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "success-old"}, "event"))
+    , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "success"}, "event"))
+    , mVerifyLedgerFailureOvershot(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "failure-overshot"}, "event"))
+    , mVerifyLedgerFailureLink(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "failure-link"}, "event"))
+    , mVerifyLedgerChainSuccess(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "success"}, "event"))
+    , mVerifyLedgerChainFailure(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "failure"}, "event"))
+    , mVerifyLedgerChainFailureEnd(app.getMetrics().NewMeter(
+          {"history", "verify-ledger-chain", "failure-end"}, "event"))
 {
 }
 
@@ -71,7 +85,7 @@ VerifyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "verifying checkpoint";
-        return fmtProgress(mApp, task, mFirstSeq, mLastSeq, mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
     }
     return Work::getStatus();
 }
@@ -92,7 +106,8 @@ VerifyLedgerChainWork::onReset()
     {
         mLastVerified = setLedger;
     }
-    mCurrSeq = mFirstSeq;
+    mCurrSeq =
+        mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1;
 }
 
 HistoryManager::VerifyHashStatus
@@ -111,7 +126,6 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     while (hdrIn && hdrIn.readOne(curr))
     {
-
         if (prev.header.ledgerSeq == 0)
         {
             // When we have no previous state to connect up with
@@ -120,6 +134,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             // verify the chain continuously from here, and against the
             // live network.
             prev = curr;
+            mVerifyLedgerSuccess.Mark();
             continue;
         }
 
@@ -127,6 +142,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         if (curr.header.ledgerSeq < expectedSeq)
         {
             // Harmless prehistory
+            mVerifyLedgerSuccessOld.Mark();
             continue;
         }
         else if (curr.header.ledgerSeq > expectedSeq)
@@ -134,31 +150,35 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
             CLOG(ERROR, "History")
                 << "History chain overshot expected ledger seq " << expectedSeq
                 << ", got " << curr.header.ledgerSeq << " instead";
+            mVerifyLedgerFailureOvershot.Mark();
             return HistoryManager::VERIFY_HASH_BAD;
         }
         if (verifyLedgerHistoryLink(prev.hash, curr) !=
             HistoryManager::VERIFY_HASH_OK)
         {
+            mVerifyLedgerFailureLink.Mark();
             return HistoryManager::VERIFY_HASH_BAD;
         }
+        mVerifyLedgerSuccess.Mark();
         prev = curr;
     }
 
     if (curr.header.ledgerSeq != mCurrSeq)
     {
         CLOG(ERROR, "History") << "History chain did not end with " << mCurrSeq;
+        mVerifyLedgerChainFailureEnd.Mark();
         return HistoryManager::VERIFY_HASH_BAD;
     }
 
     auto status = HistoryManager::VERIFY_HASH_OK;
-    if (mCurrSeq == mLastSeq)
+    if (mCurrSeq == mRange.last())
     {
         CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
                               << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
         if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
              status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
-            mManualCatchup)
+            !mVerifyWithBufferedLedgers)
         {
             CLOG(WARNING, "History")
                 << "Accepting unknown-hash ledger due to manual catchup";
@@ -168,11 +188,16 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
-        if (mCurrSeq == mFirstSeq)
+        mVerifyLedgerChainSuccess.Mark();
+        if (mCurrSeq == mRange.first())
         {
             mFirstVerified = curr;
         }
         mLastVerified = curr;
+    }
+    else
+    {
+        mVerifyLedgerChainFailure.Mark();
     }
 
     return status;
@@ -183,7 +208,7 @@ VerifyLedgerChainWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if (mCurrSeq > mLastSeq)
+    if (mCurrSeq > mRange.last())
     {
         throw std::runtime_error("Verification overshot target ledger");
     }
@@ -192,10 +217,10 @@ VerifyLedgerChainWork::onSuccess()
     switch (verifyHistoryOfSingleCheckpoint())
     {
     case HistoryManager::VERIFY_HASH_OK:
-        if (mCurrSeq == mLastSeq)
+        if (mCurrSeq == mRange.last())
         {
-            CLOG(INFO, "History") << "History chain [" << mFirstSeq << ","
-                                  << mLastSeq << "] verified";
+            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
+                                  << mRange.last() << "] verified";
             return WORK_SUCCESS;
         }
 

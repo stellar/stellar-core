@@ -49,6 +49,8 @@ static string kSQLCreateStatement = "CREATE TABLE IF NOT EXISTS publishqueue ("
                                     "state    TEXT"
                                     "); ";
 
+const uint32_t HistoryManager::GENESIS_LEDGER_SEQ = 1;
+
 void
 HistoryManager::dropAll(Database& db)
 {
@@ -76,7 +78,8 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     CLOG(INFO, "History") << "Probing history archive '" << arch
                           << "' for existing state";
     auto getHas = wm.addWork<GetHistoryArchiveStateWork>(
-        existing, 0, std::chrono::seconds(0), i->second, 0);
+        "get-history-archive-state", existing, 0, std::chrono::seconds(0),
+        i->second, 0);
     wm.advanceChildren();
     while (!wm.allChildrenDone())
     {
@@ -233,7 +236,7 @@ HistoryManagerImpl::~HistoryManagerImpl()
 }
 
 uint32_t
-HistoryManagerImpl::getCheckpointFrequency()
+HistoryManagerImpl::getCheckpointFrequency() const
 {
     if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
     {
@@ -246,14 +249,14 @@ HistoryManagerImpl::getCheckpointFrequency()
 }
 
 uint32_t
-HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger)
+HistoryManagerImpl::prevCheckpointLedger(uint32_t ledger) const
 {
     uint32_t freq = getCheckpointFrequency();
     return (ledger / freq) * freq;
 }
 
 uint32_t
-HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
+HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger) const
 {
     uint32_t freq = getCheckpointFrequency();
     if (ledger == 0)
@@ -262,7 +265,7 @@ HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger)
 }
 
 uint64_t
-HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger)
+HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger) const
 {
     uint32_t next = this->nextCheckpointLedger(ledger);
 

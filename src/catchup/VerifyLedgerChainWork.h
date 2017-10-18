@@ -5,7 +5,13 @@
 #pragma once
 
 #include "history/HistoryManager.h"
+#include "ledger/CheckpointRange.h"
 #include "work/Work.h"
+
+namespace medida
+{
+class Meter;
+}
 
 namespace stellar
 {
@@ -16,19 +22,26 @@ struct LedgerHeaderHistoryEntry;
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    uint32_t mFirstSeq;
+    CheckpointRange mRange;
     uint32_t mCurrSeq;
-    uint32_t mLastSeq;
-    bool mManualCatchup;
+    bool mVerifyWithBufferedLedgers;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
+
+    medida::Meter& mVerifyLedgerSuccessOld;
+    medida::Meter& mVerifyLedgerSuccess;
+    medida::Meter& mVerifyLedgerFailureOvershot;
+    medida::Meter& mVerifyLedgerFailureLink;
+    medida::Meter& mVerifyLedgerChainSuccess;
+    medida::Meter& mVerifyLedgerChainFailure;
+    medida::Meter& mVerifyLedgerChainFailureEnd;
 
     HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, uint32_t firstSeq,
-                          uint32_t lastSeq, bool manualCatchup,
+                          TmpDir const& downloadDir, CheckpointRange range,
+                          bool verifyWithBufferedLedgers,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     std::string getStatus() const override;

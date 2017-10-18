@@ -12,8 +12,9 @@ namespace stellar
 
 BucketDownloadWork::BucketDownloadWork(Application& app, WorkParent& parent,
                                        std::string const& uniqueName,
-                                       HistoryArchiveState const& localState)
-    : Work(app, parent, uniqueName)
+                                       HistoryArchiveState const& localState,
+                                       size_t maxRetries)
+    : Work(app, parent, uniqueName, maxRetries)
     , mLocalState(localState)
     , mDownloadDir(
           make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName())))

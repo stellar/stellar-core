@@ -4,7 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "history/CatchupManager.h"
+#include "catchup/CatchupManager.h"
 #include <memory>
 
 namespace medida
@@ -33,12 +33,9 @@ class CatchupManagerImpl : public CatchupManager
 
     void historyCaughtup() override;
 
-    void catchupHistory(
-        uint32_t initLedger, CatchupMode mode,
-        std::function<void(asio::error_code const& ec, CatchupMode mode,
-                           LedgerHeaderHistoryEntry const& lastClosed)>
-            handler,
-        bool manualCatchup) override;
+    void catchupHistory(CatchupConfiguration catchupConfiguration,
+                        bool manualCatchup,
+                        CatchupWork::ProgressHandler handler) override;
 
     std::string getStatus() const override;
 

@@ -490,7 +490,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         break;
     }
 
-    CatchupManager::CatchupMode mode = CatchupManager::CATCHUP_MINIMAL;
+    uint32_t count = 0;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -517,15 +517,15 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     {
         if (modeP->second == std::string("complete"))
         {
-            mode = CatchupManager::CATCHUP_COMPLETE;
+            count = std::numeric_limits<uint32_t>::max();
         }
         else if (modeP->second == std::string("minimal"))
         {
-            mode = CatchupManager::CATCHUP_MINIMAL;
+            count = 0;
         }
         else if (modeP->second == std::string("recent"))
         {
-            mode = CatchupManager::CATCHUP_RECENT;
+            count = mApp.getConfig().CATCHUP_RECENT;
         }
         else
         {
@@ -534,12 +534,13 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         }
     }
 
-    mApp.getLedgerManager().startCatchUp(ledger, mode, true);
+    mApp.getLedgerManager().startCatchUp({ledger, count},
+        true);
     retStr = (std::string("Started catchup to ledger ") +
               std::to_string(ledger) + std::string(" in mode ") +
-              std::string(mode == CatchupManager::CATCHUP_COMPLETE
+              std::string(count == std::numeric_limits<uint32_t>::max()
                               ? "CATCHUP_COMPLETE"
-                              : (mode == CatchupManager::CATCHUP_RECENT
+                              : (count != 0
                                      ? "CATCHUP_RECENT"
                                      : "CATCHUP_MINIMAL")));
 }

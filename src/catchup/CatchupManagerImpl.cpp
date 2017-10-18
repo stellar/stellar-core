@@ -6,11 +6,9 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "history/CatchupManagerImpl.h"
-#include "historywork/CatchupCompleteImmediateWork.h"
-#include "historywork/CatchupCompleteWork.h"
-#include "historywork/CatchupMinimalWork.h"
-#include "historywork/CatchupRecentWork.h"
+#include "catchup/CatchupManagerImpl.h"
+#include "catchup/CatchupConfiguration.h"
+#include "catchup/CatchupWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -53,12 +51,9 @@ CatchupManagerImpl::historyCaughtup()
 }
 
 void
-CatchupManagerImpl::catchupHistory(
-    uint32_t initLedger, CatchupMode mode,
-    std::function<void(asio::error_code const& ec, CatchupMode mode,
-                       LedgerHeaderHistoryEntry const& lastClosed)>
-        handler,
-    bool manualCatchup)
+CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
+                                   bool manualCatchup,
+                                   CatchupWork::ProgressHandler handler)
 {
     if (mCatchupWork)
     {
@@ -67,45 +62,8 @@ CatchupManagerImpl::catchupHistory(
 
     mCatchupStart.Mark();
 
-    // Avoid CATCHUP_RECENT if it's going to actually try to revert
-    // us to an earlier state of the ledger than the LCL; in that case
-    // we're close enough to the network to just run CATCHUP_COMPLETE.
-    auto lcl = mApp.getLedgerManager().getLastClosedLedgerHeader();
-    if (mode == CATCHUP_RECENT && (initLedger > lcl.header.ledgerSeq) &&
-        (initLedger - lcl.header.ledgerSeq) <= mApp.getConfig().CATCHUP_RECENT)
-    {
-        mode = CatchupManager::CATCHUP_COMPLETE;
-    }
-
-    if (mode == CATCHUP_MINIMAL)
-    {
-        CLOG(INFO, "History") << "Starting CatchupMinimalWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupMinimalWork>(
-            initLedger, manualCatchup, handler);
-    }
-    else if (mode == CATCHUP_RECENT)
-    {
-        CLOG(INFO, "History") << "Starting CatchupRecentWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupRecentWork>(
-            initLedger, manualCatchup, handler);
-    }
-    else if (mode == CATCHUP_COMPLETE)
-    {
-        CLOG(INFO, "History") << "Starting CatchupCompleteWork";
-        mCatchupWork = mApp.getWorkManager().addWork<CatchupCompleteWork>(
-            initLedger, manualCatchup, handler);
-    }
-    else if (mode == CATCHUP_COMPLETE_IMMEDIATE)
-    {
-        CLOG(INFO, "History") << "Starting CatchupCompleteImmediateWork";
-        mCatchupWork =
-            mApp.getWorkManager().addWork<CatchupCompleteImmediateWork>(
-                initLedger, manualCatchup, handler);
-    }
-    else
-    {
-        assert(false);
-    }
+    mCatchupWork = mApp.getWorkManager().addWork<CatchupWork>(
+        catchupConfiguration, manualCatchup, handler, Work::RETRY_NEVER);
     mApp.getWorkManager().advanceChildren();
 }
 
