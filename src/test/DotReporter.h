@@ -7,9 +7,9 @@
 namespace Catch
 {
 
-struct DotReporter : public StreamingReporterBase
+struct DotReporter : public ConsoleReporter
 {
-    DotReporter(ReporterConfig const& _config) : StreamingReporterBase(_config)
+    DotReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
     {
     }
 
@@ -36,16 +36,21 @@ struct DotReporter : public StreamingReporterBase
     }
 
     void
-    assertionStarting(AssertionInfo const&) override
+    assertionStarting(AssertionInfo const& ai) override
     {
         printDot();
+        mLastAssertInfo = ai;
     }
 
     bool
-    assertionEnded(AssertionStats const&) override
+    assertionEnded(AssertionStats const& _assertionStats) override
     {
-        printDot();
-        return true;
+        AssertionResult const& result = _assertionStats.assertionResult;
+
+        if (result.isOk())
+            return true;
+        assertionStarting(mLastAssertInfo);
+        return ConsoleReporter::assertionEnded(_assertionStats);
     }
 
     void
@@ -56,6 +61,8 @@ struct DotReporter : public StreamingReporterBase
 
   private:
     int mDots{0};
+
+    AssertionInfo mLastAssertInfo;
 
     void
     printDot()
