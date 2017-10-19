@@ -352,4 +352,11 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
     }
     mBucketList.restartMerges(mApp, has.currentLedger);
 }
+
+void
+BucketManagerImpl::shutdown()
+{
+    // forgetUnreferencedBuckets does what we want - it retains needed buckets
+    forgetUnreferencedBuckets();
+}
 }

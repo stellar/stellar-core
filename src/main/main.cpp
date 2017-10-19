@@ -4,6 +4,7 @@
 #include "util/asio.h"
 #include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
+#include "bucket/BucketManager.h"
 #include "catchup/CatchupConfiguration.h"
 #include "catchup/CatchupManager.h"
 #include "catchup/CatchupWork.h"
