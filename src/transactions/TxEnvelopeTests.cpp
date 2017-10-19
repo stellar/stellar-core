@@ -19,6 +19,7 @@
 #include "transactions/ManageOfferOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -149,7 +150,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         th.lowThreshold = make_optional<int>(10);
         th.medThreshold = make_optional<int>(50);
         th.highThreshold = make_optional<int>(100);
-
         a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
         SecretKey s2 = getAccount("S2");
@@ -182,7 +182,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             auto tx = a1.tx(
                 {setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr)});
 
-            // only sign with s1 (med)
+            // only sign with s2 (med)
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
@@ -199,7 +199,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("success two signatures")
         {
-            auto tx = a1.tx({payment(root, 1000)});
+            // updating thresholds requires high
+            auto tx = a1.tx(
+                {setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr)});
+
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
             tx->addSignature(s2);
@@ -207,8 +210,53 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             for_all_versions(app, [&] {
                 applyCheck(tx, app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
-                REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
-                        PAYMENT_SUCCESS);
+                REQUIRE(SetOptionsOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        SET_OPTIONS_SUCCESS);
+            });
+        }
+
+        SECTION("without master key")
+        {
+            ThresholdSetter th2;
+            th2.masterWeight = make_optional<int>(0);
+            a1.setOptions(nullptr, nullptr, nullptr, &th2, nullptr, nullptr);
+
+            auto checkPayment = [&](bool withMaster,
+                                    TransactionResultCode expectedRes) {
+                // payment requires medium
+                auto tx = a1.tx({payment(root, 1000)});
+                // only sign with s2 (med)
+                if (!withMaster)
+                {
+                    tx->getEnvelope().signatures.clear();
+                }
+                tx->addSignature(s2);
+
+                for_all_versions_except({7}, app, [&] {
+                    applyCheck(tx, app);
+                    REQUIRE(tx->getResultCode() == expectedRes);
+                });
+            };
+
+            SECTION("good tx")
+            {
+                checkPayment(false, txSUCCESS);
+            }
+            SECTION("master key is extra")
+            {
+                checkPayment(true, txBAD_AUTH_EXTRA);
+            }
+        }
+
+        SECTION("account locked down")
+        {
+            ThresholdSetter th2;
+
+            th2.masterWeight = make_optional<int>(0);
+            root.setOptions(nullptr, nullptr, nullptr, &th2, nullptr, nullptr);
+
+            for_versions_from(8, app, [&] {
+                REQUIRE_THROWS_AS(root.pay(root, 1000), ex_txBAD_AUTH);
             });
         }
 

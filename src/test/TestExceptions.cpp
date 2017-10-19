@@ -271,6 +271,8 @@ throwIf(TransactionResult const& result)
         throw ex_txINTERNAL_ERROR{};
     case txINSUFFICIENT_BALANCE:
         throw ex_txINSUFFICIENT_BALANCE{};
+    case txBAD_AUTH:
+        throw ex_txBAD_AUTH{};
     default:
         // ignore rest for now
         break;
