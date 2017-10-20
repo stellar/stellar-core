@@ -252,7 +252,7 @@ checkInitialized(Application::pointer app)
 static void
 catchup(Config const& cfg, uint32_t to, uint32_t count)
 {
-    VirtualClock clock;
+    VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app = Application::create(clock, cfg, false);
 
     if (checkInitialized(app))
@@ -269,10 +269,8 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
 
                 done = true;
             });
-        while (!done)
-        {
-            clock.crank(true);
-        }
+        while (!done && clock.crank(true))
+            ;
 
         try
         {
