@@ -274,10 +274,14 @@ exit /b 0
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
     <ClCompile Include="..\..\src\herder\HerderImpl.cpp" />
+    <ClCompile Include="..\..\src\herder\HerderPersistenceImpl.cpp" />
+    <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp" />
     <ClCompile Include="..\..\src\herder\HerderTests.cpp" />
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp" />
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
+    <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp" />
+    <ClCompile Include="..\..\src\herder\ProtocolUpgradeTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
@@ -391,6 +395,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\ConfigTests.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
     <ClCompile Include="..\..\src\main\fuzz.cpp" />
+    <ClCompile Include="..\..\src\main\LruCacheTests.cpp" />
     <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
@@ -404,6 +409,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\PeerRecordTests.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeerTests.cpp" />
     <ClCompile Include="..\..\src\overlay\Tracker.cpp" />
+    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp" />
     <ClCompile Include="..\..\src\scp\BallotProtocol.cpp" />
     <ClCompile Include="..\..\src\scp\LocalNode.cpp" />
     <ClCompile Include="..\..\src\scp\NominationProtocol.cpp" />
@@ -525,6 +531,9 @@ exit /b 0
     <ClInclude Include="..\..\src\database\AccountQueries.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\database\DatabaseConnectionString.h" />
+    <ClInclude Include="..\..\src\herder\HerderPersistence.h" />
+    <ClInclude Include="..\..\src\herder\HerderPersistenceImpl.h" />
+    <ClInclude Include="..\..\src\herder\HerderSCPDriver.h" />
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h" />

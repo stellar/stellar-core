@@ -115,6 +115,18 @@
     <Filter Include="catchup\tests">
       <UniqueIdentifier>{dd381b70-e6b6-497d-9b7b-d32da125b981}</UniqueIdentifier>
     </Filter>
+    <Filter Include="crypto\tests">
+      <UniqueIdentifier>{d86811f6-76f3-4826-a1ae-4d15a231aa4a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="database\tests">
+      <UniqueIdentifier>{e69e5a4f-3074-48a3-ba9a-f379197216dd}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="process\tests">
+      <UniqueIdentifier>{55a97571-2f44-495b-8ebb-b38b8184ace6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="work\tests">
+      <UniqueIdentifier>{e28534ec-c0fa-46c7-83f5-92058298855b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -180,9 +192,6 @@
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp">
       <Filter>process</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
-      <Filter>process</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\types.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -198,13 +207,7 @@
     <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp">
       <Filter>ledger</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
-      <Filter>crypto</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\database\Database.cpp">
-      <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
       <Filter>database</Filter>
     </ClCompile>
     <ClCompile Include="..\..\lib\xdrpp\tests\marshal.cc">
@@ -504,9 +507,6 @@
     <ClCompile Include="..\..\src\work\WorkParent.cpp">
       <Filter>work</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\work\WorkTests.cpp">
-      <Filter>work</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -574,9 +574,6 @@
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp">
-      <Filter>transactions</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
       <Filter>transactions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
@@ -764,6 +761,39 @@
     </ClCompile>
     <ClCompile Include="..\..\src\history\HistoryTests.cpp">
       <Filter>history\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\ProtocolUpgradeTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
+      <Filter>crypto\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseTests.cpp">
+      <Filter>database\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderPersistenceImpl.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderSCPDriver.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\main\LruCacheTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp">
+      <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\process\ProcessTests.cpp">
+      <Filter>process\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\work\WorkTests.cpp">
+      <Filter>work\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1342,6 +1372,15 @@
     </ClInclude>
     <ClInclude Include="..\..\src\history\StateSnapshot.h">
       <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderPersistence.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderPersistenceImpl.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\HerderSCPDriver.h">
+      <Filter>herder</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
