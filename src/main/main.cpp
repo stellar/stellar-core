@@ -268,10 +268,8 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
 
                 done = true;
             });
-        while (!done)
-        {
-            clock.crank(true);
-        }
+        while (!done && clock.crank(true))
+            ;
 
         try
         {

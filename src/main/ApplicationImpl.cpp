@@ -319,10 +319,8 @@ ApplicationImpl::start()
         mNtpSynchronizationChecker->start();
     }
 
-    while (!done)
-    {
-        mVirtualClock.crank(true);
-    }
+    while (!done && mVirtualClock.crank(true))
+        ;
 }
 
 void
