@@ -15,6 +15,7 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "herder/Herder.h"
+#include "herder/HerderPersistence.h"
 #include "history/HistoryManager.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
@@ -95,6 +96,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mOverlayManager = OverlayManager::create(*this);
     mLedgerManager = LedgerManager::create(*this);
     mHerder = Herder::create(*this);
+    mHerderPersistence = HerderPersistence::create(*this);
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
@@ -592,6 +594,12 @@ Herder&
 ApplicationImpl::getHerder()
 {
     return *mHerder;
+}
+
+HerderPersistence&
+ApplicationImpl::getHerderPersistence()
+{
+    return *mHerderPersistence;
 }
 
 InvariantManager&

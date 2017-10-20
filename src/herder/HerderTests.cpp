@@ -484,7 +484,7 @@ TEST_CASE("SCP Driver", "[herder]")
         Value v;
         StellarValue sv;
 
-        v = herder.combineCandidates(1, candidates);
+        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet0->getContentsHash());
@@ -492,7 +492,7 @@ TEST_CASE("SCP Driver", "[herder]")
         TxSetFramePtr txSet1 = makeTransactions(lcl.hash, 10);
 
         addToCandidates(makeTxPair(txSet1, 10));
-        v = herder.combineCandidates(1, candidates);
+        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 100);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
@@ -500,7 +500,7 @@ TEST_CASE("SCP Driver", "[herder]")
         TxSetFramePtr txSet2 = makeTransactions(lcl.hash, 5);
 
         addToCandidates(makeTxPair(txSet2, 1000));
-        v = herder.combineCandidates(1, candidates);
+        v = herder.getHerderSCPDriver().combineCandidates(1, candidates);
         xdr::xdr_from_opaque(v, sv);
         REQUIRE(sv.closeTime == 1000);
         REQUIRE(sv.txSetHash == txSet1->getContentsHash());
