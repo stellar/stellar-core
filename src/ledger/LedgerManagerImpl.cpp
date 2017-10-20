@@ -1010,6 +1010,13 @@ LedgerManagerImpl::storeCurrentLedger()
         has.resolveAnyReadyFutures();
     }
 
+    // we will need these buckets after restart
+    for (auto const& bucket : has.allBuckets())
+    {
+        mApp.getBucketManager()
+            .getBucketByHash(hexToBin256(bucket))
+            ->setRetain(true);
+    }
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 }

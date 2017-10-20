@@ -351,6 +351,10 @@ ApplicationImpl::gracefulStop()
     {
         mProcessManager->shutdown();
     }
+    if (mBucketManager)
+    {
+        mBucketManager->shutdown();
+    }
 
     mStoppingTimer.expires_from_now(
         std::chrono::seconds(SHUTDOWN_DELAY_SECONDS));
