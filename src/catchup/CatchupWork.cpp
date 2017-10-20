@@ -198,11 +198,9 @@ CatchupWork::downloadBucketsHistoryArchiveState(uint32_t atCheckpoint)
                              "state for applying buckets at checkpoint "
                           << atCheckpoint;
 
-    uint64_t sleepSeconds =
-        mApp.getHistoryManager().nextCheckpointCatchupProbe(atCheckpoint);
     mGetBucketsHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
         "get-buckets-history-archive-state", mApplyBucketsRemoteState,
-        atCheckpoint, std::chrono::seconds(sleepSeconds));
+        atCheckpoint, std::chrono::seconds(0));
 
     return true;
 }
