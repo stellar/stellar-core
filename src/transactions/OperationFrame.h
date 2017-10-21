@@ -20,9 +20,9 @@ namespace stellar
 class Application;
 class LedgerManager;
 class LedgerDelta;
-
 class SignatureChecker;
 class TransactionFrame;
+struct SigningAccount;
 
 enum class ThresholdLevel
 {
@@ -39,7 +39,7 @@ class OperationFrame
     AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
-    bool checkSignature(SignatureChecker& signatureChecker) const;
+    bool checkSignature(SigningAccount const& signingAccount, SignatureChecker& signatureChecker) const;
 
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(Application& app, LedgerDelta& delta,

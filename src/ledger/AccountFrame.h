@@ -45,9 +45,6 @@ class AccountFrame : public EntryFrame
     AccountFrame(AccountFrame const& from);
     AccountFrame(AccountID const& id);
 
-    // builds an accountFrame for the sole purpose of authentication
-    static AccountFrame::pointer makeAuthOnlyAccount(AccountID const& id);
-
     EntryFrame::pointer
     copy() const override
     {

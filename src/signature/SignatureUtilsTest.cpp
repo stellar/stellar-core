@@ -7,7 +7,7 @@
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
 #include "lib/catch.hpp"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureUtils.h"
 #include "xdr/Stellar-transaction.h"
 
 using namespace stellar;

@@ -12,8 +12,9 @@
 #include "herder/TxSetFrame.h"
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
-#include "transactions/SignatureChecker.h"
-#include "transactions/SignatureUtils.h"
+#include "signature/SignatureChecker.h"
+#include "signature/SignatureUtils.h"
+#include "signature/SigningAccount.h"
 #include "util/Algoritm.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
@@ -138,17 +139,40 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 AccountFrame& account, int32_t neededWeight)
+                                 SigningAccount const& signingAccount,
+                                 ThresholdLevel threshold)
 {
     std::vector<Signer> signers;
-    if (account.getAccount().thresholds[0])
+    if (signingAccount.mWeight)
         signers.push_back(
-            Signer(KeyUtils::convertKey<SignerKey>(account.getID()),
-                   account.getAccount().thresholds[0]));
-    signers.insert(signers.end(), account.getAccount().signers.begin(),
-                   account.getAccount().signers.end());
+            Signer(KeyUtils::convertKey<SignerKey>(signingAccount.mAccountID),
+                   signingAccount.mWeight));
+    signers.insert(signers.end(), std::begin(signingAccount.mSigners),
+                   std::end(signingAccount.mSigners));
 
-    return signatureChecker.checkSignature(account.getID(), signers,
+    auto neededWeight = 0u;
+    switch (threshold)
+    {
+    case ThresholdLevel::LOW:
+    {
+        neededWeight = signingAccount.mLowThreshold;
+        break;
+    }
+    case ThresholdLevel::MEDIUM:
+    {
+        neededWeight = signingAccount.mMediumThreshold;
+        break;
+    }
+    case ThresholdLevel::HIGH:
+    {
+        neededWeight = signingAccount.mHighThreshold;
+        break;
+    }
+    default:
+        abort();
+    };
+
+    return signatureChecker.checkSignature(signingAccount.mAccountID, signers,
                                            neededWeight);
 }
 
@@ -268,6 +292,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
+    auto signingAccount = SigningAccount{*mSigningAccount};
     // when applying, the account's sequence number is updated when taking fees
     if (!applying)
     {
@@ -286,8 +311,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (!checkSignature(signatureChecker, *mSigningAccount,
-                        mSigningAccount->getLowThreshold()))
+    if (!checkSignature(signatureChecker, signingAccount,
+                        ThresholdLevel::LOW))
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "bad-auth"}, "transaction")
