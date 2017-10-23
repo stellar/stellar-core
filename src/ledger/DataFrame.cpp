@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/DataFrame.h"
+#include "ledger/LedgerRange.h"
 #include "LedgerDelta.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
@@ -177,6 +178,17 @@ DataFrame::countObjects(soci::session& sess)
 {
     uint64_t count = 0;
     sess << "SELECT COUNT(*) FROM accountdata;", into(count);
+    return count;
+}
+
+uint64_t
+DataFrame::countObjects(soci::session& sess,
+                        LedgerRange const& ledgers)
+{
+    uint64_t count = 0;
+    sess << "SELECT COUNT(*) FROM accountdata"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+         into(count), use(ledgers.first()), use(ledgers.last());
     return count;
 }
 

@@ -21,6 +21,7 @@ class prepare_temp_type;
 namespace stellar
 {
 
+class LedgerRange;
 class TrustSetTx;
 class StatementContext;
 
@@ -65,6 +66,8 @@ class TrustFrame : public EntryFrame
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
     static uint64_t countObjects(soci::session& sess);
+    static uint64_t countObjects(soci::session& sess,
+                                 LedgerRange const& ledgers);
 
     // returns the specified trustline or a generated one for issuers
     static pointer loadTrustLine(AccountID const& accountID, Asset const& asset,

@@ -21,6 +21,7 @@ class prepare_temp_type;
 namespace stellar
 {
 class LedgerManager;
+class LedgerRange;
 
 class AccountFrame : public EntryFrame
 {
@@ -121,6 +122,8 @@ class AccountFrame : public EntryFrame
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
     static uint64_t countObjects(soci::session& sess);
+    static uint64_t countObjects(soci::session& sess,
+                                 LedgerRange const& ledgers);
 
     // database utilities
     static AccountFrame::pointer

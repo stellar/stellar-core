@@ -10,6 +10,7 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerRange.h"
 #include "lib/util/format.h"
 #include "util/basen.h"
 #include "util/types.h"
@@ -363,6 +364,17 @@ AccountFrame::countObjects(soci::session& sess)
 {
     uint64_t count = 0;
     sess << "SELECT COUNT(*) FROM accounts;", into(count);
+    return count;
+}
+
+uint64_t
+AccountFrame::countObjects(soci::session& sess,
+                           LedgerRange const& ledgers)
+{
+    uint64_t count = 0;
+    sess << "SELECT COUNT(*) FROM accounts"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+         into(count), use(ledgers.first()), use(ledgers.last());
     return count;
 }
 
