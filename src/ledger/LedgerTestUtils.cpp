@@ -139,6 +139,7 @@ makeValid(DataEntry& d)
 static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
+        le.lastModifiedLedgerSeq = le.lastModifiedLedgerSeq & INT32_MAX;
         switch (led.type())
         {
         case TRUSTLINE:
