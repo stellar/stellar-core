@@ -4,6 +4,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "history/HistoryManager.h"
+
 #include <vector>
 
 namespace stellar
@@ -30,7 +32,8 @@ class SyncingLedgerChain final
     ~SyncingLedgerChain();
 
     SyncingLedgerChainAddResult add(LedgerCloseData lcd);
-    bool hadTooNew() const;
+    HistoryManager::VerifyHashStatus
+    verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate) const;
 
     LedgerCloseData const& back() const;
     size_type size() const;

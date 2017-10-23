@@ -25,6 +25,7 @@ class VerifyLedgerChainWork : public Work
     CheckpointRange mRange;
     uint32_t mCurrSeq;
     bool mVerifyWithBufferedLedgers;
+    bool mHadOk {false};
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 

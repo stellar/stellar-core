@@ -31,10 +31,45 @@ SyncingLedgerChain::add(LedgerCloseData lcd)
     return SyncingLedgerChainAddResult::TOO_NEW;
 }
 
-bool
-SyncingLedgerChain::hadTooNew() const
+HistoryManager::VerifyHashStatus
+SyncingLedgerChain::verifyCatchupCandidate(
+    LedgerHeaderHistoryEntry const& candidate) const
 {
-    return mHadTooNew;
+    if (mChain.empty())
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD;
+    }
+
+    auto lookFor = candidate.header.ledgerSeq + 1;
+    if (lookFor < mChain.front().getLedgerSeq())
+    {
+        return HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD;
+    }
+
+    if (lookFor > mChain.back().getLedgerSeq())
+    {
+        if (mHadTooNew)
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+        }
+        else
+        {
+            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+        }
+    }
+
+    auto index = lookFor - mChain.front().getLedgerSeq();
+    assert(index >= 0 && index < mChain.size());
+    auto lcd = mChain[index];
+    assert(lcd.getLedgerSeq() == lookFor);
+    if (lcd.getTxSet()->previousLedgerHash() == candidate.hash)
+    {
+        return HistoryManager::VERIFY_HASH_OK;
+    }
+    else
+    {
+        return HistoryManager::VERIFY_HASH_BAD;
+    }
 }
 
 LedgerCloseData const&

@@ -199,6 +199,8 @@ class HistoryManager
     // matches the consensus for the provided ledger number); VERIFY_HASH_BAD if
     // the proposed ledger is definitely _not_ valid (i.e. if it has a different
     // hash than the consensus ledger with its number);
+    // VERIFY_HASH_UNKNOWN_TOO_OLD if the network closed given checkpoint
+    // before we started storing it in syncing ledgers
     // VERIFY_HASH_UNKNOWN_RECOVERABLE if the network consensus has not
     // yet advanced to the proposed catchup target and
     // VERIFY_HASH_UNKNOWN_UNRECOVERABLE if proposed target ledger was not
@@ -212,6 +214,7 @@ class HistoryManager
     {
         VERIFY_HASH_OK,
         VERIFY_HASH_BAD,
+        VERIFY_HASH_UNKNOWN_TOO_OLD,
         VERIFY_HASH_UNKNOWN_RECOVERABLE,
         VERIFY_HASH_UNKNOWN_UNRECOVERABLE
     };

@@ -161,6 +161,36 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         }
         mVerifyLedgerSuccess.Mark();
         prev = curr;
+
+        auto status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
+        if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
+             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE ||
+             status == HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD) &&
+            !mVerifyWithBufferedLedgers)
+        {
+            CLOG(WARNING, "History")
+                << "Accepting unknown-hash ledger due to manual catchup";
+            status = HistoryManager::VERIFY_HASH_OK;
+        }
+
+        mHadOk = mHadOk || status == HistoryManager::VERIFY_HASH_OK;
+
+        switch (status)
+        {
+        case HistoryManager::VERIFY_HASH_OK:
+        case HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD:
+            if (mCurrSeq == mRange.first())
+            {
+                mFirstVerified = curr;
+            }
+            mLastVerified = curr;
+            break;
+        case HistoryManager::VERIFY_HASH_BAD:
+        case HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE:
+        case HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE:
+            mVerifyLedgerChainFailure.Mark();
+            return status;
+        }
     }
 
     if (curr.header.ledgerSeq != mCurrSeq)
@@ -170,37 +200,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         return HistoryManager::VERIFY_HASH_BAD;
     }
 
-    auto status = HistoryManager::VERIFY_HASH_OK;
-    if (mCurrSeq == mRange.last())
-    {
-        CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
-                              << " with LedgerManager";
-        status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
-        if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
-             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
-            !mVerifyWithBufferedLedgers)
-        {
-            CLOG(WARNING, "History")
-                << "Accepting unknown-hash ledger due to manual catchup";
-            status = HistoryManager::VERIFY_HASH_OK;
-        }
-    }
-
-    if (status == HistoryManager::VERIFY_HASH_OK)
-    {
-        mVerifyLedgerChainSuccess.Mark();
-        if (mCurrSeq == mRange.first())
-        {
-            mFirstVerified = curr;
-        }
-        mLastVerified = curr;
-    }
-    else
-    {
-        mVerifyLedgerChainFailure.Mark();
-    }
-
-    return status;
+    return HistoryManager::VERIFY_HASH_OK;
 }
 
 Work::State
@@ -226,15 +226,37 @@ VerifyLedgerChainWork::onSuccess()
 
         mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
+    case HistoryManager::VERIFY_HASH_UNKNOWN_TOO_OLD:
+        if (mCurrSeq == mRange.last())
+        {
+            CLOG(ERROR, "History") << "Unable to verify history chain ["
+                                   << mRange.first() << "," << mRange.last()
+                                   << "]";
+            return WORK_FAILURE_FATAL;
+        }
+
+        mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
+        return WORK_RUNNING;
     case HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE:
         CLOG(WARNING, "History")
             << "Catchup material verification inconclusive, retrying";
         return WORK_FAILURE_RETRY;
     case HistoryManager::VERIFY_HASH_BAD:
     case HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE:
-        CLOG(ERROR, "History")
-            << "Catchup material failed verification, propagating failure";
-        return WORK_FAILURE_FATAL;
+        if (mHadOk)
+        {
+            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
+                                  << mLastVerified.header.ledgerSeq << "] of ["
+                                  << mRange.first() << "," << mRange.last()
+                                  << "] verified";
+            return WORK_SUCCESS;
+        }
+        else
+        {
+            CLOG(ERROR, "History")
+                << "Catchup material failed verification, propagating failure";
+            return WORK_FAILURE_FATAL;
+        }
     default:
         assert(false);
         throw std::runtime_error("unexpected VerifyLedgerChainWork state");

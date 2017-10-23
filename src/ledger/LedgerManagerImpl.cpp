@@ -497,37 +497,24 @@ LedgerManagerImpl::verifyCatchupCandidate(
     infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
                                mCurrentLedger->mHeader.previousLedgerHash});
 
-    for (auto const& ld : mSyncingLedgers)
-    {
-        infos.push_back(LedgerInfo{ld.getLedgerSeq() - 1,
-                                   ld.getTxSet()->previousLedgerHash()});
-    }
-
     auto matchingSequenceId =
         std::find_if(std::begin(infos), std::end(infos),
                      [&candidate](LedgerInfo const& info) {
                          return info.seq == candidate.header.ledgerSeq;
                      });
-    if (matchingSequenceId == std::end(infos))
+    if (matchingSequenceId != std::end(infos))
     {
-        if (mSyncingLedgers.hadTooNew())
+        if (matchingSequenceId->hash == candidate.hash)
         {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
+            return HistoryManager::VERIFY_HASH_OK;
         }
         else
         {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
+            return HistoryManager::VERIFY_HASH_BAD;
         }
     }
 
-    if (matchingSequenceId->hash == candidate.hash)
-    {
-        return HistoryManager::VERIFY_HASH_OK;
-    }
-    else
-    {
-        return HistoryManager::VERIFY_HASH_BAD;
-    }
+    return mSyncingLedgers.verifyCatchupCandidate(candidate);
 }
 
 void
