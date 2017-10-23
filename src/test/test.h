@@ -40,4 +40,8 @@ void for_versions(int from, int to, ApplicationEditableVersion& app,
 void for_versions(std::vector<int> const& versions,
                   ApplicationEditableVersion& app,
                   std::function<void(void)> const& f);
+
+void for_all_versions_except(std::vector<int> const& versions,
+                             ApplicationEditableVersion& app,
+                             std::function<void(void)> const& f);
 }

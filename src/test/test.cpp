@@ -191,6 +191,10 @@ void
 for_versions(int from, int to, ApplicationEditableVersion& app,
              std::function<void(void)> const& f)
 {
+    if (from > to)
+    {
+        return;
+    }
     auto versions = std::vector<int>{};
     versions.resize(to - from + 1);
     std::iota(std::begin(versions), std::end(versions), from);
@@ -212,5 +216,19 @@ for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
         }
     }
     app.getLedgerManager().setCurrentLedgerVersion(previousVersion);
+}
+
+void
+for_all_versions_except(std::vector<int> const& versions,
+                        ApplicationEditableVersion& app,
+                        std::function<void(void)> const& f)
+{
+    int lastExcept = 0;
+    for (int except : versions)
+    {
+        for_versions(lastExcept + 1, except - 1, app, f);
+        lastExcept = except;
+    }
+    for_versions_from(lastExcept + 1, app, f);
 }
 }
