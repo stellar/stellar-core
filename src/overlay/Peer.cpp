@@ -1046,7 +1046,10 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     // send SCP State
+    // remove when all known peers implements the next line
     mApp.getHerder().sendSCPStateToPeer(0, self);
+    // ask for SCP state if not synced
+    sendGetScpState(mApp.getLedgerManager().getLastClosedLedgerNum() + 1);
 }
 
 void

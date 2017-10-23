@@ -105,6 +105,13 @@ class SCP
     // this is used when rebuilding the state after a crash for example
     void setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e);
 
+    // check if we are holding some slots
+    bool empty() const;
+    // return lowest slot index value
+    uint64 getLowSlotIndex() const;
+    // return highest slot index value
+    uint64 getHighSlotIndex() const;
+
     // returns all messages for the slot
     std::vector<SCPEnvelope> getCurrentState(uint64 slotIndex);
 
