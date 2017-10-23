@@ -21,8 +21,7 @@ class Database;
 class BucketApplicator
 {
     Database& mDb;
-    std::shared_ptr<const Bucket> mBucket;
-    XDRInputFileStream mIn;
+    Bucket::InputIterator mBucketIter;
     size_t mSize{0};
 
   public:
