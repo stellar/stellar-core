@@ -278,6 +278,22 @@ class BucketList
     // Returns half the size of a given level, in ledgers.
     static uint32_t levelHalf(size_t level);
 
+    // Returns the size of curr on a given level and ledger, in ledgers,
+    // assuming that every ledger is present.
+    static uint32_t sizeOfCurr(uint32_t ledger, size_t level);
+
+    // Returns the size of snap on a given level and ledger, in ledgers,
+    // assuming that every ledger is present.
+    static uint32_t sizeOfSnap(uint32_t ledger, size_t level);
+
+    // Returns the oldest ledger in curr on a given level and ledger,
+    // assuming that every ledger is present.
+    static uint32_t oldestLedgerInCurr(uint32_t ledger, size_t level);
+
+    // Returns the oldest ledger in snap on a given level and ledger,
+    // assuming that every ledger is present.
+    static uint32_t oldestLedgerInSnap(uint32_t ledger, size_t level);
+
     // Returns true if, at a given point-in-time (`ledger`), a given `level`
     // should spill curr->snap and start merging snap into its next level.
     static bool levelShouldSpill(uint32_t ledger, size_t level);
