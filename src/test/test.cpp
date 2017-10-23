@@ -79,7 +79,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECKS = {"CacheIsConsistentWithDatabase",
+        thisConfig.INVARIANT_CHECKS = {"BucketListIsConsistentWithDatabase",
+                                       "CacheIsConsistentWithDatabase",
                                        "ChangedAccountsSubentriesCountIsValid",
                                        "TotalCoinsEqualsBalancesPlusFeePool"};
 

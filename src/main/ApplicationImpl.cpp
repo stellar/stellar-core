@@ -17,6 +17,8 @@
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryManager.h"
+#include "invariant/InvariantManager.h"
+#include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
@@ -107,6 +109,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
 
+    BucketListIsConsistentWithDatabase::registerInvariant(*this);
     CacheIsConsistentWithDatabase::registerInvariant(*this);
     ChangedAccountsSubentriesCountIsValid::registerInvariant(*this);
     TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(*this);
