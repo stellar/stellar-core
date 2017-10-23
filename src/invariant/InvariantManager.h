@@ -33,7 +33,13 @@ class InvariantManager
     virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
                                     LedgerDelta const& delta) = 0;
 
+    virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+                                    uint32_t ledger,
+                                    uint32_t level,
+                                    bool isCurr) = 0;
+
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
+
     virtual void enableInvariant(std::string const& name) = 0;
 
     template <typename T, typename... Args>

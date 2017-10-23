@@ -11,6 +11,7 @@
 #include "crypto/SecretKey.h"
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "util/format.h"
@@ -115,13 +116,25 @@ ApplyBucketsWork::onStart()
 void
 ApplyBucketsWork::onRun()
 {
-    if (mSnapApplicator && *mSnapApplicator)
+    // The structure of these if statements is motivated by the following:
+    // 1. mCurrApplicator should never be advanced if mSnapApplicator is
+    //    not false. Otherwise it is possible for curr to modify the
+    //    database when the invariants for snap are checked.
+    // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
+    //    if there is nothing to be applied.
+    if (mSnapApplicator)
     {
-        mSnapApplicator->advance();
+        if (*mSnapApplicator)
+        {
+            mSnapApplicator->advance();
+        }
     }
-    else if (mCurrApplicator && *mCurrApplicator)
+    else if (mCurrApplicator)
     {
-        mCurrApplicator->advance();
+        if (*mCurrApplicator)
+        {
+            mCurrApplicator->advance();
+        }
     }
     scheduleSuccess();
 }
@@ -131,27 +144,30 @@ ApplyBucketsWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if ((mSnapApplicator && *mSnapApplicator) ||
-        (mCurrApplicator && *mCurrApplicator))
+    if (mSnapApplicator)
     {
-        return WORK_RUNNING;
-    }
-
-    auto& level = getBucketLevel(mLevel);
-    if (mSnapBucket)
-    {
-        level.setSnap(mSnapBucket);
+        if (*mSnapApplicator)
+        {
+            return WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+                mSnapBucket, mApplyState.currentLedger, mLevel, false);
+        mSnapApplicator.reset();
+        mSnapBucket.reset();
         mBucketApplySuccess.Mark();
     }
-    if (mCurrBucket)
+    if (mCurrApplicator)
     {
-        level.setCurr(mCurrBucket);
+        if (*mCurrApplicator)
+        {
+            return WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+                mCurrBucket, mApplyState.currentLedger, mLevel, true);
+        mCurrApplicator.reset();
+        mCurrBucket.reset();
         mBucketApplySuccess.Mark();
     }
-    mSnapBucket.reset();
-    mCurrBucket.reset();
-    mSnapApplicator.reset();
-    mCurrApplicator.reset();
 
     if (mLevel != 0)
     {
