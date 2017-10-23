@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/PendingEnvelopes.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "herder/PendingEnvelopes.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -181,8 +181,11 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
 
         SECTION("as removable")
         {
-            pendingEnvelopes.addSCPQuorumSet(saneQSetHash, 9, saneQSet);
-            pendingEnvelopes.addTxSet(p.second->getContentsHash(), 9, p.second);
+            pendingEnvelopes.addSCPQuorumSet(
+                saneQSetHash, 2 * Herder::MAX_SLOTS_TO_REMEMBER + 1, saneQSet);
+            pendingEnvelopes.addTxSet(p.second->getContentsHash(),
+                                      2 * Herder::MAX_SLOTS_TO_REMEMBER + 1,
+                                      p.second);
         }
 
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
@@ -222,10 +225,12 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     SECTION("envelopes from different slots asking for the same quorum set and "
             "tx set")
     {
-        auto saneEnvelope2 =
-            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 5);
-        auto saneEnvelope3 =
-            makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 9);
+        auto saneEnvelope2 = makeEnvelope(
+            p, saneQSetHash,
+            lcl.header.ledgerSeq + Herder::MAX_SLOTS_TO_REMEMBER + 1);
+        auto saneEnvelope3 = makeEnvelope(
+            p, saneQSetHash,
+            lcl.header.ledgerSeq + 2 * Herder::MAX_SLOTS_TO_REMEMBER + 1);
 
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
