@@ -56,7 +56,7 @@ struct SimpleTestReporter : public ConsoleReporter
 
         if (result.isOk())
             return true;
-        assertionStarting(mLastAssertInfo);
+        ConsoleReporter::assertionStarting(mLastAssertInfo);
         return ConsoleReporter::assertionEnded(_assertionStats);
     }
 
