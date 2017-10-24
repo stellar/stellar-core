@@ -406,29 +406,17 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
 {
-    uint32 minSeq, maxSeq;
-
-    if (ledgerSeq == 0)
+    if (getSCP().empty())
     {
-        const uint32 nbLedgers = 3;
-        const uint32 minLedger = 2;
-
-        // include the most recent slot
-        maxSeq = getCurrentLedgerSeq() + 1;
-
-        if (maxSeq >= minLedger + nbLedgers)
-        {
-            minSeq = maxSeq - nbLedgers;
-        }
-        else
-        {
-            minSeq = minLedger;
-        }
+        return;
     }
-    else
-    {
-        minSeq = maxSeq = ledgerSeq;
-    }
+
+    assert(getSCP().getLowSlotIndex() <= std::numeric_limits<uint32_t>::max());
+    assert(getSCP().getHighSlotIndex() <= std::numeric_limits<uint32_t>::max());
+
+    auto minSeq =
+        std::max(ledgerSeq, static_cast<uint32_t>(getSCP().getLowSlotIndex()));
+    auto maxSeq = static_cast<uint32_t>(getSCP().getHighSlotIndex());
 
     // use uint64_t for seq to prevent overflows
     for (uint64_t seq = minSeq; seq <= maxSeq; seq++)

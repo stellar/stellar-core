@@ -6,7 +6,6 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/LoopbackPeer.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"

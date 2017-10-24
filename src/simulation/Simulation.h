@@ -43,8 +43,10 @@ class Simulation : public LoadGenerator
 
     VirtualClock& getClock();
 
-    NodeID addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                   Config const* cfg = nullptr, bool newDB = true);
+    Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
+                                 VirtualClock& clock,
+                                 Config const* cfg = nullptr,
+                                 bool newDB = true);
     Application::pointer getNode(NodeID nodeID);
     std::vector<Application::pointer> getNodes();
     std::vector<NodeID> getNodeIDs();
@@ -79,17 +81,18 @@ class Simulation : public LoadGenerator
     std::string metricsSummary(std::string domain = "");
 
     void addConnection(NodeID initiator, NodeID acceptor);
+    void dropConnection(NodeID initiator, NodeID acceptor);
     Config newConfig(); // generates a new config
 
   private:
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
+    void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
 
     VirtualClock mClock;
     Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
-    std::map<NodeID, Config::pointer> mConfigs;
     std::map<NodeID, Application::pointer> mNodes;
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;

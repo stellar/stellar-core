@@ -10,7 +10,6 @@
 #include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
-#include "overlay/LoopbackPeer.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
 #include "test/test.h"

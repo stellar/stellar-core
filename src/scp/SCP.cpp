@@ -203,6 +203,28 @@ SCP::setStateFromEnvelope(uint64 slotIndex, SCPEnvelope const& e)
     }
 }
 
+bool
+SCP::empty() const
+{
+    return mKnownSlots.empty();
+}
+
+uint64
+SCP::getLowSlotIndex() const
+{
+    assert(!empty());
+    return mKnownSlots.begin()->first;
+}
+
+uint64
+SCP::getHighSlotIndex() const
+{
+    assert(!empty());
+    auto it = mKnownSlots.end();
+    it--;
+    return it->first;
+}
+
 std::vector<SCPEnvelope>
 SCP::getCurrentState(uint64 slotIndex)
 {

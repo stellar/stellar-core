@@ -24,10 +24,11 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID,
     qSet0.validators.push_back(v10NodeID);
     qSet0.validators.push_back(v11NodeID);
 
-    auto n0 = simulation->addNode(v10SecretKey, qSet0, simulation->getClock());
-    auto n1 = simulation->addNode(v11SecretKey, qSet0, simulation->getClock());
+    simulation->addNode(v10SecretKey, qSet0, simulation->getClock());
+    simulation->addNode(v11SecretKey, qSet0, simulation->getClock());
 
-    simulation->addPendingConnection(n0, n1);
+    simulation->addPendingConnection(v10SecretKey.getPublicKey(),
+                                     v11SecretKey.getPublicKey());
     return simulation;
 }
 
@@ -59,18 +60,24 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
     qSet3.validators.push_back(v3NodeID);
     qSet3.validators.push_back(v0NodeID);
 
-    auto n0 = simulation->addNode(v0SecretKey, qSet0, simulation->getClock());
-    auto n1 = simulation->addNode(v1SecretKey, qSet1, simulation->getClock());
-    auto n2 = simulation->addNode(v2SecretKey, qSet2, simulation->getClock());
-    auto n3 = simulation->addNode(v3SecretKey, qSet3, simulation->getClock());
+    simulation->addNode(v0SecretKey, qSet0, simulation->getClock());
+    simulation->addNode(v1SecretKey, qSet1, simulation->getClock());
+    simulation->addNode(v2SecretKey, qSet2, simulation->getClock());
+    simulation->addNode(v3SecretKey, qSet3, simulation->getClock());
 
-    simulation->addPendingConnection(n0, n1);
-    simulation->addPendingConnection(n1, n2);
-    simulation->addPendingConnection(n2, n3);
-    simulation->addPendingConnection(n3, n0);
+    simulation->addPendingConnection(v0SecretKey.getPublicKey(),
+                                     v1SecretKey.getPublicKey());
+    simulation->addPendingConnection(v1SecretKey.getPublicKey(),
+                                     v2SecretKey.getPublicKey());
+    simulation->addPendingConnection(v2SecretKey.getPublicKey(),
+                                     v3SecretKey.getPublicKey());
+    simulation->addPendingConnection(v3SecretKey.getPublicKey(),
+                                     v0SecretKey.getPublicKey());
 
-    simulation->addPendingConnection(n0, n2);
-    simulation->addPendingConnection(n1, n3);
+    simulation->addPendingConnection(v0SecretKey.getPublicKey(),
+                                     v2SecretKey.getPublicKey());
+    simulation->addPendingConnection(v1SecretKey.getPublicKey(),
+                                     v3SecretKey.getPublicKey());
 
     return simulation;
 }

@@ -13,6 +13,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
+#include <util/format.h>
 
 #include "medida/medida.h"
 #include "medida/reporting/console_reporter.h"
@@ -52,30 +53,20 @@ Simulation::getClock()
     return mClock;
 }
 
-NodeID
+Application::pointer
 Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
                     Config const* cfg2, bool newDB)
 {
-    std::shared_ptr<Config> cfg;
-    if (!cfg2)
-    {
-        cfg = std::make_shared<Config>(newConfig());
-    }
-    else
-    {
-        cfg = std::make_shared<Config>(*cfg2);
-    }
+    auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
+                    : std::make_shared<Config>(newConfig());
     cfg->NODE_SEED = nodeKey;
     cfg->QUORUM_SET = qSet;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    Application::pointer result = Application::create(clock, *cfg, newDB);
+    auto result = Application::create(clock, *cfg, newDB);
+    mNodes[nodeKey.getPublicKey()] = result;
 
-    NodeID nodeID = nodeKey.getPublicKey();
-    mConfigs[nodeID] = cfg;
-    mNodes[nodeID] = result;
-
-    return nodeID;
+    return result;
 }
 
 Application::pointer
@@ -117,6 +108,15 @@ Simulation::addConnection(NodeID initiator, NodeID acceptor)
 }
 
 void
+Simulation::dropConnection(NodeID initiator, NodeID acceptor)
+{
+    if (mMode == OVER_LOOPBACK)
+        dropLoopbackConnection(initiator, acceptor);
+    else
+        throw runtime_error("Cannot drop a TCP connection");
+}
+
+void
 Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
     if (mNodes[initiator] && mNodes[acceptor])
@@ -124,6 +124,27 @@ Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
         auto conn = std::make_shared<LoopbackPeerConnection>(
             *getNode(initiator), *getNode(acceptor));
         mLoopbackConnections.push_back(conn);
+    }
+}
+
+void
+Simulation::dropLoopbackConnection(NodeID initiator, NodeID acceptor)
+{
+    auto it = std::find_if(
+        std::begin(mLoopbackConnections), std::end(mLoopbackConnections),
+        [&](std::shared_ptr<LoopbackPeerConnection> const& conn) {
+            return conn->getInitiator()
+                           ->getApp()
+                           .getConfig()
+                           .NODE_SEED.getPublicKey() == initiator &&
+                   conn->getAcceptor()
+                           ->getApp()
+                           .getConfig()
+                           .NODE_SEED.getPublicKey() == acceptor;
+        });
+    if (it != std::end(mLoopbackConnections))
+    {
+        mLoopbackConnections.erase(it);
     }
 }
 
@@ -204,7 +225,9 @@ Simulation::haveAllExternalized(SequenceNumber num, uint32 maxSpread)
     }
     if (max - min > maxSpread)
     {
-        throw std::runtime_error("Too wide spread between nodes");
+        throw std::runtime_error(
+            fmt::format("Too wide spread between nodes: {0}-{1} > {2}", max,
+                        min, maxSpread));
     }
     return num <= min;
 }

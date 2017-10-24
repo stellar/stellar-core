@@ -831,3 +831,121 @@ TEST_CASE("SCP State", "[herder]")
         }
     }
 }
+
+TEST_CASE("quick restart", "[herder][quickRestart]")
+{
+    auto mode = Simulation::OVER_LOOPBACK;
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation = std::make_shared<Simulation>(mode, networkID);
+
+    auto validatorKey = SecretKey::fromSeed(sha256("validator"));
+    auto listenerKey = SecretKey::fromSeed(sha256("listener"));
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 1;
+    qSet.validators.push_back(validatorKey.getPublicKey());
+
+    auto validator =
+        simulation->addNode(validatorKey, qSet, simulation->getClock());
+    auto listener =
+        simulation->addNode(listenerKey, qSet, simulation->getClock());
+    simulation->addPendingConnection(validatorKey.getPublicKey(),
+                                     listenerKey.getPublicKey());
+    simulation->startAllNodes();
+
+    auto currentValidatorLedger = [&]() {
+        return validator->getLedgerManager().getLastClosedLedgerNum();
+    };
+    auto currentListenerLedger = [&]() {
+        return listener->getLedgerManager().getLastClosedLedgerNum();
+    };
+    auto waitForLedgersOnValidator = [&](int nLedgers) {
+        auto destinationLedger = currentValidatorLedger() + nLedgers;
+        simulation->crankUntil(
+            [&]() { return currentValidatorLedger() == destinationLedger; },
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    };
+    auto waitForLedgers = [&](int nLedgers) {
+        auto destinationLedger = currentValidatorLedger() + nLedgers;
+        simulation->crankUntil(
+            [&]() {
+                return simulation->haveAllExternalized(destinationLedger, 100);
+            },
+            2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+    };
+
+    auto currentLedger = 1;
+    REQUIRE(currentValidatorLedger() == currentLedger);
+    REQUIRE(currentListenerLedger() == currentLedger);
+
+    auto static const FEW_LEDGERS = 5;
+
+    // externalize a few ledgers
+    waitForLedgers(FEW_LEDGERS);
+    // validator gets extra ledger
+    currentLedger += (FEW_LEDGERS + 1);
+
+    REQUIRE(currentValidatorLedger() == currentLedger);
+    REQUIRE(currentListenerLedger() >= currentLedger - 1);
+
+    // disconnect listener
+    simulation->dropConnection(validatorKey.getPublicKey(),
+                               listenerKey.getPublicKey());
+
+    auto static const SMALL_GAP = Herder::MAX_SLOTS_TO_REMEMBER;
+    auto static const BIG_GAP = Herder::MAX_SLOTS_TO_REMEMBER + 1;
+
+    auto beforeGap = currentLedger;
+
+    SECTION("works when gap is small")
+    {
+        // externalize few more ledgers
+        waitForLedgersOnValidator(SMALL_GAP);
+        // validator gets extra ledger
+        currentLedger += (SMALL_GAP + 1);
+
+        REQUIRE(currentValidatorLedger() == currentLedger);
+        // listener finally externalizes last ledger before gap
+        REQUIRE(currentListenerLedger() == beforeGap);
+
+        // and reconnect
+        simulation->addConnection(validatorKey.getPublicKey(),
+                                  listenerKey.getPublicKey());
+
+        // now listener should catchup to validator without remote history
+        waitForLedgers(FEW_LEDGERS);
+        // validator gets extra ledger
+        currentLedger += (FEW_LEDGERS + 1);
+
+        REQUIRE(currentValidatorLedger() == currentLedger);
+        REQUIRE(currentListenerLedger() >= currentLedger - 1);
+    }
+
+    SECTION("does not work when gap is big")
+    {
+        // externalize few more ledgers
+        waitForLedgersOnValidator(BIG_GAP);
+        // validator gets extra ledger
+        currentLedger += (BIG_GAP + 1);
+
+        REQUIRE(currentValidatorLedger() == currentLedger);
+        // listener finally externalizes last ledger before gap
+        REQUIRE(currentListenerLedger() == beforeGap);
+
+        // and reconnect
+        simulation->addConnection(validatorKey.getPublicKey(),
+                                  listenerKey.getPublicKey());
+
+        // wait for few ledgers - listener will want to catchup with history,
+        // but will get an exception:
+        // "No GET-enabled history archive in config"
+        REQUIRE_THROWS_AS(waitForLedgers(FEW_LEDGERS), std::runtime_error);
+        // validator is at least here
+        currentLedger += (FEW_LEDGERS + 1);
+
+        REQUIRE(currentValidatorLedger() >= currentLedger);
+        REQUIRE(currentListenerLedger() == beforeGap);
+    }
+
+    simulation->stopAllNodes();
+}
