@@ -161,6 +161,10 @@ Additional signers can be added to any account using the "SetOptions" operation.
 When added, signers are authorized (in addition to the master key) to sign 
 transactions for the source account. 
 
+If the weight of the master key is ever updated to 0, the master key is considered to be an invalid
+key and you cannot sign any transactions with it (even for operations with a threshold value of 0).
+If there are other signers listed on the account, they can still continue to sign transactions.
+
 "Signers" refers to the master key or to signers added later.
 
 A signer is defined as the pair (public key, weight) - see the "Thresholds" 
@@ -267,7 +271,7 @@ the signatures is greater or equal to the threshold for that level.
  - key3:1
 3. Company account requires 3 of 6 people to agree to any transaction from that 
    account.
- - w:0, l:3, m:3, h:3  (accountID key turned off)
+ - w:0, l:3, m:3, h:3  (accountID key turned off, making it an invalid signing key)
  - keyN:1  (6 other keys all with weight of 1)
 4. Expense account. 1 person fully controls the account and 2 employees can 
    authorize transactions from this account. If one of the employees leaves the 
@@ -277,7 +281,7 @@ the signatures is greater or equal to the threshold for that level.
  - key3:1
 5. Someone wants to issues a custom currency and wants to ensure no more will 
    ever be created. They make a source account and issue the maximum amount of 
-   currency they want to a holding account. Now they set the weight of the 
-   source account signing key below the Medium threshold.
+   currency they want to a holding account. Now they set the weight of the master
+   key of the source account to 0, which makes it an invalid signing key.
  - w:0 l:0 m:0 h:0
 
