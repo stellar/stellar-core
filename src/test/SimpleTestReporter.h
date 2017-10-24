@@ -32,13 +32,20 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     testCaseStarting(TestCaseInfo const& ti) override
     {
+        ConsoleReporter::testCaseStarting(ti);
         stream << "\"" << ti.name << "\" " << ti.lineInfo << std::endl;
+    }
+
+    void
+    sectionStarting(SectionInfo const& _sectionInfo) override
+    {
+        printDot();
+        ConsoleReporter::sectionStarting(_sectionInfo);
     }
 
     void
     assertionStarting(AssertionInfo const& ai) override
     {
-        printDot();
         mLastAssertInfo = ai;
     }
 
@@ -49,7 +56,7 @@ struct SimpleTestReporter : public ConsoleReporter
 
         if (result.isOk())
             return true;
-        assertionStarting(mLastAssertInfo);
+        ConsoleReporter::assertionStarting(mLastAssertInfo);
         return ConsoleReporter::assertionEnded(_assertionStats);
     }
 
@@ -70,7 +77,7 @@ struct SimpleTestReporter : public ConsoleReporter
     {
         stream << '.';
         mDots++;
-        if (mDots == 10)
+        if (mDots == 40)
         {
             printNewLine();
         }
