@@ -63,11 +63,15 @@ applyCheck(TransactionFramePtr tx, Application& app)
     // valid transaction sets ensure that
     {
         auto code = checkResult.result.code();
-        if (code != txNO_ACCOUNT && code != txBAD_SEQ)
+        if (code != txNO_ACCOUNT && code != txBAD_SEQ && code != txBAD_AUTH)
         {
             tx->processFeeSeqNum(delta, app.getLedgerManager());
+            doApply = true;
         }
-        doApply = (code != txBAD_SEQ);
+        else
+        {
+            doApply = (code != txBAD_SEQ);
+        }
     }
 
     bool res = false;
