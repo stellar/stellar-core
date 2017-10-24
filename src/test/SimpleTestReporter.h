@@ -36,9 +36,15 @@ struct SimpleTestReporter : public ConsoleReporter
     }
 
     void
-    assertionStarting(AssertionInfo const& ai) override
+    sectionStarting(SectionInfo const& _sectionInfo) override
     {
         printDot();
+        ConsoleReporter::sectionStarting(_sectionInfo);
+    }
+
+    void
+    assertionStarting(AssertionInfo const& ai) override
+    {
         mLastAssertInfo = ai;
     }
 
@@ -70,7 +76,7 @@ struct SimpleTestReporter : public ConsoleReporter
     {
         stream << '.';
         mDots++;
-        if (mDots == 10)
+        if (mDots == 40)
         {
             printNewLine();
         }
