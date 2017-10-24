@@ -38,6 +38,11 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 {
 }
 
+GetHistoryArchiveStateWork::~GetHistoryArchiveStateWork()
+{
+    clearChildren();
+}
+
 std::string
 GetHistoryArchiveStateWork::getStatus() const
 {

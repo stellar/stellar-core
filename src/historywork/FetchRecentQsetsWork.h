@@ -27,6 +27,7 @@ class FetchRecentQsetsWork : public Work
   public:
     FetchRecentQsetsWork(Application& app, WorkParent& parent,
                          InferredQuorum& iq, handler endHandler);
+    ~FetchRecentQsetsWork();
     void onReset() override;
     void onFailureRaise() override;
     Work::State onSuccess() override;

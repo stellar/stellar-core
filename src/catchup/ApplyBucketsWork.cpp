@@ -54,6 +54,7 @@ ApplyBucketsWork::ApplyBucketsWork(
 
 ApplyBucketsWork::~ApplyBucketsWork()
 {
+    clearChildren();
 }
 
 BucketList&

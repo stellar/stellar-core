@@ -17,6 +17,11 @@ GzipFileWork::GzipFileWork(Application& app, WorkParent& parent,
     fs::checkNoGzipSuffix(mFilenameNoGz);
 }
 
+GzipFileWork::~GzipFileWork()
+{
+    clearChildren();
+}
+
 void
 GzipFileWork::onReset()
 {

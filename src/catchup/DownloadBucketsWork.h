@@ -32,6 +32,7 @@ class DownloadBucketsWork : public Work
                         std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                         std::vector<std::string> hashes,
                         TmpDir const& downloadDir);
+    ~DownloadBucketsWork();
     std::string getStatus() const override;
     void onReset() override;
     void notify(std::string const& child) override;

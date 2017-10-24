@@ -21,6 +21,11 @@ PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
 {
 }
 
+PutHistoryArchiveStateWork::~PutHistoryArchiveStateWork()
+{
+    clearChildren();
+}
+
 void
 PutHistoryArchiveStateWork::onReset()
 {

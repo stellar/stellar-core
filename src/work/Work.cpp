@@ -36,6 +36,7 @@ Work::Work(Application& app, WorkParent& parent, std::string uniqueName,
 
 Work::~Work()
 {
+    clearChildren();
 }
 
 std::string

@@ -23,6 +23,7 @@ class RunCommandWork : public Work
     RunCommandWork(Application& app, WorkParent& parent,
                    std::string const& uniqueName,
                    size_t maxRetries = Work::RETRY_A_FEW);
+    ~RunCommandWork();
     void onStart() override;
     void onRun() override;
 };

@@ -46,6 +46,11 @@ ApplyLedgerChainWork::ApplyLedgerChainWork(
 {
 }
 
+ApplyLedgerChainWork::~ApplyLedgerChainWork()
+{
+    clearChildren();
+}
+
 std::string
 ApplyLedgerChainWork::getStatus() const
 {

@@ -34,6 +34,11 @@ VerifyBucketWork::VerifyBucketWork(
     fs::checkNoGzipSuffix(mBucketFile);
 }
 
+VerifyBucketWork::~VerifyBucketWork()
+{
+    clearChildren();
+}
+
 void
 VerifyBucketWork::onStart()
 {

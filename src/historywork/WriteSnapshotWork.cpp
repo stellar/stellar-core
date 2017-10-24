@@ -20,6 +20,11 @@ WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
 {
 }
 
+WriteSnapshotWork::~WriteSnapshotWork()
+{
+    clearChildren();
+}
+
 void
 WriteSnapshotWork::onStart()
 {

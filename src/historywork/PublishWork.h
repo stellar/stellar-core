@@ -23,6 +23,7 @@ class PublishWork : public Work
   public:
     PublishWork(Application& app, WorkParent& parent,
                 std::shared_ptr<StateSnapshot> snapshot);
+    ~PublishWork();
     std::string getStatus() const override;
     void onReset() override;
     void onFailureRaise() override;

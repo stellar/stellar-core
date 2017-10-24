@@ -18,6 +18,11 @@ ResolveSnapshotWork::ResolveSnapshotWork(
 {
 }
 
+ResolveSnapshotWork::~ResolveSnapshotWork()
+{
+    clearChildren();
+}
+
 void
 ResolveSnapshotWork::onRun()
 {

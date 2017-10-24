@@ -30,6 +30,11 @@ DownloadBucketsWork::DownloadBucketsWork(
 {
 }
 
+DownloadBucketsWork::~DownloadBucketsWork()
+{
+    clearChildren();
+}
+
 std::string
 DownloadBucketsWork::getStatus() const
 {

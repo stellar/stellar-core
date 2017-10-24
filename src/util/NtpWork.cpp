@@ -25,6 +25,7 @@ NtpWork::NtpWork(Application& app, WorkParent& parent, std::string ntpServer,
 
 NtpWork::~NtpWork()
 {
+    clearChildren();
 }
 
 void

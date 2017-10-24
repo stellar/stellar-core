@@ -26,6 +26,7 @@ class PutSnapshotFilesWork : public Work
     PutSnapshotFilesWork(Application& app, WorkParent& parent,
                          std::shared_ptr<HistoryArchive const> archive,
                          std::shared_ptr<StateSnapshot> snapshot);
+    ~PutSnapshotFilesWork();
     void onReset() override;
     Work::State onSuccess() override;
 };

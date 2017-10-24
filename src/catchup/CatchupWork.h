@@ -105,6 +105,8 @@ class CatchupWork : public BucketDownloadWork
     State onSuccess() override;
     void onFailureRaise() override;
 
+    ~CatchupWork();
+
   private:
     HistoryArchiveState mRemoteState;
     HistoryArchiveState mApplyBucketsRemoteState;

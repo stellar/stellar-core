@@ -69,6 +69,7 @@ class ApplyLedgerChainWork : public Work
     ApplyLedgerChainWork(Application& app, WorkParent& parent,
                          TmpDir const& downloadDir, LedgerRange range,
                          LedgerHeaderHistoryEntry& lastApplied);
+    ~ApplyLedgerChainWork();
     std::string getStatus() const override;
     void onReset() override;
     void onStart() override;

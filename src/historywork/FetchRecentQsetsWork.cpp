@@ -24,6 +24,11 @@ FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app, WorkParent& parent,
 {
 }
 
+FetchRecentQsetsWork::~FetchRecentQsetsWork()
+{
+    clearChildren();
+}
+
 void
 FetchRecentQsetsWork::onReset()
 {

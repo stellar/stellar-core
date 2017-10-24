@@ -79,6 +79,11 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
 {
 }
 
+VerifyLedgerChainWork::~VerifyLedgerChainWork()
+{
+    clearChildren();
+}
+
 std::string
 VerifyLedgerChainWork::getStatus() const
 {

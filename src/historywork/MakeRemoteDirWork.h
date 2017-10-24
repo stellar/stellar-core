@@ -21,5 +21,6 @@ class MakeRemoteDirWork : public RunCommandWork
     MakeRemoteDirWork(Application& app, WorkParent& parent,
                       std::string const& dir,
                       std::shared_ptr<HistoryArchive const> archive);
+    ~MakeRemoteDirWork();
 };
 }

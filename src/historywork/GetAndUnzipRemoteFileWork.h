@@ -29,6 +29,7 @@ class GetAndUnzipRemoteFileWork : public Work
         Application& app, WorkParent& parent, FileTransferInfo ft,
         std::shared_ptr<HistoryArchive const> archive = nullptr,
         size_t maxRetries = Work::RETRY_A_LOT);
+    ~GetAndUnzipRemoteFileWork();
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

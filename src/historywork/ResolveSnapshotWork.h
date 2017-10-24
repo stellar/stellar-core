@@ -18,6 +18,7 @@ class ResolveSnapshotWork : public Work
   public:
     ResolveSnapshotWork(Application& app, WorkParent& parent,
                         std::shared_ptr<StateSnapshot> snapshot);
+    ~ResolveSnapshotWork();
     void onRun() override;
 };
 }
