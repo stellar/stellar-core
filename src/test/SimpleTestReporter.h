@@ -32,6 +32,7 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     testCaseStarting(TestCaseInfo const& ti) override
     {
+        ConsoleReporter::testCaseStarting(ti);
         stream << "\"" << ti.name << "\" " << ti.lineInfo << std::endl;
     }
 
