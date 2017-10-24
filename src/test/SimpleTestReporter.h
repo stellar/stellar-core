@@ -7,13 +7,13 @@
 namespace Catch
 {
 
-struct DotReporter : public ConsoleReporter
+struct SimpleTestReporter : public ConsoleReporter
 {
-    DotReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
+    SimpleTestReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
     {
     }
 
-    ~DotReporter();
+    ~SimpleTestReporter();
 
     static std::string
     getDescription()
@@ -83,5 +83,5 @@ struct DotReporter : public ConsoleReporter
     }
 };
 
-INTERNAL_CATCH_REGISTER_REPORTER("dot", DotReporter)
+INTERNAL_CATCH_REGISTER_REPORTER("simple", SimpleTestReporter)
 }

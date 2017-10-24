@@ -27,12 +27,12 @@
 #include <sys/stat.h>
 #endif
 
-#include "test/DotReporter.h"
+#include "test/SimpleTestReporter.h"
 
 namespace Catch
 {
 
-DotReporter::~DotReporter()
+SimpleTestReporter::~SimpleTestReporter()
 {
 }
 }

@@ -638,7 +638,7 @@ exit /b 0
     <ClInclude Include="..\..\src\simulation\LoadGenerator.h" />
     <ClInclude Include="..\..\src\simulation\Simulation.h" />
     <ClInclude Include="..\..\src\simulation\Topologies.h" />
-    <ClInclude Include="..\..\src\test\DotReporter.h" />
+    <ClInclude Include="..\..\src\test\SimpleTestReporter.h" />
     <ClInclude Include="..\..\src\test\test.h" />
     <ClInclude Include="..\..\src\test\TestAccount.h" />
     <ClInclude Include="..\..\src\test\TestExceptions.h" />
