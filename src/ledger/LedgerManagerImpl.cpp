@@ -407,10 +407,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                                  << ledgerData.getLedgerSeq()
                                  << " buffered, starting catchup";
 
-            auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                                  ledgerData.getLedgerSeq()) -
-                              1;
-            startCatchUp({initLedger, getCatchupCount(mApp)}, false);
+            // catchup just before first buffered ledger
+            // that way we will have a way to verify history consistency -
+            // compare previousLedgerHash of buffered ledger with last one
+            // downloaded from history
+            startCatchUp({ledgerData.getLedgerSeq() - 1, getCatchupCount(mApp)},
+                         false);
         }
         break;
 
@@ -628,7 +630,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
                 assert(lcd.getLedgerSeq() >
                        mLastClosedLedger.header.ledgerSeq + 1);
-                auto const& lastBuffered = mSyncingLedgers.back();
                 CLOG(ERROR, "Ledger")
                     << "Catchup failed to buffer contiguous ledger chain";
                 CLOG(ERROR, "Ledger")
@@ -636,15 +637,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << ", trying to apply buffered close " << lcd.getLedgerSeq()
                     << " with txhash "
                     << hexAbbrev(lcd.getTxSet()->getContentsHash());
-                CLOG(ERROR, "Ledger")
-                    << "Flushing buffer and restarting at ledger "
-                    << lastBuffered.getLedgerSeq();
                 mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                                      lastBuffered.getLedgerSeq()) -
-                                  1;
-                startCatchUp({initLedger, getCatchupCount(mApp)}, false);
+                CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+                setState(LM_BOOTING_STATE);
                 return;
             }
         }

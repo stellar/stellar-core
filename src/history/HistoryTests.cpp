@@ -578,13 +578,10 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
-    auto toLedger =
-        manual ? initLedger
-               : app2->getHistoryManager().nextCheckpointLedger(initLedger) - 1;
     if (doStart)
     {
-        // Normally Herder calls LedgerManager.externalizeValue(initLedger) and
-        // this _triggers_ catchup within the LM. However, we do this
+        // Normally Herder calls LedgerManager.externalizeValue(initLedger + 1)
+        // and this _triggers_ catchup within the LM. However, we do this
         // out-of-order because we want to control the catchup mode rather than
         // let the LM pick it, and because we want to simulate a 1-ledger skew
         // between the publishing side and the catchup side so that the catchup
@@ -599,7 +596,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
         CLOG(INFO, "History") << "force-starting catchup at initLedger="
                               << initLedger;
 
-        lm.startCatchUp({toLedger, count}, manual);
+        lm.startCatchUp({initLedger, count}, manual);
     }
 
     // Push publishing side forward one-ledger into a history block if it's
@@ -623,7 +620,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     {
         uint32_t nextBlockStart =
             mApp.getHistoryManager().nextCheckpointLedger(initLedger);
-        for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
+        for (uint32_t n = initLedger + 1; n <= nextBlockStart; ++n)
         {
             // Remember the vectors count from 2, not 0.
             if (n - 2 >= mLedgerCloseDatas.size())
@@ -649,7 +646,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
-    auto catchupConfiguration = CatchupConfiguration(toLedger, count);
+    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
 
     REQUIRE(!app2->getClock().getIOService().stopped());
 
@@ -1279,7 +1276,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Catch up successfully the first time
     auto app2 = catchupNewApplication(
-        mApp.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
+        mApp.getLedgerManager().getLastClosedLedgerNum(),
         std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE, "app2");
 
