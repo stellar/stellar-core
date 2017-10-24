@@ -18,7 +18,7 @@ struct SimpleTestReporter : public ConsoleReporter
     static std::string
     getDescription()
     {
-        return "Reports each assertion as a dot";
+        return "Reports minimal information on tests";
     }
 
     ReporterPreferences
@@ -30,9 +30,9 @@ struct SimpleTestReporter : public ConsoleReporter
     }
 
     void
-    noMatchingTestCases(std::string const& spec) override
+    testCaseStarting(TestCaseInfo const& ti) override
     {
-        stream << "No test cases matched '" << spec << "'" << std::endl;
+        stream << "\"" << ti.name << "\" " << ti.lineInfo << std::endl;
     }
 
     void
@@ -56,6 +56,7 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     testCaseEnded(TestCaseStats const&) override
     {
+        stream << "<done>";
         printNewLine();
     }
 
@@ -69,7 +70,7 @@ struct SimpleTestReporter : public ConsoleReporter
     {
         stream << '.';
         mDots++;
-        if (mDots == 40)
+        if (mDots == 10)
         {
             printNewLine();
         }
