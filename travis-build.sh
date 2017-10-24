@@ -63,6 +63,6 @@ echo "committer = $committer, config_flags = $config_flags"
 ccache -s
 ./autogen.sh
 ./configure $config_flags
-make
+make -j3
 ccache -s
 make check

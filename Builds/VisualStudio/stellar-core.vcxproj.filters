@@ -1250,9 +1250,6 @@
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h">
       <Filter>ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\DotReporter.h">
-      <Filter>test</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\test\TestMarket.h">
       <Filter>test</Filter>
     </ClInclude>
@@ -1381,6 +1378,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\herder\HerderSCPDriver.h">
       <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
+      <Filter>test</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

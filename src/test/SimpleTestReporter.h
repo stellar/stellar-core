@@ -7,18 +7,18 @@
 namespace Catch
 {
 
-struct DotReporter : public ConsoleReporter
+struct SimpleTestReporter : public ConsoleReporter
 {
-    DotReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
+    SimpleTestReporter(ReporterConfig const& _config) : ConsoleReporter(_config)
     {
     }
 
-    ~DotReporter();
+    ~SimpleTestReporter();
 
     static std::string
     getDescription()
     {
-        return "Reports each assertion as a dot";
+        return "Reports minimal information on tests";
     }
 
     ReporterPreferences
@@ -30,9 +30,9 @@ struct DotReporter : public ConsoleReporter
     }
 
     void
-    noMatchingTestCases(std::string const& spec) override
+    testCaseStarting(TestCaseInfo const& ti) override
     {
-        stream << "No test cases matched '" << spec << "'" << std::endl;
+        stream << "\"" << ti.name << "\" " << ti.lineInfo << std::endl;
     }
 
     void
@@ -56,6 +56,7 @@ struct DotReporter : public ConsoleReporter
     void
     testCaseEnded(TestCaseStats const&) override
     {
+        stream << "<done>";
         printNewLine();
     }
 
@@ -69,7 +70,7 @@ struct DotReporter : public ConsoleReporter
     {
         stream << '.';
         mDots++;
-        if (mDots == 40)
+        if (mDots == 10)
         {
             printNewLine();
         }
@@ -83,5 +84,5 @@ struct DotReporter : public ConsoleReporter
     }
 };
 
-INTERNAL_CATCH_REGISTER_REPORTER("dot", DotReporter)
+INTERNAL_CATCH_REGISTER_REPORTER("simple", SimpleTestReporter)
 }
