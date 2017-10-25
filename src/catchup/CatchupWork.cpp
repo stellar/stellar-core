@@ -376,13 +376,6 @@ CatchupWork::onFailureRaise()
 namespace
 {
 
-uint32_t
-checkpointContainingLedger(uint32_t ledger,
-                           HistoryManager const& historyManager)
-{
-    return historyManager.nextCheckpointLedger(ledger + 1) - 1;
-}
-
 // compute first checkpoint that is not 100% finished
 // if lastClosedLedger is not last ledger in checkpoint, then first not finished
 // checkpoint is checkpoint containing lastClosedLedger
@@ -392,7 +385,7 @@ uint32_t
 firstNotFinishedCheckpoint(uint32_t lastClosedLedger,
                            HistoryManager const& historyManager)
 {
-    auto result = checkpointContainingLedger(lastClosedLedger, historyManager);
+    auto result = historyManager.checkpointContainingLedger(lastClosedLedger);
     if (lastClosedLedger < result)
     {
         return result;
@@ -426,7 +419,7 @@ computeCatchupStart(uint32_t smallestLedgerToApply,
     // checkpoint that contains smallestLedgerToApply - it is first one than
     // can be applied, it is always greater than LCL
     auto smallestCheckpointToApply =
-        checkpointContainingLedger(smallestLedgerToApply, historyManager);
+        historyManager.checkpointContainingLedger(smallestLedgerToApply);
 
     // if first ledger that should be applied is on checkpoint boundary then
     // we do an bucket-apply

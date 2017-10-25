@@ -238,6 +238,11 @@ class HistoryManager
     // may be different (see ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING).
     virtual uint32_t getCheckpointFrequency() const = 0;
 
+    // Return checkpoint that contains given ledger. Checkpoint is identified
+    // by last ledger in range. This does not consult the network nor take
+    // account of manual checkpoints.
+    virtual uint32_t checkpointContainingLedger(uint32_t ledger) const = 0;
+
     // Given a "current ledger" (not LCL) for a node, return the "current
     // ledger" value at which the previous scheduled checkpoint should have
     // occurred, by rounding-down to the next multiple of checkpoint

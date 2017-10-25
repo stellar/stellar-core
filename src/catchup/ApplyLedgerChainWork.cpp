@@ -25,7 +25,7 @@ ApplyLedgerChainWork::ApplyLedgerChainWork(
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrSeq(
-          mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1)
+          mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
     , mLastApplied(lastApplied)
     , mApplyLedgerStart(app.getMetrics().NewMeter(
           {"history", "apply-ledger", "start"}, "event"))
@@ -74,7 +74,7 @@ ApplyLedgerChainWork::onReset()
                           << LedgerManager::ledgerAbbrev(
                                  lm.getLastClosedLedgerHeader());
     mCurrSeq =
-        mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1;
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
     mHdrIn.close();
     mTxIn.close();
 }

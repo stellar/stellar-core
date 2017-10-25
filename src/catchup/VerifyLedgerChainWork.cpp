@@ -58,7 +58,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrSeq(
-          mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1)
+          mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
     , mVerifyWithBufferedLedgers(verifyWithBufferedLedgers)
     , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
@@ -112,7 +112,7 @@ VerifyLedgerChainWork::onReset()
         mLastVerified = setLedger;
     }
     mCurrSeq =
-        mApp.getHistoryManager().nextCheckpointLedger(mRange.first() + 1) - 1;
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
 }
 
 HistoryManager::VerifyHashStatus
