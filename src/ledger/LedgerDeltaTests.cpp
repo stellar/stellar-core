@@ -9,6 +9,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Timer.h"
 
@@ -18,7 +19,7 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
     LedgerHeader& curHeader = app->getLedgerManager().getCurrentLedgerHeader();
     LedgerHeader orgHeader = curHeader;

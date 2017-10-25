@@ -83,28 +83,28 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     auto const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
     auto xlm = makeNativeAsset();
-    auto txfee = app.getLedgerManager().getTxFee();
+    auto txfee = app->getLedgerManager().getTxFee();
 
-    auto const minBalanceNoTx = app.getLedgerManager().getMinBalance(0);
+    auto const minBalanceNoTx = app->getLedgerManager().getMinBalance(0);
     auto const minBalance =
-        app.getLedgerManager().getMinBalance(0) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(0) + 10 * txfee;
 
     auto const minBalance1 =
-        app.getLedgerManager().getMinBalance(1) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(1) + 10 * txfee;
     auto const minBalance2 =
-        app.getLedgerManager().getMinBalance(2) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
     auto const minBalance3 =
-        app.getLedgerManager().getMinBalance(3) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
     auto const minBalance4 =
-        app.getLedgerManager().getMinBalance(4) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(4) + 10 * txfee;
     auto const minBalance5 =
-        app.getLedgerManager().getMinBalance(5) + 10 * txfee;
+        app->getLedgerManager().getMinBalance(5) + 10 * txfee;
 
     auto const paymentAmount = minBalance3;
     auto const morePayment = paymentAmount / 2;
@@ -126,12 +126,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination amount 0")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, 0, {}),
                               ex_PATH_PAYMENT_MALFORMED);
             // clang-format off
@@ -144,12 +144,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination amount negative")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 10, idr, -1, {}),
                               ex_PATH_PAYMENT_MALFORMED);
             // clang-format off
@@ -162,12 +162,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment send max 0")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 0, idr, 10, {}),
                               ex_PATH_PAYMENT_MALFORMED);
             // clang-format off
@@ -180,12 +180,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment send max negative")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, -1, idr, 10, {}),
                               ex_PATH_PAYMENT_MALFORMED);
             // clang-format off
@@ -198,12 +198,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment send currency invalid")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, makeInvalidAsset(), 10, idr, 10, {}),
                 ex_PATH_PAYMENT_MALFORMED);
@@ -217,12 +217,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination currency invalid")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 10, makeInvalidAsset(), 10, {}),
                 ex_PATH_PAYMENT_MALFORMED);
@@ -236,12 +236,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination path currency invalid")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 10, idr, 10, {makeInvalidAsset()}),
                 ex_PATH_PAYMENT_MALFORMED);
@@ -256,7 +256,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("dest amount too big for XLM")
     {
         auto a = root.create("a", minBalance1);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(root.pay(a, xlm, 20, xlm,
                                        std::numeric_limits<int64_t>::max(), {}),
                               ex_PATH_PAYMENT_MALFORMED);
@@ -268,7 +268,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto a = root.create("a", minBalance1);
         a.changeTrust(idr, std::numeric_limits<int64_t>::max());
         gateway.pay(a, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.pay(a, idr, 20, idr,
                                           std::numeric_limits<int64_t>::max(),
                                           {}),
@@ -278,11 +278,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment XLM with not enough funds")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         // see https://github.com/stellar/stellar-core/pull/1239
         auto minimumAccount =
             root.create("minimum-account", minBalanceNoTx + 2 * txfee + 20);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 minimumAccount.pay(root, xlm, txfee + 21, xlm, txfee + 21, {}),
                 ex_PATH_PAYMENT_UNDERFUNDED);
@@ -295,13 +295,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment asset with not enough funds")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto minimumAccount = root.create("minimum-account", minBalance1);
         auto destination = root.create("destination", minBalance1);
         minimumAccount.changeTrust(idr, 20);
         destination.changeTrust(idr, 20);
         gateway.pay(minimumAccount, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(minimumAccount.pay(gateway, idr, 11, idr, 11, {}),
                               ex_PATH_PAYMENT_UNDERFUNDED);
             // clang-format off
@@ -322,11 +322,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment source does not have trustline")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto noSourceTrust = root.create("no-source-trust", minBalance);
         auto destination = root.create("destination", minBalance1);
         destination.changeTrust(idr, 20);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(noSourceTrust.pay(gateway, idr, 1, idr, 1, {}),
                               ex_PATH_PAYMENT_SRC_NO_TRUST);
             // clang-format off
@@ -347,7 +347,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment source is not authorized")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto noAuthorizedSourceTrust =
             root.create("no-authorized-source-trust", minBalance1);
         auto destination = root.create("destination", minBalance1);
@@ -358,7 +358,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
                            nullptr);
         gateway.denyTrust(idr, noAuthorizedSourceTrust);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 noAuthorizedSourceTrust.pay(gateway, idr, 10, idr, 10, {}),
                 ex_PATH_PAYMENT_SRC_NOT_AUTHORIZED);
@@ -380,11 +380,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination does not exists")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 source.pay(
                     getAccount("non-existing-destination").getPublicKey(), idr,
@@ -400,11 +400,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination is issuer and does not exists for simple "
             "paths")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             gateway.merge(root);
             auto offers = source.pay(gateway, idr, 10, idr, 10, {});
             auto expected = std::vector<ClaimOfferAtom>{};
@@ -419,11 +419,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment destination is issuer and does not exists for "
             "complex paths")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             gateway.merge(root);
             REQUIRE_THROWS_AS(source.pay(gateway, idr, 10, usd, 10, {}),
                               ex_PATH_PAYMENT_NO_DESTINATION);
@@ -436,13 +436,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination does not have trustline")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto noDestinationTrust =
             root.create("no-destination-trust", minBalance);
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 gateway.pay(noDestinationTrust, idr, 1, idr, 1, {}),
                 ex_PATH_PAYMENT_NO_TRUST);
@@ -464,7 +464,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination is not authorized")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto noAuthorizedDestinationTrust =
             root.create("no-authorized-destination-trust", minBalance1);
@@ -475,7 +475,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
                            nullptr);
         gateway.denyTrust(idr, noAuthorizedDestinationTrust);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
                 gateway.pay(noAuthorizedDestinationTrust, idr, 10, idr, 10, {}),
                 ex_PATH_PAYMENT_NOT_AUTHORIZED);
@@ -497,14 +497,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination line full")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         gateway.pay(destination, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.pay(destination, idr, 1, idr, 11, {}),
                               ex_PATH_PAYMENT_LINE_FULL);
             // clang-format off
@@ -524,14 +524,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment destination line overflow")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(idr, std::numeric_limits<int64_t>::max());
         gateway.pay(source, idr, 10);
         gateway.pay(destination, idr, std::numeric_limits<int64_t>::max() - 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.pay(destination, idr, 1, idr, 11, {}),
                               ex_PATH_PAYMENT_LINE_FULL);
             // clang-format off
@@ -551,13 +551,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment send issuer missing")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(usd, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             gateway.merge(root);
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {}, &idr),
@@ -572,13 +572,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment middle issuer missing")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(usd, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto btc = makeAsset(getAccount("missing"), "BTC");
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {btc}, &btc),
@@ -593,13 +593,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment last issuer missing")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 20);
         destination.changeTrust(usd, 20);
         gateway.pay(source, idr, 10);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             gateway2.merge(root);
             REQUIRE_THROWS_AS(
                 source.pay(destination, idr, 11, usd, 11, {}, &usd),
@@ -614,7 +614,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment not enough offers for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -645,7 +645,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 9});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -666,7 +666,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment not enough offers for middle exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -697,7 +697,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -718,7 +718,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment not enough offers for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -749,7 +749,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -770,7 +770,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses own offer for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance3);
         auto destination = root.create("destination", minBalance1);
         auto mm23 = root.create("mm23", minBalance3);
@@ -799,7 +799,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -819,7 +819,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses own offer for middle exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -849,7 +849,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -869,7 +869,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses own offer for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -899,7 +899,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(source, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -920,7 +920,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment does not cross own offer if better is available for "
             "first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance3);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -956,7 +956,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -987,7 +987,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment does not cross own offer if better is available for "
             "middle exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -1024,7 +1024,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1055,7 +1055,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment does not cross own offer if better is available for "
             "last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -1092,7 +1092,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(source, {cur4, cur3, Price{100, 99}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1122,10 +1122,10 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment over send max XLM")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance);
         auto destination = root.create("destination", minBalance);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, xlm, 10, xlm, 11, {}),
                               ex_PATH_PAYMENT_OVER_SENDMAX);
             market.requireBalances(
@@ -1136,14 +1136,14 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment over send max asset")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance1);
         source.changeTrust(idr, 10);
         destination.changeTrust(idr, 10);
         gateway.pay(source, idr, 10);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(source.pay(destination, idr, 9, idr, 10, {}),
                               ex_PATH_PAYMENT_OVER_SENDMAX);
             // clang-format off
@@ -1156,7 +1156,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment over send max with real path")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -1187,7 +1187,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
                                   [&] {
@@ -1208,17 +1208,17 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment to self XLM")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto account = root.create("account", minBalance + txfee + 20);
 
-        for_versions_to(7, app, [&] {
+        for_versions_to(7, *app, [&] {
             auto offers = account.pay(account, xlm, 20, xlm, 20, {});
             auto expected = std::vector<ClaimOfferAtom>{};
             REQUIRE(offers.success().offers == expected);
             market.requireBalances({{account, {{xlm, minBalance}}}});
         });
 
-        for_versions_from(8, app, [&] {
+        for_versions_from(8, *app, [&] {
             account.pay(account, xlm, 20, xlm, 20, {});
             market.requireBalances({{account, {{xlm, minBalance + 20}}}});
         });
@@ -1226,12 +1226,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment to self asset")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto account = root.create("account", minBalance1 + 2 * txfee);
         account.changeTrust(idr, 20);
         gateway.pay(account, idr, 10);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto offers = account.pay(account, idr, 10, idr, 10, {});
             auto expected = std::vector<ClaimOfferAtom>{};
             REQUIRE(offers.success().offers == expected);
@@ -1241,12 +1241,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment to self asset over the limit")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto account = root.create("account", minBalance1 + 2 * txfee);
         account.changeTrust(idr, 20);
         gateway.pay(account, idr, 19);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(account.pay(account, idr, 2, idr, 2, {}),
                               ex_PATH_PAYMENT_LINE_FULL);
             market.requireBalances({{account, {{idr, 19}}}});
@@ -1255,7 +1255,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses destination offer for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance4);
         auto mm23 = root.create("mm23", minBalance3);
@@ -1285,7 +1285,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1314,7 +1314,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses destination offer for middle exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance4);
         auto mm12 = root.create("mm12", minBalance3);
@@ -1344,7 +1344,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1373,7 +1373,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment crosses destination offer for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance1);
         auto destination = root.create("destination", minBalance4);
         auto mm12 = root.create("mm12", minBalance3);
@@ -1402,7 +1402,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(destination, {cur4, cur3, Price{1, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1431,7 +1431,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment uses whole best offer for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -1469,7 +1469,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 10}},
@@ -1501,7 +1501,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment uses whole best offer for second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -1539,7 +1539,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -1571,7 +1571,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment uses whole best offer for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -1609,7 +1609,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34b, {cur4, cur3, Price{2, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1641,7 +1641,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment reaches limit for offer for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -1681,7 +1681,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm12a.changeTrust(cur1, 5);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 2}},
@@ -1713,7 +1713,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment reaches limit for offer for second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -1753,7 +1753,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm23a.changeTrust(cur2, 5);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -1785,7 +1785,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment reaches limit for offer for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -1825,7 +1825,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm34a.changeTrust(cur3, 2);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -1857,7 +1857,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment missing trust line for offer for first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -1900,7 +1900,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             mm12a.pay(gateway, cur2, 40);
             mm12a.changeTrust(cur2, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1a.key, OfferState::DELETED},
@@ -1934,7 +1934,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         {
             mm12a.changeTrust(cur1, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1a.key, OfferState::DELETED},
@@ -1967,7 +1967,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment missing trust line for offer for second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2010,7 +2010,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             mm23a.pay(gateway2, cur3, 20);
             mm23a.changeTrust(cur3, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1.key, OfferState::DELETED},
@@ -2044,7 +2044,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         {
             mm23a.changeTrust(cur2, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1.key, OfferState::DELETED},
@@ -2077,7 +2077,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment missing trust line for offer for last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2120,7 +2120,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             mm34a.pay(gateway2, cur4, 10);
             mm34a.changeTrust(cur4, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1.key, OfferState::DELETED},
@@ -2154,7 +2154,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         {
             mm34a.changeTrust(cur3, 0);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto actual = std::vector<ClaimOfferAtom>{};
                 market.requireChanges(
                     {{o1.key, OfferState::DELETED},
@@ -2188,7 +2188,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment empty trust line for selling asset for offer for "
             "first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -2228,7 +2228,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm12a.pay(gateway, cur2, 40);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -2261,7 +2261,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment empty trust line for selling asset for offer for "
             "second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2301,7 +2301,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm23a.pay(gateway2, cur3, 20);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -2334,7 +2334,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment empty trust line for selling asset for offer for "
             "last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2374,7 +2374,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm34a.pay(gateway2, cur4, 10);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -2407,7 +2407,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment full trust line for buying asset for offer for "
             "first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -2447,7 +2447,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway.pay(mm12a, cur1, 200);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -2480,7 +2480,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment full trust line for buying asset for offer for "
             "second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2520,7 +2520,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway.pay(mm23a, cur2, 200);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -2553,7 +2553,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment full trust line for buying asset for offer for last "
             "exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2593,7 +2593,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway2.pay(mm34a, cur3, 200);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -2626,7 +2626,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 in trust line for selling asset for offer for "
             "first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -2666,7 +2666,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm12a.pay(gateway, cur2, 39);
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -2694,7 +2694,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 1}},
@@ -2727,7 +2727,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 in trust line for selling asset for offer for "
             "second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2767,7 +2767,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm23a.pay(gateway2, cur3, 19);
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -2795,7 +2795,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, {cur2, cur1, Price{2, 1}, 1}},
                                    {o2a.key, OfferState::DELETED},
@@ -2828,7 +2828,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 in trust line for selling asset for offer for last "
             "exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -2868,7 +2868,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         mm34a.pay(gateway2, cur4, 9);
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -2896,7 +2896,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, {cur2, cur1, Price{2, 1}, 2}},
                                    {o2.key, {cur3, cur2, Price{2, 1}, 1}},
@@ -2929,7 +2929,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 left in trust line for buying asset for offer for "
             "first exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12a = root.create("mm12a", minBalance3);
@@ -2969,7 +2969,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway.pay(mm12a, cur1, 199);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -3002,7 +3002,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 left in trust line for buying asset for offer for "
             "second exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -3042,7 +3042,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway.pay(mm23a, cur2, 199);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2a.key, OfferState::DELETED},
@@ -3075,7 +3075,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path payment 1 left in trust line for buying asset for offer for "
             "last exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12a", minBalance3);
@@ -3115,7 +3115,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         gateway2.pay(mm34a, cur3, 199);
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -3147,7 +3147,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment takes all offers, one offer per exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -3178,7 +3178,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 10});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, OfferState::DELETED},
                                    {o2.key, OfferState::DELETED},
@@ -3208,7 +3208,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment takes all offers, multiple offers per exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance5);
@@ -3257,7 +3257,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
         });
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             market.requireChanges({}, [&] {
                 REQUIRE_THROWS_AS(source.pay(destination, cur1, 45, cur4, 10,
                                              {cur1, cur2, cur3, cur4}),
@@ -3272,7 +3272,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}}});
             // clang-format on
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -3311,7 +3311,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment takes best offers, multiple offers per exchange")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance5);
@@ -3360,7 +3360,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
         });
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             market.requireChanges({}, [&] {
                 REQUIRE_THROWS_AS(source.pay(destination, cur1, 29, cur4, 8,
                                              {cur1, cur2, cur3, cur4}),
@@ -3375,7 +3375,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}}});
             // clang-format on
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 8}},
@@ -3414,7 +3414,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment uses all offers in a loop")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto source = root.create("source", minBalance4);
         auto destination = root.create("destination", minBalance1);
         auto mm12 = root.create("mm12", minBalance3);
@@ -3452,7 +3452,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             return market.addOffer(mm41, {cur1, cur4, Price{2, 1}, 1000});
         });
 
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges(
                 {{o1.key, {cur2, cur1, Price{2, 1}, 320}},
@@ -3487,7 +3487,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment with rounding errors")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto issuer = root.create("issuer", 5999999400);
         auto source = root.create("source", 1989999000);
         auto destination = root.create("destination", 499999700);
@@ -3504,7 +3504,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         });
 
         auto path = std::vector<Asset>{};
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             // bug, it should succeed
             REQUIRE_THROWS_AS(market.requireChanges(
                                   {},
@@ -3514,7 +3514,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                   }),
                               ex_PATH_PAYMENT_TOO_FEW_OFFERS);
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto sellerOfferRemaining =
                 OfferState{cny, xlm, price, 145000000 - 20000000};
             auto actual = std::vector<ClaimOfferAtom>{};
@@ -3540,12 +3540,12 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     SECTION("path with bogus offer, bogus offer shows on "
             "offers trail")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
 
         auto paymentToReceive = 240000000;
         auto offerSize = paymentToReceive / 2;
         auto initialBalance =
-            app.getLedgerManager().getMinBalance(10) + txfee * 10 + 1000000000;
+            app->getLedgerManager().getMinBalance(10) + txfee * 10 + 1000000000;
         auto mm = root.create("mm", initialBalance);
         auto source = root.create("source", initialBalance);
         auto destination = root.create("destination", initialBalance);
@@ -3570,7 +3570,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
         auto path = std::vector<Asset>{xlm, usd};
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             auto res = source.pay(destination, xlm, 8 * paymentToReceive, idr,
                                   paymentToReceive, path);
 
@@ -3581,7 +3581,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 idrCurExpensiveOffer.exchanged(120000000, 60000000)};
             REQUIRE(res.success().offers == expected);
         });
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             auto res = source.pay(destination, xlm, 8 * paymentToReceive, idr,
                                   paymentToReceive, path);
 
@@ -3596,7 +3596,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
 
     SECTION("path payment with cycle")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             // Create 3 different cycles.
             // First cycle involves 3 transaction in which
             // buying price is
@@ -3628,7 +3628,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // it greatly simplified index calculation in the
             // code.
 
-            auto market = TestMarket{app};
+            auto market = TestMarket{*app};
             auto paymentAmount = int64_t{100000000}; // amount of money that
                                                      // 'destination'
                                                      // account will receive
@@ -3641,7 +3641,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                  // as in the
             // offer because of Price{2, 1} that is
             // used in one case
-            auto txFee = app.getLedgerManager().getTxFee();
+            auto txFee = app->getLedgerManager().getTxFee();
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
             int pathSize = (int)assets.size();
@@ -3671,7 +3671,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
                 else
                 {
-                    REQUIRE(loadTrustLine(account, assets[assetIndex], app)
+                    REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
                                 ->getBalance() == initialBalance + difference);
                 }
             };

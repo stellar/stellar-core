@@ -7,6 +7,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -28,7 +29,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     Hash saved;
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -58,7 +59,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     SECTION("update")
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();

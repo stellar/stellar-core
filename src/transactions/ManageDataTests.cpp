@@ -17,8 +17,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
-
 // add data
 // change data
 // remove data
@@ -29,14 +27,14 @@ TEST_CASE("manage data", "[tx][managedata]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app{clock, cfg};
+    auto app = createTestApplication(clock, cfg);
 
-    app.start();
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
 
-    const int64_t minBalance = app.getLedgerManager().getMinBalance(3) - 100;
+    const int64_t minBalance = app->getLedgerManager().getMinBalance(3) - 100;
 
     auto gateway = root.create("gw", minBalance);
 
@@ -54,7 +52,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     std::string t3("test3");
     std::string t4("test4");
 
-    for_versions({1}, app, [&] {
+    for_versions({1}, *app, [&] {
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value),
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value),
@@ -80,7 +78,7 @@ TEST_CASE("manage data", "[tx][managedata]")
                           ex_MANAGE_DATA_NOT_SUPPORTED_YET);
     });
 
-    for_versions_from({2, 4}, app, [&] {
+    for_versions_from({2, 4}, *app, [&] {
         gateway.manageData(t1, &value);
         gateway.manageData(t2, &value);
         // try to add too much data
@@ -101,7 +99,7 @@ TEST_CASE("manage data", "[tx][managedata]")
                           ex_MANAGE_DATA_NAME_NOT_FOUND);
     });
 
-    for_versions({3}, app, [&] {
+    for_versions({3}, *app, [&] {
         REQUIRE_THROWS_AS(gateway.manageData(t1, &value), ex_txINTERNAL_ERROR);
         REQUIRE_THROWS_AS(gateway.manageData(t2, &value), ex_txINTERNAL_ERROR);
         // try to add too much data

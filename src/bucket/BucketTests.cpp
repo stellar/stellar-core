@@ -22,6 +22,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -89,7 +90,7 @@ TEST_CASE("skip list", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     class BucketManagerTest : public BucketManagerImpl
     {
@@ -187,7 +188,7 @@ TEST_CASE("bucket list", "[bucket]")
     Config const& cfg = getTestConfig();
     try
     {
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
 
         BucketList bl;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
@@ -226,7 +227,7 @@ TEST_CASE("bucket list shadowing", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     BucketList bl;
 
     // Alice and Bob change in every iteration.
@@ -300,7 +301,7 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
     Config const& cfg = getTestConfig();
     try
     {
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl1, bl2;
         autocheck::generator<std::vector<LedgerKey>> deadGen;
         CLOG(DEBUG, "Bucket")
@@ -342,7 +343,7 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
     VirtualClock clock;
     Config const& cfg = getTestConfig();
 
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     BucketList bl;
     BucketManager& bm = app->getBucketManager();
     autocheck::generator<std::vector<LedgerKey>> deadGen;
@@ -401,7 +402,7 @@ TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     autocheck::generator<LedgerKey> deadGen;
     CLOG(DEBUG, "Bucket") << "Generating 10000 random ledger entries";
@@ -436,7 +437,7 @@ TEST_CASE("merging bucket entries", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     LedgerEntry liveEntry;
     LedgerKey deadEntry;
@@ -578,7 +579,7 @@ TEST_CASE("bucketmanager ownership", "[bucket]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     std::vector<LedgerEntry> live(
         LedgerTestUtils::generateValidLedgerEntries(10));
@@ -647,7 +648,7 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
     Config const& cfg = getTestConfig();
     try
     {
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         BucketList bl;
         std::vector<stellar::LedgerKey> emptySet;
         std::vector<stellar::LedgerEntry> emptySetEntry;
@@ -749,7 +750,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     // First, run an application through two ledger closes, picking up
     // the bucket and ledger closes at each.
     {
-        Application::pointer app = Application::create(clock, cfg0);
+        Application::pointer app = createTestApplication(clock, cfg0);
         app->start();
         BucketList& bl = app->getBucketManager().getBucketList();
 
@@ -782,7 +783,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     // Next run a new app with a disjoint config one ledger close, and
     // stop it. It should have acquired the same state and ledger.
     {
-        Application::pointer app = Application::create(clock, cfg1);
+        Application::pointer app = createTestApplication(clock, cfg1);
         app->start();
         BucketList& bl = app->getBucketManager().getBucketList();
 
@@ -840,7 +841,7 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
     VirtualClock clock;
     Config cfg(getTestConfig());
     cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
 
     std::vector<stellar::LedgerKey> emptySet;
@@ -878,7 +879,7 @@ TEST_CASE("bucket apply", "[bucket]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig());
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
 
     std::vector<LedgerEntry> live(10), noLive;
@@ -920,7 +921,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
 
     std::vector<LedgerEntry> live(100000);

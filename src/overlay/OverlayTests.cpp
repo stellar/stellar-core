@@ -12,6 +12,7 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -39,8 +40,8 @@ TEST_CASE("loopback peer hello", "[overlay]")
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config const& cfg2 = getTestConfig(1);
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -56,8 +57,8 @@ TEST_CASE("loopback peer with 0 port", "[overlay]")
     auto cfg2 = getTestConfig(1);
     cfg2.PEER_PORT = 0;
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -71,8 +72,8 @@ TEST_CASE("loopback peer send auth before hello", "[overlay]")
     VirtualClock clock;
     auto const& cfg1 = getTestConfig(0);
     auto const& cfg2 = getTestConfig(1);
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->sendAuth();
@@ -87,8 +88,8 @@ TEST_CASE("failed auth", "[overlay]")
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config const& cfg2 = getTestConfig(1);
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->setDamageAuth(true);
@@ -109,8 +110,8 @@ TEST_CASE("reject non-preferred peer", "[overlay]")
 
     cfg2.PREFERRED_PEERS_ONLY = true;
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -132,8 +133,8 @@ TEST_CASE("accept preferred peer even when strict", "[overlay]")
     cfg2.PREFERRED_PEER_KEYS.push_back(
         KeyUtils::toStrKey(cfg1.NODE_SEED.getPublicKey()));
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -150,8 +151,8 @@ TEST_CASE("reject peers beyond max", "[overlay]")
 
     cfg2.MAX_PEER_CONNECTIONS = 0;
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -171,8 +172,8 @@ TEST_CASE("reject peers with differing network passphrases", "[overlay]")
 
     cfg2.NETWORK_PASSPHRASE = "nothing to see here";
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     crankSome(clock);
@@ -190,8 +191,8 @@ TEST_CASE("reject peers with invalid cert", "[overlay]")
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getAcceptor()->setDamageCert(true);
@@ -210,8 +211,8 @@ TEST_CASE("reject banned peers", "[overlay]")
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
     app1->getBanManager().banNode(cfg2.NODE_SEED.getPublicKey());
 
     LoopbackPeerConnection conn(*app1, *app2);
@@ -234,8 +235,8 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
 
         cfg2.OVERLAY_PROTOCOL_MIN_VERSION = version;
         cfg2.OVERLAY_PROTOCOL_VERSION = version;
-        auto app1 = Application::create(clock, cfg1);
-        auto app2 = Application::create(clock, cfg2);
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
 
         LoopbackPeerConnection conn(*app1, *app2);
         crankSome(clock);
@@ -262,8 +263,8 @@ TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 
     LoopbackPeerConnection conn(*app1, *app2);
     conn.getInitiator()->setCorked(true);
@@ -292,9 +293,9 @@ TEST_CASE("reject peers with the same nodeid", "[overlay]")
 
     cfg3.NODE_SEED = cfg1.NODE_SEED;
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
-    auto app3 = Application::create(clock, cfg3);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
 
     LoopbackPeerConnection conn(*app1, *app2);
     LoopbackPeerConnection conn2(*app3, *app2);
@@ -338,9 +339,9 @@ TEST_CASE("disconnect peers when overloaded", "[overlay]")
     cfg2.MINIMUM_IDLE_PERCENT = 99;
     cfg2.TARGET_PEER_CONNECTIONS = 0;
 
-    auto app1 = Application::create(clock, cfg1);
-    auto app2 = Application::create(clock, cfg2);
-    auto app3 = Application::create(clock, cfg3);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
 
     LoopbackPeerConnection conn(*app1, *app2);
     LoopbackPeerConnection conn2(*app3, *app2);

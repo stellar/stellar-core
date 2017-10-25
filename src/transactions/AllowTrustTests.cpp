@@ -19,17 +19,17 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     auto const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app{clock, cfg};
+    auto app = createTestApplication(clock, cfg);
 
-    app.start();
+    app->start();
 
     const int64_t trustLineLimit = INT64_MAX;
     const int64_t trustLineStartingBalance = 20000;
 
-    auto const minBalance2 = app.getLedgerManager().getMinBalance(2);
+    auto const minBalance2 = app->getLedgerManager().getMinBalance(2);
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
     auto gateway = root.create("gw", minBalance2);
     auto a1 = root.create("A1", minBalance2);
     auto a2 = root.create("A2", minBalance2);
@@ -38,7 +38,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("allow trust not required")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(gateway.allowTrust(idr, a1),
                               ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
             REQUIRE_THROWS_AS(gateway.denyTrust(idr, a1),
@@ -48,7 +48,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("allow trust without trustline")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             {
                 auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
                 gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
@@ -77,7 +77,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("allow trust not required with payment")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             a1.changeTrust(idr, trustLineLimit);
             gateway.pay(a1, idr, trustLineStartingBalance);
             a1.pay(gateway, idr, trustLineStartingBalance);
@@ -86,7 +86,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
 
     SECTION("allow trust required")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             {
                 auto setFlags = static_cast<uint32_t>(AUTH_REQUIRED_FLAG);
                 gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
@@ -130,14 +130,14 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     {
         SECTION("allow trust with trustline")
         {
-            for_versions_to(2, app, [&] {
+            for_versions_to(2, *app, [&] {
                 REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                   ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
                 REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
                                   ex_ALLOW_TRUST_TRUST_NOT_REQUIRED);
             });
 
-            for_versions_from(3, app, [&] {
+            for_versions_from(3, *app, [&] {
                 REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                   ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                 REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
@@ -154,13 +154,13 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
             }
             SECTION("do not set revocable flag")
             {
-                for_versions_to(2, app, [&] {
+                for_versions_to(2, *app, [&] {
                     gateway.allowTrust(idr, gateway);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
                                       ex_ALLOW_TRUST_CANT_REVOKE);
                 });
 
-                for_versions_from(3, app, [&] {
+                for_versions_from(3, *app, [&] {
                     REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),
@@ -173,12 +173,12 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
                 gateway.setOptions(nullptr, &setFlags, nullptr, nullptr,
                                    nullptr, nullptr);
 
-                for_versions_to(2, app, [&] {
+                for_versions_to(2, *app, [&] {
                     gateway.allowTrust(idr, gateway);
                     gateway.denyTrust(idr, gateway);
                 });
 
-                for_versions_from(3, app, [&] {
+                for_versions_from(3, *app, [&] {
                     REQUIRE_THROWS_AS(gateway.allowTrust(idr, gateway),
                                       ex_ALLOW_TRUST_SELF_NOT_ALLOWED);
                     REQUIRE_THROWS_AS(gateway.denyTrust(idr, gateway),

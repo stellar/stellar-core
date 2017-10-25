@@ -3,54 +3,25 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
-
-#include "herder/HerderImpl.h"
-#include "herder/LedgerCloseData.h"
 #include "util/make_unique.h"
 
 namespace stellar
 {
 
-LedgerManagerEditableVersion::LedgerManagerEditableVersion(Application& app,
-                                                           uint32_t baseFee)
-    : LedgerManagerImpl{app}, mBaseFee{baseFee}
+Application::pointer
+createTestApplication(VirtualClock& clock, Config const& cfg)
 {
-}
-
-uint32_t
-LedgerManagerEditableVersion::getCurrentLedgerVersion() const
-{
-    return mCurrentLedgerVersion;
-}
-
-void
-LedgerManagerEditableVersion::setCurrentLedgerVersion(
-    uint32_t currentLedgerVersion)
-{
-    mCurrentLedgerVersion = currentLedgerVersion;
+    auto app = Application::create(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    lm.getCurrentLedgerHeader().baseFee = cfg.DESIRED_BASE_FEE;
+    testutil::setCurrentLedgerVersion(lm, cfg.LEDGER_PROTOCOL_VERSION);
+    return app;
 }
 
 void
-LedgerManagerEditableVersion::startNewLedger()
+testutil::setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
 {
-    LedgerManagerImpl::startNewLedger(1000000000000000000, mBaseFee, 100000000,
-                                      100);
-}
-
-ApplicationEditableVersion::ApplicationEditableVersion(VirtualClock& clock,
-                                                       Config const& cfg)
-    : ApplicationImpl(clock, cfg)
-{
-    mLedgerManager =
-        make_unique<LedgerManagerEditableVersion>(*this, cfg.DESIRED_BASE_FEE);
-    mHerder = Herder::create(*this); // need to recreate
-    newDB();
-}
-
-LedgerManagerEditableVersion&
-ApplicationEditableVersion::getLedgerManager()
-{
-    return static_cast<LedgerManagerEditableVersion&>(*mLedgerManager);
+    lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
 }
 
 time_t

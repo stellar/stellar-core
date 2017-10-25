@@ -41,30 +41,30 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
 
     const uint64_t paymentAmount =
-        app.getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
+        app->getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
 
     SECTION("outer envelope")
     {
-        auto a1 = TestAccount{app, getAccount("A")};
+        auto a1 = TestAccount{*app, getAccount("A")};
         SECTION("no signature")
         {
             auto txFrame =
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures.clear();
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -75,12 +75,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].signature = Signature(32, 123);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -91,12 +91,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->getEnvelope().signatures[0].hint.fill(1);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -107,12 +107,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 root.tx({createAccount(a1.getPublicKey(), paymentAmount)});
             txFrame->addSignature(a1);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -124,12 +124,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SecretKey bogus = getAccount("bogus");
             txFrame->addSignature(bogus);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txBAD_AUTH_EXTRA);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(txFrame, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(txFrame, *app);
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
@@ -165,12 +165,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(tx, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(tx, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -185,13 +185,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(tx, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txFAILED);
                 REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(tx, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -206,8 +206,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->addSignature(s1);
             tx->addSignature(s2);
 
-            for_all_versions(app, [&] {
-                applyCheck(tx, app);
+            for_all_versions(*app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(SetOptionsOpFrame::getInnerCode(getFirstResult(*tx)) ==
                         SET_OPTIONS_SUCCESS);
@@ -231,8 +231,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 }
                 tx->addSignature(s2);
 
-                for_all_versions_except({7}, app, [&] {
-                    applyCheck(tx, app);
+                for_all_versions_except({7}, *app, [&] {
+                    applyCheck(tx, *app);
                     REQUIRE(tx->getResultCode() == expectedRes);
                 });
             };
@@ -254,7 +254,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             th2.masterWeight = make_optional<int>(0);
             root.setOptions(nullptr, nullptr, nullptr, &th2, nullptr, nullptr);
 
-            for_versions_from(8, app, [&] {
+            for_versions_from(8, *app, [&] {
                 REQUIRE_THROWS_AS(root.pay(root, 1000), ex_txBAD_AUTH);
             });
         }
@@ -267,12 +267,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             for (auto i = 0; i < 10; i++)
                 tx->addSignature(s1);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                applyCheck(tx, app);
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
-            for_versions({7}, app, [&] {
-                applyCheck(tx, app);
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
             });
         }
@@ -313,7 +313,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         {
             SECTION(alternative.name)
             {
-                for_versions_to(2, app, [&] {
+                for_versions_to(2, *app, [&] {
                     auto tx = a1.tx({payment(root, 1000)});
                     tx->getEnvelope().signatures.clear();
                     tx->getEnvelope().tx.seqNum++;
@@ -326,7 +326,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                       ex_SET_OPTIONS_BAD_SIGNER);
                 });
 
-                app.getLedgerManager().setCurrentLedgerVersion(3);
+                testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
                 SECTION("single signature")
                 {
                     SECTION("invalid seq nr")
@@ -340,13 +340,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from(3, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                     }
 
@@ -363,18 +363,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                     }
 
@@ -389,18 +389,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                     }
 
@@ -416,23 +416,23 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() ==
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.removeAfterSucces ? 0 : 1));
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                     }
 
@@ -450,17 +450,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         b1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 0);
-                        REQUIRE(getAccountSigners(b1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 0);
+                        REQUIRE(getAccountSigners(b1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from(3, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == ACCOUNT_MERGE_SUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 0);
-                            REQUIRE(!loadAccount(b1, app, false));
+                            REQUIRE(getAccountSigners(a1, *app).size() == 0);
+                            REQUIRE(!loadAccount(b1, *app, false));
                         });
                     }
 
@@ -476,15 +476,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from(3, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == stellar::PAYMENT_MALFORMED);
-                            REQUIRE(getAccountSigners(a1, app).size() == 1);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
                     }
                 }
@@ -517,18 +517,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH);
-                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                     }
 
@@ -545,19 +545,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txFAILED);
                             REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
-                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                     }
 
@@ -574,23 +574,23 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                       nullptr);
 
-                        REQUIRE(getAccountSigners(a1, app).size() == 2);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() ==
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
                                     (alternative.removeAfterSucces ? 1 : 2));
                         });
-                        for_versions({7}, app, [&] {
-                            applyCheck(tx, app);
+                        for_versions({7}, *app, [&] {
+                            applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
-                            REQUIRE(getAccountSigners(a1, app).size() == 2);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         });
                     }
                 }
@@ -599,7 +599,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     auto op = a1.op(payment(root, 100));
                     auto tx = transactionFromOperations(
-                        app, root, root.getLastSequenceNumber() + 2, {op});
+                        *app, root, root.getLastSequenceNumber() + 2, {op});
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -609,27 +609,27 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                   nullptr);
 
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
+                    REQUIRE(getAccountSigners(root, *app).size() == 1);
+                    REQUIRE(getAccountSigners(a1, *app).size() == 1);
                     alternative.sign(*tx);
 
-                    for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                        applyCheck(tx, app);
+                    for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(root, app).size() ==
+                        REQUIRE(getAccountSigners(root, *app).size() ==
                                 (alternative.removeAfterSucces ? 0 : 1));
-                        REQUIRE(getAccountSigners(a1, app).size() ==
+                        REQUIRE(getAccountSigners(a1, *app).size() ==
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
-                    for_versions({7}, app, [&] {
-                        applyCheck(tx, app);
+                    for_versions({7}, *app, [&] {
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(root, app).size() == 1);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                     });
                 }
 
@@ -638,7 +638,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 {
                     auto op = a1.op(payment(root, 100));
                     TransactionFramePtr tx = transactionFromOperations(
-                        app, root, root.getLastSequenceNumber() + 2, {op, op});
+                        *app, root, root.getLastSequenceNumber() + 2, {op, op});
                     tx->getEnvelope().signatures.clear();
 
                     SignerKey sk = alternative.createSigner(*tx);
@@ -648,27 +648,27 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
                                   nullptr);
 
-                    REQUIRE(getAccountSigners(root, app).size() == 1);
-                    REQUIRE(getAccountSigners(a1, app).size() == 1);
+                    REQUIRE(getAccountSigners(root, *app).size() == 1);
+                    REQUIRE(getAccountSigners(a1, *app).size() == 1);
                     alternative.sign(*tx);
 
-                    for_versions_from({3, 4, 5, 6, 8}, app, [&] {
-                        applyCheck(tx, app);
+                    for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(root, app).size() ==
+                        REQUIRE(getAccountSigners(root, *app).size() ==
                                 (alternative.removeAfterSucces ? 0 : 1));
-                        REQUIRE(getAccountSigners(a1, app).size() ==
+                        REQUIRE(getAccountSigners(a1, *app).size() ==
                                 (alternative.removeAfterSucces ? 0 : 1));
                     });
-                    for_versions({7}, app, [&] {
-                        applyCheck(tx, app);
+                    for_versions({7}, *app, [&] {
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
-                        REQUIRE(getAccountSigners(root, app).size() == 1);
-                        REQUIRE(getAccountSigners(a1, app).size() == 1);
+                        REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        REQUIRE(getAccountSigners(a1, *app).size() == 1);
                     });
                 }
             }
@@ -676,7 +676,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("empty X")
         {
-            app.getLedgerManager().setCurrentLedgerVersion(3);
+            testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
 
             SecretKey s1 = getAccount("S1");
             Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
@@ -700,15 +700,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             Signer sk2(sk, 5); // below low rights
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            REQUIRE(getAccountSigners(a1, app).size() == 2);
+            REQUIRE(getAccountSigners(a1, *app).size() == 2);
             tx->addSignature(SignatureUtils::signHashX(x));
 
-            for_versions_from(3, app, [&] {
-                applyCheck(tx, app);
+            for_versions_from(3, *app, [&] {
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txSUCCESS);
                 REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(*tx)) ==
                         PAYMENT_SUCCESS);
-                REQUIRE(getAccountSigners(a1, app).size() == 2);
+                REQUIRE(getAccountSigners(a1, *app).size() == 2);
             });
         }
     }
@@ -717,17 +717,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     {
         SECTION("empty batch")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 TransactionEnvelope te;
                 te.tx.sourceAccount = root.getPublicKey();
                 te.tx.fee = 1000;
                 te.tx.seqNum = root.nextSequenceNumber();
                 TransactionFramePtr tx =
-                    std::make_shared<TransactionFrame>(app.getNetworkID(), te);
+                    std::make_shared<TransactionFrame>(app->getNetworkID(), te);
                 tx->addSignature(root);
-                REQUIRE(!tx->checkValid(app, 0));
+                REQUIRE(!tx->checkValid(*app, 0));
 
-                applyCheck(tx, app);
+                applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txMISSING_OPERATION);
             });
         }
@@ -750,27 +750,27 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 SECTION("missing signature")
                 {
-                    for_versions_from({1, 2, 3, 4, 5, 6, 8}, app, [&] {
-                        REQUIRE(!tx->checkValid(app, 0));
-                        applyCheck(tx, app);
+                    for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                        REQUIRE(!tx->checkValid(*app, 0));
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
                         REQUIRE(tx->getOperations()[0]->getResultCode() ==
                                 opBAD_AUTH);
                     });
-                    for_versions({7}, app, [&] {
-                        REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, app);
+                    for_versions({7}, *app, [&] {
+                        REQUIRE(tx->checkValid(*app, 0));
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                     });
                 }
 
                 SECTION("success")
                 {
-                    for_all_versions(app, [&] {
+                    for_all_versions(*app, [&] {
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(app, 0));
-                        applyCheck(tx, app);
+                        REQUIRE(tx->checkValid(*app, 0));
+                        applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
@@ -779,7 +779,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             }
             SECTION("multiple tx")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     auto tx_a = a1.tx({payment(root, 1000)});
                     SECTION("one invalid tx")
                     {
@@ -797,18 +797,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
-                                app.getNetworkID(), tx_a->getEnvelope());
+                                app->getNetworkID(), tx_a->getEnvelope());
 
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(!tx->checkValid(app, 0));
+                        REQUIRE(!tx->checkValid(*app, 0));
 
-                        applyCheck(tx, app);
+                        applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app.getLedgerManager().getTxFee());
+                                2 * app->getLedgerManager().getTxFee());
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -831,18 +831,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
-                                app.getNetworkID(), tx_a->getEnvelope());
+                                app->getNetworkID(), tx_a->getEnvelope());
 
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(app, 0));
+                        REQUIRE(tx->checkValid(*app, 0));
 
-                        applyCheck(tx, app);
+                        applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app.getLedgerManager().getTxFee());
+                                2 * app->getLedgerManager().getTxFee());
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -864,18 +864,18 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx_a->getEnvelope().tx.fee *= 2;
                         TransactionFramePtr tx =
                             TransactionFrame::makeTransactionFromWire(
-                                app.getNetworkID(), tx_a->getEnvelope());
+                                app->getNetworkID(), tx_a->getEnvelope());
 
                         tx->getEnvelope().signatures.clear();
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(app, 0));
+                        REQUIRE(tx->checkValid(*app, 0));
 
-                        applyCheck(tx, app);
+                        applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app.getLedgerManager().getTxFee());
+                                2 * app->getLedgerManager().getTxFee());
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -888,8 +888,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             }
             SECTION("operation using default signature")
             {
-                for_all_versions(app, [&] {
-                    auto c1 = TestAccount{app, getAccount("C")};
+                for_all_versions(*app, [&] {
+                    auto c1 = TestAccount{*app, getAccount("C")};
 
                     // build a transaction:
                     //  1. B funds C
@@ -912,12 +912,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
                     tx->addSignature(c1);
 
-                    REQUIRE(tx->checkValid(app, 0));
+                    REQUIRE(tx->checkValid(*app, 0));
 
-                    applyCheck(tx, app);
+                    applyCheck(tx, *app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app.getLedgerManager().getTxFee());
+                            2 * app->getLedgerManager().getTxFee());
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(CreateAccountOpFrame::getInnerCode(
@@ -935,7 +935,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         auto a1 = root.create("A", paymentAmount);
 
         TxSetFramePtr txSet = std::make_shared<TxSetFrame>(
-            app.getLedgerManager().getLastClosedLedgerHeader().hash);
+            app->getLedgerManager().getLastClosedLedgerHeader().hash);
 
         TransactionFramePtr txFrame;
 
@@ -945,20 +945,20 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         // close this ledger
         StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
         LedgerCloseData ledgerData(1, txSet, sv);
-        app.getLedgerManager().closeLedger(ledgerData);
+        app->getLedgerManager().closeLedger(ledgerData);
 
-        REQUIRE(app.getLedgerManager().getLedgerNum() == 3);
+        REQUIRE(app->getLedgerManager().getLedgerNum() == 3);
 
         {
             SECTION("Insufficient fee")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
-                        app.getLedgerManager().getTxFee() - 1);
+                        app->getLedgerManager().getTxFee() - 1);
 
-                    applyCheck(txFrame, app);
+                    applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txINSUFFICIENT_FEE);
                 });
@@ -966,8 +966,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("duplicate payment")
             {
-                for_all_versions(app, [&] {
-                    applyCheck(txFrame, app);
+                for_all_versions(*app, [&] {
+                    applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
@@ -975,7 +975,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("time issues")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     // tx too young
                     // tx ok
                     // tx too old
@@ -990,8 +990,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(start + 1000, start + 10000);
 
-                    closeLedgerOn(app, 3, 1, 7, 2014);
-                    applyCheck(txFrame, app);
+                    closeLedgerOn(*app, 3, 1, 7, 2014);
+                    applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
 
@@ -1000,8 +1000,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start + 300000);
 
-                    closeLedgerOn(app, 4, 2, 7, 2014);
-                    applyCheck(txFrame, app);
+                    closeLedgerOn(*app, 4, 2, 7, 2014);
+                    applyCheck(txFrame, *app);
                     REQUIRE(txFrame->getResultCode() == txSUCCESS);
 
                     txFrame =
@@ -1009,19 +1009,19 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame->getEnvelope().tx.timeBounds.activate() =
                         TimeBounds(1000, start);
 
-                    closeLedgerOn(app, 5, 3, 7, 2014);
-                    applyCheck(txFrame, app);
+                    closeLedgerOn(*app, 5, 3, 7, 2014);
+                    applyCheck(txFrame, *app);
                     REQUIRE(txFrame->getResultCode() == txTOO_LATE);
                 });
             }
 
             SECTION("transaction gap")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;
-                    applyCheck(txFrame, app);
+                    applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });

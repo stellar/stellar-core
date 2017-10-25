@@ -179,17 +179,17 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
+    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                      app->getDatabase());
 
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
         auto shouldValidateOk = validationResult.code == txSUCCESS;
-        REQUIRE(tx->checkValid(app, 0) == shouldValidateOk);
+        REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
         REQUIRE(tx->getResult().result.code() == validationResult.code);
         REQUIRE(tx->getResult().feeCharged == validationResult.fee);
 
@@ -211,12 +211,12 @@ TEST_CASE("txresults", "[tx][txresults]")
         }
 
         auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-        auto applyOk = tx->apply(delta, app);
+        auto applyOk = tx->apply(delta, *app);
         REQUIRE(tx->getResult() == applyResult);
         REQUIRE(applyOk == shouldApplyOk);
     };
 
-    auto& lm = app.getLedgerManager();
+    auto& lm = app->getLedgerManager();
     auto& clh = lm.getCurrentLedgerHeader();
     clh.scpValue.closeTime = 10;
     const int64_t baseReserve = clh.baseReserve;
@@ -368,13 +368,13 @@ TEST_CASE("txresults", "[tx][txresults]")
     };
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
     auto a = root.create("a", startAmount);
     auto b = root.create("b", startAmount);
     auto c = root.create("c", startAmount);
     auto d = root.create("d", startAmount);
     auto e = root.create("e", startAmount);
-    auto f = TestAccount{app, getAccount("f")};
+    auto f = TestAccount{*app, getAccount("f")};
     auto g = root.create("g", lm.getMinBalance(0));
 
     SECTION("transaction errors")
@@ -384,7 +384,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("missing operation")
             {
                 auto tx = a.tx({});
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {0, txMISSING_OPERATION});
                 });
             }
@@ -394,7 +394,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
             }
@@ -404,7 +404,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
             }
@@ -413,7 +413,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.fee--;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee - 1, txINSUFFICIENT_FEE});
                 });
             }
@@ -421,7 +421,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("no account")
             {
                 auto tx = f.tx({payment(root, 1)});
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
                 });
             }
@@ -430,7 +430,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.seqNum++;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txBAD_SEQ});
                 });
             }
@@ -438,7 +438,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             SECTION("insufficent balance")
             {
                 auto tx = g.tx({payment(root, 1)});
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txINSUFFICIENT_BALANCE});
                 });
             }
@@ -450,7 +450,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({});
                 tx->getEnvelope().signatures.clear();
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {0, txMISSING_OPERATION});
                 });
             }
@@ -461,7 +461,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
             }
@@ -472,7 +472,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
             }
@@ -482,7 +482,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.fee--;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee - 1, txINSUFFICIENT_FEE});
                 });
             }
@@ -491,7 +491,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = f.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
                 });
             }
@@ -501,7 +501,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.seqNum++;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txBAD_SEQ});
                 });
             }
@@ -510,13 +510,13 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = g.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
-                for_versions_to(6, app, [&] {
+                for_versions_to(6, *app, [&] {
                     validate(tx, {baseFee, txBAD_AUTH});
                 });
-                for_versions({7}, app, [&] {
+                for_versions({7}, *app, [&] {
                     validate(tx, {baseFee, txINSUFFICIENT_BALANCE});
                 });
-                for_versions_from(8, app, [&] {
+                for_versions_from(8, *app, [&] {
                     validate(tx, {baseFee, txBAD_AUTH});
                 });
             }
@@ -528,7 +528,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({});
                 tx->addSignature(a);
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {0, txMISSING_OPERATION});
                 });
             }
@@ -539,7 +539,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
                     clh.scpValue.closeTime + 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
             }
@@ -550,7 +550,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
                     clh.scpValue.closeTime - 1;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
             }
@@ -560,7 +560,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.fee--;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee - 1, txINSUFFICIENT_FEE});
                 });
             }
@@ -569,7 +569,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = f.tx({payment(root, 1)});
                 tx->addSignature(a);
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txNO_ACCOUNT});
                 });
             }
@@ -579,7 +579,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.seqNum++;
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txBAD_SEQ});
                 });
             }
@@ -588,7 +588,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = g.tx({payment(root, 1)});
                 tx->addSignature(a);
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txINSUFFICIENT_BALANCE});
                 });
             }
@@ -640,11 +640,11 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto test = [&](std::vector<Signed> const& signs,
                     std::vector<PaymentValidity> const& ops) {
         auto tx = makeTx(signs, ops);
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             auto validationResult = makeValidationResult(
-                signs, ops, app.getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
             auto applyResult = makeApplyResult(
-                signs, ops, app.getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
             validate(tx, validationResult, applyResult);
         });
     };
@@ -685,7 +685,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 .tr()
                 .accountMergeResult()
                 .sourceAccountBalance() = startAmount - 1000;
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 validate(tx, {baseFee * 2, txSUCCESS}, applyResult);
             });
         }
@@ -695,7 +695,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             auto tx =
                 a.tx({payment(b, 1000), accountMerge(root), payment(c, 1000)});
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
                          expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
             });
@@ -708,7 +708,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         {
             auto tx = root.tx({createAccount(f, startAmount)});
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 validate(tx, {baseFee * 1, txSUCCESS},
                          expectedResult(baseFee * 1, 1, txSUCCESS,
                                         {CREATE_ACCOUNT_SUCCESS}));
@@ -721,7 +721,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                                a.op(payment(root, startAmount / 2))});
             tx->addSignature(a);
 
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 validate(
                     tx, {baseFee * 2, txSUCCESS},
                     expectedResult(baseFee * 2, 2, txSUCCESS,
@@ -743,7 +743,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             auto tx =
                 a.tx({payment(b, 1000), setOptions(nullptr, nullptr, nullptr,
                                                    &th, nullptr, nullptr)});
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 validate(
                     tx, {baseFee * 2, txSUCCESS},
                     expectedResult(baseFee * 2, 2, txSUCCESS,
@@ -758,19 +758,19 @@ TEST_CASE("txresults", "[tx][txresults]")
                                                    &th, nullptr, nullptr),
                       payment(c, 1000)});
 
-            for_versions_to(6, app, [&] {
+            for_versions_to(6, *app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
                          expectedResult(baseFee * 3, 3, txFAILED,
                                         {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
                                          opBAD_AUTH}));
             });
-            for_versions({7}, app, [&] {
+            for_versions({7}, *app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
                          expectedResult(baseFee * 3, 3, txSUCCESS,
                                         {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
                                          PAYMENT_SUCCESS}));
             });
-            for_versions_from(8, app, [&] {
+            for_versions_from(8, *app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},
                          expectedResult(baseFee * 3, 3, txFAILED,
                                         {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
@@ -783,15 +783,15 @@ TEST_CASE("txresults", "[tx][txresults]")
             a.setOptions(nullptr, nullptr, nullptr, &th, nullptr, nullptr);
             auto tx = a.tx({payment(b, 1000)});
 
-            for_versions_to(6, app, [&] {
+            for_versions_to(6, *app, [&] {
                 validate(tx, {baseFee * 1, txFAILED});
             });
-            for_versions({7}, app, [&] {
+            for_versions({7}, *app, [&] {
                 validate(tx, {baseFee * 1, txSUCCESS},
                          expectedResult(baseFee * 1, 1, txSUCCESS,
                                         {PAYMENT_SUCCESS}));
             });
-            for_versions_from(8, app, [&] {
+            for_versions_from(8, *app, [&] {
                 validate(tx, {baseFee * 1, txFAILED});
             });
         }

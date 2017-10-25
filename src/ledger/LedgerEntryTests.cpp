@@ -12,6 +12,7 @@
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -31,7 +32,7 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
     Config cfg(getTestConfig(0));
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
     Database& db = app->getDatabase();
 

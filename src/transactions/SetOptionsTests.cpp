@@ -33,12 +33,12 @@ TEST_CASE("set options", "[tx][setoptions]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
-    auto a1 = root.create("A", app.getLedgerManager().getMinBalance(0) + 1000);
+    auto root = TestAccount::createRoot(*app);
+    auto a1 = root.create("A", app->getLedgerManager().getMinBalance(0) + 1000);
 
     SECTION("Signers")
     {
@@ -55,7 +55,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         SECTION("insufficient balance")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, &th,
                                                 &sk1, nullptr),
                                   ex_SET_OPTIONS_LOW_RESERVE);
@@ -65,22 +65,22 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("can't use master key as alternate signer")
         {
             Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
                                                 nullptr, &sk, nullptr),
                                   ex_SET_OPTIONS_BAD_SIGNER);
             });
         }
 
-        for_versions_to(2, app, [&] {
+        for_versions_to(2, *app, [&] {
             // add some funds
-            root.pay(a1, app.getLedgerManager().getMinBalance(2));
+            root.pay(a1, app->getLedgerManager().getMinBalance(2));
 
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             {
@@ -94,7 +94,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
@@ -106,7 +106,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
@@ -122,7 +122,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk1.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
@@ -135,7 +135,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
 
@@ -143,19 +143,19 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk2.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
         });
 
-        for_versions_from(3, app, [&] {
+        for_versions_from(3, *app, [&] {
             // add some funds
-            root.pay(a1, app.getLedgerManager().getMinBalance(2));
+            root.pay(a1, app->getLedgerManager().getMinBalance(2));
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
             {
@@ -169,7 +169,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
 
@@ -179,7 +179,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk3(s3, 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 3);
             REQUIRE(a1Account->getAccount().signers.size() == 3);
 
@@ -195,7 +195,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk1.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
             REQUIRE(a1Account->getAccount().signers.size() == 2);
             Signer& a_sk2 = a1Account->getAccount().signers[0];
@@ -206,7 +206,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk3.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
             REQUIRE(a1Account->getAccount().signers.size() == 1);
 
@@ -214,7 +214,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk2.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, app);
+            a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
             REQUIRE(a1Account->getAccount().signers.size() == 0);
         });
@@ -224,7 +224,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         SECTION("Can't set and clear same flag")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 uint32_t setFlags = AUTH_REQUIRED_FLAG;
                 uint32_t clearFlags = AUTH_REQUIRED_FLAG;
                 REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
@@ -234,7 +234,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         }
         SECTION("auth flags")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 uint32_t flags;
 
                 flags = AUTH_REQUIRED_FLAG;
@@ -276,7 +276,7 @@ TEST_CASE("set options", "[tx][setoptions]")
     {
         SECTION("invalid home domain")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 std::string bad[] = {"abc\r", "abc\x7F",
                                      std::string("ab\000c", 4)};
                 for (auto& s : bad)

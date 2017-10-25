@@ -10,28 +10,13 @@
 namespace stellar
 {
 
-class LedgerManagerEditableVersion : public LedgerManagerImpl
+Application::pointer
+createTestApplication(VirtualClock& clock, Config const& cfg);
+
+namespace testutil
 {
-  public:
-    LedgerManagerEditableVersion(Application& app, uint32_t baseFee);
-
-    uint32_t getCurrentLedgerVersion() const override;
-    void setCurrentLedgerVersion(uint32_t currentLedgerVersion);
-
-    void startNewLedger() override;
-
-  private:
-    uint32_t mBaseFee;
-    uint32_t mCurrentLedgerVersion;
-};
-
-class ApplicationEditableVersion : public ApplicationImpl
-{
-  public:
-    ApplicationEditableVersion(VirtualClock& clock, Config const& cfg);
-
-    virtual LedgerManagerEditableVersion& getLedgerManager() override;
-};
+void setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion);
+}
 
 time_t getTestDate(int day, int month, int year);
 std::tm getTestDateTime(int day, int month, int year, int hour, int minute,

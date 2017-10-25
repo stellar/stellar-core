@@ -8,6 +8,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -88,7 +89,7 @@ TEST_CASE("virtual event dispatch order and times", "[timer]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
-    Application::pointer appPtr = Application::create(clock, cfg);
+    Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
 
     VirtualTimer timer1(app);
@@ -143,8 +144,8 @@ TEST_CASE("shared virtual time advances only when all apps idle",
           "[timer][sharedtimer]")
 {
     VirtualClock clock;
-    Application::pointer app1 = Application::create(clock, getTestConfig(0));
-    Application::pointer app2 = Application::create(clock, getTestConfig(1));
+    Application::pointer app1 = createTestApplication(clock, getTestConfig(0));
+    Application::pointer app2 = createTestApplication(clock, getTestConfig(1));
 
     size_t app1Event = 0;
     size_t app2Event = 0;
@@ -191,7 +192,7 @@ TEST_CASE("shared virtual time advances only when all apps idle",
 TEST_CASE("timer cancels", "[timer]")
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, getTestConfig(0));
+    Application::pointer app = createTestApplication(clock, getTestConfig(0));
 
     int timerFired = 0;
     int timerCancelled = 0;
