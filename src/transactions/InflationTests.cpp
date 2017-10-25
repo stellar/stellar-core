@@ -42,8 +42,6 @@ createTestAccounts(Application& app, int nbAccounts,
     auto& lm = app.getLedgerManager();
     auto& db = app.getDatabase();
 
-    int64 setupBalance = lm.getMinBalance(0);
-
     LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
@@ -51,11 +49,10 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            root.create(to, setupBalance);
+            root.create(to, bal);
 
             AccountFrame::pointer act;
             act = loadAccount(to.getPublicKey(), app);
-            act->getAccount().balance = bal;
             act->getAccount().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
             act->storeChange(delta, db);
@@ -198,7 +195,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     }
     LedgerManager& lm = app.getLedgerManager();
     LedgerHeader& cur = lm.getCurrentLedgerHeader();
-    cur.feePool = 10000;
+    REQUIRE(cur.feePool > 0);
 
     int64 expectedTotcoins = cur.totalCoins;
     int64 expectedFees = cur.feePool;
