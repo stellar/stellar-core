@@ -51,13 +51,13 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    CheckpointRange range, bool verifyWithBufferedLedgers,
+    LedgerRange range, bool verifyWithBufferedLedgers,
     LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
     , mDownloadDir(downloadDir)
     , mRange(range)
-    , mCurrSeq(
+    , mCurrCheckpoint(
           mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
     , mVerifyWithBufferedLedgers(verifyWithBufferedLedgers)
     , mFirstVerified(firstVerified)
@@ -90,7 +90,8 @@ VerifyLedgerChainWork::getStatus() const
     if (mState == WORK_RUNNING)
     {
         std::string task = "verifying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(),
+                           mCurrCheckpoint);
     }
     return Work::getStatus();
 }
@@ -111,14 +112,15 @@ VerifyLedgerChainWork::onReset()
     {
         mLastVerified = setLedger;
     }
-    mCurrSeq =
+    mCurrCheckpoint =
         mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
 }
 
 HistoryManager::VerifyHashStatus
 VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 {
-    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER, mCurrSeq);
+    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
+                        mCurrCheckpoint);
     XDRInputFileStream hdrIn;
     hdrIn.open(ft.localPath_nogz());
 
@@ -166,20 +168,28 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         }
         mVerifyLedgerSuccess.Mark();
         prev = curr;
+
+        if (curr.header.ledgerSeq == mRange.last())
+        {
+            break;
+        }
     }
 
-    if (curr.header.ledgerSeq != mCurrSeq)
+    if (curr.header.ledgerSeq > mCurrCheckpoint)
     {
-        CLOG(ERROR, "History") << "History chain did not end with " << mCurrSeq;
+        // If we are here the we are either trying to open non-existing file or
+        // working on an invalid file that has more entries that it should.
+        CLOG(ERROR, "History") << "History chain did not end with "
+                               << mCurrCheckpoint;
         mVerifyLedgerChainFailureEnd.Mark();
         return HistoryManager::VERIFY_HASH_BAD;
     }
 
     auto status = HistoryManager::VERIFY_HASH_OK;
-    if (mCurrSeq == mRange.last())
+    if (curr.header.ledgerSeq == mRange.last())
     {
-        CLOG(INFO, "History") << "Verifying catchup candidate " << mCurrSeq
-                              << " with LedgerManager";
+        CLOG(INFO, "History") << "Verifying catchup candidate "
+                              << curr.header.ledgerSeq << " with LedgerManager";
         status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
         if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
              status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
@@ -194,7 +204,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     if (status == HistoryManager::VERIFY_HASH_OK)
     {
         mVerifyLedgerChainSuccess.Mark();
-        if (mCurrSeq == mRange.first())
+        if (mCurrCheckpoint ==
+            mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
         {
             mFirstVerified = curr;
         }
@@ -213,7 +224,8 @@ VerifyLedgerChainWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if (mCurrSeq > mRange.last())
+    if (mCurrCheckpoint >
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.last()))
     {
         throw std::runtime_error("Verification overshot target ledger");
     }
@@ -222,14 +234,14 @@ VerifyLedgerChainWork::onSuccess()
     switch (verifyHistoryOfSingleCheckpoint())
     {
     case HistoryManager::VERIFY_HASH_OK:
-        if (mCurrSeq == mRange.last())
+        if (mLastVerified.header.ledgerSeq == mRange.last())
         {
             CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
                                   << mRange.last() << "] verified";
             return WORK_SUCCESS;
         }
 
-        mCurrSeq += mApp.getHistoryManager().getCheckpointFrequency();
+        mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
     case HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE:
         CLOG(WARNING, "History")

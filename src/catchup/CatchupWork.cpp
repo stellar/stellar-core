@@ -167,7 +167,7 @@ CatchupWork::downloadLedgers(CheckpointRange const& range)
 }
 
 bool
-CatchupWork::verifyLedgers(CheckpointRange const& range)
+CatchupWork::verifyLedgers(LedgerRange const& range)
 {
     if (mVerifyLedgersWork)
     {
@@ -306,7 +306,7 @@ CatchupWork::onSuccess()
         return WORK_PENDING;
     }
 
-    if (verifyLedgers(checkpointRange))
+    if (verifyLedgers(ledgerRange))
     {
         return WORK_PENDING;
     }

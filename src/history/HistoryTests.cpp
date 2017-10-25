@@ -851,24 +851,16 @@ HistoryTests::computeCatchupPerformedWork(
         historyArchiveStatesDownloaded++;
     }
 
-    uint32_t filesDownloaded = checkpointRange.count();
-    uint32_t ledgersVerified =
-        checkpointRange.count() * checkpointRange.frequency();
-    if (checkpointRange.first() == checkpointRange.frequency() - 1)
-    {
-        ledgersVerified--;
-    }
-    uint32_t transactionsApplied = 0;
-    if (catchupRange.second)
-    {
-        transactionsApplied =
-            catchupConfiguration.toLedger() - checkpointRange.first();
-    }
-    else
-    {
-        transactionsApplied =
-            catchupConfiguration.toLedger() - lastClosedLedger;
-    }
+    auto filesDownloaded = checkpointRange.count();
+    auto firstVerifiedLedger = std::max(
+        HistoryManager::GENESIS_LEDGER_SEQ,
+        checkpointRange.first() + 1 - historyManager.getCheckpointFrequency());
+    auto ledgersVerified =
+        catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
+    auto transactionsApplied =
+        catchupRange.second
+            ? catchupConfiguration.toLedger() - checkpointRange.first()
+            : catchupConfiguration.toLedger() - lastClosedLedger;
     return {historyArchiveStatesDownloaded,
             filesDownloaded,
             ledgersVerified,
@@ -1262,13 +1254,8 @@ TEST_CASE("persist publish queue", "[history]")
 }
 
 // The idea with this test is that we join a network and somehow get a gap
-// in the SCP voting sequence while we're trying to catchup.  This should
-// cause catchup to fail, but that failure should itself just flush the
-// ledgermanager's buffer and get kicked back into catchup mode when the
-// network moves further ahead.
-
-// (Both the hard-failure and the clear/reset weren't working when this
-// test was written)
+// in the SCP voting sequence while we're trying to catchup. This will let
+// system catchup just before the gap.
 TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
                  "[history][catchupstall]")
 {
@@ -1286,11 +1273,11 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     auto init = app2->getLedgerManager().getLastClosedLedgerNum() + 2;
     REQUIRE(init == 66);
 
-    // Now start a catchup on that _fails_ due to a gap
-    LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    REQUIRE(!catchupApplication(init, std::numeric_limits<uint32_t>::max(),
-                                false, app2, true, init + 10));
-    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 64);
+    // Now start a catchup on that catchups as far as it can due to gap
+    LOG(INFO) << "Starting catchup (with gap) from " << init;
+    REQUIRE(catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                               false, app2, true, init + 10));
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 75);
 
     app2->getWorkManager().clearChildren();
 
