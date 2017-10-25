@@ -321,12 +321,12 @@ Simulation::crankUntil(function<bool()> const& predicate,
         },
         &VirtualTimer::onFailureNoop);
 
-    checkTimer.expires_from_now(chrono::seconds(1));
+    // initial check, pre crank
+    // mostly used for getting a snapshot of the
+    // starting state and
+    // being offset by a to avoid being too synchronized with apps
+    checkTimer.expires_from_now(chrono::microseconds(100));
     checkTimer.async_wait(checkDone, &VirtualTimer::onFailureNoop);
-
-    // initial check, pre crank (mostly used for getting a snapshot of the
-    // starting state)
-    checkDone();
 
     for (;;)
     {
