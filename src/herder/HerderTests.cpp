@@ -874,7 +874,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     };
 
-    auto currentLedger = 1;
+    uint32_t currentLedger = 1;
     REQUIRE(currentValidatorLedger() == currentLedger);
     REQUIRE(currentListenerLedger() == currentLedger);
 

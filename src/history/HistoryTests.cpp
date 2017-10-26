@@ -100,14 +100,14 @@ class TmpDirConfigurator : public Configurator
 
 struct CatchupMetrics
 {
-    uint32_t mHistoryArchiveStatesDownloaded;
-    uint32_t mLedgersDownloaded;
-    uint32_t mLedgersVerified;
-    uint32_t mLedgerChainsVerificationFailed;
-    uint32_t mBucketsDownloaded;
-    uint32_t mBucketsApplied;
-    uint32_t mTransactionsDownloaded;
-    uint32_t mTransactionsApplied;
+    uint64_t mHistoryArchiveStatesDownloaded;
+    uint64_t mLedgersDownloaded;
+    uint64_t mLedgersVerified;
+    uint64_t mLedgerChainsVerificationFailed;
+    uint64_t mBucketsDownloaded;
+    uint64_t mBucketsApplied;
+    uint64_t mTransactionsDownloaded;
+    uint64_t mTransactionsApplied;
 
     CatchupMetrics()
         : mHistoryArchiveStatesDownloaded{0}
@@ -121,12 +121,12 @@ struct CatchupMetrics
     {
     }
 
-    CatchupMetrics(uint32_t historyArchiveStatesDownloaded,
-                   uint32_t ledgersDownloaded, uint32_t ledgersVerified,
-                   uint32_t ledgerChainsVerificationFailed,
-                   uint32_t bucketsDownloaded, uint32_t bucketsApplied,
-                   uint32_t transactionsDownloaded,
-                   uint32_t transactionsApplied)
+    CatchupMetrics(uint64_t historyArchiveStatesDownloaded,
+                   uint64_t ledgersDownloaded, uint64_t ledgersVerified,
+                   uint64_t ledgerChainsVerificationFailed,
+                   uint64_t bucketsDownloaded, uint64_t bucketsApplied,
+                   uint64_t transactionsDownloaded,
+                   uint64_t transactionsApplied)
         : mHistoryArchiveStatesDownloaded{historyArchiveStatesDownloaded}
         , mLedgersDownloaded{ledgersDownloaded}
         , mLedgersVerified{ledgersVerified}
@@ -157,14 +157,14 @@ struct CatchupMetrics
 
 struct CatchupPerformedWork
 {
-    uint32_t mHistoryArchiveStatesDownloaded;
-    uint32_t mLedgersDownloaded;
-    uint32_t mLedgersVerified;
-    uint32_t mLedgerChainsVerificationFailed;
+    uint64_t mHistoryArchiveStatesDownloaded;
+    uint64_t mLedgersDownloaded;
+    uint64_t mLedgersVerified;
+    uint64_t mLedgerChainsVerificationFailed;
     bool mBucketsDownloaded;
     bool mBucketsApplied;
-    uint32_t mTransactionsDownloaded;
-    uint32_t mTransactionsApplied;
+    uint64_t mTransactionsDownloaded;
+    uint64_t mTransactionsApplied;
 
     CatchupPerformedWork(CatchupMetrics const& metrics)
         : mHistoryArchiveStatesDownloaded{metrics
@@ -180,12 +180,12 @@ struct CatchupPerformedWork
     {
     }
 
-    CatchupPerformedWork(uint32_t historyArchiveStatesDownloaded,
-                         uint32_t ledgersDownloaded, uint32_t ledgersVerified,
-                         uint32_t ledgerChainsVerificationFailed,
+    CatchupPerformedWork(uint64_t historyArchiveStatesDownloaded,
+                         uint64_t ledgersDownloaded, uint64_t ledgersVerified,
+                         uint64_t ledgerChainsVerificationFailed,
                          bool bucketsDownloaded, bool bucketsApplied,
-                         uint32_t transactionsDownloaded,
-                         uint32_t transactionsApplied)
+                         uint64_t transactionsDownloaded,
+                         uint64_t transactionsApplied)
         : mHistoryArchiveStatesDownloaded{historyArchiveStatesDownloaded}
         , mLedgersDownloaded{ledgersDownloaded}
         , mLedgersVerified{ledgersVerified}
@@ -265,8 +265,8 @@ class HistoryTests
     std::shared_ptr<Configurator> mConfigurator;
     Config cfg;
     std::vector<Config> mCfgs;
-    Application::pointer appPtr;
-    Application& app;
+    Application::pointer mAppPtr;
+    Application& mApp;
 
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
@@ -294,11 +294,11 @@ class HistoryTests
                      std::make_shared<TmpDirConfigurator>())
         : mConfigurator(cg)
         , cfg(getTestConfig())
-        , appPtr(
+        , mAppPtr(
               Application::create(clock, mConfigurator->configure(cfg, true)))
-        , app(*appPtr)
+        , mApp(*mAppPtr)
     {
-        CHECK(HistoryManager::initializeHistoryArchive(app, "test"));
+        CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
     }
 
     void crankTillDone();
@@ -331,19 +331,19 @@ class HistoryTests
 void
 HistoryTests::crankTillDone()
 {
-    while (!app.getWorkManager().allChildrenDone() &&
-           !app.getClock().getIOService().stopped())
+    while (!mApp.getWorkManager().allChildrenDone() &&
+           !mApp.getClock().getIOService().stopped())
     {
-        app.getClock().crank(true);
+        mApp.getClock().crank(true);
     }
 }
 
 void
 HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 {
-    app.start();
+    mApp.start();
 
-    auto& lm = app.getLedgerManager();
+    auto& lm = mApp.getLedgerManager();
 
     // At this point LCL should be 1, current ledger should be 2
     assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
@@ -354,7 +354,7 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 
 TEST_CASE_METHOD(HistoryTests, "next checkpoint ledger", "[history]")
 {
-    HistoryManager& hm = app.getHistoryManager();
+    HistoryManager& hm = mApp.getHistoryManager();
     CHECK(hm.nextCheckpointLedger(0) == 64);
     CHECK(hm.nextCheckpointLedger(1) == 64);
     CHECK(hm.nextCheckpointLedger(32) == 64);
@@ -373,14 +373,14 @@ TEST_CASE_METHOD(HistoryTests, "next checkpoint ledger", "[history]")
 TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
 {
     std::string s = "hello there";
-    HistoryManager& hm = app.getHistoryManager();
+    HistoryManager& hm = mApp.getHistoryManager();
     std::string fname = hm.localFilename("compressme");
     {
         std::ofstream out(fname, std::ofstream::binary);
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";
-    auto& wm = app.getWorkManager();
+    auto& wm = mApp.getWorkManager();
     auto g = wm.addWork<GzipFileWork>(fname);
     wm.advanceChildren();
     crankTillDone();
@@ -401,13 +401,13 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
 
-    auto i = app.getConfig().HISTORY.find("test");
-    REQUIRE(i != app.getConfig().HISTORY.end());
+    auto i = mApp.getConfig().HISTORY.find("test");
+    REQUIRE(i != mApp.getConfig().HISTORY.end());
     auto archive = i->second;
 
     has.resolveAllFutures();
 
-    auto& wm = app.getWorkManager();
+    auto& wm = mApp.getWorkManager();
     auto put = wm.addWork<PutHistoryArchiveStateWork>(has, archive);
     wm.advanceChildren();
     crankTillDone();
@@ -425,7 +425,7 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
 void
 HistoryTests::generateRandomLedger()
 {
-    auto& lm = app.getLedgerManager();
+    auto& lm = mApp.getLedgerManager();
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
@@ -435,10 +435,10 @@ HistoryTests::generateRandomLedger()
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
 
-    auto root = TestAccount{app, getRoot(app.getNetworkID())};
-    auto alice = TestAccount{app, getAccount("alice")};
-    auto bob = TestAccount{app, getAccount("bob")};
-    auto carol = TestAccount{app, getAccount("carol")};
+    auto root = TestAccount{mApp, getRoot(mApp.getNetworkID())};
+    auto alice = TestAccount{mApp, getAccount("alice")};
+    auto bob = TestAccount{mApp, getAccount("bob")};
+    auto carol = TestAccount{mApp, getAccount("carol")};
 
     // Root sends to alice every tx, bob every other tx, carol every 4rd tx.
     txSet->add(root.tx({createAccount(alice, big)}));
@@ -482,12 +482,12 @@ HistoryTests::generateRandomLedger()
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
     mBucketListHashes.push_back(
         lm.getLastClosedLedgerHeader().header.bucketListHash);
-    mBucket0Hashes.push_back(app.getBucketManager()
+    mBucket0Hashes.push_back(mApp.getBucketManager()
                                  .getBucketList()
                                  .getLevel(0)
                                  .getCurr()
                                  ->getHash());
-    mBucket1Hashes.push_back(app.getBucketManager()
+    mBucket1Hashes.push_back(mApp.getBucketManager()
                                  .getBucketList()
                                  .getLevel(2)
                                  .getCurr()
@@ -507,8 +507,8 @@ HistoryTests::generateRandomLedger()
 void
 HistoryTests::generateAndPublishHistory(size_t nPublishes)
 {
-    auto& lm = app.getLedgerManager();
-    auto& hm = app.getHistoryManager();
+    auto& lm = mApp.getLedgerManager();
+    auto& hm = mApp.getHistoryManager();
 
     size_t publishSuccesses = hm.getPublishSuccessCount();
     SequenceNumber ledgerSeq = lm.getCurrentLedgerHeader().ledgerSeq;
@@ -528,7 +528,7 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
         while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
         {
             REQUIRE(hm.getPublishFailureCount() == 0);
-            app.getClock().crank(true);
+            mApp.getClock().crank(true);
         }
     }
 
@@ -572,7 +572,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
 {
     auto startCatchupMetrics = getCatchupMetrics(app2);
 
-    auto root = TestAccount{*app2, getRoot(app.getNetworkID())};
+    auto root = TestAccount{*app2, getRoot(mApp.getNetworkID())};
     auto alice = TestAccount{*app2, getAccount("alice")};
     auto bob = TestAccount{*app2, getAccount("bob")};
     auto carol = TestAccount{*app2, getAccount("carol")};
@@ -605,13 +605,13 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     // Push publishing side forward one-ledger into a history block if it's
     // sitting on the boundary of it. This will ensure there's something
     // externalizable to knit-up with on the catchup side.
-    if (app.getHistoryManager().nextCheckpointLedger(
-            app.getLedgerManager().getLastClosedLedgerNum()) ==
-        app.getLedgerManager().getLedgerNum())
+    if (mApp.getHistoryManager().nextCheckpointLedger(
+            mApp.getLedgerManager().getLastClosedLedgerNum()) ==
+        mApp.getLedgerManager().getLedgerNum())
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
-            << app.getLedgerManager().getLedgerNum();
+            << mApp.getLedgerManager().getLedgerNum();
         generateRandomLedger();
     }
 
@@ -622,9 +622,8 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     if (!manual)
     {
         uint32_t nextBlockStart =
-            app.getHistoryManager().nextCheckpointLedger(initLedger);
-        // use uint64_t for n to prevent overflows
-        for (uint64_t n = initLedger; n <= nextBlockStart; ++n)
+            mApp.getHistoryManager().nextCheckpointLedger(initLedger);
+        for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
         {
             // Remember the vectors count from 2, not 0.
             if (n - 2 >= mLedgerCloseDatas.size())
@@ -783,7 +782,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
         CHECK(haveCarolSeq == wantCarolSeq);
     }
 
-    app.getLedgerManager().checkDbState();
+    mApp.getLedgerManager().checkDbState();
     return true;
 }
 
@@ -792,15 +791,14 @@ HistoryTests::getCatchupMetrics(Application::pointer app)
 {
     auto& getHistoryArchiveStateSuccess = app->getMetrics().NewMeter(
         {"history", "download-history-archive-state", "success"}, "event");
-    uint32_t historyArchiveStatesDownloaded =
-        getHistoryArchiveStateSuccess.count();
+    auto historyArchiveStatesDownloaded = getHistoryArchiveStateSuccess.count();
 
     auto& downloadLedgersCached = app->getMetrics().NewMeter(
         {"history", "download-ledger", "cached"}, "event");
     auto& downloadLedgersSuccess = app->getMetrics().NewMeter(
         {"history", "download-ledger", "success"}, "event");
 
-    uint32_t ledgersDownloaded =
+    auto ledgersDownloaded =
         downloadLedgersSuccess.count() + downloadLedgersCached.count();
 
     auto& verifyLedgerSuccess = app->getMetrics().NewMeter(
@@ -808,31 +806,31 @@ HistoryTests::getCatchupMetrics(Application::pointer app)
     auto& verifyLedgerChainFailure = app->getMetrics().NewMeter(
         {"history", "verify-ledger-chain", "failure"}, "event");
 
-    uint32_t ledgersVerified = verifyLedgerSuccess.count();
-    uint32_t ledgerChainsVerificationFailed = verifyLedgerChainFailure.count();
+    auto ledgersVerified = verifyLedgerSuccess.count();
+    auto ledgerChainsVerificationFailed = verifyLedgerChainFailure.count();
 
     auto& downloadBucketSuccess = app->getMetrics().NewMeter(
         {"history", "download-bucket", "success"}, "event");
 
-    uint32_t bucketsDownloaded = downloadBucketSuccess.count();
+    auto bucketsDownloaded = downloadBucketSuccess.count();
 
     auto& bucketApplySuccess = app->getMetrics().NewMeter(
         {"history", "bucket-apply", "success"}, "event");
 
-    uint32_t bucketsApplied = bucketApplySuccess.count();
+    auto bucketsApplied = bucketApplySuccess.count();
 
     auto& downloadTransactionsCached = app->getMetrics().NewMeter(
         {"history", "download-transactions", " cached "}, "event");
     auto& downloadTransactionsSuccess = app->getMetrics().NewMeter(
         {"history", "download-transactions", "success"}, "event");
 
-    uint32_t transactionsDownloaded = downloadTransactionsSuccess.count() +
-                                      downloadTransactionsCached.count();
+    auto transactionsDownloaded = downloadTransactionsSuccess.count() +
+                                  downloadTransactionsCached.count();
 
     auto& applyLedgerSuccess = app->getMetrics().NewMeter(
         {"history", "apply-ledger", "success"}, "event");
 
-    uint32_t transactionsApplied = applyLedgerSuccess.count();
+    auto transactionsApplied = applyLedgerSuccess.count();
 
     return CatchupMetrics{
         historyArchiveStatesDownloaded, ledgersDownloaded,  ledgersVerified,
@@ -926,7 +924,7 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
 {
     generateAndPublishInitialHistory(3);
 
-    uint32_t initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    uint32_t initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     std::vector<Application::pointer> apps;
 
@@ -944,11 +942,11 @@ TEST_CASE_METHOD(HistoryTests, "Full history catchup",
     {
         for (auto count : counts)
         {
-            auto app = catchupNewApplication(initLedger, count, false, dbMode,
-                                             std::string("full, ") +
-                                                 resumeModeName(count) + ", " +
-                                                 dbModeName(dbMode));
-            apps.push_back(app);
+            auto a = catchupNewApplication(initLedger, count, false, dbMode,
+                                           std::string("full, ") +
+                                               resumeModeName(count) + ", " +
+                                               dbModeName(dbMode));
+            apps.push_back(a);
         }
     }
 }
@@ -958,7 +956,7 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
 {
     generateAndPublishInitialHistory(1);
 
-    auto& hm = app.getHistoryManager();
+    auto& hm = mApp.getHistoryManager();
 
     while (hm.getPublishQueueCount() < 4)
     {
@@ -970,16 +968,16 @@ TEST_CASE_METHOD(HistoryTests, "History publish queueing",
     while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
     {
         CHECK(hm.getPublishFailureCount() == 0);
-        app.getClock().crank(true);
+        mApp.getClock().crank(true);
     }
 
-    auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    auto initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
     auto app2 =
         catchupNewApplication(initLedger, std::numeric_limits<uint32_t>::max(),
                               false, Config::TESTDB_IN_MEMORY_SQLITE,
                               std::string("Catchup to delayed history"));
     CHECK(app2->getLedgerManager().getLedgerNum() ==
-          app.getLedgerManager().getLedgerNum());
+          mApp.getLedgerManager().getLedgerNum());
 }
 
 TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
@@ -990,21 +988,21 @@ TEST_CASE_METHOD(HistoryTests, "History prefix catchup",
 
     // First attempt catchup to 10, prefix of 64. Should round up to 64.
     // Should replay the 64th (since it gets externalized) and land on 65.
-    auto app = catchupNewApplication(
+    auto a = catchupNewApplication(
         10, std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE,
         std::string("Catchup to prefix of published history"));
-    apps.push_back(app);
+    apps.push_back(a);
     uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
-    app = catchupNewApplication(
+    a = catchupNewApplication(
         freq + 10, std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE,
         std::string("Catchup to second prefix of published history"));
-    apps.push_back(app);
+    apps.push_back(a);
     CHECK(apps.back()->getLedgerManager().getLedgerNum() == 2 * freq + 1);
 }
 
@@ -1018,7 +1016,7 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
 
     Application::pointer app2, app3;
 
-    auto& lm = app.getLedgerManager();
+    auto& lm = mApp.getLedgerManager();
 
     uint32_t initLedger = lm.getLastClosedLedgerNum();
 
@@ -1094,8 +1092,8 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
     // NB: we cannot repair lost buckets from merges-in-progress, as they're
     // not
     // necessarily _published_ anywhere.
-    HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
-                            app.getBucketManager().getBucketList());
+    HistoryArchiveState has(mApp.getLedgerManager().getLastClosedLedgerNum(),
+                            mApp.getBucketManager().getBucketList());
     has.resolveAllFutures();
     auto state = has.toString();
 
@@ -1108,7 +1106,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
 
     app2->start();
 
-    auto hash1 = appPtr->getBucketManager().getBucketList().getHash();
+    auto hash1 = mApp.getBucketManager().getBucketList().getHash();
     auto hash2 = app2->getBucketManager().getBucketList().getHash();
     CHECK(hash1 == hash2);
 }
@@ -1123,8 +1121,8 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
     // NB: we cannot repair lost buckets from merges-in-progress, as they're
     // not
     // necessarily _published_ anywhere.
-    HistoryArchiveState has(app.getLedgerManager().getLastClosedLedgerNum(),
-                            app.getBucketManager().getBucketList());
+    HistoryArchiveState has(mApp.getLedgerManager().getLastClosedLedgerNum(),
+                            mApp.getBucketManager().getBucketList());
     has.resolveAllFutures();
     auto state = has.toString();
 
@@ -1199,7 +1197,7 @@ TEST_CASE_METHOD(S3HistoryTests, "Publish/catchup via s3", "[hide][s3]")
 {
     generateAndPublishInitialHistory(3);
     auto app2 = catchupNewApplication(
-        app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
+        mApp.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
         std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE, "s3");
 }
@@ -1286,7 +1284,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Catch up successfully the first time
     auto app2 = catchupNewApplication(
-        app.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
+        mApp.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
         std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE, "app2");
 
@@ -1308,7 +1306,7 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     generateAndPublishHistory(1);
 
     // And catchup successfully
-    init = app.getLedgerManager().getLastClosedLedgerNum();
+    init = mApp.getLedgerManager().getLastClosedLedgerNum();
     caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
                                   false, app2);
     assert(caughtup);
@@ -1327,7 +1325,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
 
     // Network has published 0x3f (63), 0x7f (127) and 0xbf (191)
     // Network is currently sitting on ledger 0xc0 (192)
-    uint32_t initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    uint32_t initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     // Check that isolated catchups work at a variety of boundary
     // conditions relative to the size of a checkpoint:
@@ -1345,7 +1343,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
     // Now push network along a little bit and see that they can all still
     // catch up properly.
     generateAndPublishHistory(2);
-    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     for (auto a : apps)
     {
@@ -1356,7 +1354,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup recent", "[history][catchuprecent]")
     // still
     // catch up properly.
     generateAndPublishHistory(25);
-    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     for (auto a : apps)
     {
@@ -1373,7 +1371,7 @@ TEST_CASE_METHOD(HistoryTests, "Catchup manual", "[history][catchupmanual]")
     std::vector<Application::pointer> apps;
 
     generateAndPublishInitialHistory(6);
-    auto initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    auto initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
     REQUIRE(initLedger == 383);
 
     for (auto const& test : stellar::gCatchupRangeCases)
@@ -1384,19 +1382,19 @@ TEST_CASE_METHOD(HistoryTests, "Catchup manual", "[history][catchupmanual]")
                                 lastClosedLedger, configuration.toLedger(),
                                 configuration.count());
         // manual catchup-recent
-        auto app =
+        auto a =
             catchupNewApplication(configuration.toLedger(),
                                   configuration.count(), true, dbMode, name);
         // manual catchup-complete
         catchupApplication(initLedger, std::numeric_limits<uint32_t>::max(),
-                           true, app);
-        apps.push_back(app);
+                           true, a);
+        apps.push_back(a);
     }
 
     // Now push network along a little bit and see that they can all still
     // catch up properly.
     generateAndPublishHistory(2);
-    initLedger = app.getLedgerManager().getLastClosedLedgerNum();
+    initLedger = mApp.getLedgerManager().getLastClosedLedgerNum();
 
     for (auto a : apps)
     {

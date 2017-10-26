@@ -31,7 +31,7 @@ class QuorumSetSanityChecker
     bool mExtraChecks;
     std::set<NodeID> mKnownNodes;
     bool mIsSane;
-    int mCount{0};
+    size_t mCount{0};
 
     bool checkSanity(SCPQuorumSet const& qSet, int depth);
 };

@@ -2,9 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "herder/PendingEnvelopes.h"
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
+#include "herder/PendingEnvelopes.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
@@ -21,7 +21,6 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     VirtualClock clock;
     Application::pointer app = Application::create(clock, cfg);
 
-    auto const& networkID = app->getNetworkID();
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
     auto root = TestAccount::createRoot(*app);

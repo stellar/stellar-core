@@ -22,11 +22,8 @@ extern "C" {
 #endif // HAVE_TERMIOS
 
 #if MSVC
-#include <BaseTsd.h>
-#include <fcntl.h>
 #include <io.h>
 #define isatty _isatty
-typedef SSIZE_T ssize_t;
 #endif // MSVC
 
 namespace stellar
@@ -137,10 +134,10 @@ printtxn(const std::string& filename, bool base64)
     }
 }
 
+#if HAVE_TERMIOS
 static int
 set_echo_flag(int fd, bool flag)
 {
-#if HAVE_TERMIOS
     struct termios tios;
     if (tcgetattr(fd, &tios))
         return -1;
@@ -150,14 +147,8 @@ set_echo_flag(int fd, bool flag)
     else
         tios.c_lflag &= ~ECHO;
     return tcsetattr(fd, TCSAFLUSH, &tios) == 0 ? old : -1;
-#else  // !HAVE_TERMIOS
-    // Sorry, Windows.  Might need to use something like this:
-    // https://msdn.microsoft.com/en-us/library/ms683167(VS.85).aspx
-    // http://stackoverflow.com/questions/1413445/read-a-password-from-stdcin/1455007#1455007
-    errno = ENOSYS;
-    return -1;
-#endif // !HAVE_TERMIOS
 }
+#endif
 
 #if __GNUC__ >= 4 && __GLIBC__ >= 2
 // Realistically, if a write fails in one of these utility functions,
@@ -181,7 +172,12 @@ readSecret(const std::string& prompt, bool force_tty)
         std::getline(std::cin, ret);
         return ret;
     }
-
+#if !HAVE_TERMIOS
+    // Sorry, Windows.  Might need to use something like this:
+    // https://msdn.microsoft.com/en-us/library/ms683167(VS.85).aspx
+    // http://stackoverflow.com/questions/1413445/read-a-password-from-stdcin/1455007#1455007
+    throw std::invalid_argument("reading secrets from terminal not supported");
+#else
     struct cleanup
     {
         std::function<void()> action_;
@@ -218,6 +214,7 @@ readSecret(const std::string& prompt, bool force_tty)
     ret.assign(buf, p - buf);
     memset(buf, 0, sizeof(buf));
     return ret;
+#endif
 }
 
 void

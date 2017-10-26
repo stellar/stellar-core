@@ -24,14 +24,14 @@ struct LedgerUpgradeNode
 struct LedgerUpgradeSimulationResult
 {
     std::tm time;
-    std::vector<int> expectedLedgerProtocolVersions;
+    std::vector<uint32> expectedLedgerProtocolVersions;
 };
 
 struct LedgerUpgradeSimulation
 {
     std::vector<LedgerUpgradeNode> nodes;
     std::vector<LedgerUpgradeSimulationResult> results;
-    std::vector<int> expectedLedgerProtocolVersions;
+    std::vector<uint32> expectedLedgerProtocolVersions;
 };
 
 void

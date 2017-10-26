@@ -411,15 +411,17 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
         return;
     }
 
-    assert(getSCP().getLowSlotIndex() <= std::numeric_limits<uint32_t>::max());
-    assert(getSCP().getHighSlotIndex() <= std::numeric_limits<uint32_t>::max());
+    if (getSCP().getLowSlotIndex() > std::numeric_limits<uint32_t>::max() ||
+        getSCP().getHighSlotIndex() >= std::numeric_limits<uint32_t>::max())
+    {
+        return;
+    }
 
     auto minSeq =
         std::max(ledgerSeq, static_cast<uint32_t>(getSCP().getLowSlotIndex()));
     auto maxSeq = static_cast<uint32_t>(getSCP().getHighSlotIndex());
 
-    // use uint64_t for seq to prevent overflows
-    for (uint64_t seq = minSeq; seq <= maxSeq; seq++)
+    for (uint32_t seq = minSeq; seq <= maxSeq; seq++)
     {
         auto const& envelopes = getSCP().getCurrentState(seq);
 

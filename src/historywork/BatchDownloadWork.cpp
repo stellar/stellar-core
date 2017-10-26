@@ -129,14 +129,14 @@ BatchDownloadWork::notify(std::string const& child)
     for (auto const& d : done)
     {
         mChildren.erase(d);
-        auto i = mRunning.find(d);
-        assert(i != mRunning.end());
+        auto checkpoint = mRunning.find(d);
+        assert(checkpoint != mRunning.end());
 
         CLOG(DEBUG, "History") << "Finished download of " << mFileType
-                               << " for checkpoint " << i->second;
+                               << " for checkpoint " << checkpoint->second;
 
-        mFinished.push_back(i->second);
-        mRunning.erase(i);
+        mFinished.push_back(checkpoint->second);
+        mRunning.erase(checkpoint);
         addNextDownloadWorker();
     }
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
