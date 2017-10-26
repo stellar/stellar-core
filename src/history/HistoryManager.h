@@ -186,34 +186,12 @@ class HistoryManager
   public:
     static const uint32_t GENESIS_LEDGER_SEQ;
 
-    // Status code returned from LedgerManager::verifyCatchupCandidate. The
-    // HistoryManager's catchup algorithm downloads _untrusted_ history from a
-    // configured history archive, then (once it has done internal consistency
-    // checking of the chain of history it downloaded) calls
-    // verifyCatchupCandidate to check the validity of a proposed target ledger
-    // against the running consensus of the SCP protocol, thus turning untrusted
-    // history into trusted history.
-    //
-    // LedgerManager will return VERIFY_HASH_OK if the proposed ledger is
-    // definitely part of the consensus history chain (i.e. the ledger hash
-    // matches the consensus for the provided ledger number); VERIFY_HASH_BAD if
-    // the proposed ledger is definitely _not_ valid (i.e. if it has a different
-    // hash than the consensus ledger with its number);
-    // VERIFY_HASH_UNKNOWN_RECOVERABLE if the network consensus has not
-    // yet advanced to the proposed catchup target and
-    // VERIFY_HASH_UNKNOWN_UNRECOVERABLE if proposed target ledger was not
-    // received from network and next ledgers were received (so the probability
-    // of receiving it is extremaly low).
-    //
-    // In the first case, catchup will proceed; in the second it will fail (and
-    // restart, possibly against a different untrusted history archive); in the
-    // third it will pause and retry the query after a timeout.
+    // Status code returned from LedgerManager::verifyCatchupCandidate. Look
+    // there for additional documentation.
     enum VerifyHashStatus
     {
         VERIFY_HASH_OK,
-        VERIFY_HASH_BAD,
-        VERIFY_HASH_UNKNOWN_RECOVERABLE,
-        VERIFY_HASH_UNKNOWN_UNRECOVERABLE
+        VERIFY_HASH_BAD
     };
 
     // Select any readable history archive. If there are more than one,

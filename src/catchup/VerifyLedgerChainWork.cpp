@@ -236,12 +236,7 @@ VerifyLedgerChainWork::onSuccess()
 
         mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
-    case HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE:
-        CLOG(WARNING, "History")
-            << "Catchup material verification inconclusive, retrying";
-        return WORK_FAILURE_RETRY;
     case HistoryManager::VERIFY_HASH_BAD:
-    case HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE:
         CLOG(ERROR, "History")
             << "Catchup material failed verification, propagating failure";
         return WORK_FAILURE_FATAL;

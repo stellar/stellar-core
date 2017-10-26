@@ -30,7 +30,6 @@ class SyncingLedgerChain final
     ~SyncingLedgerChain();
 
     SyncingLedgerChainAddResult add(LedgerCloseData lcd);
-    bool hadTooNew() const;
 
     LedgerCloseData const& front() const;
     LedgerCloseData const& back() const;
@@ -41,6 +40,5 @@ class SyncingLedgerChain final
 
   private:
     storage mChain;
-    bool mHadTooNew{false};
 };
 }

@@ -477,69 +477,21 @@ LedgerManagerImpl::verifyCatchupCandidate(
     if (manualCatchup)
     {
         assert(mSyncingLedgers.empty());
-    }
-    else
-    {
-        assert(!mSyncingLedgers.empty());
-        assert(mSyncingLedgers.front().getLedgerSeq() + 1 ==
-               candidate.header.ledgerSeq);
+        CLOG(WARNING, "History")
+            << "Accepting unknown-hash ledger due to manual catchup";
+        return HistoryManager::VERIFY_HASH_OK;
     }
 
-    // This is a callback from CatchupStateMachine when it's considering whether
-    // to treat a retrieved history block as legitimate. It asks
-    // LedgerManagerImpl
-    // if it's seen (in its previous, current, or buffer of ledgers-to-close
-    // that
-    // have queued up since catchup began) whether it believes the candidate is
-    // a
-    // legitimate part of history. LedgerManagerImpl is allowed to answer
-    // "unknown"
-    // here, which causes CatchupStateMachine to pause and retry later.
+    assert(!mSyncingLedgers.empty());
+    assert(mSyncingLedgers.front().getLedgerSeq() ==
+           candidate.header.ledgerSeq + 1);
 
-    struct LedgerInfo
-    {
-        uint32 seq;
-        Hash hash;
-    };
-
-    auto infos = std::vector<LedgerInfo>{};
-    infos.push_back(
-        LedgerInfo{mLastClosedLedger.header.ledgerSeq, mLastClosedLedger.hash});
-    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq - 1,
-                               mLastClosedLedger.header.previousLedgerHash});
-    infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
-                               mCurrentLedger->mHeader.previousLedgerHash});
-
-    for (auto const& ld : mSyncingLedgers)
-    {
-        infos.push_back(LedgerInfo{ld.getLedgerSeq() - 1,
-                                   ld.getTxSet()->previousLedgerHash()});
-    }
-
-    auto matchingSequenceId =
-        std::find_if(std::begin(infos), std::end(infos),
-                     [&candidate](LedgerInfo const& info) {
-                         return info.seq == candidate.header.ledgerSeq;
-                     });
-    if (matchingSequenceId == std::end(infos))
-    {
-        if (manualCatchup)
-        {
-            CLOG(WARNING, "History")
-                << "Accepting unknown-hash ledger due to manual catchup";
-            return HistoryManager::VERIFY_HASH_OK;
-        }
-        if (mSyncingLedgers.hadTooNew())
-        {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
-        }
-        else
-        {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
-        }
-    }
-
-    if (matchingSequenceId->hash == candidate.hash)
+    // asserts dont work in release builds
+    if (!mSyncingLedgers.empty() &&
+        mSyncingLedgers.front().getLedgerSeq() ==
+            candidate.header.ledgerSeq + 1 &&
+        mSyncingLedgers.front().getTxSet()->previousLedgerHash() ==
+            candidate.hash)
     {
         return HistoryManager::VERIFY_HASH_OK;
     }
