@@ -45,6 +45,7 @@ class BatchDownloadWork : public Work
     BatchDownloadWork(Application& app, WorkParent& parent,
                       CheckpointRange range, std::string const& type,
                       TmpDir const& downloadDir);
+    ~BatchDownloadWork();
     std::string getStatus() const override;
     void onReset() override;
     void notify(std::string const& child) override;

@@ -37,6 +37,11 @@ CatchupWork::CatchupWork(Application& app, WorkParent& parent,
 {
 }
 
+CatchupWork::~CatchupWork()
+{
+    clearChildren();
+}
+
 std::string
 CatchupWork::getStatus() const
 {

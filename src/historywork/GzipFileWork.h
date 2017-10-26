@@ -18,6 +18,7 @@ class GzipFileWork : public RunCommandWork
   public:
     GzipFileWork(Application& app, WorkParent& parent,
                  std::string const& filenameNoGz, bool keepExisting = false);
+    ~GzipFileWork();
     void onReset() override;
 };
 }

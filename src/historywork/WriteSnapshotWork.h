@@ -18,6 +18,7 @@ class WriteSnapshotWork : public Work
   public:
     WriteSnapshotWork(Application& app, WorkParent& parent,
                       std::shared_ptr<StateSnapshot> snapshot);
+    ~WriteSnapshotWork();
     void onStart() override;
     void onRun() override;
 };

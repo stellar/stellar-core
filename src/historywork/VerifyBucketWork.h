@@ -30,6 +30,7 @@ class VerifyBucketWork : public Work
     VerifyBucketWork(Application& app, WorkParent& parent,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      std::string const& bucketFile, uint256 const& hash);
+    ~VerifyBucketWork();
     void onRun() override;
     void onStart() override;
     Work::State onSuccess() override;

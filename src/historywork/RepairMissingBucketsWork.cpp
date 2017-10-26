@@ -21,6 +21,11 @@ RepairMissingBucketsWork::RepairMissingBucketsWork(
 {
 }
 
+RepairMissingBucketsWork::~RepairMissingBucketsWork()
+{
+    clearChildren();
+}
+
 void
 RepairMissingBucketsWork::onReset()
 {

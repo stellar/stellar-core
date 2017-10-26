@@ -22,6 +22,11 @@ GetRemoteFileWork::GetRemoteFileWork(
 {
 }
 
+GetRemoteFileWork::~GetRemoteFileWork()
+{
+    clearChildren();
+}
+
 void
 GetRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {

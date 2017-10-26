@@ -21,6 +21,7 @@ class RepairMissingBucketsWork : public BucketDownloadWork
     RepairMissingBucketsWork(Application& app, WorkParent& parent,
                              HistoryArchiveState const& localState,
                              handler endHandler);
+    ~RepairMissingBucketsWork();
     void onReset() override;
     void onFailureRaise() override;
     Work::State onSuccess() override;

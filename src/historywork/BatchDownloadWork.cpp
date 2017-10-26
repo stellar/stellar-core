@@ -36,6 +36,11 @@ BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
 {
 }
 
+BatchDownloadWork::~BatchDownloadWork()
+{
+    clearChildren();
+}
+
 std::string
 BatchDownloadWork::getStatus() const
 {

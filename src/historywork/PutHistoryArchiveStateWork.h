@@ -23,6 +23,7 @@ class PutHistoryArchiveStateWork : public Work
     PutHistoryArchiveStateWork(Application& app, WorkParent& parent,
                                HistoryArchiveState const& state,
                                std::shared_ptr<HistoryArchive const> archive);
+    ~PutHistoryArchiveStateWork();
     void onReset() override;
     void onRun() override;
     Work::State onSuccess() override;

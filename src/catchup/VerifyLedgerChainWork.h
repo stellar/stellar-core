@@ -44,6 +44,7 @@ class VerifyLedgerChainWork : public Work
                           bool verifyWithBufferedLedgers,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
+    ~VerifyLedgerChainWork();
     std::string getStatus() const override;
     void onReset() override;
     Work::State onSuccess() override;

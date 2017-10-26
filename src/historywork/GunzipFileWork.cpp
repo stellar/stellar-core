@@ -19,6 +19,11 @@ GunzipFileWork::GunzipFileWork(Application& app, WorkParent& parent,
     fs::checkGzipSuffix(mFilenameGz);
 }
 
+GunzipFileWork::~GunzipFileWork()
+{
+    clearChildren();
+}
+
 void
 GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {

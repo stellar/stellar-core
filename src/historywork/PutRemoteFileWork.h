@@ -22,5 +22,6 @@ class PutRemoteFileWork : public RunCommandWork
     PutRemoteFileWork(Application& app, WorkParent& parent,
                       std::string const& remote, std::string const& local,
                       std::shared_ptr<HistoryArchive const> archive);
+    ~PutRemoteFileWork();
 };
 }

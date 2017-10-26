@@ -22,6 +22,11 @@ GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
 {
 }
 
+GetAndUnzipRemoteFileWork::~GetAndUnzipRemoteFileWork()
+{
+    clearChildren();
+}
+
 std::string
 GetAndUnzipRemoteFileWork::getStatus() const
 {

@@ -27,6 +27,7 @@ NtpSynchronizationChecker::NtpSynchronizationChecker(Application& app,
 
 NtpSynchronizationChecker::~NtpSynchronizationChecker()
 {
+    clearChildren();
 }
 
 void

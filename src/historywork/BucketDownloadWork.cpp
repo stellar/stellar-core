@@ -23,6 +23,7 @@ BucketDownloadWork::BucketDownloadWork(Application& app, WorkParent& parent,
 
 BucketDownloadWork::~BucketDownloadWork()
 {
+    clearChildren();
 }
 
 void

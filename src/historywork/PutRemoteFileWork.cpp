@@ -20,6 +20,11 @@ PutRemoteFileWork::PutRemoteFileWork(
     assert(mArchive->hasPutCmd());
 }
 
+PutRemoteFileWork::~PutRemoteFileWork()
+{
+    clearChildren();
+}
+
 void
 PutRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {

@@ -18,6 +18,11 @@ MakeRemoteDirWork::MakeRemoteDirWork(
     assert(mArchive);
 }
 
+MakeRemoteDirWork::~MakeRemoteDirWork()
+{
+    clearChildren();
+}
+
 void
 MakeRemoteDirWork::getCommand(std::string& cmdLine, std::string& outFile)
 {

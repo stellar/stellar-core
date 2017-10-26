@@ -15,6 +15,11 @@ RunCommandWork::RunCommandWork(Application& app, WorkParent& parent,
 {
 }
 
+RunCommandWork::~RunCommandWork()
+{
+    clearChildren();
+}
+
 void
 RunCommandWork::onStart()
 {

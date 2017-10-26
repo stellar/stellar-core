@@ -24,6 +24,11 @@ PublishWork::PublishWork(Application& app, WorkParent& parent,
 {
 }
 
+PublishWork::~PublishWork()
+{
+    clearChildren();
+}
+
 std::string
 PublishWork::getStatus() const
 {

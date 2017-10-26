@@ -36,6 +36,7 @@ class GetHistoryArchiveStateWork : public Work
         VirtualClock::duration const& intitialDelay = std::chrono::seconds(0),
         std::shared_ptr<HistoryArchive const> archive = nullptr,
         size_t maxRetries = Work::RETRY_A_FEW);
+    ~GetHistoryArchiveStateWork();
     std::string getStatus() const override;
     VirtualClock::duration getRetryDelay() const override;
     void onReset() override;

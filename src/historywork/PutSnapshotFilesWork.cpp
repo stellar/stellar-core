@@ -26,6 +26,11 @@ PutSnapshotFilesWork::PutSnapshotFilesWork(
 {
 }
 
+PutSnapshotFilesWork::~PutSnapshotFilesWork()
+{
+    clearChildren();
+}
+
 void
 PutSnapshotFilesWork::onReset()
 {
