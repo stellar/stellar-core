@@ -179,7 +179,7 @@ CatchupWork::verifyLedgers(LedgerRange const& range)
         << "Catchup verifying ledger chain for checkpointRange ["
         << range.first() << ".." << range.last() << "]";
     mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-        *mDownloadDir, range, !mManualCatchup, mFirstVerified, mLastVerified);
+        *mDownloadDir, range, mManualCatchup, mFirstVerified, mLastVerified);
 
     return true;
 }

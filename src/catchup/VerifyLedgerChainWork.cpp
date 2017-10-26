@@ -51,7 +51,7 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
     Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    LedgerRange range, bool verifyWithBufferedLedgers,
+    LedgerRange range, bool manualCatchup,
     LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
     : Work(app, parent, "verify-ledger-chain")
@@ -59,7 +59,7 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
     , mRange(range)
     , mCurrCheckpoint(
           mApp.getHistoryManager().checkpointContainingLedger(mRange.first()))
-    , mVerifyWithBufferedLedgers(verifyWithBufferedLedgers)
+    , mManualCatchup(manualCatchup)
     , mFirstVerified(firstVerified)
     , mLastVerified(lastVerified)
     , mVerifyLedgerSuccessOld(app.getMetrics().NewMeter(
@@ -190,15 +190,8 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     {
         CLOG(INFO, "History") << "Verifying catchup candidate "
                               << curr.header.ledgerSeq << " with LedgerManager";
-        status = mApp.getLedgerManager().verifyCatchupCandidate(curr);
-        if ((status == HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE ||
-             status == HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE) &&
-            !mVerifyWithBufferedLedgers)
-        {
-            CLOG(WARNING, "History")
-                << "Accepting unknown-hash ledger due to manual catchup";
-            status = HistoryManager::VERIFY_HASH_OK;
-        }
+        status = mApp.getLedgerManager().verifyCatchupCandidate(curr,
+                                                                mManualCatchup);
     }
 
     if (status == HistoryManager::VERIFY_HASH_OK)

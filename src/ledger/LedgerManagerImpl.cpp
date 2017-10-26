@@ -472,7 +472,7 @@ LedgerManagerImpl::startCatchUp(CatchupConfiguration configuration,
 
 HistoryManager::VerifyHashStatus
 LedgerManagerImpl::verifyCatchupCandidate(
-    LedgerHeaderHistoryEntry const& candidate) const
+    LedgerHeaderHistoryEntry const& candidate, bool manualCatchup) const
 {
     // This is a callback from CatchupStateMachine when it's considering whether
     // to treat a retrieved history block as legitimate. It asks
@@ -512,6 +512,12 @@ LedgerManagerImpl::verifyCatchupCandidate(
                      });
     if (matchingSequenceId == std::end(infos))
     {
+        if (manualCatchup)
+        {
+            CLOG(WARNING, "History")
+                << "Accepting unknown-hash ledger due to manual catchup";
+            return HistoryManager::VERIFY_HASH_OK;
+        }
         if (mSyncingLedgers.hadTooNew())
         {
             return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;

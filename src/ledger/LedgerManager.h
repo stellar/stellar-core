@@ -154,8 +154,12 @@ class LedgerManager
     // sequence number but _different_ hash; and VERIFY_HASH_UNKNOWN if no
     // ledger has been received from SCP yet with the proposed ledger sequence
     // number.
+    //
+    // If manualCatchup is true it returns VERIFY_HASH_OK instead of
+    // VERIFY_HASH_UNKNOWN.
     virtual HistoryManager::VerifyHashStatus
-    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const = 0;
+    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&,
+                           bool manualCatchup) const = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

@@ -24,7 +24,7 @@ class VerifyLedgerChainWork : public Work
     TmpDir const& mDownloadDir;
     LedgerRange mRange;
     uint32_t mCurrCheckpoint;
-    bool mVerifyWithBufferedLedgers;
+    bool mManualCatchup;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
@@ -41,7 +41,7 @@ class VerifyLedgerChainWork : public Work
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
                           TmpDir const& downloadDir, LedgerRange range,
-                          bool verifyWithBufferedLedgers,
+                          bool manualCatchup,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     ~VerifyLedgerChainWork();
