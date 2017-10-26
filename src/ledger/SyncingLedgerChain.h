@@ -32,7 +32,9 @@ class SyncingLedgerChain final
     SyncingLedgerChainAddResult add(LedgerCloseData lcd);
     bool hadTooNew() const;
 
+    LedgerCloseData const& front() const;
     LedgerCloseData const& back() const;
+    bool empty() const;
     size_type size() const;
     const_iterator begin() const;
     const_iterator end() const;

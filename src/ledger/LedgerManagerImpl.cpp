@@ -474,6 +474,17 @@ HistoryManager::VerifyHashStatus
 LedgerManagerImpl::verifyCatchupCandidate(
     LedgerHeaderHistoryEntry const& candidate, bool manualCatchup) const
 {
+    if (manualCatchup)
+    {
+        assert(mSyncingLedgers.empty());
+    }
+    else
+    {
+        assert(!mSyncingLedgers.empty());
+        assert(mSyncingLedgers.front().getLedgerSeq() + 1 ==
+               candidate.header.ledgerSeq);
+    }
+
     // This is a callback from CatchupStateMachine when it's considering whether
     // to treat a retrieved history block as legitimate. It asks
     // LedgerManagerImpl

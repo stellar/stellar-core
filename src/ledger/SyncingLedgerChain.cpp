@@ -38,9 +38,21 @@ SyncingLedgerChain::hadTooNew() const
 }
 
 LedgerCloseData const&
+SyncingLedgerChain::front() const
+{
+    return mChain.front();
+}
+
+LedgerCloseData const&
 SyncingLedgerChain::back() const
 {
     return mChain.back();
+}
+
+bool
+SyncingLedgerChain::empty() const
+{
+    return mChain.empty();
 }
 
 SyncingLedgerChain::size_type
