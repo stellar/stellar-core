@@ -15,6 +15,8 @@
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "simulation/Benchmark.h"
+#include "simulation/BenchmarkExecutor.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
@@ -393,6 +395,53 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
     {
         retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
                  "the stellar-core.cfg if you want this behavior";
+    }
+}
+
+void
+CommandHandler::benchmark(std::string const& params, std::string& retStr)
+{
+    if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        uint32_t nAccounts = 1000000;
+        uint32_t txRate = 1000;
+        uint32_t duration = 60 * 10;
+
+        std::map<std::string, std::string> map;
+        http::server::server::parseParams(params, map);
+
+        if (!parseNumParam(map, "accounts", nAccounts, retStr,
+                           Requirement::OPTIONAL_REQ))
+        {
+            retStr = "Invalid value for the parameter 'accounts'";
+            return;
+        }
+
+        if (!parseNumParam(map, "txrate", txRate, retStr,
+                           Requirement::OPTIONAL_REQ))
+        {
+            retStr = "Invalid value for the parameter 'txrate'";
+            return;
+        }
+
+        if (!parseNumParam(map, "duration", duration, retStr, Requirement::OPTIONAL_REQ))
+        {
+            retStr = "Invalid value for the parameter 'duration'";
+            return;
+        }
+
+        auto benchmark = std::make_shared<Benchmark>(mApp.getNetworkID(), nAccounts, txRate);
+        BenchmarkExecutor executor;
+        executor.executeBenchmark(mApp, benchmark, std::chrono::seconds(duration));
+
+        retStr = fmt::format(
+            "Benchmark of stellar-core: {:d} accounts, {:d} txrate, {:d} minutes",
+            nAccounts, txRate, duration);
+    }
+    else
+    {
+        retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
+            "the stellar-core.cfg if you want this behavior";
     }
 }
 

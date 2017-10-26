@@ -36,6 +36,7 @@ class CommandHandler
     void dropcursor(std::string const& params, std::string& retStr);
     void dropPeer(std::string const& params, std::string& retStr);
     void generateLoad(std::string const& params, std::string& retStr);
+    void benchmark(std::string const& params, std::string& retStr);
     void info(std::string const& params, std::string& retStr);
     void ll(std::string const& params, std::string& retStr);
     void logRotate(std::string const& params, std::string& retStr);

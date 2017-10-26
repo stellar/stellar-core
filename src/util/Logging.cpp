@@ -23,8 +23,9 @@ namespace
 {
 
 static const std::vector<std::string> kLoggers = {
-    "Fs",      "SCP",    "Bucket", "Database", "History", "Process",  "Ledger",
-    "Overlay", "Herder", "Tx",     "LoadGen",  "Work",    "Invariant"};
+    "Fs",      "SCP",    "Bucket",    "Database", "History",
+    "Process", "Ledger", "Overlay",   "Herder",   "Tx",
+    "LoadGen", "Work",   "Invariant", "Benchmark"};
 }
 
 el::Configurations Logging::gDefaultConf;
