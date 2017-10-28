@@ -175,12 +175,15 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         }
     }
 
-    if (curr.header.ledgerSeq > mCurrCheckpoint)
+    if (curr.header.ledgerSeq != mCurrCheckpoint &&
+        curr.header.ledgerSeq != mRange.last())
     {
-        // If we are here the we are either trying to open non-existing file or
-        // working on an invalid file that has more entries that it should.
+        // We can end at mCurrCheckpoint if history chain file was valid
+        // Or we can end at mRange.last() if history chain file was valid and we
+        // reached last ledger that we should check.
+        // Any other ledger here means that file is corrupted.
         CLOG(ERROR, "History") << "History chain did not end with "
-                               << mCurrCheckpoint;
+                               << mCurrCheckpoint << " or " << mRange.last();
         mVerifyLedgerChainFailureEnd.Mark();
         return HistoryManager::VERIFY_HASH_BAD;
     }
