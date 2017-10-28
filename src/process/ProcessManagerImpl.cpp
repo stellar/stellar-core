@@ -396,7 +396,6 @@ ProcessExitEvent::Impl::run()
         argv.push_back((char*)a.data());
     }
     argv.push_back(nullptr);
-    char* env[1] = {nullptr};
     int pid, err = 0;
 
     posix_spawn_file_actions_t fileActions;
@@ -423,7 +422,7 @@ ProcessExitEvent::Impl::run()
 
     err = posix_spawnp(&pid, argv[0], mOutFile.empty() ? nullptr : &fileActions,
                        nullptr, // posix_spawnattr_t*
-                       argv.data(), env);
+                       argv.data(), environ);
     if (err)
     {
         CLOG(ERROR, "Process") << "posix_spawn() failed: " << strerror(err);
