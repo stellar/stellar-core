@@ -110,8 +110,16 @@ NominationProtocol::isSane(SCPStatement const& st)
     auto const& nom = st.pledges.nominate();
     bool res = (nom.votes.size() + nom.accepted.size()) != 0;
 
-    res = res && std::is_sorted(nom.votes.begin(), nom.votes.end());
-    res = res && std::is_sorted(nom.accepted.begin(), nom.accepted.end());
+    res = res && (std::adjacent_find(
+                      nom.votes.begin(), nom.votes.end(),
+                      [](stellar::Value const& l, stellar::Value const& r) {
+                          return !(l < r);
+                      }) == nom.votes.end());
+    res = res && (std::adjacent_find(
+                      nom.accepted.begin(), nom.accepted.end(),
+                      [](stellar::Value const& l, stellar::Value const& r) {
+                          return !(l < r);
+                      }) == nom.accepted.end());
 
     return res;
 }
