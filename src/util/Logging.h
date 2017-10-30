@@ -9,6 +9,7 @@
 #define ELPP_NO_DEFAULT_LOG_FILE
 #define ELPP_FEATURE_PERFORMANCE_TRACKING
 #define ELPP_NO_CHECK_MACROS
+#define ELPP_WINSOCK2
 
 // NOTE: Nothing else should include easylogging directly
 //  include this file instead
