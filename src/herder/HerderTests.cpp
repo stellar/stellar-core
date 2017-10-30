@@ -882,18 +882,19 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
     // externalize a few ledgers
     waitForLedgers(FEW_LEDGERS);
-    // validator gets extra ledger
-    currentLedger += (FEW_LEDGERS + 1);
+    currentLedger += FEW_LEDGERS;
 
     REQUIRE(currentValidatorLedger() == currentLedger);
-    REQUIRE(currentListenerLedger() >= currentLedger - 1);
+    REQUIRE(currentListenerLedger() == currentLedger);
 
     // disconnect listener
     simulation->dropConnection(validatorKey.getPublicKey(),
                                listenerKey.getPublicKey());
 
-    auto static const SMALL_GAP = Herder::MAX_SLOTS_TO_REMEMBER;
-    auto static const BIG_GAP = Herder::MAX_SLOTS_TO_REMEMBER + 1;
+    // SMALL_GAP happens to be the the maximum number of ledgers
+    // that are kept in memory
+    auto static const SMALL_GAP = Herder::MAX_SLOTS_TO_REMEMBER + 1;
+    auto static const BIG_GAP = SMALL_GAP + 1;
 
     auto beforeGap = currentLedger;
 
@@ -901,8 +902,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     {
         // externalize few more ledgers
         waitForLedgersOnValidator(SMALL_GAP);
-        // validator gets extra ledger
-        currentLedger += (SMALL_GAP + 1);
+        currentLedger += SMALL_GAP;
 
         REQUIRE(currentValidatorLedger() == currentLedger);
         // listener finally externalizes last ledger before gap
@@ -914,19 +914,17 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
         // now listener should catchup to validator without remote history
         waitForLedgers(FEW_LEDGERS);
-        // validator gets extra ledger
-        currentLedger += (FEW_LEDGERS + 1);
+        currentLedger += FEW_LEDGERS;
 
         REQUIRE(currentValidatorLedger() == currentLedger);
-        REQUIRE(currentListenerLedger() >= currentLedger - 1);
+        REQUIRE(currentListenerLedger() == currentLedger);
     }
 
     SECTION("does not work when gap is big")
     {
         // externalize few more ledgers
         waitForLedgersOnValidator(BIG_GAP);
-        // validator gets extra ledger
-        currentLedger += (BIG_GAP + 1);
+        currentLedger += BIG_GAP;
 
         REQUIRE(currentValidatorLedger() == currentLedger);
         // listener finally externalizes last ledger before gap
@@ -941,7 +939,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
         // "No GET-enabled history archive in config"
         REQUIRE_THROWS_AS(waitForLedgers(FEW_LEDGERS), std::runtime_error);
         // validator is at least here
-        currentLedger += (FEW_LEDGERS + 1);
+        currentLedger += FEW_LEDGERS;
 
         REQUIRE(currentValidatorLedger() >= currentLedger);
         REQUIRE(currentListenerLedger() == beforeGap);
