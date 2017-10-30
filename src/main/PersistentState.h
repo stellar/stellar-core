@@ -22,6 +22,7 @@ class PersistentState
         kForceSCPOnNextLaunch,
         kLastSCPData,
         kDatabaseSchema,
+        kNetworkPassphrase,
         kLastEntry,
     };
 
