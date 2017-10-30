@@ -27,20 +27,25 @@ SyncingLedgerChain::add(LedgerCloseData lcd)
         return SyncingLedgerChainAddResult::TOO_OLD;
     }
 
-    mHadTooNew = true;
     return SyncingLedgerChainAddResult::TOO_NEW;
 }
 
-bool
-SyncingLedgerChain::hadTooNew() const
+LedgerCloseData const&
+SyncingLedgerChain::front() const
 {
-    return mHadTooNew;
+    return mChain.front();
 }
 
 LedgerCloseData const&
 SyncingLedgerChain::back() const
 {
     return mChain.back();
+}
+
+bool
+SyncingLedgerChain::empty() const
+{
+    return mChain.empty();
 }
 
 SyncingLedgerChain::size_type

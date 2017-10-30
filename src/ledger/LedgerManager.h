@@ -145,17 +145,22 @@ class LedgerManager
 
     // Called by the history subsystem during catchup: this method asks the
     // LedgerManager whether or not the HistoryManager should trust (thus: begin
-    // applying history that terminates in) a candidate LCL.
+    // applying history that terminates in) a candidate LCL. Trust is based on
+    // local buffer in which LedgerManager accumulates SCP consensus results
+    // during catchup
     //
-    // The LedgerManager consults a local buffer in which it accumulates SCP
-    // consensus results during catchup, and returns VERIFY_HASH_OK if the
-    // proposed ledger is a (trusted) member of that consensus buffer;
-    // VERIFY_HASH_BAD if a buffered consensus ledger exists with the same
-    // sequence number but _different_ hash; and VERIFY_HASH_UNKNOWN if no
-    // ledger has been received from SCP yet with the proposed ledger sequence
-    // number.
+    // If catchup is manual then that buffer is empty, and VERIFY_HASH_OK is
+    // returned.
+    //
+    // Otherwise LedgerManager returns VERIFY_HASH_OK if the proposed ledger is
+    // a first member of that buffer (and has matching hash). VERIFY_HASH_BAD
+    // is returned otherwise.
+    //
+    // If first member of consensus buffer has different sequnce than candidate
+    // then we have error in code and stellar-core is aborted.
     virtual HistoryManager::VerifyHashStatus
-    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const = 0;
+    verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate,
+                           bool manualCatchup) const = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

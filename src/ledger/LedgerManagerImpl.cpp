@@ -407,10 +407,12 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                                  << ledgerData.getLedgerSeq()
                                  << " buffered, starting catchup";
 
-            auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                                  ledgerData.getLedgerSeq()) -
-                              1;
-            startCatchUp({initLedger, getCatchupCount(mApp)}, false);
+            // catchup just before first buffered ledger
+            // that way we will have a way to verify history consistency -
+            // compare previousLedgerHash of buffered ledger with last one
+            // downloaded from history
+            startCatchUp({ledgerData.getLedgerSeq() - 1, getCatchupCount(mApp)},
+                         false);
         }
         break;
 
@@ -470,57 +472,26 @@ LedgerManagerImpl::startCatchUp(CatchupConfiguration configuration,
 
 HistoryManager::VerifyHashStatus
 LedgerManagerImpl::verifyCatchupCandidate(
-    LedgerHeaderHistoryEntry const& candidate) const
+    LedgerHeaderHistoryEntry const& candidate, bool manualCatchup) const
 {
-    // This is a callback from CatchupStateMachine when it's considering whether
-    // to treat a retrieved history block as legitimate. It asks
-    // LedgerManagerImpl
-    // if it's seen (in its previous, current, or buffer of ledgers-to-close
-    // that
-    // have queued up since catchup began) whether it believes the candidate is
-    // a
-    // legitimate part of history. LedgerManagerImpl is allowed to answer
-    // "unknown"
-    // here, which causes CatchupStateMachine to pause and retry later.
-
-    struct LedgerInfo
+    if (manualCatchup)
     {
-        uint32 seq;
-        Hash hash;
-    };
-
-    auto infos = std::vector<LedgerInfo>{};
-    infos.push_back(
-        LedgerInfo{mLastClosedLedger.header.ledgerSeq, mLastClosedLedger.hash});
-    infos.push_back(LedgerInfo{mLastClosedLedger.header.ledgerSeq - 1,
-                               mLastClosedLedger.header.previousLedgerHash});
-    infos.push_back(LedgerInfo{mCurrentLedger->mHeader.ledgerSeq - 1,
-                               mCurrentLedger->mHeader.previousLedgerHash});
-
-    for (auto const& ld : mSyncingLedgers)
-    {
-        infos.push_back(LedgerInfo{ld.getLedgerSeq() - 1,
-                                   ld.getTxSet()->previousLedgerHash()});
+        assert(mSyncingLedgers.empty());
+        CLOG(WARNING, "History")
+            << "Accepting unknown-hash ledger due to manual catchup";
+        return HistoryManager::VERIFY_HASH_OK;
     }
 
-    auto matchingSequenceId =
-        std::find_if(std::begin(infos), std::end(infos),
-                     [&candidate](LedgerInfo const& info) {
-                         return info.seq == candidate.header.ledgerSeq;
-                     });
-    if (matchingSequenceId == std::end(infos))
-    {
-        if (mSyncingLedgers.hadTooNew())
-        {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_UNRECOVERABLE;
-        }
-        else
-        {
-            return HistoryManager::VERIFY_HASH_UNKNOWN_RECOVERABLE;
-        }
-    }
+    assert(!mSyncingLedgers.empty());
+    assert(mSyncingLedgers.front().getLedgerSeq() ==
+           candidate.header.ledgerSeq + 1);
 
-    if (matchingSequenceId->hash == candidate.hash)
+    // asserts dont work in release builds
+    if (!mSyncingLedgers.empty() &&
+        mSyncingLedgers.front().getLedgerSeq() ==
+            candidate.header.ledgerSeq + 1 &&
+        mSyncingLedgers.front().getTxSet()->previousLedgerHash() ==
+            candidate.hash)
     {
         return HistoryManager::VERIFY_HASH_OK;
     }
@@ -628,7 +599,6 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
 
                 assert(lcd.getLedgerSeq() >
                        mLastClosedLedger.header.ledgerSeq + 1);
-                auto const& lastBuffered = mSyncingLedgers.back();
                 CLOG(ERROR, "Ledger")
                     << "Catchup failed to buffer contiguous ledger chain";
                 CLOG(ERROR, "Ledger")
@@ -636,15 +606,10 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                     << ", trying to apply buffered close " << lcd.getLedgerSeq()
                     << " with txhash "
                     << hexAbbrev(lcd.getTxSet()->getContentsHash());
-                CLOG(ERROR, "Ledger")
-                    << "Flushing buffer and restarting at ledger "
-                    << lastBuffered.getLedgerSeq();
                 mSyncingLedgers = {};
                 mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                auto initLedger = mApp.getHistoryManager().nextCheckpointLedger(
-                                      lastBuffered.getLedgerSeq()) -
-                                  1;
-                startCatchUp({initLedger, getCatchupCount(mApp)}, false);
+                CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
+                setState(LM_BOOTING_STATE);
                 return;
             }
         }

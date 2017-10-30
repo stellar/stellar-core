@@ -346,8 +346,8 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
     auto& lm = mApp.getLedgerManager();
 
     // At this point LCL should be 1, current ledger should be 2
-    assert(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
-    assert(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
+    REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == 2);
 
     generateAndPublishHistory(nPublishes);
 }
@@ -578,13 +578,10 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     auto carol = TestAccount{*app2, getAccount("carol")};
 
     auto& lm = app2->getLedgerManager();
-    auto toLedger =
-        manual ? initLedger
-               : app2->getHistoryManager().nextCheckpointLedger(initLedger) - 1;
     if (doStart)
     {
-        // Normally Herder calls LedgerManager.externalizeValue(initLedger) and
-        // this _triggers_ catchup within the LM. However, we do this
+        // Normally Herder calls LedgerManager.externalizeValue(initLedger + 1)
+        // and this _triggers_ catchup within the LM. However, we do this
         // out-of-order because we want to control the catchup mode rather than
         // let the LM pick it, and because we want to simulate a 1-ledger skew
         // between the publishing side and the catchup side so that the catchup
@@ -599,7 +596,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
         CLOG(INFO, "History") << "force-starting catchup at initLedger="
                               << initLedger;
 
-        lm.startCatchUp({toLedger, count}, manual);
+        lm.startCatchUp({initLedger, count}, manual);
     }
 
     // Push publishing side forward one-ledger into a history block if it's
@@ -623,7 +620,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     {
         uint32_t nextBlockStart =
             mApp.getHistoryManager().nextCheckpointLedger(initLedger);
-        for (uint32_t n = initLedger; n <= nextBlockStart; ++n)
+        for (uint32_t n = initLedger + 1; n <= nextBlockStart; ++n)
         {
             // Remember the vectors count from 2, not 0.
             if (n - 2 >= mLedgerCloseDatas.size())
@@ -649,9 +646,9 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     }
 
     uint32_t lastLedger = lm.getLastClosedLedgerNum();
-    auto catchupConfiguration = CatchupConfiguration(toLedger, count);
+    auto catchupConfiguration = CatchupConfiguration(initLedger, count);
 
-    assert(!app2->getClock().getIOService().stopped());
+    REQUIRE(!app2->getClock().getIOService().stopped());
 
     while (!app2->getWorkManager().allChildrenDone())
     {
@@ -690,7 +687,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
     //
     // So cumulatively: we want to probe local history slot i = nextLedger - 3.
 
-    assert(nextLedger != 0);
+    REQUIRE(nextLedger != 0);
     if (nextLedger >= 3)
     {
         size_t i = nextLedger - 3;
@@ -854,24 +851,16 @@ HistoryTests::computeCatchupPerformedWork(
         historyArchiveStatesDownloaded++;
     }
 
-    uint32_t filesDownloaded = checkpointRange.count();
-    uint32_t ledgersVerified =
-        checkpointRange.count() * checkpointRange.frequency();
-    if (checkpointRange.first() == checkpointRange.frequency() - 1)
-    {
-        ledgersVerified--;
-    }
-    uint32_t transactionsApplied = 0;
-    if (catchupRange.second)
-    {
-        transactionsApplied =
-            catchupConfiguration.toLedger() - checkpointRange.first();
-    }
-    else
-    {
-        transactionsApplied =
-            catchupConfiguration.toLedger() - lastClosedLedger;
-    }
+    auto filesDownloaded = checkpointRange.count();
+    auto firstVerifiedLedger = std::max(
+        HistoryManager::GENESIS_LEDGER_SEQ,
+        checkpointRange.first() + 1 - historyManager.getCheckpointFrequency());
+    auto ledgersVerified =
+        catchupConfiguration.toLedger() - firstVerifiedLedger + 1;
+    auto transactionsApplied =
+        catchupRange.second
+            ? catchupConfiguration.toLedger() - checkpointRange.first()
+            : catchupConfiguration.toLedger() - lastClosedLedger;
     return {historyArchiveStatesDownloaded,
             filesDownloaded,
             ledgersVerified,
@@ -1063,23 +1052,18 @@ TEST_CASE_METHOD(HistoryTests, "Publish/catchup alternation, with stall",
     // by providing 30 cranks of the event loop and assuming that failure
     // to catch up within that time means 'stalled'.
 
-    bool caughtup = false;
     initLedger = lm.getLastClosedLedgerNum();
 
-    caughtup = catchupApplication(
-        initLedger, std::numeric_limits<uint32_t>::max(), false, app2);
-    CHECK(!caughtup);
-    caughtup = catchupApplication(initLedger, 0, false, app3);
-    CHECK(!caughtup);
+    REQUIRE(!catchupApplication(
+        initLedger, std::numeric_limits<uint32_t>::max(), false, app2));
+    REQUIRE(!catchupApplication(initLedger, 0, false, app3));
 
     // Now complete this publish cycle and confirm that the stalled apps
     // will catch up.
     generateAndPublishHistory(1);
-    caughtup = catchupApplication(
-        initLedger, std::numeric_limits<uint32_t>::max(), false, app2, false);
-    CHECK(caughtup);
-    caughtup = catchupApplication(initLedger, 0, false, app3, false);
-    CHECK(caughtup);
+    REQUIRE(catchupApplication(initLedger, std::numeric_limits<uint32_t>::max(),
+                               false, app2, false));
+    REQUIRE(catchupApplication(initLedger, 0, false, app3, false));
 }
 
 TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
@@ -1270,13 +1254,8 @@ TEST_CASE("persist publish queue", "[history]")
 }
 
 // The idea with this test is that we join a network and somehow get a gap
-// in the SCP voting sequence while we're trying to catchup.  This should
-// cause catchup to fail, but that failure should itself just flush the
-// ledgermanager's buffer and get kicked back into catchup mode when the
-// network moves further ahead.
-
-// (Both the hard-failure and the clear/reset weren't working when this
-// test was written)
+// in the SCP voting sequence while we're trying to catchup. This will let
+// system catchup just before the gap.
 TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
                  "[history][catchupstall]")
 {
@@ -1284,21 +1263,21 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // Catch up successfully the first time
     auto app2 = catchupNewApplication(
-        mApp.getLedgerManager().getCurrentLedgerHeader().ledgerSeq,
+        mApp.getLedgerManager().getLastClosedLedgerNum(),
         std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE, "app2");
 
     // Now generate a little more history
     generateAndPublishHistory(1);
 
-    bool caughtup = false;
     auto init = app2->getLedgerManager().getLastClosedLedgerNum() + 2;
+    REQUIRE(init == 66);
 
-    // Now start a catchup on that _fails_ due to a gap
-    LOG(INFO) << "Starting BROKEN catchup (with gap) from " << init;
-    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
-                                  false, app2, true, init + 10);
-    assert(!caughtup);
+    // Now start a catchup on that catchups as far as it can due to gap
+    LOG(INFO) << "Starting catchup (with gap) from " << init;
+    REQUIRE(catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                               false, app2, true, init + 10));
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 75);
 
     app2->getWorkManager().clearChildren();
 
@@ -1307,9 +1286,9 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
 
     // And catchup successfully
     init = mApp.getLedgerManager().getLastClosedLedgerNum();
-    caughtup = catchupApplication(init, std::numeric_limits<uint32_t>::max(),
-                                  false, app2);
-    assert(caughtup);
+    REQUIRE(catchupApplication(init, std::numeric_limits<uint32_t>::max(),
+                               false, app2));
+    REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 192);
 }
 
 /*

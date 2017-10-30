@@ -103,7 +103,8 @@ class LedgerManagerImpl : public LedgerManager
                       bool manualCatchup) override;
 
     HistoryManager::VerifyHashStatus
-    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&) const override;
+    verifyCatchupCandidate(LedgerHeaderHistoryEntry const&,
+                           bool manualCatchup) const override;
     void closeLedger(LedgerCloseData const& ledgerData) override;
     void deleteOldEntries(Database& db, uint32_t ledgerSeq) override;
     void checkDbState() override;

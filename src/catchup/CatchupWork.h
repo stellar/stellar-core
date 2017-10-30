@@ -129,7 +129,7 @@ class CatchupWork : public BucketDownloadWork
 
     bool hasAnyLedgersToCatchupTo() const;
     bool downloadLedgers(CheckpointRange const& range);
-    bool verifyLedgers(CheckpointRange const& range);
+    bool verifyLedgers(LedgerRange const& range);
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     bool downloadBucketsHistoryArchiveState(uint32_t atCheckpoint);
     bool downloadBuckets();

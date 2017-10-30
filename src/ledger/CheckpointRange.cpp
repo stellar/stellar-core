@@ -22,8 +22,8 @@ CheckpointRange::CheckpointRange(uint32_t first, uint32_t last,
 
 CheckpointRange::CheckpointRange(LedgerRange const& ledgerRange,
                                  HistoryManager const& historyManager)
-    : mFirst{historyManager.nextCheckpointLedger(ledgerRange.first() + 1) - 1}
-    , mLast{historyManager.nextCheckpointLedger(ledgerRange.last() + 1) - 1}
+    : mFirst{historyManager.checkpointContainingLedger(ledgerRange.first())}
+    , mLast{historyManager.checkpointContainingLedger(ledgerRange.last())}
     , mFrequency{historyManager.getCheckpointFrequency()}
 {
     assert(mFirst > 0);

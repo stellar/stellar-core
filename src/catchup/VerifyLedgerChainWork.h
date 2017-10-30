@@ -5,7 +5,7 @@
 #pragma once
 
 #include "history/HistoryManager.h"
-#include "ledger/CheckpointRange.h"
+#include "ledger/LedgerRange.h"
 #include "work/Work.h"
 
 namespace medida
@@ -22,9 +22,9 @@ struct LedgerHeaderHistoryEntry;
 class VerifyLedgerChainWork : public Work
 {
     TmpDir const& mDownloadDir;
-    CheckpointRange mRange;
-    uint32_t mCurrSeq;
-    bool mVerifyWithBufferedLedgers;
+    LedgerRange mRange;
+    uint32_t mCurrCheckpoint;
+    bool mManualCatchup;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
@@ -40,8 +40,8 @@ class VerifyLedgerChainWork : public Work
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, CheckpointRange range,
-                          bool verifyWithBufferedLedgers,
+                          TmpDir const& downloadDir, LedgerRange range,
+                          bool manualCatchup,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
     ~VerifyLedgerChainWork();
