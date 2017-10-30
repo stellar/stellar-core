@@ -37,7 +37,7 @@ TotalCoinsEqualsBalancesPlusFeePool::checkOnLedgerClose(
     LedgerDelta const& delta)
 {
     auto& lh = delta.getHeader();
-    if (lh.ledgerVersion < 7) // due to bugs in previous versions
+    if (lh.ledgerVersion <= 7) // due to bugs in previous versions
     {
         return {};
     }

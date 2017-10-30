@@ -7,6 +7,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "overlay/Tracker.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 
 namespace stellar
@@ -30,7 +31,7 @@ TEST_CASE("Tracker works", "[overlay][Tracker]")
 {
     VirtualClock clock;
     auto const& cfg = getTestConfig();
-    auto app = Application::create(clock, cfg);
+    auto app = createTestApplication(clock, cfg);
 
     auto hash = sha256(ByteSlice{"hash"});
     auto nullAskPeer = AskPeer{[](Peer::pointer, Hash) {}};

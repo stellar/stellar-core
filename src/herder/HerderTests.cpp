@@ -8,6 +8,7 @@
 #include "scp/SCP.h"
 #include "simulation/Simulation.h"
 #include "test/TestAccount.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 
 #include "crypto/SHA.h"
@@ -40,7 +41,7 @@ TEST_CASE("standalone", "[herder]")
     cfg.QUORUM_SET.validators.push_back(v0NodeID);
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
 
@@ -156,7 +157,7 @@ TEST_CASE("txset", "[herder]")
     Config cfg(getTestConfig());
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
 
@@ -305,7 +306,7 @@ TEST_CASE("surge", "[herder]")
     cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
 
@@ -418,7 +419,7 @@ TEST_CASE("SCP Driver", "[herder]")
     cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->start();
 

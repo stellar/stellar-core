@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "xdrpp/marshal.h"
 
@@ -19,7 +20,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 

@@ -26,6 +26,7 @@
 #include "process/ProcessManager.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -295,7 +296,7 @@ class HistoryTests
         : mConfigurator(cg)
         , cfg(getTestConfig())
         , mAppPtr(
-              Application::create(clock, mConfigurator->configure(cfg, true)))
+              createTestApplication(clock, mConfigurator->configure(cfg, true)))
         , mApp(*mAppPtr)
     {
         CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
@@ -557,7 +558,7 @@ HistoryTests::catchupNewApplication(uint32_t initLedger, uint32_t count,
     {
         mCfgs.back().CATCHUP_RECENT = count;
     }
-    Application::pointer app2 = Application::create(
+    Application::pointer app2 = createTestApplication(
         clock, mConfigurator->configure(mCfgs.back(), false));
 
     app2->start();
@@ -1084,7 +1085,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets via history",
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
     auto app2 =
-        Application::create(clock, mConfigurator->configure(cfg2, false));
+        createTestApplication(clock, mConfigurator->configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
@@ -1119,7 +1120,7 @@ TEST_CASE_METHOD(HistoryTests, "Repair missing buckets fails",
     auto cfg2 = getTestConfig(1);
     cfg2.BUCKET_DIR_PATH += "2";
     auto app2 =
-        Application::create(clock, mConfigurator->configure(cfg2, false));
+        createTestApplication(clock, mConfigurator->configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
@@ -1196,7 +1197,7 @@ TEST_CASE("persist publish queue", "[history]")
 
     {
         VirtualClock clock;
-        Application::pointer app0 = Application::create(clock, cfg);
+        Application::pointer app0 = createTestApplication(clock, cfg);
         app0->start();
         auto& hm0 = app0->getHistoryManager();
         while (hm0.getPublishQueueCount() < 5)
@@ -1390,13 +1391,13 @@ TEST_CASE("initialize existing history store fails", "[history]")
 
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         REQUIRE(HistoryManager::initializeHistoryArchive(*app, "test"));
     }
 
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         REQUIRE(!HistoryManager::initializeHistoryArchive(*app, "test"));
     }
 }

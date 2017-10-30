@@ -158,14 +158,14 @@ test(int argc, char* const* argv, el::Level ll,
 }
 
 void
-for_versions_to(int to, ApplicationEditableVersion& app,
+for_versions_to(int to, Application& app,
                 std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
 
 void
-for_versions_from(int from, ApplicationEditableVersion& app,
+for_versions_from(int from, Application& app,
                   std::function<void(void)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
@@ -173,7 +173,7 @@ for_versions_from(int from, ApplicationEditableVersion& app,
 
 void
 for_versions_from(std::vector<int> const& versions,
-                  ApplicationEditableVersion& app,
+                  Application& app,
                   std::function<void(void)> const& f)
 {
     for_versions(versions, app, f);
@@ -181,14 +181,14 @@ for_versions_from(std::vector<int> const& versions,
 }
 
 void
-for_all_versions(ApplicationEditableVersion& app,
+for_all_versions(Application& app,
                  std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
 void
-for_versions(int from, int to, ApplicationEditableVersion& app,
+for_versions(int from, int to, Application& app,
              std::function<void(void)> const& f)
 {
     if (from > to)
@@ -203,7 +203,7 @@ for_versions(int from, int to, ApplicationEditableVersion& app,
 }
 
 void
-for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
+for_versions(std::vector<int> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
@@ -217,16 +217,16 @@ for_versions(std::vector<int> const& versions, ApplicationEditableVersion& app,
 #endif
         SECTION("protocol version " + std::to_string(v))
         {
-            app.getLedgerManager().setCurrentLedgerVersion(v);
+            testutil::setCurrentLedgerVersion(app.getLedgerManager(), v);
             f();
         }
     }
-    app.getLedgerManager().setCurrentLedgerVersion(previousVersion);
+    testutil::setCurrentLedgerVersion(app.getLedgerManager(), previousVersion);
 }
 
 void
 for_all_versions_except(std::vector<int> const& versions,
-                        ApplicationEditableVersion& app,
+                        Application& app,
                         std::function<void(void)> const& f)
 {
     int lastExcept = 0;

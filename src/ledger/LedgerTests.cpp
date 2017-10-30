@@ -11,6 +11,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -23,7 +24,7 @@ TEST_CASE("Ledger entry db lifecycle", "[ledger]")
 {
     Config cfg(getTestConfig());
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
     LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
                       app->getDatabase());
@@ -50,7 +51,7 @@ TEST_CASE("single ledger entry insert SQL", "[singlesql][entrysql]")
 
     VirtualClock clock;
     Application::pointer app =
-        Application::create(clock, getTestConfig(0, mode));
+        createTestApplication(clock, getTestConfig(0, mode));
     app->start();
 
     LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
@@ -71,7 +72,7 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
 
     VirtualClock clock;
     Application::pointer app =
-        Application::create(clock, getTestConfig(0, mode));
+        createTestApplication(clock, getTestConfig(0, mode));
     app->start();
 
     auto& db = app->getDatabase();

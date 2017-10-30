@@ -11,6 +11,7 @@
 #include "overlay/ItemFetcher.h"
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "xdr/Stellar-types.h"
 
@@ -204,8 +205,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 
         SECTION("asks peers in turn")
         {
-            auto other1 = Application::create(clock, getTestConfig(1));
-            auto other2 = Application::create(clock, getTestConfig(2));
+            auto other1 = createTestApplication(clock, getTestConfig(1));
+            auto other2 = createTestApplication(clock, getTestConfig(2));
             LoopbackPeerConnection connection1(app, *other1);
             LoopbackPeerConnection connection2(app, *other2);
             auto peer1 = connection1.getInitiator();

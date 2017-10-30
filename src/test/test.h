@@ -11,7 +11,7 @@
 namespace stellar
 {
 
-class ApplicationEditableVersion;
+class Application;
 class Config;
 
 Config const& getTestConfig(int instanceNumber = 0,
@@ -21,27 +21,27 @@ int test(int argc, char* const* argv, el::Level logLevel,
 
 extern bool force_sqlite;
 
-void for_versions_to(int to, ApplicationEditableVersion& app,
+void for_versions_to(int to, Application& app,
                      std::function<void(void)> const& f);
 
-void for_versions_from(int from, ApplicationEditableVersion& app,
+void for_versions_from(int from, Application& app,
                        std::function<void(void)> const& f);
 
 void for_versions_from(std::vector<int> const& versions,
-                       ApplicationEditableVersion& app,
+                       Application& app,
                        std::function<void(void)> const& f);
 
-void for_all_versions(ApplicationEditableVersion& app,
+void for_all_versions(Application& app,
                       std::function<void(void)> const& f);
 
-void for_versions(int from, int to, ApplicationEditableVersion& app,
+void for_versions(int from, int to, Application& app,
                   std::function<void(void)> const& f);
 
 void for_versions(std::vector<int> const& versions,
-                  ApplicationEditableVersion& app,
+                  Application& app,
                   std::function<void(void)> const& f);
 
 void for_all_versions_except(std::vector<int> const& versions,
-                             ApplicationEditableVersion& app,
+                             Application& app,
                              std::function<void(void)> const& f);
 }

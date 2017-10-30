@@ -21,8 +21,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
-
 static const unsigned maxWinners = 2000u;
 
 static SecretKey
@@ -44,8 +42,6 @@ createTestAccounts(Application& app, int nbAccounts,
     auto& lm = app.getLedgerManager();
     auto& db = app.getDatabase();
 
-    int64 setupBalance = lm.getMinBalance(0);
-
     LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
@@ -53,11 +49,10 @@ createTestAccounts(Application& app, int nbAccounts,
         if (bal >= 0)
         {
             SecretKey to = getTestAccount(i);
-            root.create(to, setupBalance);
+            root.create(to, bal);
 
             AccountFrame::pointer act;
             act = loadAccount(to.getPublicKey(), app);
-            act->getAccount().balance = bal;
             act->getAccount().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
             act->storeChange(delta, db);
@@ -200,7 +195,7 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     }
     LedgerManager& lm = app.getLedgerManager();
     LedgerHeader& cur = lm.getCurrentLedgerHeader();
-    cur.feePool = 10000;
+    REQUIRE(cur.feePool > 0);
 
     int64 expectedTotcoins = cur.totalCoins;
     int64 expectedFees = cur.feePool;
@@ -279,74 +274,74 @@ TEST_CASE("inflation", "[tx][inflation]")
     VirtualClock clock;
     clock.setCurrentTime(inflationStart);
 
-    ApplicationEditableVersion app{clock, cfg};
+    auto app = createTestApplication(clock, cfg);
 
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
 
-    app.start();
+    app->start();
 
     SECTION("not time")
     {
-        for_all_versions(app, [&] {
-            closeLedgerOn(app, 2, 30, 6, 2014);
+        for_all_versions(*app, [&] {
+            closeLedgerOn(*app, 2, 30, 6, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
 
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 0);
 
-            closeLedgerOn(app, 3, 1, 7, 2014);
+            closeLedgerOn(*app, 3, 1, 7, 2014);
 
             auto txFrame = root.tx({inflation()});
 
-            closeLedgerOn(app, 4, 7, 7, 2014, {txFrame});
+            closeLedgerOn(*app, 4, 7, 7, 2014, {txFrame});
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 1);
 
-            closeLedgerOn(app, 5, 8, 7, 2014);
+            closeLedgerOn(*app, 5, 8, 7, 2014);
             root.inflation();
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
-            closeLedgerOn(app, 6, 14, 7, 2014);
+            closeLedgerOn(*app, 6, 14, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 2);
 
-            closeLedgerOn(app, 7, 15, 7, 2014);
+            closeLedgerOn(*app, 7, 15, 7, 2014);
             root.inflation();
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 3);
 
-            closeLedgerOn(app, 8, 21, 7, 2014);
+            closeLedgerOn(*app, 8, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(
-                app.getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
+                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
                 3);
         });
     }
 
     SECTION("total coins")
     {
-        auto clh = app.getLedgerManager().getCurrentLedgerHeader();
+        auto clh = app->getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 0);
         REQUIRE(clh.totalCoins == 1000000000000000000);
 
-        auto voter1 = TestAccount{app, getAccount("voter1"), 0};
-        auto voter2 = TestAccount{app, getAccount("voter2"), 0};
-        auto target1 = TestAccount{app, getAccount("target1"), 0};
-        auto target2 = TestAccount{app, getAccount("target2"), 0};
+        auto voter1 = TestAccount{*app, getAccount("voter1"), 0};
+        auto voter2 = TestAccount{*app, getAccount("voter2"), 0};
+        auto target1 = TestAccount{*app, getAccount("target1"), 0};
+        auto target2 = TestAccount{*app, getAccount("target2"), 0};
 
-        auto minBalance = app.getLedgerManager().getMinBalance(0);
+        auto minBalance = app->getLedgerManager().getMinBalance(0);
         auto rootBalance = root.getBalance();
 
         auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
@@ -355,10 +350,10 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target1tx = root.tx({createAccount(target1, minBalance)});
         auto target2tx = root.tx({createAccount(target2, minBalance)});
 
-        closeLedgerOn(app, 2, 21, 7, 2014,
+        closeLedgerOn(*app, 2, 21, 7, 2014,
                       {voter1tx, voter2tx, target1tx, target2tx});
 
-        clh = app.getLedgerManager().getCurrentLedgerHeader();
+        clh = app->getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000299);
         REQUIRE(clh.totalCoins == 1000000000000000000);
 
@@ -369,10 +364,10 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto setInflationDestination2 = voter2.tx({setOptions(
             &t2Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
 
-        closeLedgerOn(app, 3, 21, 7, 2014,
+        closeLedgerOn(*app, 3, 21, 7, 2014,
                       {setInflationDestination1, setInflationDestination2});
 
-        clh = app.getLedgerManager().getCurrentLedgerHeader();
+        clh = app->getLedgerManager().getCurrentLedgerHeader();
         REQUIRE(clh.feePool == 1000000499);
         REQUIRE(clh.totalCoins == 1000000000000000000);
 
@@ -389,10 +384,10 @@ TEST_CASE("inflation", "[tx][inflation]")
 
         auto inflationTx = root.tx({inflation()});
 
-        for_versions_to(7, app, [&] {
-            closeLedgerOn(app, 4, 21, 7, 2014, {inflationTx});
+        for_versions_to(7, *app, [&] {
+            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
 
-            clh = app.getLedgerManager().getCurrentLedgerHeader();
+            clh = app->getLedgerManager().getCurrentLedgerHeader();
             REQUIRE(clh.feePool == 95361000000301);
             REQUIRE(clh.totalCoins == 1000095361000000298);
 
@@ -417,10 +412,10 @@ TEST_CASE("inflation", "[tx][inflation]")
                     clh.totalCoins + inflationError);
         });
 
-        for_versions_from(8, app, [&] {
-            closeLedgerOn(app, 4, 21, 7, 2014, {inflationTx});
+        for_versions_from(8, *app, [&] {
+            closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
 
-            clh = app.getLedgerManager().getCurrentLedgerHeader();
+            clh = app->getLedgerManager().getCurrentLedgerHeader();
             REQUIRE(clh.feePool == 95361000000301);
             REQUIRE(clh.totalCoins == 1000190721000000000);
 
@@ -449,12 +444,12 @@ TEST_CASE("inflation", "[tx][inflation]")
     const int64 minVote = 1000000000LL;
     // .05% of all coins
     const int64 winnerVote =
-        bigDivide(app.getLedgerManager().getCurrentLedgerHeader().totalCoins, 5,
+        bigDivide(app->getLedgerManager().getCurrentLedgerHeader().totalCoins, 5,
                   10000, ROUND_DOWN);
 
     SECTION("inflation scenarios")
     {
-        for_all_versions(app, [&] {
+        for_all_versions(*app, [&] {
             std::function<int(int)> voteFunc;
             std::function<int64(int)> balanceFunc;
             int nbAccounts = 0;
@@ -463,11 +458,11 @@ TEST_CASE("inflation", "[tx][inflation]")
             auto verify = [&]() {
                 if (nbAccounts != 0)
                 {
-                    createTestAccounts(app, nbAccounts, balanceFunc, voteFunc);
-                    closeLedgerOn(app, 2, 21, 7, 2014);
+                    createTestAccounts(*app, nbAccounts, balanceFunc, voteFunc);
+                    closeLedgerOn(*app, 2, 21, 7, 2014);
 
                     doInflation(
-                        app, app.getLedgerManager().getCurrentLedgerVersion(),
+                        *app, app->getLedgerManager().getCurrentLedgerVersion(),
                         nbAccounts, balanceFunc, voteFunc, expectedWinners);
                 }
             };

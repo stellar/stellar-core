@@ -8,6 +8,7 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -65,7 +66,7 @@ TEST_CASE("database smoketest", "[db]")
     Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     transactionTest(app);
 }
 
@@ -182,7 +183,7 @@ TEST_CASE("sqlite MVCC test", "[db]")
 {
     Config const& cfg = getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     checkMVCCIsolation(app);
 }
 
@@ -193,7 +194,7 @@ TEST_CASE("postgres smoketest", "[db]")
     VirtualClock clock;
     try
     {
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         int a = 10, b = 0;
 
         auto& session = app->getDatabase().getSession();
@@ -256,7 +257,7 @@ TEST_CASE("postgres performance", "[db][pgperf][hide]")
 
     try
     {
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
         auto& session = app->getDatabase().getSession();
 
         session << "drop table if exists txtest;";
@@ -331,7 +332,7 @@ TEST_CASE("schema test", "[db]")
     Config const& cfg = getTestConfig(0, Config::TESTDB_IN_MEMORY_SQLITE);
 
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     app->start();
 
     auto& db = app->getDatabase();

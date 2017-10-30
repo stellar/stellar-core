@@ -21,8 +21,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
-
 // Offer that takes multiple other offers and remains
 // Offer selling XLM
 // Offer buying XLM
@@ -36,20 +34,20 @@ TEST_CASE("create offer", "[tx][offers]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
+    auto root = TestAccount::createRoot(*app);
 
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    int64_t txfee = app.getLedgerManager().getTxFee();
+    int64_t txfee = app->getLedgerManager().getTxFee();
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
-        app.getLedgerManager().getMinBalance(2) + 20 * txfee;
+        app->getLedgerManager().getMinBalance(2) + 20 * txfee;
 
     // sets up issuer account
     auto issuer = root.create("issuer", minBalance2 * 10);
@@ -72,7 +70,7 @@ TEST_CASE("create offer", "[tx][offers]")
         issuer.pay(a1, idr, trustLineBalance);
         issuer.pay(b1, usd, trustLineBalance);
 
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto firstOffer = market.requireChangesWithOffer({}, [&] {
             return market.addOffer(a1, {idr, usd, oneone, 100});
         });
@@ -83,7 +81,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("create a passive offer with a better price")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 // firstOffer is taken, new offer was not created
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
@@ -95,7 +93,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
         SECTION("modify existing passive offer with higher price")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(
                         b1, secondOffer.key.offerID,
@@ -106,7 +104,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("modify existing passive offer with lower price")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 // firstOffer is taken with updated offer
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
@@ -121,12 +119,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("create offer errors")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
 
         SECTION("create offer without account")
         {
-            auto a1 = TestAccount{app, getAccount("a1"), 1};
-            for_all_versions(app, [&] {
+            auto a1 = TestAccount{*app, getAccount("a1"), 1};
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -140,7 +138,7 @@ TEST_CASE("create offer", "[tx][offers]")
         SECTION("create offer without trustline for selling")
         {
             auto a1 = root.create("A", minBalance2);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -155,7 +153,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             auto a1 = root.create("A", minBalance2);
             auto fakeIssuer = getAccount("fakeIssuer");
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
                                       [&] {
@@ -171,7 +169,7 @@ TEST_CASE("create offer", "[tx][offers]")
         {
             auto a1 = root.create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -187,7 +185,7 @@ TEST_CASE("create offer", "[tx][offers]")
             auto a1 = root.create("A", minBalance2);
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -204,7 +202,7 @@ TEST_CASE("create offer", "[tx][offers]")
             a1.changeTrust(idr, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
             auto fakeIssuer = getAccount("fakeIssuer");
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
                                       [&] {
@@ -223,7 +221,7 @@ TEST_CASE("create offer", "[tx][offers]")
             a1.changeTrust(idr, trustLineLimit);
             a1.changeTrust(usd, trustLineLimit);
             issuer.pay(a1, idr, trustLineLimit);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -242,7 +240,7 @@ TEST_CASE("create offer", "[tx][offers]")
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, trustLineLimit);
             root.pay(a1, minBalance2);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -261,7 +259,7 @@ TEST_CASE("create offer", "[tx][offers]")
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, INT64_MAX);
             root.pay(a1, minBalance2);
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -280,13 +278,13 @@ TEST_CASE("create offer", "[tx][offers]")
             issuer.pay(a1, idr, trustLineLimit);
             issuer.pay(a1, usd, trustLineLimit);
             root.pay(a1, minBalance2);
-            for_versions_to(2, app, [&] {
+            for_versions_to(2, *app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(a1, {idr, usd, oneone, 0},
                                            OfferState::DELETED);
                 });
             });
-            for_versions_from(3, app, [&] {
+            for_versions_from(3, *app, [&] {
                 REQUIRE_THROWS_AS(
                     market.requireChangesWithOffer(
                         {},
@@ -302,7 +300,7 @@ TEST_CASE("create offer", "[tx][offers]")
             auto invalidPrices = std::vector<Price>{
                 Price{-1, -1}, Price{-1, 1}, Price{0, -1}, Price{-1, 0},
                 Price{0, 0},   Price{0, 1},  Price{1, -1}, Price{1, 0}};
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 auto a = root.create("A", minBalance2 * 2);
                 a.changeTrust(idr, trustLineLimit);
                 for (auto const& p : invalidPrices)
@@ -321,13 +319,13 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("update offer")
     {
-        auto const minBalanceA = app.getLedgerManager().getMinBalance(3);
+        auto const minBalanceA = app->getLedgerManager().getMinBalance(3);
         auto a1 = root.create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
         issuer.pay(a1, idr, trustLineBalance);
 
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto offer = market.requireChangesWithOffer({}, [&] {
             return market.addOffer(a1, {idr, usd, oneone, 100});
         });
@@ -341,12 +339,12 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("cancel offer")
         {
-            for_all_versions(app, [&] { cancelCheck(); });
+            for_all_versions(*app, [&] { cancelCheck(); });
         }
 
         SECTION("cancel offer with empty selling trust line")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 a1.pay(issuer, idr, trustLineBalance);
                 cancelCheck();
             });
@@ -354,7 +352,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("cancel offer with deleted selling trust line")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 a1.pay(issuer, idr, trustLineBalance);
                 a1.changeTrust(idr, 0);
                 cancelCheck();
@@ -363,7 +361,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("cancel offer with full buying trust line")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 issuer.pay(a1, usd, trustLineLimit);
                 cancelCheck();
             });
@@ -371,7 +369,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("cancel offer with deleted buying trust line")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 a1.changeTrust(usd, 0);
                 cancelCheck();
             });
@@ -379,7 +377,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("update price")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(a1, offer.key.offerID,
                                               {idr, usd, Price{1, 2}, 100});
@@ -388,7 +386,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
         SECTION("update amount")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.updateOffer(a1, offer.key.offerID,
                                               {idr, usd, oneone, 10});
@@ -397,7 +395,7 @@ TEST_CASE("create offer", "[tx][offers]")
         }
         SECTION("update selling/buying assets")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 // needs usd
                 issuer.pay(a1, usd, trustLineBalance);
                 market.requireChangesWithOffer({}, [&] {
@@ -410,7 +408,7 @@ TEST_CASE("create offer", "[tx][offers]")
         SECTION("update non existent offer")
         {
             auto bogusOfferID = offer.key.offerID + 1;
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
                                       [&] {
@@ -425,7 +423,7 @@ TEST_CASE("create offer", "[tx][offers]")
         SECTION("delete non existent offer")
         {
             auto bogusOfferID = offer.key.offerID + 1;
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(market.requireChangesWithOffer(
                                       {},
                                       [&] {
@@ -442,18 +440,18 @@ TEST_CASE("create offer", "[tx][offers]")
     {
         auto const nbOffers = 22;
         auto const minBalanceA =
-            app.getLedgerManager().getMinBalance(3 + nbOffers);
-        auto const minBalance3 = app.getLedgerManager().getMinBalance(3);
+            app->getLedgerManager().getMinBalance(3 + nbOffers);
+        auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
         auto a1 = root.create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
         issuer.pay(a1, idr, trustLineBalance);
 
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
 
         SECTION("idr -> xlm")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(a1, {xlm, idr, Price{3, 2}, 100});
                 });
@@ -462,7 +460,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("xlm -> idr")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 market.requireChangesWithOffer({}, [&] {
                     return market.addOffer(a1, {idr, xlm, Price{3, 2}, 100});
                 });
@@ -487,7 +485,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer does not cross")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(b1, usd, 20000);
                     // offer is sell 40 USD for 80 IDR ; sell USD @ 2
                     market.requireChangesWithOffer({}, [&] {
@@ -498,7 +496,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer crosses own")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(a1, usd, 20000);
 
                     // ensure we could receive proceeds from the offer
@@ -519,7 +517,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer crosses and removes first")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
@@ -535,7 +533,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer crosses, removes first six and changes seventh")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
@@ -575,7 +573,7 @@ TEST_CASE("create offer", "[tx][offers]")
             SECTION("offer crosses, removes first six and changes seventh and "
                     "then remains")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
@@ -623,7 +621,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("multiple offers with small amount crosses")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
@@ -673,7 +671,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("creates an offer but reaches limit while selling")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     // fund C such that it's 150 IDR below its limit
                     issuer.pay(c1, idr, trustLineLimit - 150);
 
@@ -708,7 +706,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("creates an offer but top seller is not authorized")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     // sets up the secure issuer account for USD
                     auto issuerAuth = root.create("issuerAuth", minBalance2);
 
@@ -808,7 +806,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("creates an offer but top seller reaches limit")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     // makes "A" only capable of holding 75 "USD"
                     issuer.pay(a1, usd, trustLineLimit - 75);
 
@@ -855,7 +853,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("issuer creates an offer, claimed by somebody else")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     // sell 100 IDR for 90 USD
                     auto gwOffer = market.requireChangesWithOffer({}, [&] {
                         return market.addOffer(issuer,
@@ -881,7 +879,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("issuer claims an offer from somebody else")
             {
-                for_all_versions(app, [&] {
+                for_all_versions(*app, [&] {
                     market.requireChangesWithOffer(
                         {{offerA1.key, OfferState::DELETED}}, [&] {
                             return market.addOffer(issuer,
@@ -899,7 +897,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("crossing offers with rounding")
     {
-        auto market = TestMarket{app};
+        auto market = TestMarket{*app};
         auto bidAmount = 8224563625;
         auto bidPrice = Price{500, 2061}; // bid for 4.1220000
         auto askAmount = 2000000000;
@@ -925,7 +923,7 @@ TEST_CASE("create offer", "[tx][offers]")
                                              })
                     .key;
 
-            for_versions_to(2, app, [&] {
+            for_versions_to(2, *app, [&] {
                 // 8224563625 / 4.1220000 = 1995284722 = 2000000000 -
                 // 4715278
                 // (rounding down)
@@ -940,7 +938,7 @@ TEST_CASE("create offer", "[tx][offers]")
                     });
             });
 
-            for_versions_from(3, app, [&] {
+            for_versions_from(3, *app, [&] {
                 // 8224563625 / 4.1220000 = 1995284722 = 2000000000 -
                 // 4715278
                 // (rounding up)
@@ -955,7 +953,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("ask before bid uses ask price")
         {
-            for_all_versions(app, [&] {
+            for_all_versions(*app, [&] {
                 // 2000000000 * 4.0816000 = 8163200000 = 8224563625 -
                 // 61363625
                 auto updatedBidding = OfferState{xlm, idr, bidPrice, 61363625};

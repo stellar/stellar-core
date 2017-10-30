@@ -12,6 +12,7 @@
 #include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Timer.h"
 
@@ -50,7 +51,7 @@ TEST_CASE("no duplicate register", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
     REQUIRE_THROWS_AS(
@@ -62,7 +63,7 @@ TEST_CASE("no duplicate enable", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
     app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
@@ -75,7 +76,7 @@ TEST_CASE("only enable registered invariants", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
     app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
@@ -88,7 +89,7 @@ TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
     {
         VirtualClock clock;
         Config cfg = getTestConfig();
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
 
         app->getInvariantManager().registerInvariant<TestInvariant>(true);
         app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
@@ -107,7 +108,7 @@ TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
     {
         VirtualClock clock;
         Config cfg = getTestConfig();
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = createTestApplication(clock, cfg);
 
         app->getInvariantManager().registerInvariant<TestInvariant>(false);
         app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");

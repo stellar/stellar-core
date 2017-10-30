@@ -129,8 +129,8 @@ std::vector<std::pair<uint32_t, CatchupConfiguration>> gCatchupRangeCases{
 TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
 {
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, getTestConfig());
-    auto& historyManager = app.getHistoryManager();
+    auto app = createTestApplication(clock, getTestConfig());
+    auto& historyManager = app->getHistoryManager();
 
     for (auto const& test : gCatchupRangeCases)
     {

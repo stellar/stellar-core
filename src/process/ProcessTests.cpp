@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "process/ProcessManager.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -21,7 +22,7 @@ TEST_CASE("subprocess", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     auto evt = app->getProcessManager().runProcess("hostname");
     bool exited = false;
     bool failed = false;
@@ -46,7 +47,7 @@ TEST_CASE("subprocess fails", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = createTestApplication(clock, cfg);
     auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     bool exited = false;
     bool failed = false;
@@ -71,7 +72,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer appPtr = Application::create(clock, cfg);
+    Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
     std::string filename("hostname.txt");
     auto evt = app.getProcessManager().runProcess("hostname", filename);
@@ -103,7 +104,7 @@ TEST_CASE("subprocess storm", "[process]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer appPtr = Application::create(clock, cfg);
+    Application::pointer appPtr = createTestApplication(clock, cfg);
     Application& app = *appPtr;
 
     size_t n = 100;

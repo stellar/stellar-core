@@ -6,6 +6,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "process/ProcessManager.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "work/WorkManager.h"
@@ -38,7 +39,7 @@ TEST_CASE("work manager", "[work]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer appPtr = Application::create(clock, cfg);
+    Application::pointer appPtr = createTestApplication(clock, cfg);
     auto& wm = appPtr->getWorkManager();
 
     auto w = wm.addWork<CallCmdWork>("hostname");
@@ -85,7 +86,7 @@ TEST_CASE("work steps", "[work]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();
-    Application::pointer appPtr = Application::create(clock, cfg);
+    Application::pointer appPtr = createTestApplication(clock, cfg);
     auto& wm = appPtr->getWorkManager();
     auto w = wm.addWork<CountDownWork>(10);
     w->addWork<CountDownWork>(5);
@@ -142,7 +143,7 @@ TEST_CASE("subwork items fail at the same time", "[work]")
 {
     VirtualClock clock;
     auto const& cfg = getTestConfig();
-    auto app = Application::create(clock, cfg);
+    auto app = createTestApplication(clock, cfg);
     auto& wm = app->getWorkManager();
     auto w = wm.addWork<WorkCountingOnFailureRaise>();
     w->addWork<FailingWork>("work-1");
@@ -224,7 +225,7 @@ TEST_CASE("sub-subwork items succed at the same time", "[work]")
 {
     VirtualClock clock;
     auto const& cfg = getTestConfig();
-    auto app = Application::create(clock, cfg);
+    auto app = createTestApplication(clock, cfg);
     auto& wm = app->getWorkManager();
     auto w = wm.addWork<Work>("parent-of-many");
     auto work1 = w->addWork<WorkWith2Subworks>("work-1");

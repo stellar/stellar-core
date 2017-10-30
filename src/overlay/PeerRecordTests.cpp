@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/SociNoWarnings.h"
 
@@ -19,7 +20,7 @@ using namespace std;
 TEST_CASE("toXdr", "[overlay][PeerRecord]")
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, getTestConfig());
+    Application::pointer app = createTestApplication(clock, getTestConfig());
     auto pr = PeerRecord::parseIPPort("1.25.50.200:256", *app);
     pr.mNumFailures = 2;
 
@@ -116,7 +117,7 @@ TEST_CASE("create peer rercord", "[overlay][PeerRecord]")
 TEST_CASE("parse peer rercord", "[overlay][PeerRecord]")
 {
     VirtualClock clock;
-    auto app = Application::create(clock, getTestConfig());
+    auto app = createTestApplication(clock, getTestConfig());
 
     SECTION("empty")
     {
