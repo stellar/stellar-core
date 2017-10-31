@@ -26,6 +26,10 @@
 #include <regex>
 #include <string>
 
+#ifdef __APPLE__
+extern char **environ;
+#endif
+
 namespace stellar
 {
 
