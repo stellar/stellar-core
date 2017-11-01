@@ -15,6 +15,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
+#include "test/test.h"
 
 #include "main/fuzz.h"
 
@@ -101,7 +102,9 @@ fuzz(std::string const& filename, el::Level logLevel,
 
     Config cfg1, cfg2;
 
-    cfg1.RUN_STANDALONE = true;
+    cfg1 = getTestConfig(0);
+    cfg2 = getTestConfig(1);
+
     cfg1.HTTP_PORT = 0;
     cfg1.PUBLIC_HTTP_PORT = false;
     cfg1.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
@@ -112,11 +115,10 @@ fuzz(std::string const& filename, el::Level logLevel,
     cfg1.QUORUM_SET.validators.push_back(
         SecretKey::fromSeed(sha256("a")).getPublicKey());
 
-    cfg2.RUN_STANDALONE = true;
-    cfg1.HTTP_PORT = 0;
-    cfg1.PUBLIC_HTTP_PORT = false;
+    cfg2.HTTP_PORT = 0;
+    cfg2.PUBLIC_HTTP_PORT = false;
     cfg2.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    cfg1.LOG_FILE_PATH = "fuzz-app-2.log";
+    cfg2.LOG_FILE_PATH = "fuzz-app-2.log";
     cfg2.BUCKET_DIR_PATH = "fuzz-buckets-2";
     cfg2.QUORUM_SET.threshold = 1;
     cfg2.QUORUM_SET.validators.clear();
