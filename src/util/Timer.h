@@ -137,6 +137,7 @@ class VirtualClock
     size_t crank(bool block = true);
     void noteCrankOccurred(bool hadIdle);
     uint32_t recentIdleCrankPercent() const;
+    void resetIdleCrankPercent();
     asio::io_service& getIOService();
 
     // Note: this is not a static method, which means that VirtualClock is

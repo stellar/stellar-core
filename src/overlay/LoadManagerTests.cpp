@@ -12,7 +12,7 @@
 
 using namespace stellar;
 
-TEST_CASE("disconnect too many peers when overloaded", "[overlay][LoadManager]")
+TEST_CASE("disconnect peer when overloaded", "[overlay][LoadManager]")
 {
     VirtualClock clock;
     auto const& cfg1 = getTestConfig(0);
@@ -20,7 +20,7 @@ TEST_CASE("disconnect too many peers when overloaded", "[overlay][LoadManager]")
     auto const& cfg3 = getTestConfig(2);
 
     cfg2.RUN_STANDALONE = false;
-    cfg2.MINIMUM_IDLE_PERCENT = 99;
+    cfg2.MINIMUM_IDLE_PERCENT = 90;
     cfg2.TARGET_PEER_CONNECTIONS = 0;
 
     auto app1 = createTestApplication(clock, cfg1);
@@ -48,8 +48,8 @@ TEST_CASE("disconnect too many peers when overloaded", "[overlay][LoadManager]")
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(!conn2.getInitiator()->isConnected());
-    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn2.getInitiator()->isConnected());
+    REQUIRE(conn2.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "load-shed"}, "drop")
                 .count() != 0);

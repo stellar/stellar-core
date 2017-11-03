@@ -124,6 +124,8 @@ LoadManager::maybeShedExcessLoad(Application& app)
                 .Mark();
 
             victim->drop();
+
+            app.getClock().resetIdleCrankPercent();
         }
     }
 }
