@@ -32,16 +32,16 @@ crankSome(VirtualClock& clock)
 void
 injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
                              VirtualTimer& timer,
-                             std::shared_ptr<LoopbackPeer> const& sendPeer)
+                             LoopbackPeerConnection& connection)
 {
-    sendPeer->sendGetPeers();
-    if (clock.now() < end && sendPeer->isConnected())
+    connection.getInitiator()->sendGetPeers();
+    if (clock.now() < end && connection.getInitiator()->isConnected())
     {
         timer.expires_from_now(std::chrono::milliseconds(10));
         timer.async_wait([&](asio::error_code const& ec) {
             if (!ec)
             {
-                injectSendPeersAndReschedule(end, clock, timer, sendPeer);
+                injectSendPeersAndReschedule(end, clock, timer, connection);
             }
         });
     }

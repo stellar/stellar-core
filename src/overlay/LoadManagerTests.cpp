@@ -12,7 +12,7 @@
 
 using namespace stellar;
 
-TEST_CASE("disconnect peers when overloaded", "[overlay][LoadManager]")
+TEST_CASE("disconnect too many peers when overloaded", "[overlay][LoadManager]")
 {
     VirtualClock clock;
     auto const& cfg1 = getTestConfig(0);
@@ -40,19 +40,16 @@ TEST_CASE("disconnect peers when overloaded", "[overlay][LoadManager]")
     auto end = start + std::chrono::seconds(10);
     VirtualTimer timer(clock);
 
-    testutil::injectSendPeersAndReschedule(end, clock, timer,
-                                           conn.getInitiator());
+    testutil::injectSendPeersAndReschedule(end, clock, timer, conn);
 
     for (size_t i = 0;
-         (i < 1000 && clock.now() < end && conn.getInitiator()->isConnected() &&
-          clock.crank(false) > 0);
-         ++i)
+         (i < 1000 && clock.now() < end && clock.crank(false) > 0); ++i)
         ;
 
     REQUIRE(!conn.getInitiator()->isConnected());
     REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(conn2.getInitiator()->isConnected());
-    REQUIRE(conn2.getAcceptor()->isConnected());
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "load-shed"}, "drop")
                 .count() != 0);
