@@ -78,7 +78,11 @@ if test "$#" = 0; then
 	echo "Disabling PostgreSQL in most tests"
 	export STELLAR_FORCE_SQLITE=1
     fi
-    ./stellar-core -ll fatal --test -a -r simple
+    if [ "$ALL_VERSIONS" != "" ]; then
+        ./stellar-core -ll fatal --test --all-versions -a -r simple
+    else
+        ./stellar-core -ll fatal --test -a -r simple
+    fi
 else
     # You can run "./test-pg bash" to get a shell with postgreSQL set up
     setup_test

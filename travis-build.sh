@@ -65,4 +65,5 @@ ccache -s
 ./configure $config_flags
 make -j3
 ccache -s
+export ALL_VERSIONS=1
 make check
