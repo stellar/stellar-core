@@ -201,13 +201,13 @@ Peer::getIOTimeoutSeconds() const
     {
         // Normally willing to wait 30s to hear anything
         // from an authenticated peer.
-        return 30;
+        return mApp.getConfig().PEER_TIMEOUT;
     }
     else
     {
         // We give peers much less timing leeway while
         // performing handshake.
-        return 5;
+        return mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT;
     }
 }
 

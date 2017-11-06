@@ -259,29 +259,47 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
 
 TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
 {
-    VirtualClock clock;
-    Config const& cfg1 = getTestConfig(0);
-    Config cfg2 = getTestConfig(1);
+    auto test = [](int authenticationTimeout) {
+        VirtualClock clock;
+        Config cfg1 = getTestConfig(0);
+        Config cfg2 = getTestConfig(1);
 
-    auto app1 = createTestApplication(clock, cfg1);
-    auto app2 = createTestApplication(clock, cfg2);
+        cfg1.PEER_AUTHENTICATION_TIMEOUT = authenticationTimeout;
+        cfg2.PEER_AUTHENTICATION_TIMEOUT = authenticationTimeout;
 
-    LoopbackPeerConnection conn(*app1, *app2);
-    conn.getInitiator()->setCorked(true);
-    auto start = clock.now();
-    while (clock.now() < (start + std::chrono::seconds(6)) &&
-           conn.getInitiator()->isConnected() &&
-           conn.getAcceptor()->isConnected())
+        auto app1 = createTestApplication(clock, cfg1);
+        auto app2 = createTestApplication(clock, cfg2);
+        auto waitTime = std::chrono::seconds(authenticationTimeout + 1);
+        auto padTime = std::chrono::seconds(2);
+
+        LoopbackPeerConnection conn(*app1, *app2);
+        conn.getInitiator()->setCorked(true);
+        auto start = clock.now();
+        while (clock.now() < (start + waitTime) &&
+               conn.getInitiator()->isConnected() &&
+               conn.getAcceptor()->isConnected())
+        {
+            LOG(INFO) << "clock.now() = "
+                      << clock.now().time_since_epoch().count();
+            clock.crank(false);
+        }
+        REQUIRE(clock.now() < (start + waitTime + padTime));
+        REQUIRE(!conn.getInitiator()->isConnected());
+        REQUIRE(!conn.getAcceptor()->isConnected());
+        REQUIRE(app2->getMetrics()
+                    .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                    .count() != 0);
+    };
+
+    SECTION("2 seconds timeout")
     {
-        LOG(INFO) << "clock.now() = " << clock.now().time_since_epoch().count();
-        clock.crank(false);
+        test(2);
     }
-    REQUIRE(clock.now() < (start + std::chrono::seconds(8)));
-    REQUIRE(!conn.getInitiator()->isConnected());
-    REQUIRE(!conn.getAcceptor()->isConnected());
-    REQUIRE(app2->getMetrics()
-                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
-                .count() != 0);
+
+    SECTION("5 seconds timeout")
+    {
+        test(5);
+    }
 }
 
 TEST_CASE("reject peers with the same nodeid", "[overlay]")
