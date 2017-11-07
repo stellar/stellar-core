@@ -365,7 +365,7 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 }
 
 std::vector<Peer::pointer>
-OverlayManagerImpl::getRandomPeers()
+OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
     std::vector<std::shared_ptr<Peer>> goodPeers(getNumPeers());
     auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),

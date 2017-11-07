@@ -85,7 +85,7 @@ class OverlayManagerImpl : public OverlayManager
                                    unsigned short port) override;
 
     void connectToMorePeers(int max);
-    std::vector<Peer::pointer> getRandomPeers() override;
+    std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 

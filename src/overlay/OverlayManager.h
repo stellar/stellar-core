@@ -76,7 +76,7 @@ class OverlayManager
                                 Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
-    virtual std::vector<Peer::pointer> getRandomPeers() = 0;
+    virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
 
     // Return an already-connected peer at the given ip address and port;
     // returns a `nullptr`-valued pointer if no such connected peer exists.
