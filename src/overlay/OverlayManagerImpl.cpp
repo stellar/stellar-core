@@ -122,7 +122,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addConnectedPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
+        addPendingPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
     }
     else
     {
@@ -262,7 +262,7 @@ OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 }
 
 void
-OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
+OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
 {
     if (mShuttingDown)
     {

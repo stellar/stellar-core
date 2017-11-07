@@ -368,8 +368,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->mRemote = mInitiator;
     mAcceptor->mState = Peer::CONNECTED;
 
-    initiator.getOverlayManager().addConnectedPeer(mInitiator);
-    acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
+    initiator.getOverlayManager().addPendingPeer(mInitiator);
+    acceptor.getOverlayManager().addPendingPeer(mAcceptor);
     mInitiator->startIdleTimer();
     mAcceptor->startIdleTimer();
 

@@ -74,7 +74,7 @@ class OverlayManagerImpl : public OverlayManager
     void connectTo(std::string const& addr) override;
     virtual void connectTo(PeerRecord& pr) override;
 
-    void addConnectedPeer(Peer::pointer peer) override;
+    void addPendingPeer(Peer::pointer peer) override;
     void dropPeer(Peer* peer) override;
     bool isPeerAccepted(Peer::pointer peer) override;
     std::vector<Peer::pointer> const& getPeers() const override;

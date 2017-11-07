@@ -83,8 +83,8 @@ class OverlayManager
     virtual Peer::pointer getConnectedPeer(std::string const& ip,
                                            unsigned short port) = 0;
 
-    // Add a peer to the in-memory set of connected peers.
-    virtual void addConnectedPeer(Peer::pointer peer) = 0;
+    // Add a peer to the in-memory set of pending peers.
+    virtual void addPendingPeer(Peer::pointer peer) = 0;
 
     // Forget about a peer, removing it from the in-memory set of connected
     // peers. Presumably due to it disconnecting.
