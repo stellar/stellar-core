@@ -323,8 +323,8 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
     return false;
 }
 
-std::vector<Peer::pointer>&
-OverlayManagerImpl::getPeers()
+std::vector<Peer::pointer> const&
+OverlayManagerImpl::getPeers() const
 {
     return mPeers;
 }

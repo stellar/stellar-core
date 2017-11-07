@@ -98,7 +98,7 @@ class OverlayManager
     virtual bool isPeerAccepted(Peer::pointer peer) = 0;
 
     // Return the current in-memory set of connected peers.
-    virtual std::vector<Peer::pointer>& getPeers() = 0;
+    virtual std::vector<Peer::pointer> const& getPeers() const = 0;
 
     // Attempt to connect to a peer identified by string. The form of the string
     // should be an IP address or hostname, optionally followed by a colon and

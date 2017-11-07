@@ -77,7 +77,7 @@ class OverlayManagerImpl : public OverlayManager
     void addConnectedPeer(Peer::pointer peer) override;
     void dropPeer(Peer* peer) override;
     bool isPeerAccepted(Peer::pointer peer) override;
-    std::vector<Peer::pointer>& getPeers() override;
+    std::vector<Peer::pointer> const& getPeers() const override;
 
     // returns NULL if the passed peer isn't found
     Peer::pointer getConnectedPeer(std::string const& ip,
