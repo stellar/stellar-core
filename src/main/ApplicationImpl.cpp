@@ -229,7 +229,7 @@ ApplicationImpl::getJsonInfo()
     info["ledger"]["closeTime"] =
         (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    info["numPeers"] = (int)getOverlayManager().getPeers().size();
+    info["numPeers"] = (int)getOverlayManager().getNumPeers();
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
     auto& statusMessages = getStatusManager();

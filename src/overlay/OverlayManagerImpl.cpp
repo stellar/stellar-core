@@ -204,7 +204,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
         {
             continue;
         }
-        if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
+        if (getNumPeers() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
         }
@@ -232,10 +232,10 @@ OverlayManagerImpl::tick()
 
     mLoad.maybeShedExcessLoad(mApp);
 
-    if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
+    if (getNumPeers() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
         connectToMorePeers(static_cast<int>(
-            mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
+            mApp.getConfig().TARGET_PEER_CONNECTIONS - getNumPeers()));
     }
 
     mTimer.expires_from_now(std::chrono::seconds(2));
@@ -272,7 +272,7 @@ OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
     CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
     mPeers.push_back(peer);
-    mPeersSize.set_count(mPeers.size());
+    mPeersSize.set_count(getNumPeers());
 }
 
 void
@@ -289,7 +289,7 @@ OverlayManagerImpl::dropPeer(Peer* peer)
         mPeers.erase(iter);
     else
         CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
-    mPeersSize.set_count(mPeers.size());
+    mPeersSize.set_count(getNumPeers());
 }
 
 bool
@@ -297,7 +297,7 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
 {
     if (isPeerPreferred(peer))
     {
-        if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        if (getNumPeers() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         {
             return true;
         }
@@ -316,7 +316,7 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
     }
 
     if (!mApp.getConfig().PREFERRED_PEERS_ONLY &&
-        mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        getNumPeers() < mApp.getConfig().MAX_PEER_CONNECTIONS)
         return true;
 
     mConnectionsRejected.Mark();
@@ -327,6 +327,12 @@ std::vector<Peer::pointer> const&
 OverlayManagerImpl::getPeers() const
 {
     return mPeers;
+}
+
+size_t
+OverlayManagerImpl::getNumPeers() const
+{
+    return getPeers().size();
 }
 
 bool
@@ -361,7 +367,7 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 std::vector<Peer::pointer>
 OverlayManagerImpl::getRandomPeers()
 {
-    std::vector<std::shared_ptr<Peer>> goodPeers(mPeers.size());
+    std::vector<std::shared_ptr<Peer>> goodPeers(getNumPeers());
     auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),
                            [](std::shared_ptr<Peer> const& p) {
                                return p && p->isAuthenticated();

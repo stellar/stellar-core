@@ -100,6 +100,9 @@ class OverlayManager
     // Return the current in-memory set of connected peers.
     virtual std::vector<Peer::pointer> const& getPeers() const = 0;
 
+    // Return number of connected peers
+    virtual size_t getNumPeers() const = 0;
+
     // Attempt to connect to a peer identified by string. The form of the string
     // should be an IP address or hostname, optionally followed by a colon and
     // a TCP port number.

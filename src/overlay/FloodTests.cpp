@@ -161,8 +161,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sources.size() << " peers: "
-                       << app->getOverlayManager().getPeers().size();
+                       << sources.size()
+                       << " peers: " << app->getOverlayManager().getNumPeers();
             return res;
         };
 
@@ -284,8 +284,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             bool res = okCount == sources.size();
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
-                       << sources.size() << " peers: "
-                       << app->getOverlayManager().getPeers().size();
+                       << sources.size()
+                       << " peers: " << app->getOverlayManager().getNumPeers();
             return res;
         };
 

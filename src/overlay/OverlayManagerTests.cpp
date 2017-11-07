@@ -147,7 +147,7 @@ class OverlayManagerTests
         pm.storePeerList(fourPeers);
         pm.storePeerList(threePeers);
         pm.connectToMorePeers(5);
-        REQUIRE(pm.mPeers.size() == 5);
+        REQUIRE(pm.getNumPeers() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};
         auto c = TestAccount{*app, getAccount("c")};
