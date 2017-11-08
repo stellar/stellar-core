@@ -130,7 +130,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
     else
     {
         CLOG(ERROR, "Overlay")
-            << "trying to connect to a node we're already connected to"
+            << "trying to connect to a node we're already connected to "
             << pr.toString();
     }
 }
@@ -295,6 +295,7 @@ OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
     if (mShuttingDown ||
         getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
     {
+        mConnectionsRejected.Mark();
         peer->drop();
         return;
     }
