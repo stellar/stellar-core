@@ -975,7 +975,24 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    for (auto const& p : mApp.getOverlayManager().getPeers())
+    auto const& authenticated =
+        mApp.getOverlayManager().getAuthenticatedPeers();
+    auto authenticatedIt = authenticated.find(mPeerID);
+    // no need to self-check here as this one cannot be in authenticated yet
+    if (authenticatedIt != std::end(authenticated))
+    {
+        if (&(authenticatedIt->second->mPeerID) != &mPeerID)
+        {
+            CLOG(WARNING, "Overlay")
+                << "connection from already-connected peerID "
+                << mApp.getConfig().toShortString(mPeerID);
+            mDropInRecvHelloPeerIDMeter.Mark();
+            drop(ERR_CONF, "connecting already-connected peer");
+            return;
+        }
+    }
+
+    for (auto const& p : mApp.getOverlayManager().getPendingPeers())
     {
         if (&(p->mPeerID) == &mPeerID)
         {
@@ -1029,7 +1046,7 @@ Peer::recvAuth(StellarMessage const& msg)
 
     auto self = shared_from_this();
 
-    if (!mApp.getOverlayManager().isPeerAccepted(self))
+    if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
         mDropInRecvAuthRejectMeter.Mark();

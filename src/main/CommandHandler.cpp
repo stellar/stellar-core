@@ -396,20 +396,34 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::peers(std::string const& params, std::string& retStr)
+CommandHandler::peers(std::string const&, std::string& retStr)
 {
     Json::Value root;
 
-    root["peers"];
+    root["pending_peers"];
     int counter = 0;
-    for (auto peer : mApp.getOverlayManager().getPeers())
+    for (auto peer : mApp.getOverlayManager().getPendingPeers())
     {
-        root["peers"][counter]["ip"] = peer->getIP();
-        root["peers"][counter]["port"] = (int)peer->getRemoteListeningPort();
-        root["peers"][counter]["ver"] = peer->getRemoteVersion();
-        root["peers"][counter]["olver"] = (int)peer->getRemoteOverlayVersion();
-        root["peers"][counter]["id"] =
-            mApp.getConfig().toStrKey(peer->getPeerID());
+        root["pending_peers"][counter]["ip"] = peer->getIP();
+        root["pending_peers"][counter]["port"] =
+            (int)peer->getRemoteListeningPort();
+
+        counter++;
+    }
+
+    root["authenticated_peers"];
+    counter = 0;
+    for (auto peer : mApp.getOverlayManager().getAuthenticatedPeers())
+    {
+        root["authenticated_peers"][counter]["ip"] = peer.second->getIP();
+        root["authenticated_peers"][counter]["port"] =
+            (int)peer.second->getRemoteListeningPort();
+        root["authenticated_peers"][counter]["ver"] =
+            peer.second->getRemoteVersion();
+        root["authenticated_peers"][counter]["olver"] =
+            (int)peer.second->getRemoteOverlayVersion();
+        root["authenticated_peers"][counter]["id"] =
+            mApp.getConfig().toStrKey(peer.first);
 
         counter++;
     }
@@ -587,13 +601,11 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
         NodeID n;
         if (mApp.getHerder().resolveNodeID(peerId->second, n))
         {
-            auto peers = mApp.getOverlayManager().getPeers();
-            auto peerit = std::find_if(
-                peers.begin(), peers.end(),
-                [&n](Peer::pointer peer) { return peer->getPeerID() == n; });
-            if (peerit != peers.end())
+            auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
+            auto peer = peers.find(n);
+            if (peer != peers.end())
             {
-                mApp.getOverlayManager().dropPeer(peerit->get());
+                mApp.getOverlayManager().dropPeer(peer->second.get());
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";

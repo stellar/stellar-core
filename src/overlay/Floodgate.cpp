@@ -99,15 +99,16 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
 
     // make a copy, in case peers gets modified
-    std::vector<Peer::pointer> peers(mApp.getOverlayManager().getPeers());
+    auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
 
     for (auto peer : peers)
     {
-        if (peersTold.find(peer) == peersTold.end() && peer->isAuthenticated())
+        assert(peer.second->isAuthenticated());
+        if (peersTold.find(peer.second) == peersTold.end())
         {
             mSendFromBroadcast.Mark();
-            peer->sendMessage(msg);
-            peersTold.insert(peer);
+            peer.second->sendMessage(msg);
+            peersTold.insert(peer.second);
         }
     }
     CLOG(TRACE, "Overlay") << "broadcast " << hexAbbrev(index) << " told "
