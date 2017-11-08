@@ -8,16 +8,6 @@
 namespace stellar
 {
 
-Application::pointer
-createTestApplication(VirtualClock& clock, Config const& cfg)
-{
-    auto app = Application::create(clock, cfg);
-    auto& lm = app->getLedgerManager();
-    lm.getCurrentLedgerHeader().baseFee = cfg.DESIRED_BASE_FEE;
-    testutil::setCurrentLedgerVersion(lm, cfg.LEDGER_PROTOCOL_VERSION);
-    return app;
-}
-
 void
 testutil::setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
 {

@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "main/Config.h"
 #include "xdr/Stellar-types.h"
 #include <memory>
 #include <string>
@@ -21,7 +22,6 @@ namespace stellar
 {
 
 class VirtualClock;
-class Config;
 class TmpDirManager;
 class LedgerManager;
 class BucketManager;
@@ -39,6 +39,9 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+
+class Application;
+void validateNetworkPassphrase(std::shared_ptr<Application> app);
 
 /*
  * State of a single instance of the stellar-core application.
@@ -150,6 +153,8 @@ class Application
 
     virtual ~Application(){};
 
+    virtual void initialize() = 0;
+
     // Return the time in seconds since the POSIX epoch, according to the
     // VirtualClock this Application is bound to. Convenience method.
     virtual uint64_t timeNow() = 0;
@@ -257,6 +262,18 @@ class Application
     // copy made of `cfg`.
     static pointer create(VirtualClock& clock, Config const& cfg,
                           bool newDB = true);
+    template <typename T>
+    static std::shared_ptr<T> create(VirtualClock& clock, Config const& cfg,
+                          bool newDB = true)
+    {
+        auto ret = std::make_shared<T>(clock, cfg);
+        ret->initialize();
+        if (newDB || cfg.DATABASE.value == "sqlite3://:memory:")
+            ret->newDB();
+        validateNetworkPassphrase(ret);
+
+        return ret;
+    }
 
   protected:
     Application()

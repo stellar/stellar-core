@@ -38,11 +38,6 @@ void validateNetworkPassphrase(Application::pointer app)
 Application::pointer
 Application::create(VirtualClock& clock, Config const& cfg, bool newDB)
 {
-    Application::pointer ret = make_shared<ApplicationImpl>(clock, cfg);
-    if (newDB || cfg.DATABASE.value == "sqlite3://:memory:")
-        ret->newDB();
-    validateNetworkPassphrase(ret);
-
-    return ret;
+    return create<ApplicationImpl>(clock, cfg, newDB);
 }
 }

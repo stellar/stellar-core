@@ -13,6 +13,7 @@
 #include "overlay/OverlayManager.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/make_unique.h"
 #include "xdr/Stellar-types.h"
 
 namespace stellar
@@ -43,18 +44,21 @@ class ApplicationStub : public ApplicationImpl
     ApplicationStub(VirtualClock& clock, Config const& cfg)
         : ApplicationImpl(clock, cfg)
     {
-        mHerder = std::make_shared<HerderStub>(*this);
-        newDB();
     }
 
     virtual HerderStub&
     getHerder() override
     {
-        return *mHerder;
+        auto& herder = ApplicationImpl::getHerder();
+        return static_cast<HerderStub&>(herder);
     }
 
   private:
-    std::shared_ptr<HerderStub> mHerder;
+    virtual std::unique_ptr<Herder>
+    createHerder() override
+    {
+        return make_unique<HerderStub>(*this);
+    }
 };
 
 SCPEnvelope
@@ -73,11 +77,12 @@ makeEnvelope(int id)
 TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
 {
     VirtualClock clock;
-    ApplicationStub app{clock, getTestConfig(0)};
+    std::shared_ptr<ApplicationStub> app =
+        createTestApplication<ApplicationStub>(clock, getTestConfig(0));
 
     std::vector<Peer::pointer> asked;
     std::vector<Hash> received;
-    ItemFetcher itemFetcher(app, [&](Peer::pointer peer, Hash hash) {
+    ItemFetcher itemFetcher(*app, [&](Peer::pointer peer, Hash hash) {
         asked.push_back(peer);
         peer->sendGetQuorumSet(hash);
     });
@@ -123,7 +128,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(ten);
 
         auto expectedReceived = std::vector<int>{12, 10};
-        REQUIRE(app.getHerder().received == expectedReceived);
+        REQUIRE(app->getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
@@ -147,7 +152,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(ten);
 
         auto expectedReceived = std::vector<int>{10};
-        REQUIRE(app.getHerder().received == expectedReceived);
+        REQUIRE(app->getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
@@ -166,7 +171,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         itemFetcher.recv(ten);
 
         auto expectedReceived = std::vector<int>{12, 12, 10};
-        REQUIRE(app.getHerder().received == expectedReceived);
+        REQUIRE(app->getHerder().received == expectedReceived);
 
         REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) == 0);
         REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
@@ -190,7 +195,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
                                                     // re-fetch
 
             expectedReceived = std::vector<int>{12, 12, 10, 0};
-            REQUIRE(app.getHerder().received == expectedReceived);
+            REQUIRE(app->getHerder().received == expectedReceived);
 
             REQUIRE(itemFetcher.getLastSeenSlotIndex(zero) != 0);
             REQUIRE(itemFetcher.getLastSeenSlotIndex(ten) == 0);
@@ -207,8 +212,8 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         {
             auto other1 = createTestApplication(clock, getTestConfig(1));
             auto other2 = createTestApplication(clock, getTestConfig(2));
-            LoopbackPeerConnection connection1(app, *other1);
-            LoopbackPeerConnection connection2(app, *other2);
+            LoopbackPeerConnection connection1(*app, *other1);
+            LoopbackPeerConnection connection2(*app, *other2);
             auto peer1 = connection1.getInitiator();
             auto peer2 = connection2.getInitiator();
 
@@ -247,7 +252,7 @@ TEST_CASE("ItemFetcher fetches", "[overlay][ItemFetcher]")
         SECTION("ignore not asked items")
         {
             itemFetcher.recv(zero);
-            REQUIRE(app.getHerder().received ==
+            REQUIRE(app->getHerder().received ==
                     expectedReceived); // no new data received
         }
     }

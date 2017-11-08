@@ -37,6 +37,8 @@ class ApplicationImpl : public Application
     ApplicationImpl(VirtualClock& clock, Config const& cfg);
     virtual ~ApplicationImpl() override;
 
+    virtual void initialize() override;
+
     virtual uint64_t timeNow() override;
 
     virtual Config const& getConfig() override;
@@ -159,5 +161,8 @@ class ApplicationImpl : public Application
     void runWorkerThread(unsigned i);
 
     void enableInvariantsFromConfig();
+
+    virtual std::unique_ptr<Herder> createHerder();
+    virtual std::unique_ptr<OverlayManager> createOverlayManager();
 };
 }

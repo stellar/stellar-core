@@ -87,15 +87,21 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
         }
     });
 
-    // These must be constructed _after_ because they frequently call back
-    // into App.getFoo() to get information / start up.
+    while (t--)
+    {
+        mWorkerThreads.emplace_back([this, t]() { this->runWorkerThread(t); });
+    }
+}
+
+void
+ApplicationImpl::initialize()
+{
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
-
-    mTmpDirManager = make_unique<TmpDirManager>(cfg.BUCKET_DIR_PATH + "/tmp");
-    mOverlayManager = OverlayManager::create(*this);
+    mTmpDirManager = make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
+    mOverlayManager = createOverlayManager();
     mLedgerManager = LedgerManager::create(*this);
-    mHerder = Herder::create(*this);
+    mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
@@ -112,15 +118,10 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(*this);
     enableInvariantsFromConfig();
 
-    if (!cfg.NTP_SERVER.empty())
+    if (!mConfig.NTP_SERVER.empty())
     {
         mNtpSynchronizationChecker =
-            std::make_shared<NtpSynchronizationChecker>(*this, cfg.NTP_SERVER);
-    }
-
-    while (t--)
-    {
-        mWorkerThreads.emplace_back([this, t]() { this->runWorkerThread(t); });
+            std::make_shared<NtpSynchronizationChecker>(*this, mConfig.NTP_SERVER);
     }
 
     LOG(DEBUG) << "Application constructed";
@@ -657,5 +658,17 @@ ApplicationImpl::enableInvariantsFromConfig()
     {
         mInvariantManager->enableInvariant(name);
     }
+}
+
+std::unique_ptr<Herder>
+ApplicationImpl::createHerder()
+{
+    return Herder::create(*this);
+}
+
+std::unique_ptr<OverlayManager>
+ApplicationImpl::createOverlayManager()
+{
+    return OverlayManager::create(*this);
 }
 }

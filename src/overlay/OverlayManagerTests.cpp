@@ -11,9 +11,11 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "test/TestAccount.h"
+#include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "util/make_unique.h"
 #include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 
@@ -75,29 +77,36 @@ class OverlayManagerTests
     class ApplicationStub : public ApplicationImpl
     {
       public:
-        shared_ptr<OverlayManagerStub> mOverlayManager;
         ApplicationStub(VirtualClock& clock, Config const& cfg)
             : ApplicationImpl(clock, cfg)
         {
-            mOverlayManager = make_shared<OverlayManagerStub>(*this);
-            newDB();
         }
+
         virtual OverlayManagerStub&
         getOverlayManager() override
         {
-            return *mOverlayManager;
+            auto& overlay = ApplicationImpl::getOverlayManager();
+            return static_cast<OverlayManagerStub&>(overlay);
+        }
+
+      private:
+        virtual std::unique_ptr<OverlayManager>
+        createOverlayManager() override
+        {
+            return make_unique<OverlayManagerStub>(*this);
         }
     };
 
   protected:
     VirtualClock clock;
-    ApplicationStub app{clock, getTestConfig()};
+    std::shared_ptr<ApplicationStub> app;
 
     vector<string> fourPeers;
     vector<string> threePeers;
 
     OverlayManagerTests()
-        : fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
+        : app( createTestApplication<ApplicationStub>(clock, getTestConfig()))
+        , fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
                                    "127.0.0.1:2013", "127.0.0.1:2014"})
         , threePeers(vector<string>{"127.0.0.1:201", "127.0.0.1:202",
                                     "127.0.0.1:203", "127.0.0.1:204"})
@@ -107,11 +116,11 @@ class OverlayManagerTests
     void
     test_addPeerList()
     {
-        OverlayManagerStub& pm = app.getOverlayManager();
+        OverlayManagerStub& pm = app->getOverlayManager();
 
         pm.storePeerList(fourPeers);
 
-        rowset<row> rs = app.getDatabase().getSession().prepare
+        rowset<row> rs = app->getDatabase().getSession().prepare
                          << "SELECT ip,port FROM peers";
         vector<string> actual;
         for (auto it = rs.begin(); it != rs.end(); ++it)
@@ -133,16 +142,16 @@ class OverlayManagerTests
     void
     test_broadcast()
     {
-        OverlayManagerStub& pm = app.getOverlayManager();
+        OverlayManagerStub& pm = app->getOverlayManager();
 
         pm.storePeerList(fourPeers);
         pm.storePeerList(threePeers);
         pm.connectToMorePeers(5);
         REQUIRE(pm.mPeers.size() == 5);
-        auto a = TestAccount{app, getAccount("a")};
-        auto b = TestAccount{app, getAccount("b")};
-        auto c = TestAccount{app, getAccount("c")};
-        auto d = TestAccount{app, getAccount("d")};
+        auto a = TestAccount{*app, getAccount("a")};
+        auto b = TestAccount{*app, getAccount("b")};
+        auto c = TestAccount{*app, getAccount("c")};
+        auto d = TestAccount{*app, getAccount("d")};
 
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
