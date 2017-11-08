@@ -63,6 +63,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 8;
     MAX_PEER_CONNECTIONS = 12;
+    MAX_PENDING_CONNECTIONS = 5000;
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PREFERRED_PEERS_ONLY = false;
@@ -453,6 +454,16 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
                 }
                 MAX_PEER_CONNECTIONS = (int)item.second->as<int64_t>()->value();
+            }
+            else if (item.first == "MAX_PENDING_CONNECTIONS")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid MAX_PENDING_CONNECTIONS");
+                }
+                MAX_PENDING_CONNECTIONS =
+                    (int)item.second->as<int64_t>()->value();
             }
             else if (item.first == "PEER_AUTHENTICATION_TIMEOUT")
             {

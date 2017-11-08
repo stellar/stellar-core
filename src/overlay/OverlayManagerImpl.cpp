@@ -291,7 +291,8 @@ OverlayManagerImpl::updateSizeCounters()
 void
 OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
 {
-    if (mShuttingDown)
+    if (mShuttingDown ||
+        getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
     {
         peer->drop();
         return;

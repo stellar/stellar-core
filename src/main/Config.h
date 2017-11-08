@@ -144,6 +144,7 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_PORT;
     unsigned TARGET_PEER_CONNECTIONS;
     unsigned MAX_PEER_CONNECTIONS;
+    unsigned MAX_PENDING_CONNECTIONS;
     unsigned short PEER_AUTHENTICATION_TIMEOUT;
     unsigned short PEER_TIMEOUT;
 
