@@ -10,12 +10,20 @@
 namespace stellar
 {
 
-Application::pointer
-createTestApplication(VirtualClock& clock, Config const& cfg);
-
 namespace testutil
 {
 void setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion);
+}
+
+template <typename T = ApplicationImpl>
+std::shared_ptr<T>
+createTestApplication(VirtualClock& clock, Config const& cfg)
+{
+    auto app = Application::create<T>(clock, cfg);
+    auto& lm = app->getLedgerManager();
+    lm.getCurrentLedgerHeader().baseFee = cfg.DESIRED_BASE_FEE;
+    testutil::setCurrentLedgerVersion(lm, cfg.LEDGER_PROTOCOL_VERSION);
+    return app;
 }
 
 time_t getTestDate(int day, int month, int year);
