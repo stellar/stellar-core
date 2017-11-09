@@ -43,6 +43,7 @@ namespace stellar
 static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
+static bool gTestAllVersions{false};
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
@@ -151,15 +152,37 @@ test(int argc, char* const* argv, el::Level ll,
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
-    int r = Catch::Session().run(argc, argv);
+    using namespace Catch;
+    Session session{};
+    auto r =
+        session.applyCommandLine(argc, argv, Session::OnUnusedOptions::Ignore);
+    if (r != 0)
+        return r;
+
+    auto unusedTokens = session.unusedTokens();
+    using namespace Clara;
+
+    for (auto const& token : unusedTokens)
+    {
+        if (token.type == Parser::Token::LongOpt &&
+            token.data == "all-versions")
+        {
+            gTestAllVersions = true;
+            continue;
+        }
+
+        session.showHelp(session.configData().processName);
+        return -1;
+    }
+
+    r = session.run();
     gTestRoots.clear();
     gTestCfg->clear();
     return r;
 }
 
 void
-for_versions_to(int to, Application& app,
-                std::function<void(void)> const& f)
+for_versions_to(int to, Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
@@ -172,8 +195,7 @@ for_versions_from(int from, Application& app,
 }
 
 void
-for_versions_from(std::vector<int> const& versions,
-                  Application& app,
+for_versions_from(std::vector<int> const& versions, Application& app,
                   std::function<void(void)> const& f)
 {
     for_versions(versions, app, f);
@@ -181,8 +203,7 @@ for_versions_from(std::vector<int> const& versions,
 }
 
 void
-for_all_versions(Application& app,
-                 std::function<void(void)> const& f)
+for_all_versions(Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
@@ -209,12 +230,10 @@ for_versions(std::vector<int> const& versions, Application& app,
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
     for (auto v : versions)
     {
-#ifdef TEST_ONLY_CURRENT_PROTOCOL
-        if (v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        if (!gTestAllVersions && v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
         {
             continue;
         }
-#endif
         SECTION("protocol version " + std::to_string(v))
         {
             testutil::setCurrentLedgerVersion(app.getLedgerManager(), v);
@@ -225,8 +244,7 @@ for_versions(std::vector<int> const& versions, Application& app,
 }
 
 void
-for_all_versions_except(std::vector<int> const& versions,
-                        Application& app,
+for_all_versions_except(std::vector<int> const& versions, Application& app,
                         std::function<void(void)> const& f)
 {
     int lastExcept = 0;
