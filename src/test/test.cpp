@@ -161,12 +161,19 @@ test(int argc, char* const* argv, el::Level ll,
 
     auto unusedTokens = session.unusedTokens();
     using namespace Clara;
-    gTestAllVersions =
-        std::find_if(std::begin(unusedTokens), std::end(unusedTokens),
-                     [](Parser::Token const& token) {
-                         return token.type == Parser::Token::LongOpt &&
-                                token.data == "all-versions";
-                     }) != std::end(unusedTokens);
+
+    for (auto const& token : unusedTokens)
+    {
+        if (token.type == Parser::Token::LongOpt &&
+            token.data == "all-versions")
+        {
+            gTestAllVersions = true;
+            continue;
+        }
+
+        session.showHelp(session.configData().processName);
+        return -1;
+    }
 
     r = session.run();
     gTestRoots.clear();
