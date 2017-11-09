@@ -139,6 +139,9 @@ class Config : public std::enable_shared_from_this<Config>
     unsigned short PEER_PORT;
     unsigned TARGET_PEER_CONNECTIONS;
     unsigned MAX_PEER_CONNECTIONS;
+    unsigned short PEER_AUTHENTICATION_TIMEOUT;
+    unsigned short PEER_TIMEOUT;
+
     // Peers we will always try to stay connected to
     std::vector<std::string> PREFERRED_PEERS;
     std::vector<std::string> KNOWN_PEERS;
