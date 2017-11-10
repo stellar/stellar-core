@@ -767,6 +767,19 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                               lcl.header.scpValue);
 }
 
+bool
+HerderImpl::timeForUpgrade() const
+{
+    if (!mApp.getConfig().PREFERRED_UPGRADE_DATETIME)
+    {
+        return true;
+    }
+
+    return VirtualClock::tmToPoint(
+               *mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <=
+           mApp.getClock().now();
+}
+
 std::vector<LedgerUpgrade>
 HerderImpl::prepareUpgrades(const LedgerHeader& header) const
 {
@@ -774,12 +787,7 @@ HerderImpl::prepareUpgrades(const LedgerHeader& header) const
 
     if (header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
-        auto timeForUpgrade =
-            !mApp.getConfig().PREFERRED_UPGRADE_DATETIME ||
-            VirtualClock::tmToPoint(
-                *mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <=
-                mApp.getClock().now();
-        if (timeForUpgrade)
+        if (timeForUpgrade())
         {
             result.emplace_back(LEDGER_UPGRADE_VERSION);
             result.back().newLedgerVersion() =

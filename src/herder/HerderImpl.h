@@ -79,6 +79,7 @@ class HerderImpl : public Herder
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
+    bool timeForUpgrade() const;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 

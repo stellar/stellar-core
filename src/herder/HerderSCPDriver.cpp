@@ -195,11 +195,7 @@ HerderSCPDriver::validateUpgradeStep(uint64_t slotIndex,
     case LEDGER_UPGRADE_VERSION:
     {
         auto timeForUpgrade =
-            acceptUpgradeAtAnyTime ||
-            (!mApp.getConfig().PREFERRED_UPGRADE_DATETIME ||
-             VirtualClock::tmToPoint(
-                 *mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <=
-                 mApp.getClock().now());
+            acceptUpgradeAtAnyTime || mHerder.timeForUpgrade();
 
         uint32 newVersion = lupgrade.newLedgerVersion();
         res = timeForUpgrade &&
