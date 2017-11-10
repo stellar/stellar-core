@@ -68,7 +68,7 @@ class TestSCP : public SCPDriver
     }
 
     SCPDriver::ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value) override
+    validateValue(uint64 slotIndex, Value const& value, ValidationMode) override
     {
         return SCPDriver::kFullyValidatedValue;
     }

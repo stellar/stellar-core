@@ -159,15 +159,14 @@ TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at this time",
     simulateLedgerUpgrade(nodes, checks);
 }
 
-TEST_CASE(
-    "2 of 2 nodes vote for upgrade at some time - upgrade at earlier time",
-    "[herder][upgrade]")
+TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at later time",
+          "[herder][upgrade]")
 {
     auto quorum = LedgerUpdateQuorum{{0, 1}, 2};
     auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
                                                 {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 25), {0, 0}},
-                                                  {checkAt(0, 45), {1, 1}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 45), {0, 0}},
+                                                  {checkAt(1, 15), {1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -179,20 +178,21 @@ TEST_CASE("3 of 3 nodes vote for upgrade at some time; 2 on earlier time - "
     auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
                                                 {1, upgradeAt(0, 30), quorum},
                                                 {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 25), {0, 0, 0}},
-                                                  {checkAt(0, 45), {1, 1, 1}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 15), {0, 0, 0}},
+                                                  {checkAt(0, 45), {1, 1, 1}},
+                                                  {checkAt(1, 15), {1, 1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
 TEST_CASE("3 of 3 nodes vote for upgrade at some time; 1 on earlier time - "
-          "upgrade at earlier time",
+          "upgrade at later time",
           "[herder][upgrade]")
 {
     auto quorum = LedgerUpdateQuorum{{0, 1, 2}, 2};
     auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
                                                 {1, upgradeAt(1, 0), quorum},
                                                 {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 25), {0, 0, 0}},
-                                                  {checkAt(0, 45), {1, 1, 1}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{checkAt(0, 45), {0, 0, 0}},
+                                                  {checkAt(1, 15), {1, 1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }

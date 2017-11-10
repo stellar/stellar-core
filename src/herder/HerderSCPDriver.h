@@ -91,8 +91,9 @@ class HerderSCPDriver : public SCPDriver
     void emitEnvelope(SCPEnvelope const& envelope) override;
 
     // value validation
-    SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
-                                             Value const& value) override;
+    SCPDriver::ValidationLevel
+    validateValue(uint64_t slotIndex, Value const& value,
+                  ValidationMode validationMode) override;
     Value extractValidValue(uint64_t slotIndex, Value const& value) override;
 
     // value marshaling
@@ -197,7 +198,8 @@ class HerderSCPDriver : public SCPDriver
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool validateUpgradeStep(uint64_t slotIndex, UpgradeType const& upgrade,
-                             LedgerUpgradeType& upgradeType) const;
+                             LedgerUpgradeType& upgradeType,
+                             bool acceptUpgradeAtAnyTime) const;
 
     void logQuorumInformation(uint64_t index);
 };
