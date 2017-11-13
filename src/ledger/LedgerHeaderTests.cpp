@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
+#include "crypto/Hex.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -21,9 +22,42 @@ using namespace std;
 
 typedef std::unique_ptr<Application> appPtr;
 
+TEST_CASE("genesisledger", "[ledger]")
+{
+    VirtualClock clock{};
+    auto cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const& header = lcl.header;
+    REQUIRE(header.ledgerVersion == 0);
+    REQUIRE(header.previousLedgerHash == Hash{});
+    REQUIRE(header.scpValue.txSetHash == Hash{});
+    REQUIRE(header.scpValue.closeTime == 0);
+    REQUIRE(header.scpValue.upgrades.size() == 0);
+    REQUIRE(header.txSetResultHash == Hash{});
+    REQUIRE(binToHex(header.bucketListHash) ==
+            "4e6a8404d33b17eee7031af0b3606b6af8e36fe5a3bff59e4e5e420bd0ad3bf4");
+    REQUIRE(header.ledgerSeq == HistoryManager::GENESIS_LEDGER_SEQ);
+    REQUIRE(header.totalCoins == 1000000000000000000);
+    REQUIRE(header.feePool == 0);
+    REQUIRE(header.inflationSeq == 0);
+    REQUIRE(header.idPool == 0);
+    REQUIRE(header.baseFee == 100);
+    REQUIRE(header.baseReserve == 100000000);
+    REQUIRE(header.maxTxSetSize == 100);
+    REQUIRE(header.skipList.size() == 4);
+    REQUIRE(header.skipList[0] == Hash{});
+    REQUIRE(header.skipList[1] == Hash{});
+    REQUIRE(header.skipList[2] == Hash{});
+    REQUIRE(header.skipList[3] == Hash{});
+    REQUIRE(binToHex(lcl.hash) ==
+            "caf73c70dde8134f792535756cc3212f65007883e8959adf92e48062f401e543");
+}
+
 TEST_CASE("ledgerheader", "[ledger]")
 {
-
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
 
     Hash saved;
