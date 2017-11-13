@@ -23,6 +23,7 @@ class HerderImpl;
 class LedgerManager;
 class PendingEnvelopes;
 class SCP;
+class Upgrades;
 class VirtualTimer;
 struct StellarValue;
 struct SCPEnvelope;
@@ -41,6 +42,7 @@ class HerderSCPDriver : public SCPDriver
     };
 
     HerderSCPDriver(Application& app, HerderImpl& herder,
+                    Upgrades const& upgrades,
                     PendingEnvelopes& pendingEnvelopes);
     ~HerderSCPDriver();
 
@@ -134,6 +136,7 @@ class HerderSCPDriver : public SCPDriver
     Application& mApp;
     HerderImpl& mHerder;
     LedgerManager& mLedgerManager;
+    Upgrades const& mUpgrades;
     PendingEnvelopes& mPendingEnvelopes;
     SCP mSCP;
 
@@ -194,13 +197,6 @@ class HerderSCPDriver : public SCPDriver
     // returns true if the local instance is in a state compatible with
     // this slot
     bool isSlotCompatibleWithCurrentState(uint64_t slotIndex) const;
-
-    // returns true if upgrade is a valid upgrade step
-    // in which case it also sets upgradeType
-    bool validateUpgradeStep(uint64_t slotIndex, uint64_t closeTime,
-                             UpgradeType const& upgrade,
-                             LedgerUpgradeType& upgradeType,
-                             bool acceptUpgradeAtAnyTime) const;
 
     void logQuorumInformation(uint64_t index);
 };
