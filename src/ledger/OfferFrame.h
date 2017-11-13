@@ -15,6 +15,7 @@ class session;
 
 namespace stellar
 {
+class LedgerRange;
 class ManageOfferOpFrame;
 class StatementContext;
 
@@ -82,6 +83,10 @@ class OfferFrame : public EntryFrame
                             LedgerKey const& key);
     static bool exists(Database& db, LedgerKey const& key);
     static uint64_t countObjects(soci::session& sess);
+    static uint64_t countObjects(soci::session& sess,
+                                 LedgerRange const& ledgers);
+    static void deleteOffersModifiedOnOrAfterLedger(Database& db,
+                             uint32_t oldestLedger);
 
     // database utilities
     static pointer loadOffer(AccountID const& accountID, uint64_t offerID,

@@ -350,7 +350,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
         mBucketList.getLevel(i).setSnap(snap);
         mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
-    mBucketList.restartMerges(mApp, has.currentLedger);
+    mBucketList.restartMerges(mApp);
 }
 
 void

@@ -97,155 +97,133 @@ Bucket::setRetain(bool r)
  * Helper class that reads from the file underlying a bucket, keeping the bucket
  * alive for the duration of its existence.
  */
-class Bucket::InputIterator
+void
+Bucket::InputIterator::loadEntry()
 {
-    std::shared_ptr<Bucket const> mBucket;
-
-    // Validity and current-value of the iterator is funneled into a pointer. If
-    // non-null, it points to mEntry.
-    BucketEntry const* mEntryPtr;
-    XDRInputFileStream mIn;
-    BucketEntry mEntry;
-
-    void
-    loadEntry()
+    if (mIn.readOne(mEntry))
     {
-        if (mIn.readOne(mEntry))
-        {
-            mEntryPtr = &mEntry;
-        }
-        else
-        {
-            mEntryPtr = nullptr;
-        }
+        mEntryPtr = &mEntry;
     }
-
-  public:
-    operator bool() const
+    else
     {
-        return mEntryPtr != nullptr;
+        mEntryPtr = nullptr;
     }
+}
 
-    BucketEntry const& operator*()
-    {
-        return *mEntryPtr;
-    }
+Bucket::InputIterator::operator bool() const
+{
+    return mEntryPtr != nullptr;
+}
 
-    InputIterator(std::shared_ptr<Bucket const> bucket)
-        : mBucket(bucket), mEntryPtr(nullptr)
-    {
-        if (!mBucket->mFilename.empty())
-        {
-            CLOG(TRACE, "Bucket")
-                << "Bucket::InputIterator opening file to read: "
-                << mBucket->mFilename;
-            mIn.open(mBucket->mFilename);
-            loadEntry();
-        }
-    }
+BucketEntry const&
+Bucket::InputIterator::operator*()
+{
+    return *mEntryPtr;
+}
 
-    ~InputIterator()
+Bucket::InputIterator::InputIterator(std::shared_ptr<Bucket const> bucket)
+    : mBucket(bucket), mEntryPtr(nullptr)
+{
+    if (!mBucket->mFilename.empty())
     {
-        mIn.close();
+        CLOG(TRACE, "Bucket")
+            << "Bucket::InputIterator opening file to read: "
+            << mBucket->mFilename;
+        mIn.open(mBucket->mFilename);
+        loadEntry();
     }
+}
 
-    InputIterator& operator++()
+Bucket::InputIterator::~InputIterator()
+{
+    mIn.close();
+}
+
+Bucket::InputIterator&
+Bucket::InputIterator::operator++()
+{
+    if (mIn)
     {
-        if (mIn)
-        {
-            loadEntry();
-        }
-        else
-        {
-            mEntryPtr = nullptr;
-        }
-        return *this;
+        loadEntry();
     }
-};
+    else
+    {
+        mEntryPtr = nullptr;
+    }
+    return *this;
+}
 
 /**
  * Helper class that points to an output tempfile. Absorbs BucketEntries and
  * hashes them while writing to either destination. Produces a Bucket when done.
  */
-class Bucket::OutputIterator
+Bucket::OutputIterator::OutputIterator(std::string const& tmpDir,
+                                       bool keepDeadEntries)
+    : mFilename(randomBucketName(tmpDir))
+    , mBuf(nullptr)
+    , mHasher(SHA256::create())
+    , mKeepDeadEntries(keepDeadEntries)
 {
-    std::string mFilename;
-    XDROutputFileStream mOut;
-    BucketEntryIdCmp mCmp;
-    std::unique_ptr<BucketEntry> mBuf;
-    std::unique_ptr<SHA256> mHasher;
-    size_t mBytesPut{0};
-    size_t mObjectsPut{0};
-    bool mKeepDeadEntries{true};
+    CLOG(TRACE, "Bucket")
+        << "Bucket::OutputIterator opening file to write: " << mFilename;
+    mOut.open(mFilename);
+}
 
-  public:
-    OutputIterator(std::string const& tmpDir, bool keepDeadEntries)
-        : mFilename(randomBucketName(tmpDir))
-        , mBuf(nullptr)
-        , mHasher(SHA256::create())
-        , mKeepDeadEntries(keepDeadEntries)
+void
+Bucket::OutputIterator::put(BucketEntry const& e)
+{
+    if (!mKeepDeadEntries && e.type() == DEADENTRY)
     {
-        CLOG(TRACE, "Bucket")
-            << "Bucket::OutputIterator opening file to write: " << mFilename;
-        mOut.open(mFilename);
+        return;
     }
 
-    void
-    put(BucketEntry const& e)
+    // Check to see if there's an existing buffered entry.
+    if (mBuf)
     {
-        if (!mKeepDeadEntries && e.type() == DEADENTRY)
-        {
-            return;
-        }
+        // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
+        // it would mean that we're getting entries out of order.
+        assert(!mCmp(e, *mBuf));
 
-        // Check to see if there's an existing buffered entry.
-        if (mBuf)
-        {
-            // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
-            // it would mean that we're getting entries out of order.
-            assert(!mCmp(e, *mBuf));
-
-            // Check to see if the new entry should flush (greater identity), or
-            // merely replace (same identity), the buffered entry.
-            if (mCmp(*mBuf, e))
-            {
-                mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
-                mObjectsPut++;
-            }
-        }
-        else
-        {
-            mBuf = make_unique<BucketEntry>();
-        }
-
-        // In any case, replace *mBuf with e.
-        *mBuf = e;
-    }
-
-    std::shared_ptr<Bucket>
-    getBucket(BucketManager& bucketManager)
-    {
-        assert(mOut);
-        if (mBuf)
+        // Check to see if the new entry should flush (greater identity), or
+        // merely replace (same identity), the buffered entry.
+        if (mCmp(*mBuf, e))
         {
             mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
             mObjectsPut++;
-            mBuf.reset();
         }
-
-        mOut.close();
-        if (mObjectsPut == 0 || mBytesPut == 0)
-        {
-            assert(mObjectsPut == 0);
-            assert(mBytesPut == 0);
-            CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
-            std::remove(mFilename.c_str());
-            return std::make_shared<Bucket>();
-        }
-        return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
-                                               mObjectsPut, mBytesPut);
     }
-};
+    else
+    {
+        mBuf = make_unique<BucketEntry>();
+    }
+
+    // In any case, replace *mBuf with e.
+    *mBuf = e;
+}
+
+std::shared_ptr<Bucket>
+Bucket::OutputIterator::getBucket(BucketManager& bucketManager)
+{
+    assert(mOut);
+    if (mBuf)
+    {
+        mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+        mObjectsPut++;
+        mBuf.reset();
+    }
+
+    mOut.close();
+    if (mObjectsPut == 0 || mBytesPut == 0)
+    {
+        assert(mObjectsPut == 0);
+        assert(mBytesPut == 0);
+        CLOG(DEBUG, "Bucket") << "Deleting empty bucket file " << mFilename;
+        std::remove(mFilename.c_str());
+        return std::make_shared<Bucket>();
+    }
+    return bucketManager.adoptFileAsBucket(mFilename, mHasher->finish(),
+                                           mObjectsPut, mBytesPut);
+}
 
 bool
 Bucket::containsBucketIdentity(BucketEntry const& id) const

@@ -236,10 +236,30 @@ CatchupWork::applyBuckets()
         return false;
     }
 
+    // Consistency check: mRemoteState and mFirstVerified should point to
+    // the same ledger and the same BucketList.
+    assert(mApplyBucketsRemoteState.currentLedger ==
+           mFirstVerified.header.ledgerSeq);
+    assert(mApplyBucketsRemoteState.getBucketListHash() ==
+           mFirstVerified.header.bucketListHash);
+
+    // Consistency check: LCL should be in the _past_ from firstVerified,
+    // since we're about to clobber a bunch of DB state with new buckets
+    // held in firstVerified's state.
+    auto lcl = app().getLedgerManager().getLastClosedLedgerHeader();
+    if (mFirstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
+    {
+        throw std::runtime_error(
+            fmt::format("Catchup MINIMAL applying ledger earlier than local "
+                        "LCL: {:s} < {:s}",
+                        LedgerManager::ledgerAbbrev(mFirstVerified),
+                        LedgerManager::ledgerAbbrev(lcl)));
+    }
+
     CLOG(INFO, "History") << "Catchup applying buckets for state "
                           << LedgerManager::ledgerAbbrev(mFirstVerified);
     mApplyBucketsWork = addWork<ApplyBucketsWork>(
-        mBuckets, mApplyBucketsRemoteState, mFirstVerified);
+        mBuckets, mApplyBucketsRemoteState);
 
     return true;
 }

@@ -13,28 +13,25 @@ namespace stellar
 
 BucketApplicator::BucketApplicator(Database& db,
                                    std::shared_ptr<const Bucket> bucket)
-    : mDb(db), mBucket(bucket)
+    : mDb(db), mBucketIter(bucket)
 {
-    if (!bucket->getFilename().empty())
-    {
-        mIn.open(bucket->getFilename());
-    }
 }
 
 BucketApplicator::operator bool() const
 {
-    return (bool)mIn;
+    return (bool)mBucketIter;
 }
 
 void
 BucketApplicator::advance()
 {
     soci::transaction sqlTx(mDb.getSession());
-    BucketEntry entry;
-    while (mIn && mIn.readOne(entry))
+    for ( ; mBucketIter; ++mBucketIter)
     {
         LedgerHeader lh;
         LedgerDelta delta(lh, mDb, false);
+
+        auto const& entry = *mBucketIter;
         if (entry.type() == LIVEENTRY)
         {
             EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
@@ -54,7 +51,7 @@ BucketApplicator::advance()
     sqlTx.commit();
     mDb.clearPreparedStatementCache();
 
-    if (!mIn || (mSize & 0xfff) == 0xfff)
+    if (!mBucketIter || (mSize & 0xfff) == 0xfff)
     {
         CLOG(INFO, "Bucket") << "Bucket-apply: committed " << mSize
                              << " entries";

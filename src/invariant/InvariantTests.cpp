@@ -4,17 +4,18 @@
 
 #include "util/asio.h"
 
-#include "crypto/Hex.h"
+#include "bucket/Bucket.h"
+#include "database/Database.h"
 #include "herder/TxSetFrame.h"
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
-#include "util/Timer.h"
 
 using namespace stellar;
 
@@ -40,6 +41,14 @@ class TestInvariant : public Invariant
         return mShouldFail ? "fail" : "";
     }
 
+    virtual std::string
+    checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+                       uint32_t oldestLedger,
+                       uint32_t newestLedger) override
+    {
+        return mShouldFail ? "fail" : "";
+    }
+
   private:
     bool mShouldFail;
 };
@@ -51,6 +60,7 @@ TEST_CASE("no duplicate register", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
@@ -63,6 +73,7 @@ TEST_CASE("no duplicate enable", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
@@ -76,6 +87,7 @@ TEST_CASE("only enable registered invariants", "[invariant]")
 {
     VirtualClock clock;
     Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
     app->getInvariantManager().registerInvariant<TestInvariant>(true);
@@ -89,6 +101,7 @@ TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
     {
         VirtualClock clock;
         Config cfg = getTestConfig();
+        cfg.INVARIANT_CHECKS = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
         app->getInvariantManager().registerInvariant<TestInvariant>(true);
@@ -108,6 +121,7 @@ TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
     {
         VirtualClock clock;
         Config cfg = getTestConfig();
+        cfg.INVARIANT_CHECKS = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
         app->getInvariantManager().registerInvariant<TestInvariant>(false);
@@ -123,3 +137,44 @@ TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
             app->getInvariantManager().checkOnLedgerClose(tsfp, ld));
     }
 }
+
+TEST_CASE("onBucketApply fail/succeed", "[invariant]")
+{
+    {
+        VirtualClock clock;
+        Config cfg = getTestConfig();
+        cfg.INVARIANT_CHECKS = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        app->getInvariantManager().registerInvariant<TestInvariant>(true);
+        app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
+
+        auto bucket = std::make_shared<Bucket>();
+        uint32_t ledger = 1;
+        uint32_t level = 0;
+        bool isCurr = true;
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().checkOnBucketApply(bucket, ledger,
+                                                          level, isCurr),
+            InvariantDoesNotHold);
+    }
+
+    {
+        VirtualClock clock;
+        Config cfg = getTestConfig();
+        cfg.INVARIANT_CHECKS = {};
+        Application::pointer app = createTestApplication(clock, cfg);
+
+        app->getInvariantManager().registerInvariant<TestInvariant>(false);
+        app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
+
+        auto bucket = std::make_shared<Bucket>();
+        uint32_t ledger = 1;
+        uint32_t level = 0;
+        bool isCurr = true;
+        REQUIRE_NOTHROW(
+            app->getInvariantManager().checkOnBucketApply(bucket, ledger,
+                                                          level, isCurr));
+    }
+}
+

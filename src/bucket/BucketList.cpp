@@ -171,6 +171,119 @@ BucketList::mask(uint32_t v, uint32_t m)
     return v & ~(m - 1);
 }
 
+uint32_t
+BucketList::sizeOfCurr(uint32_t ledger, size_t level)
+{
+    assert(ledger != 0);
+    assert(level < kNumLevels);
+    if (level == 0)
+    {
+        return (ledger == 1) ? 1 : (1 + ledger % 2);
+    }
+
+    auto const size = levelSize(level);
+    auto const half = levelHalf(level);
+    if (level != BucketList::kNumLevels-1 && mask(ledger, half) != 0)
+    {
+        uint32_t const sizeDelta = 1UL << (2*level-1);
+        if (mask(ledger, half) == ledger ||
+            mask(ledger, size) == ledger)
+        {
+            return sizeDelta;
+        }
+
+        auto const prevSize = levelSize(level-1);
+        auto const prevHalf = levelHalf(level-1);
+        uint32_t previousRelevantLedger = std::max(
+            {mask(ledger-1, prevHalf), mask(ledger-1, prevSize),
+            mask(ledger-1, half), mask(ledger-1, size)});
+        if (mask(ledger, prevHalf) == ledger ||
+            mask(ledger, prevSize) == ledger)
+        {
+            return sizeOfCurr(previousRelevantLedger, level) + sizeDelta;
+        }
+        else
+        {
+            return sizeOfCurr(previousRelevantLedger, level);
+        }
+    }
+    else
+    {
+        uint32_t size = 0;
+        for (uint32_t l = 0; l < level; l++)
+        {
+            size += sizeOfCurr(ledger, l);
+            size += sizeOfSnap(ledger, l);
+        }
+        return ledger - size;
+    }
+}
+
+uint32_t
+BucketList::sizeOfSnap(uint32_t ledger, size_t level)
+{
+    assert(ledger != 0);
+    assert(level < kNumLevels);
+    if (level == BucketList::kNumLevels-1)
+    {
+        return 0;
+    }
+    else if (mask(ledger, levelSize(level)) != 0)
+    {
+        return levelHalf(level);
+    }
+    else
+    {
+        uint32_t size = 0;
+        for (uint32_t l = 0; l < level; l++)
+        {
+            size += sizeOfCurr(ledger, l);
+            size += sizeOfSnap(ledger, l);
+        }
+        size += sizeOfCurr(ledger, level);
+        return ledger - size;
+    }
+}
+
+uint32_t
+BucketList::oldestLedgerInCurr(uint32_t ledger, size_t level)
+{
+    assert(ledger != 0);
+    assert(level < kNumLevels);
+    if (sizeOfCurr(ledger, level) == 0)
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+
+    uint32_t count = ledger;
+    for (uint32_t l = 0; l < level; l++)
+    {
+        count -= sizeOfCurr(ledger, l);
+        count -= sizeOfSnap(ledger, l);
+    }
+    count -= sizeOfCurr(ledger, level);
+    return count + 1;
+}
+
+uint32_t
+BucketList::oldestLedgerInSnap(uint32_t ledger, size_t level)
+{
+    assert(ledger != 0);
+    assert(level < kNumLevels);
+    if (sizeOfSnap(ledger, level) == 0)
+    {
+        return std::numeric_limits<uint32_t>::max();
+    }
+
+    uint32_t count = ledger;
+    for (uint32_t l = 0; l <= level; l++)
+    {
+        count -= sizeOfCurr(ledger, l);
+        count -= sizeOfSnap(ledger, l);
+    }
+    return count + 1;
+}
+
 uint256
 BucketList::getHash() const
 {
@@ -298,7 +411,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 }
 
 void
-BucketList::restartMerges(Application& app, uint32_t currLedger)
+BucketList::restartMerges(Application& app)
 {
     size_t i = 0;
     for (auto& level : mLevels)

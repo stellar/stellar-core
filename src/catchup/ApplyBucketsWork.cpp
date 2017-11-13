@@ -8,9 +8,15 @@
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "crypto/SecretKey.h"
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/TrustFrame.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/DataFrame.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -22,13 +28,11 @@ namespace stellar
 
 ApplyBucketsWork::ApplyBucketsWork(
     Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
-    HistoryArchiveState& applyState,
-    LedgerHeaderHistoryEntry const& firstVerified)
+    std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+    HistoryArchiveState const& applyState)
     : Work(app, parent, std::string("apply-buckets"))
     , mBuckets(buckets)
     , mApplyState(applyState)
-    , mFirstVerified(firstVerified)
     , mApplying(false)
     , mLevel(BucketList::kNumLevels - 1)
     , mBucketApplyStart(app.getMetrics().NewMeter(
@@ -38,18 +42,6 @@ ApplyBucketsWork::ApplyBucketsWork(
     , mBucketApplyFailure(app.getMetrics().NewMeter(
           {"history", "bucket-apply", "failure"}, "event"))
 {
-    // Consistency check: LCL should be in the _past_ from firstVerified,
-    // since we're about to clobber a bunch of DB state with new buckets
-    // held in firstVerified's state.
-    auto lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    if (firstVerified.header.ledgerSeq < lcl.header.ledgerSeq)
-    {
-        throw std::runtime_error(
-            fmt::format("ApplyBucketsWork applying ledger earlier than local "
-                        "LCL: {:s} < {:s}",
-                        LedgerManager::ledgerAbbrev(firstVerified),
-                        LedgerManager::ledgerAbbrev(lcl)));
-    }
 }
 
 ApplyBucketsWork::~ApplyBucketsWork()
@@ -57,23 +49,17 @@ ApplyBucketsWork::~ApplyBucketsWork()
     clearChildren();
 }
 
-BucketList&
-ApplyBucketsWork::getBucketList()
-{
-    return mApp.getBucketManager().getBucketList();
-}
-
 BucketLevel&
 ApplyBucketsWork::getBucketLevel(size_t level)
 {
-    return getBucketList().getLevel(level);
+    return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
-std::shared_ptr<Bucket>
+std::shared_ptr<Bucket const>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
-    std::shared_ptr<Bucket> b;
-    if (hash.find_first_not_of('0') == std::string::npos)
+    std::shared_ptr<Bucket const> b;
+    if (isZero(hexToBin256(hash)))
     {
         b = std::make_shared<Bucket>();
     }
@@ -108,8 +94,26 @@ void
 ApplyBucketsWork::onStart()
 {
     auto& level = getBucketLevel(mLevel);
-    HistoryStateBucket& i = mApplyState.currentBuckets.at(mLevel);
-    if (mApplying || i.snap != binToHex(level.getSnap()->getHash()))
+    HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
+
+    bool applySnap = (i.snap != binToHex(level.getSnap()->getHash()));
+    bool applyCurr = (i.curr != binToHex(level.getCurr()->getHash()));
+    if (!mApplying && (applySnap || applyCurr))
+    {
+        uint32_t oldestLedger = applySnap
+            ? BucketList::oldestLedgerInSnap(mApplyState.currentLedger, mLevel)
+            : BucketList::oldestLedgerInCurr(mApplyState.currentLedger, mLevel);
+        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        OfferFrame::deleteOffersModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+        DataFrame::deleteDataModifiedOnOrAfterLedger(
+                mApp.getDatabase(), oldestLedger);
+    }
+
+    if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator =
@@ -119,7 +123,7 @@ ApplyBucketsWork::onStart()
         mApplying = true;
         mBucketApplyStart.Mark();
     }
-    if (mApplying || i.curr != binToHex(level.getCurr()->getHash()))
+    if (mApplying || applyCurr)
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator =
@@ -134,13 +138,25 @@ ApplyBucketsWork::onStart()
 void
 ApplyBucketsWork::onRun()
 {
-    if (mSnapApplicator && *mSnapApplicator)
+    // The structure of these if statements is motivated by the following:
+    // 1. mCurrApplicator should never be advanced if mSnapApplicator is
+    //    not false. Otherwise it is possible for curr to modify the
+    //    database when the invariants for snap are checked.
+    // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
+    //    if there is nothing to be applied.
+    if (mSnapApplicator)
     {
-        mSnapApplicator->advance();
+        if (*mSnapApplicator)
+        {
+            mSnapApplicator->advance();
+        }
     }
-    else if (mCurrApplicator && *mCurrApplicator)
+    else if (mCurrApplicator)
     {
-        mCurrApplicator->advance();
+        if (*mCurrApplicator)
+        {
+            mCurrApplicator->advance();
+        }
     }
     scheduleSuccess();
 }
@@ -150,30 +166,30 @@ ApplyBucketsWork::onSuccess()
 {
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
 
-    if ((mSnapApplicator && *mSnapApplicator) ||
-        (mCurrApplicator && *mCurrApplicator))
+    if (mSnapApplicator)
     {
-        return WORK_RUNNING;
-    }
-
-    auto& level = getBucketLevel(mLevel);
-    if (mSnapBucket)
-    {
-        level.setSnap(mSnapBucket);
+        if (*mSnapApplicator)
+        {
+            return WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+                mSnapBucket, mApplyState.currentLedger, mLevel, false);
+        mSnapApplicator.reset();
+        mSnapBucket.reset();
         mBucketApplySuccess.Mark();
     }
-    if (mCurrBucket)
+    if (mCurrApplicator)
     {
-        level.setCurr(mCurrBucket);
+        if (*mCurrApplicator)
+        {
+            return WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+                mCurrBucket, mApplyState.currentLedger, mLevel, true);
+        mCurrApplicator.reset();
+        mCurrBucket.reset();
         mBucketApplySuccess.Mark();
     }
-    mSnapBucket.reset();
-    mCurrBucket.reset();
-    mSnapApplicator.reset();
-    mCurrApplicator.reset();
-
-    HistoryStateBucket& i = mApplyState.currentBuckets.at(mLevel);
-    level.setNext(i.next);
 
     if (mLevel != 0)
     {
@@ -184,7 +200,7 @@ ApplyBucketsWork::onSuccess()
     }
 
     CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    getBucketList().restartMerges(mApp, mFirstVerified.header.ledgerSeq);
+    mApp.getBucketManager().assumeState(mApplyState);
     return WORK_SUCCESS;
 }
 
