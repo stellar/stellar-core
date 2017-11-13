@@ -152,34 +152,33 @@ TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at this time",
                            {1, 1}});
 }
 
-TEST_CASE(
-    "2 of 2 nodes vote for upgrade at some time - upgrade at earlier time",
-    "[herder][upgrade]")
+TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at later time",
+          "[herder][upgrade]")
 {
     simulateLedgerUpgrade(
         {{{1, at(0, 30), {0, 1}, 2}, {1, at(1, 0), {0, 1}, 2}},
-         {{at(0, 25), {0, 0}}, {at(0, 45), {1, 1}}},
+         {{at(0, 45), {0, 0}}, {at(1, 15), {1, 1}}},
          {1, 1}});
 }
 
 TEST_CASE("3 of 3 nodes vote for upgrade at some time; 2 on earlier time - "
-          "upgrade at earlier time",
+          "upgrade at earlier time, desync later node",
           "[herder][upgrade]")
 {
     simulateLedgerUpgrade({{{1, at(0, 30), {0, 1}, 2},
                             {1, at(0, 30), {0, 1}, 2},
                             {1, at(1, 0), {0, 1}, 2}},
-                           {{at(0, 25), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}},
-                           {1, 1, 1}});
+                           {{at(0, 25), {0, 0, 0}}, {at(0, 45), {1, 1, 0}}},
+                           {1, 1, 0}});
 }
 
 TEST_CASE("3 of 3 nodes vote for upgrade at some time; 1 on earlier time - "
-          "upgrade at earlier time",
+          "upgrade at later time",
           "[herder][upgrade]")
 {
     simulateLedgerUpgrade({{{1, at(0, 30), {0, 1}, 2},
                             {1, at(1, 0), {0, 1}, 2},
                             {1, at(1, 0), {0, 1}, 2}},
-                           {{at(0, 25), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}},
+                           {{at(0, 45), {0, 0, 0}}, {at(1, 15), {1, 1, 1}}},
                            {1, 1, 1}});
 }
