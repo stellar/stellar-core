@@ -173,7 +173,7 @@ HerderSCPDriver::isSlotCompatibleWithCurrentState(uint64_t slotIndex) const
 }
 
 bool
-HerderSCPDriver::validateUpgradeStep(uint64_t slotIndex,
+HerderSCPDriver::validateUpgradeStep(uint64_t slotIndex, uint64_t closeTime,
                                      UpgradeType const& upgrade,
                                      LedgerUpgradeType& upgradeType,
                                      bool acceptUpgradeAtAnyTime) const
@@ -195,7 +195,7 @@ HerderSCPDriver::validateUpgradeStep(uint64_t slotIndex,
     case LEDGER_UPGRADE_VERSION:
     {
         auto timeForUpgrade =
-            acceptUpgradeAtAnyTime || mHerder.timeForUpgrade();
+            acceptUpgradeAtAnyTime || mHerder.timeForUpgrade(closeTime);
 
         uint32 newVersion = lupgrade.newLedgerVersion();
         res = timeForUpgrade &&
@@ -349,7 +349,8 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         for (size_t i = 0; i < b.upgrades.size(); i++)
         {
             LedgerUpgradeType thisUpgradeType;
-            if (!validateUpgradeStep(slotIndex, b.upgrades[i], thisUpgradeType,
+            if (!validateUpgradeStep(slotIndex, b.closeTime, b.upgrades[i],
+                                     thisUpgradeType,
                                      validationMode == kBallot))
             {
                 CLOG(TRACE, "Herder")
@@ -400,7 +401,8 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-            if (!validateUpgradeStep(slotIndex, *it, thisUpgradeType, false))
+            if (!validateUpgradeStep(slotIndex, b.closeTime, *it,
+                                     thisUpgradeType, false))
             {
                 it = b.upgrades.erase(it);
             }

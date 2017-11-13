@@ -197,7 +197,8 @@ class HerderSCPDriver : public SCPDriver
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
-    bool validateUpgradeStep(uint64_t slotIndex, UpgradeType const& upgrade,
+    bool validateUpgradeStep(uint64_t slotIndex, uint64_t closeTime,
+                             UpgradeType const& upgrade,
                              LedgerUpgradeType& upgradeType,
                              bool acceptUpgradeAtAnyTime) const;
 
