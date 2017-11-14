@@ -26,8 +26,7 @@ class Upgrades
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                 LedgerUpgradeType& upgradeType,
-                 bool acceptUpgradeAtAnyTime) const;
+                 LedgerUpgradeType& upgradeType) const;
 
   private:
     Config const& mCfg;

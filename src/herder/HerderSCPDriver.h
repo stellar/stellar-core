@@ -93,9 +93,8 @@ class HerderSCPDriver : public SCPDriver
     void emitEnvelope(SCPEnvelope const& envelope) override;
 
     // value validation
-    SCPDriver::ValidationLevel
-    validateValue(uint64_t slotIndex, Value const& value,
-                  ValidationMode validationMode) override;
+    SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
+                                             Value const& value) override;
     Value extractValidValue(uint64_t slotIndex, Value const& value) override;
 
     // value marshaling

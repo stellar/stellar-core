@@ -45,31 +45,19 @@ class SCPDriver
     // `validateValue` is called on each message received before any processing
     // is done. It should be used to filter out values that are not compatible
     // with the current state of that node. Unvalidated values can never
-    // externalize. If the value cannot be validated (node is missing some
-    // context) but passes the validity checks, kMaybeValidValue can be
-    // returned. This will cause the current slot to be marked as a non
-    // validating slot: the local node will abstain from emiting its position.
-    //
-    // Validation done during nomination and ballot can return different
-    // results. Node can have strong opinion about some aspects of value, but
-    // can allow them if quorum votes so. For example, few nodes can have a
-    // different preferred time of protocol upgrade. Node will not nominate
-    // upgrade if its time is set to be later than that of quorum, but will
-    // agree for it in ballot.
+    // externalize.
+    // If the value cannot be validated (node is missing some context) but
+    // passes  the validity checks, kMaybeValidValue can be returned. This will
+    // cause  the current slot to be marked as a non validating slot: the local
+    // node  will abstain from emiting its position.
     enum ValidationLevel
     {
         kInvalidValue,        // value is invalid for sure
         kFullyValidatedValue, // value is valid for sure
         kMaybeValidValue      // value may be valid
     };
-    enum ValidationMode
-    {
-        kNomination, // validation during nomination
-        kBallot      // validation during ballot
-    };
     virtual ValidationLevel
-    validateValue(uint64 slotIndex, Value const& value,
-                  ValidationMode validationMode)
+    validateValue(uint64 slotIndex, Value const& value)
     {
         return kMaybeValidValue;
     }

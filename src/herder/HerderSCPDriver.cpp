@@ -272,8 +272,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 }
 
 SCPDriver::ValidationLevel
-HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
-                               ValidationMode validationMode)
+HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value)
 {
     StellarValue b;
     try
@@ -294,8 +293,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
         for (size_t i = 0; i < b.upgrades.size(); i++)
         {
             LedgerUpgradeType thisUpgradeType;
-            if (!mUpgrades.isValid(b.closeTime, b.upgrades[i], thisUpgradeType,
-                                   validationMode == kBallot))
+            if (!mUpgrades.isValid(b.closeTime, b.upgrades[i], thisUpgradeType))
             {
                 CLOG(TRACE, "Herder")
                     << "HerderSCPDriver::validateValue invalid step at index "
@@ -345,7 +343,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-            if (!mUpgrades.isValid(b.closeTime, *it, thisUpgradeType, false))
+            if (!mUpgrades.isValid(b.closeTime, *it, thisUpgradeType))
             {
                 it = b.upgrades.erase(it);
             }

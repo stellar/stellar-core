@@ -74,8 +74,7 @@ NominationProtocol::isSubsetHelper(xdr::xvector<Value> const& p,
 SCPDriver::ValidationLevel
 NominationProtocol::validateValue(Value const& v)
 {
-    return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v,
-                                              SCPDriver::kNomination);
+    return mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v);
 }
 
 Value

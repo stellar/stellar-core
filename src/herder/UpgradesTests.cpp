@@ -311,107 +311,72 @@ TEST_CASE("validate upgrades when no time set for upgrade", "[upgrades]")
     SECTION("invalid upgrade data")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid version")
     {
         REQUIRE(Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("invalid version")
     {
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("valid fee")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid tx count")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 }
 
@@ -429,107 +394,72 @@ TEST_CASE("validate upgrades just before upgrade time", "[upgrades]")
     SECTION("invalid upgrade data")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid version")
     {
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("invalid version")
     {
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("valid fee")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid tx count")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 }
 
@@ -547,107 +477,72 @@ TEST_CASE("validate upgrades at upgrade time", "[upgrades]")
     SECTION("invalid upgrade data")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid version")
     {
         REQUIRE(Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("invalid version")
     {
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType, true));
+            ledgerUpgradeType));
     }
 
     SECTION("valid fee")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(200)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(49)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(201)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("valid tx count")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, false));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(65)),
-                                      ledgerUpgradeType, true));
+                                      ledgerUpgradeType));
     }
 
     SECTION("too small tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(34)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 
     SECTION("too big tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
                                        toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, false));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(66)),
-                                       ledgerUpgradeType, true));
+                                       ledgerUpgradeType));
     }
 }
 
@@ -724,14 +619,14 @@ TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at later time",
 }
 
 TEST_CASE("3 of 3 nodes vote for upgrade at some time; 2 on earlier time - "
-          "upgrade at earlier time",
+          "upgrade at earlier time, one node desynced",
           "[herder][upgrades]")
 {
     auto quorum = LedgerUpgradeQuorum{{0, 1, 2}, 2};
     auto nodes = std::vector<LedgerUpgradeNode>{
         {1, at(0, 30), quorum}, {1, at(0, 30), quorum}, {1, at(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{
-        {at(0, 15), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}, {at(1, 15), {1, 1, 1}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 15), {0, 0, 0}},
+                                                  {at(0, 45), {1, 1, 0}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 

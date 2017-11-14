@@ -43,8 +43,7 @@ Upgrades::upgradesFor(const LedgerHeader& header) const
 
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                  LedgerUpgradeType& upgradeType,
-                  bool acceptUpgradeAtAnyTime) const
+                  LedgerUpgradeType& upgradeType) const
 {
     LedgerUpgrade lupgrade;
 
@@ -62,10 +61,9 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
     {
     case LEDGER_UPGRADE_VERSION:
     {
-        auto allowUpgrade = acceptUpgradeAtAnyTime || timeForUpgrade(closeTime);
-
         uint32 newVersion = lupgrade.newLedgerVersion();
-        res = allowUpgrade && (newVersion == mCfg.LEDGER_PROTOCOL_VERSION);
+        res = timeForUpgrade(closeTime) &&
+              (newVersion == mCfg.LEDGER_PROTOCOL_VERSION);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
