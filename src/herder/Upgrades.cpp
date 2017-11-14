@@ -98,12 +98,6 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
 bool
 Upgrades::timeForUpgrade(uint64_t time) const
 {
-    if (!mCfg.PREFERRED_UPGRADE_DATETIME)
-    {
-        return true;
-    }
-
-    return VirtualClock::tmToPoint(*mCfg.PREFERRED_UPGRADE_DATETIME) <=
-           VirtualClock::from_time_t(time);
+    return mCfg.PREFERRED_UPGRADE_DATETIME <= VirtualClock::from_time_t(time);
 }
 }

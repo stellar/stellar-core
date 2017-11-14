@@ -24,33 +24,21 @@ struct LedgerUpgradeQuorum
 struct LedgerUpgradeNode
 {
     int ledgerProtocolVersion;
-    optional<std::tm> preferredUpgradeDatetime;
+    VirtualClock::time_point preferredUpgradeDatetime;
     LedgerUpgradeQuorum quorum;
 };
 
 struct LedgerUpgradeCheck
 {
-    std::tm time;
+    VirtualClock::time_point time;
     std::vector<uint32_t> expectedLedgerProtocolVersions;
 };
 
-optional<std::tm>
-upgradeAt(int minute, int second)
+VirtualClock::time_point
+at(int minute, int second)
 {
-    return make_optional<std::tm>(
+    return VirtualClock::tmToPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
-}
-
-std::tm
-timeAt(int minute, int second)
-{
-    return getTestDateTime(1, 7, 2014, 0, minute, second);
-}
-
-uint64_t
-to_time_t(std::tm const& time)
-{
-    return VirtualClock::to_time_t(VirtualClock::tmToPoint(time));
 }
 
 void
@@ -93,7 +81,7 @@ simulateLedgerUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     for (auto const& result : checks)
     {
-        simulation->crankUntil(VirtualClock::tmToPoint(result.time), false);
+        simulation->crankUntil(result.time, false);
 
         for (auto i = 0; i < nodes.size(); i++)
         {
@@ -152,7 +140,7 @@ TEST_CASE("list upgrades when no time set for upgrade", "[upgrades]")
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.DESIRED_BASE_FEE;
     header.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
-    header.scpValue.closeTime = to_time_t(timeAt(0, 0));
+    header.scpValue.closeTime = VirtualClock::to_time_t(at(0, 0));
 
     auto protocolVersionUpgrade =
         makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION);
@@ -208,13 +196,13 @@ TEST_CASE("list upgrades just before upgrade time", "[upgrades]")
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.PREFERRED_UPGRADE_DATETIME = upgradeAt(0, 1);
+    cfg.PREFERRED_UPGRADE_DATETIME = at(0, 1);
 
     auto header = LedgerHeader{};
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.DESIRED_BASE_FEE;
     header.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
-    header.scpValue.closeTime = to_time_t(timeAt(0, 0));
+    header.scpValue.closeTime = VirtualClock::to_time_t(at(0, 0));
 
     auto baseFeeUpgrade = makeBaseFeeUpgrade(cfg.DESIRED_BASE_FEE);
     auto txCountUpgrade = makeTxCountUpgrade(cfg.DESIRED_MAX_TX_PER_LEDGER);
@@ -261,13 +249,13 @@ TEST_CASE("list upgrades at upgrade time", "[upgrades]")
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.PREFERRED_UPGRADE_DATETIME = upgradeAt(0, 0);
+    cfg.PREFERRED_UPGRADE_DATETIME = at(0, 0);
 
     auto header = LedgerHeader{};
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.DESIRED_BASE_FEE;
     header.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
-    header.scpValue.closeTime = to_time_t(timeAt(0, 0));
+    header.scpValue.closeTime = VirtualClock::to_time_t(at(0, 0));
 
     auto protocolVersionUpgrade =
         makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION);
@@ -317,7 +305,7 @@ TEST_CASE("validate upgrades when no time set for upgrade", "[upgrades]")
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
 
-    auto checkTime = to_time_t(timeAt(0, 0));
+    auto checkTime = VirtualClock::to_time_t(at(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
 
     SECTION("invalid upgrade data")
@@ -433,9 +421,9 @@ TEST_CASE("validate upgrades just before upgrade time", "[upgrades]")
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.PREFERRED_UPGRADE_DATETIME = upgradeAt(0, 1);
+    cfg.PREFERRED_UPGRADE_DATETIME = at(0, 1);
 
-    auto checkTime = to_time_t(timeAt(0, 0));
+    auto checkTime = VirtualClock::to_time_t(at(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
 
     SECTION("invalid upgrade data")
@@ -551,9 +539,9 @@ TEST_CASE("validate upgrades at upgrade time", "[upgrades]")
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.PREFERRED_UPGRADE_DATETIME = upgradeAt(0, 0);
+    cfg.PREFERRED_UPGRADE_DATETIME = at(0, 0);
 
-    auto checkTime = to_time_t(timeAt(0, 0));
+    auto checkTime = VirtualClock::to_time_t(at(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
 
     SECTION("invalid upgrade data")
@@ -669,7 +657,7 @@ TEST_CASE("0 nodes vote for upgrading ledger - keep old version",
     auto quorum = LedgerUpgradeQuorum{{0, 1}, 2};
     auto nodes =
         std::vector<LedgerUpgradeNode>{{0, {}, quorum}, {0, {}, quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {0, 0}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {0, 0}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -679,7 +667,7 @@ TEST_CASE("1 of 2 nodes vote for upgrading ledger - keep old version",
     auto quorum = LedgerUpgradeQuorum{{0, 1}, 2};
     auto nodes =
         std::vector<LedgerUpgradeNode>{{0, {}, quorum}, {1, {}, quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {0, 0}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {0, 0}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -689,7 +677,7 @@ TEST_CASE("2 of 2 nodes vote for upgrading ledger - upgrade",
     auto quorum = LedgerUpgradeQuorum{{0, 1}, 2};
     auto nodes =
         std::vector<LedgerUpgradeNode>{{1, {}, quorum}, {1, {}, quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {1, 1}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -699,7 +687,7 @@ TEST_CASE("1 of 3 nodes vote for upgrading ledger - keep old version",
     auto quorum = LedgerUpgradeQuorum{{0, 1, 2}, 2};
     auto nodes = std::vector<LedgerUpgradeNode>{
         {1, {}, quorum}, {0, {}, quorum}, {0, {}, quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {0, 0, 0}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {0, 0, 0}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -709,7 +697,7 @@ TEST_CASE("2 of 3 nodes vote for upgrading ledger - upgrade, one node desynced",
     auto quorum = LedgerUpgradeQuorum{{0, 1, 2}, 2};
     auto nodes = std::vector<LedgerUpgradeNode>{
         {1, {}, quorum}, {1, {}, quorum}, {0, {}, quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {1, 1, 0}}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {1, 1, 0}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -717,10 +705,10 @@ TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at this time",
           "[herder][upgrades]")
 {
     auto quorum = LedgerUpgradeQuorum{{0, 1}, 2};
-    auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(1, 0), quorum},
-                                                {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 30), {0, 0}},
-                                                  {timeAt(1, 30), {1, 1}}};
+    auto nodes = std::vector<LedgerUpgradeNode>{{1, at(1, 0), quorum},
+                                                {1, at(1, 0), quorum}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 30), {0, 0}},
+                                                  {at(1, 30), {1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -728,10 +716,10 @@ TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at later time",
           "[herder][upgrades]")
 {
     auto quorum = LedgerUpgradeQuorum{{0, 1}, 2};
-    auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
-                                                {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 45), {0, 0}},
-                                                  {timeAt(1, 15), {1, 1}}};
+    auto nodes = std::vector<LedgerUpgradeNode>{{1, at(0, 30), quorum},
+                                                {1, at(1, 0), quorum}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 45), {0, 0}},
+                                                  {at(1, 15), {1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -740,12 +728,10 @@ TEST_CASE("3 of 3 nodes vote for upgrade at some time; 2 on earlier time - "
           "[herder][upgrades]")
 {
     auto quorum = LedgerUpgradeQuorum{{0, 1, 2}, 2};
-    auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
-                                                {1, upgradeAt(0, 30), quorum},
-                                                {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 15), {0, 0, 0}},
-                                                  {timeAt(0, 45), {1, 1, 1}},
-                                                  {timeAt(1, 15), {1, 1, 1}}};
+    auto nodes = std::vector<LedgerUpgradeNode>{
+        {1, at(0, 30), quorum}, {1, at(0, 30), quorum}, {1, at(1, 0), quorum}};
+    auto checks = std::vector<LedgerUpgradeCheck>{
+        {at(0, 15), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}, {at(1, 15), {1, 1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
 
@@ -754,10 +740,9 @@ TEST_CASE("3 of 3 nodes vote for upgrade at some time; 1 on earlier time - "
           "[herder][upgrades]")
 {
     auto quorum = LedgerUpgradeQuorum{{0, 1, 2}, 2};
-    auto nodes = std::vector<LedgerUpgradeNode>{{1, upgradeAt(0, 30), quorum},
-                                                {1, upgradeAt(1, 0), quorum},
-                                                {1, upgradeAt(1, 0), quorum}};
-    auto checks = std::vector<LedgerUpgradeCheck>{{timeAt(0, 45), {0, 0, 0}},
-                                                  {timeAt(1, 15), {1, 1, 1}}};
+    auto nodes = std::vector<LedgerUpgradeNode>{
+        {1, at(0, 30), quorum}, {1, at(1, 0), quorum}, {1, at(1, 0), quorum}};
+    auto checks = std::vector<LedgerUpgradeCheck>{{at(0, 45), {0, 0, 0}},
+                                                  {at(1, 15), {1, 1, 1}}};
     simulateLedgerUpgrade(nodes, checks);
 }
