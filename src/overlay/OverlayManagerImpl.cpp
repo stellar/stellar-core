@@ -243,7 +243,8 @@ OverlayManagerImpl::tick()
                              getAuthenticatedPeersCount()));
     }
 
-    mTimer.expires_from_now(std::chrono::seconds(2));
+    mTimer.expires_from_now(
+        std::chrono::seconds(mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
     mTimer.async_wait([this]() { this->tick(); }, VirtualTimer::onFailureNoop);
 }
 
