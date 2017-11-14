@@ -296,8 +296,16 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         return false;
     }
 
+    // if we are in applying mode fee was already deduced from signing account
+    // balance, if not, we need to check if after that deduction this account
+    // will still have minimum balance
+    auto balanceAfter =
+        (applying && (app.getLedgerManager().getCurrentLedgerVersion() > 8))
+            ? mSigningAccount->getAccount().balance
+            : mSigningAccount->getAccount().balance - mEnvelope.tx.fee;
+
     // don't let the account go below the reserve
-    if (mSigningAccount->getAccount().balance - mEnvelope.tx.fee <
+    if (balanceAfter <
         mSigningAccount->getMinimumBalance(app.getLedgerManager()))
     {
         app.getMetrics()

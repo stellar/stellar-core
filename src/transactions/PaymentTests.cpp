@@ -270,19 +270,34 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("two payments, first breaking second")
     {
-        for_all_versions(*app, [&] {
-            int64 startingBalance = paymentAmount + 5 +
-                                    app->getLedgerManager().getMinBalance(0) +
-                                    txfee * 2;
-            auto b1 = root.create("B", startingBalance);
+        int64 startingBalance = paymentAmount + 5 +
+                                app->getLedgerManager().getMinBalance(0) +
+                                txfee * 2;
+        auto b1 = root.create("B", startingBalance);
+        auto tx1 = b1.tx({payment(root, paymentAmount)});
+        auto tx2 = b1.tx({payment(root, 6)});
+        auto rootBalance = root.getBalance();
 
-            auto tx1 = b1.tx({payment(root, paymentAmount)});
-            auto tx2 = b1.tx({payment(root, 6)});
-
-            int64 rootBalance = root.getBalance();
+        for_versions_to(8, *app, [&] {
             auto r = closeLedgerOn(*app, 2, 1, 1, 2015, {tx1, tx2});
             checkTx(0, r, txSUCCESS);
             checkTx(1, r, txINSUFFICIENT_BALANCE);
+
+            int64 expectedrootBalance = rootBalance + paymentAmount;
+            int64 expectedb1Balance =
+                app->getLedgerManager().getMinBalance(0) + 5;
+            REQUIRE(expectedb1Balance == b1.getBalance());
+            REQUIRE(expectedrootBalance == root.getBalance());
+        });
+
+        for_versions_from(9, *app, [&] {
+            auto r = closeLedgerOn(*app, 2, 1, 1, 2015, {tx1, tx2});
+            checkTx(0, r, txSUCCESS);
+            checkTx(1, r, txFAILED);
+            REQUIRE(r[1].first.result.result.results()[0]
+                        .tr()
+                        .paymentResult()
+                        .code() == PAYMENT_UNDERFUNDED);
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance =
@@ -1631,9 +1646,12 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
+            });
+            for_versions_from(9, *app, [&] {
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_PAYMENT_UNDERFUNDED);
             });
         }
 
@@ -1642,10 +1660,12 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + one operation fee + "
@@ -1654,10 +1674,12 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
@@ -1666,10 +1688,12 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
                                 2 * txfee - 2);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
@@ -1678,7 +1702,8 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
                                 2 * txfee - 1);
-            for_all_versions(*app, [&] { payFrom.pay(root, 1); });
+            for_all_versions(*app,
+                             [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
@@ -1686,7 +1711,8 @@ TEST_CASE("payment", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
-            for_all_versions(*app, [&] { payFrom.pay(root, 1); });
+            for_all_versions(*app,
+                             [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
     }
 }
@@ -1735,9 +1761,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
+            });
+            for_versions_from(9, *app, [&] {
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_PAYMENT_UNDERFUNDED);
             });
         }
 
@@ -1746,10 +1775,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + one operation fee + "
@@ -1758,10 +1789,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
@@ -1770,10 +1803,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
                                 2 * txfee - 2);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
@@ -1782,7 +1817,8 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
                                 2 * txfee - 1);
-            for_all_versions(*app, [&] { payFrom.pay(root, 1); });
+            for_all_versions(*app,
+                             [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
@@ -1790,7 +1826,8 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
-            for_all_versions(*app, [&] { payFrom.pay(root, 1); });
+            for_all_versions(*app,
+                             [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
     }
 
@@ -1834,9 +1871,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
+            });
+            for_versions_from(9, *app, [&] {
+                REQUIRE_THROWS_AS(payFrom.pay(root, 1), ex_PAYMENT_UNDERFUNDED);
             });
         }
 
@@ -1845,10 +1885,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + one operation fee + "
@@ -1857,10 +1899,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from",
                 app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
@@ -1869,10 +1913,12 @@ TEST_CASE("payment fees", "[tx][payment]")
             auto payFrom = root.create(
                 "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
                                 2 * txfee - 2);
-            for_all_versions(*app, [&] {
+            for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
             });
+            for_versions_from(9, *app,
+                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees - "
