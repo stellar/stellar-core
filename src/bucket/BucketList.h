@@ -236,6 +236,11 @@ namespace stellar
 class Application;
 class Bucket;
 
+namespace testutil
+{
+class BucketListDepthModifier;
+}
+
 class BucketLevel
 {
     uint32_t mLevel;
@@ -260,6 +265,24 @@ class BucketLevel
     std::shared_ptr<Bucket> snap();
 };
 
+// NOTE: The access specifications for this class have been carefully chosen to
+//       make it so BucketList::kNumLevels can only be modified from
+//       BucketListDepthModifier -- not even BucketList can modify it. Please
+//       use care when modifying this class.
+class BucketListDepth
+{
+    uint32_t mNumLevels;
+
+    BucketListDepth& operator=(uint32_t numLevels);
+
+  public:
+    BucketListDepth(uint32_t numLevels);
+
+    operator uint32_t() const;
+
+    friend class testutil::BucketListDepthModifier;
+};
+
 class BucketList
 {
     // Helper for calculating `levelShouldSpill`
@@ -270,7 +293,7 @@ class BucketList
     // Number of bucket levels in the bucketlist. Every bucketlist in the system
     // will have this many levels and it effectively gets wired-in to the
     // protocol. Careful about changing it.
-    static uint32_t const kNumLevels;
+    static BucketListDepth kNumLevels;
 
     // Returns size of a given level, in ledgers.
     static uint32_t levelSize(uint32_t level);
