@@ -421,14 +421,14 @@ firstNotFinishedCheckpoint(uint32_t lastClosedLedger,
 // bucket apply gives one entry)
 //
 // if it is impossible, returns smallest possible ledger number -
-// HistoryManager::GENESIS_LEDGER_SEQ
+// LedgerManager::GENESIS_LEDGER_SEQ
 uint32_t
 firstNeededLedger(CatchupConfiguration const& configuration)
 {
     auto neededCount = std::max(configuration.count(), 1u);
     return configuration.toLedger() > neededCount
                ? configuration.toLedger() - neededCount + 1
-               : HistoryManager::GENESIS_LEDGER_SEQ;
+               : LedgerManager::GENESIS_LEDGER_SEQ;
 }
 
 std::pair<bool, uint32_t>
