@@ -276,11 +276,6 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         CLOG(INFO, "Invariant") << "Try to add @ " << mFromLedgerSeq;
     }
 
-    ~ApplyBucketsWorkAddEntry()
-    {
-        REQUIRE(mAdded);
-    }
-
     Work::State
     onSuccess() override
     {
@@ -338,7 +333,12 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 mAdded = true;
             }
         }
-        return ApplyBucketsWork::onSuccess();
+        auto r = ApplyBucketsWork::onSuccess();
+        if (r == WORK_SUCCESS)
+        {
+            REQUIRE(mAdded);
+        }
+        return r;
     }
 };
 
@@ -363,11 +363,6 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     {
     }
 
-    ~ApplyBucketsWorkDeleteEntry()
-    {
-        REQUIRE(mDeleted);
-    }
-
     Work::State
     onSuccess() override
     {
@@ -383,7 +378,12 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
                 mDeleted = true;
             }
         }
-        return ApplyBucketsWork::onSuccess();
+        auto r = ApplyBucketsWork::onSuccess();
+        if (r == WORK_SUCCESS)
+        {
+            REQUIRE(mDeleted);
+        }
+        return r;
     }
 };
 
@@ -455,11 +455,6 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
     }
 
-    ~ApplyBucketsWorkModifyEntry()
-    {
-        REQUIRE(mModified);
-    }
-
     Work::State
     onSuccess() override
     {
@@ -495,7 +490,12 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 CLOG(INFO, "Invariant") << "End modify";
             }
         }
-        return ApplyBucketsWork::onSuccess();
+        auto r = ApplyBucketsWork::onSuccess();
+        if (r == WORK_SUCCESS)
+        {
+            REQUIRE(mModified);
+        }
+        return r;
     }
 };
 }
@@ -619,7 +619,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
     checkBucketListIsConsistentWithDatabase<ApplyBucketsWorkAddEntry,
                                             std::vector<uint32_t>>(
         [](uint32_t n, LedgerEntryType let, std::vector<uint32_t>& selected) {
-            selected.push_back(1 + selected.size());
+            // add an element that corresponds to the ledger sequence number
+            // these frames are generated for
+            selected.push_back(static_cast<uint32_t>(1 + selected.size()));
             auto frames = generateValidEntryFrames(n);
             return frames;
         },
