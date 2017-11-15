@@ -9,7 +9,8 @@ namespace stellar
 {
 
 void
-testutil::setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
+testutil::setCurrentLedgerVersion(LedgerManager& lm,
+                                  uint32_t currentLedgerVersion)
 {
     lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
 }

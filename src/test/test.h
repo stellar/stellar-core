@@ -27,21 +27,17 @@ void for_versions_to(int to, Application& app,
 void for_versions_from(int from, Application& app,
                        std::function<void(void)> const& f);
 
-void for_versions_from(std::vector<int> const& versions,
-                       Application& app,
+void for_versions_from(std::vector<int> const& versions, Application& app,
                        std::function<void(void)> const& f);
 
-void for_all_versions(Application& app,
-                      std::function<void(void)> const& f);
+void for_all_versions(Application& app, std::function<void(void)> const& f);
 
 void for_versions(int from, int to, Application& app,
                   std::function<void(void)> const& f);
 
-void for_versions(std::vector<int> const& versions,
-                  Application& app,
+void for_versions(std::vector<int> const& versions, Application& app,
                   std::function<void(void)> const& f);
 
-void for_all_versions_except(std::vector<int> const& versions,
-                             Application& app,
+void for_all_versions_except(std::vector<int> const& versions, Application& app,
                              std::function<void(void)> const& f);
 }

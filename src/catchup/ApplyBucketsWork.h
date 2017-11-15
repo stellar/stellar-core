@@ -27,7 +27,7 @@ class ApplyBucketsWork : public Work
     const HistoryArchiveState& mApplyState;
 
     bool mApplying;
-    size_t mLevel;
+    uint32_t mLevel;
     std::shared_ptr<Bucket const> mSnapBucket;
     std::shared_ptr<Bucket const> mCurrBucket;
     std::unique_ptr<BucketApplicator> mSnapApplicator;
@@ -38,12 +38,13 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplyFailure;
 
     std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
-    BucketLevel& getBucketLevel(size_t level);
+    BucketLevel& getBucketLevel(uint32_t level);
 
   public:
-    ApplyBucketsWork(Application& app, WorkParent& parent,
-                     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-                     HistoryArchiveState const& applyState);
+    ApplyBucketsWork(
+        Application& app, WorkParent& parent,
+        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        HistoryArchiveState const& applyState);
     ~ApplyBucketsWork();
 
     void onReset() override;

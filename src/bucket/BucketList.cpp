@@ -18,7 +18,7 @@
 namespace stellar
 {
 
-BucketLevel::BucketLevel(size_t i)
+BucketLevel::BucketLevel(uint32_t i)
     : mLevel(i)
     , mCurr(std::make_shared<Bucket>())
     , mSnap(std::make_shared<Bucket>())
@@ -123,7 +123,7 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
     // from a snap of its own.  Eg. level 1 at ledger 120 (2 away from
     // 8, its next snap), or level 2 at ledger 24 (8 away from 32, its
     // next snap).
-    if (mLevel > 0)
+    if (mLevel != 0)
     {
         uint32_t nextChangeLedger =
             currLedger + BucketList::levelHalf(mLevel - 1);
@@ -153,14 +153,14 @@ BucketLevel::snap()
 }
 
 uint32_t
-BucketList::levelSize(size_t level)
+BucketList::levelSize(uint32_t level)
 {
     assert(level < kNumLevels);
-    return 1UL << (2 * (static_cast<uint32_t>(level) + 1));
+    return 1UL << (2 * (level + 1));
 }
 
 uint32_t
-BucketList::levelHalf(size_t level)
+BucketList::levelHalf(uint32_t level)
 {
     return levelSize(level) >> 1;
 }
@@ -172,7 +172,7 @@ BucketList::mask(uint32_t v, uint32_t m)
 }
 
 uint32_t
-BucketList::sizeOfCurr(uint32_t ledger, size_t level)
+BucketList::sizeOfCurr(uint32_t ledger, uint32_t level)
 {
     assert(ledger != 0);
     assert(level < kNumLevels);
@@ -183,20 +183,19 @@ BucketList::sizeOfCurr(uint32_t ledger, size_t level)
 
     auto const size = levelSize(level);
     auto const half = levelHalf(level);
-    if (level != BucketList::kNumLevels-1 && mask(ledger, half) != 0)
+    if (level != BucketList::kNumLevels - 1 && mask(ledger, half) != 0)
     {
-        uint32_t const sizeDelta = 1UL << (2*level-1);
-        if (mask(ledger, half) == ledger ||
-            mask(ledger, size) == ledger)
+        uint32_t const sizeDelta = 1UL << (2 * level - 1);
+        if (mask(ledger, half) == ledger || mask(ledger, size) == ledger)
         {
             return sizeDelta;
         }
 
-        auto const prevSize = levelSize(level-1);
-        auto const prevHalf = levelHalf(level-1);
-        uint32_t previousRelevantLedger = std::max(
-            {mask(ledger-1, prevHalf), mask(ledger-1, prevSize),
-            mask(ledger-1, half), mask(ledger-1, size)});
+        auto const prevSize = levelSize(level - 1);
+        auto const prevHalf = levelHalf(level - 1);
+        uint32_t previousRelevantLedger =
+            std::max({mask(ledger - 1, prevHalf), mask(ledger - 1, prevSize),
+                      mask(ledger - 1, half), mask(ledger - 1, size)});
         if (mask(ledger, prevHalf) == ledger ||
             mask(ledger, prevSize) == ledger)
         {
@@ -209,22 +208,22 @@ BucketList::sizeOfCurr(uint32_t ledger, size_t level)
     }
     else
     {
-        uint32_t size = 0;
+        uint32_t blsize = 0;
         for (uint32_t l = 0; l < level; l++)
         {
-            size += sizeOfCurr(ledger, l);
-            size += sizeOfSnap(ledger, l);
+            blsize += sizeOfCurr(ledger, l);
+            blsize += sizeOfSnap(ledger, l);
         }
-        return ledger - size;
+        return ledger - blsize;
     }
 }
 
 uint32_t
-BucketList::sizeOfSnap(uint32_t ledger, size_t level)
+BucketList::sizeOfSnap(uint32_t ledger, uint32_t level)
 {
     assert(ledger != 0);
     assert(level < kNumLevels);
-    if (level == BucketList::kNumLevels-1)
+    if (level == BucketList::kNumLevels - 1)
     {
         return 0;
     }
@@ -246,7 +245,7 @@ BucketList::sizeOfSnap(uint32_t ledger, size_t level)
 }
 
 uint32_t
-BucketList::oldestLedgerInCurr(uint32_t ledger, size_t level)
+BucketList::oldestLedgerInCurr(uint32_t ledger, uint32_t level)
 {
     assert(ledger != 0);
     assert(level < kNumLevels);
@@ -266,7 +265,7 @@ BucketList::oldestLedgerInCurr(uint32_t ledger, size_t level)
 }
 
 uint32_t
-BucketList::oldestLedgerInSnap(uint32_t ledger, size_t level)
+BucketList::oldestLedgerInSnap(uint32_t ledger, uint32_t level)
 {
     assert(ledger != 0);
     assert(level < kNumLevels);
@@ -296,7 +295,7 @@ BucketList::getHash() const
 }
 
 bool
-BucketList::levelShouldSpill(uint32_t ledger, size_t level)
+BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
 {
     if (level == kNumLevels - 1)
     {
@@ -309,7 +308,7 @@ BucketList::levelShouldSpill(uint32_t ledger, size_t level)
 }
 
 BucketLevel&
-BucketList::getLevel(size_t i)
+BucketList::getLevel(uint32_t i)
 {
     return mLevels.at(i);
 }
@@ -358,7 +357,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     shadows.pop_back();
     shadows.pop_back();
 
-    for (size_t i = mLevels.size() - 1; i > 0; --i)
+    for (uint32_t i = static_cast<uint32>(mLevels.size()) - 1; i != 0; --i)
     {
         assert(shadows.size() >= 2);
         shadows.pop_back();
@@ -413,7 +412,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app)
 {
-    size_t i = 0;
+    uint32_t i = 0;
     for (auto& level : mLevels)
     {
         auto& next = level.getNext();
@@ -430,11 +429,11 @@ BucketList::restartMerges(Application& app)
     }
 }
 
-size_t const BucketList::kNumLevels = 11;
+uint32_t const BucketList::kNumLevels = 11;
 
 BucketList::BucketList()
 {
-    for (size_t i = 0; i < kNumLevels; ++i)
+    for (uint32_t i = 0; i < kNumLevels; ++i)
     {
         mLevels.push_back(BucketLevel(i));
     }

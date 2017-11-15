@@ -17,10 +17,10 @@
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryManager.h"
-#include "invariant/InvariantManager.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
+#include "invariant/InvariantManager.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
@@ -100,7 +100,8 @@ ApplicationImpl::initialize()
 {
     mDatabase = make_unique<Database>(*this);
     mPersistentState = make_unique<PersistentState>(*this);
-    mTmpDirManager = make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
+    mTmpDirManager =
+        make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
     mOverlayManager = createOverlayManager();
     mLedgerManager = LedgerManager::create(*this);
     mHerder = createHerder();
@@ -124,7 +125,8 @@ ApplicationImpl::initialize()
     if (!mConfig.NTP_SERVER.empty())
     {
         mNtpSynchronizationChecker =
-            std::make_shared<NtpSynchronizationChecker>(*this, mConfig.NTP_SERVER);
+            std::make_shared<NtpSynchronizationChecker>(*this,
+                                                        mConfig.NTP_SERVER);
     }
 
     LOG(DEBUG) << "Application constructed";

@@ -10,7 +10,8 @@ namespace stellar
 {
 using namespace std;
 
-void validateNetworkPassphrase(Application::pointer app)
+void
+validateNetworkPassphrase(Application::pointer app)
 {
     std::string networkPassphrase = app->getConfig().NETWORK_PASSPHRASE;
     if (networkPassphrase.empty())
@@ -24,14 +25,14 @@ void validateNetworkPassphrase(Application::pointer app)
     if (prevNetworkPassphrase.empty())
     {
         persistentState.setState(PersistentState::kNetworkPassphrase,
-                                   networkPassphrase);
+                                 networkPassphrase);
     }
     else if (networkPassphrase != prevNetworkPassphrase)
     {
         throw std::invalid_argument(
-                fmt::format("NETWORK_PASSPHRASE \"{}\" does not match"
-                            " previous NETWORK_PASSPHRASE \"{}\"",
-                            networkPassphrase, prevNetworkPassphrase));
+            fmt::format("NETWORK_PASSPHRASE \"{}\" does not match"
+                        " previous NETWORK_PASSPHRASE \"{}\"",
+                        networkPassphrase, prevNetworkPassphrase));
     }
 }
 

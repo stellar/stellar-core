@@ -125,7 +125,7 @@ class AccountFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess,
                                  LedgerRange const& ledgers);
     static void deleteAccountsModifiedOnOrAfterLedger(Database& db,
-                               uint32_t oldestLedger);
+                                                      uint32_t oldestLedger);
 
     // database utilities
     static AccountFrame::pointer

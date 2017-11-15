@@ -258,8 +258,8 @@ CatchupWork::applyBuckets()
 
     CLOG(INFO, "History") << "Catchup applying buckets for state "
                           << LedgerManager::ledgerAbbrev(mFirstVerified);
-    mApplyBucketsWork = addWork<ApplyBucketsWork>(
-        mBuckets, mApplyBucketsRemoteState);
+    mApplyBucketsWork =
+        addWork<ApplyBucketsWork>(mBuckets, mApplyBucketsRemoteState);
 
     return true;
 }

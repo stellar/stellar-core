@@ -25,8 +25,8 @@
 #include "main/PersistentState.h"
 #include "process/ProcessManager.h"
 #include "test/TestAccount.h"
-#include "test/TxTests.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
@@ -1263,10 +1263,10 @@ TEST_CASE_METHOD(HistoryTests, "too far behind / catchup restart",
     generateAndPublishInitialHistory(1);
 
     // Catch up successfully the first time
-    auto app2 = catchupNewApplication(
-        mApp.getLedgerManager().getLastClosedLedgerNum(),
-        std::numeric_limits<uint32_t>::max(), false,
-        Config::TESTDB_IN_MEMORY_SQLITE, "app2");
+    auto app2 =
+        catchupNewApplication(mApp.getLedgerManager().getLastClosedLedgerNum(),
+                              std::numeric_limits<uint32_t>::max(), false,
+                              Config::TESTDB_IN_MEMORY_SQLITE, "app2");
 
     // Now generate a little more history
     generateAndPublishHistory(1);

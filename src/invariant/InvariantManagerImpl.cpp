@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "invariant/InvariantManagerImpl.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
-#include "invariant/InvariantDoesNotHold.h"
-#include "invariant/InvariantManagerImpl.h"
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
+#include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerDelta.h"
@@ -56,30 +56,28 @@ InvariantManagerImpl::checkOnLedgerClose(TxSetFramePtr const& txSet,
 
 void
 InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                         uint32_t ledger,
-                                         uint32_t level,
+                                         uint32_t ledger, uint32_t level,
                                          bool isCurr)
 {
-    uint32_t oldestLedger =
-        isCurr ? BucketList::oldestLedgerInCurr(ledger, level)
-               : BucketList::oldestLedgerInSnap(ledger, level);
-    uint32_t newestLedger = oldestLedger - 1 +
-        (isCurr ? BucketList::sizeOfCurr(ledger, level)
-                : BucketList::sizeOfSnap(ledger, level));
+    uint32_t oldestLedger = isCurr
+                                ? BucketList::oldestLedgerInCurr(ledger, level)
+                                : BucketList::oldestLedgerInSnap(ledger, level);
+    uint32_t newestLedger =
+        oldestLedger - 1 + (isCurr ? BucketList::sizeOfCurr(ledger, level)
+                                   : BucketList::sizeOfSnap(ledger, level));
     for (auto invariant : mEnabled)
     {
-        auto result = invariant->checkOnBucketApply(bucket,
-                                                    oldestLedger,
-                                                    newestLedger);
+        auto result =
+            invariant->checkOnBucketApply(bucket, oldestLedger, newestLedger);
         if (result.empty())
         {
             continue;
         }
 
-        auto message =
-            fmt::format(R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})",
-                        invariant->getName(), isCurr ? "Curr" : "Snap",
-                        level, binToHex(bucket->getHash()), result);
+        auto message = fmt::format(
+            R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})",
+            invariant->getName(), isCurr ? "Curr" : "Snap", level,
+            binToHex(bucket->getHash()), result);
         CLOG(FATAL, "Invariant") << message;
         throw InvariantDoesNotHold{message};
     }

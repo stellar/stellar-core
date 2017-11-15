@@ -259,7 +259,7 @@ TEST_CASE("reject peers with incompatible overlay versions", "[overlay]")
 
 TEST_CASE("reject peers who don't handshake quickly", "[overlay]")
 {
-    auto test = [](int authenticationTimeout) {
+    auto test = [](unsigned short authenticationTimeout) {
         VirtualClock clock;
         Config cfg1 = getTestConfig(0);
         Config cfg2 = getTestConfig(1);

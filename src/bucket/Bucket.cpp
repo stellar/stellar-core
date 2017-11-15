@@ -115,8 +115,7 @@ Bucket::InputIterator::operator bool() const
     return mEntryPtr != nullptr;
 }
 
-BucketEntry const&
-Bucket::InputIterator::operator*()
+BucketEntry const& Bucket::InputIterator::operator*()
 {
     return *mEntryPtr;
 }
@@ -126,9 +125,8 @@ Bucket::InputIterator::InputIterator(std::shared_ptr<Bucket const> bucket)
 {
     if (!mBucket->mFilename.empty())
     {
-        CLOG(TRACE, "Bucket")
-            << "Bucket::InputIterator opening file to read: "
-            << mBucket->mFilename;
+        CLOG(TRACE, "Bucket") << "Bucket::InputIterator opening file to read: "
+                              << mBucket->mFilename;
         mIn.open(mBucket->mFilename);
         loadEntry();
     }
@@ -139,8 +137,7 @@ Bucket::InputIterator::~InputIterator()
     mIn.close();
 }
 
-Bucket::InputIterator&
-Bucket::InputIterator::operator++()
+Bucket::InputIterator& Bucket::InputIterator::operator++()
 {
     if (mIn)
     {
@@ -164,8 +161,8 @@ Bucket::OutputIterator::OutputIterator(std::string const& tmpDir,
     , mHasher(SHA256::create())
     , mKeepDeadEntries(keepDeadEntries)
 {
-    CLOG(TRACE, "Bucket")
-        << "Bucket::OutputIterator opening file to write: " << mFilename;
+    CLOG(TRACE, "Bucket") << "Bucket::OutputIterator opening file to write: "
+                          << mFilename;
     mOut.open(mFilename);
 }
 
@@ -435,7 +432,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
 
     // Step 1: Collect all buckets to merge.
     std::vector<std::shared_ptr<Bucket>> buckets;
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         CLOG(INFO, "Bucket") << "CheckDB collecting buckets from level " << i;
         auto& level = bl.getLevel(i);

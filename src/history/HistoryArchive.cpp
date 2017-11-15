@@ -267,7 +267,7 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
                                          BucketList& buckets)
     : server(STELLAR_CORE_VERSION), currentLedger(ledgerSeq)
 {
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         HistoryStateBucket b;
         auto& level = buckets.getLevel(i);

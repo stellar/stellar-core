@@ -33,8 +33,7 @@ class Invariant
 
     virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                       uint32_t oldestLedger,
-                       uint32_t newestLedger)
+                       uint32_t oldestLedger, uint32_t newestLedger)
     {
         return std::string{};
     }

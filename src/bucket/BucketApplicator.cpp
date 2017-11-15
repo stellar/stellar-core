@@ -26,7 +26,7 @@ void
 BucketApplicator::advance()
 {
     soci::transaction sqlTx(mDb.getSession());
-    for ( ; mBucketIter; ++mBucketIter)
+    for (; mBucketIter; ++mBucketIter)
     {
         LedgerHeader lh;
         LedgerDelta delta(lh, mDb, false);

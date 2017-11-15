@@ -3,12 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/TrustFrame.h"
-#include "ledger/LedgerRange.h"
 #include "LedgerDelta.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "ledger/LedgerRange.h"
 #include "util/types.h"
 
 using namespace std;
@@ -196,26 +196,24 @@ TrustFrame::countObjects(soci::session& sess)
 }
 
 uint64_t
-TrustFrame::countObjects(soci::session& sess,
-                         LedgerRange const& ledgers)
+TrustFrame::countObjects(soci::session& sess, LedgerRange const& ledgers)
 {
     uint64_t count = 0;
     sess << "SELECT COUNT(*) FROM trustlines"
             " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
-         into(count), use(ledgers.first()), use(ledgers.last());
+        into(count), use(ledgers.first()), use(ledgers.last());
     return count;
 }
 
 void
-TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(
-        Database& db, uint32_t oldestLedger)
+TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(Database& db,
+                                                    uint32_t oldestLedger)
 {
     db.getEntryCache().erase_if(
-            [oldestLedger] (std::shared_ptr<LedgerEntry const> le) -> bool
-            {
-                return le && le->data.type() == TRUSTLINE &&
-                       le->lastModifiedLedgerSeq >= oldestLedger;
-            });
+        [oldestLedger](std::shared_ptr<LedgerEntry const> le) -> bool {
+            return le && le->data.type() == TRUSTLINE &&
+                   le->lastModifiedLedgerSeq >= oldestLedger;
+        });
 
     {
         auto prep = db.getPreparedStatement(
