@@ -132,7 +132,7 @@ getHistoryArchiveState(Application::pointer appGenerate,
     auto& blGenerate = appGenerate->getBucketManager().getBucketList();
     auto& bmApply = appApply->getBucketManager();
 
-    for (size_t i = 0; i <= BucketList::kNumLevels - 1; i++)
+    for (uint32_t i = 0; i <= BucketList::kNumLevels - 1; i++)
     {
         auto& level = blGenerate.getLevel(i);
         {

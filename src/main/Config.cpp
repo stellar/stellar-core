@@ -444,8 +444,11 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument(
                         "invalid PEER_AUTHENTICATION_TIMEOUT");
                 }
-                PEER_AUTHENTICATION_TIMEOUT =
-                    (int)item.second->as<int64_t>()->value();
+                auto v = item.second->as<int64_t>()->value();
+                if (v <= 0 || v > UINT16_MAX)
+                    throw std::invalid_argument(
+                        "bad PEER_AUTHENTICATION_TIMEOUT");
+                PEER_AUTHENTICATION_TIMEOUT = static_cast<unsigned short>(v);
             }
             else if (item.first == "PEER_TIMEOUT")
             {
@@ -453,7 +456,10 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid PEER_TIMEOUT");
                 }
-                PEER_TIMEOUT = (int)item.second->as<int64_t>()->value();
+                auto v = item.second->as<int64_t>()->value();
+                if (v <= 0 || v > UINT16_MAX)
+                    throw std::invalid_argument("bad PEER_TIMEOUT");
+                PEER_TIMEOUT = static_cast<unsigned short>(v);
             }
             else if (item.first == "PREFERRED_PEERS")
             {

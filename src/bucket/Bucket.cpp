@@ -432,7 +432,7 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
 
     // Step 1: Collect all buckets to merge.
     std::vector<std::shared_ptr<Bucket>> buckets;
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         CLOG(INFO, "Bucket") << "CheckDB collecting buckets from level " << i;
         auto& level = bl.getLevel(i);

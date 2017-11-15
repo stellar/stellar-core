@@ -50,7 +50,7 @@ ApplyBucketsWork::~ApplyBucketsWork()
 }
 
 BucketLevel&
-ApplyBucketsWork::getBucketLevel(size_t level)
+ApplyBucketsWork::getBucketLevel(uint32_t level)
 {
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }

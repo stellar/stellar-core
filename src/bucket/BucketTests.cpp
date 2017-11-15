@@ -43,27 +43,27 @@ mask(uint32_t v, uint32_t m)
     return (v & ~(m - 1));
 }
 uint32_t
-size(size_t level)
+size(uint32_t level)
 {
     return 1 << (2 * (level + 1));
 }
 uint32_t
-half(size_t level)
+half(uint32_t level)
 {
     return size(level) >> 1;
 }
 uint32_t
-prev(size_t level)
+prev(uint32_t level)
 {
     return size(level - 1);
 }
 uint32_t
-lowBoundExclusive(size_t level, uint32_t ledger)
+lowBoundExclusive(uint32_t level, uint32_t ledger)
 {
     return mask(ledger, size(level));
 }
 uint32_t
-highBoundInclusive(size_t level, uint32_t ledger)
+highBoundInclusive(uint32_t level, uint32_t ledger)
 {
     return mask(ledger, prev(level));
 }
@@ -262,7 +262,7 @@ TEST_CASE("bucket list", "[bucket]")
             if (i % 10 == 0)
                 CLOG(DEBUG, "Bucket") << "Added batch " << i
                                       << ", hash=" << binToHex(bl.getHash());
-            for (size_t j = 0; j < BucketList::kNumLevels; ++j)
+            for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
@@ -322,7 +322,7 @@ TEST_CASE("bucket list shadowing", "[bucket]")
             CLOG(DEBUG, "Bucket") << "Added batch " << i
                                   << ", hash=" << binToHex(bl.getHash());
             // Alice and bob should be in either curr or snap of level 0 and 1
-            for (size_t j = 0; j < 2; ++j)
+            for (uint32_t j = 0; j < 2; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
@@ -338,7 +338,7 @@ TEST_CASE("bucket list shadowing", "[bucket]")
 
             // Alice and Bob should never occur in level 2 .. N because they
             // were shadowed in level 0 continuously.
-            for (size_t j = 2; j < BucketList::kNumLevels; ++j)
+            for (uint32_t j = 2; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev = bl.getLevel(j);
                 auto curr = lev.getCurr();
@@ -382,7 +382,7 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
                 CLOG(DEBUG, "Bucket") << "Added batch " << i
                                       << ", hash1=" << hexAbbrev(bl1.getHash())
                                       << ", hash2=" << hexAbbrev(bl2.getHash());
-            for (size_t j = 0; j < BucketList::kNumLevels; ++j)
+            for (uint32_t j = 0; j < BucketList::kNumLevels; ++j)
             {
                 auto const& lev1 = bl1.getLevel(j);
                 auto const& lev2 = bl2.getLevel(j);
@@ -475,7 +475,7 @@ TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
     CLOG(DEBUG, "Bucket") << "Hashing entries";
     std::shared_ptr<Bucket> b1 =
         Bucket::fresh(app->getBucketManager(), live, dead);
-    for (size_t i = 0; i < 5; ++i)
+    for (uint32_t i = 0; i < 5; ++i)
     {
         CLOG(DEBUG, "Bucket") << "Merging 10000 new ledger entries into "
                               << (i * 10000) << " entry bucket";
@@ -601,7 +601,7 @@ clearFutures(Application::pointer app, BucketList& bl)
 {
 
     // First go through the BL and mop up all the FutureBuckets.
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         bl.getLevel(i).getNext().clear();
     }
@@ -729,10 +729,10 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
 
             CLOG(DEBUG, "Bucket") << "------- ledger " << i;
 
-            for (size_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
+            for (uint32_t j = 0; j <= BucketList::kNumLevels - 1; ++j)
             {
-                size_t lb = lowBoundExclusive(j, i);
-                size_t hb = highBoundInclusive(j, i);
+                uint32_t lb = lowBoundExclusive(j, i);
+                uint32_t hb = highBoundInclusive(j, i);
 
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
@@ -790,7 +790,7 @@ TEST_CASE("bucket persistence over app restart", "[bucket][bucketpersist]")
     cfg1.ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = true;
 
     std::vector<std::vector<LedgerEntry>> batches;
-    for (size_t i = 0; i < 110; ++i)
+    for (uint32_t i = 0; i < 110; ++i)
     {
         batches.push_back(LedgerTestUtils::generateValidLedgerEntries(1));
     }

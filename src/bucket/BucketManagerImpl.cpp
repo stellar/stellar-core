@@ -218,7 +218,7 @@ BucketManagerImpl::forgetUnreferencedBuckets()
 
     std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
     std::set<Hash> referenced;
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
         referenced.insert(level.getCurr()->getHash());
@@ -337,7 +337,7 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has)
 {
-    for (size_t i = 0; i < BucketList::kNumLevels; ++i)
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto curr = getBucketByHash(hexToBin256(has.currentBuckets.at(i).curr));
         auto snap = getBucketByHash(hexToBin256(has.currentBuckets.at(i).snap));
