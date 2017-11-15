@@ -309,6 +309,8 @@ exit /b 0
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp" />
     <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp" />
     <ClCompile Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp" />
@@ -560,6 +562,7 @@ exit /b 0
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
     <ClInclude Include="..\..\src\history\InferredQuorum.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
+    <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
     <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h" />
     <ClInclude Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\Invariant.h" />

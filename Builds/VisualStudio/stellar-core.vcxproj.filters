@@ -795,6 +795,12 @@
     <ClCompile Include="..\..\src\work\WorkTests.cpp">
       <Filter>work\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1381,6 +1387,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
       <Filter>test</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h">
+      <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
