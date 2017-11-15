@@ -142,11 +142,11 @@ LoadManager::PeerCosts::isLessThan(
 {
     double ownRates[4] = {
         mTimeSpent.one_minute_rate(), mBytesSend.one_minute_rate(),
-        mBytesRecv.one_minute_rate(), mSQLQueries.one_minute_rate()};
+        mBytesRecv.one_minute_rate(), static_cast<double>(mSQLQueries.count())};
     double otherRates[4] = {other->mTimeSpent.one_minute_rate(),
                             other->mBytesSend.one_minute_rate(),
                             other->mBytesRecv.one_minute_rate(),
-                            other->mSQLQueries.one_minute_rate()};
+                            static_cast<double>(other->mSQLQueries.count())};
     return std::lexicographical_compare(ownRates, ownRates + 4, otherRates,
                                         otherRates + 4);
 }
