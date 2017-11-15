@@ -15,9 +15,9 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
-#include "util/make_unique.h"
 #include "util/SociNoWarnings.h"
 #include "util/Timer.h"
+#include "util/make_unique.h"
 
 using namespace stellar;
 using namespace std;
@@ -105,7 +105,7 @@ class OverlayManagerTests
     vector<string> threePeers;
 
     OverlayManagerTests()
-        : app( createTestApplication<ApplicationStub>(clock, getTestConfig()))
+        : app(createTestApplication<ApplicationStub>(clock, getTestConfig()))
         , fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
                                    "127.0.0.1:2013", "127.0.0.1:2014"})
         , threePeers(vector<string>{"127.0.0.1:201", "127.0.0.1:202",

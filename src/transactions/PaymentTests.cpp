@@ -10,8 +10,8 @@
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
-#include "test/TxTests.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/MergeOpFrame.h"
@@ -1508,8 +1508,8 @@ TEST_CASE("payment", "[tx][payment]")
 
                         auto account = loadAccount(sendToSelf, *app);
                         REQUIRE(account->getBalance() == minBalance2 - txfee);
-                        REQUIRE(
-                            !loadTrustLine(sendToSelf, data.asset, *app, false));
+                        REQUIRE(!loadTrustLine(sendToSelf, data.asset, *app,
+                                               false));
                     }
                 }
             }
@@ -1616,9 +1616,9 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1628,9 +1628,9 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee - 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1639,9 +1639,9 @@ TEST_CASE("payment", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one operation fee")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1651,9 +1651,9 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee + "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1663,9 +1663,9 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "two stroops")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 2);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1675,17 +1675,17 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 1);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 1);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
     }
@@ -1720,9 +1720,9 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1732,9 +1732,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee - 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1743,9 +1743,9 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one operation fee")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1755,9 +1755,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee + "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1767,9 +1767,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "two stroops")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 2);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1779,17 +1779,17 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 1);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 1);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
     }
@@ -1819,9 +1819,9 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1831,9 +1831,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee - 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1842,9 +1842,9 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         SECTION("account has only base reserve + amount + one operation fee")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1854,9 +1854,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + one operation fee + "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + txfee + 1);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1866,9 +1866,9 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "two stroops")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 2);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 2);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1878,17 +1878,17 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount + two operation fees - "
                 "one stroop")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee - 1);
+            auto payFrom = root.create(
+                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                                2 * txfee - 1);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
 
         SECTION("account has only base reserve + amount + two operation fees")
         {
-            auto payFrom = root.create("pay-from",
-                                       app->getLedgerManager().getMinBalance(0) +
-                                           amount + 2 * txfee);
+            auto payFrom = root.create(
+                "pay-from",
+                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
     }

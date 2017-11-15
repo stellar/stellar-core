@@ -462,8 +462,9 @@ TEST_CASE("merge", "[tx][merge]")
                 REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
                                                    app->getDatabase()));
 
-                int64 expectedB1Balance = a1Balance + b1Balance -
-                                          2 * app->getLedgerManager().getTxFee();
+                int64 expectedB1Balance =
+                    a1Balance + b1Balance -
+                    2 * app->getLedgerManager().getTxFee();
                 REQUIRE(expectedB1Balance == b1.getBalance());
             });
         }

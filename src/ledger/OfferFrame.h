@@ -86,7 +86,7 @@ class OfferFrame : public EntryFrame
     static uint64_t countObjects(soci::session& sess,
                                  LedgerRange const& ledgers);
     static void deleteOffersModifiedOnOrAfterLedger(Database& db,
-                             uint32_t oldestLedger);
+                                                    uint32_t oldestLedger);
 
     // database utilities
     static pointer loadOffer(AccountID const& accountID, uint64_t offerID,

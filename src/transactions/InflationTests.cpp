@@ -444,8 +444,8 @@ TEST_CASE("inflation", "[tx][inflation]")
     const int64 minVote = 1000000000LL;
     // .05% of all coins
     const int64 winnerVote =
-        bigDivide(app->getLedgerManager().getCurrentLedgerHeader().totalCoins, 5,
-                  10000, ROUND_DOWN);
+        bigDivide(app->getLedgerManager().getCurrentLedgerHeader().totalCoins,
+                  5, 10000, ROUND_DOWN);
 
     SECTION("inflation scenarios")
     {

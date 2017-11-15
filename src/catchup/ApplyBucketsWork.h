@@ -41,9 +41,10 @@ class ApplyBucketsWork : public Work
     BucketLevel& getBucketLevel(size_t level);
 
   public:
-    ApplyBucketsWork(Application& app, WorkParent& parent,
-                     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
-                     HistoryArchiveState const& applyState);
+    ApplyBucketsWork(
+        Application& app, WorkParent& parent,
+        std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
+        HistoryArchiveState const& applyState);
     ~ApplyBucketsWork();
 
     void onReset() override;

@@ -183,20 +183,19 @@ BucketList::sizeOfCurr(uint32_t ledger, size_t level)
 
     auto const size = levelSize(level);
     auto const half = levelHalf(level);
-    if (level != BucketList::kNumLevels-1 && mask(ledger, half) != 0)
+    if (level != BucketList::kNumLevels - 1 && mask(ledger, half) != 0)
     {
-        uint32_t const sizeDelta = 1UL << (2*level-1);
-        if (mask(ledger, half) == ledger ||
-            mask(ledger, size) == ledger)
+        uint32_t const sizeDelta = 1UL << (2 * level - 1);
+        if (mask(ledger, half) == ledger || mask(ledger, size) == ledger)
         {
             return sizeDelta;
         }
 
-        auto const prevSize = levelSize(level-1);
-        auto const prevHalf = levelHalf(level-1);
-        uint32_t previousRelevantLedger = std::max(
-            {mask(ledger-1, prevHalf), mask(ledger-1, prevSize),
-            mask(ledger-1, half), mask(ledger-1, size)});
+        auto const prevSize = levelSize(level - 1);
+        auto const prevHalf = levelHalf(level - 1);
+        uint32_t previousRelevantLedger =
+            std::max({mask(ledger - 1, prevHalf), mask(ledger - 1, prevSize),
+                      mask(ledger - 1, half), mask(ledger - 1, size)});
         if (mask(ledger, prevHalf) == ledger ||
             mask(ledger, prevSize) == ledger)
         {
@@ -224,7 +223,7 @@ BucketList::sizeOfSnap(uint32_t ledger, size_t level)
 {
     assert(ledger != 0);
     assert(level < kNumLevels);
-    if (level == BucketList::kNumLevels-1)
+    if (level == BucketList::kNumLevels - 1)
     {
         return 0;
     }

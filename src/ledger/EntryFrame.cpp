@@ -167,7 +167,8 @@ EntryFrame::checkAgainstDatabase(LedgerEntry const& entry, Database& db)
     }
     else
     {
-        std::string s{"Inconsistent state between objects (not found in database): "};
+        std::string s{
+            "Inconsistent state between objects (not found in database): "};
         s += xdr::xdr_to_string(entry, "live");
         return s;
     }

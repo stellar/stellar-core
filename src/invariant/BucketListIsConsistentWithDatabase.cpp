@@ -2,10 +2,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "bucket/Bucket.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
-#include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
@@ -22,8 +22,8 @@ std::shared_ptr<Invariant>
 BucketListIsConsistentWithDatabase::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-              .registerInvariant<BucketListIsConsistentWithDatabase>(
-                        app.getDatabase());
+        .registerInvariant<BucketListIsConsistentWithDatabase>(
+            app.getDatabase());
 }
 
 BucketListIsConsistentWithDatabase::BucketListIsConsistentWithDatabase(
@@ -40,9 +40,8 @@ BucketListIsConsistentWithDatabase::getName() const
 
 std::string
 BucketListIsConsistentWithDatabase::checkOnBucketApply(
-        std::shared_ptr<Bucket const> bucket,
-        uint32_t oldestLedger,
-        uint32_t newestLedger)
+    std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
+    uint32_t newestLedger)
 {
     BucketEntryIdCmp cmp;
 
@@ -130,7 +129,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
         TrustFrame::countObjects(sess, {oldestLedger, newestLedger});
     if (nTrustLinesInDb != nTrustLines)
     {
-        return fmt::format(countFormat, "TrustLine", nTrustLines, nTrustLinesInDb);
+        return fmt::format(countFormat, "TrustLine", nTrustLines,
+                           nTrustLinesInDb);
     }
     uint64_t nOffersInDb =
         OfferFrame::countObjects(sess, {oldestLedger, newestLedger});

@@ -43,8 +43,7 @@ class TestInvariant : public Invariant
 
     virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                       uint32_t oldestLedger,
-                       uint32_t newestLedger) override
+                       uint32_t oldestLedger, uint32_t newestLedger) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -153,10 +152,9 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
         uint32_t ledger = 1;
         uint32_t level = 0;
         bool isCurr = true;
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnBucketApply(bucket, ledger,
-                                                          level, isCurr),
-            InvariantDoesNotHold);
+        REQUIRE_THROWS_AS(app->getInvariantManager().checkOnBucketApply(
+                              bucket, ledger, level, isCurr),
+                          InvariantDoesNotHold);
     }
 
     {
@@ -172,9 +170,7 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
         uint32_t ledger = 1;
         uint32_t level = 0;
         bool isCurr = true;
-        REQUIRE_NOTHROW(
-            app->getInvariantManager().checkOnBucketApply(bucket, ledger,
-                                                          level, isCurr));
+        REQUIRE_NOTHROW(app->getInvariantManager().checkOnBucketApply(
+            bucket, ledger, level, isCurr));
     }
 }
-

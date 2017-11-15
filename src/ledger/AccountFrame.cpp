@@ -368,26 +368,24 @@ AccountFrame::countObjects(soci::session& sess)
 }
 
 uint64_t
-AccountFrame::countObjects(soci::session& sess,
-                           LedgerRange const& ledgers)
+AccountFrame::countObjects(soci::session& sess, LedgerRange const& ledgers)
 {
     uint64_t count = 0;
     sess << "SELECT COUNT(*) FROM accounts"
             " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
-         into(count), use(ledgers.first()), use(ledgers.last());
+        into(count), use(ledgers.first()), use(ledgers.last());
     return count;
 }
 
 void
-AccountFrame::deleteAccountsModifiedOnOrAfterLedger(
-        Database& db, uint32_t oldestLedger)
+AccountFrame::deleteAccountsModifiedOnOrAfterLedger(Database& db,
+                                                    uint32_t oldestLedger)
 {
     db.getEntryCache().erase_if(
-            [oldestLedger] (std::shared_ptr<LedgerEntry const> le) -> bool
-            {
-                return le && le->data.type() == ACCOUNT &&
-                       le->lastModifiedLedgerSeq >= oldestLedger;
-            });
+        [oldestLedger](std::shared_ptr<LedgerEntry const> le) -> bool {
+            return le && le->data.type() == ACCOUNT &&
+                   le->lastModifiedLedgerSeq >= oldestLedger;
+        });
 
     {
         auto prep = db.getPreparedStatement(

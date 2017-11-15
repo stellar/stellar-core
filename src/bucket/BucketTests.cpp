@@ -84,8 +84,8 @@ countEntries(std::shared_ptr<Bucket> bucket)
 }
 
 void
-checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq,
-                         uint32_t level, bool isCurr)
+checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq, uint32_t level,
+                         bool isCurr)
 {
     std::shared_ptr<Bucket> bucket;
     uint32_t sizeOfBucket = 0;
@@ -125,12 +125,10 @@ checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq,
 // If pred is false for ledger < L and true for ledger >= L then
 // binarySearchForLedger will return L.
 uint32_t
-binarySearchForLedger(
-        uint32_t lbound,
-        uint32_t ubound,
-        const std::function<uint32_t(uint32_t)>& pred)
+binarySearchForLedger(uint32_t lbound, uint32_t ubound,
+                      const std::function<uint32_t(uint32_t)>& pred)
 {
-    while (lbound+1 != ubound)
+    while (lbound + 1 != ubound)
     {
         uint32_t current = (lbound + ubound) / 2;
         if (pred(current))
@@ -910,18 +908,21 @@ TEST_CASE("BucketList sizeOf* and oldestLedgerIn* relations", "[bucket][count]")
             if (BucketList::sizeOfSnap(ledger, level) > 0)
             {
                 uint32_t oldestInCurr =
-                        BucketList::oldestLedgerInSnap(ledger, level) +
-                        BucketList::sizeOfSnap(ledger, level);
+                    BucketList::oldestLedgerInSnap(ledger, level) +
+                    BucketList::sizeOfSnap(ledger, level);
                 REQUIRE(oldestInCurr ==
                         BucketList::oldestLedgerInCurr(ledger, level));
             }
             if (BucketList::sizeOfCurr(ledger, level) > 0)
             {
                 uint32_t newestInCurr =
-                        BucketList::oldestLedgerInCurr(ledger, level) +
-                        BucketList::sizeOfCurr(ledger, level) - 1;
-                REQUIRE(newestInCurr == (level == 0 ? ledger :
-                        BucketList::oldestLedgerInSnap(ledger, level-1) - 1));
+                    BucketList::oldestLedgerInCurr(ledger, level) +
+                    BucketList::sizeOfCurr(ledger, level) - 1;
+                REQUIRE(newestInCurr == (level == 0
+                                             ? ledger
+                                             : BucketList::oldestLedgerInSnap(
+                                                   ledger, level - 1) -
+                                                   1));
             }
         }
     }
@@ -932,24 +933,22 @@ TEST_CASE("BucketList snap reaches steady state", "[bucket][count]")
     std::default_random_engine gen;
     // Deliberately exclude deepest level since snap on the deepest level
     // is always empty.
-    for (uint32_t level = 0; level < BucketList::kNumLevels-1; ++level)
+    for (uint32_t level = 0; level < BucketList::kNumLevels - 1; ++level)
     {
         uint32_t const half = BucketList::levelHalf(level);
 
         // Use binary search (assuming that it does reach steady state)
         // to find the ledger where the snap at this level first reaches
         // max size.
-        uint32_t boundary =
-            binarySearchForLedger(1, std::numeric_limits<uint32_t>::max() / 2,
-                    [level, half] (uint32_t ledger)
-                    {
-                        return (BucketList::sizeOfSnap(ledger, level) ==
-                                half);
-                    });
+        uint32_t boundary = binarySearchForLedger(
+            1, std::numeric_limits<uint32_t>::max() / 2,
+            [level, half](uint32_t ledger) {
+                return (BucketList::sizeOfSnap(ledger, level) == half);
+            });
 
         // Generate random ledgers above and below the split to test that
         // it was actually at steady state.
-        std::uniform_int_distribution<uint32_t> distLow(1, boundary-1);
+        std::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
         std::uniform_int_distribution<uint32_t> distHigh(boundary);
         for (uint32_t i = 0; i < 1000; ++i)
         {
@@ -967,13 +966,12 @@ TEST_CASE("BucketList deepest curr accumulates", "[bucket][count]")
     uint32_t const deepest = BucketList::kNumLevels - 1;
     // Use binary search to find the first ledger where the deepest curr
     // first is non-empty.
-    uint32_t boundary =
-        binarySearchForLedger(1, std::numeric_limits<uint32_t>::max() / 2,
-                [deepest] (uint32_t ledger)
-                {
-                    return (BucketList::sizeOfCurr(ledger, deepest) > 0);
-                });
-    std::uniform_int_distribution<uint32_t> distLow(1, boundary-1);
+    uint32_t boundary = binarySearchForLedger(
+        1, std::numeric_limits<uint32_t>::max() / 2,
+        [deepest](uint32_t ledger) {
+            return (BucketList::sizeOfCurr(ledger, deepest) > 0);
+        });
+    std::uniform_int_distribution<uint32_t> distLow(1, boundary - 1);
     std::uniform_int_distribution<uint32_t> distHigh(boundary);
     for (uint32_t i = 0; i < 1000; ++i)
     {

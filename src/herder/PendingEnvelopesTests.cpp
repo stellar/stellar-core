@@ -8,8 +8,8 @@
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestAccount.h"
-#include "test/TxTests.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 #include "xdrpp/marshal.h"
 

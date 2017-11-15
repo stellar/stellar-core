@@ -27,7 +27,7 @@
 #include <string>
 
 #ifdef __APPLE__
-extern char **environ;
+extern char** environ;
 #endif
 
 namespace stellar

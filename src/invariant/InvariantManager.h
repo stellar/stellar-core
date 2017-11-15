@@ -34,8 +34,7 @@ class InvariantManager
                                     LedgerDelta const& delta) = 0;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                    uint32_t ledger,
-                                    uint32_t level,
+                                    uint32_t ledger, uint32_t level,
                                     bool isCurr) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;

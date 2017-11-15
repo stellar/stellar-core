@@ -12,11 +12,11 @@
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/AccountFrame.h"
-#include "ledger/TrustFrame.h"
-#include "ledger/OfferFrame.h"
 #include "ledger/DataFrame.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -101,16 +101,18 @@ ApplyBucketsWork::onStart()
     if (!mApplying && (applySnap || applyCurr))
     {
         uint32_t oldestLedger = applySnap
-            ? BucketList::oldestLedgerInSnap(mApplyState.currentLedger, mLevel)
-            : BucketList::oldestLedgerInCurr(mApplyState.currentLedger, mLevel);
-        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(
-                mApp.getDatabase(), oldestLedger);
-        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(
-                mApp.getDatabase(), oldestLedger);
-        OfferFrame::deleteOffersModifiedOnOrAfterLedger(
-                mApp.getDatabase(), oldestLedger);
-        DataFrame::deleteDataModifiedOnOrAfterLedger(
-                mApp.getDatabase(), oldestLedger);
+                                    ? BucketList::oldestLedgerInSnap(
+                                          mApplyState.currentLedger, mLevel)
+                                    : BucketList::oldestLedgerInCurr(
+                                          mApplyState.currentLedger, mLevel);
+        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(mApp.getDatabase(),
+                                                            oldestLedger);
+        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(mApp.getDatabase(),
+                                                            oldestLedger);
+        OfferFrame::deleteOffersModifiedOnOrAfterLedger(mApp.getDatabase(),
+                                                        oldestLedger);
+        DataFrame::deleteDataModifiedOnOrAfterLedger(mApp.getDatabase(),
+                                                     oldestLedger);
     }
 
     if (mApplying || applySnap)
@@ -173,7 +175,7 @@ ApplyBucketsWork::onSuccess()
             return WORK_RUNNING;
         }
         mApp.getInvariantManager().checkOnBucketApply(
-                mSnapBucket, mApplyState.currentLedger, mLevel, false);
+            mSnapBucket, mApplyState.currentLedger, mLevel, false);
         mSnapApplicator.reset();
         mSnapBucket.reset();
         mBucketApplySuccess.Mark();
@@ -185,7 +187,7 @@ ApplyBucketsWork::onSuccess()
             return WORK_RUNNING;
         }
         mApp.getInvariantManager().checkOnBucketApply(
-                mCurrBucket, mApplyState.currentLedger, mLevel, true);
+            mCurrBucket, mApplyState.currentLedger, mLevel, true);
         mCurrApplicator.reset();
         mCurrBucket.reset();
         mBucketApplySuccess.Mark();

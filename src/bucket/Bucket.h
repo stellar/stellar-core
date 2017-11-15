@@ -48,7 +48,8 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     {
         std::shared_ptr<Bucket const> mBucket;
 
-        // Validity and current-value of the iterator is funneled into a pointer. If
+        // Validity and current-value of the iterator is funneled into a
+        // pointer. If
         // non-null, it points to mEntry.
         BucketEntry const* mEntryPtr;
         XDRInputFileStream mIn;
