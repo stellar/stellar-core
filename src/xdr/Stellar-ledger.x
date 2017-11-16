@@ -83,7 +83,8 @@ enum LedgerUpgradeType
 {
     LEDGER_UPGRADE_VERSION = 1,
     LEDGER_UPGRADE_BASE_FEE = 2,
-    LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3
+    LEDGER_UPGRADE_MAX_TX_SET_SIZE = 3,
+    LEDGER_UPGRADE_BASE_RESERVE = 4
 };
 
 union LedgerUpgrade switch (LedgerUpgradeType type)
@@ -94,6 +95,8 @@ case LEDGER_UPGRADE_BASE_FEE:
     uint32 newBaseFee; // update baseFee
 case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     uint32 newMaxTxSetSize; // update maxTxSetSize
+case LEDGER_UPGRADE_BASE_RESERVE:
+    uint32 newBaseReserve; // update baseReserve
 };
 
 /* Entries used to define the bucket list */

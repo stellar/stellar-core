@@ -20,6 +20,7 @@ struct LedgerUpgradeableData
     uint32_t ledgerVersion;
     uint32_t baseFee;
     uint32_t maxTxSetSize;
+    uint32_t baseReserve;
 };
 
 struct LedgerUpgradeNode
@@ -63,6 +64,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         configs.back().DESIRED_BASE_FEE = nodes[i].starting.baseFee;
         configs.back().DESIRED_MAX_TX_PER_LEDGER =
             nodes[i].starting.maxTxSetSize;
+        configs.back().DESIRED_BASE_RESERVE = nodes[i].starting.baseReserve;
         configs.back().PREFERRED_UPGRADE_DATETIME =
             nodes[i].preferredUpgradeDatetime;
     }
@@ -100,6 +102,9 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
             REQUIRE(node->getLedgerManager()
                         .getCurrentLedgerHeader()
                         .maxTxSetSize == result.expected[i].maxTxSetSize);
+            REQUIRE(
+                node->getLedgerManager().getCurrentLedgerHeader().baseReserve ==
+                result.expected[i].baseReserve);
         }
     }
 }
@@ -128,6 +133,14 @@ makeTxCountUpgrade(int txCount)
     return result;
 }
 
+LedgerUpgrade
+makeBaseReserveUpgrade(int baseReserve)
+{
+    auto result = LedgerUpgrade{LEDGER_UPGRADE_BASE_RESERVE};
+    result.newBaseReserve() = baseReserve;
+    return result;
+}
+
 UpgradeType
 toUpgradeType(LedgerUpgrade const& upgrade)
 {
@@ -144,11 +157,13 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
+    cfg.DESIRED_BASE_RESERVE = 100000000;
     cfg.PREFERRED_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
     auto header = LedgerHeader{};
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
     header.baseFee = cfg.DESIRED_BASE_FEE;
+    header.baseReserve = cfg.DESIRED_BASE_RESERVE;
     header.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
     header.scpValue.closeTime = VirtualClock::to_time_t(at(0, 0));
 
@@ -156,6 +171,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
         makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION);
     auto baseFeeUpgrade = makeBaseFeeUpgrade(cfg.DESIRED_BASE_FEE);
     auto txCountUpgrade = makeTxCountUpgrade(cfg.DESIRED_MAX_TX_PER_LEDGER);
+    auto baseReserveUpgrade = makeBaseReserveUpgrade(cfg.DESIRED_BASE_RESERVE);
 
     SECTION("protocol version upgrade needed")
     {
@@ -187,16 +203,28 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
         REQUIRE(upgrades == expected);
     }
 
+    SECTION("base reserve upgrade needed")
+    {
+        header.baseReserve /= 2;
+        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto expected = shouldListAny
+                            ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
+                            : std::vector<LedgerUpgrade>{};
+        REQUIRE(upgrades == expected);
+    }
+
     SECTION("all upgrades needed")
     {
         header.ledgerVersion--;
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
+        header.baseReserve /= 2;
         auto upgrades = Upgrades{cfg}.upgradesFor(header);
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
-                                             baseFeeUpgrade, txCountUpgrade}
+                                             baseFeeUpgrade, txCountUpgrade,
+                                             baseReserveUpgrade}
                 : std::vector<LedgerUpgrade>{};
         REQUIRE(upgrades == expected);
     }
@@ -225,6 +253,7 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     cfg.LEDGER_PROTOCOL_VERSION = 10;
     cfg.DESIRED_BASE_FEE = 100;
     cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
+    cfg.DESIRED_BASE_RESERVE = 100000000;
     cfg.PREFERRED_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
     auto checkTime = VirtualClock::to_time_t(at(0, 0));
@@ -297,6 +326,28 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
                                        toUpgradeType(makeTxCountUpgrade(51)),
                                        ledgerUpgradeType));
     }
+
+    SECTION("valid reserve")
+    {
+        REQUIRE(canBeValid ==
+                Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseReserveUpgrade(100000000)),
+                    ledgerUpgradeType));
+    }
+
+    SECTION("too small reserve")
+    {
+        REQUIRE(!Upgrades{cfg}.isValid(
+            checkTime, toUpgradeType(makeBaseReserveUpgrade(99999999)),
+            ledgerUpgradeType));
+    }
+
+    SECTION("too big reserve")
+    {
+        REQUIRE(!Upgrades{cfg}.isValid(
+            checkTime, toUpgradeType(makeBaseReserveUpgrade(100000001)),
+            ledgerUpgradeType));
+    }
 }
 
 TEST_CASE("validate upgrades when no time set for upgrade", "[upgrades]")
@@ -319,23 +370,14 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
     auto noUpgrade =
         LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION,
                               LedgerManager::GENESIS_LEDGER_BASE_FEE,
-                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE};
-    // only fee and tx size upgrades are allowed as they are in limit
-    // but ledger version is not upgraded
-    auto partialUpgrade =
-        LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION,
-                              LedgerManager::GENESIS_LEDGER_BASE_FEE + 1,
-                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1};
-    // all values are upgraded by small values
+                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE,
+                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE};
+    // all values are upgraded
     auto upgrade =
         LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION + 1,
                               LedgerManager::GENESIS_LEDGER_BASE_FEE + 1,
-                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1};
-    // all values are upgraded by big values
-    auto bigUpgrade =
-        LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION + 1,
-                              LedgerManager::GENESIS_LEDGER_BASE_FEE * 4,
-                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE * 4};
+                              LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1,
+                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1};
 
     SECTION("0 of 3 vote - dont upgrade")
     {
@@ -346,10 +388,10 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         simulateUpgrade(nodes, checks);
     }
 
-    SECTION("1 of 3 vote, big upgrade - dont upgrade")
+    SECTION("1 of 3 vote, dont upgrade")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{
-            {bigUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
+            {upgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {at(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
