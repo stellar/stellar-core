@@ -243,7 +243,6 @@ checkBucketListIsConsistentWithDatabase(
                     0, selected.size() - 1);
                 auto index = dist(gen);
                 auto iter = selected.cbegin();
-                CLOG(INFO, "Invariant") << selected.size() << " " << index;
                 std::advance(iter, index);
                 REQUIRE_THROWS_AS(
                     applyBucketsAndCrankUntilDone<ABW>(appGenerate, appApply,
@@ -498,6 +497,36 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         return r;
     }
 };
+
+bool
+doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
+{
+    for (Bucket::InputIterator iter(bucket); iter; ++iter)
+    {
+        if (*iter == be)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+doesBucketListContain(BucketList& bl, const BucketEntry& be)
+{
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        auto const& level = bl.getLevel(i);
+        for (auto const& bucket : {level.getCurr(), level.getSnap()})
+        {
+            if (doesBucketContain(bucket, be))
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
 }
 
 using namespace BucketListIsConsistentWithDatabaseTests;
@@ -706,6 +735,112 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
                                       appGenerate, appApply, ledgerSeq),
                                   InvariantDoesNotHold);
             }
+        }
+    }
+}
+
+TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
+          "[invariant][bucketlistconsistent]")
+{
+    testutil::BucketListDepthModifier bldm(3);
+    std::default_random_engine gen;
+
+    for (auto t : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        uint32_t nTests = 0;
+        while (nTests < 5)
+        {
+            LedgerEntryType let = static_cast<LedgerEntryType>(t);
+
+            VirtualClock clock;
+            Application::pointer appGenerate =
+                Application::create(clock, getTestConfig(0));
+            Application::pointer appApply =
+                Application::create(clock, getTestConfig(1));
+            auto& blGenerate = appGenerate->getBucketManager().getBucketList();
+
+            // Generate initial entries and select one to delete
+            std::map<LedgerKey, EntryFrame::pointer> selected;
+            uint32_t ledgerSeq = generateLedgers(
+                appGenerate, 2, 10, 5,
+                std::bind(generateValidEntryFramesAndSelectByType, _1, let,
+                          std::ref(selected)),
+                2,
+                std::bind(generateDeadEntriesAndSelectByType, _1, _2,
+                          std::ref(gen), std::ref(selected)));
+            if (selected.empty())
+            {
+                continue;
+            }
+            LedgerEntry entry;
+            LedgerKey key;
+            {
+                auto dist = std::uniform_int_distribution<size_t>(
+                    0, selected.size() - 1);
+                auto iter = selected.cbegin();
+                std::advance(iter, dist(gen));
+                entry = iter->second->mEntry;
+                key = LedgerEntryKey(entry);
+            }
+
+            // Generate a random number of entries to push the selected entry
+            // into a random bucket
+            std::uniform_int_distribution<uint32_t> dist(1, 32);
+            ledgerSeq = generateLedgers(
+                appGenerate, ++ledgerSeq, dist(gen), 5,
+                generateValidEntryFrames, 2,
+                [&key, &gen](uint32_t n, const std::set<LedgerKey>& allLive) {
+                    auto keys = deleteRandomLedgerEntries(n, allLive, gen);
+                    std::remove(keys.begin(), keys.end(), key);
+                    return keys;
+                });
+
+            // Catch up to a point where the selected entry exists
+            REQUIRE_NOTHROW(applyBucketsAndCrankUntilDone(appGenerate, appApply,
+                                                          ledgerSeq));
+            REQUIRE(EntryFrame::exists(appApply->getDatabase(), key));
+
+            // Generate entries to push the selected entry into the lowest
+            // level of the BucketList
+            ledgerSeq = generateLedgers(
+                appGenerate, ++ledgerSeq, 100, 5, generateValidEntryFrames, 2,
+                [&key, &gen](uint32_t n, const std::set<LedgerKey>& allLive) {
+                    auto keys = deleteRandomLedgerEntries(n, allLive, gen);
+                    std::remove(keys.begin(), keys.end(), key);
+                    return keys;
+                });
+
+            // Delete the selected entry
+            {
+                LedgerHeader lh;
+                LedgerDelta ld(lh, appGenerate->getDatabase(), false);
+                EntryFrame::storeDelete(ld, appGenerate->getDatabase(), key);
+                blGenerate.addBatch(*appGenerate, ++ledgerSeq, {}, {key});
+            }
+
+            // Check that the BucketList contains a DEADENTRY and LIVEENTRY
+            // for the selected entry
+            BucketEntry dead(DEADENTRY);
+            dead.deadEntry() = key;
+            REQUIRE(doesBucketListContain(blGenerate, dead));
+            BucketEntry live(LIVEENTRY);
+            live.liveEntry() = entry;
+            REQUIRE(doesBucketListContain(blGenerate, live));
+
+            // Generate entries to push the DEADENTRY for the selected entry
+            // into the lowest level of the BucketList
+            while (doesBucketListContain(blGenerate, dead))
+            {
+                ledgerSeq = generateLedgers(appGenerate, ++ledgerSeq, 1, 5,
+                                            generateValidEntryFrames);
+            }
+
+            REQUIRE(!doesBucketListContain(blGenerate, dead));
+            REQUIRE(!doesBucketListContain(blGenerate, live));
+            REQUIRE_NOTHROW(applyBucketsAndCrankUntilDone(appGenerate, appApply,
+                                                          ledgerSeq));
+            REQUIRE(!EntryFrame::exists(appApply->getDatabase(), key));
+            ++nTests;
         }
     }
 }
