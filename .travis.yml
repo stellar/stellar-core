@@ -9,7 +9,8 @@ addons:
   postgresql: "9.3"
   apt:
     sources:
-    - llvm-toolchain-precise-3.5
+    - llvm-toolchain-trusty-3.5
+    - llvm-toolchain-trusty-5.0
     - ubuntu-toolchain-r-test
     packages:
     - autoconf
@@ -23,6 +24,7 @@ addons:
     - libstdc++6
     - libtool
     - pkg-config
+    - clang-format-5.0
 
 script: ./travis-build.sh
 
@@ -39,3 +41,4 @@ notifications:
 branches:
  only:
  - auto
+
