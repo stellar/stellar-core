@@ -47,10 +47,9 @@ class SCPDriver
     // with the current state of that node. Unvalidated values can never
     // externalize.
     // If the value cannot be validated (node is missing some context) but
-    // passes
-    // the validity checks, kMaybeValidValue can be returned. This will cause
-    // the current slot to be marked as a non validating slot: the local node
-    // will abstain from emiting its position.
+    // passes  the validity checks, kMaybeValidValue can be returned. This will
+    // cause  the current slot to be marked as a non validating slot: the local
+    // node  will abstain from emiting its position.
     enum ValidationLevel
     {
         kInvalidValue,        // value is invalid for sure

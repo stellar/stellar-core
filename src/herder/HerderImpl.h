@@ -7,6 +7,7 @@
 #include "PendingEnvelopes.h"
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
+#include "herder/Upgrades.h"
 #include "util/Timer.h"
 #include <deque>
 #include <memory>
@@ -118,6 +119,7 @@ class HerderImpl : public Herder
     updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
 
     PendingEnvelopes mPendingEnvelopes;
+    Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
 
     void herderOutOfSync();
@@ -131,10 +133,6 @@ class HerderImpl : public Herder
 
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);
-
-    // create upgrades for given ledger
-    std::vector<LedgerUpgrade>
-    prepareUpgrades(const LedgerHeader& header) const;
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
