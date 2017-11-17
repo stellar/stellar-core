@@ -24,7 +24,7 @@ When running a node, the best bet is to go with the latest release.
 - `clang` >= 3.5 or `g++` >= 4.9
 - `pkg-config`
 - `bison` and `flex`
-- `libpq-devel` unless you `./configure --disable-postgres` in the build step below.
+- `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
 
 
