@@ -116,8 +116,8 @@ HistoryArchiveState::load(std::string const& inFile)
     serialize(ar);
     if (version != HISTORY_ARCHIVE_STATE_VERSION)
     {
-        CLOG(ERROR, "History") << "unexpected history archive state version: "
-                               << version;
+        CLOG(ERROR, "History")
+            << "unexpected history archive state version: " << version;
         throw std::runtime_error("unexpected history archive state version");
     }
     assert(futuresAllResolved());

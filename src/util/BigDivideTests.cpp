@@ -139,11 +139,11 @@ TEST_CASE("big divide", "[bigDivide]")
 #define DOWN_IS(x) H(uint128_t, uint128_t{x}),
 #define UP_IS(x) H(uint128_t, uint128_t{x})
 
-#define TEST(when, down, up)                                                   \
-    SECTION("a * b/c WHEN " #when)                                             \
-    {                                                                          \
-        signedTester.test(WHEN(when) DOWN_IS(down) UP_IS(up));                 \
-        unsignedTester.test(WHEN(when) DOWN_IS(down) UP_IS(up));               \
+#define TEST(when, down, up) \
+    SECTION("a * b/c WHEN " #when) \
+    { \
+        signedTester.test(WHEN(when) DOWN_IS(down) UP_IS(up)); \
+        unsignedTester.test(WHEN(when) DOWN_IS(down) UP_IS(up)); \
     }
 
     TEST(a == 0, 0, 0)

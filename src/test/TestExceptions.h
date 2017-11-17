@@ -18,9 +18,9 @@ class ex_txException
 {
 };
 
-#define TEST_EXCEPTION(M)                                                      \
-    class M : public ex_txException                                            \
-    {                                                                          \
+#define TEST_EXCEPTION(M) \
+    class M : public ex_txException \
+    { \
     };
 
 TEST_EXCEPTION(ex_txNO_ACCOUNT)

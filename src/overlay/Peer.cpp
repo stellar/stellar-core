@@ -291,8 +291,8 @@ Peer::connectHandler(asio::error_code const& error)
 {
     if (error)
     {
-        CLOG(WARNING, "Overlay") << " connectHandler error: "
-                                 << error.message();
+        CLOG(WARNING, "Overlay")
+            << " connectHandler error: " << error.message();
         mDropInConnectHandlerMeter.Mark();
         drop();
     }
@@ -606,8 +606,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     if (!isAuthenticated() && (stellarMsg.type() != HELLO) &&
         (stellarMsg.type() != AUTH) && (stellarMsg.type() != ERROR_MSG))
     {
-        CLOG(WARNING, "Overlay") << "recv: " << stellarMsg.type()
-                                 << " before completed handshake";
+        CLOG(WARNING, "Overlay")
+            << "recv: " << stellarMsg.type() << " before completed handshake";
         mDropInRecvMessageUnauthMeter.Mark();
         drop();
         return;
@@ -781,8 +781,8 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
     else
     {
         if (Logging::logTrace("Overlay"))
-            CLOG(TRACE, "Overlay") << "No quorum set: "
-                                   << hexAbbrev(msg.qSetHash());
+            CLOG(TRACE, "Overlay")
+                << "No quorum set: " << hexAbbrev(msg.qSetHash());
         sendDontHave(SCP_QUORUMSET, msg.qSetHash());
         // do we want to ask other people for it?
     }
@@ -849,8 +849,8 @@ Peer::recvError(StellarMessage const& msg)
     default:
         break;
     }
-    CLOG(WARNING, "Overlay") << "Received error (" << codeStr
-                             << "): " << msg.error().msg;
+    CLOG(WARNING, "Overlay")
+        << "Received error (" << codeStr << "): " << msg.error().msg;
     mDropInRecvErrorMeter.Mark();
     drop();
 }
@@ -1067,8 +1067,8 @@ Peer::recvPeers(StellarMessage const& msg)
     {
         if (peer.port == 0 || peer.port > UINT16_MAX)
         {
-            CLOG(WARNING, "Overlay") << "ignoring received peer with bad port "
-                                     << peer.port;
+            CLOG(WARNING, "Overlay")
+                << "ignoring received peer with bad port " << peer.port;
             continue;
         }
         if (peer.ip.type() == IPv6)
@@ -1093,13 +1093,13 @@ Peer::recvPeers(StellarMessage const& msg)
 
         if (pr.isPrivateAddress())
         {
-            CLOG(WARNING, "Overlay") << "ignoring received private address "
-                                     << pr.toString();
+            CLOG(WARNING, "Overlay")
+                << "ignoring received private address " << pr.toString();
         }
         else if (pr.isSelfAddressAndPort(getIP(), mApp.getConfig().PEER_PORT))
         {
-            CLOG(WARNING, "Overlay") << "ignoring received self-address "
-                                     << pr.toString();
+            CLOG(WARNING, "Overlay")
+                << "ignoring received self-address " << pr.toString();
         }
         else if (pr.isLocalhost() &&
                  !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)

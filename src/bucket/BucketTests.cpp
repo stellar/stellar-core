@@ -277,8 +277,8 @@ TEST_CASE("bucket list", "[bucket]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
-                              << ": " << e.what();
+        CLOG(DEBUG, "Bucket")
+            << "Test caught std::future_error " << e.code() << ": " << e.what();
         REQUIRE(false);
     }
 }
@@ -319,8 +319,8 @@ TEST_CASE("bucket list shadowing", "[bucket]")
         bl.addBatch(*app, i, liveBatch, deadGen(5));
         if (i % 100 == 0)
         {
-            CLOG(DEBUG, "Bucket") << "Added batch " << i
-                                  << ", hash=" << binToHex(bl.getHash());
+            CLOG(DEBUG, "Bucket")
+                << "Added batch " << i << ", hash=" << binToHex(bl.getHash());
             // Alice and bob should be in either curr or snap of level 0 and 1
             for (uint32_t j = 0; j < 2; ++j)
             {
@@ -392,8 +392,8 @@ TEST_CASE("duplicate bucket entries", "[bucket]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
-                              << ": " << e.what();
+        CLOG(DEBUG, "Bucket")
+            << "Test caught std::future_error " << e.code() << ": " << e.what();
         REQUIRE(false);
     }
 }
@@ -437,8 +437,8 @@ TEST_CASE("bucket tombstones expire at bottom level", "[bucket][tombstones]")
                 }
             }
             n = mergeTimer.count() - n;
-            CLOG(INFO, "Bucket") << "Added batch at ledger " << j
-                                 << ", merges provoked: " << n;
+            CLOG(INFO, "Bucket")
+                << "Added batch at ledger " << j << ", merges provoked: " << n;
             REQUIRE(n > 0);
             REQUIRE(n < 2 * BucketList::kNumLevels);
         }
@@ -563,8 +563,8 @@ TEST_CASE("merging bucket entries", "[bucket]")
             Bucket::fresh(app->getBucketManager(), live, dead);
         CHECK(countEntries(b1) == live.size());
         auto liveCount = b1->countLiveAndDeadEntries().first;
-        CLOG(DEBUG, "Bucket") << "post-merge live count: " << liveCount
-                              << " of " << live.size();
+        CLOG(DEBUG, "Bucket")
+            << "post-merge live count: " << liveCount << " of " << live.size();
         CHECK(liveCount == live.size() - dead.size());
     }
 
@@ -737,9 +737,9 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
                 auto const& lev = bl.getLevel(j);
                 auto currSz = countEntries(lev.getCurr());
                 auto snapSz = countEntries(lev.getSnap());
-                CLOG(DEBUG, "Bucket") << "ledger " << i << ", level " << j
-                                      << " curr=" << currSz
-                                      << " snap=" << snapSz;
+                CLOG(DEBUG, "Bucket")
+                    << "ledger " << i << ", level " << j << " curr=" << currSz
+                    << " snap=" << snapSz;
 
                 if (1 > lb && 1 <= hb)
                 {
@@ -755,8 +755,8 @@ TEST_CASE("single entry bubbling up", "[bucket][bucketbubble]")
     }
     catch (std::future_error& e)
     {
-        CLOG(DEBUG, "Bucket") << "Test caught std::future_error " << e.code()
-                              << ": " << e.what();
+        CLOG(DEBUG, "Bucket")
+            << "Test caught std::future_error " << e.code() << ": " << e.what();
         REQUIRE(false);
     }
 }

@@ -255,12 +255,11 @@ TestAccount::pay(PublicKey const& destination, Asset const& sendCur,
     catch (ex_PATH_PAYMENT_NO_ISSUER&)
     {
         REQUIRE(noIssuer);
-        REQUIRE(*noIssuer ==
-                transaction->getResult()
-                    .result.results()[0]
-                    .tr()
-                    .pathPaymentResult()
-                    .noIssuer());
+        REQUIRE(*noIssuer == transaction->getResult()
+                                 .result.results()[0]
+                                 .tr()
+                                 .pathPaymentResult()
+                                 .noIssuer());
         throw;
     }
 

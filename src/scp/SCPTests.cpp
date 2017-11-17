@@ -21,8 +21,8 @@ namespace stellar
 using xdr::operator<;
 using xdr::operator==;
 
-#define CREATE_VALUE(X)                                                        \
-    static const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X);            \
+#define CREATE_VALUE(X) \
+    static const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X); \
     static const Value X##Value = xdr::xdr_to_opaque(X##ValueHash);
 
 CREATE_VALUE(x);

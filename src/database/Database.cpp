@@ -161,8 +161,8 @@ Database::upgradeToCurrentSchema()
     while (vers < SCHEMA_VERSION)
     {
         ++vers;
-        CLOG(INFO, "Database") << "Applying DB schema upgrade to version "
-                               << vers;
+        CLOG(INFO, "Database")
+            << "Applying DB schema upgrade to version " << vers;
         applySchemaUpgrade(vers);
         putSchemaVersion(vers);
     }

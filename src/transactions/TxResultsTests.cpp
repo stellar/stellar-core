@@ -753,10 +753,10 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx =
-                a.tx({payment(b, 1000), setOptions(nullptr, nullptr, nullptr,
-                                                   &th, nullptr, nullptr),
-                      payment(c, 1000)});
+            auto tx = a.tx(
+                {payment(b, 1000),
+                 setOptions(nullptr, nullptr, nullptr, &th, nullptr, nullptr),
+                 payment(c, 1000)});
 
             for_versions_to(6, *app, [&] {
                 validate(tx, {baseFee * 3, txSUCCESS},

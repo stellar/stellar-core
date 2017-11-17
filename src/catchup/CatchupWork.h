@@ -87,11 +87,11 @@ class CatchupWork : public BucketDownloadWork
 
   public:
     /**
-    * Preconditions:
-    * * lastClosedLedger > 0
-    * * configuration.toLedger() >= lastClosedLedger
-    * * configuration.toLedger() != CatchupConfiguration::CURRENT
-    */
+     * Preconditions:
+     * * lastClosedLedger > 0
+     * * configuration.toLedger() >= lastClosedLedger
+     * * configuration.toLedger() != CatchupConfiguration::CURRENT
+     */
     static CatchupRange
     makeCatchupRange(uint32_t lastClosedLedger,
                      CatchupConfiguration const& configuration,

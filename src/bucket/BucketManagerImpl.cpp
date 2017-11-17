@@ -163,8 +163,8 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         mBucketObjectInsert.Mark(nObjects);
         mBucketByteInsert.Mark(nBytes);
         std::string canonicalName = bucketFilename(hash);
-        CLOG(DEBUG, "Bucket") << "Adopting bucket file " << filename << " as "
-                              << canonicalName;
+        CLOG(DEBUG, "Bucket")
+            << "Adopting bucket file " << filename << " as " << canonicalName;
         if (rename(filename.c_str(), canonicalName.c_str()) != 0)
         {
             std::string err("Failed to rename bucket :");
@@ -193,17 +193,17 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     auto i = mSharedBuckets.find(hash);
     if (i != mSharedBuckets.end())
     {
-        CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
-                              << binToHex(hash) << ") found bucket "
-                              << i->second->getFilename();
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::getBucketByHash(" << binToHex(hash)
+            << ") found bucket " << i->second->getFilename();
         return i->second;
     }
     std::string canonicalName = bucketFilename(hash);
     if (fs::exists(canonicalName))
     {
-        CLOG(TRACE, "Bucket") << "BucketManager::getBucketByHash("
-                              << binToHex(hash)
-                              << ") found no bucket, making new one";
+        CLOG(TRACE, "Bucket")
+            << "BucketManager::getBucketByHash(" << binToHex(hash)
+            << ") found no bucket, making new one";
         auto p = std::make_shared<Bucket>(canonicalName, hash);
         mSharedBuckets.insert(std::make_pair(hash, p));
         mSharedBucketsSize.set_count(mSharedBuckets.size());

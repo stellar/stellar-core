@@ -53,8 +53,8 @@ BucketApplicator::advance()
 
     if (!mBucketIter || (mSize & 0xfff) == 0xfff)
     {
-        CLOG(INFO, "Bucket") << "Bucket-apply: committed " << mSize
-                             << " entries";
+        CLOG(INFO, "Bucket")
+            << "Bucket-apply: committed " << mSize << " entries";
     }
 }
 }

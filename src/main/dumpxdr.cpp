@@ -87,11 +87,11 @@ dumpxdr(std::string const& filename)
     }
 }
 
-#define throw_perror(msg)                                                      \
-    do                                                                         \
-    {                                                                          \
-        throw std::runtime_error(std::string(msg) + ": " +                     \
-                                 xdr_strerror(errno));                         \
+#define throw_perror(msg) \
+    do \
+    { \
+        throw std::runtime_error(std::string(msg) + ": " + \
+                                 xdr_strerror(errno)); \
     } while (0)
 
 static std::string

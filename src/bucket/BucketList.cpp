@@ -403,9 +403,10 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
     }
 
     assert(shadows.size() == 0);
-    mLevels[0].prepare(app, currLedger, Bucket::fresh(app.getBucketManager(),
-                                                      liveEntries, deadEntries),
-                       shadows);
+    mLevels[0].prepare(
+        app, currLedger,
+        Bucket::fresh(app.getBucketManager(), liveEntries, deadEntries),
+        shadows);
     mLevels[0].commit();
 }
 
@@ -421,8 +422,8 @@ BucketList::restartMerges(Application& app)
             next.makeLive(app);
             if (next.isMerging())
             {
-                CLOG(INFO, "Bucket") << "Restarted merge on BucketList level "
-                                     << i;
+                CLOG(INFO, "Bucket")
+                    << "Restarted merge on BucketList level " << i;
             }
         }
         ++i;

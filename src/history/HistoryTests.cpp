@@ -594,8 +594,8 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
         // 192 (the first entry in block 4) and externalize that value, so that
         // the catchup can see a {192}.prevHash to knit up block 3 against.
 
-        CLOG(INFO, "History") << "force-starting catchup at initLedger="
-                              << initLedger;
+        CLOG(INFO, "History")
+            << "force-starting catchup at initLedger=" << initLedger;
 
         lm.startCatchUp({initLedger, count}, manual);
     }
@@ -714,15 +714,15 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
                                    .getCurr()
                                    ->getHash();
 
-        CLOG(INFO, "History") << "Caught up: want Seq[" << i
-                              << "] = " << wantSeq;
-        CLOG(INFO, "History") << "Caught up: have Seq[" << i
-                              << "] = " << haveSeq;
+        CLOG(INFO, "History")
+            << "Caught up: want Seq[" << i << "] = " << wantSeq;
+        CLOG(INFO, "History")
+            << "Caught up: have Seq[" << i << "] = " << haveSeq;
 
-        CLOG(INFO, "History") << "Caught up: want Hash[" << i
-                              << "] = " << hexAbbrev(wantHash);
-        CLOG(INFO, "History") << "Caught up: have Hash[" << i
-                              << "] = " << hexAbbrev(haveHash);
+        CLOG(INFO, "History")
+            << "Caught up: want Hash[" << i << "] = " << hexAbbrev(wantHash);
+        CLOG(INFO, "History")
+            << "Caught up: have Hash[" << i << "] = " << hexAbbrev(haveHash);
 
         CLOG(INFO, "History") << "Caught up: want BucketListHash[" << i
                               << "] = " << hexAbbrev(wantBucketListHash);

@@ -155,11 +155,12 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));
 
     TxSetResultMeta res;
-    std::transform(z1.results.begin(), z1.results.end(), z2.begin(),
-                   std::back_inserter(res), [](TransactionResultPair const& r1,
-                                               LedgerEntryChanges const& r2) {
-                       return std::make_pair(r1, r2);
-                   });
+    std::transform(
+        z1.results.begin(), z1.results.end(), z2.begin(),
+        std::back_inserter(res),
+        [](TransactionResultPair const& r1, LedgerEntryChanges const& r2) {
+            return std::make_pair(r1, r2);
+        });
 
     return res;
 }

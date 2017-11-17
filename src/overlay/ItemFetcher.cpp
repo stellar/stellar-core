@@ -56,8 +56,8 @@ ItemFetcher::stopFetch(Hash itemHash, const SCPEnvelope& envelope)
     {
         auto const& tracker = iter->second;
 
-        CLOG(TRACE, "Overlay") << "stopFetch " << hexAbbrev(itemHash) << " : "
-                               << tracker->size();
+        CLOG(TRACE, "Overlay")
+            << "stopFetch " << hexAbbrev(itemHash) << " : " << tracker->size();
         tracker->discard(envelope);
         if (tracker->empty())
         {
@@ -145,8 +145,8 @@ ItemFetcher::recv(Hash itemHash)
         // calling recv on the same itemHash
         auto& tracker = iter->second;
 
-        CLOG(TRACE, "Overlay") << "Recv " << hexAbbrev(itemHash) << " : "
-                               << tracker->size();
+        CLOG(TRACE, "Overlay")
+            << "Recv " << hexAbbrev(itemHash) << " : " << tracker->size();
 
         while (!tracker->empty())
         {

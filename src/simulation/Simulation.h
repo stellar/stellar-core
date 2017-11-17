@@ -16,9 +16,9 @@
 #include "util/Timer.h"
 #include "xdr/Stellar-types.h"
 
-#define SIMULATION_CREATE_NODE(N)                                              \
-    const Hash v##N##VSeed = sha256("NODE_SEED_" #N);                          \
-    const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed);        \
+#define SIMULATION_CREATE_NODE(N) \
+    const Hash v##N##VSeed = sha256("NODE_SEED_" #N); \
+    const SecretKey v##N##SecretKey = SecretKey::fromSeed(v##N##VSeed); \
     const PublicKey v##N##NodeID = v##N##SecretKey.getPublicKey();
 
 namespace stellar

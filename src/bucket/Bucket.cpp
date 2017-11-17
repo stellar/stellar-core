@@ -57,8 +57,8 @@ Bucket::Bucket(std::string const& filename, Hash const& hash)
     assert(filename.empty() || fs::exists(filename));
     if (!filename.empty())
     {
-        CLOG(TRACE, "Bucket") << "Bucket::Bucket() created, file exists : "
-                              << mFilename;
+        CLOG(TRACE, "Bucket")
+            << "Bucket::Bucket() created, file exists : " << mFilename;
     }
 }
 
@@ -439,8 +439,8 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
         auto& next = level.getNext();
         if (next.isLive())
         {
-            CLOG(INFO, "Bucket") << "CheckDB resolving future bucket on level "
-                                 << i;
+            CLOG(INFO, "Bucket")
+                << "CheckDB resolving future bucket on level " << i;
             buckets.push_back(next.resolve());
         }
         buckets.push_back(level.getCurr());
@@ -505,8 +505,8 @@ checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
                 }
                 if (meter.count() % 100 == 0)
                 {
-                    CLOG(INFO, "Bucket") << "CheckDB compared " << meter.count()
-                                         << " objects";
+                    CLOG(INFO, "Bucket")
+                        << "CheckDB compared " << meter.count() << " objects";
                 }
             }
         }

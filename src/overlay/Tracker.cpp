@@ -91,9 +91,9 @@ Tracker::tryNextPeer()
     Peer::pointer peer;
 
     CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
-                           << " last: " << (mLastAskedPeer
-                                                ? mLastAskedPeer->toString()
-                                                : "<none>");
+                           << " last: "
+                           << (mLastAskedPeer ? mLastAskedPeer->toString()
+                                              : "<none>");
 
     // if we don't have a list of peers to ask and we're not
     // currently asking peers, build a new list
@@ -122,9 +122,9 @@ Tracker::tryNextPeer()
 
         mNumListRebuild++;
 
-        CLOG(TRACE, "Overlay") << "tryNextPeer " << hexAbbrev(mItemHash)
-                               << " attempt " << mNumListRebuild
-                               << " reset to #" << mPeersToAsk.size();
+        CLOG(TRACE, "Overlay")
+            << "tryNextPeer " << hexAbbrev(mItemHash) << " attempt "
+            << mNumListRebuild << " reset to #" << mPeersToAsk.size();
         mTryNextPeerReset.Mark();
     }
 

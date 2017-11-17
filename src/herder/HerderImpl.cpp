@@ -250,10 +250,10 @@ HerderImpl::emitEnvelope(SCPEnvelope const& envelope)
     uint64 slotIndex = envelope.statement.slotIndex;
 
     if (Logging::logDebug("Herder"))
-        CLOG(DEBUG, "Herder") << "emitEnvelope"
-                              << " s:" << envelope.statement.pledges.type()
-                              << " i:" << slotIndex
-                              << " a:" << mApp.getStateHuman();
+        CLOG(DEBUG, "Herder")
+            << "emitEnvelope"
+            << " s:" << envelope.statement.pledges.type() << " i:" << slotIndex
+            << " a:" << mApp.getStateHuman();
 
     persistSCPState(slotIndex);
 
@@ -427,8 +427,8 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
 
         if (envelopes.size() != 0)
         {
-            CLOG(DEBUG, "Herder") << "Send state " << envelopes.size()
-                                  << " for ledger " << seq;
+            CLOG(DEBUG, "Herder")
+                << "Send state " << envelopes.size() << " for ledger " << seq;
 
             for (auto const& e : envelopes)
             {
@@ -752,10 +752,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         Value v(xdr::xdr_to_opaque(upgrade));
         if (v.size() >= UpgradeType::max_size())
         {
-            CLOG(ERROR, "Herder") << "HerderImpl::triggerNextLedger"
-                                  << " exceeded size for upgrade step (got "
-                                  << v.size() << " ) for upgrade type "
-                                  << std::to_string(upgrade.type());
+            CLOG(ERROR, "Herder")
+                << "HerderImpl::triggerNextLedger"
+                << " exceeded size for upgrade step (got " << v.size()
+                << " ) for upgrade type " << std::to_string(upgrade.type());
         }
         else
         {

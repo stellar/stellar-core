@@ -909,14 +909,13 @@ Config::expandNodeID(const std::string& s) const
         std::function<bool(std::pair<std::string, std::string> const&)>;
     auto arg = s.substr(1);
     auto validatorMatcher =
-        s[0] == '$' ? validatorMatcher_t{[&](
-                          std::pair<std::string, std::string> const& p) {
-            return p.second == arg;
-        }}
-                    : validatorMatcher_t{
-                          [&](std::pair<std::string, std::string> const& p) {
-                              return p.first.compare(0, arg.size(), arg) == 0;
-                          }};
+        s[0] == '$'
+            ? validatorMatcher_t{[&](std::pair<std::string, std::string> const&
+                                         p) { return p.second == arg; }}
+            : validatorMatcher_t{
+                  [&](std::pair<std::string, std::string> const& p) {
+                      return p.first.compare(0, arg.size(), arg) == 0;
+                  }};
 
     auto it = std::find_if(VALIDATOR_NAMES.begin(), VALIDATOR_NAMES.end(),
                            validatorMatcher);

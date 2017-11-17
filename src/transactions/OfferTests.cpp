@@ -85,9 +85,10 @@ TEST_CASE("create offer", "[tx][offers]")
                 // firstOffer is taken, new offer was not created
                 market.requireChangesWithOffer(
                     {{firstOffer.key, OfferState::DELETED}}, [&] {
-                        return market.addOffer(b1, {usd, idr, Price{99, 100},
-                                                    100, OfferType::PASSIVE},
-                                               OfferState::DELETED);
+                        return market.addOffer(
+                            b1,
+                            {usd, idr, Price{99, 100}, 100, OfferType::PASSIVE},
+                            OfferState::DELETED);
                     });
             });
         }

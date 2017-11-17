@@ -87,9 +87,9 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     }
     else
     {
-        CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
-                               << "@" << app.getConfig().PEER_PORT << " error "
-                               << ec.message();
+        CLOG(DEBUG, "Overlay")
+            << "TCPPeer:accept"
+            << "@" << app.getConfig().PEER_PORT << " error " << ec.message();
     }
 
     return result;
@@ -202,8 +202,8 @@ TCPPeer::writeHandler(asio::error_code const& error,
             // Only emit a warning if we have an error while connected;
             // errors during shutdown or connection are common/expected.
             mErrorWrite.Mark();
-            CLOG(ERROR, "Overlay") << "TCPPeer::writeHandler error to "
-                                   << toString();
+            CLOG(ERROR, "Overlay")
+                << "TCPPeer::writeHandler error to " << toString();
         }
         drop();
     }
@@ -402,8 +402,8 @@ TCPPeer::drop()
             asio::ip::tcp::socket::shutdown_both, ec);
         if (ec)
         {
-            CLOG(ERROR, "Overlay") << "TCPPeer::drop shutdown socket failed: "
-                                   << ec.message();
+            CLOG(ERROR, "Overlay")
+                << "TCPPeer::drop shutdown socket failed: " << ec.message();
         }
         self->getApp().getClock().getIOService().post([self]() {
             // Close fd associated with socket. Socket is already
@@ -420,8 +420,8 @@ TCPPeer::drop()
             self->mSocket->close(ec2);
             if (ec2)
             {
-                CLOG(ERROR, "Overlay") << "TCPPeer::drop close socket failed: "
-                                       << ec2.message();
+                CLOG(ERROR, "Overlay")
+                    << "TCPPeer::drop close socket failed: " << ec2.message();
             }
         });
     });

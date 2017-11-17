@@ -105,9 +105,9 @@ class LoopbackPeer : public Peer
 };
 
 /**
-* Testing class for managing a simulated network connection between two
-* LoopbackPeers.
-*/
+ * Testing class for managing a simulated network connection between two
+ * LoopbackPeers.
+ */
 class LoopbackPeerConnection
 {
     std::shared_ptr<LoopbackPeer> mInitiator;

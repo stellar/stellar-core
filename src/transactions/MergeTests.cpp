@@ -83,9 +83,9 @@ TEST_CASE("merge", "[tx][merge]")
                 txFrame->getResult().result.results()[2]);
 
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
-            REQUIRE(b1.getBalance() ==
-                    2 * a1Balance + b1Balance - createBalance -
-                        2 * txFrame->getFee());
+            REQUIRE(b1.getBalance() == 2 * a1Balance + b1Balance -
+                                           createBalance -
+                                           2 * txFrame->getFee());
             REQUIRE(!loadAccount(a1, *app, false));
         });
 

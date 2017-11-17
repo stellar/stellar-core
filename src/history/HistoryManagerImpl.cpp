@@ -66,8 +66,8 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     auto i = cfg.HISTORY.find(arch);
     if (i == cfg.HISTORY.end())
     {
-        CLOG(FATAL, "History") << "Can't initialize unknown history archive '"
-                               << arch << "'";
+        CLOG(FATAL, "History")
+            << "Can't initialize unknown history archive '" << arch << "'";
         return false;
     }
 
@@ -87,8 +87,8 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     if (getHas->getState() == Work::WORK_SUCCESS)
     {
-        CLOG(ERROR, "History") << "History archive '" << arch
-                               << "' already initialized!";
+        CLOG(ERROR, "History")
+            << "History archive '" << arch << "' already initialized!";
         return false;
     }
     CLOG(INFO, "History") << "History archive '" << arch
@@ -111,8 +111,8 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     }
     else
     {
-        CLOG(FATAL, "History") << "Failed to initialize history archive '"
-                               << arch << "'";
+        CLOG(FATAL, "History")
+            << "Failed to initialize history archive '" << arch << "'";
         return false;
     }
 }
