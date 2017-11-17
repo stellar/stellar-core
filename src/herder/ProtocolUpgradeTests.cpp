@@ -16,14 +16,14 @@ using namespace stellar;
 struct LedgerUpgradeNode
 {
     int ledgerProtocolVersion;
-    optional<std::tm> preferredUpdateDatetime;
+    VirtualClock::time_point preferredUpdateDatetime;
     std::vector<int> quorumIndexes;
     int quorumTheshold;
 };
 
 struct LedgerUpgradeSimulationResult
 {
-    std::tm time;
+    VirtualClock::time_point time;
     std::vector<uint32> expectedLedgerProtocolVersions;
 };
 
@@ -33,6 +33,13 @@ struct LedgerUpgradeSimulation
     std::vector<LedgerUpgradeSimulationResult> results;
     std::vector<uint32> expectedLedgerProtocolVersions;
 };
+
+VirtualClock::time_point
+at(int minute, int second)
+{
+    return VirtualClock::tmToPoint(
+        getTestDateTime(1, 7, 2014, 0, minute, second));
+}
 
 void
 simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
@@ -75,7 +82,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
 
     for (auto const& result : upgradeSimulation.results)
     {
-        simulation->crankUntil(VirtualClock::tmToPoint(result.time), false);
+        simulation->crankUntil(result.time, false);
 
         for (auto i = 0; i < nodes.size(); i++)
         {
@@ -140,18 +147,9 @@ TEST_CASE("2 of 3 nodes vote for upgrading ledger - upgrade, one node desynced",
 TEST_CASE("2 of 2 nodes vote for upgrade at some time - upgrade at this time",
           "[herder][upgrade]")
 {
-    simulateLedgerUpgrade(
-        {{{1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2}},
-         {{getTestDateTime(1, 7, 2014, 0, 0, 30), {0, 0}},
-          {getTestDateTime(1, 7, 2014, 0, 1, 30), {1, 1}}},
-         {1, 1}});
+    simulateLedgerUpgrade({{{1, at(1, 0), {0, 1}, 2}, {1, at(1, 0), {0, 1}, 2}},
+                           {{at(0, 30), {0, 0}}, {at(1, 30), {1, 1}}},
+                           {1, 1}});
 }
 
 TEST_CASE(
@@ -159,16 +157,8 @@ TEST_CASE(
     "[herder][upgrade]")
 {
     simulateLedgerUpgrade(
-        {{{1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 0, 30)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2}},
-         {{getTestDateTime(1, 7, 2014, 0, 0, 25), {0, 0}},
-          {getTestDateTime(1, 7, 2014, 0, 0, 45), {1, 1}}},
+        {{{1, at(0, 30), {0, 1}, 2}, {1, at(1, 0), {0, 1}, 2}},
+         {{at(0, 25), {0, 0}}, {at(0, 45), {1, 1}}},
          {1, 1}});
 }
 
@@ -176,42 +166,20 @@ TEST_CASE("3 of 3 nodes vote for upgrade at some time; 2 on earlier time - "
           "upgrade at earlier time",
           "[herder][upgrade]")
 {
-    simulateLedgerUpgrade(
-        {{{1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 0, 30)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 0, 30)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2}},
-         {{getTestDateTime(1, 7, 2014, 0, 0, 25), {0, 0, 0}},
-          {getTestDateTime(1, 7, 2014, 0, 0, 45), {1, 1, 1}}},
-         {1, 1, 1}});
+    simulateLedgerUpgrade({{{1, at(0, 30), {0, 1}, 2},
+                            {1, at(0, 30), {0, 1}, 2},
+                            {1, at(1, 0), {0, 1}, 2}},
+                           {{at(0, 25), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}},
+                           {1, 1, 1}});
 }
 
 TEST_CASE("3 of 3 nodes vote for upgrade at some time; 1 on earlier time - "
           "upgrade at earlier time",
           "[herder][upgrade]")
 {
-    simulateLedgerUpgrade(
-        {{{1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 0, 30)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2},
-          {1,
-           make_optional<std::tm>(getTestDateTime(1, 7, 2014, 0, 1, 0)),
-           {0, 1},
-           2}},
-         {{getTestDateTime(1, 7, 2014, 0, 0, 25), {0, 0, 0}},
-          {getTestDateTime(1, 7, 2014, 0, 0, 45), {1, 1, 1}}},
-         {1, 1, 1}});
+    simulateLedgerUpgrade({{{1, at(0, 30), {0, 1}, 2},
+                            {1, at(1, 0), {0, 1}, 2},
+                            {1, at(1, 0), {0, 1}, 2}},
+                           {{at(0, 25), {0, 0, 0}}, {at(0, 45), {1, 1, 1}}},
+                           {1, 1, 1}});
 }
