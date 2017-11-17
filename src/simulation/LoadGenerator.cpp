@@ -81,22 +81,29 @@ LoadGenerator::pickRandomAsset()
     return rand_element(sCurrencies);
 }
 
+VirtualTimer&
+LoadGenerator::getTimer(VirtualClock& clock)
+{
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(clock);
+    }
+    return *mLoadTimer;
+}
+
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
                                       uint32_t nTxs, uint32_t txRate,
                                       bool autoRate)
 {
-    if (!mLoadTimer)
-    {
-        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
-    }
+    VirtualTimer& timer = getTimer(app.getClock());
 
     if (app.getState() == Application::APP_SYNCED_STATE)
     {
-        mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
-                                autoRate](asio::error_code const& error) {
+        timer.expires_from_now(std::chrono::milliseconds(STEP_MSECS));
+        timer.async_wait([this, &app, nAccounts, nTxs, txRate,
+                          autoRate](asio::error_code const& error) {
             if (!error)
             {
                 this->generateLoad(app, nAccounts, nTxs, txRate, autoRate);
@@ -107,9 +114,9 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     {
         CLOG(WARNING, "LoadGen")
             << "Application is not in sync, load generation inhibited.";
-        mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
-                                autoRate](asio::error_code const& error) {
+        timer.expires_from_now(std::chrono::seconds(10));
+        timer.async_wait([this, &app, nAccounts, nTxs, txRate,
+                          autoRate](asio::error_code const& error) {
             if (!error)
             {
                 this->scheduleLoadGeneration(app, nAccounts, nTxs, txRate,
@@ -117,28 +124,6 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
             }
         });
     }
-}
-
-void
-LoadGenerator::scheduleLoad(Application& app,
-                            std::function<bool()> loadGenerator)
-{
-    if (!mLoadTimer)
-    {
-        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
-    }
-    const auto deadline = std::chrono::milliseconds(STEP_MSECS);
-    mLoadTimer->expires_from_now(deadline);
-    mLoadTimer->async_wait(
-        [this, &app, loadGenerator](asio::error_code const& error) {
-            if (!error)
-            {
-                if (loadGenerator())
-                {
-                    this->scheduleLoad(app, loadGenerator);
-                }
-            }
-        });
 }
 
 bool

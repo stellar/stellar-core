@@ -37,6 +37,7 @@
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
+#include "simulation/Benchmark.h"
 #include "simulation/LoadGenerator.h"
 #include "util/StatusManager.h"
 #include "work/WorkManager.h"
@@ -424,6 +425,16 @@ ApplicationImpl::getLoadGenerator()
         mLoadGenerator = make_unique<LoadGenerator>(getNetworkID());
     }
     return *mLoadGenerator;
+}
+
+BenchmarkExecutor&
+ApplicationImpl::getBenchmarkExecutor()
+{
+    if (!mBenchmarkExecutor)
+    {
+        mBenchmarkExecutor = make_unique<BenchmarkExecutor>();
+    }
+    return *mBenchmarkExecutor;
 }
 
 void

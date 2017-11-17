@@ -55,8 +55,6 @@ class LoadGenerator
     void scheduleLoadGeneration(Application& app, uint32_t nAccounts,
                                 uint32_t nTxs, uint32_t txRate, bool autoRate);
 
-    void scheduleLoad(Application& app, std::function<bool()> loadGenerator);
-
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
@@ -181,5 +179,8 @@ class LoadGenerator
                                  TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };
+
+  private:
+    VirtualTimer& getTimer(VirtualClock& clock);
 };
 }

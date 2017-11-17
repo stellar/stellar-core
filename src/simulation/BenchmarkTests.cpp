@@ -5,13 +5,12 @@
 #include "simulation/Benchmark.h"
 #include "history/HistoryArchive.h"
 #include "lib/catch.hpp"
-#include "medida/metric_processor.h"
-#include "medida/reporting/json_reporter.h"
-#include "simulation/BenchmarkExecutor.h"
+#include "simulation/Benchmark.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+#include <iostream>
 #include <memory>
 
 using namespace stellar;
@@ -21,17 +20,18 @@ const char* LOGGER_ID = "Benchmark";
 std::unique_ptr<Benchmark>
 initializeBenchmark(Application& app)
 {
-    auto benchmark = make_unique<Benchmark>(app.getNetworkID());
-    benchmark->initializeBenchmark(app,
-                                   app.getLedgerManager().getLedgerNum() - 1);
-    return benchmark;
+    Benchmark::BenchmarkBuilder builder{app.getNetworkID()};
+    builder.initializeBenchmark();
+    return builder.createBenchmark(app);
 }
 
 void
 prepareBenchmark(Application& app)
 {
-    auto benchmark = make_unique<Benchmark>(app.getNetworkID());
-    benchmark->prepareBenchmark(app);
+    app.newDB();
+    Benchmark::BenchmarkBuilder builder{app.getNetworkID()};
+    builder.populateBenchmarkData()
+           .createBenchmark(app);
 }
 
 std::unique_ptr<Config>
@@ -47,6 +47,7 @@ initializeConfig()
     cfg->FORCE_SCP = true;
     cfg->RUN_STANDALONE = false;
     cfg->BUCKET_DIR_PATH = "buckets";
+    cfg->NETWORK_PASSPHRASE = "Test SDF Network ; September 2015";
 
     using namespace std;
     const string historyName = "benchmark";
@@ -83,14 +84,14 @@ TEST_CASE("stellar-core's benchmark", "[benchmark]")
     bool done = false;
 
     VirtualTimer timer{clock};
-    auto metrics = benchmark->startBenchmark(*app);
+    benchmark->startBenchmark(*app);
     timer.expires_from_now(testDuration);
-    timer.async_wait(
-        [&benchmark, &done, app, metrics](asio::error_code const& error) {
-            auto stopMetrics = benchmark->stopBenchmark(metrics);
-            BenchmarkExecutor().reportBenchmark(*metrics, *app);
-            done = true;
-        });
+    timer.async_wait([&benchmark, &done, app](asio::error_code const& error) {
+        auto stopMetrics = benchmark->stopBenchmark();
+        BenchmarkReporter().reportBenchmark(stopMetrics, app->getMetrics(),
+                                            std::cout);
+        done = true;
+    });
 
     while (!done)
     {
