@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-types.h"
+#include <functional>
 #include <vector>
 
 namespace medida
@@ -27,7 +28,7 @@ class LoadGenerator
 {
   public:
     LoadGenerator(Hash const& networkID);
-    ~LoadGenerator();
+    virtual ~LoadGenerator();
     void clear();
 
     struct TxInfo;
@@ -54,6 +55,8 @@ class LoadGenerator
     void scheduleLoadGeneration(Application& app, uint32_t nAccounts,
                                 uint32_t nTxs, uint32_t txRate, bool autoRate);
 
+    void scheduleLoad(Application& app, std::function<bool()> loadGenerator);
+
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
@@ -65,7 +68,10 @@ class LoadGenerator
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
-    std::vector<AccountInfoPtr> createAccounts(size_t n);
+    std::vector<AccountInfoPtr> createAccounts(size_t n,
+                                               uint32_t ledgerNum = 0);
+    void createAccountsDirectly(Application& app, size_t n);
+
     bool loadAccount(Application& app, AccountInfo& account);
     bool loadAccount(Application& app, AccountInfoPtr account);
     bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
@@ -78,8 +84,8 @@ class LoadGenerator
                                     int64_t amount,
                                     std::vector<AccountInfoPtr> const& path);
 
-    AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
-                                     uint32_t ledgerNum);
+    virtual AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
+                                             uint32_t ledgerNum);
 
     AccountInfoPtr pickRandomPath(AccountInfoPtr from, uint32_t ledgerNum,
                                   std::vector<AccountInfoPtr>& path);
@@ -124,7 +130,7 @@ class LoadGenerator
         AccountInfoPtr mBuyCredit;
         AccountInfoPtr mSellCredit;
 
-        void createDirectly(Application& app);
+        AccountFrame createDirectly(Application& app);
         void debitDirectly(Application& app, int64_t debitAmount);
         TxInfo creationTransaction();
 

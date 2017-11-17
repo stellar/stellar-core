@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
+#include "bucket/BucketManager.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
@@ -127,6 +128,28 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
             }
         });
     }
+}
+
+void
+LoadGenerator::scheduleLoad(Application& app,
+                            std::function<bool()> loadGenerator)
+{
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
+    }
+    const auto deadline = std::chrono::milliseconds(STEP_MSECS);
+    mLoadTimer->expires_from_now(deadline);
+    mLoadTimer->async_wait(
+        [this, &app, loadGenerator](asio::error_code const& error) {
+            if (!error)
+            {
+                if (loadGenerator())
+                {
+                    this->scheduleLoad(app, loadGenerator);
+                }
+            }
+        });
 }
 
 bool
@@ -490,16 +513,27 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
 }
 
 vector<LoadGenerator::AccountInfoPtr>
-LoadGenerator::createAccounts(size_t n)
+LoadGenerator::createAccounts(size_t n, uint32_t ledgerNum)
 {
     vector<AccountInfoPtr> result;
     for (size_t i = 0; i < n; i++)
     {
-        auto account = createAccount(mAccounts.size());
+        auto account = createAccount(mAccounts.size(), ledgerNum);
         mAccounts.push_back(account);
         result.push_back(account);
     }
     return result;
+}
+
+void
+LoadGenerator::createAccountsDirectly(Application& app, size_t n)
+{
+    for (size_t it = 0; it < n; it++)
+    {
+        auto acc = createAccount(mAccounts.size());
+        acc->createDirectly(app);
+        mAccounts.push_back(acc);
+    }
 }
 
 vector<LoadGenerator::TxInfo>
@@ -747,7 +781,7 @@ LoadGenerator::AccountInfo::creationTransaction()
                   TxInfo::TX_CREATE_ACCOUNT, LOADGEN_ACCOUNT_BALANCE};
 }
 
-void
+AccountFrame
 LoadGenerator::AccountInfo::createDirectly(Application& app)
 {
     AccountFrame a(mKey.getPublicKey());
@@ -758,8 +792,8 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
     a.touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    ;
     a.storeAdd(delta, app.getDatabase());
+    return a;
 }
 
 void
