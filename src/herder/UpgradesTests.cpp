@@ -367,6 +367,19 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                               LedgerManager::GENESIS_LEDGER_BASE_FEE * 4,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE * 4};
 
+    SECTION("oscillation")
+    {
+        auto nodes = std::vector<LedgerUpgradeNode>{
+            {noUpgrade, {}}, {partialUpgrade, {}}, {partialUpgrade, {}}};
+        auto checks = std::vector<LedgerUpgradeCheck>{
+            {checkLedger(2, {partialUpgrade, partialUpgrade, partialUpgrade})},
+            {checkLedger(5, {noUpgrade, noUpgrade, noUpgrade})},
+            {checkLedger(6, {partialUpgrade, partialUpgrade, partialUpgrade})},
+            {checkLedger(8, {noUpgrade, noUpgrade, noUpgrade})},
+            {checkLedger(9, {partialUpgrade, partialUpgrade, partialUpgrade})}};
+        simulateUpgrade(nodes, checks);
+    }
+
     SECTION("0 of 3 vote - dont upgrade")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{
