@@ -75,9 +75,9 @@ Slot::setStateFromEnvelope(SCPEnvelope const& e)
     else
     {
         if (Logging::logDebug("SCP"))
-            CLOG(DEBUG, "SCP") << "Slot::setStateFromEnvelope invalid envelope"
-                               << " i: " << getSlotIndex() << " "
-                               << mSCP.envToStr(e);
+            CLOG(DEBUG, "SCP")
+                << "Slot::setStateFromEnvelope invalid envelope"
+                << " i: " << getSlotIndex() << " " << mSCP.envToStr(e);
     }
 }
 

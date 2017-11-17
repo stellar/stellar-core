@@ -105,8 +105,8 @@ ApplyLedgerChainWork::getCurrentTxSet()
     {
         if (mTxHistoryEntry.ledgerSeq < seq)
         {
-            CLOG(DEBUG, "History") << "Skipping txset for ledger "
-                                   << mTxHistoryEntry.ledgerSeq;
+            CLOG(DEBUG, "History")
+                << "Skipping txset for ledger " << mTxHistoryEntry.ledgerSeq;
         }
         else if (mTxHistoryEntry.ledgerSeq > seq)
         {
@@ -145,8 +145,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     // If we are >1 before LCL, skip
     if (header.ledgerSeq + 1 < lclHeader.header.ledgerSeq)
     {
-        CLOG(DEBUG, "History") << "Catchup skipping old ledger "
-                               << header.ledgerSeq;
+        CLOG(DEBUG, "History")
+            << "Catchup skipping old ledger " << header.ledgerSeq;
         mApplyLedgerSkip.Mark();
         return true;
     }
@@ -181,8 +181,8 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
                             LedgerManager::ledgerAbbrev(hHeader),
                             LedgerManager::ledgerAbbrev(lclHeader)));
         }
-        CLOG(DEBUG, "History") << "Catchup at LCL=" << header.ledgerSeq
-                               << ", hash correct";
+        CLOG(DEBUG, "History")
+            << "Catchup at LCL=" << header.ledgerSeq << ", hash correct";
         mApplyLedgerSkip.Mark();
         return true;
     }

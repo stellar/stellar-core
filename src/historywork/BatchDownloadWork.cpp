@@ -19,8 +19,9 @@ BatchDownloadWork::BatchDownloadWork(Application& app, WorkParent& parent,
                                      CheckpointRange range,
                                      std::string const& type,
                                      TmpDir const& downloadDir)
-    : Work(app, parent, fmt::format("batch-download-{:s}-{:08x}-{:08x}", type,
-                                    range.first(), range.last()))
+    : Work(app, parent,
+           fmt::format("batch-download-{:s}-{:08x}-{:08x}", type, range.first(),
+                       range.last()))
     , mRange(range)
     , mNext(mRange.first())
     , mFileType(type)
@@ -63,8 +64,8 @@ BatchDownloadWork::addNextDownloadWorker()
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
     if (fs::exists(ft.localPath_nogz()))
     {
-        CLOG(DEBUG, "History") << "already have " << mFileType
-                               << " for checkpoint " << mNext;
+        CLOG(DEBUG, "History")
+            << "already have " << mFileType << " for checkpoint " << mNext;
         mDownloadCached.Mark();
     }
     else
@@ -99,8 +100,8 @@ BatchDownloadWork::notify(std::string const& child)
     auto i = mChildren.find(child);
     if (i == mChildren.end())
     {
-        CLOG(WARNING, "Work") << "BatchDownloadWork notified by unknown child "
-                              << child;
+        CLOG(WARNING, "Work")
+            << "BatchDownloadWork notified by unknown child " << child;
         return;
     }
 

@@ -39,8 +39,8 @@ WorkManagerImpl::notify(std::string const& child)
     auto i = mChildren.find(child);
     if (i == mChildren.end())
     {
-        CLOG(WARNING, "Work") << "WorkManager notified by unknown child "
-                              << child;
+        CLOG(WARNING, "Work")
+            << "WorkManager notified by unknown child " << child;
         return;
     }
 

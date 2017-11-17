@@ -231,8 +231,8 @@ NominationProtocol::updateRoundLeaders()
     if (Logging::logDebug("SCP"))
         for (auto const& rl : mRoundLeaders)
         {
-            CLOG(DEBUG, "SCP") << "    leader "
-                               << mSlot.getSCPDriver().toShortString(rl);
+            CLOG(DEBUG, "SCP")
+                << "    leader " << mSlot.getSCPDriver().toShortString(rl);
         }
 }
 

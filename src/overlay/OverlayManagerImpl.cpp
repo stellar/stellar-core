@@ -175,8 +175,8 @@ OverlayManagerImpl::storeConfigPeers()
         }
         catch (std::runtime_error&)
         {
-            CLOG(ERROR, "Overlay") << "Unable to add preferred peer '" << s
-                                   << "'";
+            CLOG(ERROR, "Overlay")
+                << "Unable to add preferred peer '" << s << "'";
         }
     }
 

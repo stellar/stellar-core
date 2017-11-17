@@ -9,7 +9,6 @@
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
 #include "invariant/InvariantDoesNotHold.h"
-#include "invariant/InvariantDoesNotHold.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/util/format.h"
@@ -62,9 +61,9 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
     uint32_t oldestLedger = isCurr
                                 ? BucketList::oldestLedgerInCurr(ledger, level)
                                 : BucketList::oldestLedgerInSnap(ledger, level);
-    uint32_t newestLedger =
-        oldestLedger - 1 + (isCurr ? BucketList::sizeOfCurr(ledger, level)
-                                   : BucketList::sizeOfSnap(ledger, level));
+    uint32_t newestLedger = oldestLedger - 1 +
+                            (isCurr ? BucketList::sizeOfCurr(ledger, level)
+                                    : BucketList::sizeOfSnap(ledger, level));
     for (auto invariant : mEnabled)
     {
         auto result =

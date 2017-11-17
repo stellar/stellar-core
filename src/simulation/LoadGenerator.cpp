@@ -73,10 +73,21 @@ LoadGenerator::~LoadGenerator()
 std::string
 LoadGenerator::pickRandomAsset()
 {
-    static std::vector<std::string> const sCurrencies = {
-        "USD", "EUR", "JPY", "CNY", "GBP"
-                                    "AUD",
-        "CAD", "THB", "MXN", "DKK", "IDR", "XBT", "TRY", "PLN", "HUF"};
+    static std::vector<std::string> const sCurrencies = {"USD",
+                                                         "EUR",
+                                                         "JPY",
+                                                         "CNY",
+                                                         "GBP"
+                                                         "AUD",
+                                                         "CAD",
+                                                         "THB",
+                                                         "MXN",
+                                                         "DKK",
+                                                         "IDR",
+                                                         "XBT",
+                                                         "TRY",
+                                                         "PLN",
+                                                         "HUF"};
     return rand_element(sCurrencies);
 }
 
@@ -444,10 +455,10 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
                 << " Pending: " << nAccounts << " acct, " << nTxs << " tx."
                 << " ETA: " << etaHours << "h" << etaMins << "m";
 
-            CLOG(DEBUG, "LoadGen") << "Step timing: " << totalms
-                                   << "ms total = " << step1ms << "ms build, "
-                                   << step2ms << "ms recv, "
-                                   << (STEP_MSECS - totalms) << "ms spare";
+            CLOG(DEBUG, "LoadGen")
+                << "Step timing: " << totalms << "ms total = " << step1ms
+                << "ms build, " << step2ms << "ms recv, "
+                << (STEP_MSECS - totalms) << "ms spare";
 
             TxMetrics txm(app.getMetrics());
             txm.mGateways.set_count(mGateways.size());

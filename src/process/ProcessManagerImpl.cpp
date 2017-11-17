@@ -207,7 +207,7 @@ ProcessExitEvent::Impl::run()
                        nullptr, // Use parent's starting directory
                        &si,     // Pointer to STARTUPINFO structure
                        &pi)     // Pointer to PROCESS_INFORMATION structure
-        )
+    )
     {
         CLOG(ERROR, "Process") << "CreateProcess() failed: " << GetLastError();
         throw std::runtime_error("CreateProcess() failed");
@@ -307,15 +307,15 @@ ProcessManagerImpl::handleSignalWait()
             {
                 if (WEXITSTATUS(status) == 0)
                 {
-                    CLOG(DEBUG, "Process") << "process " << pid << " exited "
-                                           << WEXITSTATUS(status) << ": "
-                                           << impl->mCmdLine;
+                    CLOG(DEBUG, "Process")
+                        << "process " << pid << " exited "
+                        << WEXITSTATUS(status) << ": " << impl->mCmdLine;
                 }
                 else
                 {
-                    CLOG(WARNING, "Process") << "process " << pid << " exited "
-                                             << WEXITSTATUS(status) << ": "
-                                             << impl->mCmdLine;
+                    CLOG(WARNING, "Process")
+                        << "process " << pid << " exited "
+                        << WEXITSTATUS(status) << ": " << impl->mCmdLine;
                 }
 #ifdef __linux__
                 // Linux posix_spawnp does not fault on file-not-found in the
@@ -408,8 +408,8 @@ ProcessExitEvent::Impl::run()
         err = posix_spawn_file_actions_init(&fileActions);
         if (err)
         {
-            CLOG(ERROR, "Process") << "posix_spawn_file_actions_init() failed: "
-                                   << strerror(err);
+            CLOG(ERROR, "Process")
+                << "posix_spawn_file_actions_init() failed: " << strerror(err);
             throw std::runtime_error("posix_spawn_file_actions_init() failed");
         }
         err = posix_spawn_file_actions_addopen(

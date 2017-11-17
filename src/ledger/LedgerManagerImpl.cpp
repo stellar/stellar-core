@@ -134,8 +134,8 @@ LedgerManagerImpl::setState(State s)
         mLedgerStateChanges.Update(now - mLastStateChange);
         mLastStateChange = now;
         mApp.syncOwnMetrics();
-        CLOG(INFO, "Ledger") << "Changing state " << oldState << " -> "
-                             << getStateHuman();
+        CLOG(INFO, "Ledger")
+            << "Changing state " << oldState << " -> " << getStateHuman();
         if (mState != LM_CATCHING_UP_STATE)
         {
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
@@ -372,8 +372,8 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                     setState(LM_SYNCED_STATE);
                 }
                 closeLedger(ledgerData);
-                CLOG(INFO, "Ledger") << "Closed ledger: "
-                                     << ledgerAbbrev(mLastClosedLedger);
+                CLOG(INFO, "Ledger")
+                    << "Closed ledger: " << ledgerAbbrev(mLastClosedLedger);
             }
             else
             {
@@ -386,26 +386,26 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
         else if (ledgerData.getLedgerSeq() <=
                  mLastClosedLedger.header.ledgerSeq)
         {
-            CLOG(INFO, "Ledger") << "Skipping close ledger: local state is "
-                                 << mLastClosedLedger.header.ledgerSeq
-                                 << ", more recent than "
-                                 << ledgerData.getLedgerSeq();
+            CLOG(INFO, "Ledger")
+                << "Skipping close ledger: local state is "
+                << mLastClosedLedger.header.ledgerSeq << ", more recent than "
+                << ledgerData.getLedgerSeq();
         }
         else
         {
             // Out of sync, buffer what we just heard and start catchup.
-            CLOG(INFO, "Ledger") << "Lost sync, local LCL is "
-                                 << mLastClosedLedger.header.ledgerSeq
-                                 << ", network closed ledger "
-                                 << ledgerData.getLedgerSeq();
+            CLOG(INFO, "Ledger")
+                << "Lost sync, local LCL is "
+                << mLastClosedLedger.header.ledgerSeq
+                << ", network closed ledger " << ledgerData.getLedgerSeq();
 
             assert(mSyncingLedgers.size() == 0);
             auto addResult = mSyncingLedgers.add(ledgerData);
             assert(addResult == SyncingLedgerChainAddResult::CONTIGUOUS);
             mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-            CLOG(INFO, "Ledger") << "Close of ledger "
-                                 << ledgerData.getLedgerSeq()
-                                 << " buffered, starting catchup";
+            CLOG(INFO, "Ledger")
+                << "Close of ledger " << ledgerData.getLedgerSeq()
+                << " buffered, starting catchup";
 
             // catchup just before first buffered ledger
             // that way we will have a way to verify history consistency -
@@ -426,10 +426,10 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
             break;
         case SyncingLedgerChainAddResult::TOO_OLD:
-            CLOG(INFO, "Ledger") << "Skipping close ledger: latest known is "
-                                 << mSyncingLedgers.back().getLedgerSeq()
-                                 << ", more recent than "
-                                 << ledgerData.getLedgerSeq();
+            CLOG(INFO, "Ledger")
+                << "Skipping close ledger: latest known is "
+                << mSyncingLedgers.back().getLedgerSeq()
+                << ", more recent than " << ledgerData.getLedgerSeq();
             break;
         case SyncingLedgerChainAddResult::TOO_NEW:
             // Out-of-order close while catching up; timeout / network failure?
@@ -898,8 +898,8 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
     }
     catch (std::exception& e)
     {
-        CLOG(FATAL, "Ledger") << "processFeesSeqNums error @ " << index << " : "
-                              << e.what();
+        CLOG(FATAL, "Ledger")
+            << "processFeesSeqNums error @ " << index << " : " << e.what();
         throw;
     }
 }

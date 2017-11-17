@@ -11,11 +11,11 @@
 #include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
+#include "test/test.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/XDRStream.h"
-#include "test/test.h"
 
 #include "main/fuzz.h"
 

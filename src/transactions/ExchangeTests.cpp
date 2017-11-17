@@ -22,32 +22,32 @@ TEST_CASE("Exchange", "[exchange]")
         REQUIRE(x.numWheatReceived == y.numWheatReceived);
         REQUIRE(x.numSheepSend == y.numSheepSend);
     };
-    auto validateV2 = [&compare](
-        int64_t wheatToReceive, Price price, int64_t maxWheatReceive,
-        int64_t maxSheepSend, ExchangeResult const& expected,
-        ReducedCheckV2 reducedCheck = REDUCED_CHECK_V2_STRICT) {
-        auto actualV2 =
-            exchangeV2(wheatToReceive, price, maxWheatReceive, maxSheepSend);
-        compare(actualV2, expected);
-        REQUIRE(uint128_t{actualV2.numWheatReceived} * uint128_t{price.n} <=
-                uint128_t{expected.numSheepSend} * uint128_t{price.d});
-        REQUIRE(actualV2.numSheepSend <= maxSheepSend);
-        if (reducedCheck == REDUCED_CHECK_V2_RELAXED)
-        {
-            REQUIRE(actualV2.numWheatReceived <= wheatToReceive);
-        }
-        else
-        {
-            if (actualV2.reduced)
+    auto validateV2 =
+        [&compare](int64_t wheatToReceive, Price price, int64_t maxWheatReceive,
+                   int64_t maxSheepSend, ExchangeResult const& expected,
+                   ReducedCheckV2 reducedCheck = REDUCED_CHECK_V2_STRICT) {
+            auto actualV2 = exchangeV2(wheatToReceive, price, maxWheatReceive,
+                                       maxSheepSend);
+            compare(actualV2, expected);
+            REQUIRE(uint128_t{actualV2.numWheatReceived} * uint128_t{price.n} <=
+                    uint128_t{expected.numSheepSend} * uint128_t{price.d});
+            REQUIRE(actualV2.numSheepSend <= maxSheepSend);
+            if (reducedCheck == REDUCED_CHECK_V2_RELAXED)
             {
-                REQUIRE(actualV2.numWheatReceived < wheatToReceive);
+                REQUIRE(actualV2.numWheatReceived <= wheatToReceive);
             }
             else
             {
-                REQUIRE(actualV2.numWheatReceived == wheatToReceive);
+                if (actualV2.reduced)
+                {
+                    REQUIRE(actualV2.numWheatReceived < wheatToReceive);
+                }
+                else
+                {
+                    REQUIRE(actualV2.numWheatReceived == wheatToReceive);
+                }
             }
-        }
-    };
+        };
     auto validateV3 = [&compare](int64_t wheatToReceive, Price price,
                                  int64_t maxWheatReceive, int64_t maxSheepSend,
                                  ExchangeResult const& expected) {
@@ -67,9 +67,10 @@ TEST_CASE("Exchange", "[exchange]")
         }
     };
     auto validate = [&validateV2, &validateV3](
-        int64_t wheatToReceive, Price price, int64_t maxWheatReceive,
-        int64_t maxSheepSend, ExchangeResult const& expected,
-        ReducedCheckV2 reducedCheck = REDUCED_CHECK_V2_STRICT) {
+                        int64_t wheatToReceive, Price price,
+                        int64_t maxWheatReceive, int64_t maxSheepSend,
+                        ExchangeResult const& expected,
+                        ReducedCheckV2 reducedCheck = REDUCED_CHECK_V2_STRICT) {
         validateV2(wheatToReceive, price, maxWheatReceive, maxSheepSend,
                    expected, reducedCheck);
         validateV3(wheatToReceive, price, maxWheatReceive, maxSheepSend,

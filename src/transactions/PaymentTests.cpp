@@ -10,7 +10,6 @@
 #include "test/TestExceptions.h"
 #include "test/TestMarket.h"
 #include "test/TestUtils.h"
-#include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/ChangeTrustOpFrame.h"
@@ -847,9 +846,9 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(loadAccount(createDestination, *app));
             REQUIRE(loadAccount(payDestination, *app));
             REQUIRE(sourceAccount.getBalance() == amount - tx->getFee());
-            REQUIRE(createSource.getBalance() ==
-                    amount + amount - create1Amount - create2Amount +
-                        payAmount);
+            REQUIRE(createSource.getBalance() == amount + amount -
+                                                     create1Amount -
+                                                     create2Amount + payAmount);
             REQUIRE(createDestination.getBalance() ==
                     create1Amount - payAmount);
             REQUIRE(payDestination.getBalance() == create2Amount);

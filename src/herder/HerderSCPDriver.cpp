@@ -558,8 +558,9 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
             if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
-                if (!highestTxSet || (cTxSet->mTransactions.size() >
-                                      highestTxSet->mTransactions.size()) ||
+                if (!highestTxSet ||
+                    (cTxSet->mTransactions.size() >
+                     highestTxSet->mTransactions.size()) ||
                     ((cTxSet->mTransactions.size() ==
                       highestTxSet->mTransactions.size()) &&
                      lessThanXored(highest, sv.txSetHash, candidatesHash)))
@@ -619,8 +620,8 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         //  * when getting back in sync (a gap potentially opened)
         // in both cases it's safe to just ignore those as we're already
         // tracking a more recent state
-        CLOG(DEBUG, "Herder") << "Ignoring old ledger externalize "
-                              << slotIndex;
+        CLOG(DEBUG, "Herder")
+            << "Ignoring old ledger externalize " << slotIndex;
         return;
     }
 
@@ -686,8 +687,8 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
         if (!i.empty())
         {
             Json::FastWriter fw;
-            CLOG(INFO, "Herder") << "Quorum information for " << index << " : "
-                                 << fw.write(i);
+            CLOG(INFO, "Herder")
+                << "Quorum information for " << index << " : " << fw.write(i);
         }
     }
 }

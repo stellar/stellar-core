@@ -173,9 +173,9 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     auto const& nodeID = envelope.statement.nodeID;
     if (!isNodeInQuorum(nodeID))
     {
-        CLOG(DEBUG, "Herder") << "Dropping envelope from "
-                              << mApp.getConfig().toShortString(nodeID)
-                              << " (not in quorum)";
+        CLOG(DEBUG, "Herder")
+            << "Dropping envelope from "
+            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 

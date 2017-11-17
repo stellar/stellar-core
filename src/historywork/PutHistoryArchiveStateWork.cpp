@@ -46,8 +46,8 @@ PutHistoryArchiveStateWork::onRun()
         }
         catch (std::runtime_error& e)
         {
-            CLOG(ERROR, "History") << "error loading history state: "
-                                   << e.what();
+            CLOG(ERROR, "History")
+                << "error loading history state: " << e.what();
             scheduleFailure();
         }
     }

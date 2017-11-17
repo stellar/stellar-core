@@ -299,26 +299,26 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 switch (mType)
                 {
                 case ACCOUNT:
-                    CLOG(INFO, "Invariant") << "Added account @ "
-                                            << mFromLedgerSeq;
+                    CLOG(INFO, "Invariant")
+                        << "Added account @ " << mFromLedgerSeq;
                     entry.data.account() =
                         LedgerTestUtils::generateValidAccountEntry(5);
                     break;
                 case TRUSTLINE:
-                    CLOG(INFO, "Invariant") << "Added trustLine @ "
-                                            << mFromLedgerSeq;
+                    CLOG(INFO, "Invariant")
+                        << "Added trustLine @ " << mFromLedgerSeq;
                     entry.data.trustLine() =
                         LedgerTestUtils::generateValidTrustLineEntry(5);
                     break;
                 case OFFER:
-                    CLOG(INFO, "Invariant") << "Added offer @ "
-                                            << mFromLedgerSeq;
+                    CLOG(INFO, "Invariant")
+                        << "Added offer @ " << mFromLedgerSeq;
                     entry.data.offer() =
                         LedgerTestUtils::generateValidOfferEntry(5);
                     break;
                 case DATA:
-                    CLOG(INFO, "Invariant") << "Added data @ "
-                                            << mFromLedgerSeq;
+                    CLOG(INFO, "Invariant")
+                        << "Added data @ " << mFromLedgerSeq;
                     entry.data.data() =
                         LedgerTestUtils::generateValidDataEntry(5);
                     break;

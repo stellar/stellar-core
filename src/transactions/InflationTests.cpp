@@ -96,21 +96,22 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
     }
 
     // sort by votes, then by ID in descending order
-    std::sort(votesV.begin(), votesV.end(), [](std::pair<int, int64> const& l,
-                                               std::pair<int, int64> const& r) {
-        if (l.second > r.second)
-        {
-            return true;
-        }
-        else if (l.second < r.second)
-        {
-            return false;
-        }
-        else
-        {
-            return l.first > r.first;
-        }
-    });
+    std::sort(
+        votesV.begin(), votesV.end(),
+        [](std::pair<int, int64> const& l, std::pair<int, int64> const& r) {
+            if (l.second > r.second)
+            {
+                return true;
+            }
+            else if (l.second < r.second)
+            {
+                return false;
+            }
+            else
+            {
+                return l.first > r.first;
+            }
+        });
 
     std::vector<int> winners;
     int64 totVotes = totCoins;

@@ -21,7 +21,6 @@
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "invariant/InvariantManager.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
@@ -294,8 +293,8 @@ ApplicationImpl::start()
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)
             {
-                CLOG(INFO, "Ledger") << "Restarted publishing " << npub
-                                     << " queued snapshots";
+                CLOG(INFO, "Ledger")
+                    << "Restarted publishing " << npub << " queued snapshots";
             }
             if (mConfig.FORCE_SCP)
             {

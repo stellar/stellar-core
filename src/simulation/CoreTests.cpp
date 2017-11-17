@@ -539,8 +539,11 @@ netTopologyTest(
             app.getMetrics().NewMeter({"overlay", "byte", "write"}, "byte");
 
         r.write({
-            (double)numNodes, (double)inmsg.count(), (double)inbyte.count(),
-            (double)outmsg.count(), (double)outbyte.count(),
+            (double)numNodes,
+            (double)inmsg.count(),
+            (double)inbyte.count(),
+            (double)outmsg.count(),
+            (double)outbyte.count(),
         });
     }
 }
@@ -577,17 +580,18 @@ TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
 
 TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
 {
-    netTopologyTest("branchedcycle", [&](int numNodes,
-                                         int& cfgCount) -> Simulation::pointer {
-        return Topologies::branchedcycle(
-            numNodes, 1.0, Simulation::OVER_LOOPBACK,
-            sha256(fmt::format("nodes-{:d}", numNodes)), [&]() -> Config {
-                Config res = getTestConfig(cfgCount++);
-                res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-                res.MAX_PEER_CONNECTIONS = 1000;
-                return res;
-            });
-    });
+    netTopologyTest(
+        "branchedcycle",
+        [&](int numNodes, int& cfgCount) -> Simulation::pointer {
+            return Topologies::branchedcycle(
+                numNodes, 1.0, Simulation::OVER_LOOPBACK,
+                sha256(fmt::format("nodes-{:d}", numNodes)), [&]() -> Config {
+                    Config res = getTestConfig(cfgCount++);
+                    res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
+                    res.MAX_PEER_CONNECTIONS = 1000;
+                    return res;
+                });
+        });
 }
 
 TEST_CASE("Bucket-list entries vs. write throughput", "[scalability][hide]")

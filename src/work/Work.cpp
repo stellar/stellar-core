@@ -313,8 +313,8 @@ Work::complete(CompleteResult result)
     {
     case WORK_SUCCESS:
         succ.Mark();
-        CLOG(DEBUG, "Work") << "notifying parent of successful "
-                            << getUniqueName();
+        CLOG(DEBUG, "Work")
+            << "notifying parent of successful " << getUniqueName();
         notifyParent();
         break;
 
@@ -399,8 +399,8 @@ Work::setState(Work::State st)
     auto maxR = getMaxRetries();
     if (st == WORK_FAILURE_RETRY && (mRetries >= maxR))
     {
-        CLOG(WARNING, "Work") << "Reached retry limit " << maxR << " for "
-                              << getUniqueName();
+        CLOG(WARNING, "Work")
+            << "Reached retry limit " << maxR << " for " << getUniqueName();
         st = WORK_FAILURE_RAISE;
     }
 
