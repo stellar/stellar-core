@@ -30,7 +30,8 @@ struct LedgerUpgradeNode
 
 struct LedgerUpgradeCheck
 {
-    VirtualClock::time_point time;
+    optional<VirtualClock::time_point> time;
+    optional<uint32_t> ledgerSeq;
     std::vector<LedgerUpgradeableData> expected;
 };
 
@@ -39,6 +40,22 @@ at(int minute, int second)
 {
     return VirtualClock::tmToPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
+}
+
+LedgerUpgradeCheck
+checkAt(int minute, int second, std::vector<LedgerUpgradeableData> expected)
+{
+    return LedgerUpgradeCheck{
+        make_optional<VirtualClock::time_point>(at(minute, second)),
+        nullopt<uint32_t>(), std::move(expected)};
+}
+
+LedgerUpgradeCheck
+checkLedger(uint32_t ledgerSeq, std::vector<LedgerUpgradeableData> expected)
+{
+    return LedgerUpgradeCheck{nullopt<VirtualClock::time_point>(),
+                              make_optional<uint32_t>(ledgerSeq),
+                              std::move(expected)};
 }
 
 void
@@ -87,7 +104,19 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     for (auto const& result : checks)
     {
-        simulation->crankUntil(result.time, false);
+        if (result.time)
+        {
+            simulation->crankUntil(*result.time, false);
+        }
+        else if (result.ledgerSeq)
+        {
+            simulation->crankUntil(
+                [&]() {
+                    return simulation->haveAllExternalized(*result.ledgerSeq,
+                                                           0);
+                },
+                std::chrono::seconds(30), false);
+        }
 
         for (auto i = 0; i < nodes.size(); i++)
         {
@@ -343,7 +372,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {noUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
+            {checkAt(0, 30, {noUpgrade, noUpgrade, noUpgrade})}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -352,7 +381,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {bigUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
+            {checkAt(0, 30, {noUpgrade, noUpgrade, noUpgrade})}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -361,7 +390,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, {}}, {upgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 30), {upgrade, upgrade, noUpgrade}}};
+            {checkAt(0, 30, {upgrade, upgrade, noUpgrade})}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -370,8 +399,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(1, 0)}, {upgrade, at(1, 0)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 30), {partialUpgrade, partialUpgrade, partialUpgrade}},
-            {at(1, 30), {upgrade, upgrade, upgrade}}};
+            {checkAt(0, 30, {partialUpgrade, partialUpgrade, partialUpgrade})},
+            {checkAt(1, 30, {upgrade, upgrade, upgrade})}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -380,8 +409,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(0, 30)}, {upgrade, at(1, 0)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 45), {partialUpgrade, partialUpgrade, partialUpgrade}},
-            {at(1, 15), {upgrade, upgrade, upgrade}}};
+            {checkAt(0, 45, {partialUpgrade, partialUpgrade, partialUpgrade})},
+            {checkAt(1, 15, {upgrade, upgrade, upgrade})}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -390,8 +419,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(0, 30)}, {upgrade, at(0, 30)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {at(0, 15), {partialUpgrade, partialUpgrade, partialUpgrade}},
-            {at(0, 45), {upgrade, upgrade, partialUpgrade}}};
+            {checkAt(0, 15, {partialUpgrade, partialUpgrade, partialUpgrade})},
+            {checkAt(0, 45, {upgrade, upgrade, partialUpgrade})}};
         simulateUpgrade(nodes, checks);
     }
 }
