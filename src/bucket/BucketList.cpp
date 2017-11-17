@@ -152,6 +152,22 @@ BucketLevel::snap()
     return mSnap;
 }
 
+BucketListDepth::BucketListDepth(uint32_t numLevels) : mNumLevels(numLevels)
+{
+}
+
+BucketListDepth&
+BucketListDepth::operator=(uint32_t numLevels)
+{
+    mNumLevels = numLevels;
+    return *this;
+}
+
+BucketListDepth::operator uint32_t() const
+{
+    return mNumLevels;
+}
+
 uint32_t
 BucketList::levelSize(uint32_t level)
 {
@@ -430,7 +446,7 @@ BucketList::restartMerges(Application& app)
     }
 }
 
-uint32_t const BucketList::kNumLevels = 11;
+BucketListDepth BucketList::kNumLevels = 11;
 
 BucketList::BucketList()
 {

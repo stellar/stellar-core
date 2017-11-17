@@ -8,11 +8,25 @@
 namespace stellar
 {
 
+namespace testutil
+{
+
 void
-testutil::setCurrentLedgerVersion(LedgerManager& lm,
-                                  uint32_t currentLedgerVersion)
+setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
 {
     lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
+}
+
+BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
+    : mPrevDepth(BucketList::kNumLevels)
+{
+    BucketList::kNumLevels = newDepth;
+}
+
+BucketListDepthModifier::~BucketListDepthModifier()
+{
+    BucketList::kNumLevels = mPrevDepth;
+}
 }
 
 time_t
