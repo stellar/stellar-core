@@ -26,7 +26,7 @@ When running a node, the best bet is to go with the latest release.
 - `bison` and `flex`
 - `libpq-devel` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
-
+- `clang-format-5.0` (for `make format` to work)
 
 ### Ubuntu 14.04
 
@@ -34,6 +34,8 @@ When running a node, the best bet is to go with the latest release.
     # apt-get update
     # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev clang++-3.5 gcc-4.9 g++-4.9 cpp-4.9
 
+In order to make changes, you'll need to install the proper version of clang-format (you may have to follow instructions on https://apt.llvm.org/ )
+    # sudo apt-get install clang-format-5.0
 
 See [installing gcc 4.9 on ubuntu 14.04](http://askubuntu.com/questions/428198/getting-installing-gcc-g-4-9-on-ubuntu)
 
