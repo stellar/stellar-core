@@ -29,7 +29,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     Hash saved;
     {
         VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
+        Application::pointer app = Application::create(clock, cfg);
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -59,7 +59,7 @@ TEST_CASE("ledgerheader", "[ledger]")
     SECTION("update")
     {
         VirtualClock clock;
-        Application::pointer app = createTestApplication(clock, cfg);
+        Application::pointer app = Application::create(clock, cfg);
         app->start();
 
         auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
