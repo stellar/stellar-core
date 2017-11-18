@@ -30,10 +30,9 @@ template <typename T = ApplicationImpl>
 std::shared_ptr<T>
 createTestApplication(VirtualClock& clock, Config const& cfg)
 {
-    auto app = Application::create<T>(clock, cfg);
-    auto& lm = app->getLedgerManager();
-    lm.getCurrentLedgerHeader().baseFee = cfg.DESIRED_BASE_FEE;
-    testutil::setCurrentLedgerVersion(lm, cfg.LEDGER_PROTOCOL_VERSION);
+    Config c2(cfg);
+    c2.USE_CONFIG_FOR_GENESIS = true;
+    auto app = Application::create<T>(clock, c2);
     return app;
 }
 

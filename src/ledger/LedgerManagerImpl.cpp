@@ -158,8 +158,9 @@ LedgerManagerImpl::getStateHuman() const
 }
 
 void
-LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
-                                  uint32_t baseReserve, uint32_t maxTxSetSize)
+LedgerManagerImpl::startNewLedger(uint32_t protocolVersion, int64_t balance,
+                                  uint32_t baseFee, uint32_t baseReserve,
+                                  uint32_t maxTxSetSize)
 {
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
@@ -171,6 +172,7 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
 
     // all fields are initialized by default to 0
     // set the ones that are not 0
+    genesisHeader.ledgerVersion = protocolVersion;
     genesisHeader.baseFee = baseFee;
     genesisHeader.baseReserve = baseReserve;
     genesisHeader.maxTxSetSize = maxTxSetSize;
@@ -190,8 +192,19 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
 void
 LedgerManagerImpl::startNewLedger()
 {
-    // 100 tx/ledger max
-    startNewLedger(1000000000000000000, 100, 100000000, 100);
+    int64 totalCoins = 1000000000000000000;
+    auto const& cfg = mApp.getConfig();
+    if (cfg.USE_CONFIG_FOR_GENESIS)
+    {
+        startNewLedger(cfg.LEDGER_PROTOCOL_VERSION, totalCoins,
+                       cfg.DESIRED_BASE_FEE, cfg.DESIRED_BASE_RESERVE,
+                       cfg.DESIRED_MAX_TX_PER_LEDGER);
+    }
+    else
+    {
+        // 100 tx/ledger max
+        startNewLedger(0, totalCoins, 100, 100000000, 100);
+    }
 }
 
 void

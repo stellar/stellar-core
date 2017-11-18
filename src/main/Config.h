@@ -105,6 +105,10 @@ class Config : public std::enable_shared_from_this<Config>
     // this should only be enabled when testing as it's a security issue
     bool ALLOW_LOCALHOST_FOR_TESTING;
 
+    // Set to use config file values for genesis ledger
+    // not setable in config file - only tests are allowed to do this
+    bool USE_CONFIG_FOR_GENESIS;
+
     // This is the number of failures you want to be able to tolerate.
     // You will need at least 3f+1 nodes in your quorum set.
     // If you don't have enough in your quorum set to tolerate the level you
