@@ -63,6 +63,13 @@ using namespace std;
 namespace stellar
 {
 
+const uint32_t LedgerManager::GENESIS_LEDGER_SEQ = 1;
+const uint32_t LedgerManager::GENESIS_LEDGER_VERSION = 0;
+const uint32_t LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
+const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
+const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
+const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
+
 using xdr::operator==;
 
 std::unique_ptr<LedgerManager>
@@ -173,9 +180,10 @@ LedgerManagerImpl::startNewLedger(int64_t balance, uint32_t baseFee,
     // set the ones that are not 0
     genesisHeader.baseFee = baseFee;
     genesisHeader.baseReserve = baseReserve;
+    genesisHeader.ledgerVersion = GENESIS_LEDGER_VERSION;
     genesisHeader.maxTxSetSize = maxTxSetSize;
     genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.ledgerSeq = HistoryManager::GENESIS_LEDGER_SEQ;
+    genesisHeader.ledgerSeq = GENESIS_LEDGER_SEQ;
 
     LedgerDelta delta(genesisHeader, getDatabase());
     masterAccount.storeAdd(delta, this->getDatabase());
@@ -191,7 +199,8 @@ void
 LedgerManagerImpl::startNewLedger()
 {
     // 100 tx/ledger max
-    startNewLedger(1000000000000000000, 100, 100000000, 100);
+    startNewLedger(GENESIS_LEDGER_TOTAL_COINS, GENESIS_LEDGER_BASE_FEE,
+                   GENESIS_LEDGER_BASE_RESERVE, GENESIS_LEDGER_MAX_TX_SIZE);
 }
 
 void
