@@ -69,18 +69,13 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
     case LEDGER_UPGRADE_BASE_FEE:
     {
         uint32 newFee = lupgrade.newBaseFee();
-        // allow fee to move within a 2x distance from the one we have in our
-        // config
-        res = (newFee >= mCfg.DESIRED_BASE_FEE * .5) &&
-              (newFee <= mCfg.DESIRED_BASE_FEE * 2);
+        res = (newFee == mCfg.DESIRED_BASE_FEE);
     }
     break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     {
-        // allow max to be within 30% of the config value
         uint32 newMax = lupgrade.newMaxTxSetSize();
-        res = (newMax >= mCfg.DESIRED_MAX_TX_PER_LEDGER * 7 / 10) &&
-              (newMax <= mCfg.DESIRED_MAX_TX_PER_LEDGER * 13 / 10);
+        res = (newMax == mCfg.DESIRED_MAX_TX_PER_LEDGER);
     }
     break;
     default:

@@ -30,8 +30,7 @@ struct LedgerUpgradeNode
 
 struct LedgerUpgradeCheck
 {
-    optional<VirtualClock::time_point> time;
-    optional<uint32_t> ledgerSeq;
+    VirtualClock::time_point time;
     std::vector<LedgerUpgradeableData> expected;
 };
 
@@ -40,22 +39,6 @@ at(int minute, int second)
 {
     return VirtualClock::tmToPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
-}
-
-LedgerUpgradeCheck
-checkAt(int minute, int second, std::vector<LedgerUpgradeableData> expected)
-{
-    return LedgerUpgradeCheck{
-        make_optional<VirtualClock::time_point>(at(minute, second)),
-        nullopt<uint32_t>(), std::move(expected)};
-}
-
-LedgerUpgradeCheck
-checkLedger(uint32_t ledgerSeq, std::vector<LedgerUpgradeableData> expected)
-{
-    return LedgerUpgradeCheck{nullopt<VirtualClock::time_point>(),
-                              make_optional<uint32_t>(ledgerSeq),
-                              std::move(expected)};
 }
 
 void
@@ -104,19 +87,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     for (auto const& result : checks)
     {
-        if (result.time)
-        {
-            simulation->crankUntil(*result.time, false);
-        }
-        else if (result.ledgerSeq)
-        {
-            simulation->crankUntil(
-                [&]() {
-                    return simulation->haveAllExternalized(*result.ledgerSeq,
-                                                           0);
-                },
-                std::chrono::seconds(30), false);
-        }
+        simulation->crankUntil(result.time, false);
 
         for (auto i = 0; i < nodes.size(); i++)
         {
@@ -282,48 +253,42 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("valid fee")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(200)),
+                                      toUpgradeType(makeBaseFeeUpgrade(100)),
                                       ledgerUpgradeType));
     }
 
     SECTION("too small fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(49)),
+                                       toUpgradeType(makeBaseFeeUpgrade(99)),
                                        ledgerUpgradeType));
     }
 
     SECTION("too big fee")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(201)),
+                                       toUpgradeType(makeBaseFeeUpgrade(101)),
                                        ledgerUpgradeType));
     }
 
     SECTION("valid tx count")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(65)),
+                                      toUpgradeType(makeTxCountUpgrade(50)),
                                       ledgerUpgradeType));
     }
 
     SECTION("too small tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(34)),
+                                       toUpgradeType(makeTxCountUpgrade(49)),
                                        ledgerUpgradeType));
     }
 
     SECTION("too big tx count")
     {
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(66)),
+                                       toUpgradeType(makeTxCountUpgrade(51)),
                                        ledgerUpgradeType));
     }
 }
@@ -367,25 +332,12 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                               LedgerManager::GENESIS_LEDGER_BASE_FEE * 4,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE * 4};
 
-    SECTION("oscillation")
-    {
-        auto nodes = std::vector<LedgerUpgradeNode>{
-            {noUpgrade, {}}, {partialUpgrade, {}}, {partialUpgrade, {}}};
-        auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkLedger(2, {partialUpgrade, partialUpgrade, partialUpgrade})},
-            {checkLedger(5, {noUpgrade, noUpgrade, noUpgrade})},
-            {checkLedger(6, {partialUpgrade, partialUpgrade, partialUpgrade})},
-            {checkLedger(8, {noUpgrade, noUpgrade, noUpgrade})},
-            {checkLedger(9, {partialUpgrade, partialUpgrade, partialUpgrade})}};
-        simulateUpgrade(nodes, checks);
-    }
-
     SECTION("0 of 3 vote - dont upgrade")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{
             {noUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 30, {noUpgrade, noUpgrade, noUpgrade})}};
+            {at(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -394,7 +346,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {bigUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 30, {noUpgrade, noUpgrade, noUpgrade})}};
+            {at(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -403,7 +355,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, {}}, {upgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 30, {upgrade, upgrade, noUpgrade})}};
+            {at(0, 30), {upgrade, upgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -412,8 +364,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(1, 0)}, {upgrade, at(1, 0)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 30, {partialUpgrade, partialUpgrade, partialUpgrade})},
-            {checkAt(1, 30, {upgrade, upgrade, upgrade})}};
+            {at(0, 30), {partialUpgrade, partialUpgrade, partialUpgrade}},
+            {at(1, 30), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -422,8 +374,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(0, 30)}, {upgrade, at(1, 0)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 45, {partialUpgrade, partialUpgrade, partialUpgrade})},
-            {checkAt(1, 15, {upgrade, upgrade, upgrade})}};
+            {at(0, 45), {partialUpgrade, partialUpgrade, partialUpgrade}},
+            {at(1, 15), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
@@ -432,8 +384,8 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, at(0, 30)}, {upgrade, at(0, 30)}, {upgrade, at(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {checkAt(0, 15, {partialUpgrade, partialUpgrade, partialUpgrade})},
-            {checkAt(0, 45, {upgrade, upgrade, partialUpgrade})}};
+            {at(0, 15), {partialUpgrade, partialUpgrade, partialUpgrade}},
+            {at(0, 45), {upgrade, upgrade, partialUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 }
