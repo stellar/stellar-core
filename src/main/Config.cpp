@@ -19,6 +19,8 @@ namespace stellar
 {
 using xdr::operator<;
 
+const int Config::CURRENT_LEDGER_PROTOCOL_VERSION = 9;
+
 Config::Config() : NODE_SEED(SecretKey::random())
 {
     // fill in defaults
@@ -44,6 +46,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
     ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING = false;
     ALLOW_LOCALHOST_FOR_TESTING = false;
+    USE_CONFIG_FOR_GENESIS = false;
     FAILURE_SAFETY = -1;
     UNSAFE_QUORUM = false;
 
