@@ -54,7 +54,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     auto keys = std::vector<SecretKey>{};
     auto configs = std::vector<Config>{};
-    for (auto i = 0; i < nodes.size(); i++)
+    for (size_t i = 0; i < nodes.size(); i++)
     {
         keys.push_back(
             SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
@@ -75,13 +75,13 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     qSet.validators.push_back(keys[1].getPublicKey());
     qSet.validators.push_back(keys[2].getPublicKey());
 
-    for (auto i = 0; i < nodes.size(); i++)
+    for (size_t i = 0; i < nodes.size(); i++)
     {
         simulation->addNode(keys[i], qSet, simulation->getClock(), &configs[i]);
     }
 
-    for (auto i = 0; i < nodes.size(); i++)
-        for (auto j = i + 1; j < nodes.size(); j++)
+    for (size_t i = 0; i < nodes.size(); i++)
+        for (size_t j = i + 1; j < nodes.size(); j++)
             simulation->addPendingConnection(keys[i].getPublicKey(),
                                              keys[j].getPublicKey());
 
@@ -91,7 +91,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     {
         simulation->crankUntil(result.time, false);
 
-        for (auto i = 0; i < nodes.size(); i++)
+        for (size_t i = 0; i < nodes.size(); i++)
         {
             auto const& node = simulation->getNode(keys[i].getPublicKey());
             REQUIRE(node->getLedgerManager()
