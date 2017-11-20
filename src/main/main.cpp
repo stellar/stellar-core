@@ -290,7 +290,8 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
 
         auto& io = clock.getIOService();
         asio::io_service::work mainWork(io);
-        while (!io.stopped())
+        done = false;
+        while (!done && clock.crank(true))
         {
             switch (app->getLedgerManager().getState())
             {
@@ -299,7 +300,7 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
                 LOG(INFO) << "*";
                 LOG(INFO) << "* Catchup failed.";
                 LOG(INFO) << "*";
-                app->gracefulStop();
+                done = true;
                 break;
             }
             case LedgerManager::LM_SYNCED_STATE:
@@ -307,15 +308,17 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
                 LOG(INFO) << "*";
                 LOG(INFO) << "* Catchup finished.";
                 LOG(INFO) << "*";
-                app->gracefulStop();
+                done = true;
                 break;
             }
             case LedgerManager::LM_CATCHING_UP_STATE:
                 break;
             }
-
-            clock.crank();
         }
+
+        app->gracefulStop();
+        while (clock.crank(true))
+            ;
     }
 }
 
