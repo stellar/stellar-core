@@ -39,6 +39,13 @@ class Database;
 class LedgerManager
 {
   public:
+    static const uint32_t GENESIS_LEDGER_SEQ;
+    static const uint32_t GENESIS_LEDGER_VERSION;
+    static const uint32_t GENESIS_LEDGER_BASE_FEE;
+    static const uint32_t GENESIS_LEDGER_BASE_RESERVE;
+    static const uint32_t GENESIS_LEDGER_MAX_TX_SIZE;
+    static const int64_t GENESIS_LEDGER_TOTAL_COINS;
+
     enum State
     {
         // Loading state from database, not yet active

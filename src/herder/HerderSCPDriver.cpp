@@ -57,10 +57,12 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
+                                 Upgrades const& upgrades,
                                  PendingEnvelopes& pendingEnvelopes)
     : mApp{app}
     , mHerder{herder}
     , mLedgerManager{mApp.getLedgerManager()}
+    , mUpgrades{upgrades}
     , mPendingEnvelopes{pendingEnvelopes}
     , mSCP(*this, mApp.getConfig().NODE_SEED,
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
@@ -169,58 +171,6 @@ HerderSCPDriver::isSlotCompatibleWithCurrentState(uint64_t slotIndex) const
         res = (slotIndex == (lcl.header.ledgerSeq + 1));
     }
 
-    return res;
-}
-
-bool
-HerderSCPDriver::validateUpgradeStep(uint64_t slotIndex,
-                                     UpgradeType const& upgrade,
-                                     LedgerUpgradeType& upgradeType) const
-{
-    LedgerUpgrade lupgrade;
-
-    try
-    {
-        xdr::xdr_from_opaque(upgrade, lupgrade);
-    }
-    catch (xdr::xdr_runtime_error&)
-    {
-        return false;
-    }
-
-    bool res;
-    switch (lupgrade.type())
-    {
-    case LEDGER_UPGRADE_VERSION:
-    {
-        uint32 newVersion = lupgrade.newLedgerVersion();
-        res = (newVersion == mApp.getConfig().LEDGER_PROTOCOL_VERSION);
-    }
-    break;
-    case LEDGER_UPGRADE_BASE_FEE:
-    {
-        uint32 newFee = lupgrade.newBaseFee();
-        // allow fee to move within a 2x distance from the one we have in our
-        // config
-        res = (newFee >= mApp.getConfig().DESIRED_BASE_FEE * .5) &&
-              (newFee <= mApp.getConfig().DESIRED_BASE_FEE * 2);
-    }
-    break;
-    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-    {
-        // allow max to be within 30% of the config value
-        uint32 newMax = lupgrade.newMaxTxSetSize();
-        res = (newMax >= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 7 / 10) &&
-              (newMax <= mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER * 13 / 10);
-    }
-    break;
-    default:
-        res = false;
-    }
-    if (res)
-    {
-        upgradeType = lupgrade.type();
-    }
     return res;
 }
 
@@ -343,7 +293,7 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value)
         for (size_t i = 0; i < b.upgrades.size(); i++)
         {
             LedgerUpgradeType thisUpgradeType;
-            if (!validateUpgradeStep(slotIndex, b.upgrades[i], thisUpgradeType))
+            if (!mUpgrades.isValid(b.closeTime, b.upgrades[i], thisUpgradeType))
             {
                 CLOG(TRACE, "Herder")
                     << "HerderSCPDriver::validateValue invalid step at index "
@@ -393,8 +343,7 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-
-            if (!validateUpgradeStep(slotIndex, *it, thisUpgradeType))
+            if (!mUpgrades.isValid(b.closeTime, *it, thisUpgradeType))
             {
                 it = b.upgrades.erase(it);
             }
@@ -536,6 +485,13 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                     {
                         clUpgrade.newMaxTxSetSize() =
                             lupgrade.newMaxTxSetSize();
+                    }
+                    break;
+                case LEDGER_UPGRADE_BASE_RESERVE:
+                    // take the max base reserve
+                    if (clUpgrade.newBaseReserve() < lupgrade.newBaseReserve())
+                    {
+                        clUpgrade.newBaseReserve() = lupgrade.newBaseReserve();
                     }
                     break;
                 default:

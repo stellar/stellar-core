@@ -854,7 +854,7 @@ HistoryTests::computeCatchupPerformedWork(
 
     auto filesDownloaded = checkpointRange.count();
     auto firstVerifiedLedger = std::max(
-        HistoryManager::GENESIS_LEDGER_SEQ,
+        LedgerManager::GENESIS_LEDGER_SEQ,
         checkpointRange.first() + 1 - historyManager.getCheckpointFrequency());
     auto ledgersVerified =
         catchupConfiguration.toLedger() - firstVerifiedLedger + 1;

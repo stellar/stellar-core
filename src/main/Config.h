@@ -7,6 +7,7 @@
 #include "lib/util/cpptoml.h"
 #include "overlay/StellarXDR.h"
 #include "util/SecretValue.h"
+#include "util/Timer.h"
 #include "util/optional.h"
 #include <map>
 #include <memory>
@@ -118,7 +119,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool UNSAFE_QUORUM;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
-    optional<std::tm> PREFERRED_UPGRADE_DATETIME;
+    VirtualClock::time_point PREFERRED_UPGRADE_DATETIME;
 
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
