@@ -139,7 +139,7 @@ LoopbackPeer::deliverOne()
     // CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
     if (mRemote.expired())
     {
-        throw std::runtime_error("LoopbackPeer missing target");
+        return;
     }
 
     if (!mOutQueue.empty() && !mCorked)
