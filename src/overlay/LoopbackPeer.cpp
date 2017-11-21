@@ -41,6 +41,12 @@ LoopbackPeer::getAuthCert()
 void
 LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
+    if (mRemote.expired())
+    {
+        drop();
+        return;
+    }
+
     // Damage authentication material.
     if (mDamageAuth)
     {
