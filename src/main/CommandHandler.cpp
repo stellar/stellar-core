@@ -624,12 +624,12 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
         if (mApp.getHerder().resolveNodeID(peerId->second, n))
         {
             auto peers = mApp.getOverlayManager().getPeers();
-            auto peer = std::find_if(
+            auto peerit = std::find_if(
                 peers.begin(), peers.end(),
                 [&n](Peer::pointer peer) { return peer->getPeerID() == n; });
-            if (peer != peers.end())
+            if (peerit != peers.end())
             {
-                mApp.getOverlayManager().dropPeer(*peer);
+                mApp.getOverlayManager().dropPeer(peerit->get());
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";

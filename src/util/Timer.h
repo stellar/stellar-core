@@ -121,7 +121,6 @@ class VirtualClock
 
     bool mDestructing{false};
 
-    time_point next();
     void maybeSetRealtimer();
     size_t advanceTo(time_point n);
     size_t advanceToNext();
@@ -152,6 +151,9 @@ class VirtualClock
     // only valid with VIRTUAL_TIME: sets the current value
     // of the clock
     void setCurrentTime(time_point t);
+
+    // returns the time of the next scheduled event
+    time_point next();
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable

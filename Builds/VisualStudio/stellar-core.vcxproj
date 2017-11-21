@@ -569,7 +569,6 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h" />
     <ClInclude Include="..\..\src\invariant\InvariantManager.h" />
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
-    <ClInclude Include="..\..\src\invariant\Invariants.h" />
     <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />

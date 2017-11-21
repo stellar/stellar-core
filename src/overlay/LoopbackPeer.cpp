@@ -41,6 +41,12 @@ LoopbackPeer::getAuthCert()
 void
 LoopbackPeer::sendMessage(xdr::msg_ptr&& msg)
 {
+    if (mRemote.expired())
+    {
+        drop();
+        return;
+    }
+
     // Damage authentication material.
     if (mDamageAuth)
     {
@@ -72,8 +78,7 @@ LoopbackPeer::drop()
     }
     mState = CLOSING;
     mIdleTimer.cancel();
-    auto self = shared_from_this();
-    getApp().getOverlayManager().dropPeer(self);
+    getApp().getOverlayManager().dropPeer(this);
 
     auto remote = mRemote.lock();
     if (remote)
@@ -139,7 +144,7 @@ LoopbackPeer::deliverOne()
     // CLOG(TRACE, "Overlay") << "LoopbackPeer attempting to deliver message";
     if (mRemote.expired())
     {
-        throw std::runtime_error("LoopbackPeer missing target");
+        return;
     }
 
     if (!mOutQueue.empty() && !mCorked)

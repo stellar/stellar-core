@@ -1226,9 +1226,6 @@
     <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h">
       <Filter>invariant</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\invariant\Invariants.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h">
       <Filter>invariant</Filter>
     </ClInclude>
