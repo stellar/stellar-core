@@ -28,8 +28,9 @@ using namespace std;
 Simulation::Simulation(Mode mode, Hash const& networkID,
                        std::function<Config()> confGen)
     : LoadGenerator(networkID)
-    , mClock(mode == OVER_TCP ? VirtualClock::REAL_TIME
-                              : VirtualClock::VIRTUAL_TIME)
+    , mVirtualClockMode(mode != OVER_TCP)
+    , mClock(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
+                               : VirtualClock::REAL_TIME)
     , mMode(mode)
     , mConfigCount(0)
     , mConfigGen(confGen)
@@ -39,23 +40,29 @@ Simulation::Simulation(Mode mode, Hash const& networkID,
 
 Simulation::~Simulation()
 {
+    // destroy all nodes first
+    mNodes.clear();
 
-    // tear down
+    // tear down main app/clock
     mClock.getIOService().poll_one();
     mClock.getIOService().stop();
     while (mClock.cancelAllEvents())
         ;
 }
 
-VirtualClock&
-Simulation::getClock()
+void
+Simulation::setCurrentTime(VirtualClock::time_point t)
 {
-    return mClock;
+    mClock.setCurrentTime(t);
+    for (auto& p : mNodes)
+    {
+        p.second.mClock->setCurrentTime(t);
+    }
 }
 
 Application::pointer
-Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
-                    Config const* cfg2, bool newDB)
+Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
+                    bool newDB)
 {
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
@@ -63,31 +70,39 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, VirtualClock& clock,
     cfg->QUORUM_SET = qSet;
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
-    auto result = Application::create(clock, *cfg, newDB);
-    mNodes[nodeKey.getPublicKey()] = result;
+    auto clock =
+        make_shared<VirtualClock>(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
+                                                    : VirtualClock::REAL_TIME);
+    if (mVirtualClockMode)
+    {
+        clock->setCurrentTime(mClock.now());
+    }
 
-    return result;
+    auto app = Application::create(*clock, *cfg, newDB);
+    mNodes.emplace(nodeKey.getPublicKey(), Node{clock, app});
+
+    return app;
 }
 
 Application::pointer
 Simulation::getNode(NodeID nodeID)
 {
-    return mNodes[nodeID];
+    return mNodes[nodeID].mApp;
 }
 vector<Application::pointer>
 Simulation::getNodes()
 {
     vector<Application::pointer> result;
-    for (auto const& app : mNodes)
-        result.push_back(app.second);
+    for (auto const& p : mNodes)
+        result.push_back(p.second.mApp);
     return result;
 }
 vector<NodeID>
 Simulation::getNodeIDs()
 {
     vector<NodeID> result;
-    for (auto const& app : mNodes)
-        result.push_back(app.first);
+    for (auto const& p : mNodes)
+        result.push_back(p.first);
     return result;
 }
 
@@ -119,7 +134,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
 void
 Simulation::addLoopbackConnection(NodeID initiator, NodeID acceptor)
 {
-    if (mNodes[initiator] && mNodes[acceptor])
+    if (mNodes[initiator].mApp && mNodes[acceptor].mApp)
     {
         auto conn = std::make_shared<LoopbackPeerConnection>(
             *getNode(initiator), *getNode(acceptor));
@@ -171,8 +186,9 @@ Simulation::startAllNodes()
 {
     for (auto const& it : mNodes)
     {
-        it.second->start();
-        updateMinBalance(*it.second);
+        auto app = it.second.mApp;
+        app->start();
+        updateMinBalance(*app);
     }
 
     for (auto const& pair : mPendingConnections)
@@ -187,36 +203,154 @@ Simulation::stopAllNodes()
 {
     for (auto& n : mNodes)
     {
-        n.second->gracefulStop();
+        auto app = n.second.mApp;
+        app->gracefulStop();
     }
 
     while (crankAllNodes() > 0)
         ;
 }
 
+size_t
+Simulation::crankNode(NodeID const& id, VirtualClock::time_point timeout)
+{
+    auto p = mNodes[id];
+    auto clock = p.mClock;
+    auto app = p.mApp;
+    size_t quantumClicks = 0;
+    VirtualTimer quantumTimer(*app);
+
+    bool doneWithQuantum = false;
+    if (mVirtualClockMode)
+    {
+        // in virtual mode we give at most a timeslice
+        // of quantum for execution
+        auto tp = clock->now() + quantum;
+        if (tp > timeout)
+        {
+            tp = timeout;
+        }
+        quantumTimer.expires_at(tp);
+    }
+    else
+    {
+        // real time means we only need to trigger whatever
+        // we missed since the last time
+        quantumTimer.expires_at(clock->now());
+    }
+    quantumTimer.async_wait([&](asio::error_code const& error) {
+        doneWithQuantum = true;
+        quantumClicks++;
+    });
+
+    size_t count = 0;
+    while (!doneWithQuantum)
+    {
+        count += clock->crank(false);
+    }
+    return count - quantumClicks;
+}
+
 std::size_t
 Simulation::crankAllNodes(int nbTicks)
 {
+
     std::size_t count = 0;
-    for (int i = 0; i < nbTicks && nbTicks > 0; i++)
+
+    VirtualTimer mainQuantumTimer(*mIdleApp);
+
+    int i = 0;
+    do
     {
+        // at this level, we want to advance the overall simulation
+        // in some meaningful way (and not just by a quantum) nbTicks time
+
+        // in virtual clock mode, this means advancing the clock until either
+        // work was performed
+        // or we've triggered the next scheduled event
+
         if (mClock.getIOService().stopped())
         {
             return 0;
         }
+
+        bool hasNext = (mClock.next() != mClock.next().max());
+        int quantumClicks = 0;
+
+        if (mVirtualClockMode)
+        {
+            // in virtual mode we need to crank the main clock manually
+            mainQuantumTimer.expires_from_now(quantum);
+            mainQuantumTimer.async_wait([&](asio::error_code ec) {
+                if (!ec)
+                {
+                    quantumClicks++;
+                }
+            });
+        }
+
+        // now, run the clock on all nodes until their clock is caught up
+        bool appBehind;
+        // in virtual mode next interesting event is either a quantum click
+        // or a scheduled event
+        auto nextTime = mVirtualClockMode ? mClock.next() : mClock.now();
+        do
+        {
+            // in real mode, this is equivalent to a simple loop
+            appBehind = false;
+            for (auto& p : mNodes)
+            {
+                auto clock = p.second.mClock;
+                if (clock->getIOService().stopped())
+                {
+                    continue;
+                }
+
+                hasNext = hasNext || (clock->next() != clock->next().max());
+
+                if (mVirtualClockMode)
+                {
+                    auto appNow = clock->now();
+                    if (appNow < nextTime)
+                    {
+                        appBehind = true;
+                    }
+                    else if (appNow >= nextTime)
+                    {
+                        // node caught up, don't give it any compute
+                        continue;
+                    }
+                }
+                crankNode(p.first, nextTime);
+            }
+        } while (appBehind);
+
+        // let the main clock do its job
         count += mClock.crank(false);
-    }
+
+        // don't count quantum slices
+        count -= quantumClicks;
+
+        // a tick is that either we've done work or
+        // that we're in real clock mode
+        // or that no event is scheduled
+        if (count || !mVirtualClockMode || !hasNext)
+        {
+            i++;
+        }
+    } while (i < nbTicks);
     return count;
 }
 
 bool
 Simulation::haveAllExternalized(uint32 num, uint32 maxSpread)
 {
-    uint32_t min = UINT_MAX, max = 0;
+    uint32_t min = UINT32_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)
     {
-        auto n = it->second->getLedgerManager().getLastClosedLedgerNum();
-        LOG(DEBUG) << it->second->getConfig().PEER_PORT << " @ ledger#: " << n;
+        auto app = it->second.mApp;
+        auto n = app->getLedgerManager().getLastClosedLedgerNum();
+        LOG(DEBUG) << app->getConfig().PEER_PORT << " @ ledger#: " << n;
 
         if (n < min)
             min = n;
@@ -277,7 +411,10 @@ Simulation::crankForAtLeast(VirtualClock::duration seconds, bool finalCrank)
     while (!stop)
     {
         if (crankAllNodes() == 0)
+        {
+            // this only happens when real time is configured
             std::this_thread::sleep_for(chrono::milliseconds(50));
+        }
     }
 
     if (finalCrank)
@@ -378,7 +515,7 @@ void
 Simulation::execute(TxInfo transaction)
 {
     // Execute on the first node
-    bool res = transaction.execute(*mNodes.begin()->second);
+    bool res = transaction.execute(*mNodes.begin()->second.mApp);
     if (!res)
     {
         CLOG(DEBUG, "Simulation") << "Failed execution in simulation";
@@ -447,10 +584,10 @@ Simulation::accountsOutOfSyncWithDb()
     vector<AccountInfoPtr> result;
     int iApp = 0;
     int64_t totalOffsets = 0;
-    for (auto const& pair : mNodes)
+    for (auto const& p : mNodes)
     {
         iApp++;
-        auto app = pair.second;
+        auto app = p.second.mApp;
         for (auto accountIt = mAccounts.begin() + 1;
              accountIt != mAccounts.end(); accountIt++)
         {
@@ -490,7 +627,7 @@ bool
 Simulation::loadAccount(AccountInfo& account)
 {
     // assumes all nodes are in sync
-    auto app = mNodes.begin()->second;
+    auto app = mNodes.begin()->second.mApp;
     return LoadGenerator::loadAccount(*app, account);
 }
 

@@ -43,7 +43,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
-    simulation->getClock().setCurrentTime(VirtualClock::from_time_t(start));
+    simulation->setCurrentTime(VirtualClock::from_time_t(start));
 
     auto keys = std::vector<SecretKey>{};
     auto configs = std::vector<Config>{};
@@ -63,7 +63,7 @@ simulateLedgerUpgrade(const LedgerUpgradeSimulation& upgradeSimulation)
         qSet.threshold = nodes[i].quorumTheshold;
         for (auto j : nodes[i].quorumIndexes)
             qSet.validators.push_back(keys[j].getPublicKey());
-        simulation->addNode(keys[i], qSet, simulation->getClock(), &configs[i]);
+        simulation->addNode(keys[i], qSet, &configs[i]);
     }
 
     for (auto i = 0; i < nodes.size(); i++)

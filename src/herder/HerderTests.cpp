@@ -704,8 +704,6 @@ TEST_CASE("SCP State", "[herder]")
             getTestConfig(i + 1, Config::TestDbMode::TESTDB_ON_DISK_SQLITE);
     }
 
-    VirtualClock* clock = &sim->getClock();
-
     LedgerHeaderHistoryEntry lcl;
 
     auto doTest = [&](bool forceSCP) {
@@ -716,8 +714,8 @@ TEST_CASE("SCP State", "[herder]")
             qSet.validators.push_back(nodeIDs[0]);
             qSet.validators.push_back(nodeIDs[1]);
 
-            sim->addNode(nodeKeys[0], qSet, *clock, &nodeCfgs[0]);
-            sim->addNode(nodeKeys[1], qSet, *clock, &nodeCfgs[1]);
+            sim->addNode(nodeKeys[0], qSet, &nodeCfgs[0]);
+            sim->addNode(nodeKeys[1], qSet, &nodeCfgs[1]);
             sim->addPendingConnection(nodeIDs[0], nodeIDs[1]);
         }
 
@@ -750,7 +748,6 @@ TEST_CASE("SCP State", "[herder]")
 
         sim =
             std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
-        clock = &sim->getClock();
 
         // start a new node that will switch to whatever node0 & node1 says
         SCPQuorumSet qSetAll;
@@ -759,7 +756,7 @@ TEST_CASE("SCP State", "[herder]")
         {
             qSetAll.validators.push_back(nodeIDs[i]);
         }
-        sim->addNode(nodeKeys[2], qSetAll, *clock, &nodeCfgs[2]);
+        sim->addNode(nodeKeys[2], qSetAll, &nodeCfgs[2]);
         sim->getNode(nodeIDs[2])->start();
 
         // crank a bit (nothing should happen, node 2 is waiting for SCP
@@ -776,8 +773,8 @@ TEST_CASE("SCP State", "[herder]")
         // forwarded to node 2 when they connect to it
         // causing node 2 to externalize ledger #2
 
-        sim->addNode(nodeKeys[0], qSetAll, *clock, &nodeCfgs[0], false);
-        sim->addNode(nodeKeys[1], qSetAll, *clock, &nodeCfgs[1], false);
+        sim->addNode(nodeKeys[0], qSetAll, &nodeCfgs[0], false);
+        sim->addNode(nodeKeys[1], qSetAll, &nodeCfgs[1], false);
         sim->getNode(nodeIDs[0])->start();
         sim->getNode(nodeIDs[1])->start();
 
@@ -846,10 +843,8 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     qSet.threshold = 1;
     qSet.validators.push_back(validatorKey.getPublicKey());
 
-    auto validator =
-        simulation->addNode(validatorKey, qSet, simulation->getClock());
-    auto listener =
-        simulation->addNode(listenerKey, qSet, simulation->getClock());
+    auto validator = simulation->addNode(validatorKey, qSet);
+    auto listener = simulation->addNode(listenerKey, qSet);
     simulation->addPendingConnection(validatorKey.getPublicKey(),
                                      listenerKey.getPublicKey());
     simulation->startAllNodes();

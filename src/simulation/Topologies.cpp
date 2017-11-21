@@ -24,8 +24,8 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID,
     qSet0.validators.push_back(v10NodeID);
     qSet0.validators.push_back(v11NodeID);
 
-    simulation->addNode(v10SecretKey, qSet0, simulation->getClock());
-    simulation->addNode(v11SecretKey, qSet0, simulation->getClock());
+    simulation->addNode(v10SecretKey, qSet0);
+    simulation->addNode(v11SecretKey, qSet0);
 
     simulation->addPendingConnection(v10SecretKey.getPublicKey(),
                                      v11SecretKey.getPublicKey());
@@ -60,10 +60,10 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
     qSet3.validators.push_back(v3NodeID);
     qSet3.validators.push_back(v0NodeID);
 
-    simulation->addNode(v0SecretKey, qSet0, simulation->getClock());
-    simulation->addNode(v1SecretKey, qSet1, simulation->getClock());
-    simulation->addNode(v2SecretKey, qSet2, simulation->getClock());
-    simulation->addNode(v3SecretKey, qSet3, simulation->getClock());
+    simulation->addNode(v0SecretKey, qSet0);
+    simulation->addNode(v1SecretKey, qSet1);
+    simulation->addNode(v2SecretKey, qSet2);
+    simulation->addNode(v3SecretKey, qSet3);
 
     simulation->addPendingConnection(v0SecretKey.getPublicKey(),
                                      v1SecretKey.getPublicKey());
@@ -108,7 +108,7 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
 
     for (auto const& k : keys)
     {
-        simulation->addNode(k, qSet, simulation->getClock());
+        simulation->addNode(k, qSet);
     }
     return simulation;
 }
@@ -213,7 +213,7 @@ Simulation::pointer Topologies::hierarchicalQuorum(
             qSetHere.threshold = 2;
             qSetHere.validators.push_back(key.getPublicKey());
             qSetHere.innerSets.push_back(qSetTopTier);
-            sim->addNode(key, qSetHere, sim->getClock());
+            sim->addNode(key, qSetHere);
         }
 
         //// the leaf node
@@ -227,7 +227,7 @@ Simulation::pointer Topologies::hierarchicalQuorum(
         //{
         //    leafQSet.validators.push_back(key.getPublicKey());
         //}
-        // sim->addNode(leafKey, leafQSet, sim->getClock());
+        // sim->addNode(leafKey, leafQSet);
 
         // connections
         for (auto const& middle : middletierKeys)
@@ -269,7 +269,7 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
             SecretKey::fromSeed(sha256("OUTER_NODE_SEED_" + to_string(i)));
         auto const& pubKey = sk.getPublicKey();
         qSetBuilder.validators.back() = pubKey;
-        sim->addNode(sk, qSetBuilder, sim->getClock());
+        sim->addNode(sk, qSetBuilder);
 
         // connect it to one of the core nodes
         sim->addPendingConnection(pubKey, coreNodeIDs[i % coreSize]);

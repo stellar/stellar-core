@@ -41,10 +41,10 @@ class Simulation : public LoadGenerator
                std::function<Config()> confGen = nullptr);
     ~Simulation();
 
-    VirtualClock& getClock();
+    // updates all clocks in the simulation to the same time_point
+    void setCurrentTime(VirtualClock::time_point t);
 
     Application::pointer addNode(SecretKey nodeKey, SCPQuorumSet qSet,
-                                 VirtualClock& clock,
                                  Config const* cfg = nullptr,
                                  bool newDB = true);
     Application::pointer getNode(NodeID nodeID);
@@ -59,6 +59,7 @@ class Simulation : public LoadGenerator
     // triggers and exception if a node externalized higher than num+maxSpread
     bool haveAllExternalized(uint32 num, uint32 maxSpread);
 
+    size_t crankNode(NodeID const& id, VirtualClock::time_point timeout);
     size_t crankAllNodes(int nbTicks = 1);
     void crankForAtMost(VirtualClock::duration seconds, bool finalCrank);
     void crankForAtLeast(VirtualClock::duration seconds, bool finalCrank);
@@ -89,14 +90,29 @@ class Simulation : public LoadGenerator
     void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
 
+    bool mVirtualClockMode;
     VirtualClock mClock;
     Mode mMode;
     int mConfigCount;
     Application::pointer mIdleApp;
-    std::map<NodeID, Application::pointer> mNodes;
+
+    struct Node
+    {
+        std::shared_ptr<VirtualClock> mClock;
+        Application::pointer mApp;
+
+        ~Node()
+        {
+            // app must be destroyed before its clock
+            mApp.reset();
+        }
+    };
+    std::map<NodeID, Node> mNodes;
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 
     std::function<Config()> mConfigGen; // config generator
+
+    std::chrono::milliseconds const quantum = std::chrono::milliseconds(100);
 };
 }

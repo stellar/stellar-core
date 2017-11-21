@@ -87,8 +87,8 @@ TEST_CASE("3 nodes. 2 running. threshold 2", "[simulation][core3]")
             qSet.validators.push_back(k.getPublicKey());
         }
 
-        simulation->addNode(keys[0], qSet, simulation->getClock());
-        simulation->addNode(keys[1], qSet, simulation->getClock());
+        simulation->addNode(keys[0], qSet);
+        simulation->addNode(keys[1], qSet);
         simulation->addPendingConnection(keys[0].getPublicKey(),
                                          keys[1].getPublicKey());
 
