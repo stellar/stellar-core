@@ -215,6 +215,10 @@ TEST_CASE("resilience tests", "[resilience][simulation]")
         return c;
     };
 
+    SECTION("custom-A")
+    {
+        resilienceTest(Topologies::customA(mode, networkID, confGen, 2));
+    }
     SECTION("hierarchical")
     {
         resilienceTest(
