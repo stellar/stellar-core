@@ -40,6 +40,8 @@ Simulation::Simulation(Mode mode, Hash const& networkID,
 
 Simulation::~Simulation()
 {
+    // kills all connections
+    mLoopbackConnections.clear();
     // destroy all nodes first
     mNodes.clear();
 
