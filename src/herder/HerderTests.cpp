@@ -860,6 +860,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
         simulation->crankUntil(
             [&]() { return currentValidatorLedger() == destinationLedger; },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        return currentValidatorLedger();
     };
     auto waitForLedgers = [&](int nLedgers) {
         auto destinationLedger = currentValidatorLedger() + nLedgers;
@@ -868,6 +869,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
                 return simulation->haveAllExternalized(destinationLedger, 100);
             },
             2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        return currentValidatorLedger();
     };
 
     uint32_t currentLedger = 1;
@@ -877,17 +879,17 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
     auto static const FEW_LEDGERS = 5;
 
     // externalize a few ledgers
-    waitForLedgers(FEW_LEDGERS);
-    currentLedger += FEW_LEDGERS;
+    currentLedger = waitForLedgers(FEW_LEDGERS);
 
     REQUIRE(currentValidatorLedger() == currentLedger);
-    REQUIRE(currentListenerLedger() == currentLedger);
+    // listener is at most a ledger behind
+    REQUIRE((currentLedger - currentListenerLedger()) <= 1);
 
     // disconnect listener
     simulation->dropConnection(validatorKey.getPublicKey(),
                                listenerKey.getPublicKey());
 
-    // SMALL_GAP happens to be the the maximum number of ledgers
+    // SMALL_GAP happens to be the maximum number of ledgers
     // that are kept in memory
     auto static const SMALL_GAP = Herder::MAX_SLOTS_TO_REMEMBER + 1;
     auto static const BIG_GAP = SMALL_GAP + 1;
@@ -896,35 +898,34 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
 
     SECTION("works when gap is small")
     {
-        // externalize few more ledgers
-        waitForLedgersOnValidator(SMALL_GAP);
-        currentLedger += SMALL_GAP;
+        // externalize a few more ledgers
+        currentLedger = waitForLedgersOnValidator(SMALL_GAP);
 
         REQUIRE(currentValidatorLedger() == currentLedger);
-        // listener finally externalizes last ledger before gap
-        REQUIRE(currentListenerLedger() == beforeGap);
+        // listener may have processed messages it got before getting
+        // disconnected
+        REQUIRE(currentListenerLedger() <= beforeGap);
 
         // and reconnect
         simulation->addConnection(validatorKey.getPublicKey(),
                                   listenerKey.getPublicKey());
 
         // now listener should catchup to validator without remote history
-        waitForLedgers(FEW_LEDGERS);
-        currentLedger += FEW_LEDGERS;
+        currentLedger = waitForLedgers(FEW_LEDGERS);
 
         REQUIRE(currentValidatorLedger() == currentLedger);
-        REQUIRE(currentListenerLedger() == currentLedger);
+        REQUIRE((currentLedger - currentListenerLedger()) <= 1);
     }
 
     SECTION("does not work when gap is big")
     {
-        // externalize few more ledgers
-        waitForLedgersOnValidator(BIG_GAP);
-        currentLedger += BIG_GAP;
+        // externalize a few more ledgers
+        currentLedger = waitForLedgersOnValidator(BIG_GAP);
 
         REQUIRE(currentValidatorLedger() == currentLedger);
-        // listener finally externalizes last ledger before gap
-        REQUIRE(currentListenerLedger() == beforeGap);
+        // listener may have processed messages it got before getting
+        // disconnected
+        REQUIRE(currentListenerLedger() <= beforeGap);
 
         // and reconnect
         simulation->addConnection(validatorKey.getPublicKey(),
@@ -938,7 +939,7 @@ TEST_CASE("quick restart", "[herder][quickRestart]")
         currentLedger += FEW_LEDGERS;
 
         REQUIRE(currentValidatorLedger() >= currentLedger);
-        REQUIRE(currentListenerLedger() == beforeGap);
+        REQUIRE(currentListenerLedger() <= beforeGap);
     }
 
     simulation->stopAllNodes();
