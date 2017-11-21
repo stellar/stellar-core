@@ -107,6 +107,44 @@ Simulation::getNodeIDs()
 }
 
 void
+Simulation::removeNode(NodeID const& id)
+{
+    auto it = mNodes.find(id);
+    if (it != mNodes.end())
+    {
+        auto node = it->second;
+        mNodes.erase(it);
+        if (mMode == OVER_LOOPBACK)
+        {
+            dropAllConnections(id);
+        }
+        node.mApp->gracefulStop();
+        while (node.mClock->crank(false) > 0)
+            ;
+    }
+}
+
+void
+Simulation::dropAllConnections(NodeID const& id)
+{
+    if (mMode == OVER_LOOPBACK)
+    {
+        mLoopbackConnections.erase(
+            std::remove_if(mLoopbackConnections.begin(),
+                           mLoopbackConnections.end(),
+                           [&](std::shared_ptr<LoopbackPeerConnection> c) {
+                               return c->getAcceptor()->getPeerID() == id ||
+                                      c->getInitiator()->getPeerID() == id;
+                           }),
+            mLoopbackConnections.end());
+    }
+    else
+    {
+        throw std::runtime_error("can only drop connections over loopback");
+    }
+}
+
+void
 Simulation::addPendingConnection(NodeID const& initiator,
                                  NodeID const& acceptor)
 {

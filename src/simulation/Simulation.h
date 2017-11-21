@@ -54,6 +54,7 @@ class Simulation : public LoadGenerator
     void addPendingConnection(NodeID const& initiator, NodeID const& acceptor);
     void startAllNodes();
     void stopAllNodes();
+    void removeNode(NodeID const& id);
 
     // returns true if all nodes have externalized
     // triggers and exception if a node externalized higher than num+maxSpread
@@ -89,6 +90,7 @@ class Simulation : public LoadGenerator
     void addLoopbackConnection(NodeID initiator, NodeID acceptor);
     void dropLoopbackConnection(NodeID initiator, NodeID acceptor);
     void addTCPConnection(NodeID initiator, NodeID acception);
+    void dropAllConnections(NodeID const& id);
 
     bool mVirtualClockMode;
     VirtualClock mClock;
