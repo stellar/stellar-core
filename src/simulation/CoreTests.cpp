@@ -150,6 +150,7 @@ static void
 hierarchicalTopoTest(int nLedgers, int nBranches, Simulation::Mode mode,
                      Hash const& networkID)
 {
+    LOG(DEBUG) << "starting topo test " << nLedgers << " : " << nBranches;
     auto tBegin = std::chrono::system_clock::now();
 
     Simulation::pointer sim =
@@ -196,6 +197,7 @@ static void
 hierarchicalSimplifiedTest(int nLedgers, int nbCore, int nbOuterNodes,
                            Simulation::Mode mode, Hash const& networkID)
 {
+    LOG(DEBUG) << "starting simplified test " << nLedgers << " : " << nbCore;
     auto tBegin = std::chrono::system_clock::now();
 
     Simulation::pointer sim = Topologies::hierarchicalQuorumSimplified(
@@ -231,16 +233,18 @@ TEST_CASE("core-nodes with outer nodes", "[simulation]")
 
 TEST_CASE("cycle4 topology", "[simulation]")
 {
+    const int nLedgers = 10;
+
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation = Topologies::cycle4(networkID);
     simulation->startAllNodes();
 
     simulation->crankUntil(
-        [&simulation]() { return simulation->haveAllExternalized(2, 4); },
-        std::chrono::seconds(20), true);
+        [&]() { return simulation->haveAllExternalized(nLedgers + 2, 4); },
+        2 * nLedgers * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
     // Still transiently does not work (quorum retrieval)
-    REQUIRE(simulation->haveAllExternalized(2, 4));
+    REQUIRE(simulation->haveAllExternalized(nLedgers, 4));
 }
 
 TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
