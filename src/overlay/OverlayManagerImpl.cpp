@@ -276,13 +276,15 @@ OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
 }
 
 void
-OverlayManagerImpl::dropPeer(Peer::pointer peer)
+OverlayManagerImpl::dropPeer(Peer* peer)
 {
     mConnectionsDropped.Mark();
     CLOG(INFO, "Overlay") << "Dropping peer "
                           << mApp.getConfig().toShortString(peer->getPeerID())
                           << "@" << peer->toString();
-    auto iter = find(mPeers.begin(), mPeers.end(), peer);
+    auto iter =
+        find_if(mPeers.begin(), mPeers.end(),
+                [&](Peer::pointer const& p) { return p.get() == peer; });
     if (iter != mPeers.end())
         mPeers.erase(iter);
     else
@@ -307,7 +309,7 @@ OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
                 CLOG(INFO, "Overlay")
                     << "Evicting non-preferred peer " << victim->toString()
                     << " for preferred peer " << peer->toString();
-                dropPeer(victim);
+                dropPeer(victim.get());
                 return true;
             }
         }

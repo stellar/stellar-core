@@ -88,7 +88,7 @@ class OverlayManager
 
     // Forget about a peer, removing it from the in-memory set of connected
     // peers. Presumably due to it disconnecting.
-    virtual void dropPeer(Peer::pointer peer) = 0;
+    virtual void dropPeer(Peer* peer) = 0;
 
     // Returns true if there is room for the provided peer in the in-memory set
     // of connected peers without evicting an existing peer, or if the provided

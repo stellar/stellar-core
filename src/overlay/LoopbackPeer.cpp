@@ -78,8 +78,7 @@ LoopbackPeer::drop()
     }
     mState = CLOSING;
     mIdleTimer.cancel();
-    auto self = shared_from_this();
-    getApp().getOverlayManager().dropPeer(self);
+    getApp().getOverlayManager().dropPeer(this);
 
     auto remote = mRemote.lock();
     if (remote)

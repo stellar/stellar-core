@@ -380,7 +380,7 @@ TCPPeer::drop()
     mIdleTimer.cancel();
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    getApp().getOverlayManager().dropPeer(self);
+    getApp().getOverlayManager().dropPeer(this);
 
     // To shutdown, we first queue up our desire to shutdown in the strand,
     // behind any pending read/write calls. We'll let them issue first.
