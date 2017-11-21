@@ -283,4 +283,84 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
 
     return sim;
 }
+
+Simulation::pointer
+Topologies::customA(Simulation::Mode mode, Hash const& networkID,
+                    std::function<Config()> confGen, int connections)
+{
+    Simulation::pointer s = make_shared<Simulation>(mode, networkID, confGen);
+
+    enum kIDs
+    {
+        A = 0,
+        B,
+        C,
+        T,
+        I,
+        E,
+        S
+    };
+    vector<SecretKey> keys;
+    for (int i = 0; i < 7; i++)
+    {
+        keys.push_back(
+            SecretKey::fromSeed(sha256("NODE_SEED_" + to_string(i))));
+    }
+    // A,B,C have the same qset, with all validators
+    {
+        SCPQuorumSet q;
+        q.threshold = 4;
+        for (auto& k : keys)
+        {
+            q.validators.emplace_back(k.getPublicKey());
+        }
+        s->addNode(keys[A], q);
+        s->addNode(keys[B], q);
+        s->addNode(keys[C], q);
+    }
+    // T
+    {
+        SCPQuorumSet q;
+        q.threshold = 4;
+        q.validators.emplace_back(keys[B].getPublicKey());
+        q.validators.emplace_back(keys[A].getPublicKey());
+        q.validators.emplace_back(keys[T].getPublicKey());
+        q.validators.emplace_back(keys[E].getPublicKey());
+        q.validators.emplace_back(keys[S].getPublicKey());
+        s->addNode(keys[T], q);
+    }
+    // E
+    {
+        SCPQuorumSet q;
+        q.threshold = 3;
+        q.validators.emplace_back(keys[E].getPublicKey());
+        q.validators.emplace_back(keys[A].getPublicKey());
+        q.validators.emplace_back(keys[B].getPublicKey());
+        q.validators.emplace_back(keys[C].getPublicKey());
+        s->addNode(keys[E], q);
+    }
+    // S
+    {
+        SCPQuorumSet q;
+        q.threshold = 4;
+        q.validators.emplace_back(keys[S].getPublicKey());
+        q.validators.emplace_back(keys[E].getPublicKey());
+        q.validators.emplace_back(keys[A].getPublicKey());
+        q.validators.emplace_back(keys[B].getPublicKey());
+        q.validators.emplace_back(keys[C].getPublicKey());
+        s->addNode(keys[S], q);
+    }
+
+    // create connections between nodes
+    auto nodes = s->getNodeIDs();
+    for (int i = 0; i < nodes.size(); i++)
+    {
+        auto from = nodes[i];
+        for (int j = 1; j <= connections; j++)
+        {
+            s->addPendingConnection(from, nodes[(i + j) % nodes.size()]);
+        }
+    }
+    return s;
+}
 }

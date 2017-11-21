@@ -58,5 +58,10 @@ class Topologies
                                  Simulation::Mode mode, Hash const& networkID,
                                  std::function<Config()> confGen = nullptr,
                                  int connectionsToCore = 1);
+
+    // custom-A
+    static Simulation::pointer
+    customA(Simulation::Mode mode, Hash const& networkID,
+            std::function<Config()> confGen = nullptr, int connections = 1);
 };
 }
