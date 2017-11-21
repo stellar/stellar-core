@@ -22,6 +22,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/Math.h"
+#include "util/format.h"
 #include "util/make_unique.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
@@ -143,6 +144,95 @@ TEST_CASE("core topology: 4 ledgers at scales 2..4", "[simulation]")
         REQUIRE(sim->haveAllExternalized(nLedgers + 1, 5));
 
         // printStats(nLedgers, tBegin, sim);
+    }
+}
+
+static void
+resilienceTest(Simulation::pointer sim)
+{
+    auto nodes = sim->getNodeIDs();
+    auto nbNodes = nodes.size();
+
+    for (size_t i = 0; i < nbNodes; i++)
+    {
+        // now restart a victim node i, will reconnect to
+        // j to join the network
+        auto j = (i + 1) % nbNodes;
+
+        auto victimID = nodes[i];
+        auto otherID = nodes[j];
+        SECTION(fmt::format("restart victim {}", i))
+        {
+            // bring network to a good place
+            sim->startAllNodes();
+
+            uint32 targetLedger = 2;
+            const uint32 nbLedgerStep = 3;
+
+            auto crankForward = [&](uint32 step, uint32 maxGap) {
+                targetLedger += step;
+                sim->crankUntil(
+                    [&]() {
+                        return sim->haveAllExternalized(targetLedger, maxGap);
+                    },
+                    2 * nbLedgerStep * Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                    false);
+
+                REQUIRE(sim->haveAllExternalized(targetLedger, maxGap));
+            };
+
+            crankForward(nbLedgerStep, 1);
+
+            auto victimConfig = sim->getNode(victimID)->getConfig();
+            // kill instance
+            sim->removeNode(victimID);
+            // let the rest of the network move on
+            crankForward(nbLedgerStep, 1);
+            // start the instance
+            sim->addNode(victimConfig.NODE_SEED, victimConfig.QUORUM_SET,
+                         &victimConfig, false);
+            auto refreshedApp = sim->getNode(victimID);
+            refreshedApp->start();
+            // connect to another node
+            sim->addConnection(victimID, otherID);
+            // this crank should allow the node to rejoin the network
+            crankForward(1, INT32_MAX);
+            // network should be fully in sync now
+            crankForward(nbLedgerStep, 1);
+        }
+    }
+}
+TEST_CASE("resilience tests", "[resilience][simulation]")
+{
+    Simulation::Mode mode = Simulation::OVER_LOOPBACK;
+
+    Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+
+    int configNum = 0;
+    auto confGen = [&configNum]() -> Config {
+        // we have to have persistent nodes as we want to simulate a restart
+        auto c = getTestConfig(configNum++, Config::TESTDB_ON_DISK_SQLITE);
+        return c;
+    };
+
+    SECTION("hierarchical")
+    {
+        resilienceTest(
+            Topologies::hierarchicalQuorum(2, mode, networkID, confGen, 2));
+    }
+    SECTION("simplified hierarchical")
+    {
+        resilienceTest(Topologies::hierarchicalQuorumSimplified(
+            4, 3, mode, networkID, confGen, 2));
+    }
+    SECTION("core4")
+    {
+        resilienceTest(Topologies::core(4, 0.75, mode, networkID, confGen));
+    }
+    SECTION("branched cycle")
+    {
+        resilienceTest(
+            Topologies::branchedcycle(5, 0.6, mode, networkID, confGen));
     }
 }
 
