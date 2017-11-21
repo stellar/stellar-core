@@ -397,6 +397,8 @@ NominationProtocol::processEnvelope(SCPEnvelope const& envelope)
                     {
                         mVotes.emplace(newVote);
                         modified = true;
+                        mSlot.getSCPDriver().nominatingValue(
+                            mSlot.getSlotIndex(), newVote);
                     }
                 }
 
@@ -442,8 +444,8 @@ NominationProtocol::nominate(Value const& value, Value const& previousValue,
                              bool timedout)
 {
     if (Logging::logDebug("SCP"))
-        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate "
-                           << mSlot.getSCP().getValueString(value);
+        CLOG(DEBUG, "SCP") << "NominationProtocol::nominate (" << mRoundNumber
+                           << ") " << mSlot.getSCP().getValueString(value);
 
     bool updated = false;
 
