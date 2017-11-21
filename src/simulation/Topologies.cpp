@@ -206,14 +206,20 @@ Simulation::pointer Topologies::hierarchicalQuorum(
                 "NODE_SEED_" + to_string(i) + "_middle_" + to_string(j))));
         }
 
+        int curCore = 0;
         for (auto const& key : middletierKeys)
         {
             SCPQuorumSet qSetHere;
             // self + any 2 from top tier
             qSetHere.threshold = 2;
-            qSetHere.validators.push_back(key.getPublicKey());
+            auto pk = key.getPublicKey();
+            qSetHere.validators.push_back(pk);
             qSetHere.innerSets.push_back(qSetTopTier);
             sim->addNode(key, qSetHere);
+
+            // connect to one of the core nodes (round-robin)
+            curCore = (curCore + 1) % coreNodeIDs.size();
+            sim->addPendingConnection(pk, coreNodeIDs[curCore]);
         }
 
         //// the leaf node
@@ -228,16 +234,6 @@ Simulation::pointer Topologies::hierarchicalQuorum(
         //    leafQSet.validators.push_back(key.getPublicKey());
         //}
         // sim->addNode(leafKey, leafQSet);
-
-        // connections
-        for (auto const& middle : middletierKeys)
-        {
-            for (auto const& core : coreNodeIDs)
-                sim->addPendingConnection(middle.getPublicKey(), core);
-
-            // sim->addPendingConnection(leafKey.getPublicKey(),
-            // middle.getPublicKey());
-        }
     }
     return sim;
 }
