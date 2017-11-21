@@ -83,7 +83,7 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 }
 
 Simulation::pointer
-Topologies::separate(int nNodes, float quorumThresoldFraction,
+Topologies::separate(int nNodes, double quorumThresoldFraction,
                      Simulation::Mode mode, Hash const& networkID,
                      std::function<Config()> confGen)
 {
@@ -114,7 +114,7 @@ Topologies::separate(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::core(int nNodes, float quorumThresoldFraction,
+Topologies::core(int nNodes, double quorumThresoldFraction,
                  Simulation::Mode mode, Hash const& networkID,
                  std::function<Config()> confGen)
 {
@@ -136,7 +136,7 @@ Topologies::core(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::cycle(int nNodes, float quorumThresoldFraction,
+Topologies::cycle(int nNodes, double quorumThresoldFraction,
                   Simulation::Mode mode, Hash const& networkID,
                   std::function<Config()> confGen)
 {
@@ -156,7 +156,7 @@ Topologies::cycle(int nNodes, float quorumThresoldFraction,
 }
 
 Simulation::pointer
-Topologies::branchedcycle(int nNodes, float quorumThresoldFraction,
+Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
                           Simulation::Mode mode, Hash const& networkID,
                           std::function<Config()> confGen)
 {
