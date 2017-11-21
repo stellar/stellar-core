@@ -210,7 +210,7 @@ Simulation::crankAllNodes(int nbTicks)
 }
 
 bool
-Simulation::haveAllExternalized(SequenceNumber num, uint32 maxSpread)
+Simulation::haveAllExternalized(uint32 num, uint32 maxSpread)
 {
     uint32_t min = UINT_MAX, max = 0;
     for (auto it = mNodes.begin(); it != mNodes.end(); ++it)

@@ -57,7 +57,7 @@ class Simulation : public LoadGenerator
 
     // returns true if all nodes have externalized
     // triggers and exception if a node externalized higher than num+maxSpread
-    bool haveAllExternalized(SequenceNumber num, uint32 maxSpread);
+    bool haveAllExternalized(uint32 num, uint32 maxSpread);
 
     size_t crankAllNodes(int nbTicks = 1);
     void crankForAtMost(VirtualClock::duration seconds, bool finalCrank);
