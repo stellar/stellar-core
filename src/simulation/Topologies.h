@@ -45,17 +45,18 @@ class Topologies
 
     // multi-tier quorum (core4 + mid-tier nodes that depend on 2 nodes of
     // core4) mid-tier connected round-robin to core4
-    static Simulation::pointer
-    hierarchicalQuorum(int nBranches, Simulation::Mode mode,
-                       Hash const& networkID,
-                       std::function<Config()> confGen = nullptr);
+    static Simulation::pointer hierarchicalQuorum(
+        int nBranches, Simulation::Mode mode, Hash const& networkID,
+        std::function<Config()> confGen = nullptr, int connectionsToCore = 1);
 
-    // 2-tier quorum with a variable size core and outer-nodes that listen to
-    // core & self outer-nodes have a single connection to one of the core nodes
+    // 2-tier quorum with a variable size core (with 0.75 threshold)
+    // and outer-nodes that listen to core & self
+    // outer-nodes have connectionsToCore connections to core nodes
     // (round-robin)
     static Simulation::pointer
     hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
                                  Simulation::Mode mode, Hash const& networkID,
-                                 std::function<Config()> confGen = nullptr);
+                                 std::function<Config()> confGen = nullptr,
+                                 int connectionsToCore = 1);
 };
 }

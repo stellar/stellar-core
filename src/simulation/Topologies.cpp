@@ -178,9 +178,11 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
     return simulation;
 }
 
-Simulation::pointer Topologies::hierarchicalQuorum(
-    int nBranches, Simulation::Mode mode, Hash const& networkID,
-    std::function<Config()> confGen) // Figure 3 from the paper
+Simulation::pointer
+Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
+                               Hash const& networkID,
+                               std::function<Config()> confGen,
+                               int connectionsToCore) // Figure 3 from the paper
 {
     auto sim = Topologies::core(4, 0.75, mode, networkID, confGen);
     vector<NodeID> coreNodeIDs;
@@ -217,9 +219,13 @@ Simulation::pointer Topologies::hierarchicalQuorum(
             qSetHere.innerSets.push_back(qSetTopTier);
             sim->addNode(key, qSetHere);
 
-            // connect to one of the core nodes (round-robin)
+            // connect to core nodes (round-robin)
             curCore = (curCore + 1) % coreNodeIDs.size();
-            sim->addPendingConnection(pk, coreNodeIDs[curCore]);
+            for (int j = 0; j < connectionsToCore; j++)
+            {
+                sim->addPendingConnection(
+                    pk, coreNodeIDs[(curCore + j) % coreNodeIDs.size()]);
+            }
         }
 
         //// the leaf node
@@ -242,7 +248,8 @@ Simulation::pointer
 Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
                                          Simulation::Mode mode,
                                          Hash const& networkID,
-                                         std::function<Config()> confGen)
+                                         std::function<Config()> confGen,
+                                         int connectionsToCore)
 {
     // outer nodes are independent validators that point to a [core network]
     auto sim = Topologies::core(coreSize, 0.75, mode, networkID, confGen);
@@ -267,8 +274,11 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
         qSetBuilder.validators.back() = pubKey;
         sim->addNode(sk, qSetBuilder);
 
-        // connect it to one of the core nodes
-        sim->addPendingConnection(pubKey, coreNodeIDs[i % coreSize]);
+        // connect it to the core nodes
+        for (int j = 0; j < connectionsToCore; j++)
+        {
+            sim->addPendingConnection(pubKey, coreNodeIDs[(i + j) % coreSize]);
+        }
     }
 
     return sim;
