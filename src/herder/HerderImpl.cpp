@@ -774,8 +774,9 @@ HerderImpl::prepareUpgrades(const LedgerHeader& header) const
 
     if (header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
     {
-        auto timeForUpgrade = mApp.getConfig().PREFERRED_UPGRADE_DATETIME <=
-                              mApp.getClock().now();
+        auto timeForUpgrade =
+            mApp.getConfig().PREFERRED_UPGRADE_DATETIME <=
+            VirtualClock::from_time_t(header.scpValue.closeTime);
         if (timeForUpgrade)
         {
             result.emplace_back(LEDGER_UPGRADE_VERSION);
