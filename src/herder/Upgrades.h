@@ -29,6 +29,12 @@ class Upgrades
     // convert upgrade value to string
     static std::string toString(LedgerUpgrade const& upgrade);
 
+    // convert upgrades vector to string
+    static std::string toString(std::vector<LedgerUpgrade> const& upgrades);
+
+    // convert upgrades from herder to string
+    static std::string toString(LedgerHeader const& header);
+
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(uint64_t closeTime, UpgradeType const& upgrade,

@@ -80,7 +80,7 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        return fmt::format("VERSION={0}", upgrade.newLedgerVersion());
+        return fmt::format("PROTOCOL_VERSION={0}", upgrade.newLedgerVersion());
     case LEDGER_UPGRADE_BASE_FEE:
         return fmt::format("BASE_FEE={0}", upgrade.newBaseFee());
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
@@ -90,6 +90,36 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     default:
         return "<unsupported>";
     }
+}
+
+std::string
+Upgrades::toString(std::vector<LedgerUpgrade> const& upgrades)
+{
+    if (upgrades.empty())
+    {
+        return {};
+    }
+
+    auto result = std::string{};
+    for (auto const& upgrade : upgrades)
+    {
+        if (!result.empty())
+        {
+            result += ", ";
+        }
+        result += toString(upgrade);
+    }
+
+    return fmt::format("[{0}]", result);
+}
+
+std::string
+Upgrades::toString(LedgerHeader const& header)
+{
+    return fmt::format("PROTOCOL_VERSION={0}, BASE_FEE={1}, "
+                       "MAX_TX_SET_SIZE={2}, BASE_RESERVE={3}",
+                       header.ledgerVersion, header.baseFee,
+                       header.maxTxSetSize, header.baseReserve);
 }
 
 bool

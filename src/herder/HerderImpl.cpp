@@ -19,6 +19,7 @@
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include "util/StatusManager.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
@@ -30,6 +31,7 @@
 #include "xdrpp/marshal.h"
 
 #include <ctime>
+#include <lib/util/format.h>
 
 using namespace std;
 
@@ -746,7 +748,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                                   0);
 
     // see if we need to include some upgrades
-    for (auto const& upgrade : mUpgrades.upgradesFor(lcl.header))
+    auto upgrades = mUpgrades.upgradesFor(lcl.header);
+    for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
         if (v.size() >= UpgradeType::max_size())
@@ -760,6 +763,22 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         {
             newProposedValue.upgrades.emplace_back(v.begin(), v.end());
         }
+    }
+
+    if (!upgrades.empty())
+    {
+        auto message = fmt::format(
+            "Proposing herder configuration upgrades: {0}; network "
+            "values for LCL are: {1}",
+            Upgrades::toString(upgrades), Upgrades::toString(lcl.header));
+        CLOG(INFO, "Herder") << message;
+        mApp.getStatusManager().setStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES, message);
+    }
+    else
+    {
+        mApp.getStatusManager().removeStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES);
     }
 
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
