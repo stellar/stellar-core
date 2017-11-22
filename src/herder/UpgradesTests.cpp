@@ -134,7 +134,7 @@ toUpgradeType(LedgerUpgrade const& upgrade)
 
 void
 testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
-                 bool shouldListProtocol)
+                 bool shouldListAny)
 {
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
@@ -157,7 +157,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     {
         header.ledgerVersion--;
         auto upgrades = Upgrades{cfg}.upgradesFor(header);
-        auto expected = shouldListProtocol
+        auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
         REQUIRE(upgrades == expected);
@@ -167,7 +167,9 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     {
         header.baseFee /= 2;
         auto upgrades = Upgrades{cfg}.upgradesFor(header);
-        auto expected = std::vector<LedgerUpgrade>{baseFeeUpgrade};
+        auto expected = shouldListAny
+                            ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
+                            : std::vector<LedgerUpgrade>{};
         REQUIRE(upgrades == expected);
     }
 
@@ -175,7 +177,9 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     {
         header.maxTxSetSize /= 2;
         auto upgrades = Upgrades{cfg}.upgradesFor(header);
-        auto expected = std::vector<LedgerUpgrade>{txCountUpgrade};
+        auto expected = shouldListAny
+                            ? std::vector<LedgerUpgrade>{txCountUpgrade}
+                            : std::vector<LedgerUpgrade>{};
         REQUIRE(upgrades == expected);
     }
 
@@ -186,10 +190,10 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
         header.maxTxSetSize /= 2;
         auto upgrades = Upgrades{cfg}.upgradesFor(header);
         auto expected =
-            shouldListProtocol
+            shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
                                              baseFeeUpgrade, txCountUpgrade}
-                : std::vector<LedgerUpgrade>{baseFeeUpgrade, txCountUpgrade};
+                : std::vector<LedgerUpgrade>{};
         REQUIRE(upgrades == expected);
     }
 }
@@ -211,7 +215,7 @@ TEST_CASE("list upgrades at upgrade time", "[upgrades]")
 
 void
 testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
-                     bool shouldValidateProtocolUpgrade)
+                     bool canBeValid)
 {
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
@@ -230,10 +234,10 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 
     SECTION("version")
     {
-        REQUIRE(shouldValidateProtocolUpgrade ==
-                Upgrades{cfg}.isValid(
-                    checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
-                    ledgerUpgradeType));
+        REQUIRE(canBeValid == Upgrades{cfg}.isValid(
+                                  checkTime,
+                                  toUpgradeType(makeProtocolVersionUpgrade(10)),
+                                  ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(
             checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
             ledgerUpgradeType));
@@ -244,7 +248,8 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 
     SECTION("base fee")
     {
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
+        REQUIRE(canBeValid ==
+                Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeBaseFeeUpgrade(100)),
                                       ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
@@ -257,7 +262,8 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 
     SECTION("tx count")
     {
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
+        REQUIRE(canBeValid ==
+                Upgrades{cfg}.isValid(checkTime,
                                       toUpgradeType(makeTxCountUpgrade(50)),
                                       ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
@@ -273,7 +279,6 @@ TEST_CASE("validate upgrades when no time set for upgrade", "[upgrades]")
 {
     testValidateUpgrades({}, true);
 }
-
 TEST_CASE("validate upgrades just before upgrade time", "[upgrades]")
 {
     testValidateUpgrades(genesis(0, 1), false);
@@ -341,7 +346,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                                                     {upgrade, genesis(1, 0)},
                                                     {upgrade, genesis(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 30), {partialUpgrade, partialUpgrade, partialUpgrade}},
+            {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}},
             {genesis(1, 30), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
@@ -352,19 +357,19 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                                                     {upgrade, genesis(1, 0)},
                                                     {upgrade, genesis(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 45), {partialUpgrade, partialUpgrade, partialUpgrade}},
+            {genesis(0, 45), {noUpgrade, noUpgrade, noUpgrade}},
             {genesis(1, 15), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
-    SECTION("2 of 3 vote early - 2 upgrade early, 1 upgrade partially")
+    SECTION("2 of 3 vote early - 2 upgrade early, 1 dont")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 30)},
                                                     {upgrade, genesis(0, 30)},
                                                     {upgrade, genesis(1, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 15), {partialUpgrade, partialUpgrade, partialUpgrade}},
-            {genesis(0, 45), {upgrade, upgrade, partialUpgrade}}};
+            {genesis(0, 15), {noUpgrade, noUpgrade, noUpgrade}},
+            {genesis(0, 45), {upgrade, upgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 }

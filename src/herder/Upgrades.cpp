@@ -18,14 +18,15 @@ std::vector<LedgerUpgrade>
 Upgrades::upgradesFor(const LedgerHeader& header) const
 {
     auto result = std::vector<LedgerUpgrade>{};
+    if (!timeForUpgrade(header.scpValue.closeTime))
+    {
+        return result;
+    }
 
     if (header.ledgerVersion != mCfg.LEDGER_PROTOCOL_VERSION)
     {
-        if (timeForUpgrade(header.scpValue.closeTime))
-        {
-            result.emplace_back(LEDGER_UPGRADE_VERSION);
-            result.back().newLedgerVersion() = mCfg.LEDGER_PROTOCOL_VERSION;
-        }
+        result.emplace_back(LEDGER_UPGRADE_VERSION);
+        result.back().newLedgerVersion() = mCfg.LEDGER_PROTOCOL_VERSION;
     }
     if (header.baseFee != mCfg.DESIRED_BASE_FEE)
     {
@@ -45,6 +46,11 @@ bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
                   LedgerUpgradeType& upgradeType) const
 {
+    if (!timeForUpgrade(closeTime))
+    {
+        return false;
+    }
+
     LedgerUpgrade lupgrade;
 
     try
@@ -62,8 +68,7 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
     case LEDGER_UPGRADE_VERSION:
     {
         uint32 newVersion = lupgrade.newLedgerVersion();
-        res = timeForUpgrade(closeTime) &&
-              (newVersion == mCfg.LEDGER_PROTOCOL_VERSION);
+        res = (newVersion == mCfg.LEDGER_PROTOCOL_VERSION);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
