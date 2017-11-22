@@ -75,6 +75,9 @@ class LedgerManager
     // Factory
     static std::unique_ptr<LedgerManager> create(Application& app);
 
+    // Genesis ledger
+    static LedgerHeader genesisLedger();
+
     // Called by Herder to inform LedgerManager that a SCP has agreed on a new
     // close event. This is the most common cause of LedgerManager advancing
     // from one ledger to the next: the network reached consensus on
