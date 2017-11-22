@@ -16,6 +16,7 @@
 #include "herder/HerderPersistence.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
+#include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
@@ -742,33 +743,12 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         try
         {
             xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
+            Upgrades::applyTo(lupgrade, ledgerDelta.getHeader());
         }
         catch (xdr::xdr_runtime_error)
         {
             CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
             throw;
-        }
-        switch (lupgrade.type())
-        {
-        case LEDGER_UPGRADE_VERSION:
-            ledgerDelta.getHeader().ledgerVersion = lupgrade.newLedgerVersion();
-            break;
-        case LEDGER_UPGRADE_BASE_FEE:
-            ledgerDelta.getHeader().baseFee = lupgrade.newBaseFee();
-            break;
-        case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-            ledgerDelta.getHeader().maxTxSetSize = lupgrade.newMaxTxSetSize();
-            break;
-        case LEDGER_UPGRADE_BASE_RESERVE:
-            ledgerDelta.getHeader().baseReserve = lupgrade.newBaseReserve();
-            break;
-        default:
-        {
-            string s;
-            s = "Unknown upgrade type: ";
-            s += std::to_string(lupgrade.type());
-            throw std::runtime_error(s);
-        }
         }
     }
 

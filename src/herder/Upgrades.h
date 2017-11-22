@@ -21,7 +21,10 @@ class Upgrades
     explicit Upgrades(Config const& cfg);
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> upgradesFor(const LedgerHeader& header) const;
+    std::vector<LedgerUpgrade> upgradesFor(LedgerHeader const& header) const;
+
+    // apply upgrade to ledger header
+    static void applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header);
 
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType

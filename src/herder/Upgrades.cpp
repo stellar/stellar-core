@@ -4,7 +4,9 @@
 
 #include "herder/Upgrades.h"
 #include "main/Config.h"
+#include "util/Logging.h"
 #include "util/Timer.h"
+#include <lib/util/format.h>
 #include <xdrpp/marshal.h>
 
 namespace stellar
@@ -15,7 +17,7 @@ Upgrades::Upgrades(Config const& cfg) : mCfg{cfg}
 }
 
 std::vector<LedgerUpgrade>
-Upgrades::upgradesFor(const LedgerHeader& header) const
+Upgrades::upgradesFor(LedgerHeader const& header) const
 {
     auto result = std::vector<LedgerUpgrade>{};
     if (!timeForUpgrade(header.scpValue.closeTime))
@@ -45,6 +47,31 @@ Upgrades::upgradesFor(const LedgerHeader& header) const
     }
 
     return result;
+}
+
+void
+Upgrades::applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header)
+{
+    switch (upgrade.type())
+    {
+    case LEDGER_UPGRADE_VERSION:
+        header.ledgerVersion = upgrade.newLedgerVersion();
+        break;
+    case LEDGER_UPGRADE_BASE_FEE:
+        header.baseFee = upgrade.newBaseFee();
+        break;
+    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+        header.maxTxSetSize = upgrade.newMaxTxSetSize();
+        break;
+    case LEDGER_UPGRADE_BASE_RESERVE:
+        header.baseReserve = upgrade.newBaseReserve();
+        break;
+    default:
+    {
+        auto s = fmt::format("Unknown upgrade type: {0}", upgrade.type());
+        throw std::runtime_error(s);
+    }
+    }
 }
 
 bool
