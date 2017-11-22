@@ -759,6 +759,9 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
             ledgerDelta.getHeader().maxTxSetSize = lupgrade.newMaxTxSetSize();
             break;
+        case LEDGER_UPGRADE_BASE_RESERVE:
+            ledgerDelta.getHeader().baseReserve = lupgrade.newBaseReserve();
+            break;
         default:
         {
             string s;

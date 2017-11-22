@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "history/HistoryArchive.h"
+#include "ledger/LedgerManager.h"
 #include "scp/LocalNode.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -33,7 +34,6 @@ Config::Config() : NODE_SEED(SecretKey::random())
     OVERLAY_PROTOCOL_VERSION = 5;
 
     VERSION_STR = STELLAR_CORE_VERSION;
-    DESIRED_BASE_RESERVE = 100000000;
 
     // configurable
     RUN_STANDALONE = false;
@@ -53,7 +53,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOG_FILE_PATH = "stellar-core.%datetime{%Y.%M.%d-%H:%m:%s}.log";
     BUCKET_DIR_PATH = "buckets";
 
-    DESIRED_BASE_FEE = 100;
+    DESIRED_BASE_FEE = LedgerManager::GENESIS_LEDGER_BASE_FEE;
+    DESIRED_BASE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
     DESIRED_MAX_TX_PER_LEDGER = 50;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
@@ -236,6 +237,19 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid DESIRED_BASE_FEE");
                 }
                 DESIRED_BASE_FEE = (uint32_t)f;
+            }
+            else if (item.first == "DESIRED_BASE_RESERVE")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
+                }
+                int64_t f = item.second->as<int64_t>()->value();
+                if (f < 0 || f >= UINT32_MAX)
+                {
+                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
+                }
+                DESIRED_BASE_RESERVE = (uint32_t)f;
             }
             else if (item.first == "DESIRED_MAX_TX_PER_LEDGER")
             {

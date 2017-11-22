@@ -54,6 +54,9 @@ stellarValueToString(StellarValue const& sv)
                 case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
                     res << "MAX_TX_SET_SIZE=" << lupgrade.newMaxTxSetSize();
                     break;
+                case LEDGER_UPGRADE_BASE_RESERVE:
+                    res << "BASE_RESERVE=" << lupgrade.newBaseReserve();
+                    break;
                 default:
                     res << "<unsupported>";
                 }
