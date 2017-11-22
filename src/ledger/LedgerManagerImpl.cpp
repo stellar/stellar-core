@@ -63,6 +63,13 @@ using namespace std;
 namespace stellar
 {
 
+const uint32_t LedgerManager::GENESIS_LEDGER_SEQ = 1;
+const uint32_t LedgerManager::GENESIS_LEDGER_VERSION = 0;
+const uint32_t LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
+const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
+const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
+const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
+
 using xdr::operator==;
 
 std::unique_ptr<LedgerManager>
@@ -163,11 +170,12 @@ LedgerManager::genesisLedger()
     LedgerHeader result;
     // all fields are initialized by default to 0
     // set the ones that are not 0
-    result.baseFee = 100;
-    result.baseReserve = 100000000;
-    result.maxTxSetSize = 100;
-    result.totalCoins = 1000000000000000000;
-    result.ledgerSeq = HistoryManager::GENESIS_LEDGER_SEQ;
+    result.ledgerVersion = GENESIS_LEDGER_VERSION;
+    result.baseFee = GENESIS_LEDGER_BASE_FEE;
+    result.baseReserve = GENESIS_LEDGER_BASE_RESERVE;
+    result.maxTxSetSize = GENESIS_LEDGER_MAX_TX_SIZE;
+    result.totalCoins = GENESIS_LEDGER_TOTAL_COINS;
+    result.ledgerSeq = GENESIS_LEDGER_SEQ;
     return result;
 }
 
