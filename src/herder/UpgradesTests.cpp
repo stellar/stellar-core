@@ -340,6 +340,75 @@ TEST_CASE("validate upgrades at upgrade time", "[upgrades]")
     testValidateUpgrades(genesis(0, 0), true);
 }
 
+TEST_CASE("upgrade in LedgerCloseData changes herder values", "[upgrades]")
+{
+    VirtualClock clock;
+    auto app = Application::create(clock, getTestConfig(0));
+    app->start();
+
+    auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+    auto const& lastHash = lcl.hash;
+    auto txSet = std::make_shared<TxSetFrame>(lastHash);
+
+    REQUIRE(lcl.header.ledgerVersion == LedgerManager::GENESIS_LEDGER_VERSION);
+    REQUIRE(lcl.header.baseFee == LedgerManager::GENESIS_LEDGER_BASE_FEE);
+    REQUIRE(lcl.header.maxTxSetSize ==
+            LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE);
+    REQUIRE(lcl.header.baseReserve ==
+            LedgerManager::GENESIS_LEDGER_BASE_RESERVE);
+
+    auto executeUpgrades = [&](xdr::xvector<UpgradeType, 6> const& upgrades) {
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+        app->getLedgerManager().closeLedger(ledgerData);
+        return app->getLedgerManager().getLastClosedLedgerHeader();
+    };
+    auto executeUpgrade = [&](LedgerUpgrade const& upgrade) {
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        upgrades.push_back(toUpgradeType(upgrade));
+        return executeUpgrades(upgrades);
+    };
+
+    SECTION("ledger version")
+    {
+        REQUIRE(executeUpgrade(makeProtocolVersionUpgrade(4))
+                    .header.ledgerVersion == 4);
+    }
+
+    SECTION("base fee")
+    {
+        REQUIRE(executeUpgrade(makeBaseFeeUpgrade(1000)).header.baseFee ==
+                1000);
+    }
+
+    SECTION("max tx")
+    {
+        REQUIRE(executeUpgrade(makeTxCountUpgrade(1300)).header.maxTxSetSize ==
+                1300);
+    }
+
+    SECTION("base reserve")
+    {
+        REQUIRE(
+            executeUpgrade(makeBaseReserveUpgrade(1000)).header.baseReserve ==
+            1000);
+    }
+
+    SECTION("all")
+    {
+        auto header =
+            executeUpgrades({toUpgradeType(makeProtocolVersionUpgrade(4)),
+                             toUpgradeType(makeBaseFeeUpgrade(1000)),
+                             toUpgradeType(makeTxCountUpgrade(1300)),
+                             toUpgradeType(makeBaseReserveUpgrade(1000))})
+                .header;
+        REQUIRE(header.ledgerVersion == 4);
+        REQUIRE(header.baseFee == 1000);
+        REQUIRE(header.maxTxSetSize == 1300);
+        REQUIRE(header.baseReserve == 1000);
+    }
+}
+
 TEST_CASE("simulate upgrades", "[herder][upgrades]")
 {
     // no upgrade is done
