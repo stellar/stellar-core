@@ -281,8 +281,8 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\LedgerCloseData.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp" />
     <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp" />
-    <ClCompile Include="..\..\src\herder\ProtocolUpgradeTests.cpp" />
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp" />
+    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />

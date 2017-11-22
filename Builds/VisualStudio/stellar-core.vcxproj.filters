@@ -765,7 +765,7 @@
     <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\ProtocolUpgradeTests.cpp">
+    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
