@@ -464,35 +464,25 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                 {
                 case LEDGER_UPGRADE_VERSION:
                     // pick the highest version
-                    if (clUpgrade.newLedgerVersion() <
-                        lupgrade.newLedgerVersion())
-                    {
-                        clUpgrade.newLedgerVersion() =
-                            lupgrade.newLedgerVersion();
-                    }
+                    clUpgrade.newLedgerVersion() =
+                        std::max(clUpgrade.newLedgerVersion(),
+                                 lupgrade.newLedgerVersion());
                     break;
                 case LEDGER_UPGRADE_BASE_FEE:
                     // take the max fee
-                    if (clUpgrade.newBaseFee() < lupgrade.newBaseFee())
-                    {
-                        clUpgrade.newBaseFee() = lupgrade.newBaseFee();
-                    }
+                    clUpgrade.newBaseFee() =
+                        std::max(clUpgrade.newBaseFee(), lupgrade.newBaseFee());
                     break;
                 case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
                     // take the max tx set size
-                    if (clUpgrade.newMaxTxSetSize() <
-                        lupgrade.newMaxTxSetSize())
-                    {
-                        clUpgrade.newMaxTxSetSize() =
-                            lupgrade.newMaxTxSetSize();
-                    }
+                    clUpgrade.newMaxTxSetSize() =
+                        std::max(clUpgrade.newMaxTxSetSize(),
+                                 lupgrade.newMaxTxSetSize());
                     break;
                 case LEDGER_UPGRADE_BASE_RESERVE:
                     // take the max base reserve
-                    if (clUpgrade.newBaseReserve() < lupgrade.newBaseReserve())
-                    {
-                        clUpgrade.newBaseReserve() = lupgrade.newBaseReserve();
-                    }
+                    clUpgrade.newBaseReserve() = std::max(
+                        clUpgrade.newBaseReserve(), lupgrade.newBaseReserve());
                     break;
                 default:
                     // should never get there with values that are not valid
