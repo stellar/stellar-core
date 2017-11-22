@@ -18,6 +18,7 @@ enum class StatusCategory
     HISTORY_CATCHUP,
     HISTORY_PUBLISH,
     NTP,
+    REQUIRES_UPGRADES,
     COUNT
 };
 

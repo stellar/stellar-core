@@ -92,6 +92,27 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     }
 }
 
+std::string
+Upgrades::toString(std::vector<LedgerUpgrade> const& upgrades)
+{
+    if (upgrades.empty())
+    {
+        return {};
+    }
+
+    auto result = std::string{};
+    for (auto const& upgrade : upgrades)
+    {
+        if (!result.empty())
+        {
+            result += ", ";
+        }
+        result += toString(upgrade);
+    }
+
+    return fmt::format("[{0}]", result);
+}
+
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
                   LedgerUpgradeType& upgradeType) const
