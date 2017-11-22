@@ -157,33 +157,34 @@ LedgerManagerImpl::getStateHuman() const
     return std::string(stateStrings[getState()]);
 }
 
+LedgerHeader
+LedgerManager::genesisLedger()
+{
+    LedgerHeader result;
+    // all fields are initialized by default to 0
+    // set the ones that are not 0
+    result.baseFee = 100;
+    result.baseReserve = 100000000;
+    result.maxTxSetSize = 100;
+    result.totalCoins = 1000000000000000000;
+    result.ledgerSeq = HistoryManager::GENESIS_LEDGER_SEQ;
+    return result;
+}
+
 void
-LedgerManagerImpl::startNewLedger(uint32_t protocolVersion, int64_t balance,
-                                  uint32_t baseFee, uint32_t baseReserve,
-                                  uint32_t maxTxSetSize)
+LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
 {
     DBTimeExcluder qtExclude(mApp);
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
     AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = balance;
-    LedgerHeader genesisHeader;
-
-    // all fields are initialized by default to 0
-    // set the ones that are not 0
-    genesisHeader.ledgerVersion = protocolVersion;
-    genesisHeader.baseFee = baseFee;
-    genesisHeader.baseReserve = baseReserve;
-    genesisHeader.maxTxSetSize = maxTxSetSize;
-    genesisHeader.totalCoins = masterAccount.getAccount().balance;
-    genesisHeader.ledgerSeq = HistoryManager::GENESIS_LEDGER_SEQ;
-
-    LedgerDelta delta(genesisHeader, getDatabase());
+    masterAccount.getAccount().balance = genesisLedger.totalCoins;
+    LedgerDelta delta(genesisLedger, getDatabase());
     masterAccount.storeAdd(delta, this->getDatabase());
     delta.commit();
 
-    mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisHeader);
+    mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisLedger);
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed().value;
     ledgerClosed(delta);
@@ -192,19 +193,17 @@ LedgerManagerImpl::startNewLedger(uint32_t protocolVersion, int64_t balance,
 void
 LedgerManagerImpl::startNewLedger()
 {
-    int64 totalCoins = 1000000000000000000;
+    auto ledger = genesisLedger();
     auto const& cfg = mApp.getConfig();
     if (cfg.USE_CONFIG_FOR_GENESIS)
     {
-        startNewLedger(cfg.LEDGER_PROTOCOL_VERSION, totalCoins,
-                       cfg.DESIRED_BASE_FEE, cfg.DESIRED_BASE_RESERVE,
-                       cfg.DESIRED_MAX_TX_PER_LEDGER);
+        ledger.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
+        ledger.baseFee = cfg.DESIRED_BASE_FEE;
+        ledger.baseReserve = cfg.DESIRED_BASE_RESERVE;
+        ledger.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
     }
-    else
-    {
-        // 100 tx/ledger max
-        startNewLedger(0, totalCoins, 100, 100000000, 100);
-    }
+
+    startNewLedger(ledger);
 }
 
 void
