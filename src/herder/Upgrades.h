@@ -26,6 +26,9 @@ class Upgrades
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header);
 
+    // convert upgrade value to string
+    static std::string toString(LedgerUpgrade const& upgrade);
+
     // returns true if upgrade is a valid upgrade step
     // in which case it also sets upgradeType
     bool isValid(uint64_t closeTime, UpgradeType const& upgrade,

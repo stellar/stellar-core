@@ -1,6 +1,7 @@
 ﻿#include "util/asio.h"
 #include "LedgerCloseData.h"
 #include "crypto/Hex.h"
+#include "herder/Upgrades.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include <overlay/OverlayManager.h>
@@ -43,23 +44,7 @@ stellarValueToString(StellarValue const& sv)
             {
                 LedgerUpgrade lupgrade;
                 xdr::xdr_from_opaque(upgrade, lupgrade);
-                switch (lupgrade.type())
-                {
-                case LEDGER_UPGRADE_VERSION:
-                    res << "VERSION=" << lupgrade.newLedgerVersion();
-                    break;
-                case LEDGER_UPGRADE_BASE_FEE:
-                    res << "BASE_FEE=" << lupgrade.newBaseFee();
-                    break;
-                case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-                    res << "MAX_TX_SET_SIZE=" << lupgrade.newMaxTxSetSize();
-                    break;
-                case LEDGER_UPGRADE_BASE_RESERVE:
-                    res << "BASE_RESERVE=" << lupgrade.newBaseReserve();
-                    break;
-                default:
-                    res << "<unsupported>";
-                }
+                res << Upgrades::toString(lupgrade);
             }
             catch (std::exception&)
             {
