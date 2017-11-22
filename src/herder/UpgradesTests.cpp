@@ -245,32 +245,26 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("base fee")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(50)),
-                                      ledgerUpgradeType));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(200)),
+                                      toUpgradeType(makeBaseFeeUpgrade(100)),
                                       ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(49)),
+                                       toUpgradeType(makeBaseFeeUpgrade(99)),
                                        ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(201)),
+                                       toUpgradeType(makeBaseFeeUpgrade(101)),
                                        ledgerUpgradeType));
     }
 
     SECTION("tx count")
     {
         REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(35)),
-                                      ledgerUpgradeType));
-        REQUIRE(Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(65)),
+                                      toUpgradeType(makeTxCountUpgrade(50)),
                                       ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(34)),
+                                       toUpgradeType(makeTxCountUpgrade(49)),
                                        ledgerUpgradeType));
         REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(66)),
+                                       toUpgradeType(makeTxCountUpgrade(51)),
                                        ledgerUpgradeType));
     }
 }
