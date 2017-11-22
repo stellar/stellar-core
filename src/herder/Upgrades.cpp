@@ -38,6 +38,11 @@ Upgrades::upgradesFor(const LedgerHeader& header) const
         result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
         result.back().newMaxTxSetSize() = mCfg.DESIRED_MAX_TX_PER_LEDGER;
     }
+    if (header.baseReserve != mCfg.DESIRED_BASE_RESERVE)
+    {
+        result.emplace_back(LEDGER_UPGRADE_BASE_RESERVE);
+        result.back().newBaseReserve() = mCfg.DESIRED_BASE_RESERVE;
+    }
 
     return result;
 }
@@ -81,6 +86,12 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
     {
         uint32 newMax = lupgrade.newMaxTxSetSize();
         res = (newMax == mCfg.DESIRED_MAX_TX_PER_LEDGER);
+    }
+    break;
+    case LEDGER_UPGRADE_BASE_RESERVE:
+    {
+        uint32 newReserve = lupgrade.newBaseReserve();
+        res = (newReserve == mCfg.DESIRED_BASE_RESERVE);
     }
     break;
     default:

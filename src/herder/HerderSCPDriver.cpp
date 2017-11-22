@@ -487,6 +487,13 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                             lupgrade.newMaxTxSetSize();
                     }
                     break;
+                case LEDGER_UPGRADE_BASE_RESERVE:
+                    // take the max base reserve
+                    if (clUpgrade.newBaseReserve() < lupgrade.newBaseReserve())
+                    {
+                        clUpgrade.newBaseReserve() = lupgrade.newBaseReserve();
+                    }
+                    break;
                 default:
                     // should never get there with values that are not valid
                     throw std::runtime_error("invalid upgrade step");
