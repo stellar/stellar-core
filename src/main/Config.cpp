@@ -630,8 +630,8 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument(
                         "invalid PREFERRED_UPGRADE_DATETIME");
                 }
-                PREFERRED_UPGRADE_DATETIME =
-                    make_optional<std::tm>(item.second->as<std::tm>()->value());
+                PREFERRED_UPGRADE_DATETIME = VirtualClock::tmToPoint(
+                    item.second->as<std::tm>()->value());
             }
             else if (item.first == "INVARIANT_CHECKS")
             {
