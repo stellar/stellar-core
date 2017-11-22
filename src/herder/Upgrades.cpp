@@ -74,6 +74,24 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header)
     }
 }
 
+std::string
+Upgrades::toString(LedgerUpgrade const& upgrade)
+{
+    switch (upgrade.type())
+    {
+    case LEDGER_UPGRADE_VERSION:
+        return fmt::format("VERSION={0}", upgrade.newLedgerVersion());
+    case LEDGER_UPGRADE_BASE_FEE:
+        return fmt::format("BASE_FEE={0}", upgrade.newBaseFee());
+    case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+        return fmt::format("MAX_TX_SET_SIZE={0}", upgrade.newMaxTxSetSize());
+    case LEDGER_UPGRADE_BASE_RESERVE:
+        return fmt::format("BASE_RESERVE={0}", upgrade.newBaseReserve());
+    default:
+        return "<unsupported>";
+    }
+}
+
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
                   LedgerUpgradeType& upgradeType) const
