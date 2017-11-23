@@ -55,4 +55,16 @@ toString(stellar::CatchupRange const& cr)
     return fmt::format("[{}..{}], applyBuckets: {}", cr.first.first(),
                        cr.first.last(), cr.second);
 }
+
+template <>
+std::string
+toString(stellar::historytestutils::CatchupPerformedWork const& cm)
+{
+    return fmt::format("{}, {}, {}, {}, {}, {}, {}, {}",
+                       cm.mHistoryArchiveStatesDownloaded,
+                       cm.mLedgersDownloaded, cm.mLedgersVerified,
+                       cm.mLedgerChainsVerificationFailed,
+                       cm.mBucketsDownloaded, cm.mBucketsApplied,
+                       cm.mTransactionsDownloaded, cm.mTransactionsApplied);
+}
 }

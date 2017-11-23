@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "catchup/CatchupWork.h"
+#include "history/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "xdr/Stellar-transaction.h"
 #include "xdrpp/printer.h"
@@ -29,4 +30,7 @@ template <> std::string toString(stellar::OfferState const& os);
 template <> std::string toString(stellar::TransactionResult const& tr);
 
 template <> std::string toString(stellar::CatchupRange const& cr);
+
+template <>
+std::string toString(stellar::historytestutils::CatchupPerformedWork const& cm);
 }
