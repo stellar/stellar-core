@@ -101,7 +101,7 @@ struct CatchupPerformedWork
                            CatchupPerformedWork const& y);
 };
 
-class HistoryTests
+class CatchupSimulation
 {
   protected:
     VirtualClock mClock;
@@ -133,9 +133,9 @@ class HistoryTests
     std::vector<SequenceNumber> carolSeqs;
 
   public:
-    explicit HistoryTests(std::shared_ptr<Configurator> cg =
-                              std::make_shared<TmpDirConfigurator>());
-    ~HistoryTests();
+    explicit CatchupSimulation(std::shared_ptr<Configurator> cg =
+                                   std::make_shared<TmpDirConfigurator>());
+    ~CatchupSimulation();
 
     Application&
     getApp() const

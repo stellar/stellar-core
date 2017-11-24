@@ -200,7 +200,7 @@ operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
     return !(x == y);
 }
 
-HistoryTests::HistoryTests(std::shared_ptr<Configurator> cg)
+CatchupSimulation::CatchupSimulation(std::shared_ptr<Configurator> cg)
     : mConfigurator(cg)
     , mCfg(getTestConfig())
     , mAppPtr(
@@ -210,12 +210,12 @@ HistoryTests::HistoryTests(std::shared_ptr<Configurator> cg)
     CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
 }
 
-HistoryTests::~HistoryTests()
+CatchupSimulation::~CatchupSimulation()
 {
 }
 
 void
-HistoryTests::crankTillDone()
+CatchupSimulation::crankTillDone()
 {
     while (!mApp.getWorkManager().allChildrenDone() &&
            !mApp.getClock().getIOService().stopped())
@@ -225,7 +225,7 @@ HistoryTests::crankTillDone()
 }
 
 void
-HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
+CatchupSimulation::generateAndPublishInitialHistory(size_t nPublishes)
 {
     mApp.start();
 
@@ -239,7 +239,7 @@ HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
 }
 
 void
-HistoryTests::generateRandomLedger()
+CatchupSimulation::generateRandomLedger()
 {
     auto& lm = mApp.getLedgerManager();
     TxSetFramePtr txSet =
@@ -321,7 +321,7 @@ HistoryTests::generateRandomLedger()
 }
 
 void
-HistoryTests::generateAndPublishHistory(size_t nPublishes)
+CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
 {
     auto& lm = mApp.getLedgerManager();
     auto& hm = mApp.getHistoryManager();
@@ -355,9 +355,9 @@ HistoryTests::generateAndPublishHistory(size_t nPublishes)
 }
 
 Application::pointer
-HistoryTests::catchupNewApplication(uint32_t initLedger, uint32_t count,
-                                    bool manual, Config::TestDbMode dbMode,
-                                    std::string const& appName)
+CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
+                                         bool manual, Config::TestDbMode dbMode,
+                                         std::string const& appName)
 {
 
     CLOG(INFO, "History") << "****";
@@ -382,9 +382,9 @@ HistoryTests::catchupNewApplication(uint32_t initLedger, uint32_t count,
 }
 
 bool
-HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
-                                 bool manual, Application::pointer app2,
-                                 bool doStart, uint32_t gap)
+CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
+                                      bool manual, Application::pointer app2,
+                                      bool doStart, uint32_t gap)
 {
     auto startCatchupMetrics = getCatchupMetrics(app2);
 
@@ -600,7 +600,7 @@ HistoryTests::catchupApplication(uint32_t initLedger, uint32_t count,
 }
 
 CatchupMetrics
-HistoryTests::getCatchupMetrics(Application::pointer app)
+CatchupSimulation::getCatchupMetrics(Application::pointer app)
 {
     auto& getHistoryArchiveStateSuccess = app->getMetrics().NewMeter(
         {"history", "download-history-archive-state", "success"}, "event");
@@ -652,7 +652,7 @@ HistoryTests::getCatchupMetrics(Application::pointer app)
 }
 
 CatchupPerformedWork
-HistoryTests::computeCatchupPerformedWork(
+CatchupSimulation::computeCatchupPerformedWork(
     uint32_t lastClosedLedger, CatchupConfiguration const& catchupConfiguration,
     HistoryManager const& historyManager)
 {
