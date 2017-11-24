@@ -328,7 +328,7 @@ TEST_CASE("Repair missing buckets via history",
     cfg2.BUCKET_DIR_PATH += "2";
     auto app2 = createTestApplication(
         catchupSimulation.getClock(),
-        catchupSimulation.getConfigurator().configure(cfg2, false));
+        catchupSimulation.getHistoryConfigurator().configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
@@ -359,7 +359,7 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
 
     // Delete buckets from the archive before proceding.
     // This means startup will fail.
-    auto dir = catchupSimulation.getConfigurator().getArchiveDirName();
+    auto dir = catchupSimulation.getHistoryConfigurator().getArchiveDirName();
     REQUIRE(!dir.empty());
     fs::deltree(dir + "/bucket");
 
@@ -367,7 +367,7 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     cfg2.BUCKET_DIR_PATH += "2";
     auto app2 = createTestApplication(
         catchupSimulation.getClock(),
-        catchupSimulation.getConfigurator().configure(cfg2, false));
+        catchupSimulation.getHistoryConfigurator().configure(cfg2, false));
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
@@ -390,7 +390,8 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
 
 TEST_CASE("Publish/catchup via s3", "[hide][s3]")
 {
-    CatchupSimulation catchupSimulation{std::make_shared<S3Configurator>()};
+    CatchupSimulation catchupSimulation{
+        std::make_shared<S3HistoryConfigurator>()};
 
     catchupSimulation.generateAndPublishInitialHistory(3);
     auto app2 = catchupSimulation.catchupNewApplication(
@@ -407,7 +408,7 @@ TEST_CASE("persist publish queue", "[history]")
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
     cfg.MAX_CONCURRENT_SUBPROCESSES = 0;
     cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
-    TmpDirConfigurator tcfg;
+    TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
 
     {
@@ -613,7 +614,7 @@ TEST_CASE("Catchup manual", "[history][catchupmanual]")
 TEST_CASE("initialize existing history store fails", "[history]")
 {
     Config cfg(getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE));
-    TmpDirConfigurator tcfg;
+    TmpDirHistoryConfigurator tcfg;
     cfg = tcfg.configure(cfg, true);
 
     {

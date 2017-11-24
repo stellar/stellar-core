@@ -21,30 +21,30 @@ struct LedgerCloseData;
 namespace historytestutils
 {
 
-class Configurator;
+class HistoryConfigurator;
 struct CatchupMetrics;
 struct CatchupPerformedWork;
 
-class Configurator : NonCopyable
+class HistoryConfigurator : NonCopyable
 {
   public:
     virtual Config& configure(Config& cfg, bool writable) const = 0;
     virtual std::string getArchiveDirName() const;
 };
 
-class S3Configurator : public Configurator
+class S3HistoryConfigurator : public HistoryConfigurator
 {
   public:
     virtual Config& configure(Config& cfg, bool writable) const override;
 };
 
-class TmpDirConfigurator : public Configurator
+class TmpDirHistoryConfigurator : public HistoryConfigurator
 {
     TmpDirManager mArchtmp;
     TmpDir mDir;
 
   public:
-    TmpDirConfigurator();
+    TmpDirHistoryConfigurator();
 
     std::string getArchiveDirName() const override;
 
@@ -105,7 +105,7 @@ class CatchupSimulation
 {
   protected:
     VirtualClock mClock;
-    std::shared_ptr<Configurator> mConfigurator;
+    std::shared_ptr<HistoryConfigurator> mHistoryConfigurator;
     Config mCfg;
     std::vector<Config> mCfgs;
     Application::pointer mAppPtr;
@@ -133,8 +133,9 @@ class CatchupSimulation
     std::vector<SequenceNumber> carolSeqs;
 
   public:
-    explicit CatchupSimulation(std::shared_ptr<Configurator> cg =
-                                   std::make_shared<TmpDirConfigurator>());
+    explicit CatchupSimulation(
+        std::shared_ptr<HistoryConfigurator> cg =
+            std::make_shared<TmpDirHistoryConfigurator>());
     ~CatchupSimulation();
 
     Application&
@@ -149,10 +150,10 @@ class CatchupSimulation
         return mClock;
     }
 
-    Configurator&
-    getConfigurator() const
+    HistoryConfigurator&
+    getHistoryConfigurator() const
     {
-        return *mConfigurator.get();
+        return *mHistoryConfigurator.get();
     }
 
     void crankTillDone();

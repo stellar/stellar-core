@@ -44,7 +44,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
                 std::vector<LedgerUpgradeableData> const& afterCatchedUp = {})
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
-    historytestutils::TmpDirConfigurator configurator{};
+    historytestutils::TmpDirHistoryConfigurator configurator{};
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
     simulation->setCurrentTime(genesis(0, 0));
