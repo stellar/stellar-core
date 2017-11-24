@@ -86,8 +86,9 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     REQUIRE(put->getState() == Work::WORK_SUCCESS);
 
     HistoryArchiveState has2;
-    auto get = wm.executeWork<GetHistoryArchiveStateWork>(true,
-        "get-history-archive-state", has2, 0, std::chrono::seconds(0), archive);
+    auto get = wm.executeWork<GetHistoryArchiveStateWork>(
+        true, "get-history-archive-state", has2, 0, std::chrono::seconds(0),
+        archive);
     REQUIRE(get->getState() == Work::WORK_SUCCESS);
     REQUIRE(has2.currentLedger == 0x1234);
 }
