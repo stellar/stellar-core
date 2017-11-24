@@ -26,24 +26,24 @@ namespace historytestutils
 {
 
 std::string
-Configurator::getArchiveDirName() const
+HistoryConfigurator::getArchiveDirName() const
 {
     return "";
 }
 
-TmpDirConfigurator::TmpDirConfigurator()
+TmpDirHistoryConfigurator::TmpDirHistoryConfigurator()
     : mArchtmp("archtmp"), mDir(mArchtmp.tmpDir("archive"))
 {
 }
 
 std::string
-TmpDirConfigurator::getArchiveDirName() const
+TmpDirHistoryConfigurator::getArchiveDirName() const
 {
     return mDir.getName();
 }
 
 Config&
-TmpDirConfigurator::configure(Config& mCfg, bool writable) const
+TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
     std::string d = mDir.getName();
     std::string getCmd = "cp " + d + "/{0} {1}";
@@ -62,7 +62,7 @@ TmpDirConfigurator::configure(Config& mCfg, bool writable) const
 }
 
 Config&
-S3Configurator::configure(Config& mCfg, bool writable) const
+S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
 {
     char const* s3bucket = getenv("S3BUCKET");
     if (!s3bucket)
@@ -200,11 +200,11 @@ operator!=(CatchupPerformedWork const& x, CatchupPerformedWork const& y)
     return !(x == y);
 }
 
-CatchupSimulation::CatchupSimulation(std::shared_ptr<Configurator> cg)
-    : mConfigurator(cg)
+CatchupSimulation::CatchupSimulation(std::shared_ptr<HistoryConfigurator> cg)
+    : mHistoryConfigurator(cg)
     , mCfg(getTestConfig())
-    , mAppPtr(
-          createTestApplication(mClock, mConfigurator->configure(mCfg, true)))
+    , mAppPtr(createTestApplication(
+          mClock, mHistoryConfigurator->configure(mCfg, true)))
     , mApp(*mAppPtr)
 {
     CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
@@ -374,7 +374,7 @@ CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
         mCfgs.back().CATCHUP_RECENT = count;
     }
     Application::pointer app2 = createTestApplication(
-        mClock, mConfigurator->configure(mCfgs.back(), false));
+        mClock, mHistoryConfigurator->configure(mCfgs.back(), false));
 
     app2->start();
     CHECK(catchupApplication(initLedger, count, manual, app2) == true);
