@@ -5,10 +5,12 @@
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
+#include "history/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/StatusManager.h"
 #include "util/Timer.h"
 #include "util/optional.h"
 #include <xdrpp/marshal.h>
@@ -37,13 +39,17 @@ struct LedgerUpgradeCheck
 
 void
 simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
-                std::vector<LedgerUpgradeCheck> const& checks)
+                std::vector<LedgerUpgradeCheck> const& checks,
+                bool proposeUpgradeAfterCatchedUp = false,
+                std::vector<LedgerUpgradeableData> const& afterCatchedUp = {})
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    historytestutils::TmpDirConfigurator configurator{};
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID);
     simulation->setCurrentTime(genesis(0, 0));
 
+    // configure nodes
     auto keys = std::vector<SecretKey>{};
     auto configs = std::vector<Config>{};
     for (size_t i = 0; i < nodes.size(); i++)
@@ -59,6 +65,9 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         configs.back().DESIRED_BASE_RESERVE = nodes[i].starting.baseReserve;
         configs.back().PREFERRED_UPGRADE_DATETIME =
             nodes[i].preferredUpgradeDatetime;
+
+        // first node can write to history, all can read
+        configurator.configure(configs.back(), i == 0);
     }
 
     auto qSet = SCPQuorumSet{};
@@ -67,10 +76,14 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     qSet.validators.push_back(keys[1].getPublicKey());
     qSet.validators.push_back(keys[2].getPublicKey());
 
+    // create nodes
     for (size_t i = 0; i < nodes.size(); i++)
     {
         simulation->addNode(keys[i], qSet, &configs[i]);
     }
+
+    HistoryManager::initializeHistoryArchive(
+        *simulation->getNode(keys[0].getPublicKey()), "test");
 
     for (size_t i = 0; i < nodes.size(); i++)
     {
@@ -83,25 +96,83 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
 
     simulation->startAllNodes();
 
-    for (auto const& result : checks)
-    {
-        simulation->crankUntil(result.time, false);
-
+    auto statesMatch = [&](std::vector<LedgerUpgradeableData> const& state) {
         for (size_t i = 0; i < nodes.size(); i++)
         {
             auto const& node = simulation->getNode(keys[i].getPublicKey());
             REQUIRE(node->getLedgerManager()
                         .getCurrentLedgerHeader()
-                        .ledgerVersion == result.expected[i].ledgerVersion);
+                        .ledgerVersion == state[i].ledgerVersion);
             REQUIRE(node->getLedgerManager().getCurrentLedgerHeader().baseFee ==
-                    result.expected[i].baseFee);
+                    state[i].baseFee);
             REQUIRE(node->getLedgerManager()
                         .getCurrentLedgerHeader()
-                        .maxTxSetSize == result.expected[i].maxTxSetSize);
+                        .maxTxSetSize == state[i].maxTxSetSize);
             REQUIRE(
                 node->getLedgerManager().getCurrentLedgerHeader().baseReserve ==
-                result.expected[i].baseReserve);
+                state[i].baseReserve);
         }
+    };
+
+    for (auto const& result : checks)
+    {
+        simulation->crankUntil(result.time, false);
+        statesMatch(result.expected);
+    }
+
+    auto allSynced = [&]() {
+        return std::all_of(
+            std::begin(keys), std::end(keys), [&](SecretKey const& key) {
+                auto const& node = simulation->getNode(key.getPublicKey());
+                return node->getLedgerManager().getState() ==
+                       LedgerManager::LM_SYNCED_STATE;
+            });
+    };
+
+    if (afterCatchedUp.size() != 0)
+    {
+        // we need to wait until some nodes notice that they are not
+        // externalizing anymore because of upgrades disagreement
+        auto atLeastOneNotSynced = [&]() { return !allSynced(); };
+        simulation->crankUntil(atLeastOneNotSynced,
+                               2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
+                               false);
+
+        auto checkpointFrequency =
+            simulation->getNode(keys.begin()->getPublicKey())
+                ->getHistoryManager()
+                .getCheckpointFrequency();
+
+        // and then wait until it catches up again ans assumes upgrade values
+        // from the history
+        simulation->crankUntil(allSynced,
+                               2 * checkpointFrequency *
+                                   Herder::EXP_LEDGER_TIMESPAN_SECONDS,
+                               false);
+        statesMatch(afterCatchedUp);
+    }
+    else
+    {
+        // all nodes are synced as there was no disagreement about upgrades
+        REQUIRE(allSynced());
+    }
+
+    if (proposeUpgradeAfterCatchedUp)
+    {
+        // at least one node should show message thats its upgrades from config
+        // are different than network values
+        auto atLeastOneMessagesAboutUpgrades = [&]() {
+            return std::any_of(
+                std::begin(keys), std::end(keys), [&](SecretKey const& key) {
+                    auto const& node = simulation->getNode(key.getPublicKey());
+                    return !node->getStatusManager()
+                                .getStatusMessage(
+                                    StatusCategory::REQUIRES_UPGRADES)
+                                .empty();
+                });
+        };
+        simulation->crankUntil(atLeastOneMessagesAboutUpgrades,
+                               2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
     }
 }
 
@@ -439,16 +510,16 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
             {upgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks);
+        simulateUpgrade(nodes, checks, true);
     }
 
-    SECTION("2 of 3 vote - 2 upgrade, 1 dont")
+    SECTION("2 of 3 vote - 2 upgrade, 1 after catchup")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, {}}, {upgrade, {}}, {noUpgrade, {}}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 30), {upgrade, upgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks);
+        simulateUpgrade(nodes, checks, true, {upgrade, upgrade, upgrade});
     }
 
     SECTION("3 of 3 vote - upgrade")
@@ -473,7 +544,7 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         simulateUpgrade(nodes, checks);
     }
 
-    SECTION("2 of 3 vote early - 2 upgrade early, 1 dont")
+    SECTION("2 of 3 vote early - 2 upgrade early, 1 after catchup")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 30)},
                                                     {upgrade, genesis(0, 30)},
@@ -481,6 +552,6 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 15), {noUpgrade, noUpgrade, noUpgrade}},
             {genesis(0, 45), {upgrade, upgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks);
+        simulateUpgrade(nodes, checks, false, {upgrade, upgrade, upgrade});
     }
 }
