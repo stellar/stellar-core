@@ -52,4 +52,11 @@ getTestDateTime(int day, int month, int year, int hour, int minute, int second)
     tm.tm_year = year - 1900;
     return tm;
 }
+
+VirtualClock::time_point
+genesis(int minute, int second)
+{
+    return VirtualClock::tmToPoint(
+        getTestDateTime(1, 7, 2014, 0, minute, second));
+}
 }

@@ -19,6 +19,7 @@
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
+#include "util/StatusManager.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
@@ -30,6 +31,7 @@
 #include "xdrpp/marshal.h"
 
 #include <ctime>
+#include <lib/util/format.h>
 
 using namespace std;
 
@@ -70,7 +72,8 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
     , mPendingEnvelopes(app, *this)
-    , mHerderSCPDriver(app, *this, mPendingEnvelopes)
+    , mUpgrades(app.getConfig())
+    , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
     , mLastTrigger(app.getClock().now())
@@ -745,8 +748,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                                   0);
 
     // see if we need to include some upgrades
-    auto upgrades = prepareUpgrades(lcl.header);
-
+    auto upgrades = mUpgrades.upgradesFor(lcl.header);
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
@@ -763,42 +765,27 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
+    if (!upgrades.empty())
+    {
+        auto message =
+            fmt::format("Proposing herder configuration upgrades: {0}; network "
+                        "values for herder are: ledgerVersion={1}, "
+                        "baseFee={2}, baseReserve={3}, maxTxSetSize={4}",
+                        Upgrades::toString(upgrades), lcl.header.ledgerVersion,
+                        lcl.header.baseFee, lcl.header.baseReserve,
+                        lcl.header.maxTxSetSize);
+        CLOG(WARNING, "Herder") << message;
+        mApp.getStatusManager().setStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES, message);
+    }
+    else
+    {
+        mApp.getStatusManager().removeStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES);
+    }
+
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
-}
-
-std::vector<LedgerUpgrade>
-HerderImpl::prepareUpgrades(const LedgerHeader& header) const
-{
-    auto result = std::vector<LedgerUpgrade>{};
-
-    if (header.ledgerVersion != mApp.getConfig().LEDGER_PROTOCOL_VERSION)
-    {
-        auto timeForUpgrade =
-            !mApp.getConfig().PREFERRED_UPGRADE_DATETIME ||
-            VirtualClock::tmToPoint(
-                *mApp.getConfig().PREFERRED_UPGRADE_DATETIME) <=
-                mApp.getClock().now();
-        if (timeForUpgrade)
-        {
-            result.emplace_back(LEDGER_UPGRADE_VERSION);
-            result.back().newLedgerVersion() =
-                mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-        }
-    }
-    if (header.baseFee != mApp.getConfig().DESIRED_BASE_FEE)
-    {
-        result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
-        result.back().newBaseFee() = mApp.getConfig().DESIRED_BASE_FEE;
-    }
-    if (header.maxTxSetSize != mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER)
-    {
-        result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        result.back().newMaxTxSetSize() =
-            mApp.getConfig().DESIRED_MAX_TX_PER_LEDGER;
-    }
-
-    return result;
 }
 
 bool
