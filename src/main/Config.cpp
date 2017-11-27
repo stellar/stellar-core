@@ -23,7 +23,7 @@ namespace stellar
 {
 using xdr::operator<;
 
-const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 9;
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 10;
 
 Config::Config() : NODE_SEED(SecretKey::random())
 {
