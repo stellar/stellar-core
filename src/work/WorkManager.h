@@ -26,5 +26,19 @@ class WorkManager : public WorkParent
     virtual ~WorkManager();
     static std::shared_ptr<WorkManager> create(Application& app);
     virtual void notify(std::string const& changed) = 0;
+
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    executeWork(bool block, Args&&... args)
+    {
+        auto work = addWork<T>(std::forward<Args>(args)...);
+        auto& clock = mApp.getClock();
+        advanceChildren();
+        while (!clock.getIOService().stopped() && !allChildrenDone())
+        {
+            clock.crank(block);
+        }
+        return work;
+    }
 };
 }

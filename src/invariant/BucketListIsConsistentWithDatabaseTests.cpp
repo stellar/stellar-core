@@ -166,13 +166,7 @@ applyBucketsAndCrankUntilDone(Application::pointer appGenerate,
     getHistoryArchiveState(appGenerate, appApply, ledgerSeq, buckets, has);
 
     auto& wm = appApply->getWorkManager();
-    wm.addWork<T>(buckets, has, std::forward<Args>(args)...);
-    wm.advanceChildren();
-    auto& clock = appApply->getClock();
-    while (!clock.getIOService().stopped() && !wm.allChildrenDone())
-    {
-        clock.crank(false);
-    }
+    wm.executeWork<T>(false, buckets, has, std::forward<Args>(args)...);
 }
 
 std::vector<EntryFrame::pointer>
