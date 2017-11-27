@@ -14,6 +14,7 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "history/HistoryManager.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/HttpClient.h"
 #include "lib/util/getopt.h"
@@ -27,6 +28,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+#include "work/WorkManager.h"
 #include <lib/util/format.h>
 #include <limits>
 #include <locale>
@@ -61,6 +63,7 @@ enum opttag
     OPT_INFERQUORUM,
     OPT_OFFLINEINFO,
     OPT_OUTPUT_FILE,
+    OPT_REPORT_LAST_HISTORY_CHECKPOINT,
     OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
@@ -97,6 +100,8 @@ static const struct option stellar_core_options[] = {
     {"inferquorum", optional_argument, nullptr, OPT_INFERQUORUM},
     {"offlineinfo", no_argument, nullptr, OPT_OFFLINEINFO},
     {"output-file", required_argument, nullptr, OPT_OUTPUT_FILE},
+    {"report-last-history-checkpoint", no_argument, nullptr,
+     OPT_REPORT_LAST_HISTORY_CHECKPOINT},
     {"sec2pub", no_argument, nullptr, OPT_SEC2PUB},
     {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
@@ -144,7 +149,8 @@ usage(int err = 1)
           "history\n"
           "      --checkquorum        Check quorum intersection from history\n"
           "      --graphquorum        Print a quorum set graph from history\n"
-          "      --output-file        Output file for --graphquorum command\n"
+          "      --output-file        Output file for --graphquorum and "
+          "--report-last-history-checkpoint commands\n"
           "      --offlineinfo        Return information for an offline "
           "instance\n"
           "      --ll LEVEL           Set the log level. (redundant with --c "
@@ -161,6 +167,9 @@ usage(int err = 1)
           "ARCH\n"
           "      --printtxn FILE      Pretty-print one transaction envelope,"
           " then quit\n"
+          "      --report-last-history-checkpoint\n"
+          "                           Report information about last checkpoint "
+          "available in history archives\n"
           "      --signtxn FILE       Add signature to transaction envelope,"
           " then quit\n"
           "                           (Key is read from stdin or terminal, as"
@@ -353,6 +362,47 @@ static int
 catchupTo(Config const& cfg, uint32_t to)
 {
     return catchup(cfg, to, std::numeric_limits<uint32_t>::max());
+}
+
+static int
+reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
+{
+    VirtualClock clock(VirtualClock::REAL_TIME);
+    Application::pointer app = Application::create(clock, cfg, false);
+
+    if (!checkInitialized(app))
+    {
+        return 1;
+    }
+
+    auto state = HistoryArchiveState{};
+    auto& wm = app->getWorkManager();
+    auto getHistoryArchiveStateWork =
+        wm.executeWork<GetHistoryArchiveStateWork>(
+            true, "get-history-archive-state-work", state);
+
+    auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
+    if (ok)
+    {
+        std::string filename =
+            outputFile.empty() ? "lasthistorycheckpoint.json" : outputFile;
+        state.save(filename);
+        LOG(INFO) << "*";
+        LOG(INFO) << "Wrote last history checkpoint " << filename;
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Fetching last history checkpoint failed.";
+        LOG(INFO) << "*";
+    }
+
+    app->gracefulStop();
+    while (clock.crank(true))
+        ;
+
+    return ok ? 0 : 1;
 }
 
 static uint32_t
@@ -593,6 +643,7 @@ main(int argc, char* const* argv)
     bool graphQuorum = false;
     bool newDB = false;
     bool getOfflineInfo = false;
+    auto doReportLastHistoryCheckpoint = false;
     std::string outputFile;
     std::string loadXdrBucket;
     std::vector<std::string> newHistories;
@@ -697,6 +748,9 @@ main(int argc, char* const* argv)
         case OPT_NEWHIST:
             newHistories.push_back(std::string(optarg));
             break;
+        case OPT_REPORT_LAST_HISTORY_CHECKPOINT:
+            doReportLastHistoryCheckpoint = true;
+            break;
         case OPT_TEST:
         {
             rest.push_back(*argv);
@@ -748,7 +802,8 @@ main(int argc, char* const* argv)
 
         if (forceSCP || newDB || getOfflineInfo || !loadXdrBucket.empty() ||
             inferQuorum || graphQuorum || checkQuorum || doCatchupAt ||
-            doCatchupComplete || doCatchupRecent || doCatchupTo)
+            doCatchupComplete || doCatchupRecent || doCatchupTo ||
+            doReportLastHistoryCheckpoint)
         {
             auto result = 0;
             setNoListen(cfg);
@@ -766,6 +821,8 @@ main(int argc, char* const* argv)
                 setForceSCPFlag(cfg, *forceSCP);
             if ((result == 0) && getOfflineInfo)
                 showOfflineInfo(cfg);
+            if ((result == 0) && doReportLastHistoryCheckpoint)
+                result = reportLastHistoryCheckpoint(cfg, outputFile);
             if ((result == 0) && !loadXdrBucket.empty())
                 loadXdr(cfg, loadXdrBucket);
             if ((result == 0) && inferQuorum)
