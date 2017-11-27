@@ -202,7 +202,7 @@ resilienceTest(Simulation::pointer sim)
         }
     }
 }
-TEST_CASE("resilience tests", "[resilience][simulation]")
+TEST_CASE("resilience tests", "[resilience][simulation][long][hide]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
 
