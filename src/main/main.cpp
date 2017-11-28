@@ -257,7 +257,6 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
 
     if (checkInitialized(app))
     {
-        app->applyCfgCommands();
         auto done = false;
         app->getLedgerManager().loadLastKnownLedger(
             [&done](asio::error_code const& ec) {
