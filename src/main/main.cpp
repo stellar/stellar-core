@@ -60,6 +60,7 @@ enum opttag
     OPT_HELP,
     OPT_INFERQUORUM,
     OPT_OFFLINEINFO,
+    OPT_OUTPUT_FILE,
     OPT_LOGLEVEL,
     OPT_METRIC,
     OPT_NEWDB,
@@ -95,6 +96,7 @@ static const struct option stellar_core_options[] = {
     {"help", no_argument, nullptr, OPT_HELP},
     {"inferquorum", optional_argument, nullptr, OPT_INFERQUORUM},
     {"offlineinfo", no_argument, nullptr, OPT_OFFLINEINFO},
+    {"output-file", required_argument, nullptr, OPT_OUTPUT_FILE},
     {"sec2pub", no_argument, nullptr, OPT_SEC2PUB},
     {"ll", required_argument, nullptr, OPT_LOGLEVEL},
     {"metric", required_argument, nullptr, OPT_METRIC},
@@ -142,6 +144,7 @@ usage(int err = 1)
           "history\n"
           "      --checkquorum        Check quorum intersection from history\n"
           "      --graphquorum        Print a quorum set graph from history\n"
+          "      --output-file        Output file for --graphquorum command\n"
           "      --offlineinfo        Return information for an offline "
           "instance\n"
           "      --ll LEVEL           Set the log level. (redundant with --c "
@@ -474,7 +477,7 @@ checkQuorumIntersection(Config const& cfg)
 }
 
 static void
-writeQuorumGraph(Config const& cfg)
+writeQuorumGraph(Config const& cfg, std::string const& outputFile)
 {
     InferredQuorum iq;
     {
@@ -482,7 +485,7 @@ writeQuorumGraph(Config const& cfg)
         Application::pointer app = Application::create(clock, cfg);
         iq = app->getHistoryManager().inferQuorum();
     }
-    std::string filename = "quorumgraph.dot";
+    std::string filename = outputFile.empty() ? "quorumgraph.dot" : outputFile;
     iq.writeQuorumGraph(cfg, filename);
     LOG(INFO) << "Wrote quorum graph to " << filename;
 }
@@ -590,7 +593,8 @@ main(int argc, char* const* argv)
     bool graphQuorum = false;
     bool newDB = false;
     bool getOfflineInfo = false;
-    std::string loadXdrBucket = "";
+    std::string outputFile;
+    std::string loadXdrBucket;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
 
@@ -677,6 +681,9 @@ main(int argc, char* const* argv)
             break;
         case OPT_OFFLINEINFO:
             getOfflineInfo = true;
+            break;
+        case OPT_OUTPUT_FILE:
+            outputFile = optarg;
             break;
         case OPT_LOGLEVEL:
             logLevel = Logging::getLLfromString(std::string(optarg));
@@ -766,7 +773,7 @@ main(int argc, char* const* argv)
             if ((result == 0) && checkQuorum)
                 checkQuorumIntersection(cfg);
             if ((result == 0) && graphQuorum)
-                writeQuorumGraph(cfg);
+                writeQuorumGraph(cfg, outputFile);
             return result;
         }
         else if (!newHistories.empty())
