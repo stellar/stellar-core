@@ -249,101 +249,107 @@ checkInitialized(Application::pointer app)
     return true;
 }
 
-static void
+static int
 catchup(Config const& cfg, uint32_t to, uint32_t count)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app = Application::create(clock, cfg, false);
 
-    if (checkInitialized(app))
+    if (!checkInitialized(app))
     {
-        auto done = false;
-        app->getLedgerManager().loadLastKnownLedger(
-            [&done](asio::error_code const& ec) {
-                if (ec)
-                {
-                    throw std::runtime_error(
-                        "Unable to restore last-known ledger state");
-                }
-
-                done = true;
-            });
-        while (!done && clock.crank(true))
-            ;
-
-        try
-        {
-            app->getLedgerManager().startCatchUp({to, count}, true);
-        }
-        catch (std::invalid_argument const&)
-        {
-            LOG(INFO) << "*";
-            LOG(INFO) << "* Target ledger " << to
-                      << " is not newer than last closed ledger"
-                      << " - nothing to do";
-            LOG(INFO) << "* If you really want to catchup to " << to
-                      << " run stellar-core with --newdb parameter.";
-            LOG(INFO) << "*";
-            return;
-        }
-
-        auto& io = clock.getIOService();
-        asio::io_service::work mainWork(io);
-        done = false;
-        while (!done && clock.crank(true))
-        {
-            switch (app->getLedgerManager().getState())
-            {
-            case LedgerManager::LM_BOOTING_STATE:
-            {
-                LOG(INFO) << "*";
-                LOG(INFO) << "* Catchup failed.";
-                LOG(INFO) << "*";
-                done = true;
-                break;
-            }
-            case LedgerManager::LM_SYNCED_STATE:
-            {
-                LOG(INFO) << "*";
-                LOG(INFO) << "* Catchup finished.";
-                LOG(INFO) << "*";
-                done = true;
-                break;
-            }
-            case LedgerManager::LM_CATCHING_UP_STATE:
-                break;
-            }
-        }
-
-        app->gracefulStop();
-        while (clock.crank(true))
-            ;
+        return 1;
     }
+
+    auto done = false;
+    app->getLedgerManager().loadLastKnownLedger(
+        [&done](asio::error_code const& ec) {
+            if (ec)
+            {
+                throw std::runtime_error(
+                    "Unable to restore last-known ledger state");
+            }
+
+            done = true;
+        });
+    while (!done && clock.crank(true))
+        ;
+
+    try
+    {
+        app->getLedgerManager().startCatchUp({to, count}, true);
+    }
+    catch (std::invalid_argument const&)
+    {
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Target ledger " << to
+                  << " is not newer than last closed ledger"
+                  << " - nothing to do";
+        LOG(INFO) << "* If you really want to catchup to " << to
+                  << " run stellar-core with --newdb parameter.";
+        LOG(INFO) << "*";
+        return 2;
+    }
+
+    auto& io = clock.getIOService();
+    auto synced = false;
+    asio::io_service::work mainWork(io);
+    done = false;
+    while (!done && clock.crank(true))
+    {
+        switch (app->getLedgerManager().getState())
+        {
+        case LedgerManager::LM_BOOTING_STATE:
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Catchup failed.";
+            LOG(INFO) << "*";
+            done = true;
+            break;
+        }
+        case LedgerManager::LM_SYNCED_STATE:
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Catchup finished.";
+            LOG(INFO) << "*";
+            done = true;
+            synced = true;
+            break;
+        }
+        case LedgerManager::LM_CATCHING_UP_STATE:
+            break;
+        }
+    }
+
+    app->gracefulStop();
+    while (clock.crank(true))
+        ;
+
+    return synced ? 0 : 3;
 }
 
-static void
+static int
 catchupAt(Config const& cfg, uint32_t at)
 {
-    catchup(cfg, at, 0);
+    return catchup(cfg, at, 0);
 }
 
-static void
+static int
 catchupComplete(Config const& cfg)
 {
-    catchup(cfg, CatchupConfiguration::CURRENT,
-            std::numeric_limits<uint32_t>::max());
+    return catchup(cfg, CatchupConfiguration::CURRENT,
+                   std::numeric_limits<uint32_t>::max());
 }
 
-static void
+static int
 catchupRecent(Config const& cfg, uint32_t count)
 {
-    catchup(cfg, CatchupConfiguration::CURRENT, count);
+    return catchup(cfg, CatchupConfiguration::CURRENT, count);
 }
 
-static void
+static int
 catchupTo(Config const& cfg, uint32_t to)
 {
-    catchup(cfg, to, std::numeric_limits<uint32_t>::max());
+    return catchup(cfg, to, std::numeric_limits<uint32_t>::max());
 }
 
 static uint32_t
@@ -737,30 +743,31 @@ main(int argc, char* const* argv)
             inferQuorum || graphQuorum || checkQuorum || doCatchupAt ||
             doCatchupComplete || doCatchupRecent || doCatchupTo)
         {
+            auto result = 0;
             setNoListen(cfg);
-            if (newDB)
+            if ((result == 0) && newDB)
                 initializeDatabase(cfg);
-            if (doCatchupAt)
-                catchupAt(cfg, catchupAtTarget);
-            if (doCatchupComplete)
-                catchupComplete(cfg);
-            if (doCatchupRecent)
-                catchupRecent(cfg, catchupRecentCount);
-            if (doCatchupTo)
-                catchupTo(cfg, catchupToTarget);
-            if (forceSCP)
+            if ((result == 0) && doCatchupAt)
+                result = catchupAt(cfg, catchupAtTarget);
+            if ((result == 0) && doCatchupComplete)
+                result = catchupComplete(cfg);
+            if ((result == 0) && doCatchupRecent)
+                result = catchupRecent(cfg, catchupRecentCount);
+            if ((result == 0) && doCatchupTo)
+                result = catchupTo(cfg, catchupToTarget);
+            if ((result == 0) && forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
-            if (getOfflineInfo)
+            if ((result == 0) && getOfflineInfo)
                 showOfflineInfo(cfg);
-            if (!loadXdrBucket.empty())
+            if ((result == 0) && !loadXdrBucket.empty())
                 loadXdr(cfg, loadXdrBucket);
-            if (inferQuorum)
+            if ((result == 0) && inferQuorum)
                 inferQuorumAndWrite(cfg);
-            if (checkQuorum)
+            if ((result == 0) && checkQuorum)
                 checkQuorumIntersection(cfg);
-            if (graphQuorum)
+            if ((result == 0) && graphQuorum)
                 writeQuorumGraph(cfg);
-            return 0;
+            return result;
         }
         else if (!newHistories.empty())
         {
