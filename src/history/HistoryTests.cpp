@@ -302,7 +302,6 @@ class HistoryTests
         CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
     }
 
-    void crankTillDone();
     void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);
@@ -328,16 +327,6 @@ class HistoryTests
         return mFlip(mGenerator);
     }
 };
-
-void
-HistoryTests::crankTillDone()
-{
-    while (!mApp.getWorkManager().allChildrenDone() &&
-           !mApp.getClock().getIOService().stopped())
-    {
-        mApp.getClock().crank(true);
-    }
-}
 
 void
 HistoryTests::generateAndPublishInitialHistory(size_t nPublishes)
@@ -382,16 +371,12 @@ TEST_CASE_METHOD(HistoryTests, "HistoryManager::compress", "[history]")
     }
     std::string compressed = fname + ".gz";
     auto& wm = mApp.getWorkManager();
-    auto g = wm.addWork<GzipFileWork>(fname);
-    wm.advanceChildren();
-    crankTillDone();
+    auto g = wm.executeWork<GzipFileWork>(true, fname);
     REQUIRE(g->getState() == Work::WORK_SUCCESS);
     REQUIRE(!fs::exists(fname));
     REQUIRE(fs::exists(compressed));
 
-    auto u = wm.addWork<GunzipFileWork>(compressed);
-    wm.advanceChildren();
-    crankTillDone();
+    auto u = wm.executeWork<GunzipFileWork>(true, compressed);
     REQUIRE(u->getState() == Work::WORK_SUCCESS);
     REQUIRE(fs::exists(fname));
     REQUIRE(!fs::exists(compressed));
@@ -409,16 +394,13 @@ TEST_CASE_METHOD(HistoryTests, "HistoryArchiveState::get_put", "[history]")
     has.resolveAllFutures();
 
     auto& wm = mApp.getWorkManager();
-    auto put = wm.addWork<PutHistoryArchiveStateWork>(has, archive);
-    wm.advanceChildren();
-    crankTillDone();
+    auto put = wm.executeWork<PutHistoryArchiveStateWork>(true, has, archive);
     REQUIRE(put->getState() == Work::WORK_SUCCESS);
 
     HistoryArchiveState has2;
-    auto get = wm.addWork<GetHistoryArchiveStateWork>(
-        "get-history-archive-state", has2, 0, std::chrono::seconds(0), archive);
-    wm.advanceChildren();
-    crankTillDone();
+    auto get = wm.executeWork<GetHistoryArchiveStateWork>(
+        true, "get-history-archive-state", has2, 0, std::chrono::seconds(0),
+        archive);
     REQUIRE(get->getState() == Work::WORK_SUCCESS);
     REQUIRE(has2.currentLedger == 0x1234);
 }
