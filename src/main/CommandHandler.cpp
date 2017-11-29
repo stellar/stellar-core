@@ -98,6 +98,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("setcursor",
                       std::bind(&CommandHandler::setcursor, this, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
+    mServer->addRoute("showconfig", std::bind(&CommandHandler::showConfig, this, _1, _2));
     mServer->addRoute("testacc",
                       std::bind(&CommandHandler::testAcc, this, _1, _2));
     mServer->addRoute("testtx",
@@ -765,6 +766,12 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     mApp.getHerder().dumpInfo(root, lim);
 
     retStr = root.toStyledString();
+}
+
+void
+CommandHandler::showConfig(std::string const& params, std::string& retStr)
+{
+    retStr = mApp.getConfig().toJson();
 }
 
 // "Must specify a log level: ll?level=<level>&partition=<name>";

@@ -191,6 +191,7 @@ class Config : public std::enable_shared_from_this<Config>
     Config();
 
     void load(std::string const& filename);
+	std::string toJson() const;
 
     std::string toShortString(PublicKey const& pk) const;
     std::string toStrKey(PublicKey const& pk, bool& isAlias) const;

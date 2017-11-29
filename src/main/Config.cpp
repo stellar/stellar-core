@@ -7,9 +7,12 @@
 #include "StellarCoreVersion.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "database/DatabaseConnectionString.h"
 #include "history/HistoryArchive.h"
+#include "lib/json/json.h"
 #include "scp/LocalNode.h"
 #include "util/Logging.h"
+#include "util/Timer.h"
 #include "util/types.h"
 
 #include <functional>
@@ -701,6 +704,122 @@ Config::load(std::string const& filename)
         err += ex.what();
         throw std::invalid_argument(err);
     }
+}
+
+Json::Value
+makeQuorumSetNode(stellar::SCPQuorumSet const& value)
+{
+    Json::Value node;
+    node["threshold"] = value.threshold;
+
+    Json::Value validators;
+    for (auto const& key : value.validators) {
+        validators.append(KeyUtils::toStrKey(key));
+    }
+    node["validators"] = std::move(validators);
+
+    Json::Value innerSets;
+    for (auto const& set : value.innerSets) {
+        innerSets.append(makeQuorumSetNode(set));
+    }
+    node["innerSets"] = std::move(innerSets);
+
+    return node;
+}
+
+Json::Value
+makeHistoryNode(std::shared_ptr<HistoryArchive> history)
+{
+    Json::Value node;
+    node["name"] = history->getName();
+    if (history->hasGetCmd()) {
+        node["getCmd"] = history->getFileCmd("<remote>", "<local>");
+    }
+    if (history->hasPutCmd()) {
+        node["putCmd"] = history->putFileCmd("<local>", "<remote>");
+    }
+    if (history->hasMkdirCmd()) {
+        node["mkdirCmd"] = history->mkdirCmd("<remote_dir>");
+    }
+    return node;
+}
+
+std::string
+Config::toJson() const
+{
+    Json::Value root;
+
+    auto addVector = [&root](std::string const& name, std::vector<std::string> const& values) {
+        Json::Value vector;
+        for (auto const& elem : values) {
+            vector.append(elem);
+        }
+        root[name] = std::move(vector);
+    };
+
+    root["CURRENT_LEDGER_PROTOCOL_VERSION"] = CURRENT_LEDGER_PROTOCOL_VERSION;
+    root["FORCE_SCP"] = FORCE_SCP;
+    root["RUN_STANDALONE"] = RUN_STANDALONE;
+    root["MANUAL_CLOSE"] = MANUAL_CLOSE;
+    root["CATCHUP_COMPLETE"] = CATCHUP_COMPLETE;
+    root["CATCHUP_RECENT"] = CATCHUP_RECENT;
+    root["MAINTENANCE_ON_STARTUP"] = MAINTENANCE_ON_STARTUP;
+    root["ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING"] = ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING;
+    root["ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING"] = ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING;
+    root["ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING"] = ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING;
+    root["ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING"] = ARTIFICIALLY_PESSIMIZE_MERGES_FOR_TESTING;
+    root["ALLOW_LOCALHOST_FOR_TESTING"] = ALLOW_LOCALHOST_FOR_TESTING;
+    root["FAILURE_SAFETY"] = FAILURE_SAFETY;
+    root["UNSAFE_QUORUM"] = UNSAFE_QUORUM;
+    root["LEDGER_PROTOCOL_VERSION"] = LEDGER_PROTOCOL_VERSION;
+    if (PREFERRED_UPGRADE_DATETIME) {
+        root["PREFERRED_UPGRADE_DATETIME"] = VirtualClock::tmToISOString(*PREFERRED_UPGRADE_DATETIME);
+    }
+    root["OVERLAY_PROTOCOL_MIN_VERSION"] = OVERLAY_PROTOCOL_MIN_VERSION;
+    root["OVERLAY_PROTOCOL_VERSION"] = OVERLAY_PROTOCOL_VERSION;
+    root["VERSION_STR"] = VERSION_STR;
+    root["LOG_FILE_PATH"] = LOG_FILE_PATH;
+    root["BUCKET_DIR_PATH"] = BUCKET_DIR_PATH;
+    root["DESIRED_BASE_FEE"] = DESIRED_BASE_FEE;
+    root["DESIRED_BASE_RESERVE"] = DESIRED_BASE_RESERVE;
+    root["DESIRED_MAX_TX_PER_LEDGER"] = DESIRED_MAX_TX_PER_LEDGER;
+    root["HTTP_PORT"] = HTTP_PORT;
+    root["PUBLIC_HTTP_PORT"] = PUBLIC_HTTP_PORT;
+    root["HTTP_MAX_CLIENT"] = HTTP_MAX_CLIENT;
+    root["NETWORK_PASSPHRASE"] = NETWORK_PASSPHRASE;
+    root["PEER_PORT"] = PEER_PORT;
+    root["TARGET_PEER_CONNECTIONS"] = TARGET_PEER_CONNECTIONS;
+    root["MAX_PEER_CONNECTIONS"] = MAX_PEER_CONNECTIONS;
+    addVector("PREFERRED_PEERS", PREFERRED_PEERS);
+    addVector("KNOWN_PEERS", KNOWN_PEERS);
+    addVector("PREFERRED_PEER_KEYS", PREFERRED_PEER_KEYS);
+    root["PREFERRED_PEERS_ONLY"] = PREFERRED_PEERS_ONLY;
+    root["MINIMUM_IDLE_PERCENT"] = MINIMUM_IDLE_PERCENT;
+    root["MAX_CONCURRENT_SUBPROCESSES"] = static_cast<uint32_t>(MAX_CONCURRENT_SUBPROCESSES);
+    root["NODE_IS_VALIDATOR"] = NODE_IS_VALIDATOR;
+    root["INVARIANT_CHECK_BALANCE"] = INVARIANT_CHECK_BALANCE;
+    root["INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT"] = INVARIANT_CHECK_ACCOUNT_SUBENTRY_COUNT;
+    root["INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE"] = INVARIANT_CHECK_CACHE_CONSISTENT_WITH_DATABASE;
+    root["QUORUM_SET"] = makeQuorumSetNode(QUORUM_SET);
+    
+    Json::Value validatorNames;
+    for (auto const& kv : VALIDATOR_NAMES) {
+        validatorNames[kv.first] = kv.second;
+    }
+    root["VALIDATOR_NAMES"] = validatorNames;
+    root["DATABASE"] = removePasswordFromConnectionString(DATABASE.value);
+
+    Json::Value history;
+    for (auto const& kv : HISTORY) {
+        history[kv.first] = makeHistoryNode(kv.second);
+    }
+    root["HISTORY"] = history;
+
+    addVector("COMMANDS", COMMANDS);
+    addVector("REPORT_METRICS", REPORT_METRICS);
+    root["NTP_SERVER"] = NTP_SERVER;
+
+    return root.toStyledString();
 }
 
 void
