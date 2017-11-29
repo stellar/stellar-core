@@ -388,7 +388,7 @@ reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
             outputFile.empty() ? "lasthistorycheckpoint.json" : outputFile;
         state.save(filename);
         LOG(INFO) << "*";
-        LOG(INFO) << "Wrote last history checkpoint " << filename;
+        LOG(INFO) << "* Wrote last history checkpoint " << filename;
         LOG(INFO) << "*";
     }
     else
