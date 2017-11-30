@@ -371,7 +371,7 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
 {
     std::string filename = outputFile.empty() ? "catchupInfo.json" : outputFile;
     auto content = catchupInfo.toStyledString();
-    auto out = std::ofstream{};
+    std::ofstream out{};
     out.open(filename);
     out.write(content.c_str(), content.size());
     out.close();
