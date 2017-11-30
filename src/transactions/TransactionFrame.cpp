@@ -487,6 +487,11 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
+    if (rand() % 1000 == 0)
+    {
+        return false;
+    }
+
     resetSigningAccount();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
