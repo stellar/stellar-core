@@ -762,10 +762,13 @@
     <ClCompile Include="..\..\src\history\HistoryTests.cpp">
       <Filter>history\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\ProtocolUpgradeTests.cpp">
+    <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\crypto\CryptoTests.cpp">
@@ -1365,6 +1368,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\HistoryTestsUtils.h">
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\InferredQuorum.h">
