@@ -196,8 +196,32 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            maxAmountOfSheepCanSell =
-                mSourceAccount->getBalanceAboveReserve(ledgerManager);
+            if (creatingNewOffer &&
+                app.getLedgerManager().getCurrentLedgerVersion() > 8)
+            {
+                // we need to compute maxAmountOfSheepCanSell based on the
+                // updated reserve to avoid selling too many and falling
+                // below the reserve when we try to create the offer later on
+                if (!mSourceAccount->addNumEntries(1, ledgerManager))
+                {
+                    app.getMetrics()
+                        .NewMeter({"op-manage-offer", "invalid", "low reserve"},
+                                  "operation")
+                        .Mark();
+                    innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+                    return false;
+                }
+                maxAmountOfSheepCanSell =
+                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
+                // restore the number back (will be re-incremented later if
+                // the offer really needs to be created)
+                mSourceAccount->addNumEntries(-1, ledgerManager);
+            }
+            else
+            {
+                maxAmountOfSheepCanSell =
+                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
+            }
         }
         else
         {
@@ -352,7 +376,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         if (creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have
-            // the minbalance
+            // the minbalance (should never happen at this stage in v9+)
             if (!mSourceAccount->addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()
