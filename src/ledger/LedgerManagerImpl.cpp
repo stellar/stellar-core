@@ -314,7 +314,11 @@ LedgerManagerImpl::getMaxTxSetSize() const
 int64_t
 LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
 {
-    return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
+    auto& lh = mCurrentLedger->mHeader;
+    if (lh.ledgerVersion <= 8)
+        return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
+    else
+        return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
 }
 
 uint32_t
