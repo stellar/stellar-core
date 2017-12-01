@@ -487,7 +487,7 @@ bool
 TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                         Application& app)
 {
-    if (rand() % 1000 == 0)
+    if (rand() % 10 == 0)
     {
         return false;
     }
