@@ -205,15 +205,15 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
 
         // the maximum is defined by how much wheat it can receive
-        int64_t maxWheatCanSell;
+        int64_t maxWheatCanBuy;
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            maxWheatCanSell = INT64_MAX;
+            maxWheatCanBuy = INT64_MAX;
         }
         else
         {
-            maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
-            if (maxWheatCanSell == 0)
+            maxWheatCanBuy = mWheatLineA->getMaxAmountReceive();
+            if (maxWheatCanBuy == 0)
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-offer", "invalid", "line-full"},
@@ -228,7 +228,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         {
             int64_t maxSheepBasedOnWheat;
-            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
+            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanBuy, sheepPrice.d,
                            sheepPrice.n, ROUND_DOWN))
             {
                 maxSheepBasedOnWheat = INT64_MAX;
@@ -241,8 +241,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
 
         // amount of sheep for sale is the lesser of amount we can sell and
-        // amount
-        // put in the offer
+        // amount put in the offer
         if (maxAmountOfSheepCanSell < maxSheepSend)
         {
             maxSheepSend = maxAmountOfSheepCanSell;
@@ -255,7 +254,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
+            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanBuy,
             wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
                 if (o.getOfferID() == mSellSheepOffer->getOfferID())
                 {
