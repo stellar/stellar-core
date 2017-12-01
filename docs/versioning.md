@@ -12,16 +12,39 @@ Protocol in this case is defined both as "wire format" (ie, the serialized forms
 This version number is incremented every time the protocol changes.
 
 ### Integration with consensus
-Most of the time consensus is simply reached on which transaction set needs to be applied to the previous ledger.
+Most of the time consensus is simply reached on which transaction set needs to
+be applied to the previous ledger.
 
 However consensus can in addition be reached on upgrade steps.
 
-One such upgrade step is something like "update ledgerVersion to value X after ledger N".
+One such upgrade step is something like "update ledgerVersion to value X after
+current ledger".
 
-If nodes do not consider that the upgrade set is valid they simply drop the upgrade step from their vote.
-A node considers a step invalid either because they do not understand it or some condition is not met (in the previous example it could be that X is not supported by the node or that the ledger number didn't reach N yet).
+If nodes do not consider that the upgrade set is valid they simply drop the
+upgrade step from their vote. A node considers a step invalid either because
+they do not understand it, its value differs for this node configuration, or
+network time is before PREFERRED_UPGRADE_DATETIME.
 
-Upgrade steps are applied before applying the transaction set, this ensures that the logic scheduling steps is the same processing it (otherwise, the steps would have to be applied after the ledger is closed).
+Upgrades are applied after applying the transaction set. It is done this way
+because the transaction set is validated against the last closed ledger,
+independently of any upgrades. For example, this allows to update `baseFee`
+without risking invalidating transactions for the current ledger.
+
+Supported upgrades are encoded using LedgerUpgradeType.
+
+Following configuration options are responsible for upgrades:
+* PREFERRED_UPGRADE_DATETIME - sets minimum time for node to accept and
+  nominate upgrades
+* DESIRED_BASE_FEE - upgrades value of baseFee in ledger header, uses upgrade
+  type LEDGER_UPGRADE_BASE_FEE
+* DESIRED_MAX_TX_PER_LEDGER - upgrades value of maxTxSetSize in ledger header,
+  uses upgrade type LEDGER_UPGRADE_MAX_TX_SET_SIZE
+* DESIRED_BASE_RESERVE - upgrades value of baseReserve in ledger header, uses
+  upgrade type LEDGER_UPGRADE_BASE_RESERVE
+
+Additionally node will vote for change of ledgerVersion field with its
+non-configurable build-in LEDGER_PROTOCOL_VERSION field (which uses upgrade
+type LEDGER_UPGRADE_VERSION).
 
 ### Supported versions
 Each node has its own way of tracking which version it supports, for example a "min version", "max version"; but it can also include things like "black listed versions". This is not tracked from within the protocol.

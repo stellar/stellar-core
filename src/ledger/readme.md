@@ -59,16 +59,7 @@ basically a time stamp that all nodes agreed upon.
 This represent an additional set of contracts that got applied to the ledger
 header after applying the transaction set.
 
-Supported upgrades are encoded using LedgerUpgradeType.
-An upgrade typically encodes both a set of conditions and an update to perform
-on the ledger header. For example, LEDGER_UPGRADE_BASE_FEE used to change the
-value of `baseFee`, will only accept values for `baseFee` that are within a
-range defined in the nodes configuration file.
-
-The reason it is done after applying the transaction set is that the
-transaction set is validated against the last closed ledger, independently of
-any upgrades. For example, this allows to update `baseFee` (see ledger header)
-without risking invalidating transactions for the current ledger.
+For more information look at [`docs/versioning.md`](../../docs/versioning.md)
 
 ### Other notable fields from the ledger header
 #### Hash of the previous ledger header

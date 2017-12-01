@@ -209,6 +209,14 @@ IMPORTANT:
  will result in undefined behavior, *potentially data loss*.
  * do not run `newhist` on an existing archive unless you want to erase it
 
+## Network configuration
+Each validator can vote for several configuration aspects of network, including
+current protocol version, base fee, base reserve and maximum number of
+transactions per ledger.
+
+Voting starts when network time is at or later than PREFERRED_UPGRADE_DATETIME
+set in configuration. More information about configuration is available at
+For more information look at [`docs/versioning.md`](../versioning.md).
 
 # Quorum
 
