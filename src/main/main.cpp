@@ -369,16 +369,26 @@ catchupTo(Config const& cfg, uint32_t to, Json::Value& catchupInfo)
 static void
 writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
 {
-    std::string filename = outputFile.empty() ? "catchupInfo.json" : outputFile;
+    std::string filename = outputFile.empty() ? "-" : outputFile;
     auto content = catchupInfo.toStyledString();
-    std::ofstream out{};
-    out.open(filename);
-    out.write(content.c_str(), content.size());
-    out.close();
 
-    LOG(INFO) << "*";
-    LOG(INFO) << "* Wrote catchup info to " << filename;
-    LOG(INFO) << "*";
+    if (filename == "-")
+    {
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Catchup info to " << content;
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        std::ofstream out{};
+        out.open(filename);
+        out.write(content.c_str(), content.size());
+        out.close();
+
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Wrote catchup info to " << filename;
+        LOG(INFO) << "*";
+    }
 }
 
 static int
@@ -401,12 +411,21 @@ reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
     auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
     if (ok)
     {
-        std::string filename =
-            outputFile.empty() ? "lasthistorycheckpoint.json" : outputFile;
-        state.save(filename);
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Wrote last history checkpoint " << filename;
-        LOG(INFO) << "*";
+        std::string filename = outputFile.empty() ? "-" : outputFile;
+
+        if (filename == "-")
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Last history checkpoint " << state.toString();
+            LOG(INFO) << "*";
+        }
+        else
+        {
+            state.save(filename);
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Wrote last history checkpoint " << filename;
+            LOG(INFO) << "*";
+        }
     }
     else
     {
@@ -552,9 +571,23 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile)
         Application::pointer app = Application::create(clock, cfg);
         iq = app->getHistoryManager().inferQuorum();
     }
-    std::string filename = outputFile.empty() ? "quorumgraph.dot" : outputFile;
-    iq.writeQuorumGraph(cfg, filename);
-    LOG(INFO) << "Wrote quorum graph to " << filename;
+    std::string filename = outputFile.empty() ? "-" : outputFile;
+    if (filename == "-")
+    {
+        std::stringstream out;
+        iq.writeQuorumGraph(cfg, out);
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Quorum graph: " << out.str();
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        std::ofstream out(filename);
+        iq.writeQuorumGraph(cfg, out);
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Wrote quorum graph to " << filename;
+        LOG(INFO) << "*";
+    }
 }
 
 static void
