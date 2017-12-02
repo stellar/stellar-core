@@ -24,7 +24,7 @@ struct InferredQuorum
     void noteQsetHash(PublicKey const& pk, Hash const& hash);
     void notePubKey(PublicKey const& pk);
     std::string toString(Config const& cfg) const;
-    void writeQuorumGraph(Config const& cfg, std::string const& filename) const;
+    void writeQuorumGraph(Config const& cfg, std::ostream& out) const;
     bool checkQuorumIntersection(Config const& cfg) const;
 };
 }

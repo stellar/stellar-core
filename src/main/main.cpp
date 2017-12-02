@@ -262,7 +262,8 @@ checkInitialized(Application::pointer app)
 }
 
 static int
-catchup(Config const& cfg, uint32_t to, uint32_t count)
+catchup(Config const& cfg, uint32_t to, uint32_t count,
+        Json::Value& catchupInfo)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     Application::pointer app = Application::create(clock, cfg, false);
@@ -332,6 +333,7 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
         }
     }
 
+    catchupInfo = app->getJsonInfo();
     app->gracefulStop();
     while (clock.crank(true))
         ;
@@ -340,28 +342,53 @@ catchup(Config const& cfg, uint32_t to, uint32_t count)
 }
 
 static int
-catchupAt(Config const& cfg, uint32_t at)
+catchupAt(Config const& cfg, uint32_t at, Json::Value& catchupInfo)
 {
-    return catchup(cfg, at, 0);
+    return catchup(cfg, at, 0, catchupInfo);
 }
 
 static int
-catchupComplete(Config const& cfg)
+catchupComplete(Config const& cfg, Json::Value& catchupInfo)
 {
     return catchup(cfg, CatchupConfiguration::CURRENT,
-                   std::numeric_limits<uint32_t>::max());
+                   std::numeric_limits<uint32_t>::max(), catchupInfo);
 }
 
 static int
-catchupRecent(Config const& cfg, uint32_t count)
+catchupRecent(Config const& cfg, uint32_t count, Json::Value& catchupInfo)
 {
-    return catchup(cfg, CatchupConfiguration::CURRENT, count);
+    return catchup(cfg, CatchupConfiguration::CURRENT, count, catchupInfo);
 }
 
 static int
-catchupTo(Config const& cfg, uint32_t to)
+catchupTo(Config const& cfg, uint32_t to, Json::Value& catchupInfo)
 {
-    return catchup(cfg, to, std::numeric_limits<uint32_t>::max());
+    return catchup(cfg, to, std::numeric_limits<uint32_t>::max(), catchupInfo);
+}
+
+static void
+writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
+{
+    std::string filename = outputFile.empty() ? "-" : outputFile;
+    auto content = catchupInfo.toStyledString();
+
+    if (filename == "-")
+    {
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Catchup info to " << content;
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        std::ofstream out{};
+        out.open(filename);
+        out.write(content.c_str(), content.size());
+        out.close();
+
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Wrote catchup info to " << filename;
+        LOG(INFO) << "*";
+    }
 }
 
 static int
@@ -384,12 +411,21 @@ reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
     auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
     if (ok)
     {
-        std::string filename =
-            outputFile.empty() ? "lasthistorycheckpoint.json" : outputFile;
-        state.save(filename);
-        LOG(INFO) << "*";
-        LOG(INFO) << "Wrote last history checkpoint " << filename;
-        LOG(INFO) << "*";
+        std::string filename = outputFile.empty() ? "-" : outputFile;
+
+        if (filename == "-")
+        {
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Last history checkpoint " << state.toString();
+            LOG(INFO) << "*";
+        }
+        else
+        {
+            state.save(filename);
+            LOG(INFO) << "*";
+            LOG(INFO) << "* Wrote last history checkpoint " << filename;
+            LOG(INFO) << "*";
+        }
     }
     else
     {
@@ -535,9 +571,23 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile)
         Application::pointer app = Application::create(clock, cfg);
         iq = app->getHistoryManager().inferQuorum();
     }
-    std::string filename = outputFile.empty() ? "quorumgraph.dot" : outputFile;
-    iq.writeQuorumGraph(cfg, filename);
-    LOG(INFO) << "Wrote quorum graph to " << filename;
+    std::string filename = outputFile.empty() ? "-" : outputFile;
+    if (filename == "-")
+    {
+        std::stringstream out;
+        iq.writeQuorumGraph(cfg, out);
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Quorum graph: " << out.str();
+        LOG(INFO) << "*";
+    }
+    else
+    {
+        std::ofstream out(filename);
+        iq.writeQuorumGraph(cfg, out);
+        LOG(INFO) << "*";
+        LOG(INFO) << "* Wrote quorum graph to " << filename;
+        LOG(INFO) << "*";
+    }
 }
 
 static void
@@ -805,18 +855,22 @@ main(int argc, char* const* argv)
             doCatchupComplete || doCatchupRecent || doCatchupTo ||
             doReportLastHistoryCheckpoint)
         {
+            Json::Value catchupInfo;
+
             auto result = 0;
             setNoListen(cfg);
             if ((result == 0) && newDB)
                 initializeDatabase(cfg);
             if ((result == 0) && doCatchupAt)
-                result = catchupAt(cfg, catchupAtTarget);
+                result = catchupAt(cfg, catchupAtTarget, catchupInfo);
             if ((result == 0) && doCatchupComplete)
-                result = catchupComplete(cfg);
+                result = catchupComplete(cfg, catchupInfo);
             if ((result == 0) && doCatchupRecent)
-                result = catchupRecent(cfg, catchupRecentCount);
+                result = catchupRecent(cfg, catchupRecentCount, catchupInfo);
             if ((result == 0) && doCatchupTo)
-                result = catchupTo(cfg, catchupToTarget);
+                result = catchupTo(cfg, catchupToTarget, catchupInfo);
+            if (!catchupInfo.isNull())
+                writeCatchupInfo(catchupInfo, outputFile);
             if ((result == 0) && forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
             if ((result == 0) && getOfflineInfo)

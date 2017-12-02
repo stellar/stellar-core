@@ -9,6 +9,7 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
+#include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
@@ -205,11 +206,52 @@ ApplicationImpl::reportCfgMetrics()
     }
 }
 
+Json::Value
+ApplicationImpl::getJsonInfo()
+{
+    auto root = Json::Value{};
+
+    auto& lm = getLedgerManager();
+
+    auto& info = root["info"];
+
+    if (getConfig().UNSAFE_QUORUM)
+        info["UNSAFE_QUORUM"] = "UNSAFE QUORUM ALLOWED";
+    info["build"] = STELLAR_CORE_VERSION;
+    info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
+    info["state"] = getStateHuman();
+    info["ledger"]["num"] = (int)lm.getLedgerNum();
+    info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
+    info["ledger"]["closeTime"] =
+        (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
+    info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
+    info["numPeers"] = (int)getOverlayManager().getPeers().size();
+    info["network"] = getConfig().NETWORK_PASSPHRASE;
+
+    auto& statusMessages = getStatusManager();
+    auto counter = 0;
+    for (auto statusMessage : statusMessages)
+    {
+        info["status"][counter++] = statusMessage.second;
+    }
+
+    auto& herder = getHerder();
+    Json::Value q;
+    herder.dumpQuorumInfo(q, getConfig().NODE_SEED.getPublicKey(), true,
+                          herder.getCurrentLedgerSeq());
+    if (q["slots"].size() != 0)
+    {
+        info["quorum"] = q["slots"];
+    }
+
+    return root;
+}
+
 void
 ApplicationImpl::reportInfo()
 {
     mLedgerManager->loadLastKnownLedger(nullptr);
-    mCommandHandler->manualCmd("info");
+    LOG(INFO) << "info -> " << getJsonInfo().toStyledString();
 }
 
 Hash const&

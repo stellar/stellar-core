@@ -6,6 +6,7 @@
 
 #include "main/Config.h"
 #include "xdr/Stellar-types.h"
+#include <lib/json/json.h>
 #include <memory>
 #include <string>
 
@@ -248,6 +249,9 @@ class Application
     // Report, via standard logging, the current state any metrics defined in
     // the Config.REPORT_METRICS (or passed on the command line with --metric)
     virtual void reportCfgMetrics() = 0;
+
+    // Get information about the instance as JSON object
+    virtual Json::Value getJsonInfo() = 0;
 
     // Report information about the instance to standard logging
     virtual void reportInfo() = 0;

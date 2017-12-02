@@ -98,6 +98,8 @@ class ApplicationImpl : public Application
 
     virtual void reportCfgMetrics() override;
 
+    virtual Json::Value getJsonInfo() override;
+
     virtual void reportInfo() override;
 
     virtual Hash const& getNetworkID() const override;

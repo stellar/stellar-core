@@ -336,10 +336,8 @@ InferredQuorum::toString(Config const& cfg) const
 }
 
 void
-InferredQuorum::writeQuorumGraph(Config const& cfg,
-                                 std::string const& filename) const
+InferredQuorum::writeQuorumGraph(Config const& cfg, std::ostream& out) const
 {
-    std::ofstream out(filename);
     out << "digraph {" << std::endl;
     for (auto const& pkq : mQsetHashes)
     {

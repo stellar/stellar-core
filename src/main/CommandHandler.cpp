@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/CommandHandler.h"
-#include "StellarCoreVersion.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
@@ -419,44 +418,9 @@ CommandHandler::peers(std::string const& params, std::string& retStr)
 }
 
 void
-CommandHandler::info(std::string const& params, std::string& retStr)
+CommandHandler::info(std::string const&, std::string& retStr)
 {
-    Json::Value root;
-
-    auto& lm = mApp.getLedgerManager();
-
-    auto& info = root["info"];
-
-    if (mApp.getConfig().UNSAFE_QUORUM)
-        info["UNSAFE_QUORUM"] = "UNSAFE QUORUM ALLOWED";
-    info["build"] = STELLAR_CORE_VERSION;
-    info["protocol_version"] = mApp.getConfig().LEDGER_PROTOCOL_VERSION;
-    info["state"] = mApp.getStateHuman();
-    info["ledger"]["num"] = (int)lm.getLedgerNum();
-    info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
-    info["ledger"]["closeTime"] =
-        (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
-    info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    info["numPeers"] = (int)mApp.getOverlayManager().getPeers().size();
-    info["network"] = mApp.getConfig().NETWORK_PASSPHRASE;
-
-    auto& statusMessages = mApp.getStatusManager();
-    auto counter = 0;
-    for (auto statusMessage : statusMessages)
-    {
-        info["status"][counter++] = statusMessage.second;
-    }
-
-    auto& herder = mApp.getHerder();
-    Json::Value q;
-    herder.dumpQuorumInfo(q, mApp.getConfig().NODE_SEED.getPublicKey(), true,
-                          herder.getCurrentLedgerSeq());
-    if (q["slots"].size() != 0)
-    {
-        info["quorum"] = q["slots"];
-    }
-
-    retStr = root.toStyledString();
+    retStr = mApp.getJsonInfo().toStyledString();
 }
 
 void
