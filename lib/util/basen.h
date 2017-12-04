@@ -244,6 +244,12 @@ void encode(Iter1 start, Iter1 end, Iter2 out)
             start_bit = (start_bit + ConversionTraits::group_length()) % 8;
         }
     }
+
+    while (start_bit != 0)
+    {
+        *out++ = '=';
+        start_bit = (start_bit + ConversionTraits::group_length()) % 8;
+    }
 }
 
 } // impl
