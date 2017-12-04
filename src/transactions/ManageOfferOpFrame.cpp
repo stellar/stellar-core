@@ -196,8 +196,32 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            maxAmountOfSheepCanSell =
-                mSourceAccount->getBalanceAboveReserve(ledgerManager);
+            if (creatingNewOffer &&
+                app.getLedgerManager().getCurrentLedgerVersion() > 8)
+            {
+                // we need to compute maxAmountOfSheepCanSell based on the
+                // updated reserve to avoid selling too many and falling
+                // below the reserve when we try to create the offer later on
+                if (!mSourceAccount->addNumEntries(1, ledgerManager))
+                {
+                    app.getMetrics()
+                        .NewMeter({"op-manage-offer", "invalid", "low reserve"},
+                                  "operation")
+                        .Mark();
+                    innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+                    return false;
+                }
+                maxAmountOfSheepCanSell =
+                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
+                // restore the number back (will be re-incremented later if
+                // the offer really needs to be created)
+                mSourceAccount->addNumEntries(-1, ledgerManager);
+            }
+            else
+            {
+                maxAmountOfSheepCanSell =
+                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
+            }
         }
         else
         {
@@ -205,15 +229,15 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
 
         // the maximum is defined by how much wheat it can receive
-        int64_t maxWheatCanSell;
+        int64_t maxWheatCanBuy;
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            maxWheatCanSell = INT64_MAX;
+            maxWheatCanBuy = INT64_MAX;
         }
         else
         {
-            maxWheatCanSell = mWheatLineA->getMaxAmountReceive();
-            if (maxWheatCanSell == 0)
+            maxWheatCanBuy = mWheatLineA->getMaxAmountReceive();
+            if (maxWheatCanBuy == 0)
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-offer", "invalid", "line-full"},
@@ -228,7 +252,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         {
             int64_t maxSheepBasedOnWheat;
-            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanSell, sheepPrice.d,
+            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanBuy, sheepPrice.d,
                            sheepPrice.n, ROUND_DOWN))
             {
                 maxSheepBasedOnWheat = INT64_MAX;
@@ -241,8 +265,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
 
         // amount of sheep for sale is the lesser of amount we can sell and
-        // amount
-        // put in the offer
+        // amount put in the offer
         if (maxAmountOfSheepCanSell < maxSheepSend)
         {
             maxSheepSend = maxAmountOfSheepCanSell;
@@ -255,7 +278,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanSell,
+            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanBuy,
             wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
                 if (o.getOfferID() == mSellSheepOffer->getOfferID())
                 {
@@ -353,7 +376,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         if (creatingNewOffer)
         {
             // make sure we don't allow us to add offers when we don't have
-            // the minbalance
+            // the minbalance (should never happen at this stage in v9+)
             if (!mSourceAccount->addNumEntries(1, ledgerManager))
             {
                 app.getMetrics()

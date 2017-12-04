@@ -16,6 +16,7 @@
 #include "transactions/OfferExchange.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/format.h"
 #include "util/make_unique.h"
 
 using namespace stellar;
@@ -461,13 +462,119 @@ TEST_CASE("create offer", "[tx][offers]")
 
         SECTION("xlm -> idr")
         {
-            for_all_versions(*app, [&] {
-                market.requireChangesWithOffer({}, [&] {
-                    return market.addOffer(a1, {idr, xlm, Price{3, 2}, 100});
+            SECTION("create")
+            {
+                for_all_versions(*app, [&] {
+                    market.requireChangesWithOffer({}, [&] {
+                        return market.addOffer(a1,
+                                               {idr, xlm, Price{3, 2}, 100});
+                    });
                 });
-            });
-        }
+            }
+            SECTION("crossing + create")
+            {
+                int64 a1IDrs = trustLineBalance;
 
+                // a1 is selling a1IDrs idr
+                auto a1Offer = market.requireChangesWithOffer({}, [&] {
+                    return market.addOffer(a1, {idr, xlm, Price{1, 1}, a1IDrs});
+                });
+
+                auto checkCrossed = [&](TestAccount& b1, int64 actualPayment,
+                                        int64 offerAmount) {
+                    auto b1Before = b1.getBalance();
+                    auto a1Before = a1.getBalance();
+                    auto b1Offer =
+                        market.addOffer(b1, {xlm, idr, oneone, offerAmount},
+                                        OfferState::DELETED);
+                    market.requireBalances(
+                        {{a1,
+                          {{xlm, a1Before + actualPayment},
+                           {idr, trustLineBalance - actualPayment}}},
+                         {b1,
+                          {{xlm, b1Before - txfee - actualPayment},
+                           {idr, actualPayment}}}});
+                };
+                SECTION("small offer amount - cross only")
+                {
+                    auto base0 = app->getLedgerManager().getMinBalance(1);
+
+                    auto offerAmount = 1000;
+
+                    int64 bStartingBalance;
+                    bStartingBalance = base0;
+                    // changetrust + manageoffer
+                    bStartingBalance += txfee * 2;
+                    bStartingBalance += offerAmount;
+
+                    auto b1 = root.create("B", bStartingBalance);
+                    b1.changeTrust(idr, 1000000000000000000ll);
+
+                    for_versions_to(8, *app, [&]() {
+                        checkCrossed(b1, offerAmount, offerAmount);
+                    });
+
+                    for_versions_from(9, *app, [&]() {
+                        // would need at least base1 to do anything
+                        REQUIRE_THROWS_AS(
+                            market.requireChangesWithOffer(
+                                {},
+                                [&] {
+                                    return market.addOffer(
+                                        b1, {xlm, idr, oneone, offerAmount});
+                                }),
+                            ex_MANAGE_OFFER_LOW_RESERVE);
+                    });
+                }
+                SECTION("large amount (oversell) - cross & create")
+                {
+                    auto const base2 = app->getLedgerManager().getMinBalance(2);
+
+                    const int64 delta = 100;
+                    const int64 payment = 1000;
+                    auto offerAmount = a1IDrs + payment;
+
+                    int64 bStartingBalance;
+                    // we would have 2 subentries after creating an offer
+                    bStartingBalance = base2;
+                    // changetrust + manageoffer
+                    bStartingBalance += txfee * 2;
+                    bStartingBalance += a1IDrs - delta;
+
+                    auto b1 = root.create("B", bStartingBalance);
+                    b1.changeTrust(idr, 1000000000000000000ll);
+
+                    for_versions_to(8, *app, [&]() {
+                        // in v1..8
+                        // oversell scenario is:
+                        // endBalance = start - 2*txfee - actualPayment
+                        // with actualPayment == a1IDrs (so that it needs to
+                        // create an offer)
+                        // endBalance < base2  ==> can't create offer
+
+                        REQUIRE_THROWS_AS(
+                            market.requireChangesWithOffer(
+                                {},
+                                [&] {
+                                    return market.addOffer(
+                                        b1, {xlm, idr, oneone, offerAmount});
+                                }),
+                            ex_MANAGE_OFFER_LOW_RESERVE);
+                    });
+
+                    for_versions_from(9, *app, [&]() {
+                        // in v9, we sell as much as possible above base1
+                        // endBalance = base1
+                        // actualPayment = start - 2*txfee - endBalance
+                        //    = base2 + 2*txfee + a1IDrs - delta - 2*txfee -
+                        //                                        base2
+                        //    = a1IDrs - delta
+                        auto actualPayment = a1IDrs - delta;
+                        checkCrossed(b1, actualPayment, offerAmount);
+                    });
+                }
+            }
+        }
         SECTION("multiple offers")
         {
             auto b1 = root.create("B", minBalance3 + 10000);
