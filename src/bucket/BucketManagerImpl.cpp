@@ -351,6 +351,13 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
         mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
     mBucketList.restartMerges(mApp);
+    for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
+    {
+        if (mBucketList.getLevel(i).getNext().hasOutputHash())
+        {
+            mBucketList.getLevel(i).getNext().resolve()->setRetain(true);
+        }
+    }
 }
 
 void
