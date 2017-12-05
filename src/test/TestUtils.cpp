@@ -29,6 +29,29 @@ BucketListDepthModifier::~BucketListDepthModifier()
 }
 }
 
+TestInvariantManager::TestInvariantManager(medida::MetricsRegistry& registry)
+    : InvariantManagerImpl(registry)
+{
+}
+
+void
+TestInvariantManager::handleInvariantFailure(
+    std::shared_ptr<Invariant> invariant, std::string const& message) const
+{
+    throw InvariantDoesNotHold{message};
+}
+
+TestApplication::TestApplication(VirtualClock& clock, Config const& cfg)
+    : ApplicationImpl(clock, cfg)
+{
+}
+
+std::unique_ptr<InvariantManager>
+TestApplication::createInvariantManager()
+{
+    return make_unique<TestInvariantManager>(getMetrics());
+}
+
 time_t
 getTestDate(int day, int month, int year)
 {

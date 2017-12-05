@@ -109,7 +109,7 @@ ApplicationImpl::initialize()
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
     mHistoryManager = HistoryManager::create(*this);
-    mInvariantManager = InvariantManager::create(*this);
+    mInvariantManager = createInvariantManager();
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
@@ -710,6 +710,12 @@ std::unique_ptr<Herder>
 ApplicationImpl::createHerder()
 {
     return Herder::create(*this);
+}
+
+std::unique_ptr<InvariantManager>
+ApplicationImpl::createInvariantManager()
+{
+    return InvariantManager::create(*this);
 }
 
 std::unique_ptr<OverlayManager>

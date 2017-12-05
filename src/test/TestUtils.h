@@ -5,8 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketList.h"
+#include "invariant/InvariantDoesNotHold.h"
+#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerManagerImpl.h"
 #include "main/ApplicationImpl.h"
+#include <type_traits>
 
 namespace stellar
 {
@@ -26,7 +29,29 @@ class BucketListDepthModifier
 };
 }
 
-template <typename T = ApplicationImpl>
+class TestInvariantManager : public InvariantManagerImpl
+{
+  public:
+    TestInvariantManager(medida::MetricsRegistry& registry);
+
+  private:
+    virtual void
+    handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+                           std::string const& message) const override;
+};
+
+class TestApplication : public ApplicationImpl
+{
+  public:
+    TestApplication(VirtualClock& clock, Config const& cfg);
+
+  private:
+    std::unique_ptr<InvariantManager> createInvariantManager() override;
+};
+
+template <typename T = TestApplication,
+          typename = typename std::enable_if<
+              std::is_base_of<TestApplication, T>::value>::type>
 std::shared_ptr<T>
 createTestApplication(VirtualClock& clock, Config const& cfg)
 {
