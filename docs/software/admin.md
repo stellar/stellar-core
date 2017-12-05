@@ -216,12 +216,37 @@ IMPORTANT:
  * do not run `newhist` on an existing archive unless you want to erase it
 
 ## Network configuration
-Each validator can vote for several configuration aspects of network, including
-current protocol version, base fee, base reserve and maximum number of
-transactions per ledger.
 
-Voting starts when network time is at or later than PREFERRED_UPGRADE_DATETIME
-set in configuration. More information about configuration is available at
+The network itself has network wide settings, for example:
+ * the version of the protocol used to process transactions
+ * the maximum number of transactions that can be included in a ledger
+ * the cost (fee) associated with processing operations
+
+See the section on "Network wide settings" in the [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg)
+for more details on those parameters.
+
+When a network value is not the same as the one specified in its configuration,
+a validator will start to vote to update the network to the value specified in the
+configuration during ledgers following the date specified in `PREFERRED_UPGRADE_DATETIME`.
+
+When a validator is voting to change network values, the output of `info` will
+contain information about the vote. This can be useful to spot a misconfigured
+validator (if the operator didn't know about a network wide change for example).
+
+For a new value to be adopted, the same level of consensus between nodes needs
+to be reached than for transaction sets.
+
+### IMPORTANT
+Changes to network wide settings have to be orchestrated properly between
+validators as well as non validating nodes:
+* a change is vetted between operators (changes can be bundled)
+* an effective date in the future is picked for the change to take effect (controlled by `PREFERRED_UPGRADE_DATETIME`)
+* if applicable, communication is sent out to consumers of the network
+
+An improper plan may cause issues such as:
+* nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
+* network reconfiguration taking effect at a non deterministic time (causing fees to change ahead of schedule for example)
+
 For more information look at [`docs/versioning.md`](../versioning.md).
 
 # Quorum

@@ -21,9 +21,14 @@ One such upgrade step is something like "update ledgerVersion to value X after
 current ledger".
 
 If nodes do not consider that the upgrade set is valid they simply drop the
-upgrade step from their vote. A node considers a step invalid either because
-they do not understand it, its value differs for this node configuration, or
-network time is before PREFERRED_UPGRADE_DATETIME.
+upgrade step from their vote during nomination.
+If a quorum voted for an invalid value, the validator will ignore
+the SCP messages for the current ledger (ie: abstain).
+
+A node considers a step invalid either because:
+* they do not understand it, for example a new upgrade type not implemented
+* its value differs for this node configuration
+* network time is before PREFERRED_UPGRADE_DATETIME
 
 Upgrades are applied after applying the transaction set. It is done this way
 because the transaction set is validated against the last closed ledger,
@@ -42,12 +47,30 @@ Following configuration options are responsible for upgrades:
 * DESIRED_BASE_RESERVE - upgrades value of baseReserve in ledger header, uses
   upgrade type LEDGER_UPGRADE_BASE_RESERVE
 
-Additionally node will vote for change of ledgerVersion field with its
+Additionally nodes vote for changes to the ledgerVersion field with its
 non-configurable build-in LEDGER_PROTOCOL_VERSION field (which uses upgrade
 type LEDGER_UPGRADE_VERSION).
 
+#### Limitations of the current implementation
+There is an assumption that validator operators are either paying attention to network wide proposals
+or do not really care about the network settings per se.
+For that reason, upgrades are only validated during SCP rounds - ie, they are not validated when catching up from history.
+
+As a consequence, there is currently no way for a node to not eventually rejoin the network if it doesn't agree
+with the upgrade.
+
+A validator in this situation will disagree with the SCP round with the upgrade (and won't even see the network closing
+as invalid values are invisible to the validator),
+but it will rejoin the network after a few minutes by downloading historical data from other nodes.
+The validator will still try to revert the changes by voting for the values it has in its configuration.
+
+Note that this is still a best effort:
+the node may stay out of sync or crash if it cannot replay history properly (in the case of new features for example).
+
 ### Supported versions
-Each node has its own way of tracking which version it supports, for example a "min version", "max version"; but it can also include things like "black listed versions". This is not tracked from within the protocol.
+Each node has its own way of tracking which version it supports,
+for example a "min version", "max version"; but it can also include things
+like "black listed versions". This is not tracked from within the protocol.
 
 Note that minProtocolVersion is distinct from the version an instance understands:
 typically an implementation understands versions n .. maxProtocolVersion, where n <= minProtocolVersion.
