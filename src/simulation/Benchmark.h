@@ -41,19 +41,16 @@ class Benchmark
     ~Benchmark();
     void startBenchmark(Application& app);
     Metrics stopBenchmark();
-    Metrics getMetrics();
 
   protected:
     Benchmark(medida::MetricsRegistry& registry, uint32_t txRate,
               std::unique_ptr<TxSampler> sampler);
 
   private:
-    bool generateLoadForBenchmark(Application& app, uint32_t txRate,
-                                  Metrics& metrics);
-    void scheduleLoad(Application& app, std::function<bool()> loadGenerator,
+    bool generateLoadForBenchmark(Application& app);
+    void scheduleLoad(Application& app,
                       std::chrono::milliseconds stepTime);
     Benchmark::Metrics initializeMetrics(medida::MetricsRegistry& registry);
-    VirtualTimer& getTimer(VirtualClock& clock);
 
     bool mIsRunning;
     uint32_t mTxRate;

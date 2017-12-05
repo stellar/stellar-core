@@ -27,7 +27,7 @@ size_t Benchmark::MAXIMAL_NUMBER_OF_TXS_PER_LEDGER = 1000;
 Benchmark::Benchmark(medida::MetricsRegistry& registry, uint32_t txRate,
                      std::unique_ptr<TxSampler> sampler)
     : mIsRunning(false)
-    , mTxRate(txRate)
+    , mTxRate(txRate * LoadGenerator::STEP_MSECS / 1000)
     , mMetrics(initializeMetrics(registry))
     , mSampler(std::move(sampler))
 {
@@ -49,23 +49,9 @@ Benchmark::startBenchmark(Application& app)
         throw std::runtime_error{"Benchmark already started"};
     }
     mIsRunning = true;
-    using namespace std;
-    size_t txPerStep = (mTxRate * LoadGenerator::STEP_MSECS / 1000);
-    txPerStep = max(txPerStep, size_t(1));
-    function<bool()> load = [this, &app, txPerStep]() {
-        if (!this->mIsRunning)
-        {
-            return false;
-        }
-
-        generateLoadForBenchmark(app, txPerStep, mMetrics);
-
-        return true;
-    };
     mBenchmarkTimeContext =
         make_unique<medida::TimerContext>(mMetrics.benchmarkTimer.TimeScope());
-    load();
-    scheduleLoad(app, load,
+    scheduleLoad(app,
                  std::chrono::milliseconds{LoadGenerator::STEP_MSECS});
 }
 
@@ -95,22 +81,15 @@ Benchmark::stopBenchmark()
     return mMetrics;
 }
 
-Benchmark::Metrics
-Benchmark::getMetrics()
-{
-    return mMetrics;
-}
-
 bool
-Benchmark::generateLoadForBenchmark(Application& app, uint32_t txRate,
-                                    Metrics& metrics)
+Benchmark::generateLoadForBenchmark(Application& app)
 {
-    CLOG(TRACE, LOGGER_ID) << "Generating " << txRate
+    CLOG(TRACE, LOGGER_ID) << "Generating " << mTxRate
                            << " transaction(s) per step";
 
     mBenchmarkTimeContext->Stop();
 
-    for (uint32_t it = 0; it < txRate; ++it)
+    for (uint32_t it = 0; it < mTxRate; ++it)
     {
         uint32_t ledgerNum = app.getLedgerManager().getLedgerNum();
         auto tx = mSampler->createTransaction();
@@ -124,44 +103,36 @@ Benchmark::generateLoadForBenchmark(Application& app, uint32_t txRate,
             return false;
         }
         mBenchmarkTimeContext->Stop();
-        metrics.txsCount.inc();
+        mMetrics.txsCount.inc();
     }
 
     mBenchmarkTimeContext->Reset();
 
-    CLOG(TRACE, LOGGER_ID) << txRate
+    CLOG(TRACE, LOGGER_ID) << mTxRate
                            << " transaction(s) generated in a single step";
 
     return true;
 }
 
 void
-Benchmark::scheduleLoad(Application& app, std::function<bool()> loadGenerator,
-                        std::chrono::milliseconds stepTime)
+Benchmark::scheduleLoad(Application& app, std::chrono::milliseconds stepTime)
 {
-    VirtualTimer& timer = getTimer(app.getClock());
-    timer.expires_from_now(stepTime);
-    timer.async_wait(
-        [this, &app, loadGenerator, stepTime](asio::error_code const& error) {
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
+    }
+    mLoadTimer->expires_from_now(stepTime);
+    mLoadTimer->async_wait(
+        [this, &app, stepTime](asio::error_code const& error) {
             if (error)
             {
                 return;
             }
-            if (loadGenerator())
+            if (generateLoadForBenchmark(app))
             {
-                this->scheduleLoad(app, loadGenerator, stepTime);
+                this->scheduleLoad(app, stepTime);
             }
         });
-}
-
-VirtualTimer&
-Benchmark::getTimer(VirtualClock& clock)
-{
-    if (!mLoadTimer)
-    {
-        mLoadTimer = make_unique<VirtualTimer>(clock);
-    }
-    return *mLoadTimer;
 }
 
 Benchmark::BenchmarkBuilder::BenchmarkBuilder(Hash const& networkID)
