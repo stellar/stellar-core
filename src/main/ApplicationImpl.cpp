@@ -22,6 +22,7 @@
 #include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ChangedAccountsSubentriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
+#include "invariant/MinimumAccountBalance.h"
 #include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
@@ -119,6 +120,7 @@ ApplicationImpl::initialize()
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     CacheIsConsistentWithDatabase::registerInvariant(*this);
     ChangedAccountsSubentriesCountIsValid::registerInvariant(*this);
+    MinimumAccountBalance::registerInvariant(*this);
     TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(*this);
     enableInvariantsFromConfig();
 

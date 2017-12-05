@@ -83,6 +83,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.INVARIANT_CHECKS = {"BucketListIsConsistentWithDatabase",
                                        "CacheIsConsistentWithDatabase",
                                        "ChangedAccountsSubentriesCountIsValid",
+                                       "MinimumAccountBalance",
                                        "TotalCoinsEqualsBalancesPlusFeePool"};
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
