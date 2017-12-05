@@ -61,6 +61,12 @@ LedgerDelta::getHeaderFrame()
     return mCurrentHeader;
 }
 
+LedgerHeader const&
+LedgerDelta::getPreviousHeader() const
+{
+    return mPreviousHeaderValue;
+}
+
 void
 LedgerDelta::checkState()
 {

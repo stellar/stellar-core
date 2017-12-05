@@ -72,6 +72,8 @@ class LedgerDelta
     LedgerHeader const& getHeader() const;
     LedgerHeaderFrame& getHeaderFrame();
 
+    LedgerHeader const& getPreviousHeader() const;
+
     // methods to register changes in the ledger entries
     void addEntry(EntryFrame const& entry);
     void deleteEntry(EntryFrame const& entry);

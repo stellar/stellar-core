@@ -83,6 +83,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid",
                                        "BucketListIsConsistentWithDatabase",
                                        "CacheIsConsistentWithDatabase",
+                                       "LedgerEntryIsValid",
                                        "MinimumAccountBalance",
                                        "TotalCoinsEqualsBalancesPlusFeePool"};
 

@@ -43,7 +43,6 @@ TrustFrame::TrustFrame()
 TrustFrame::TrustFrame(LedgerEntry const& from)
     : EntryFrame(from), mTrustLine(mEntry.data.trustLine()), mIsIssuer(false)
 {
-    assert(isValid());
 }
 
 TrustFrame::TrustFrame(TrustFrame const& from) : TrustFrame(from.mEntry)
@@ -89,7 +88,6 @@ TrustFrame::getKeyFields(LedgerKey const& key, std::string& actIDStrKey,
 int64_t
 TrustFrame::getBalance() const
 {
-    assert(isValid());
     return mTrustLine.balance;
 }
 
@@ -139,27 +137,6 @@ TrustFrame::getMaxAmountReceive() const
         amount = mTrustLine.limit - mTrustLine.balance;
     }
     return amount;
-}
-
-bool
-TrustFrame::isValid(LedgerEntry const& le)
-{
-    bool res = (le.lastModifiedLedgerSeq <= INT32_MAX);
-    TrustLineEntry const& tl = le.data.trustLine();
-
-    res = res && (tl.asset.type() != ASSET_TYPE_NATIVE);
-    res = res && isAssetValid(tl.asset);
-    res = res && (tl.balance >= 0);
-    res = res && (tl.limit > 0);
-    res = res && (tl.balance <= tl.limit);
-    res = res && ((tl.flags & ~MASK_TRUSTLINE_FLAGS) == 0);
-    return res;
-}
-
-bool
-TrustFrame::isValid() const
-{
-    return isValid(mEntry);
 }
 
 bool
@@ -250,11 +227,6 @@ TrustFrame::storeDelete(LedgerDelta& delta, Database& db, LedgerKey const& key)
 void
 TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 {
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid TrustEntry");
-    }
-
     auto key = getKey();
     flushCachedEntry(key, db);
 
@@ -294,11 +266,6 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db)
 void
 TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
 {
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid TrustEntry");
-    }
-
     auto key = getKey();
     flushCachedEntry(key, db);
 
@@ -491,11 +458,6 @@ TrustFrame::loadLines(StatementContext& prep,
             tl.asset.alphaNum12().issuer =
                 KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
             strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
-        }
-
-        if (!isValid(le))
-        {
-            throw std::runtime_error("Invalid TrustEntry");
         }
 
         trustProcessor(le);

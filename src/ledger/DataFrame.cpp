@@ -129,10 +129,6 @@ DataFrame::loadData(StatementContext& prep,
         oe.dataName = dataName;
         bn::decode_b64(dataValue, oe.dataValue);
 
-        if (!isValid(le))
-        {
-            throw std::runtime_error("Invalid DataEntry");
-        }
         dataProcessor(le);
         st.fetch();
     }
@@ -245,27 +241,9 @@ DataFrame::storeAdd(LedgerDelta& delta, Database& db)
     storeUpdateHelper(delta, db, true);
 }
 
-bool
-DataFrame::isValid(LedgerEntry const& le)
-{
-    bool res = (le.lastModifiedLedgerSeq <= INT32_MAX);
-    DataEntry const& d = le.data.data();
-
-    res = res && (d.dataName.size() > 0);
-    res = res && isString32Valid(d.dataName);
-    return res;
-}
-
-bool
-DataFrame::isValid()
-{
-    return isValid(mEntry);
-}
-
 void
 DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 {
-    assert(isValid());
     touch(delta);
 
     std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
