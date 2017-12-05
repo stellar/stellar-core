@@ -48,6 +48,14 @@ class TestInvariant : public Invariant
         return mShouldFail ? "fail" : "";
     }
 
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerDelta const& delta) override
+    {
+        return mShouldFail ? "fail" : "";
+    }
+
   private:
     bool mShouldFail;
 };
@@ -172,5 +180,32 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
         bool isCurr = true;
         REQUIRE_NOTHROW(app->getInvariantManager().checkOnBucketApply(
             bucket, ledger, level, isCurr));
+    }
+}
+
+TEST_CASE("onOperationApply fail/succeed", "[invariant]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    OperationResult res;
+    LedgerHeader lh(app->getLedgerManager().getCurrentLedgerHeader());
+    LedgerDelta ld(lh, app->getDatabase());
+
+    SECTION("Fail")
+    {
+        app->getInvariantManager().registerInvariant<TestInvariant>(true);
+        app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
+        REQUIRE_THROWS_AS(
+            app->getInvariantManager().checkOnOperationApply({}, res, ld),
+            InvariantDoesNotHold);
+    }
+    SECTION("Succeed")
+    {
+        app->getInvariantManager().registerInvariant<TestInvariant>(false);
+        app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
+        REQUIRE_NOTHROW(
+            app->getInvariantManager().checkOnOperationApply({}, res, ld));
     }
 }
