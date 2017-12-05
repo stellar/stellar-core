@@ -248,6 +248,12 @@ ApplicationImpl::getJsonInfo()
         info["quorum"] = q["slots"];
     }
 
+    Json::Value invariantFailures = getInvariantManager().getInformation();
+    if (!invariantFailures.empty())
+    {
+        info["invariant_failures"] = invariantFailures;
+    }
+
     return root;
 }
 

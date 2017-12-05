@@ -23,8 +23,17 @@ class InvariantManagerImpl : public InvariantManager
     std::vector<std::shared_ptr<Invariant>> mEnabled;
     medida::MetricsRegistry& mMetricsRegistry;
 
+    struct InvariantFailureInformation
+    {
+        uint32_t lastFailedOnLedger;
+        std::string lastFailedWithMessage;
+    };
+    std::map<std::string, InvariantFailureInformation> mFailureInformation;
+
   public:
     InvariantManagerImpl(medida::MetricsRegistry& registry);
+
+    virtual Json::Value getInformation() override;
 
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,
@@ -41,7 +50,7 @@ class InvariantManagerImpl : public InvariantManager
 
   private:
     void onInvariantFailure(std::shared_ptr<Invariant> invariant,
-                            std::string const& message) const;
+                            std::string const& message, uint32_t ledger);
 
     virtual void handleInvariantFailure(std::shared_ptr<Invariant> invariant,
                                         std::string const& message) const;

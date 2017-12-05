@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/TxSetFrame.h"
+#include "lib/json/json.h"
 #include <memory>
 
 namespace stellar
@@ -30,6 +31,8 @@ class InvariantManager
     virtual ~InvariantManager()
     {
     }
+
+    virtual Json::Value getInformation() = 0;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     uint32_t ledger, uint32_t level,
