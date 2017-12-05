@@ -36,12 +36,6 @@ class TestInvariant : public Invariant
     }
 
     virtual std::string
-    checkOnLedgerClose(LedgerDelta const& delta) override
-    {
-        return mShouldFail ? "fail" : "";
-    }
-
-    virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger) override
     {
@@ -101,48 +95,6 @@ TEST_CASE("only enable registered invariants", "[invariant]")
     app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
     REQUIRE_THROWS_AS(app->getInvariantManager().enableInvariant("WrongName"),
                       std::runtime_error);
-}
-
-TEST_CASE("onLedgerClose fail/succeed", "[invariant]")
-{
-    {
-        VirtualClock clock;
-        Config cfg = getTestConfig();
-        cfg.INVARIANT_CHECKS = {};
-        Application::pointer app = createTestApplication(clock, cfg);
-
-        app->getInvariantManager().registerInvariant<TestInvariant>(true);
-        app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
-
-        LedgerHeader lh{};
-        LedgerDelta ld(lh, app->getDatabase());
-        auto tsfp = std::make_shared<TxSetFrame>(
-            hexToBin256("000000000000000000000000000000000000000000000000000000"
-                        "0000000000"));
-
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnLedgerClose(tsfp, ld),
-            InvariantDoesNotHold);
-    }
-
-    {
-        VirtualClock clock;
-        Config cfg = getTestConfig();
-        cfg.INVARIANT_CHECKS = {};
-        Application::pointer app = createTestApplication(clock, cfg);
-
-        app->getInvariantManager().registerInvariant<TestInvariant>(false);
-        app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
-
-        LedgerHeader lh{};
-        LedgerDelta ld(lh, app->getDatabase());
-        auto tsfp = std::make_shared<TxSetFrame>(
-            hexToBin256("000000000000000000000000000000000000000000000000000000"
-                        "0000000000"));
-
-        REQUIRE_NOTHROW(
-            app->getInvariantManager().checkOnLedgerClose(tsfp, ld));
-    }
 }
 
 TEST_CASE("onBucketApply fail/succeed", "[invariant]")

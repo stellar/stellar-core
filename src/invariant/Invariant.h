@@ -40,12 +40,6 @@ class Invariant
     }
 
     virtual std::string
-    checkOnLedgerClose(LedgerDelta const& delta)
-    {
-        return std::string{};
-    }
-
-    virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger)
     {

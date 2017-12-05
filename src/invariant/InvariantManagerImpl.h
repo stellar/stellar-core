@@ -26,8 +26,6 @@ class InvariantManagerImpl : public InvariantManager
   public:
     InvariantManagerImpl(medida::MetricsRegistry& registry);
 
-    virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
-                                    LedgerDelta const& delta) override;
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,
                                        LedgerDelta const& delta) override;

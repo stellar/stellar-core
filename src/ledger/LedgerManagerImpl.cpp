@@ -756,9 +756,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         }
     }
 
-    mApp.getInvariantManager().checkOnLedgerClose(ledgerData.getTxSet(),
-                                                  ledgerDelta);
-
     ledgerDelta.commit();
     ledgerClosed(ledgerDelta);
 

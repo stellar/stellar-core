@@ -36,28 +36,6 @@ InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
 }
 
 void
-InvariantManagerImpl::checkOnLedgerClose(TxSetFramePtr const& txSet,
-                                         LedgerDelta const& delta)
-{
-    for (auto invariant : mEnabled)
-    {
-        auto result = invariant->checkOnLedgerClose(delta);
-        if (result.empty())
-        {
-            continue;
-        }
-
-        auto transactions = TransactionSet{};
-        txSet->toXDR(transactions);
-        auto message =
-            fmt::format(R"(invariant "{}" does not hold on ledger {}: {}{}{})",
-                        invariant->getName(), delta.getHeader().ledgerSeq,
-                        result, "\n", xdr::xdr_to_string(transactions));
-        onInvariantFailure(invariant, message);
-    }
-}
-
-void
 InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                          uint32_t ledger, uint32_t level,
                                          bool isCurr)
