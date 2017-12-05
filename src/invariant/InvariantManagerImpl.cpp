@@ -6,14 +6,18 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
-#include "invariant/CacheIsConsistentWithDatabase.h"
-#include "invariant/ChangedAccountsSubentriesCountIsValid.h"
+#include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
-#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
+#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
+
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
+
 #include <memory>
 #include <numeric>
 
@@ -23,10 +27,11 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return make_unique<InvariantManagerImpl>();
+    return make_unique<InvariantManagerImpl>(app.getMetrics());
 }
 
-InvariantManagerImpl::InvariantManagerImpl()
+InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
+    : mMetricsRegistry(registry)
 {
 }
 
@@ -48,8 +53,7 @@ InvariantManagerImpl::checkOnLedgerClose(TxSetFramePtr const& txSet,
             fmt::format(R"(invariant "{}" does not hold on ledger {}: {}{}{})",
                         invariant->getName(), delta.getHeader().ledgerSeq,
                         result, "\n", xdr::xdr_to_string(transactions));
-        CLOG(FATAL, "Invariant") << message;
-        throw InvariantDoesNotHold{message};
+        onInvariantFailure(invariant, message);
     }
 }
 
@@ -77,8 +81,7 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
             R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})",
             invariant->getName(), isCurr ? "Curr" : "Snap", level,
             binToHex(bucket->getHash()), result);
-        CLOG(FATAL, "Invariant") << message;
-        throw InvariantDoesNotHold{message};
+        onInvariantFailure(invariant, message);
     }
 }
 
@@ -90,6 +93,8 @@ InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
     if (iter == mInvariants.end())
     {
         mInvariants[name] = invariant;
+        mMetricsRegistry.NewCounter(
+            {"invariant", "does-not-hold", invariant->getName()});
     }
     else
     {
@@ -132,6 +137,31 @@ InvariantManagerImpl::enableInvariant(std::string const& name)
     else
     {
         throw std::runtime_error{"Invariant " + name + " already enabled"};
+    }
+}
+
+void
+InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
+                                         std::string const& message) const
+{
+    mMetricsRegistry
+        .NewCounter({"invariant", "does-not-hold", invariant->getName()})
+        .inc();
+    handleInvariantFailure(invariant, message);
+}
+
+void
+InvariantManagerImpl::handleInvariantFailure(
+    std::shared_ptr<Invariant> invariant, std::string const& message) const
+{
+    if (invariant->isStrict())
+    {
+        CLOG(FATAL, "Invariant") << message;
+        throw InvariantDoesNotHold{message};
+    }
+    else
+    {
+        CLOG(ERROR, "Invariant") << message;
     }
 }
 }

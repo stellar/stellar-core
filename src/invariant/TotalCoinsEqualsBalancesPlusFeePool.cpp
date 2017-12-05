@@ -22,7 +22,7 @@ TotalCoinsEqualsBalancesPlusFeePool::registerInvariant(Application& app)
 
 TotalCoinsEqualsBalancesPlusFeePool::TotalCoinsEqualsBalancesPlusFeePool(
     Database& db)
-    : mDb{db}
+    : Invariant(false), mDb{db}
 {
 }
 

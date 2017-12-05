@@ -20,7 +20,7 @@ CacheIsConsistentWithDatabase::registerInvariant(Application& app)
 }
 
 CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(Database& db)
-    : mDb{db}
+    : Invariant(false), mDb{db}
 {
 }
 

@@ -9,6 +9,11 @@
 #include <map>
 #include <vector>
 
+namespace medida
+{
+class MetricsRegistry;
+}
+
 namespace stellar
 {
 
@@ -16,9 +21,10 @@ class InvariantManagerImpl : public InvariantManager
 {
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
+    medida::MetricsRegistry& mMetricsRegistry;
 
   public:
-    InvariantManagerImpl();
+    InvariantManagerImpl(medida::MetricsRegistry& registry);
 
     virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
                                     LedgerDelta const& delta) override;
@@ -31,5 +37,12 @@ class InvariantManagerImpl : public InvariantManager
     registerInvariant(std::shared_ptr<Invariant> invariant) override;
 
     virtual void enableInvariant(std::string const& name) override;
+
+  private:
+    void onInvariantFailure(std::shared_ptr<Invariant> invariant,
+                            std::string const& message) const;
+
+    virtual void handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+                                        std::string const& message) const;
 };
 }

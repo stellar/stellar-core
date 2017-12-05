@@ -18,12 +18,24 @@ class LedgerDelta;
 //       derived classes.
 class Invariant
 {
+    bool const mStrict;
+
   public:
+    explicit Invariant(bool strict) : mStrict(strict)
+    {
+    }
+
     virtual ~Invariant()
     {
     }
 
     virtual std::string getName() const = 0;
+
+    bool
+    isStrict() const
+    {
+        return mStrict;
+    }
 
     virtual std::string
     checkOnLedgerClose(LedgerDelta const& delta)

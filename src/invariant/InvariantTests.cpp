@@ -25,7 +25,7 @@ namespace InvariantTests
 class TestInvariant : public Invariant
 {
   public:
-    TestInvariant(bool shouldFail) : mShouldFail(shouldFail)
+    TestInvariant(bool shouldFail) : Invariant(true), mShouldFail(shouldFail)
     {
     }
 

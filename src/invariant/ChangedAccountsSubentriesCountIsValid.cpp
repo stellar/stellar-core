@@ -102,7 +102,7 @@ getDeletedAccounts(LedgerDelta const& delta)
 
 ChangedAccountsSubentriesCountIsValid::ChangedAccountsSubentriesCountIsValid(
     Database& db)
-    : mDb{db}
+    : Invariant(false), mDb{db}
 {
 }
 
