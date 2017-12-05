@@ -2,6 +2,12 @@
 title: Administration
 ---
 
+## Purpose of this document
+
+This document describes various aspects of running `stellar-core` for **system administrators** (but may be useful to a broader audience).
+
+## Introduction
+
 Stellar Core is responsible for communicating directly with and maintaining 
 the Stellar peer-to-peer network. For a high-level introduction to Stellar Core, [watch this talk](https://www.youtube.com/watch?v=pt_mm8S9_WU) on the architecture and ledger basics:
 
@@ -34,7 +40,7 @@ stellar-core loads
 `$ stellar-core --conf betterfile.cfg` 
 
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
-configuration options.  
+configuration options.
 
 Here is an [example test network config](https://github.com/stellar/docker-stellar-core-horizon/blob/master/testnet/core/etc/stellar-core.cfg) for connecting to the test network.
 
@@ -294,7 +300,7 @@ in how they configured their quorum set. Just like having redundant paths
 between machines in a network increases the reliability of the network.
 Overlap here means that any two nodes that reference a set of nodes:
  * have a large overlap of the nodes
- * the threshold is such that there will be some overlap between nodes
+ * the threshold is such that there will always be some overlap between nodes
    regardless of which node fails
 
 For example, consider two nodes that respectively reference the sets Set1 and
