@@ -28,6 +28,9 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
                                     LedgerDelta const& delta) override;
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerDelta const& delta) override;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     uint32_t ledger, uint32_t level,

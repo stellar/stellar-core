@@ -12,6 +12,8 @@ namespace stellar
 
 class Bucket;
 class LedgerDelta;
+struct Operation;
+struct OperationResult;
 
 // NOTE: The checkOn* functions should have a default implementation so that
 //       more can be added in the future without requiring changes to all
@@ -46,6 +48,14 @@ class Invariant
     virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger)
+    {
+        return std::string{};
+    }
+
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerDelta const& delta)
     {
         return std::string{};
     }

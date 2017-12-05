@@ -10,6 +10,7 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "herder/TxSetFrame.h"
+#include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
@@ -516,6 +517,11 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
             if (!txRes)
             {
                 errorEncountered = true;
+            }
+            if (!errorEncountered)
+            {
+                app.getInvariantManager().checkOnOperationApply(
+                    op->getOperation(), op->getResult(), opDelta);
             }
             meta.operations().emplace_back(opDelta.getChanges());
             opDelta.commit();

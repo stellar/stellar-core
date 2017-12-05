@@ -86,6 +86,31 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
 }
 
 void
+InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
+                                            OperationResult const& opres,
+                                            LedgerDelta const& delta)
+{
+    if (delta.getHeader().ledgerVersion < 8)
+    {
+        return;
+    }
+
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->checkOnOperationApply(operation, opres, delta);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            R"(Invariant "{}" does not hold on operation: {}{}{})",
+            invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
+        onInvariantFailure(invariant, message);
+    }
+}
+
+void
 InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
 {
     auto name = invariant->getName();
