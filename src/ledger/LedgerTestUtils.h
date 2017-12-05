@@ -17,6 +17,8 @@ namespace LedgerTestUtils
 // for example the numsubentries of a related account is not updated when
 // generating a 'valid' trust line
 
+template <typename T> void replaceControlCharacters(T& s, int minSize);
+
 void makeValid(AccountEntry& a);
 void makeValid(TrustLineEntry& tl);
 void makeValid(OfferEntry& o);
