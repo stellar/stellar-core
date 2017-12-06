@@ -48,7 +48,7 @@ InvariantManagerImpl::getInformation()
             auto const& info = mFailureInformation.at(invariant.first);
 
             auto& fail = failures[invariant.first];
-            fail["count"] = counter.count();
+            fail["count"] = (Json::Int64)counter.count();
             fail["last_failed_on_ledger"] = info.lastFailedOnLedger;
             fail["last_failed_with_message"] = info.lastFailedWithMessage;
         }

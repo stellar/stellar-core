@@ -65,7 +65,7 @@ TEST_CASE("Create account above minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, true, 0);
-        REQUIRE(store(*app, {{EntryFrame::FromXDR(le), nullptr}}));
+        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
     }
 }
 
@@ -83,7 +83,7 @@ TEST_CASE("Create account below minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, false, 0);
-        REQUIRE(!store(*app, {{EntryFrame::FromXDR(le), nullptr}}));
+        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
     }
 }
 
@@ -102,9 +102,9 @@ TEST_CASE("Create account then decrease balance below minimum",
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, true, 0);
         auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(store(*app, {{ef, nullptr}}));
+        REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        REQUIRE(!store(*app, {{EntryFrame::FromXDR(le2), ef}}));
+        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
     }
 }
 
@@ -123,9 +123,9 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
         auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, {{ef, nullptr}}));
+        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 1);
-        REQUIRE(store(*app, {{EntryFrame::FromXDR(le2), ef}}));
+        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
     }
 }
 
@@ -144,8 +144,8 @@ TEST_CASE("Account below minimum balance decreases",
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
         auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, {{ef, nullptr}}));
+        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, -1);
-        REQUIRE(!store(*app, {{EntryFrame::FromXDR(le2), ef}}));
+        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
     }
 }

@@ -121,14 +121,14 @@ updateAccountSubEntries(Application& app, LedgerEntry& le,
     {
         soci::transaction sqlTx(app.getDatabase().getSession());
         auto updates = updatesBase;
-        updates.push_back({EntryFrame::FromXDR(le), ef});
+        updates.push_back(std::make_tuple(EntryFrame::FromXDR(le), ef));
         REQUIRE(!store(app, updates));
     }
     {
         soci::transaction sqlTx(app.getDatabase().getSession());
         auto updates = updatesBase;
         le.data.account().numSubEntries += deltaNumSubEntries;
-        updates.push_back({EntryFrame::FromXDR(le), ef});
+        updates.push_back(std::make_tuple(EntryFrame::FromXDR(le), ef));
         REQUIRE(store(app, updates));
         sqlTx.commit();
     }
@@ -158,7 +158,7 @@ addRandomSubEntryToAccount(Application& app, LedgerEntry& le,
     {
         auto sef = EntryFrame::FromXDR(generateRandomSubEntry(le));
         subentries.push_back(sef);
-        updateAccountSubEntries(app, le, ef, 1, {{sef, nullptr}});
+        updateAccountSubEntries(app, le, ef, 1, makeUpdateList(sef, nullptr));
     }
 }
 
@@ -181,19 +181,21 @@ modifyRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     ++le.lastModifiedLedgerSeq;
     if (modifySigner)
     {
-        std::uniform_int_distribution<uint32_t> dist(0, acc.signers.size() - 1);
+        std::uniform_int_distribution<uint32_t> dist(
+            0, uint32_t(acc.signers.size()) - 1);
         acc.signers.at(dist(gen)) = validSignerGenerator();
         updateAccountSubEntries(app, le, ef, 0, {});
     }
     else
     {
-        std::uniform_int_distribution<uint32_t> dist(0, subentries.size() - 1);
+        std::uniform_int_distribution<uint32_t> dist(
+            0, uint32_t(subentries.size()) - 1);
         auto index = dist(gen);
         auto sef = subentries.at(index);
         auto sef2 = EntryFrame::FromXDR(
             generateRandomModifiedSubEntry(le, sef->mEntry));
         subentries.at(index) = sef2;
-        updateAccountSubEntries(app, le, ef, 0, {{sef2, sef}});
+        updateAccountSubEntries(app, le, ef, 0, makeUpdateList(sef2, sef));
     }
 }
 
@@ -216,17 +218,19 @@ deleteRandomSubEntryFromAccount(Application& app, LedgerEntry& le,
     ++le.lastModifiedLedgerSeq;
     if (deleteSigner)
     {
-        std::uniform_int_distribution<uint32_t> dist(0, acc.signers.size() - 1);
+        std::uniform_int_distribution<uint32_t> dist(
+            0, uint32_t(acc.signers.size()) - 1);
         acc.signers.erase(acc.signers.begin() + dist(gen));
         updateAccountSubEntries(app, le, ef, -1, {});
     }
     else
     {
-        std::uniform_int_distribution<uint32_t> dist(0, subentries.size() - 1);
+        std::uniform_int_distribution<uint32_t> dist(
+            0, uint32_t(subentries.size()) - 1);
         auto index = dist(gen);
         auto sef = subentries.at(index);
         subentries.erase(subentries.begin() + index);
-        updateAccountSubEntries(app, le, ef, -1, {{nullptr, sef}});
+        updateAccountSubEntries(app, le, ef, -1, makeUpdateList(nullptr, sef));
     }
 }
 
@@ -244,8 +248,8 @@ TEST_CASE("Create account with no subentries",
         {
             soci::transaction sqlTx(app->getDatabase().getSession());
             auto ef = EntryFrame::FromXDR(le);
-            REQUIRE(store(*app, {{ef, nullptr}}));
-            REQUIRE(store(*app, {{nullptr, ef}}));
+            REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
+            REQUIRE(store(*app, makeUpdateList(nullptr, ef)));
         }
     }
 }
@@ -266,7 +270,7 @@ TEST_CASE("Create account then add signers and subentries",
         auto le = generateRandomAccountWithNoSubEntries(2);
         {
             auto ef = EntryFrame::FromXDR(le);
-            REQUIRE(store(*app, {{ef, nullptr}}));
+            REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
         }
 
         std::vector<EntryFrame::pointer> subentries;
@@ -291,14 +295,14 @@ TEST_CASE("Create account then add signers and subentries",
         if (le.data.account().numSubEntries != le.data.account().signers.size())
         {
             soci::transaction sqlTx(app->getDatabase().getSession());
-            REQUIRE(!store(*app, {{nullptr, ef}}));
+            REQUIRE(!store(*app, makeUpdateList(nullptr, ef)));
         }
         {
             soci::transaction sqlTx(app->getDatabase().getSession());
-            UpdateList apply{{nullptr, ef}};
+            UpdateList apply(makeUpdateList(nullptr, ef));
             for (auto const& sef : subentries)
             {
-                apply.push_back({nullptr, sef});
+                apply.push_back(std::make_tuple(nullptr, sef));
             }
             REQUIRE(store(*app, apply));
         }

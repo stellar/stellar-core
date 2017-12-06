@@ -72,11 +72,19 @@ store(Application& app, UpdateList const& apply, LedgerDelta* ldPtr,
     {
         app.getInvariantManager().checkOnOperationApply({}, *resPtr, *ldPtr);
     }
-    catch (InvariantDoesNotHold& e)
+    catch (InvariantDoesNotHold&)
     {
         return false;
     }
     return true;
+}
+
+UpdateList
+makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right)
+{
+    UpdateList ul;
+    ul.push_back(std::make_tuple(left, right));
+    return ul;
 }
 }
 }

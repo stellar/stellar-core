@@ -19,8 +19,11 @@ LedgerEntry generateRandomAccount(uint32_t ledgerSeq);
 
 typedef std::vector<std::tuple<EntryFrame::pointer, EntryFrame::pointer>>
     UpdateList;
+
 bool store(Application& app, UpdateList const& apply,
            LedgerDelta* ldPtr = nullptr,
            OperationResult const* resPtr = nullptr);
+
+UpdateList makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right);
 }
 }
