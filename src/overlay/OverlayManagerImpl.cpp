@@ -72,7 +72,10 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
           {"overlay", "connection", "drop"}, "connection"))
     , mConnectionsRejected(app.getMetrics().NewMeter(
           {"overlay", "connection", "reject"}, "connection"))
-    , mPeersSize(app.getMetrics().NewCounter({"overlay", "memory", "peers"}))
+    , mPendingPeersSize(
+          app.getMetrics().NewCounter({"overlay", "memory", "pending-peers"}))
+    , mAuthenticatedPeersSize(app.getMetrics().NewCounter(
+          {"overlay", "memory", "authenticated-peers"}))
     , mTimer(app)
     , mFloodGate(app)
 {
@@ -122,12 +125,12 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addConnectedPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
+        addPendingPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
     }
     else
     {
         CLOG(ERROR, "Overlay")
-            << "trying to connect to a node we're already connected to"
+            << "trying to connect to a node we're already connected to "
             << pr.toString();
     }
 }
@@ -204,7 +207,8 @@ OverlayManagerImpl::connectToMorePeers(int max)
         {
             continue;
         }
-        if (mPeers.size() >= mApp.getConfig().TARGET_PEER_CONNECTIONS)
+        if (getAuthenticatedPeersCount() >=
+            mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
         }
@@ -232,26 +236,43 @@ OverlayManagerImpl::tick()
 
     mLoad.maybeShedExcessLoad(mApp);
 
-    if (mPeers.size() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
+    if (getAuthenticatedPeersCount() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        connectToMorePeers(static_cast<int>(
-            mApp.getConfig().TARGET_PEER_CONNECTIONS - mPeers.size()));
+        connectToMorePeers(
+            static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS -
+                             getAuthenticatedPeersCount()));
     }
 
-    mTimer.expires_from_now(std::chrono::seconds(2));
+    mTimer.expires_from_now(
+        std::chrono::seconds(mApp.getConfig().PEER_AUTHENTICATION_TIMEOUT + 1));
     mTimer.async_wait([this]() { this->tick(); }, VirtualTimer::onFailureNoop);
 }
 
 Peer::pointer
 OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 {
-    for (auto& peer : mPeers)
+    auto pendingPeerIt =
+        std::find_if(std::begin(mPendingPeers), std::end(mPendingPeers),
+                     [ip, port](Peer::pointer const& peer) {
+                         return peer->getIP() == ip &&
+                                peer->getRemoteListeningPort() == port;
+                     });
+    if (pendingPeerIt != std::end(mPendingPeers))
     {
-        if (peer->getIP() == ip && peer->getRemoteListeningPort() == port)
-        {
-            return peer;
-        }
+        return *pendingPeerIt;
     }
+
+    auto authenticatedPeerIt = std::find_if(
+        std::begin(mAuthenticatedPeers), std::end(mAuthenticatedPeers),
+        [ip, port](std::pair<NodeID, Peer::pointer> const& peer) {
+            return peer.second->getIP() == ip &&
+                   peer.second->getRemoteListeningPort() == port;
+        });
+    if (authenticatedPeerIt != std::end(mAuthenticatedPeers))
+    {
+        return authenticatedPeerIt->second;
+    }
+
     return Peer::pointer();
 }
 
@@ -262,17 +283,26 @@ OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 }
 
 void
-OverlayManagerImpl::addConnectedPeer(Peer::pointer peer)
+OverlayManagerImpl::updateSizeCounters()
 {
-    if (mShuttingDown)
+    mPendingPeersSize.set_count(getPendingPeersCount());
+    mAuthenticatedPeersSize.set_count(getAuthenticatedPeersCount());
+}
+
+void
+OverlayManagerImpl::addPendingPeer(Peer::pointer peer)
+{
+    if (mShuttingDown ||
+        getPendingPeersCount() >= mApp.getConfig().MAX_PENDING_CONNECTIONS)
     {
+        mConnectionsRejected.Mark();
         peer->drop();
         return;
     }
     CLOG(INFO, "Overlay") << "New connected peer " << peer->toString();
     mConnectionsEstablished.Mark();
-    mPeers.push_back(peer);
-    mPeersSize.set_count(mPeers.size());
+    mPendingPeers.push_back(peer);
+    updateSizeCounters();
 }
 
 void
@@ -282,51 +312,113 @@ OverlayManagerImpl::dropPeer(Peer* peer)
     CLOG(INFO, "Overlay") << "Dropping peer "
                           << mApp.getConfig().toShortString(peer->getPeerID())
                           << "@" << peer->toString();
-    auto iter =
-        find_if(mPeers.begin(), mPeers.end(),
-                [&](Peer::pointer const& p) { return p.get() == peer; });
-    if (iter != mPeers.end())
-        mPeers.erase(iter);
+    auto pendingIt =
+        std::find_if(std::begin(mPendingPeers), std::end(mPendingPeers),
+                     [&](Peer::pointer const& p) { return p.get() == peer; });
+    if (pendingIt != std::end(mPendingPeers))
+    {
+        mPendingPeers.erase(pendingIt);
+    }
     else
-        CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
-    mPeersSize.set_count(mPeers.size());
+    {
+        auto authentiatedIt = mAuthenticatedPeers.find(peer->getPeerID());
+        if (authentiatedIt != std::end(mAuthenticatedPeers))
+        {
+            mAuthenticatedPeers.erase(authentiatedIt);
+        }
+        else
+        {
+            CLOG(WARNING, "Overlay") << "Dropping unlisted peer";
+        }
+    }
+    updateSizeCounters();
 }
 
 bool
-OverlayManagerImpl::isPeerAccepted(Peer::pointer peer)
+OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
+{
+    auto pendingIt =
+        std::find(std::begin(mPendingPeers), std::end(mPendingPeers), peer);
+    if (pendingIt == std::end(mPendingPeers))
+    {
+        CLOG(WARNING, "Overlay")
+            << "Trying to move non-pending peer " << peer->toString()
+            << " to authenticated list";
+        return false;
+    }
+
+    auto authenticatedIt = mAuthenticatedPeers.find(peer->getPeerID());
+    if (authenticatedIt != std::end(mAuthenticatedPeers))
+    {
+        CLOG(WARNING, "Overlay")
+            << "Trying to move authenticated peer " << peer->toString()
+            << " to authenticated list again";
+        return false;
+    }
+
+    mPendingPeers.erase(pendingIt);
+    mAuthenticatedPeers[peer->getPeerID()] = peer;
+    updateSizeCounters();
+    return true;
+}
+
+bool
+OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
     if (isPeerPreferred(peer))
     {
-        if (mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+        if (getAuthenticatedPeersCount() <
+            mApp.getConfig().MAX_PEER_CONNECTIONS)
         {
-            return true;
+            return moveToAuthenticated(peer);
         }
 
-        for (auto victim : mPeers)
+        for (auto victim : mAuthenticatedPeers)
         {
-            if (!isPeerPreferred(victim))
+            if (!isPeerPreferred(victim.second))
             {
                 CLOG(INFO, "Overlay")
-                    << "Evicting non-preferred peer " << victim->toString()
-                    << " for preferred peer " << peer->toString();
-                dropPeer(victim.get());
-                return true;
+                    << "Evicting non-preferred peer "
+                    << victim.second->toString() << " for preferred peer "
+                    << peer->toString();
+                dropPeer(victim.second.get());
+                return moveToAuthenticated(peer);
             }
         }
     }
 
     if (!mApp.getConfig().PREFERRED_PEERS_ONLY &&
-        mPeers.size() < mApp.getConfig().MAX_PEER_CONNECTIONS)
-        return true;
+        getAuthenticatedPeersCount() < mApp.getConfig().MAX_PEER_CONNECTIONS)
+    {
+        return moveToAuthenticated(peer);
+    }
 
     mConnectionsRejected.Mark();
     return false;
 }
 
-std::vector<Peer::pointer>&
-OverlayManagerImpl::getPeers()
+std::vector<Peer::pointer> const&
+OverlayManagerImpl::getPendingPeers() const
 {
-    return mPeers;
+    return mPendingPeers;
+}
+
+std::map<NodeID, Peer::pointer> const&
+OverlayManagerImpl::getAuthenticatedPeers() const
+{
+    return mAuthenticatedPeers;
+}
+
+size_t
+OverlayManagerImpl::getPendingPeersCount() const
+{
+    return mPendingPeers.size();
+}
+
+size_t
+OverlayManagerImpl::getAuthenticatedPeersCount() const
+{
+    return mAuthenticatedPeers.size();
 }
 
 bool
@@ -359,17 +451,15 @@ OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
 }
 
 std::vector<Peer::pointer>
-OverlayManagerImpl::getRandomPeers()
+OverlayManagerImpl::getRandomAuthenticatedPeers()
 {
-    std::vector<std::shared_ptr<Peer>> goodPeers(mPeers.size());
-    auto it = std::copy_if(mPeers.begin(), mPeers.end(), goodPeers.begin(),
-                           [](std::shared_ptr<Peer> const& p) {
-                               return p && p->isAuthenticated();
-                           });
-    goodPeers.resize(std::distance(goodPeers.begin(), it));
-
+    auto goodPeers = std::vector<Peer::pointer>{};
+    std::transform(std::begin(mAuthenticatedPeers),
+                   std::end(mAuthenticatedPeers), std::back_inserter(goodPeers),
+                   [](std::pair<NodeID, Peer::pointer> const& peer) {
+                       return peer.second;
+                   });
     std::random_shuffle(goodPeers.begin(), goodPeers.end());
-
     return goodPeers;
 }
 
@@ -422,10 +512,15 @@ OverlayManagerImpl::shutdown()
     mShuttingDown = true;
     mDoor.close();
     mFloodGate.shutdown();
-    auto peersToStop = mPeers;
-    for (auto& p : peersToStop)
+    auto pendingPeersToStop = mPendingPeers;
+    for (auto& p : pendingPeersToStop)
     {
         p->drop(ERR_MISC, "peer shutdown");
+    }
+    auto authenticatedPeersToStop = mAuthenticatedPeers;
+    for (auto& p : authenticatedPeersToStop)
+    {
+        p.second->drop(ERR_MISC, "peer shutdown");
     }
 }
 

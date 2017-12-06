@@ -32,9 +32,11 @@ class PeerStub : public Peer
   public:
     int sent = 0;
 
-    PeerStub(Application& app) : Peer(app, WE_CALLED_REMOTE)
+    PeerStub(Application& app, short port) : Peer(app, WE_CALLED_REMOTE)
     {
+        mPeerID = SecretKey::random().getPublicKey();
         mState = GOT_AUTH;
+        mRemoteListeningPort = port;
     }
     virtual void
     drop() override
@@ -67,7 +69,9 @@ class OverlayManagerStub : public OverlayManagerImpl
             pr.backOff(mApp.getClock());
             pr.storePeerRecord(mApp.getDatabase());
 
-            addConnectedPeer(std::make_shared<PeerStub>(mApp));
+            auto peerStub = std::make_shared<PeerStub>(mApp, pr.port());
+            addPendingPeer(peerStub);
+            REQUIRE(acceptAuthenticatedPeer(peerStub));
         }
     }
 };
@@ -134,8 +138,8 @@ class OverlayManagerTests
     sentCounts(OverlayManagerImpl& pm)
     {
         vector<int> result;
-        for (auto p : pm.mPeers)
-            result.push_back(static_pointer_cast<PeerStub>(p)->sent);
+        for (auto p : pm.mAuthenticatedPeers)
+            result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
         return result;
     }
 
@@ -147,14 +151,17 @@ class OverlayManagerTests
         pm.storePeerList(fourPeers);
         pm.storePeerList(threePeers);
         pm.connectToMorePeers(5);
-        REQUIRE(pm.mPeers.size() == 5);
+        REQUIRE(pm.mAuthenticatedPeers.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};
         auto c = TestAccount{*app, getAccount("c")};
         auto d = TestAccount{*app, getAccount("d")};
 
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
-        pm.recvFloodedMsg(AtoC, *(pm.mPeers.begin() + 2));
+        auto i = 0;
+        for (auto p : pm.mAuthenticatedPeers)
+            if (i++ == 2)
+                pm.recvFloodedMsg(AtoC, p.second);
         pm.broadcastMessage(AtoC);
         vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);

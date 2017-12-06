@@ -320,7 +320,8 @@ LoadGenerator::generateLoad(Application& app, uint32_t nAccounts, uint32_t nTxs,
         auto build = buildScope.Stop();
 
         auto recvScope = recvTimer.TimeScope();
-        auto multinode = app.getOverlayManager().getPeers().size() > 1;
+        auto multinode =
+            app.getOverlayManager().getAuthenticatedPeersCount() > 1;
         for (auto& tx : txs)
         {
             if (multinode && tx.mFrom != mAccounts[0])

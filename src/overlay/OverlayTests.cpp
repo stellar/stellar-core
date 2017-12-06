@@ -148,20 +148,84 @@ TEST_CASE("reject peers beyond max", "[overlay]")
     VirtualClock clock;
     Config const& cfg1 = getTestConfig(0);
     Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
 
-    cfg2.MAX_PEER_CONNECTIONS = 0;
+    cfg2.MAX_PEER_CONNECTIONS = 1;
 
     auto app1 = createTestApplication(clock, cfg1);
     auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
 
-    LoopbackPeerConnection conn(*app1, *app2);
+    LoopbackPeerConnection conn1(*app1, *app2);
+    LoopbackPeerConnection conn2(*app3, *app2);
     crankSome(clock);
 
-    REQUIRE(!conn.getInitiator()->isConnected());
-    REQUIRE(!conn.getAcceptor()->isConnected());
+    REQUIRE(conn1.getInitiator()->isConnected());
+    REQUIRE(conn1.getAcceptor()->isConnected());
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-auth-reject"}, "drop")
-                .count() != 0);
+                .count() == 1);
+}
+
+TEST_CASE("allow pending peers beyond max", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+    Config const& cfg4 = getTestConfig(3);
+
+    cfg2.MAX_PEER_CONNECTIONS = 1;
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+    auto app4 = createTestApplication(clock, cfg4);
+
+    LoopbackPeerConnection conn1(*app1, *app2);
+    conn1.getInitiator()->setCorked(true);
+    LoopbackPeerConnection conn2(*app3, *app2);
+    conn2.getInitiator()->setCorked(true);
+    LoopbackPeerConnection conn3(*app4, *app2);
+    crankSome(clock);
+
+    REQUIRE(!conn1.getInitiator()->isConnected());
+    REQUIRE(!conn1.getAcceptor()->isConnected());
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(conn3.getInitiator()->isConnected());
+    REQUIRE(conn3.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "timeout", "idle"}, "timeout")
+                .count() == 2);
+}
+
+TEST_CASE("reject pending beyond max", "[overlay]")
+{
+    VirtualClock clock;
+    Config const& cfg1 = getTestConfig(0);
+    Config cfg2 = getTestConfig(1);
+    Config const& cfg3 = getTestConfig(2);
+
+    cfg2.MAX_PENDING_CONNECTIONS = 1;
+
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
+    auto app3 = createTestApplication(clock, cfg3);
+
+    LoopbackPeerConnection conn1(*app1, *app2);
+    LoopbackPeerConnection conn2(*app3, *app2);
+    crankSome(clock);
+
+    REQUIRE(conn1.getInitiator()->isConnected());
+    REQUIRE(conn1.getAcceptor()->isConnected());
+    REQUIRE(!conn2.getInitiator()->isConnected());
+    REQUIRE(!conn2.getAcceptor()->isConnected());
+    REQUIRE(app2->getMetrics()
+                .NewMeter({"overlay", "connection", "reject"}, "connection")
+                .count() == 1);
 }
 
 TEST_CASE("reject peers with differing network passphrases", "[overlay]")

@@ -36,8 +36,10 @@ class OverlayManagerImpl : public OverlayManager
     Application& mApp;
     std::set<std::string> mPreferredPeers;
 
-    // peers we are connected to
-    std::vector<Peer::pointer> mPeers;
+    // pending peers - connected, but not authenticated
+    std::vector<Peer::pointer> mPendingPeers;
+    // authenticated and connected peers
+    std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
     PeerDoor mDoor;
     PeerAuth mAuth;
     LoadManager mLoad;
@@ -49,7 +51,8 @@ class OverlayManagerImpl : public OverlayManager
     medida::Meter& mConnectionsEstablished;
     medida::Meter& mConnectionsDropped;
     medida::Meter& mConnectionsRejected;
-    medida::Counter& mPeersSize;
+    medida::Counter& mPendingPeersSize;
+    medida::Counter& mAuthenticatedPeersSize;
 
     void tick();
     VirtualTimer mTimer;
@@ -74,17 +77,21 @@ class OverlayManagerImpl : public OverlayManager
     void connectTo(std::string const& addr) override;
     virtual void connectTo(PeerRecord& pr) override;
 
-    void addConnectedPeer(Peer::pointer peer) override;
+    void addPendingPeer(Peer::pointer peer) override;
     void dropPeer(Peer* peer) override;
-    bool isPeerAccepted(Peer::pointer peer) override;
-    std::vector<Peer::pointer>& getPeers() override;
+    bool acceptAuthenticatedPeer(Peer::pointer peer) override;
+    std::vector<Peer::pointer> const& getPendingPeers() const override;
+    size_t getPendingPeersCount() const override;
+    std::map<NodeID, Peer::pointer> const&
+    getAuthenticatedPeers() const override;
+    size_t getAuthenticatedPeersCount() const override;
 
     // returns NULL if the passed peer isn't found
     Peer::pointer getConnectedPeer(std::string const& ip,
                                    unsigned short port) override;
 
     void connectToMorePeers(int max);
-    std::vector<Peer::pointer> getRandomPeers() override;
+    std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
@@ -99,5 +106,7 @@ class OverlayManagerImpl : public OverlayManager
 
   private:
     void orderByPreferredPeers(vector<PeerRecord>& peers);
+    bool moveToAuthenticated(Peer::pointer peer);
+    void updateSizeCounters();
 };
 }

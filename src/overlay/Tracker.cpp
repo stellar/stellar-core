@@ -108,7 +108,8 @@ Tracker::tryNextPeer()
 
         // move the peers that have the envelope to the back,
         // to be processed first
-        for (auto const& p : mApp.getOverlayManager().getRandomPeers())
+        for (auto const& p :
+             mApp.getOverlayManager().getRandomAuthenticatedPeers())
         {
             if (peersWithEnvelope.find(p) != peersWithEnvelope.end())
             {

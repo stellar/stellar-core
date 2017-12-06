@@ -368,8 +368,17 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->mRemote = mInitiator;
     mAcceptor->mState = Peer::CONNECTED;
 
-    initiator.getOverlayManager().addConnectedPeer(mInitiator);
-    acceptor.getOverlayManager().addConnectedPeer(mAcceptor);
+    initiator.getOverlayManager().addPendingPeer(mInitiator);
+    acceptor.getOverlayManager().addPendingPeer(mAcceptor);
+
+    // if connection was dropped during addPendingPeer, we don't want do call
+    // connectHandler
+    if (mInitiator->mState != Peer::CONNECTED ||
+        mAcceptor->mState != Peer::CONNECTED)
+    {
+        return;
+    }
+
     mInitiator->startIdleTimer();
     mAcceptor->startIdleTimer();
 

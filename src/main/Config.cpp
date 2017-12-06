@@ -63,6 +63,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 8;
     MAX_PEER_CONNECTIONS = 12;
+    MAX_PENDING_CONNECTIONS = 5000;
     PEER_AUTHENTICATION_TIMEOUT = 2;
     PEER_TIMEOUT = 30;
     PREFERRED_PEERS_ONLY = false;
@@ -443,8 +444,14 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument(
                         "invalid TARGET_PEER_CONNECTIONS");
                 }
+                int64_t parsedTargetPeerConnections =
+                    item.second->as<int64_t>()->value();
+                if (parsedTargetPeerConnections <= 0 ||
+                    parsedTargetPeerConnections > UINT16_MAX)
+                    throw std::invalid_argument(
+                        "invalid TARGET_PEER_CONNECTIONS");
                 TARGET_PEER_CONNECTIONS =
-                    (int)item.second->as<int64_t>()->value();
+                    static_cast<unsigned short>(parsedTargetPeerConnections);
             }
             else if (item.first == "MAX_PEER_CONNECTIONS")
             {
@@ -452,7 +459,29 @@ Config::load(std::string const& filename)
                 {
                     throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
                 }
-                MAX_PEER_CONNECTIONS = (int)item.second->as<int64_t>()->value();
+                int64_t parsedMaxPeerConnections =
+                    item.second->as<int64_t>()->value();
+                if (parsedMaxPeerConnections <= 0 ||
+                    parsedMaxPeerConnections > UINT16_MAX)
+                    throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
+                MAX_PEER_CONNECTIONS =
+                    static_cast<unsigned short>(parsedMaxPeerConnections);
+            }
+            else if (item.first == "MAX_PENDING_CONNECTIONS")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid MAX_PENDING_CONNECTIONS");
+                }
+                int64_t parsedMaxPendingConnections =
+                    item.second->as<int64_t>()->value();
+                if (parsedMaxPendingConnections <= 0 ||
+                    parsedMaxPendingConnections > UINT16_MAX)
+                    throw std::invalid_argument(
+                        "invalid MAX_PENDING_CONNECTIONS");
+                MAX_PENDING_CONNECTIONS =
+                    static_cast<unsigned short>(parsedMaxPendingConnections);
             }
             else if (item.first == "PEER_AUTHENTICATION_TIMEOUT")
             {

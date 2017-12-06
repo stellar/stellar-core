@@ -53,7 +53,7 @@ timeMag(uint64_t nanos)
 }
 
 void
-LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,
+LoadManager::reportLoads(std::map<NodeID, Peer::pointer> const& peers,
                          Application& app)
 {
     CLOG(INFO, "Overlay") << "";
@@ -65,10 +65,10 @@ LoadManager::reportLoads(std::vector<Peer::pointer> const& peers,
         "recv", "query");
     for (auto const& peer : peers)
     {
-        auto cost = getPeerCosts(peer->getPeerID());
+        auto cost = getPeerCosts(peer.first);
         CLOG(INFO, "Overlay") << fmt::format(
             "{:>10s} {:>10s} {:>10s} {:>10s} {:>10d}",
-            app.getConfig().toShortString(peer->getPeerID()),
+            app.getConfig().toShortString(peer.first),
             timeMag(static_cast<uint64_t>(cost->mTimeSpent.one_minute_rate())),
             byteMag(static_cast<uint64_t>(cost->mBytesSend.one_minute_rate())),
             byteMag(static_cast<uint64_t>(cost->mBytesRecv.one_minute_rate())),
@@ -97,7 +97,7 @@ LoadManager::maybeShedExcessLoad(Application& app)
                                  << "DB " << idleDb << "%";
         CLOG(WARNING, "Overlay") << "";
 
-        auto peers = app.getOverlayManager().getPeers();
+        auto peers = app.getOverlayManager().getAuthenticatedPeers();
         reportLoads(peers, app);
 
         // Look for the worst-behaved of the current peers and kick them out.
@@ -105,10 +105,10 @@ LoadManager::maybeShedExcessLoad(Application& app)
         std::shared_ptr<LoadManager::PeerCosts> victimCost;
         for (auto peer : peers)
         {
-            auto peerCost = getPeerCosts(peer->getPeerID());
+            auto peerCost = getPeerCosts(peer.first);
             if (!victim || victimCost->isLessThan(peerCost))
             {
-                victim = peer;
+                victim = peer.second;
                 victimCost = peerCost;
             }
         }
@@ -142,11 +142,11 @@ LoadManager::PeerCosts::isLessThan(
 {
     double ownRates[4] = {
         mTimeSpent.one_minute_rate(), mBytesSend.one_minute_rate(),
-        mBytesRecv.one_minute_rate(), mSQLQueries.one_minute_rate()};
+        mBytesRecv.one_minute_rate(), static_cast<double>(mSQLQueries.count())};
     double otherRates[4] = {other->mTimeSpent.one_minute_rate(),
                             other->mBytesSend.one_minute_rate(),
                             other->mBytesRecv.one_minute_rate(),
-                            other->mSQLQueries.one_minute_rate()};
+                            static_cast<double>(other->mSQLQueries.count())};
     return std::lexicographical_compare(ownRates, ownRates + 4, otherRates,
                                         otherRates + 4);
 }

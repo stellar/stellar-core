@@ -38,7 +38,8 @@ class LoadManager
   public:
     LoadManager();
     ~LoadManager();
-    void reportLoads(std::vector<Peer::pointer> const& peers, Application& app);
+    void reportLoads(std::map<NodeID, Peer::pointer> const& peers,
+                     Application& app);
 
     // We track the costs incurred by each peer in a PeerCosts structure,
     // and keep these in an LRU cache to avoid overfilling the LoadManager
