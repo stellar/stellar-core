@@ -94,6 +94,9 @@ class BucketManager : NonMovableOrCopyable
     virtual std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) = 0;
 
+    // Retain all buckets from history state.
+    virtual void retainAll(HistoryArchiveState const& has) = 0;
+
     // Restart from a saved state: find and attach all buckets in `has`, set
     // current BL.
     virtual void assumeState(HistoryArchiveState const& has) = 0;
