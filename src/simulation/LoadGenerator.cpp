@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "simulation/LoadGenerator.h"
+#include "bucket/BucketManager.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
@@ -91,22 +92,29 @@ LoadGenerator::pickRandomAsset()
     return rand_element(sCurrencies);
 }
 
+VirtualTimer&
+LoadGenerator::getTimer(VirtualClock& clock)
+{
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(clock);
+    }
+    return *mLoadTimer;
+}
+
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
                                       uint32_t nTxs, uint32_t txRate,
                                       bool autoRate)
 {
-    if (!mLoadTimer)
-    {
-        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
-    }
+    VirtualTimer& timer = getTimer(app.getClock());
 
     if (app.getState() == Application::APP_SYNCED_STATE)
     {
-        mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
-                                autoRate](asio::error_code const& error) {
+        timer.expires_from_now(std::chrono::milliseconds(STEP_MSECS));
+        timer.async_wait([this, &app, nAccounts, nTxs, txRate,
+                          autoRate](asio::error_code const& error) {
             if (!error)
             {
                 this->generateLoad(app, nAccounts, nTxs, txRate, autoRate);
@@ -117,9 +125,9 @@ LoadGenerator::scheduleLoadGeneration(Application& app, uint32_t nAccounts,
     {
         CLOG(WARNING, "LoadGen")
             << "Application is not in sync, load generation inhibited.";
-        mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait([this, &app, nAccounts, nTxs, txRate,
-                                autoRate](asio::error_code const& error) {
+        timer.expires_from_now(std::chrono::seconds(10));
+        timer.async_wait([this, &app, nAccounts, nTxs, txRate,
+                          autoRate](asio::error_code const& error) {
             if (!error)
             {
                 this->scheduleLoadGeneration(app, nAccounts, nTxs, txRate,
@@ -490,16 +498,27 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
 }
 
 vector<LoadGenerator::AccountInfoPtr>
-LoadGenerator::createAccounts(size_t n)
+LoadGenerator::createAccounts(size_t n, uint32_t ledgerNum)
 {
     vector<AccountInfoPtr> result;
     for (size_t i = 0; i < n; i++)
     {
-        auto account = createAccount(mAccounts.size());
+        auto account = createAccount(mAccounts.size(), ledgerNum);
         mAccounts.push_back(account);
         result.push_back(account);
     }
     return result;
+}
+
+void
+LoadGenerator::createAccountsDirectly(Application& app, size_t n)
+{
+    for (size_t it = 0; it < n; it++)
+    {
+        auto acc = createAccount(mAccounts.size());
+        acc->createDirectly(app);
+        mAccounts.push_back(acc);
+    }
 }
 
 vector<LoadGenerator::TxInfo>
@@ -747,7 +766,7 @@ LoadGenerator::AccountInfo::creationTransaction()
                   TxInfo::TX_CREATE_ACCOUNT, LOADGEN_ACCOUNT_BALANCE};
 }
 
-void
+AccountFrame
 LoadGenerator::AccountInfo::createDirectly(Application& app)
 {
     AccountFrame a(mKey.getPublicKey());
@@ -758,8 +777,8 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
     a.touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());
-    ;
     a.storeAdd(delta, app.getDatabase());
+    return a;
 }
 
 void

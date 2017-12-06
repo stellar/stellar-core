@@ -14,6 +14,7 @@
 #include "main/Config.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "simulation/Benchmark.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
@@ -27,6 +28,8 @@
 
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include <functional>
+#include <memory>
 #include <regex>
 
 using namespace stellar::txtest;
@@ -81,6 +84,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                       std::bind(&CommandHandler::dropPeer, this, _1, _2));
     mServer->addRoute("generateload",
                       std::bind(&CommandHandler::generateLoad, this, _1, _2));
+    mServer->addRoute("benchmark",
+                      std::bind(&CommandHandler::benchmark, this, _1, _2));
     mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
     mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
     mServer->addRoute("logrotate",
@@ -296,9 +301,12 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "on the instance."
         "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
         "for more information</li></ul>"
-        "</p><p><h1> "
-        "/unban?node=NODE_ID</h1>"
+        "</p><p><h1> /unban?node=NODE_ID</h1>"
         "remove ban for PEER_ID"
+        "</p><p><h1> /benchmark[?createaccounts=N | "
+        "accounts=N&txrate=R&duration=T]</h1>"
+        "start benchmark of stellar-core; must be used with "
+        "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p>"
 
         "<br>";
@@ -393,6 +401,86 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
         retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
                  "the stellar-core.cfg if you want this behavior";
     }
+}
+
+void
+CommandHandler::benchmark(std::string const& params, std::string& retStr)
+{
+    if (!mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
+    {
+        retStr = "Set ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING=true in "
+                 "the stellar-core.cfg if you want this behavior";
+        return;
+    }
+
+    uint32 createAccounts = 0;
+    uint32_t nAccounts = 1000000;
+    uint32_t txRate = 1000;
+    uint32_t duration = 60 * 10;
+
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    if (!parseNumParam(map, "createaccounts", createAccounts, retStr,
+                       Requirement::OPTIONAL_REQ))
+    {
+        retStr = "Invalid value for the parameter 'createaccounts'";
+        return;
+    }
+
+    if (createAccounts > 0)
+    {
+        Benchmark::BenchmarkBuilder builder(mApp.getNetworkID());
+        builder.setNumberOfInitialAccounts(createAccounts)
+            .populateBenchmarkData()
+            .createBenchmark(mApp);
+
+        retStr = fmt::format("{{\"createdAccounts\": {:d}}}", createAccounts);
+        return;
+    }
+
+    if (!parseNumParam(map, "accounts", nAccounts, retStr,
+                       Requirement::OPTIONAL_REQ))
+    {
+        retStr = "Invalid value for the parameter 'accounts'";
+        return;
+    }
+
+    if (!parseNumParam(map, "txrate", txRate, retStr,
+                       Requirement::OPTIONAL_REQ))
+    {
+        retStr = "Invalid value for the parameter 'txrate'";
+        return;
+    }
+
+    if (!parseNumParam(map, "duration", duration, retStr,
+                       Requirement::OPTIONAL_REQ))
+    {
+        retStr = "Invalid value for the parameter 'duration'";
+        return;
+    }
+
+    Benchmark::BenchmarkBuilder builder(mApp.getNetworkID());
+    builder.setNumberOfInitialAccounts(nAccounts)
+        .setTxRate(txRate)
+        .initializeBenchmark();
+
+    mApp.getMetrics().NewMeter({"benchmark", "run", "started"}, "run").Mark();
+
+    auto stopCallback = [this](Benchmark::Metrics metrics) {
+
+        mApp.getMetrics()
+            .NewMeter({"benchmark", "run", "complete"}, "run")
+            .Mark();
+        BenchmarkReporter().reportBenchmark(metrics, mApp.getMetrics(),
+                                            LOG(INFO));
+    };
+    mApp.getBenchmarkExecutor().executeBenchmark(
+        mApp, builder, std::chrono::seconds{duration}, stopCallback);
+
+    retStr = fmt::format("{{ \"Benchmark\": {{ \"accounts\": {:d}, \"txRate\": "
+                         "{:d}, \"seconds\": {:d} }} }}",
+                         nAccounts, txRate, duration);
 }
 
 void

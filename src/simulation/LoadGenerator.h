@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-types.h"
+#include <functional>
 #include <vector>
 
 namespace medida
@@ -27,7 +28,7 @@ class LoadGenerator
 {
   public:
     LoadGenerator(Hash const& networkID);
-    ~LoadGenerator();
+    virtual ~LoadGenerator();
     void clear();
 
     struct TxInfo;
@@ -65,7 +66,10 @@ class LoadGenerator
 
     std::vector<TxInfo> accountCreationTransactions(size_t n);
     AccountInfoPtr createAccount(size_t i, uint32_t ledgerNum = 0);
-    std::vector<AccountInfoPtr> createAccounts(size_t n);
+    std::vector<AccountInfoPtr> createAccounts(size_t n,
+                                               uint32_t ledgerNum = 0);
+    void createAccountsDirectly(Application& app, size_t n);
+
     bool loadAccount(Application& app, AccountInfo& account);
     bool loadAccount(Application& app, AccountInfoPtr account);
     bool loadAccounts(Application& app, std::vector<AccountInfoPtr> accounts);
@@ -78,8 +82,8 @@ class LoadGenerator
                                     int64_t amount,
                                     std::vector<AccountInfoPtr> const& path);
 
-    AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
-                                     uint32_t ledgerNum);
+    virtual AccountInfoPtr pickRandomAccount(AccountInfoPtr tryToAvoid,
+                                             uint32_t ledgerNum);
 
     AccountInfoPtr pickRandomPath(AccountInfoPtr from, uint32_t ledgerNum,
                                   std::vector<AccountInfoPtr>& path);
@@ -124,7 +128,7 @@ class LoadGenerator
         AccountInfoPtr mBuyCredit;
         AccountInfoPtr mSellCredit;
 
-        void createDirectly(Application& app);
+        AccountFrame createDirectly(Application& app);
         void debitDirectly(Application& app, int64_t debitAmount);
         TxInfo creationTransaction();
 
@@ -175,5 +179,8 @@ class LoadGenerator
                                  TxMetrics& metrics);
         void recordExecution(int64_t baseFee);
     };
+
+  private:
+    VirtualTimer& getTimer(VirtualClock& clock);
 };
 }
