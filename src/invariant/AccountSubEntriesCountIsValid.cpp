@@ -112,11 +112,11 @@ AccountSubEntriesCountIsValid::updateChangedSubEntriesCount(
         auto accountID = valid->data.account().accountID;
         auto& change = subEntriesChange[accountID];
         change.numSubEntries =
-            (current ? current->data.account().numSubEntries : 0) -
-            (previous ? previous->data.account().numSubEntries : 0);
+            (current ? int32_t(current->data.account().numSubEntries) : 0) -
+            (previous ? int32_t(previous->data.account().numSubEntries) : 0);
         change.signers =
-            (current ? current->data.account().signers.size() : 0) -
-            (previous ? previous->data.account().signers.size() : 0);
+            (current ? int32_t(current->data.account().signers.size()) : 0) -
+            (previous ? int32_t(previous->data.account().signers.size()) : 0);
         change.calculatedSubEntries += change.signers;
         break;
     }
