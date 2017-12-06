@@ -20,7 +20,7 @@ CacheIsConsistentWithDatabase::registerInvariant(Application& app)
 }
 
 CacheIsConsistentWithDatabase::CacheIsConsistentWithDatabase(Database& db)
-    : mDb{db}
+    : Invariant(false), mDb{db}
 {
 }
 
@@ -31,7 +31,9 @@ CacheIsConsistentWithDatabase::getName() const
 }
 
 std::string
-CacheIsConsistentWithDatabase::checkOnLedgerClose(LedgerDelta const& delta)
+CacheIsConsistentWithDatabase::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerDelta const& delta)
 {
     for (auto const& l : delta.getLiveEntries())
     {
@@ -41,7 +43,6 @@ CacheIsConsistentWithDatabase::checkOnLedgerClose(LedgerDelta const& delta)
             return s;
         }
     }
-
     for (auto const& d : delta.getDeadEntries())
     {
         if (EntryFrame::exists(mDb, d))
@@ -51,7 +52,6 @@ CacheIsConsistentWithDatabase::checkOnLedgerClose(LedgerDelta const& delta)
                 xdr::xdr_to_string(d));
         }
     }
-
     return {};
 }
 }

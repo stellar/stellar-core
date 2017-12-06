@@ -118,28 +118,6 @@ OfferFrame::getFlags() const
     return mOffer.flags;
 }
 
-bool
-OfferFrame::isValid(LedgerEntry const& le)
-{
-    bool res = (le.lastModifiedLedgerSeq <= INT32_MAX);
-    OfferEntry const& oe = le.data.offer();
-
-    res = res && (oe.offerID <= INT64_MAX);
-    res = res && (oe.amount > 0);
-    res = res && (oe.price.n > 0);
-    res = res && (oe.price.d >= 1);
-    res = res && isAssetValid(oe.selling);
-    res = res && isAssetValid(oe.buying);
-    res = res && ((oe.flags & ~MASK_OFFERENTRY_FLAGS) == 0);
-    return res;
-}
-
-bool
-OfferFrame::isValid() const
-{
-    return isValid(mEntry);
-}
-
 OfferFrame::pointer
 OfferFrame::loadOffer(AccountID const& sellerID, uint64_t offerID, Database& db,
                       LedgerDelta* delta)
@@ -255,11 +233,6 @@ OfferFrame::loadOffers(StatementContext& prep,
                 strToAssetCode(oe.buying.alphaNum4().assetCode,
                                buyingAssetCode);
             }
-        }
-
-        if (!isValid(le))
-        {
-            throw std::runtime_error("Invalid offer");
         }
 
         offerProcessor(le);
@@ -472,11 +445,6 @@ void
 OfferFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 {
     touch(delta);
-
-    if (!isValid())
-    {
-        throw std::runtime_error("Invalid offer");
-    }
 
     std::string actIDStrKey = KeyUtils::toStrKey(mOffer.sellerID);
 

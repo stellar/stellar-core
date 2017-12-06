@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/TxSetFrame.h"
+#include "lib/json/json.h"
 #include <memory>
 
 namespace stellar
@@ -13,6 +14,7 @@ namespace stellar
 class Application;
 class Invariant;
 class LedgerDelta;
+struct Operation;
 
 /**
  * InvariantManager maintains a registry of available invariants and
@@ -30,12 +32,15 @@ class InvariantManager
     {
     }
 
-    virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
-                                    LedgerDelta const& delta) = 0;
+    virtual Json::Value getInformation() = 0;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     uint32_t ledger, uint32_t level,
                                     bool isCurr) = 0;
+
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerDelta const& delta) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 

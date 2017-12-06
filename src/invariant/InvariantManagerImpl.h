@@ -9,6 +9,11 @@
 #include <map>
 #include <vector>
 
+namespace medida
+{
+class MetricsRegistry;
+}
+
 namespace stellar
 {
 
@@ -16,12 +21,23 @@ class InvariantManagerImpl : public InvariantManager
 {
     std::map<std::string, std::shared_ptr<Invariant>> mInvariants;
     std::vector<std::shared_ptr<Invariant>> mEnabled;
+    medida::MetricsRegistry& mMetricsRegistry;
+
+    struct InvariantFailureInformation
+    {
+        uint32_t lastFailedOnLedger;
+        std::string lastFailedWithMessage;
+    };
+    std::map<std::string, InvariantFailureInformation> mFailureInformation;
 
   public:
-    InvariantManagerImpl();
+    InvariantManagerImpl(medida::MetricsRegistry& registry);
 
-    virtual void checkOnLedgerClose(TxSetFramePtr const& txSet,
-                                    LedgerDelta const& delta) override;
+    virtual Json::Value getInformation() override;
+
+    virtual void checkOnOperationApply(Operation const& operation,
+                                       OperationResult const& opres,
+                                       LedgerDelta const& delta) override;
 
     virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                     uint32_t ledger, uint32_t level,
@@ -31,5 +47,12 @@ class InvariantManagerImpl : public InvariantManager
     registerInvariant(std::shared_ptr<Invariant> invariant) override;
 
     virtual void enableInvariant(std::string const& name) override;
+
+  private:
+    void onInvariantFailure(std::shared_ptr<Invariant> invariant,
+                            std::string const& message, uint32_t ledger);
+
+    virtual void handleInvariantFailure(std::shared_ptr<Invariant> invariant,
+                                        std::string const& message) const;
 };
 }

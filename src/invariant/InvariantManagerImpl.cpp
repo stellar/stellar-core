@@ -6,14 +6,18 @@
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
-#include "invariant/CacheIsConsistentWithDatabase.h"
-#include "invariant/ChangedAccountsSubentriesCountIsValid.h"
+#include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
-#include "invariant/TotalCoinsEqualsBalancesPlusFeePool.h"
+#include "invariant/InvariantManagerImpl.h"
 #include "ledger/LedgerDelta.h"
 #include "lib/util/format.h"
+#include "main/Application.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
+
+#include "medida/counter.h"
+#include "medida/metrics_registry.h"
+
 #include <memory>
 #include <numeric>
 
@@ -23,34 +27,33 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return make_unique<InvariantManagerImpl>();
+    return make_unique<InvariantManagerImpl>(app.getMetrics());
 }
 
-InvariantManagerImpl::InvariantManagerImpl()
+InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
+    : mMetricsRegistry(registry)
 {
 }
 
-void
-InvariantManagerImpl::checkOnLedgerClose(TxSetFramePtr const& txSet,
-                                         LedgerDelta const& delta)
+Json::Value
+InvariantManagerImpl::getInformation()
 {
-    for (auto invariant : mEnabled)
+    Json::Value failures;
+    for (auto const& invariant : mInvariants)
     {
-        auto result = invariant->checkOnLedgerClose(delta);
-        if (result.empty())
+        auto& counter = mMetricsRegistry.NewCounter(
+            {"invariant", "does-not-hold", "count", invariant.first});
+        if (counter.count() > 0)
         {
-            continue;
-        }
+            auto const& info = mFailureInformation.at(invariant.first);
 
-        auto transactions = TransactionSet{};
-        txSet->toXDR(transactions);
-        auto message =
-            fmt::format(R"(invariant "{}" does not hold on ledger {}: {}{}{})",
-                        invariant->getName(), delta.getHeader().ledgerSeq,
-                        result, "\n", xdr::xdr_to_string(transactions));
-        CLOG(FATAL, "Invariant") << message;
-        throw InvariantDoesNotHold{message};
+            auto& fail = failures[invariant.first];
+            fail["count"] = (Json::Int64)counter.count();
+            fail["last_failed_on_ledger"] = info.lastFailedOnLedger;
+            fail["last_failed_with_message"] = info.lastFailedWithMessage;
+        }
     }
+    return failures;
 }
 
 void
@@ -77,8 +80,32 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
             R"(invariant "{}" does not hold on bucket {}[{}] = {}: {})",
             invariant->getName(), isCurr ? "Curr" : "Snap", level,
             binToHex(bucket->getHash()), result);
-        CLOG(FATAL, "Invariant") << message;
-        throw InvariantDoesNotHold{message};
+        onInvariantFailure(invariant, message, ledger);
+    }
+}
+
+void
+InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
+                                            OperationResult const& opres,
+                                            LedgerDelta const& delta)
+{
+    if (delta.getHeader().ledgerVersion < 8)
+    {
+        return;
+    }
+
+    for (auto invariant : mEnabled)
+    {
+        auto result = invariant->checkOnOperationApply(operation, opres, delta);
+        if (result.empty())
+        {
+            continue;
+        }
+
+        auto message = fmt::format(
+            R"(Invariant "{}" does not hold on operation: {}{}{})",
+            invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
+        onInvariantFailure(invariant, message, delta.getHeader().ledgerSeq);
     }
 }
 
@@ -90,6 +117,8 @@ InvariantManagerImpl::registerInvariant(std::shared_ptr<Invariant> invariant)
     if (iter == mInvariants.end())
     {
         mInvariants[name] = invariant;
+        mMetricsRegistry.NewCounter(
+            {"invariant", "does-not-hold", "count", invariant->getName()});
     }
     else
     {
@@ -132,6 +161,35 @@ InvariantManagerImpl::enableInvariant(std::string const& name)
     else
     {
         throw std::runtime_error{"Invariant " + name + " already enabled"};
+    }
+}
+
+void
+InvariantManagerImpl::onInvariantFailure(std::shared_ptr<Invariant> invariant,
+                                         std::string const& message,
+                                         uint32_t ledger)
+{
+    mMetricsRegistry
+        .NewCounter(
+            {"invariant", "does-not-hold", "count", invariant->getName()})
+        .inc();
+    mFailureInformation[invariant->getName()].lastFailedOnLedger = ledger;
+    mFailureInformation[invariant->getName()].lastFailedWithMessage = message;
+    handleInvariantFailure(invariant, message);
+}
+
+void
+InvariantManagerImpl::handleInvariantFailure(
+    std::shared_ptr<Invariant> invariant, std::string const& message) const
+{
+    if (invariant->isStrict())
+    {
+        CLOG(FATAL, "Invariant") << message;
+        throw InvariantDoesNotHold{message};
+    }
+    else
+    {
+        CLOG(ERROR, "Invariant") << message;
     }
 }
 }

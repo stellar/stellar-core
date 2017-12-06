@@ -102,28 +102,6 @@ AccountFrame::normalize()
 }
 
 bool
-AccountFrame::isValid()
-{
-    bool res = (mEntry.lastModifiedLedgerSeq <= INT32_MAX);
-    auto const& a = mAccountEntry;
-
-    res = res && isString32Valid(a.homeDomain);
-    res = res && a.balance >= 0;
-    res = res && (a.seqNum <= INT64_MAX);
-    res = res && (std::adjacent_find(a.signers.begin(), a.signers.end(),
-                                     [](Signer const& s1, Signer const& s2) {
-                                         return !signerCompare(s1, s2);
-                                     }) == a.signers.end());
-    res = res && ((a.flags & ~MASK_ACCOUNT_FLAGS) == 0);
-    res = res && (a.numSubEntries <= INT32_MAX);
-    res = res &&
-          std::all_of(a.signers.begin(), a.signers.end(), [](Signer const& s) {
-              return (s.weight <= UINT8_MAX) && (s.weight != 0);
-          });
-    return res;
-}
-
-bool
 AccountFrame::isAuthRequired() const
 {
     return (mAccountEntry.flags & AUTH_REQUIRED_FLAG) != 0;
@@ -299,7 +277,6 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
 
     res->normalize();
     res->mUpdateSigners = false;
-    assert(res->isValid());
     res->mKeyCalculated = false;
     res->putCachedEntry(db);
     return res;
@@ -443,8 +420,6 @@ AccountFrame::storeDelete(LedgerDelta& delta, Database& db,
 void
 AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
 {
-    assert(isValid());
-
     touch(delta);
 
     flushCachedEntry(db);

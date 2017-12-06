@@ -28,7 +28,7 @@ BucketListIsConsistentWithDatabase::registerInvariant(Application& app)
 
 BucketListIsConsistentWithDatabase::BucketListIsConsistentWithDatabase(
     Database& db)
-    : mDb{db}
+    : Invariant(true), mDb{db}
 {
 }
 

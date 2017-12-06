@@ -61,6 +61,12 @@ LedgerDelta::getHeaderFrame()
     return mCurrentHeader;
 }
 
+LedgerHeader const&
+LedgerDelta::getPreviousHeader() const
+{
+    return mPreviousHeaderValue;
+}
+
 void
 LedgerDelta::checkState()
 {
@@ -415,5 +421,136 @@ LedgerDelta::markMeters(Application& app) const
             break;
         }
     }
+}
+
+template <typename IterType, typename ValueType>
+void
+LedgerDelta::Iterator<IterType, ValueType>::createValueIfNecessary() const
+{
+    if (!mValue)
+    {
+        mValue = std::make_shared<ValueType>(mDelta, *mIter);
+    }
+}
+
+template <typename IterType, typename ValueType>
+LedgerDelta::Iterator<IterType, ValueType>::Iterator(LedgerDelta const& delta,
+                                                     IterType const& iter)
+    : mDelta(delta), mIter(iter)
+{
+}
+
+template <typename IterType, typename ValueType>
+ValueType const& LedgerDelta::Iterator<IterType, ValueType>::operator*() const
+{
+    createValueIfNecessary();
+    return *mValue;
+}
+
+template <typename IterType, typename ValueType>
+ValueType const* LedgerDelta::Iterator<IterType, ValueType>::operator->() const
+{
+    createValueIfNecessary();
+    return mValue.get();
+}
+
+template <typename IterType, typename ValueType>
+LedgerDelta::Iterator<IterType, ValueType>&
+    LedgerDelta::Iterator<IterType, ValueType>::operator++()
+{
+    ++mIter;
+    mValue.reset();
+    return *this;
+}
+
+template <typename IterType, typename ValueType>
+bool
+LedgerDelta::Iterator<IterType, ValueType>::
+operator==(Iterator<IterType, ValueType> const& other) const
+{
+    return mIter == other.mIter;
+}
+
+template <typename IterType, typename ValueType>
+bool
+LedgerDelta::Iterator<IterType, ValueType>::
+operator!=(Iterator<IterType, ValueType> const& other) const
+{
+    return !(mIter == other.mIter);
+}
+
+template <typename IterType>
+LedgerDelta::IteratorRange<IterType>::IteratorRange(IterType const& begin,
+                                                    IterType const& end)
+    : mBegin(begin), mEnd(end)
+{
+}
+
+template <typename IterType>
+IterType
+LedgerDelta::IteratorRange<IterType>::begin() const
+{
+    return mBegin;
+}
+
+template <typename IterType>
+IterType
+LedgerDelta::IteratorRange<IterType>::end() const
+{
+    return mEnd;
+}
+
+template class LedgerDelta::Iterator<LedgerDelta::KeyEntryMap::const_iterator,
+                                     LedgerDelta::AddedLedgerEntry>;
+template class LedgerDelta::IteratorRange<LedgerDelta::AddedIterator>;
+
+LedgerDelta::AddedLedgerEntry::AddedLedgerEntry(
+    LedgerDelta const& delta, KeyEntryMap::value_type const& pair)
+    : key(pair.first), current(pair.second)
+{
+}
+
+LedgerDelta::IteratorRange<LedgerDelta::AddedIterator>
+LedgerDelta::added() const
+{
+    return {LedgerDelta::AddedIterator(*this, mNew.cbegin()),
+            LedgerDelta::AddedIterator(*this, mNew.cend())};
+}
+
+template class LedgerDelta::Iterator<LedgerDelta::KeyEntryMap::const_iterator,
+                                     LedgerDelta::ModifiedLedgerEntry>;
+template class LedgerDelta::IteratorRange<LedgerDelta::ModifiedIterator>;
+
+LedgerDelta::ModifiedLedgerEntry::ModifiedLedgerEntry(
+    LedgerDelta const& delta, KeyEntryMap::value_type const& pair)
+    : key(pair.first)
+    , current(pair.second)
+    , previous(delta.mPrevious.at(pair.first))
+{
+}
+
+LedgerDelta::IteratorRange<LedgerDelta::ModifiedIterator>
+LedgerDelta::modified() const
+{
+    return {LedgerDelta::ModifiedIterator(*this, mMod.cbegin()),
+            LedgerDelta::ModifiedIterator(*this, mMod.cend())};
+}
+
+template class LedgerDelta::Iterator<
+    std::set<LedgerKey, LedgerEntryIdCmp>::const_iterator,
+    LedgerDelta::DeletedLedgerEntry>;
+template class LedgerDelta::IteratorRange<LedgerDelta::DeletedIterator>;
+
+LedgerDelta::DeletedLedgerEntry::DeletedLedgerEntry(LedgerDelta const& delta,
+                                                    LedgerKey const& value)
+    : key(value), previous(delta.mPrevious.at(value))
+{
+}
+
+LedgerDelta::IteratorRange<LedgerDelta::DeletedIterator>
+LedgerDelta::deleted() const
+{
+    return {LedgerDelta::DeletedIterator(*this, mDelete.cbegin()),
+            LedgerDelta::DeletedIterator(*this, mDelete.cend())};
 }
 }

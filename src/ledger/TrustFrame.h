@@ -112,9 +112,6 @@ class TrustFrame : public EntryFrame
     static void dropAll(Database& db);
 
   private:
-    static bool isValid(LedgerEntry const& le);
-    bool isValid() const;
-
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
 };

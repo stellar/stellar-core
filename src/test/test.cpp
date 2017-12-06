@@ -80,10 +80,12 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         thisConfig.LOG_FILE_PATH = sstream.str();
         thisConfig.BUCKET_DIR_PATH = rootDir + "bucket";
 
-        thisConfig.INVARIANT_CHECKS = {"BucketListIsConsistentWithDatabase",
+        thisConfig.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid",
+                                       "BucketListIsConsistentWithDatabase",
                                        "CacheIsConsistentWithDatabase",
-                                       "ChangedAccountsSubentriesCountIsValid",
-                                       "TotalCoinsEqualsBalancesPlusFeePool"};
+                                       "ConservationOfLumens",
+                                       "LedgerEntryIsValid",
+                                       "MinimumAccountBalance"};
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 

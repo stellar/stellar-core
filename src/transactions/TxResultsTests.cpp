@@ -182,12 +182,12 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto app = createTestApplication(clock, cfg);
     app->start();
 
-    LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
-                      app->getDatabase());
-
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
+        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
+                          app->getDatabase());
+
         auto shouldValidateOk = validationResult.code == txSUCCESS;
         REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
         REQUIRE(tx->getResult().result.code() == validationResult.code);

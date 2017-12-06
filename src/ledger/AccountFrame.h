@@ -32,8 +32,6 @@ class AccountFrame : public EntryFrame
 
     void normalize();
 
-    bool isValid();
-
     static std::vector<Signer> loadSigners(Database& db,
                                            std::string const& actIDStrKey);
     void applySigners(Database& db, bool insert);

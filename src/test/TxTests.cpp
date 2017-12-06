@@ -103,7 +103,6 @@ applyCheck(TransactionFramePtr tx, Application& app)
 
     // validates db state
     app.getLedgerManager().checkDbState();
-    app.getInvariantManager().checkOnLedgerClose(txSet, delta);
     delta.commit();
 
     return res;

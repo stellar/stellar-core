@@ -9,6 +9,7 @@
 #include "ledger/LedgerHeaderFrame.h"
 #include "xdrpp/marshal.h"
 #include <map>
+#include <memory>
 #include <set>
 
 namespace stellar
@@ -71,6 +72,8 @@ class LedgerDelta
     LedgerHeader const& getHeader() const;
     LedgerHeaderFrame& getHeaderFrame();
 
+    LedgerHeader const& getPreviousHeader() const;
+
     // methods to register changes in the ledger entries
     void addEntry(EntryFrame const& entry);
     void deleteEntry(EntryFrame const& entry);
@@ -92,5 +95,76 @@ class LedgerDelta
     std::vector<LedgerKey> getDeadEntries() const;
 
     LedgerEntryChanges getChanges() const;
+
+    template <typename IterType, typename ValueType> class Iterator
+    {
+        LedgerDelta const& mDelta;
+        IterType mIter;
+
+        mutable std::shared_ptr<ValueType> mValue;
+
+        void createValueIfNecessary() const;
+
+      public:
+        Iterator(LedgerDelta const& delta, IterType const& iter);
+
+        ValueType const& operator*() const;
+        ValueType const* operator->() const;
+
+        Iterator<IterType, ValueType>& operator++();
+
+        bool operator==(Iterator const& other) const;
+        bool operator!=(Iterator const& other) const;
+    };
+
+    template <typename IterType> class IteratorRange
+    {
+        IterType const mBegin;
+        IterType const mEnd;
+
+      public:
+        IteratorRange(IterType const& begin, IterType const& end);
+
+        IterType begin() const;
+        IterType end() const;
+    };
+
+    struct AddedLedgerEntry
+    {
+        LedgerKey key;
+        EntryFrame::pointer current;
+
+        explicit AddedLedgerEntry(LedgerDelta const& delta,
+                                  KeyEntryMap::value_type const& pair);
+    };
+    typedef Iterator<KeyEntryMap::const_iterator, AddedLedgerEntry>
+        AddedIterator;
+    IteratorRange<AddedIterator> added() const;
+
+    struct ModifiedLedgerEntry
+    {
+        LedgerKey key;
+        EntryFrame::pointer current;
+        EntryFrame::pointer previous;
+
+        explicit ModifiedLedgerEntry(LedgerDelta const& delta,
+                                     KeyEntryMap::value_type const& pair);
+    };
+    typedef Iterator<KeyEntryMap::const_iterator, ModifiedLedgerEntry>
+        ModifiedIterator;
+    IteratorRange<ModifiedIterator> modified() const;
+
+    struct DeletedLedgerEntry
+    {
+        LedgerKey key;
+        EntryFrame::pointer previous;
+
+        explicit DeletedLedgerEntry(LedgerDelta const& delta,
+                                    LedgerKey const& value);
+    };
+    typedef Iterator<std::set<LedgerKey, LedgerEntryIdCmp>::const_iterator,
+                     DeletedLedgerEntry>
+        DeletedIterator;
+    IteratorRange<DeletedIterator> deleted() const;
 };
 }

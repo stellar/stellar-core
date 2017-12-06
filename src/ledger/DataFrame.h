@@ -26,9 +26,6 @@ class DataFrame : public EntryFrame
 
     DataEntry& mData;
 
-    static bool isValid(LedgerEntry const& le);
-    bool isValid();
-
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
   public:

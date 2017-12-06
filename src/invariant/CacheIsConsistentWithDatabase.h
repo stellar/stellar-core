@@ -14,6 +14,14 @@ class Application;
 class Database;
 class LedgerDelta;
 
+// This Invariant is used to validate that the changes in LedgerDelta match the
+// changes in the Database. It is important to note that this invariant does
+// not check the converse, meaning it does not check that all changes in the
+// Database match the changes in the LedgerDelta. One specific consequence of
+// this is that a change made to the Database by an external process will not
+// be caught. This invariant makes it possible to write the Invariants at the
+// Operation level without querying the Database, since they can instead rely
+// on the correctness of the LedgerDelta.
 class CacheIsConsistentWithDatabase : public Invariant
 {
   public:
@@ -23,7 +31,10 @@ class CacheIsConsistentWithDatabase : public Invariant
 
     virtual std::string getName() const override;
 
-    virtual std::string checkOnLedgerClose(LedgerDelta const& delta) override;
+    virtual std::string
+    checkOnOperationApply(Operation const& operation,
+                          OperationResult const& result,
+                          LedgerDelta const& delta) override;
 
   private:
     Database& mDb;

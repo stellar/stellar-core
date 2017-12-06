@@ -38,11 +38,11 @@ class HerderStub : public HerderImpl
     }
 };
 
-class ApplicationStub : public ApplicationImpl
+class ApplicationStub : public TestApplication
 {
   public:
     ApplicationStub(VirtualClock& clock, Config const& cfg)
-        : ApplicationImpl(clock, cfg)
+        : TestApplication(clock, cfg)
     {
     }
 

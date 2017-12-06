@@ -31,9 +31,6 @@ class OfferFrame : public EntryFrame
 
     void storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert);
 
-    bool isValid() const;
-    static bool isValid(LedgerEntry const& le);
-
   public:
     typedef std::shared_ptr<OfferFrame> pointer;
 
