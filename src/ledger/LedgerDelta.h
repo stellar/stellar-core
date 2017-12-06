@@ -8,6 +8,7 @@
 #include "ledger/EntryFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "xdrpp/marshal.h"
+#include <iterator>
 #include <map>
 #include <memory>
 #include <set>
@@ -96,7 +97,8 @@ class LedgerDelta
 
     LedgerEntryChanges getChanges() const;
 
-    template <typename IterType, typename ValueType> class Iterator
+    template <typename IterType, typename ValueType>
+    class Iterator : public std::iterator<std::input_iterator_tag, ValueType>
     {
         LedgerDelta const& mDelta;
         IterType mIter;
