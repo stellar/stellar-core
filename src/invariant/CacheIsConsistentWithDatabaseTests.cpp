@@ -40,7 +40,8 @@ generateRandomModifiedEntryFrame(std::map<LedgerKey, LedgerEntry>& liveEntries,
                                  std::default_random_engine& gen)
 {
     assert(liveEntries.size() > 0);
-    std::uniform_int_distribution<uint32_t> dist(0, liveEntries.size() - 1);
+    std::uniform_int_distribution<uint32_t> dist(
+        0, uint32_t(liveEntries.size()) - 1);
     auto iter = liveEntries.begin();
     std::advance(iter, dist(gen));
 
@@ -81,7 +82,8 @@ deleteRandomLedgerEntry(std::map<LedgerKey, LedgerEntry>& liveEntries,
                         std::default_random_engine& gen)
 {
     assert(liveEntries.size() > 0);
-    std::uniform_int_distribution<uint32_t> dist(0, liveEntries.size() - 1);
+    std::uniform_int_distribution<uint32_t> dist(
+        0, uint32_t(liveEntries.size()) - 1);
     auto iter = liveEntries.begin();
     std::advance(iter, dist(gen));
 
@@ -156,9 +158,9 @@ TEST_CASE("Check cache is consistent", "[invariant][cacheisconsistent]")
                     auto liveEntriesCopy = liveEntries;
                     generateLedger(*app, ld, liveEntriesCopy, 2 + j, 10, gen);
                 }
-                OperationResult res;
+                OperationResult res2;
                 REQUIRE_THROWS_AS(
-                    app->getInvariantManager().checkOnOperationApply({}, res,
+                    app->getInvariantManager().checkOnOperationApply({}, res2,
                                                                      ld),
                     InvariantDoesNotHold);
             }
