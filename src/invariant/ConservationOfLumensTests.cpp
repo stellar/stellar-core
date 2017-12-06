@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include <numeric>
 #include <random>
 #include <xdrpp/autocheck.h>
 
