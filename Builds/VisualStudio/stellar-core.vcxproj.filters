@@ -579,15 +579,6 @@
     <ClCompile Include="..\..\src\herder\HerderUtils.cpp">
       <Filter>herder</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\BalanceTests.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -600,13 +591,7 @@
     <ClCompile Include="..\..\src\util\SecretValue.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\database\AccountQueries.cpp">
-      <Filter>database</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\database\DatabaseConnectionString.cpp">
-      <Filter>database</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
       <Filter>database</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp">
@@ -642,17 +627,8 @@
     <ClCompile Include="..\..\src\test\TestMarket.cpp">
       <Filter>test</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\main\ConfigTests.cpp">
       <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
-      <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
       <Filter>catchup</Filter>
@@ -798,14 +774,56 @@
     <ClCompile Include="..\..\src\work\WorkTests.cpp">
       <Filter>work\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\Upgrades.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp">
       <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantManagerImpl.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantTests.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\MinimumAccountBalance.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp">
+      <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp">
       <Filter>invariant\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\herder\Upgrades.cpp">
-      <Filter>herder</Filter>
+    <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabaseTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\MinimumAccountBalanceTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
+      <Filter>database\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1223,18 +1241,6 @@
     <ClInclude Include="..\..\src\herder\HerderUtils.h">
       <Filter>herder</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\Invariant.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\TotalCoinsEqualsBalancesPlusFeePool.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\util\Algoritm.h">
       <Filter>util</Filter>
     </ClInclude>
@@ -1243,9 +1249,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\util\SociNoWarnings.h">
       <Filter>util</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\database\AccountQueries.h">
-      <Filter>database</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\database\DatabaseConnectionString.h">
       <Filter>database</Filter>
@@ -1261,15 +1264,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\TestMarket.h">
       <Filter>test</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\ChangedAccountsSubentriesCountIsValid.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantManager.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
-      <Filter>invariant</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\catchup\ApplyBucketsWork.h">
       <Filter>catchup</Filter>
@@ -1394,11 +1388,41 @@
     <ClInclude Include="..\..\src\test\SimpleTestReporter.h">
       <Filter>test</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\herder\Upgrades.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h">
       <Filter>invariant</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\herder\Upgrades.h">
-      <Filter>herder</Filter>
+    <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\Invariant.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManager.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h">
+      <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\MinimumAccountBalance.h">
+      <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
