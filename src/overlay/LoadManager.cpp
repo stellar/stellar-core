@@ -15,6 +15,7 @@
 
 namespace stellar
 {
+using xdr::operator<;
 
 LoadManager::LoadManager() : mPeerCosts(128)
 {
