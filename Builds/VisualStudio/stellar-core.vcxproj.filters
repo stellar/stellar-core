@@ -348,6 +348,12 @@
     <ClCompile Include="..\..\src\bucket\Bucket.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp">
+      <Filter>bucket</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketTests.cpp">
       <Filter>bucket\tests</Filter>
     </ClCompile>
@@ -1023,6 +1029,12 @@
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\bucket\Bucket.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketInputIterator.h">
+      <Filter>bucket</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h">
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerRecord.h">

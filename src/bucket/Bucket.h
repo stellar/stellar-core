@@ -43,52 +43,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     bool mRetain{false};
 
   public:
-    // Helper class that reads through the entries in a bucket.
-    class InputIterator
-    {
-        std::shared_ptr<Bucket const> mBucket;
-
-        // Validity and current-value of the iterator is funneled into a
-        // pointer. If
-        // non-null, it points to mEntry.
-        BucketEntry const* mEntryPtr;
-        XDRInputFileStream mIn;
-        BucketEntry mEntry;
-
-        void loadEntry();
-
-      public:
-        operator bool() const;
-
-        BucketEntry const& operator*();
-
-        InputIterator(std::shared_ptr<Bucket const> bucket);
-
-        ~InputIterator();
-
-        InputIterator& operator++();
-    };
-
-    // Helper class that writes new elements to a file and returns a bucket
-    // when finished.
-    class OutputIterator
-    {
-        std::string mFilename;
-        XDROutputFileStream mOut;
-        std::unique_ptr<BucketEntry> mBuf;
-        std::unique_ptr<SHA256> mHasher;
-        size_t mBytesPut{0};
-        size_t mObjectsPut{0};
-        bool mKeepDeadEntries{true};
-
-      public:
-        OutputIterator(std::string const& tmpDir, bool keepDeadEntries);
-
-        void put(BucketEntry const& e);
-
-        std::shared_ptr<Bucket> getBucket(BucketManager& bucketManager);
-    };
-
     // Create an empty bucket. The empty bucket has hash '000000...' and its
     // filename is the empty string.
     Bucket();

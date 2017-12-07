@@ -5,8 +5,10 @@
 #include "util/asio.h"
 
 #include "bucket/Bucket.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
+#include "bucket/BucketOutputIterator.h"
 #include "catchup/ApplyBucketsWork.h"
 #include "database/Database.h"
 #include "invariant/Invariant.h"
@@ -136,16 +138,16 @@ getHistoryArchiveState(Application::pointer appGenerate,
     {
         auto& level = blGenerate.getLevel(i);
         {
-            Bucket::OutputIterator out(bmApply.getTmpDir(), true);
-            for (Bucket::InputIterator in (level.getCurr()); in; ++in)
+            BucketOutputIterator out(bmApply.getTmpDir(), true);
+            for (BucketInputIterator in (level.getCurr()); in; ++in)
             {
                 out.put(*in);
             }
             out.getBucket(bmApply);
         }
         {
-            Bucket::OutputIterator out(bmApply.getTmpDir(), true);
-            for (Bucket::InputIterator in (level.getSnap()); in; ++in)
+            BucketOutputIterator out(bmApply.getTmpDir(), true);
+            for (BucketInputIterator in (level.getSnap()); in; ++in)
             {
                 out.put(*in);
             }
@@ -495,7 +497,7 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 bool
 doesBucketContain(std::shared_ptr<Bucket const> bucket, const BucketEntry& be)
 {
-    for (Bucket::InputIterator iter(bucket); iter; ++iter)
+    for (BucketInputIterator iter(bucket); iter; ++iter)
     {
         if (*iter == be)
         {
