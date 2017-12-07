@@ -262,13 +262,9 @@ LedgerDelta::addCurrentMeta(LedgerEntryChanges& changes,
     auto it = mPrevious.find(key);
     if (it != mPrevious.end())
     {
-        // if the old value is from a previous ledger we emit it
         auto const& e = it->second->mEntry;
-        if (e.lastModifiedLedgerSeq != mCurrentHeader.mHeader.ledgerSeq)
-        {
-            changes.emplace_back(LEDGER_ENTRY_STATE);
-            changes.back().state() = e;
-        }
+        changes.emplace_back(LEDGER_ENTRY_STATE);
+        changes.back().state() = e;
     }
 }
 

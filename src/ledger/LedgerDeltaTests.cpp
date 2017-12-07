@@ -282,7 +282,7 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             {
                 accountsByKey = modAccounts;
                 checkChanges(delta2, 0, nbAccountsGroupSize * 2, 0,
-                             nbAccountsGroupSize, orgAccountsBeforeD2);
+                             nbAccountsGroupSize * 2, orgAccountsBeforeD2);
                 delta2.commit();
                 checkChanges(delta, nbAccountsGroupSize,
                              nbAccountsGroupSize * 2, nbAccountsGroupSize,
@@ -312,7 +312,7 @@ TEST_CASE("Ledger delta", "[ledger][ledgerdelta]")
             {
                 accountsByKey = delAccounts;
                 checkChanges(delta2, 0, 0, nbAccountsGroupSize * 2,
-                             nbAccountsGroupSize, orgAccountsBeforeD2);
+                             nbAccountsGroupSize * 2, orgAccountsBeforeD2);
                 delta2.commit();
                 // adds/mods were replaced by a delete
                 // adds+del result in no-op
