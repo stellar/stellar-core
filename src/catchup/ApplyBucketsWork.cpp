@@ -58,23 +58,10 @@ ApplyBucketsWork::getBucketLevel(uint32_t level)
 std::shared_ptr<Bucket const>
 ApplyBucketsWork::getBucket(std::string const& hash)
 {
-    std::shared_ptr<Bucket const> b;
-    if (isZero(hexToBin256(hash)))
-    {
-        b = std::make_shared<Bucket>();
-    }
-    else
-    {
-        auto i = mBuckets.find(hash);
-        if (i != mBuckets.end())
-        {
-            b = i->second;
-        }
-        else
-        {
-            b = mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
-        }
-    }
+    auto i = mBuckets.find(hash);
+    auto b = (i != mBuckets.end())
+                 ? i->second
+                 : mApp.getBucketManager().getBucketByHash(hexToBin256(hash));
     assert(b);
     return b;
 }
