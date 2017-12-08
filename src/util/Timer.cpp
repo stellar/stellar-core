@@ -16,12 +16,9 @@ using namespace std;
 
 static const uint32_t RECENT_CRANK_WINDOW = 1024;
 
-VirtualClock::VirtualClock(Mode mode)
-    : mRealTimer(mIOService)
-    , mMode(mode)
-    , mRecentCrankCount(RECENT_CRANK_WINDOW >> 1)
-    , mRecentIdleCrankCount(RECENT_CRANK_WINDOW >> 1)
+VirtualClock::VirtualClock(Mode mode) : mRealTimer(mIOService), mMode(mode)
 {
+    resetIdleCrankPercent();
     if (mMode == REAL_TIME)
     {
         mNow = std::chrono::system_clock::now();
@@ -324,6 +321,13 @@ VirtualClock::recentIdleCrankPercent() const
     assert(v <= 100);
 
     return v;
+}
+
+void
+VirtualClock::resetIdleCrankPercent()
+{
+    mRecentCrankCount = RECENT_CRANK_WINDOW >> 1;
+    mRecentIdleCrankCount = RECENT_CRANK_WINDOW >> 1;
 }
 
 asio::io_service&

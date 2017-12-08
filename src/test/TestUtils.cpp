@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
 
 namespace stellar
@@ -15,6 +16,35 @@ void
 setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
 {
     lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
+}
+
+void
+crankSome(VirtualClock& clock)
+{
+    auto start = clock.now();
+    for (size_t i = 0;
+         (i < 100 && clock.now() < (start + std::chrono::seconds(1)) &&
+          clock.crank(false) > 0);
+         ++i)
+        ;
+}
+
+void
+injectSendPeersAndReschedule(VirtualClock::time_point& end, VirtualClock& clock,
+                             VirtualTimer& timer,
+                             LoopbackPeerConnection& connection)
+{
+    connection.getInitiator()->sendGetPeers();
+    if (clock.now() < end && connection.getInitiator()->isConnected())
+    {
+        timer.expires_from_now(std::chrono::milliseconds(10));
+        timer.async_wait([&](asio::error_code const& ec) {
+            if (!ec)
+            {
+                injectSendPeersAndReschedule(end, clock, timer, connection);
+            }
+        });
+    }
 }
 
 BucketListDepthModifier::BucketListDepthModifier(uint32_t newDepth)
