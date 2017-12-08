@@ -48,15 +48,6 @@ Bucket::Bucket(std::string const& filename, Hash const& hash)
     }
 }
 
-Bucket::~Bucket()
-{
-    if (!mFilename.empty() && !mRetain)
-    {
-        CLOG(TRACE, "Bucket") << "Bucket::~Bucket removing file: " << mFilename;
-        std::remove(mFilename.c_str());
-    }
-}
-
 Bucket::Bucket()
 {
 }
@@ -71,12 +62,6 @@ std::string const&
 Bucket::getFilename() const
 {
     return mFilename;
-}
-
-void
-Bucket::setRetain(bool r)
-{
-    mRetain = r;
 }
 
 bool

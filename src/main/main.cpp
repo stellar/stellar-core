@@ -526,7 +526,6 @@ loadXdr(Config const& cfg, std::string const& bucketFile)
     {
         uint256 zero;
         Bucket bucket(bucketFile, zero);
-        bucket.setRetain(true);
         bucket.apply(app->getDatabase());
     }
     else
