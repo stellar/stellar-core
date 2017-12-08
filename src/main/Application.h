@@ -40,6 +40,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class BenchmarkExecutor;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -231,6 +232,8 @@ class Application
     // against the current application.
     virtual void generateLoad(uint32_t nAccounts, uint32_t nTxs,
                               uint32_t txRate, bool autoRate) = 0;
+
+    virtual BenchmarkExecutor& getBenchmarkExecutor() = 0;
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
