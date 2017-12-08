@@ -5,10 +5,14 @@
 #include "simulation/Benchmark.h"
 
 #include "bucket/BucketManager.h"
+#include "database/Database.h"
+#include "ledger/LedgerDelta.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include <algorithm>
 #include <chrono>
+#include <functional>
+#include <iterator>
 #include <memory>
 #include <random>
 #include <vector>
@@ -118,6 +122,132 @@ Benchmark::scheduleLoad(Application& app, std::chrono::milliseconds stepTime)
                 stopBenchmark();
             }
         });
+}
+
+Benchmark::BenchmarkBuilder::BenchmarkBuilder(Hash const& networkID)
+    : mPopulate(false)
+    , mAlreadyPopulated(false)
+    , mTxRate(0)
+    , mNumberOfAccounts(0)
+    , mNetworkID(networkID)
+    , mLoadAccounts(false)
+{
+}
+
+Benchmark::BenchmarkBuilder&
+Benchmark::BenchmarkBuilder::setNumberOfInitialAccounts(uint32_t accounts)
+{
+    mNumberOfAccounts = accounts;
+    return *this;
+}
+
+Benchmark::BenchmarkBuilder&
+Benchmark::BenchmarkBuilder::setTxRate(uint32_t txRate)
+{
+    mTxRate = txRate;
+    return *this;
+}
+
+Benchmark::BenchmarkBuilder&
+Benchmark::BenchmarkBuilder::loadAccounts()
+{
+    mLoadAccounts = true;
+    return *this;
+}
+
+Benchmark::BenchmarkBuilder&
+Benchmark::BenchmarkBuilder::populateBenchmarkData()
+{
+    mPopulate = true;
+    return *this;
+}
+
+void
+createAccountsDirectly(
+    Application& app,
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator createdStart,
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator createdEnd)
+{
+    soci::transaction sqlTx(app.getDatabase().getSession());
+
+    auto ledger = app.getLedgerManager().getLedgerNum();
+    int64_t balanceDiff = 0;
+    std::vector<LedgerEntry> live;
+    std::transform(
+        createdStart, createdEnd, std::back_inserter(live),
+        [&app, &balanceDiff](LoadGenerator::AccountInfoPtr const& account) {
+            AccountFrame aFrame = account->createDirectly(app);
+            balanceDiff += aFrame.getBalance();
+            return aFrame.mEntry;
+        });
+
+    SecretKey skey = SecretKey::fromSeed(app.getNetworkID());
+    AccountFrame::pointer masterAccount =
+        AccountFrame::loadAccount(skey.getPublicKey(), app.getDatabase());
+    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
+                      app.getDatabase());
+    masterAccount->addBalance(-balanceDiff);
+    masterAccount->touch(ledger);
+    masterAccount->storeChange(delta, app.getDatabase());
+
+    sqlTx.commit();
+
+    auto liveEntries = delta.getLiveEntries();
+    live.insert(live.end(), liveEntries.begin(), liveEntries.end());
+    app.getBucketManager().addBatch(app, ledger, live, {});
+}
+
+void
+populateAccounts(
+    Application& app,
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator createdStart,
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator createdEnd)
+{
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator start =
+        createdStart;
+    std::vector<LoadGenerator::AccountInfoPtr>::const_iterator end = createdEnd;
+    size_t accountsLeft = std::distance(createdStart, createdEnd);
+    size_t batchSize = accountsLeft;
+    for (; start != createdEnd; start = end, accountsLeft -= batchSize)
+    {
+        batchSize = std::min(accountsLeft, MAXIMAL_NUMBER_OF_ACCOUNTS_IN_BATCH);
+        end = start + batchSize;
+
+        auto ledgerNum = app.getLedgerManager().getLedgerNum();
+        createAccountsDirectly(app, start, end);
+    }
+}
+
+std::unique_ptr<Benchmark>
+Benchmark::BenchmarkBuilder::createBenchmark(Application& app)
+{
+    std::unique_ptr<TxSampler> sampler = createSampler(app);
+    return make_unique<Benchmark>(app.getMetrics(), mTxRate,
+                                     std::move(sampler));
+}
+
+std::unique_ptr<TxSampler>
+Benchmark::BenchmarkBuilder::createSampler(Application& app)
+{
+    auto sampler = make_unique<TxSampler>(mNetworkID);
+    sampler->createAccounts(mNumberOfAccounts,
+                            app.getLedgerManager().getLedgerNum());
+    if (mPopulate && !mAlreadyPopulated)
+    {
+        // root account should be first on that list
+        // omit the root account
+        auto const& createdAccounts = sampler->getAccounts();
+        populateAccounts(app, createdAccounts.cbegin() + 1,
+                         createdAccounts.cend());
+        mAlreadyPopulated = true;
+    }
+    if (mLoadAccounts)
+    {
+        sampler->loadAccounts(app);
+    }
+    sampler->initialize(app);
+
+    return sampler;
 }
 
 TxSampler::TxSampler(Hash const& networkID) : LoadGenerator(networkID)

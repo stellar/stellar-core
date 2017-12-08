@@ -59,6 +59,26 @@ class Benchmark
     std::unique_ptr<TxSampler> mSampler;
 };
 
+class Benchmark::BenchmarkBuilder
+{
+  public:
+    BenchmarkBuilder(Hash const& networkID);
+    BenchmarkBuilder& setNumberOfInitialAccounts(uint32_t accounts);
+    BenchmarkBuilder& setTxRate(uint32_t txRate);
+    BenchmarkBuilder& loadAccounts();
+    BenchmarkBuilder& populateBenchmarkData();
+    std::unique_ptr<Benchmark> createBenchmark(Application& app);
+    std::unique_ptr<TxSampler> createSampler(Application& app);
+
+  private:
+    bool mPopulate;
+    bool mAlreadyPopulated;
+    uint32_t mTxRate;
+    uint32_t mNumberOfAccounts;
+    Hash mNetworkID;
+    bool mLoadAccounts;
+};
+
 class TxSampler : private LoadGenerator
 {
   public:
@@ -104,4 +124,41 @@ class BenchmarkExecutor
     std::unique_ptr<VirtualTimer> mLoadTimer;
     std::unique_ptr<Benchmark> mBenchmark;
 };
+
+template <typename Stream>
+void
+reportBenchmark(Benchmark::Metrics const& metrics,
+                medida::MetricsRegistry& metricsRegistry, Stream& str)
+{
+    struct ReportProcessor : medida::MetricProcessor
+    {
+        virtual void
+        Process(medida::Timer& timer) override
+        {
+            count = timer.count();
+        }
+
+        std::uint64_t count;
+    };
+    auto externalizedTxs =
+        metricsRegistry.GetAllMetrics()[{"ledger", "transaction", "apply"}];
+    ReportProcessor processor;
+    externalizedTxs->Process(processor);
+    auto txsExternalized = processor.count;
+
+    using std::endl;
+    str << endl
+        << "{" << endl
+        << "\"benchmark metrics\": {" << endl
+        << "  \"time spent\": " << metrics.mBenchmarkTimer.sum() << "," << endl
+        << "  \"time unit\": "
+        << "\"milliseconds\"," << endl
+        << "  \"txs submitted\": " << metrics.mTxsCount.count() << "," << endl
+        << "  \"txs externalized\": " << txsExternalized << endl
+        << "}" << endl
+        << "}" << endl;
+
+    medida::reporting::JsonReporter jr(metricsRegistry);
+    str << jr.Report() << endl;
+}
 }
