@@ -195,4 +195,47 @@ TxSampler::shuffleAccounts(std::vector<LoadGenerator::AccountInfoPtr>& accounts)
     std::shuffle(mAccounts.begin(), mAccounts.end(), rng);
     return mAccounts.begin();
 }
+
+void
+BenchmarkExecutor::executeBenchmark(
+    Application& app, std::chrono::seconds testDuration, uint32_t txRate,
+    std::function<void(Benchmark::Metrics)> stopCallback)
+{
+    if (!mBenchmark)
+    {
+        LOG(INFO)
+            << "Benchmark was not initialized - benchmark's execution stopped";
+        return;
+    }
+    mBenchmark->setTxRate(txRate);
+
+    if (!mLoadTimer)
+    {
+        mLoadTimer = make_unique<VirtualTimer>(app.getClock());
+    }
+    mLoadTimer->expires_from_now(std::chrono::milliseconds{1});
+    mLoadTimer->async_wait([this, &app, testDuration,
+                            stopCallback](asio::error_code const& error) {
+
+        mBenchmark->startBenchmark(app);
+
+        auto stopProcedure = [this,
+                              stopCallback](asio::error_code const& error) {
+
+            auto metrics = mBenchmark->stopBenchmark();
+            stopCallback(metrics);
+
+            LOG(INFO) << "Benchmark complete";
+        };
+
+        mLoadTimer->expires_from_now(testDuration);
+        mLoadTimer->async_wait(stopProcedure);
+    });
+}
+
+void
+BenchmarkExecutor::setBenchmark(std::unique_ptr<Benchmark> benchmark)
+{
+    mBenchmark = std::move(benchmark);
+}
 }

@@ -91,4 +91,17 @@ class TxSampler::Tx
     std::vector<LoadGenerator::TxInfo> mTxs;
     friend class TxSampler;
 };
+
+class BenchmarkExecutor
+{
+  public:
+    void executeBenchmark(Application& app, std::chrono::seconds testDuration,
+                          uint32_t txRate,
+                          std::function<void(Benchmark::Metrics)> stopCallback);
+    void setBenchmark(std::unique_ptr<Benchmark> benchmark);
+
+  private:
+    std::unique_ptr<VirtualTimer> mLoadTimer;
+    std::unique_ptr<Benchmark> mBenchmark;
+};
 }
