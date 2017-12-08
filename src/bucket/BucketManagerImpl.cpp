@@ -335,6 +335,19 @@ BucketManagerImpl::checkForMissingBucketsFiles(HistoryArchiveState const& has)
 }
 
 void
+BucketManagerImpl::retainAll(HistoryArchiveState const& has)
+{
+    for (auto const& bucket : has.allBuckets())
+    {
+        auto const& b = getBucketByHash(hexToBin256(bucket));
+        if (b)
+        {
+            b->setRetain(true);
+        }
+    }
+}
+
+void
 BucketManagerImpl::assumeState(HistoryArchiveState const& has)
 {
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
@@ -350,6 +363,9 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
         mBucketList.getLevel(i).setSnap(snap);
         mBucketList.getLevel(i).setNext(has.currentBuckets.at(i).next);
     }
+
+    // we will need these buckets after restart
+    retainAll(has);
     mBucketList.restartMerges(mApp);
 }
 

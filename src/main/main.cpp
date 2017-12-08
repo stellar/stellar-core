@@ -375,7 +375,7 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
     if (filename == "-")
     {
         LOG(INFO) << "*";
-        LOG(INFO) << "* Catchup info to " << content;
+        LOG(INFO) << "* Catchup info: " << content;
         LOG(INFO) << "*";
     }
     else
