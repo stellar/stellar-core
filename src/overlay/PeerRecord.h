@@ -54,9 +54,9 @@ class PeerRecord
      */
     static optional<PeerRecord> loadPeerRecord(Database& db, std::string ip,
                                                unsigned short port);
-    static void loadPeerRecords(Database& db, uint32_t max,
+    static void loadPeerRecords(Database& db, int batchSize,
                                 VirtualClock::time_point nextAttemptCutoff,
-                                vector<PeerRecord>& retList);
+                                std::function<bool(PeerRecord const& pr)> p);
     const std::string&
     ip() const
     {
@@ -79,7 +79,7 @@ class PeerRecord
     // insert or update record from database
     void storePeerRecord(Database& db);
 
-    void resetBackOff(VirtualClock& clock);
+    void resetBackOff(VirtualClock& clock, bool preferred);
     void backOff(VirtualClock& clock);
 
     void toXdr(PeerAddress& ret) const;

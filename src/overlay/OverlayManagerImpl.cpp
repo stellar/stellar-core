@@ -137,7 +137,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 
 void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool resetBackOff)
+                                  bool resetBackOff, bool preferred)
 {
     for (auto const& peerStr : list)
     {
@@ -146,6 +146,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
             auto pr = PeerRecord::parseIPPort(peerStr, mApp);
             if (resetBackOff)
             {
+                pr.resetBackOff(mApp.getClock(), preferred);
                 pr.storePeerRecord(mApp.getDatabase());
             }
             else
@@ -183,22 +184,35 @@ OverlayManagerImpl::storeConfigPeers()
         }
     }
 
-    storePeerList(mApp.getConfig().KNOWN_PEERS, true);
-    storePeerList(ppeers, true);
+    storePeerList(mApp.getConfig().KNOWN_PEERS, true, false);
+    storePeerList(ppeers, true, true);
 }
 
 void
 OverlayManagerImpl::connectToMorePeers(int max)
 {
-    vector<PeerRecord> peers;
+    const int batchSize = std::max(10, max);
 
     // load best candidates from the database,
     // when PREFERRED_PEER_ONLY is set and we connect to a non
     // preferred_peer we just end up dropping & backing off
     // it during handshake (this allows for preferred_peers
-    // to work for both ip based and key based preferred mode).
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), max, mApp.getClock().now(),
-                                peers);
+    // to work for both ip based and key based preferred mode)
+
+    vector<PeerRecord> peers;
+
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), batchSize,
+                                mApp.getClock().now(),
+                                [&](PeerRecord const& pr) {
+                                    // skip peers that we're already connected
+                                    // to
+                                    if (!getConnectedPeer(pr.ip(), pr.port()))
+                                    {
+                                        peers.emplace_back(pr);
+                                    }
+                                    return peers.size() < max;
+                                });
+
     orderByPreferredPeers(peers);
 
     for (auto& pr : peers)
@@ -212,10 +226,7 @@ OverlayManagerImpl::connectToMorePeers(int max)
         {
             break;
         }
-        if (!getConnectedPeer(pr.ip(), pr.port()))
-        {
-            connectTo(pr);
-        }
+        connectTo(pr);
     }
 }
 
@@ -365,7 +376,7 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
-    if (isPeerPreferred(peer))
+    if (isPreferred(peer.get()))
     {
         if (getAuthenticatedPeersCount() <
             mApp.getConfig().MAX_PEER_CONNECTIONS)
@@ -375,7 +386,7 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 
         for (auto victim : mAuthenticatedPeers)
         {
-            if (!isPeerPreferred(victim.second))
+            if (!isPreferred(victim.second.get()))
             {
                 CLOG(INFO, "Overlay")
                     << "Evicting non-preferred peer "
@@ -422,7 +433,7 @@ OverlayManagerImpl::getAuthenticatedPeersCount() const
 }
 
 bool
-OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
+OverlayManagerImpl::isPreferred(Peer* peer)
 {
     std::string pstr = peer->toString();
 
