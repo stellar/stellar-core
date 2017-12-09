@@ -225,9 +225,12 @@ ApplicationImpl::getJsonInfo()
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
     info["ledger"]["num"] = (int)lm.getLedgerNum();
-    info["ledger"]["hash"] = binToHex(lm.getLastClosedLedgerHeader().hash);
-    info["ledger"]["closeTime"] =
-        (int)lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    info["ledger"]["hash"] = binToHex(lcl.hash);
+    info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
+    info["ledger"]["version"] = lcl.header.ledgerVersion;
+    info["ledger"]["baseFee"] = lcl.header.baseFee;
+    info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
     info["pending_peers_count"] =
         (int)getOverlayManager().getPendingPeersCount();
