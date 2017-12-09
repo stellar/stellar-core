@@ -79,7 +79,7 @@ class PeerRecord
     // insert or update record from database
     void storePeerRecord(Database& db);
 
-    void resetBackOff(VirtualClock& clock);
+    void resetBackOff(VirtualClock& clock, bool preferred);
     void backOff(VirtualClock& clock);
 
     void toXdr(PeerAddress& ret) const;
