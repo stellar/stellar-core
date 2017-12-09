@@ -137,7 +137,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 
 void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool resetBackOff)
+                                  bool resetBackOff, bool preferred)
 {
     for (auto const& peerStr : list)
     {
@@ -146,6 +146,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
             auto pr = PeerRecord::parseIPPort(peerStr, mApp);
             if (resetBackOff)
             {
+                pr.resetBackOff(mApp.getClock(), preferred);
                 pr.storePeerRecord(mApp.getDatabase());
             }
             else
@@ -183,8 +184,8 @@ OverlayManagerImpl::storeConfigPeers()
         }
     }
 
-    storePeerList(mApp.getConfig().KNOWN_PEERS, true);
-    storePeerList(ppeers, true);
+    storePeerList(mApp.getConfig().KNOWN_PEERS, true, false);
+    storePeerList(ppeers, true, true);
 }
 
 void

@@ -122,7 +122,7 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers);
+        pm.storePeerList(fourPeers, false, false);
 
         rowset<row> rs = app->getDatabase().getSession().prepare
                          << "SELECT ip,port FROM peers";
@@ -148,8 +148,8 @@ class OverlayManagerTests
     {
         OverlayManagerStub& pm = app->getOverlayManager();
 
-        pm.storePeerList(fourPeers);
-        pm.storePeerList(threePeers);
+        pm.storePeerList(fourPeers, false, false);
+        pm.storePeerList(threePeers, false, false);
         pm.connectToMorePeers(5);
         REQUIRE(pm.mAuthenticatedPeers.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};

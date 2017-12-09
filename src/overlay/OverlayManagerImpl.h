@@ -57,8 +57,8 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list,
-                       bool resetBackOff = false);
+    void storePeerList(std::vector<std::string> const& list, bool resetBackOff,
+                       bool preferred);
     void storeConfigPeers();
 
     friend class OverlayManagerTests;
