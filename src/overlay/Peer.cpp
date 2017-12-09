@@ -375,8 +375,16 @@ Peer::sendPeers()
 {
     // send top 50 peers we know about
     vector<PeerRecord> peerList;
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
-                                peerList);
+    PeerRecord::loadPeerRecords(
+        mApp.getDatabase(), 50, mApp.getClock().now(),
+        [&](PeerRecord const& pr) {
+            if (!pr.isPrivateAddress() &&
+                !pr.isSelfAddressAndPort(getIP(), mRemoteListeningPort))
+            {
+                peerList.emplace_back(pr);
+            }
+            return peerList.size() < 50;
+        });
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().reserve(peerList.size());
