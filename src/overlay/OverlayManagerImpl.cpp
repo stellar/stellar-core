@@ -375,7 +375,7 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
-    if (isPeerPreferred(peer))
+    if (isPreferred(peer.get()))
     {
         if (getAuthenticatedPeersCount() <
             mApp.getConfig().MAX_PEER_CONNECTIONS)
@@ -385,7 +385,7 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 
         for (auto victim : mAuthenticatedPeers)
         {
-            if (!isPeerPreferred(victim.second))
+            if (!isPreferred(victim.second.get()))
             {
                 CLOG(INFO, "Overlay")
                     << "Evicting non-preferred peer "
@@ -432,7 +432,7 @@ OverlayManagerImpl::getAuthenticatedPeersCount() const
 }
 
 bool
-OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
+OverlayManagerImpl::isPreferred(Peer* peer)
 {
     std::string pstr = peer->toString();
 
