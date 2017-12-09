@@ -98,6 +98,8 @@ class OverlayManager
     // If moving peer to authenticated list succeeded, true is returned.
     virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
 
+    virtual bool isPreferred(Peer* peer) = 0;
+
     // Return the current in-memory set of pending peers.
     virtual std::vector<Peer::pointer> const& getPendingPeers() const = 0;
 
