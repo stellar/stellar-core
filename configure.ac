@@ -180,6 +180,9 @@ soci_LIBS='$(top_builddir)/lib/libsoci.a'
 AC_SUBST(soci_CFLAGS)
 AC_SUBST(soci_LIBS)
 
+libasio_CFLAGS='-DASIO_SEPARATE_COMPILATION=1 -DASIO_STANDALONE -I$(top_srcdir)/lib/asio/asio/include'
+AC_SUBST(libasio_CFLAGS)
+
 AC_ARG_ENABLE(postgres,
     AS_HELP_STRING([--disable-postgres],
         [Disable postgres support even when libpq available]))
