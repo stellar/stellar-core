@@ -57,10 +57,9 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list,
-                       bool resetBackOff = false);
+    void storePeerList(std::vector<std::string> const& list, bool resetBackOff,
+                       bool preferred);
     void storeConfigPeers();
-    bool isPeerPreferred(Peer::pointer peer);
 
     friend class OverlayManagerTests;
 
@@ -80,6 +79,7 @@ class OverlayManagerImpl : public OverlayManager
     void addPendingPeer(Peer::pointer peer) override;
     void dropPeer(Peer* peer) override;
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
+    bool isPreferred(Peer* peer) override;
     std::vector<Peer::pointer> const& getPendingPeers() const override;
     size_t getPendingPeersCount() const override;
     std::map<NodeID, Peer::pointer> const&

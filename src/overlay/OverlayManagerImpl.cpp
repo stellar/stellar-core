@@ -137,7 +137,7 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
 
 void
 OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool resetBackOff)
+                                  bool resetBackOff, bool preferred)
 {
     for (auto const& peerStr : list)
     {
@@ -146,6 +146,7 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
             auto pr = PeerRecord::parseIPPort(peerStr, mApp);
             if (resetBackOff)
             {
+                pr.resetBackOff(mApp.getClock(), preferred);
                 pr.storePeerRecord(mApp.getDatabase());
             }
             else
@@ -183,8 +184,8 @@ OverlayManagerImpl::storeConfigPeers()
         }
     }
 
-    storePeerList(mApp.getConfig().KNOWN_PEERS, true);
-    storePeerList(ppeers, true);
+    storePeerList(mApp.getConfig().KNOWN_PEERS, true, false);
+    storePeerList(ppeers, true, true);
 }
 
 void
@@ -365,7 +366,7 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
-    if (isPeerPreferred(peer))
+    if (isPreferred(peer.get()))
     {
         if (getAuthenticatedPeersCount() <
             mApp.getConfig().MAX_PEER_CONNECTIONS)
@@ -375,7 +376,7 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 
         for (auto victim : mAuthenticatedPeers)
         {
-            if (!isPeerPreferred(victim.second))
+            if (!isPreferred(victim.second.get()))
             {
                 CLOG(INFO, "Overlay")
                     << "Evicting non-preferred peer "
@@ -422,7 +423,7 @@ OverlayManagerImpl::getAuthenticatedPeersCount() const
 }
 
 bool
-OverlayManagerImpl::isPeerPreferred(Peer::pointer peer)
+OverlayManagerImpl::isPreferred(Peer* peer)
 {
     std::string pstr = peer->toString();
 
