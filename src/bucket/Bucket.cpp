@@ -68,6 +68,8 @@ Bucket::~Bucket()
     {
         CLOG(TRACE, "Bucket") << "Bucket::~Bucket removing file: " << mFilename;
         std::remove(mFilename.c_str());
+        CLOG(TRACE, "Bucket") << "Bucket::~Bucket removing file: " << mFilename << ".gz";
+        std::remove((mFilename + ".gz").c_str());
     }
 }
 
