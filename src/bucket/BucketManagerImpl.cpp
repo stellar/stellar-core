@@ -310,6 +310,8 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             {
                 CLOG(TRACE, "Bucket") << "removing bucket file: " << filename;
                 std::remove(filename.c_str());
+                auto gzfilename = filename + ".gz";
+                std::remove(gzfilename.c_str());
             }
             mSharedBuckets.erase(j);
         }
