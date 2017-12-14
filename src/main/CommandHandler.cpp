@@ -72,9 +72,6 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
                                            &CommandHandler::catchup, _1, _2));
     mServer->addRoute("checkdb", std::bind(&CommandHandler::safeRouter, this,
                                            &CommandHandler::checkdb, _1, _2));
-    mServer->addRoute("checkpoint",
-                      std::bind(&CommandHandler::safeRouter, this,
-                                &CommandHandler::checkpoint, _1, _2));
     mServer->addRoute("connect", std::bind(&CommandHandler::safeRouter, this,
                                            &CommandHandler::connect, _1, _2));
     mServer->addRoute("dropcursor",
@@ -272,8 +269,6 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "mode is either 'minimal' (the default, if omitted) or 'complete'."
         "</p><p><h1> /checkdb</h1>"
         "triggers the instance to perform an integrity check of the database."
-        "</p><p><h1> /checkpoint</h1>"
-        "triggers the instance to write an immediate history checkpoint."
         "</p><p><h1> /connect?peer=NAME&port=NNN</h1>"
         "triggers the instance to connect to peer NAME at port NNN."
         "</p><p><h1> "
@@ -593,43 +588,6 @@ CommandHandler::checkdb(std::string const& params, std::string& retStr)
 {
     mApp.checkDB();
     retStr = "CheckDB started.";
-}
-
-void
-CommandHandler::checkpoint(std::string const& params, std::string& retStr)
-{
-    auto& hm = mApp.getHistoryManager();
-    if (hm.hasAnyWritableHistoryArchive())
-    {
-        size_t initFail = hm.getPublishFailureCount();
-        size_t initDone = hm.getPublishSuccessCount() + initFail;
-        asio::error_code ec;
-        uint32_t lclNum = mApp.getLedgerManager().getLastClosedLedgerNum();
-        uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
-        hm.queueCurrentHistory();
-        size_t toPublish = hm.publishQueuedHistory();
-        while (((hm.getPublishSuccessCount() + hm.getPublishFailureCount()) -
-                initDone) != toPublish)
-        {
-            mApp.getClock().crank(false);
-        }
-        if (initFail != hm.getPublishFailureCount())
-        {
-            retStr = std::string("Publish failed");
-        }
-        else
-        {
-            retStr = fmt::format("Forcibly published checkpoint 0x{:08x}, "
-                                 "at current ledger {};\n"
-                                 "To force catch up on other peers, "
-                                 "issue the command 'catchup?ledger={}'",
-                                 lclNum, ledgerNum, ledgerNum);
-        }
-    }
-    else
-    {
-        retStr = "No writable history archives available";
-    }
 }
 
 void
