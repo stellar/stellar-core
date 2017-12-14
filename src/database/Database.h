@@ -86,6 +86,14 @@ class Database : NonMovableOrCopyable
 {
     Application& mApp;
     medida::Meter& mQueryMeter;
+    medida::Meter& mFlushCacheMeter;
+    medida::Meter& mCachedEntryExistsCalledMeter;
+    medida::Meter& mCachedEntryExistsTrueMeter;
+    medida::Meter& mCachedEntryExistsFalseMeter;
+    medida::Meter& mGetCachedEntryMeter;
+    medida::Meter& mGetCachedEntryExistsMeter;
+    medida::Meter& mGetCachedEntryDoesNotExistMeter;
+    medida::Meter& mPutCachedEntryMeter;
     soci::session mSession;
     std::unique_ptr<soci::connection_pool> mPool;
 
@@ -189,12 +197,11 @@ class Database : NonMovableOrCopyable
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
 
-    // Access the LedgerEntry cache. Note: clients are responsible for
-    // invalidating entries in this cache as they perform statements
-    // against the database. It's kept here only for ease of access.
-    typedef cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
-        EntryCache;
-    EntryCache& getEntryCache();
+    void flushCachedEntry(LedgerKey const& key);
+    bool cachedEntryExists(LedgerKey const& key);
+    std::shared_ptr<LedgerEntry const> getCachedEntry(LedgerKey const& key);
+    void putCachedEntry(LedgerKey const& key,
+                        std::shared_ptr<LedgerEntry const> p);
 };
 
 class DBTimeExcluder : NonCopyable

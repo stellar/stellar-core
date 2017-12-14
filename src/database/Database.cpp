@@ -30,6 +30,7 @@
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include "xdrpp/marshal.h"
 
 #include <sstream>
 #include <stdexcept>
@@ -79,6 +80,22 @@ Database::Database(Application& app)
     : mApp(app)
     , mQueryMeter(
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
+    , mFlushCacheMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "flush"}, "cache"))
+    , mCachedEntryExistsCalledMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "exists"}, "cache"))
+    , mCachedEntryExistsTrueMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "exists-true"}, "cache"))
+    , mCachedEntryExistsFalseMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "exists-false"}, "cache"))
+    , mGetCachedEntryMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "get"}, "cache"))
+    , mGetCachedEntryExistsMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "get-exists"}, "cache"))
+    , mGetCachedEntryDoesNotExistMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "get-does-not-exist"}, "cache"))
+    , mPutCachedEntryMeter(app.getMetrics().NewMeter(
+          {"database", "entry-cache", "put"}, "cache"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
     , mEntryCache(4096)
@@ -341,10 +358,61 @@ Database::getPool()
     return *mPool;
 }
 
-cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-Database::getEntryCache()
+void
+Database::flushCachedEntry(LedgerKey const& key)
 {
-    return mEntryCache;
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    mEntryCache.erase_if_exists(s);
+
+    mFlushCacheMeter.Mark();
+}
+
+bool
+Database::cachedEntryExists(LedgerKey const& key)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    auto r = mEntryCache.exists(s);
+
+    mCachedEntryExistsCalledMeter.Mark();
+    if (r)
+    {
+        mCachedEntryExistsTrueMeter.Mark();
+    }
+    else
+    {
+        mCachedEntryExistsFalseMeter.Mark();
+    }
+
+    return r;
+}
+
+std::shared_ptr<LedgerEntry const>
+Database::getCachedEntry(LedgerKey const& key)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    auto r = mEntryCache.get(s);
+
+    mGetCachedEntryMeter.Mark();
+    if (r)
+    {
+        mGetCachedEntryExistsMeter.Mark();
+    }
+    else
+    {
+        mGetCachedEntryDoesNotExistMeter.Mark();
+    }
+
+    return r;
+}
+
+void
+Database::putCachedEntry(LedgerKey const& key,
+                         std::shared_ptr<LedgerEntry const> p)
+{
+    auto s = binToHex(xdr::xdr_to_opaque(key));
+    mEntryCache.put(s, p);
+
+    mPutCachedEntryMeter.Mark();
 }
 
 class SQLLogContext : NonCopyable
