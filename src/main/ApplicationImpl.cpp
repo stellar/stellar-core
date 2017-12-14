@@ -348,12 +348,6 @@ ApplicationImpl::start()
                 maintenance();
             }
             mOverlayManager->start();
-            auto npub = mHistoryManager->publishQueuedHistory();
-            if (npub != 0)
-            {
-                CLOG(INFO, "Ledger")
-                    << "Restarted publishing " << npub << " queued snapshots";
-            }
             if (mConfig.FORCE_SCP)
             {
                 std::string flagClearedMsg = "";
