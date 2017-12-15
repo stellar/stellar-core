@@ -40,6 +40,9 @@ class Upgrades
         optional<uint32> mBaseFee;
         optional<uint32> mMaxTxSize;
         optional<uint32> mBaseReserve;
+
+        std::string toJson() const;
+        void fromJson(std::string const& s);
     };
 
     Upgrades()
@@ -48,6 +51,8 @@ class Upgrades
     explicit Upgrades(UpgradeParameters const& params);
 
     void setParameters(UpgradeParameters const& params);
+
+    UpgradeParameters const& getParameters() const;
 
     // create upgrades for given ledger
     std::vector<LedgerUpgrade>

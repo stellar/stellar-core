@@ -962,6 +962,33 @@ HerderImpl::restoreSCPState()
 }
 
 void
+HerderImpl::persistUpgrades()
+{
+    auto s = mUpgrades.getParameters().toJson();
+    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
+}
+
+void
+HerderImpl::restoreUpgrades()
+{
+    std::string s =
+        mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
+    if (!s.empty())
+    {
+        Upgrades::UpgradeParameters p;
+        p.fromJson(s);
+        mUpgrades.setParameters(p);
+    }
+}
+
+void
+HerderImpl::restoreState()
+{
+    restoreSCPState();
+    restoreUpgrades();
+}
+
+void
 HerderImpl::trackingHeartBeat()
 {
     if (mApp.getConfig().MANUAL_CLOSE)

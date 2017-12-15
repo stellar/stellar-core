@@ -95,8 +95,8 @@ class Herder
 
     virtual void bootstrap() = 0;
 
-    // restores SCP state based on the last messages saved on disk
-    virtual void restoreSCPState() = 0;
+    // restores Herder's state from disk
+    virtual void restoreState() = 0;
 
     virtual bool recvSCPQuorumSet(Hash const& hash,
                                   SCPQuorumSet const& qset) = 0;

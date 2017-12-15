@@ -23,6 +23,7 @@ class PersistentState
         kLastSCPData,
         kDatabaseSchema,
         kNetworkPassphrase,
+        kLedgerUpgrades,
         kLastEntry,
     };
 

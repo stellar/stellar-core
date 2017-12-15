@@ -6,11 +6,60 @@
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
 #include <lib/util/format.h>
 #include <xdrpp/marshal.h>
 
+namespace cereal
+{
+template <class Archive>
+void
+save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+{
+    ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
+    ar(make_nvp("version", p.mProtocolVersion));
+    ar(make_nvp("fee", p.mBaseFee));
+    ar(make_nvp("maxtxsize", p.mMaxTxSize));
+    ar(make_nvp("reserve", p.mBaseReserve));
+}
+
+template <class Archive>
+void
+load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+{
+    time_t t;
+    ar(make_nvp("time", t));
+    o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
+    ar(make_nvp("version", o.mProtocolVersion));
+    ar(make_nvp("fee", o.mBaseFee));
+    ar(make_nvp("maxtxsize", o.mMaxTxSize));
+    ar(make_nvp("reserve", o.mBaseReserve));
+}
+} // namespace cereal
+
 namespace stellar
 {
+std::string
+Upgrades::UpgradeParameters::toJson() const
+{
+    std::ostringstream out;
+    {
+        cereal::JSONOutputArchive ar(out);
+        cereal::save(ar, *this);
+    }
+    return out.str();
+}
+
+void
+Upgrades::UpgradeParameters::fromJson(std::string const& s)
+{
+    std::istringstream in(s);
+    {
+        cereal::JSONInputArchive ar(in);
+        cereal::load(ar, *this);
+    }
+}
 
 Upgrades::Upgrades(UpgradeParameters const& params) : mParams(params)
 {
@@ -20,6 +69,12 @@ void
 Upgrades::setParameters(UpgradeParameters const& params)
 {
     mParams = params;
+}
+
+Upgrades::UpgradeParameters const&
+Upgrades::getParameters() const
+{
+    return mParams;
 }
 
 std::vector<LedgerUpgrade>
