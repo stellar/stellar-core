@@ -16,6 +16,12 @@ Upgrades::Upgrades(UpgradeParameters const& params) : mParams(params)
 {
 }
 
+void
+Upgrades::setParameters(UpgradeParameters const& params)
+{
+    mParams = params;
+}
+
 std::vector<LedgerUpgrade>
 Upgrades::createUpgradesFor(LedgerHeader const& header) const
 {

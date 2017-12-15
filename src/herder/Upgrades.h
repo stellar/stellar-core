@@ -23,6 +23,9 @@ class Upgrades
   public:
     struct UpgradeParameters
     {
+        UpgradeParameters()
+        {
+        }
         UpgradeParameters(Config const& cfg)
         {
             mUpgradeTime = cfg.PREFERRED_UPGRADE_DATETIME;
@@ -39,7 +42,12 @@ class Upgrades
         optional<uint32> mBaseReserve;
     };
 
+    Upgrades()
+    {
+    }
     explicit Upgrades(UpgradeParameters const& params);
+
+    void setParameters(UpgradeParameters const& params);
 
     // create upgrades for given ledger
     std::vector<LedgerUpgrade>

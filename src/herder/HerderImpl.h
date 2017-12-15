@@ -81,6 +81,8 @@ class HerderImpl : public Herder
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
 
+    void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
+
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
     void dumpInfo(Json::Value& ret, size_t limit) override;

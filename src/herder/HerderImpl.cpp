@@ -72,7 +72,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
     , mPendingEnvelopes(app, *this)
-    , mUpgrades(app.getConfig())
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
@@ -783,6 +782,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
+}
+
+void
+HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
+{
+    mUpgrades.setParameters(upgrades);
 }
 
 bool

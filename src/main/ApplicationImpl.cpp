@@ -304,6 +304,8 @@ ApplicationImpl::start()
 {
     mDatabase->upgradeToCurrentSchema();
 
+    mHerder->setUpgrades(mConfig);
+
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")
     {
