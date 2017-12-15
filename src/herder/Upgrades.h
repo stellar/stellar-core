@@ -6,6 +6,9 @@
 
 #include "xdr/Stellar-ledger.h"
 
+#include "main/Config.h"
+#include "util/Timer.h"
+#include "util/optional.h"
 #include <stdint.h>
 #include <vector>
 
@@ -18,10 +21,29 @@ struct LedgerUpgrade;
 class Upgrades
 {
   public:
-    explicit Upgrades(Config const& cfg);
+    struct UpgradeParameters
+    {
+        UpgradeParameters(Config const& cfg)
+        {
+            mUpgradeTime = cfg.PREFERRED_UPGRADE_DATETIME;
+            mProtocolVersion =
+                make_optional<uint32>(cfg.LEDGER_PROTOCOL_VERSION);
+            mBaseFee = make_optional<uint32>(cfg.DESIRED_BASE_FEE);
+            mMaxTxSize = make_optional<uint32>(cfg.DESIRED_MAX_TX_PER_LEDGER);
+            mBaseReserve = make_optional<uint32>(cfg.DESIRED_BASE_RESERVE);
+        }
+        VirtualClock::time_point mUpgradeTime;
+        optional<uint32> mProtocolVersion;
+        optional<uint32> mBaseFee;
+        optional<uint32> mMaxTxSize;
+        optional<uint32> mBaseReserve;
+    };
+
+    explicit Upgrades(UpgradeParameters const& params);
 
     // create upgrades for given ledger
-    std::vector<LedgerUpgrade> upgradesFor(LedgerHeader const& header) const;
+    std::vector<LedgerUpgrade>
+    createUpgradesFor(LedgerHeader const& header) const;
 
     // apply upgrade to ledger header
     static void applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header);
@@ -41,7 +63,7 @@ class Upgrades
                  LedgerUpgradeType& upgradeType) const;
 
   private:
-    Config const& mCfg;
+    UpgradeParameters mParams;
 
     bool timeForUpgrade(uint64_t time) const;
 };

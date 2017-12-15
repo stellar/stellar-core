@@ -243,7 +243,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("protocol version upgrade needed")
     {
         header.ledgerVersion--;
-        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{protocolVersionUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -253,7 +253,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("base fee upgrade needed")
     {
         header.baseFee /= 2;
-        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseFeeUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -263,7 +263,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("tx count upgrade needed")
     {
         header.maxTxSetSize /= 2;
-        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{txCountUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -273,7 +273,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     SECTION("base reserve upgrade needed")
     {
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
         auto expected = shouldListAny
                             ? std::vector<LedgerUpgrade>{baseReserveUpgrade}
                             : std::vector<LedgerUpgrade>{};
@@ -286,7 +286,7 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
         header.baseFee /= 2;
         header.maxTxSetSize /= 2;
         header.baseReserve /= 2;
-        auto upgrades = Upgrades{cfg}.upgradesFor(header);
+        auto upgrades = Upgrades{cfg}.createUpgradesFor(header);
         auto expected =
             shouldListAny
                 ? std::vector<LedgerUpgrade>{protocolVersionUpgrade,
