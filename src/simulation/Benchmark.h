@@ -149,12 +149,12 @@ reportBenchmark(Benchmark::Metrics const& metrics,
     using std::endl;
     str << endl
         << "{" << endl
-        << "\"benchmark metrics\": {" << endl
-        << "  \"time spent\": " << metrics.mBenchmarkTimer.sum() << "," << endl
-        << "  \"time unit\": "
+        << "\"benchmark_metrics\": {" << endl
+        << "  \"time_spent\": " << metrics.mBenchmarkTimer.sum() << "," << endl
+        << "  \"time_unit\": "
         << "\"milliseconds\"," << endl
-        << "  \"txs submitted\": " << metrics.mTxsCount.count() << "," << endl
-        << "  \"txs externalized\": " << txsExternalized << endl
+        << "  \"txs_submitted\": " << metrics.mTxsCount.count() << "," << endl
+        << "  \"txs_externalized\": " << txsExternalized << endl
         << "}" << endl
         << "}" << endl;
 
