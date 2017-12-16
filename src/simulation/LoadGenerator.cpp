@@ -491,12 +491,12 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
 }
 
 vector<LoadGenerator::AccountInfoPtr>
-LoadGenerator::createAccounts(size_t n)
+LoadGenerator::createAccounts(size_t n, uint32_t ledgerNum)
 {
     vector<AccountInfoPtr> result;
     for (size_t i = 0; i < n; i++)
     {
-        auto account = createAccount(mAccounts.size());
+        auto account = createAccount(mAccounts.size(), ledgerNum);
         mAccounts.push_back(account);
         result.push_back(account);
     }
@@ -748,7 +748,7 @@ LoadGenerator::AccountInfo::creationTransaction()
                   TxInfo::TX_CREATE_ACCOUNT, LOADGEN_ACCOUNT_BALANCE};
 }
 
-void
+AccountFrame
 LoadGenerator::AccountInfo::createDirectly(Application& app)
 {
     AccountFrame a(mKey.getPublicKey());
@@ -761,6 +761,7 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
                       app.getDatabase());
     ;
     a.storeAdd(delta, app.getDatabase());
+    return a;
 }
 
 void

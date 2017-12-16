@@ -146,6 +146,10 @@ debugging purpose).
   `/generateload[?accounts=N&txs=M&txrate=(R|auto)]`<br>
   Artificially generate load for testing; must be used with `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
 
+* **benchmark**
+  `/benchmark[?preparebenchmark=A | txrate=R&duration=T]`<br>
+  Artificially generate load for benchmark; must be used with `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
+  
 * **manualclose**
   If MANUAL_CLOSE is set to true in the .cfg file. This will cause the current ledger to close.
 
