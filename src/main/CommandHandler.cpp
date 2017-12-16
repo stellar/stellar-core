@@ -17,6 +17,7 @@
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
+#include <iomanip>
 
 #include "medida/reporting/json_reporter.h"
 #include "util/basen.h"
@@ -102,6 +103,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("testtx",
                       std::bind(&CommandHandler::testTx, this, _1, _2));
     mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
+    mServer->addRoute("upgrades",
+                      std::bind(&CommandHandler::upgrades, this, _1, _2));
     mServer->addRoute("unban", std::bind(&CommandHandler::unban, this, _1, _2));
 }
 
@@ -279,6 +282,25 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "returns a JSON object<br>"
         "wasReceived: boolean, true if transaction was queued properly<br>"
         "result: base64 encoded, XDR serialized 'TransactionResult'<br>"
+        "</p><p><h1> /upgrades?mode=(get|set|clear)&[upgradetime=DATETIME]&"
+        "[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]"
+        "</h1>"
+        "gets, sets or clears upgrades.<br>"
+        "When mode=set, upgradetime is a required date in the ISO 8601 "
+        "date format (UTC) in the form 1970-01-01T00:00:00Z.<br>"
+        "fee (uint32) This is what you would prefer the base fee to be. It is "
+        "in stroops<br>"
+        "basereserve (uint32) This is what you would prefer the base reserve "
+        "to be. It is in stroops.<br>"
+        "maxtxsize (uint32) This defines the maximum number of transactions "
+        "to include in a ledger. When too many transactions are pending, "
+        "surge pricing is applied. The instance picks the top maxtxsize"
+        " transactions locally to be considered in the next ledger.Where "
+        "transactions are ordered by transaction fee(lower fee transactions"
+        " are held for later).<br>"
+        "protocolversion (uint32) defines the protocol version to upgrade to."
+        " When specified it must match the protocol version supported by the"
+        " node<br>"
         "</p><p><h1> /dropcursor?id=XYZ</h1> deletes the tracking cursor with "
         "identified by `id`. See `setcursor` for more information"
         "</p><p><h1> /setcursor?id=ID&cursor=N</h1> sets or creates a cursor "
@@ -331,8 +353,9 @@ template <typename T>
 bool
 parseNumParam(std::map<std::string, std::string> const& map,
               std::string const& key, T& val, std::string& retStr,
-              Requirement requirement)
+              Requirement requirement, bool& valueUpdated)
 {
+    valueUpdated = false;
     auto i = map.find(key);
     if (i != map.end())
     {
@@ -343,9 +366,20 @@ parseNumParam(std::map<std::string, std::string> const& map,
             retStr = fmt::format("Failed to parse '{}' argument", key);
             return false;
         }
+        valueUpdated = true;
         return true;
     }
     return requirement == Requirement::OPTIONAL_REQ;
+}
+
+template <typename T>
+bool
+parseNumParam(std::map<std::string, std::string> const& map,
+              std::string const& key, T& val, std::string& retStr,
+              Requirement requirement)
+{
+    bool valueUpdated;
+    return parseNumParam(map, key, val, retStr, requirement, valueUpdated);
 }
 
 void
@@ -675,6 +709,79 @@ CommandHandler::unban(std::string const& params, std::string& retStr)
     else
     {
         retStr = "Must specify at least peer id: unban?node=NODE_ID";
+    }
+}
+
+void
+CommandHandler::upgrades(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> retMap;
+    http::server::server::parseParams(params, retMap);
+    auto s = retMap["mode"];
+    if (s.empty())
+    {
+        retStr = "mode required";
+        return;
+    }
+    if (s == "get")
+    {
+        retStr = mApp.getHerder().getUpgrades();
+    }
+    else if (s == "set")
+    {
+        Upgrades::UpgradeParameters p;
+
+        auto upgradeTime = retMap["upgradetime"];
+
+        std::istringstream is(upgradeTime);
+        std::tm tm;
+        is >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
+        if (is.fail())
+        {
+            retStr =
+                fmt::format("could not parse upgradetime: '{}'", upgradeTime);
+            return;
+        }
+        tm.tm_isdst = false;
+        p.mUpgradeTime = VirtualClock::tmToPoint(tm);
+
+        auto addParam = [&](std::string const& name,
+                            stellar::optional<uint32>& f) {
+            uint32 v;
+            bool updated;
+            if (!parseNumParam(retMap, name, v, retStr,
+                               Requirement::OPTIONAL_REQ, updated))
+            {
+                retStr = (fmt::MemoryWriter()
+                          << fmt::format("could not parse {}: '{}'\n", name,
+                                         retMap[name])
+                          << retStr)
+                             .str();
+            }
+            else if (updated)
+            {
+                f = stellar::make_optional<uint32>(v);
+            }
+            else
+            {
+                f.reset();
+            }
+        };
+        addParam("basefee", p.mBaseFee);
+        addParam("basereserve", p.mBaseReserve);
+        addParam("maxtxsize", p.mMaxTxSize);
+        addParam("protocolversion", p.mProtocolVersion);
+
+        mApp.getHerder().setUpgrades(p);
+    }
+    else if (s == "clear")
+    {
+        Upgrades::UpgradeParameters p;
+        mApp.getHerder().setUpgrades(p);
+    }
+    else
+    {
+        retStr = fmt::format("Unknown mode: {}", s);
     }
 }
 

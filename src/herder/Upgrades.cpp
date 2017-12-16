@@ -66,8 +66,15 @@ Upgrades::Upgrades(UpgradeParameters const& params) : mParams(params)
 }
 
 void
-Upgrades::setParameters(UpgradeParameters const& params)
+Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
 {
+    if (params.mProtocolVersion &&
+        *params.mProtocolVersion != cfg.LEDGER_PROTOCOL_VERSION)
+    {
+        throw std::invalid_argument(
+            fmt::format("Protocol version error: supported is {}, passed is {}",
+                        cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
+    }
     mParams = params;
 }
 

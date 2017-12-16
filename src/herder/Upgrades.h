@@ -50,7 +50,7 @@ class Upgrades
     }
     explicit Upgrades(UpgradeParameters const& params);
 
-    void setParameters(UpgradeParameters const& params);
+    void setParameters(UpgradeParameters const& params, Config const& cfg);
 
     UpgradeParameters const& getParameters() const;
 

@@ -27,8 +27,8 @@ the SCP messages for the current ledger (ie: abstain).
 
 A node considers a step invalid either because:
 * they do not understand it, for example a new upgrade type not implemented
-* its value differs for this node configuration
-* network time is before PREFERRED_UPGRADE_DATETIME
+* its value differs for this node's scheduled upgrade setting
+* network time is before the scheduled upgrade datetime
 
 Upgrades are applied after applying the transaction set. It is done this way
 because the transaction set is validated against the last closed ledger,
@@ -37,19 +37,18 @@ without risking invalidating transactions for the current ledger.
 
 Supported upgrades are encoded using LedgerUpgradeType.
 
-Following configuration options are responsible for upgrades:
-* PREFERRED_UPGRADE_DATETIME - sets minimum time for node to accept and
+Upgrades are specified with:
+* upgradetime - the minimum time for node to accept and
   nominate upgrades
-* DESIRED_BASE_FEE - upgrades value of baseFee in ledger header, uses upgrade
+* basefee - upgrades value of baseFee in ledger header, uses upgrade
   type LEDGER_UPGRADE_BASE_FEE
-* DESIRED_MAX_TX_PER_LEDGER - upgrades value of maxTxSetSize in ledger header,
+* maxtxsize - upgrades value of maxTxSetSize in ledger header,
   uses upgrade type LEDGER_UPGRADE_MAX_TX_SET_SIZE
-* DESIRED_BASE_RESERVE - upgrades value of baseReserve in ledger header, uses
+* basereserve - upgrades value of baseReserve in ledger header, uses
   upgrade type LEDGER_UPGRADE_BASE_RESERVE
-
-Additionally nodes vote for changes to the ledgerVersion field with its
-non-configurable build-in LEDGER_PROTOCOL_VERSION field (which uses upgrade
-type LEDGER_UPGRADE_VERSION).
+* protocolversion - upgrades value of ledgerVersion in ledger header, uses
+  upgrade type LEDGER_UPGRADE_VERSION (when specified it has to match the
+  supported version number)
 
 #### Limitations of the current implementation
 There is an assumption that validator operators are either paying attention to network wide proposals

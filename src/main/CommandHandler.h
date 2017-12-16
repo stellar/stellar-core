@@ -50,5 +50,6 @@ class CommandHandler
     void testAcc(std::string const& params, std::string& retStr);
     void testTx(std::string const& params, std::string& retStr);
     void unban(std::string const& params, std::string& retStr);
+    void upgrades(std::string const& params, std::string& retStr);
 };
 }

@@ -787,7 +787,14 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
 void
 HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 {
-    mUpgrades.setParameters(upgrades);
+    mUpgrades.setParameters(upgrades, mApp.getConfig());
+    persistUpgrades();
+}
+
+std::string
+HerderImpl::getUpgrades()
+{
+    return mUpgrades.getParameters().toJson();
 }
 
 bool
@@ -977,7 +984,16 @@ HerderImpl::restoreUpgrades()
     {
         Upgrades::UpgradeParameters p;
         p.fromJson(s);
-        mUpgrades.setParameters(p);
+        try
+        {
+            // use common code to set status
+            setUpgrades(p);
+        }
+        catch (std::exception e)
+        {
+            CLOG(INFO, "Herder") << "Error restoring upgrades '" << e.what()
+                                 << "' with upgrades '" << s << "'";
+        }
     }
 }
 
