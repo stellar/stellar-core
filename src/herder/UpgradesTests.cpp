@@ -59,11 +59,11 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         configs.push_back(simulation->newConfig());
         configs.back().LEDGER_PROTOCOL_VERSION =
             nodes[i].starting.ledgerVersion;
-        configs.back().DESIRED_BASE_FEE = nodes[i].starting.baseFee;
-        configs.back().DESIRED_MAX_TX_PER_LEDGER =
+        configs.back().TESTING_UPGRADE_DESIRED_FEE = nodes[i].starting.baseFee;
+        configs.back().TESTING_UPGRADE_MAX_TX_PER_LEDGER =
             nodes[i].starting.maxTxSetSize;
-        configs.back().DESIRED_BASE_RESERVE = nodes[i].starting.baseReserve;
-        configs.back().PREFERRED_UPGRADE_DATETIME =
+        configs.back().TESTING_UPGRADE_RESERVE = nodes[i].starting.baseReserve;
+        configs.back().TESTING_UPGRADE_DATETIME =
             nodes[i].preferredUpgradeDatetime;
 
         // first node can write to history, all can read
@@ -222,23 +222,25 @@ testListUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 {
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
-    cfg.DESIRED_BASE_FEE = 100;
-    cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.DESIRED_BASE_RESERVE = 100000000;
-    cfg.PREFERRED_UPGRADE_DATETIME = preferredUpgradeDatetime;
+    cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
+    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
+    cfg.TESTING_UPGRADE_RESERVE = 100000000;
+    cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
     auto header = LedgerHeader{};
     header.ledgerVersion = cfg.LEDGER_PROTOCOL_VERSION;
-    header.baseFee = cfg.DESIRED_BASE_FEE;
-    header.baseReserve = cfg.DESIRED_BASE_RESERVE;
-    header.maxTxSetSize = cfg.DESIRED_MAX_TX_PER_LEDGER;
+    header.baseFee = cfg.TESTING_UPGRADE_DESIRED_FEE;
+    header.baseReserve = cfg.TESTING_UPGRADE_RESERVE;
+    header.maxTxSetSize = cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     header.scpValue.closeTime = VirtualClock::to_time_t(genesis(0, 0));
 
     auto protocolVersionUpgrade =
         makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION);
-    auto baseFeeUpgrade = makeBaseFeeUpgrade(cfg.DESIRED_BASE_FEE);
-    auto txCountUpgrade = makeTxCountUpgrade(cfg.DESIRED_MAX_TX_PER_LEDGER);
-    auto baseReserveUpgrade = makeBaseReserveUpgrade(cfg.DESIRED_BASE_RESERVE);
+    auto baseFeeUpgrade = makeBaseFeeUpgrade(cfg.TESTING_UPGRADE_DESIRED_FEE);
+    auto txCountUpgrade =
+        makeTxCountUpgrade(cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+    auto baseReserveUpgrade =
+        makeBaseReserveUpgrade(cfg.TESTING_UPGRADE_RESERVE);
 
     SECTION("protocol version upgrade needed")
     {
@@ -318,10 +320,10 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
 {
     auto cfg = getTestConfig();
     cfg.LEDGER_PROTOCOL_VERSION = 10;
-    cfg.DESIRED_BASE_FEE = 100;
-    cfg.DESIRED_MAX_TX_PER_LEDGER = 50;
-    cfg.DESIRED_BASE_RESERVE = 100000000;
-    cfg.PREFERRED_UPGRADE_DATETIME = preferredUpgradeDatetime;
+    cfg.TESTING_UPGRADE_DESIRED_FEE = 100;
+    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
+    cfg.TESTING_UPGRADE_RESERVE = 100000000;
+    cfg.TESTING_UPGRADE_DATETIME = preferredUpgradeDatetime;
 
     auto checkTime = VirtualClock::to_time_t(genesis(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
@@ -497,8 +499,9 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
 
     SECTION("0 of 3 vote - dont upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{
-            {noUpgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{noUpgrade, genesis(0, 0)},
+                                                    {noUpgrade, genesis(0, 0)},
+                                                    {noUpgrade, genesis(0, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
@@ -506,8 +509,9 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
 
     SECTION("1 of 3 vote, dont upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{
-            {upgrade, {}}, {noUpgrade, {}}, {noUpgrade, {}}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)},
+                                                    {noUpgrade, genesis(0, 0)},
+                                                    {noUpgrade, genesis(0, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks, true);
@@ -515,8 +519,9 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
 
     SECTION("2 of 3 vote - 2 upgrade, 1 after catchup")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{
-            {upgrade, {}}, {upgrade, {}}, {noUpgrade, {}}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)},
+                                                    {upgrade, genesis(0, 0)},
+                                                    {noUpgrade, genesis(0, 0)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 30), {upgrade, upgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks, true, {upgrade, upgrade, upgrade});

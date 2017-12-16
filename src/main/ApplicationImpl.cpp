@@ -304,7 +304,10 @@ ApplicationImpl::start()
 {
     mDatabase->upgradeToCurrentSchema();
 
-    mHerder->setUpgrades(mConfig);
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
 
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")

@@ -89,6 +89,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
+        // this forces to pick up any other potential upgrades
+        thisConfig.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(1);
+
         // Tests are run in standalone by default, meaning that no external
         // listening interfaces are opened (all sockets must be manually created
         // and connected loopback sockets), no external connections are

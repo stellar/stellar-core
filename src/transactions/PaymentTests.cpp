@@ -1723,7 +1723,7 @@ TEST_CASE("payment fees", "[tx][payment]")
     SECTION("fee equal to base reserve")
     {
         auto cfg = getTestConfig(1);
-        cfg.DESIRED_BASE_FEE = 100000000;
+        cfg.TESTING_UPGRADE_DESIRED_FEE = 100000000;
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);
@@ -1833,7 +1833,7 @@ TEST_CASE("payment fees", "[tx][payment]")
     SECTION("fee bigger than base reserve")
     {
         auto cfg = getTestConfig(1);
-        cfg.DESIRED_BASE_FEE = 200000000;
+        cfg.TESTING_UPGRADE_DESIRED_FEE = 200000000;
 
         VirtualClock clock;
         auto app = createTestApplication(clock, cfg);

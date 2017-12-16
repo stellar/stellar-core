@@ -28,12 +28,13 @@ class Upgrades
         }
         UpgradeParameters(Config const& cfg)
         {
-            mUpgradeTime = cfg.PREFERRED_UPGRADE_DATETIME;
+            mUpgradeTime = cfg.TESTING_UPGRADE_DATETIME;
             mProtocolVersion =
                 make_optional<uint32>(cfg.LEDGER_PROTOCOL_VERSION);
-            mBaseFee = make_optional<uint32>(cfg.DESIRED_BASE_FEE);
-            mMaxTxSize = make_optional<uint32>(cfg.DESIRED_MAX_TX_PER_LEDGER);
-            mBaseReserve = make_optional<uint32>(cfg.DESIRED_BASE_RESERVE);
+            mBaseFee = make_optional<uint32>(cfg.TESTING_UPGRADE_DESIRED_FEE);
+            mMaxTxSize =
+                make_optional<uint32>(cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER);
+            mBaseReserve = make_optional<uint32>(cfg.TESTING_UPGRADE_RESERVE);
         }
         VirtualClock::time_point mUpgradeTime;
         optional<uint32> mProtocolVersion;
