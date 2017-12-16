@@ -185,6 +185,56 @@ Upgrades::toString() const
     return r.str();
 }
 
+Upgrades::UpgradeParameters
+Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
+                         std::vector<UpgradeType>::const_iterator endUpdates,
+                         bool& updated)
+{
+    updated = false;
+    UpgradeParameters res = mParams;
+
+    auto resetParam = [&](optional<uint32>& o, uint32 v) {
+        if (o && *o == v)
+        {
+            o.reset();
+            updated = true;
+        }
+    };
+
+    for (auto it = beginUpdates; it != endUpdates; it++)
+    {
+        auto& u = *it;
+        LedgerUpgrade lu;
+        try
+        {
+            xdr::xdr_from_opaque(u, lu);
+        }
+        catch (xdr::xdr_runtime_error&)
+        {
+            continue;
+        }
+        switch (lu.type())
+        {
+        case LEDGER_UPGRADE_VERSION:
+            resetParam(res.mProtocolVersion, lu.newLedgerVersion());
+            break;
+        case LEDGER_UPGRADE_BASE_FEE:
+            resetParam(res.mBaseFee, lu.newBaseFee());
+            break;
+        case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+            resetParam(res.mMaxTxSize, lu.newMaxTxSetSize());
+            break;
+        case LEDGER_UPGRADE_BASE_RESERVE:
+            resetParam(res.mBaseReserve, lu.newBaseReserve());
+            break;
+        default:
+            // skip unknown
+            break;
+        }
+    }
+    return res;
+}
+
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
                   LedgerUpgradeType& upgradeType) const

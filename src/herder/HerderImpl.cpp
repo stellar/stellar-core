@@ -189,6 +189,17 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         static_cast<uint32>(slotIndex),
         getSCP().getExternalizingState(slotIndex));
 
+    // reflect upgrades with the ones included in this SCP round
+    {
+        bool updated;
+        auto newUpgrades = mUpgrades.removeUpgrades(
+            value.upgrades.begin(), value.upgrades.end(), updated);
+        if (updated)
+        {
+            setUpgrades(newUpgrades);
+        }
+    }
+
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
     // state: apply, trigger catchup, etc
@@ -779,12 +790,18 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
     if (!desc.empty())
     {
         auto message = fmt::format("Armed with network upgrades: {}", desc);
-        CLOG(INFO, "Herder") << message;
-        mApp.getStatusManager().setStatusMessage(
-            StatusCategory::REQUIRES_UPGRADES, message);
+        auto prev = mApp.getStatusManager().getStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES);
+        if (prev != message)
+        {
+            CLOG(INFO, "Herder") << message;
+            mApp.getStatusManager().setStatusMessage(
+                StatusCategory::REQUIRES_UPGRADES, message);
+        }
     }
     else
     {
+        CLOG(INFO, "Herder") << "Network upgrades cleared";
         mApp.getStatusManager().removeStatusMessage(
             StatusCategory::REQUIRES_UPGRADES);
     }

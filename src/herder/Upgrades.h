@@ -73,6 +73,12 @@ class Upgrades
     // the pending upgrades
     std::string toString() const;
 
+    // sets updated to true if some upgrades were removed
+    UpgradeParameters
+    removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
+                   std::vector<UpgradeType>::const_iterator endUpdates,
+                   bool& updated);
+
   private:
     UpgradeParameters mParams;
 
