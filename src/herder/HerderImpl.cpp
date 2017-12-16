@@ -764,22 +764,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
-    if (!upgrades.empty())
-    {
-        auto message = fmt::format(
-            "Proposing herder configuration upgrades: {0}; network "
-            "values for LCL are: {1}",
-            Upgrades::toString(upgrades), Upgrades::toString(lcl.header));
-        CLOG(INFO, "Herder") << message;
-        mApp.getStatusManager().setStatusMessage(
-            StatusCategory::REQUIRES_UPGRADES, message);
-    }
-    else
-    {
-        mApp.getStatusManager().removeStatusMessage(
-            StatusCategory::REQUIRES_UPGRADES);
-    }
-
     mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
                               lcl.header.scpValue);
 }
@@ -789,6 +773,21 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 {
     mUpgrades.setParameters(upgrades, mApp.getConfig());
     persistUpgrades();
+
+    auto desc = mUpgrades.toString();
+
+    if (!desc.empty())
+    {
+        auto message = fmt::format("Armed with network upgrades: {}", desc);
+        CLOG(INFO, "Herder") << message;
+        mApp.getStatusManager().setStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES, message);
+    }
+    else
+    {
+        mApp.getStatusManager().removeStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES);
+    }
 }
 
 std::string

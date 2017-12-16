@@ -149,46 +149,40 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        return fmt::format("PROTOCOL_VERSION={0}", upgrade.newLedgerVersion());
+        return fmt::format("protocolversion={0}", upgrade.newLedgerVersion());
     case LEDGER_UPGRADE_BASE_FEE:
-        return fmt::format("BASE_FEE={0}", upgrade.newBaseFee());
+        return fmt::format("basefee={0}", upgrade.newBaseFee());
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        return fmt::format("MAX_TX_SET_SIZE={0}", upgrade.newMaxTxSetSize());
+        return fmt::format("maxtxsetsize={0}", upgrade.newMaxTxSetSize());
     case LEDGER_UPGRADE_BASE_RESERVE:
-        return fmt::format("BASE_RESERVE={0}", upgrade.newBaseReserve());
+        return fmt::format("basereserve={0}", upgrade.newBaseReserve());
     default:
         return "<unsupported>";
     }
 }
 
 std::string
-Upgrades::toString(std::vector<LedgerUpgrade> const& upgrades)
+Upgrades::toString() const
 {
-    if (upgrades.empty())
-    {
-        return {};
-    }
+    fmt::MemoryWriter r;
 
-    auto result = std::string{};
-    for (auto const& upgrade : upgrades)
-    {
-        if (!result.empty())
+    auto appendInfo = [&](std::string const& s, optional<uint32> const& o) {
+        if (o)
         {
-            result += ", ";
+            if (!r.size())
+            {
+                r << "upgradetime="
+                  << VirtualClock::pointToISOString(mParams.mUpgradeTime);
+            }
+            r << ", " << s << "=" << *o;
         }
-        result += toString(upgrade);
-    }
+    };
+    appendInfo("protocolversion", mParams.mProtocolVersion);
+    appendInfo("basefee", mParams.mBaseFee);
+    appendInfo("basereserve", mParams.mBaseReserve);
+    appendInfo("maxtxsize", mParams.mMaxTxSize);
 
-    return fmt::format("[{0}]", result);
-}
-
-std::string
-Upgrades::toString(LedgerHeader const& header)
-{
-    return fmt::format("PROTOCOL_VERSION={0}, BASE_FEE={1}, "
-                       "MAX_TX_SET_SIZE={2}, BASE_RESERVE={3}",
-                       header.ledgerVersion, header.baseFee,
-                       header.maxTxSetSize, header.baseReserve);
+    return r.str();
 }
 
 bool
