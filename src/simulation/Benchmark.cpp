@@ -352,7 +352,9 @@ BenchmarkExecutor::executeBenchmark(
         auto stopProcedure = [this,
                               stopCallback](asio::error_code const& error) {
 
+            LOG(INFO) << "Stopping benchmark";
             auto metrics = mBenchmark->stopBenchmark();
+            LOG(INFO) << "Calling benchmark's stop callback";
             stopCallback(metrics);
 
             LOG(INFO) << "Benchmark complete";
