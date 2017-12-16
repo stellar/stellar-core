@@ -417,6 +417,7 @@ CommandHandler::benchmark(std::string const& params, std::string& retStr)
     }
 
     uint32 createAccounts = 0;
+    uint32 accounts = 0;
     uint32_t txRate = 200;
     uint32_t duration = 60;
 
@@ -454,6 +455,20 @@ CommandHandler::benchmark(std::string const& params, std::string& retStr)
         return;
     }
 
+    if (!parseNumParam(map, "accounts", accounts, retStr,
+                       Requirement::OPTIONAL_REQ))
+    {
+        retStr = "Invalid value for the parameter 'accounts'";
+        return;
+    }
+    if (accounts > 0)
+    {
+        Benchmark::BenchmarkBuilder builder(mApp.getNetworkID());
+        auto benchmark = builder.setNumberOfInitialAccounts(accounts)
+            .loadAccounts();
+        mApp.getBenchmarkExecutor().setBenchmark(builder.createBenchmark(mApp));
+    }
+
     mApp.getMetrics().NewMeter({"benchmark", "run", "started"}, "run").Mark();
     auto stopCallback = [this](Benchmark::Metrics metrics) {
 
@@ -465,9 +480,9 @@ CommandHandler::benchmark(std::string const& params, std::string& retStr)
     mApp.getBenchmarkExecutor().executeBenchmark(
         mApp, std::chrono::seconds{duration}, txRate, stopCallback);
 
-    retStr = fmt::format("{{ \"Benchmark\": {{ \"txRate\": "
-                         "{:d}, \"seconds\": {:d} }} }}",
-                         txRate, duration);
+    retStr = fmt::format("{{ \"Benchmark\": {{ \"txRate\": {:d}, "
+                         "\"seconds\": {:d}, \"accounts\": {:d} }} }}",
+                         txRate, duration, accounts);
 }
 
 
