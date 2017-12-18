@@ -272,7 +272,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 }
 
 SCPDriver::ValidationLevel
-HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value)
+HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
+                               bool nomination)
 {
     StellarValue b;
     try
