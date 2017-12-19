@@ -21,23 +21,24 @@ int test(int argc, char* const* argv, el::Level logLevel,
 
 extern bool force_sqlite;
 
-void for_versions_to(int to, Application& app,
+void for_versions_to(uint32 to, Application& app,
                      std::function<void(void)> const& f);
 
-void for_versions_from(int from, Application& app,
+void for_versions_from(uint32 from, Application& app,
                        std::function<void(void)> const& f);
 
-void for_versions_from(std::vector<int> const& versions, Application& app,
+void for_versions_from(std::vector<uint32> const& versions, Application& app,
                        std::function<void(void)> const& f);
 
 void for_all_versions(Application& app, std::function<void(void)> const& f);
 
-void for_versions(int from, int to, Application& app,
+void for_versions(uint32 from, uint32 to, Application& app,
                   std::function<void(void)> const& f);
 
-void for_versions(std::vector<int> const& versions, Application& app,
+void for_versions(std::vector<uint32> const& versions, Application& app,
                   std::function<void(void)> const& f);
 
-void for_all_versions_except(std::vector<int> const& versions, Application& app,
+void for_all_versions_except(std::vector<uint32> const& versions,
+                             Application& app,
                              std::function<void(void)> const& f);
 }
