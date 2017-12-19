@@ -19,6 +19,13 @@ using namespace stellar;
 
 struct LedgerUpgradeableData
 {
+    LedgerUpgradeableData()
+    {
+    }
+    LedgerUpgradeableData(uint32_t v, uint32_t f, uint32_t txs, uint32_t r)
+        : ledgerVersion(v), baseFee(f), maxTxSetSize(txs), baseReserve(r)
+    {
+    }
     uint32_t ledgerVersion{0};
     uint32_t baseFee{0};
     uint32_t maxTxSetSize{0};
@@ -40,8 +47,7 @@ struct LedgerUpgradeCheck
 void
 simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
                 std::vector<LedgerUpgradeCheck> const& checks,
-                bool checkUpgradeAfterCatchup = false,
-                std::vector<LedgerUpgradeableData> const& afterCatchedUp = {})
+                bool checkUpgradeStatus = false)
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     historytestutils::TmpDirHistoryConfigurator configurator{};
@@ -63,6 +69,9 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         configurator.configure(configs.back(), i == 0);
     }
 
+    // first two only depend on each other
+    // this allows to test for v-blocking properties
+    // on the 3rd node
     auto qSet = SCPQuorumSet{};
     qSet.threshold = 2;
     qSet.validators.push_back(keys[0].getPublicKey());
@@ -139,50 +148,20 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
             });
     };
 
-    if (afterCatchedUp.size() != 0)
-    {
-        // we need to wait until some nodes notice that they are not
-        // externalizing anymore because of upgrades disagreement
-        auto atLeastOneNotSynced = [&]() { return !allSynced(); };
-        simulation->crankUntil(atLeastOneNotSynced,
-                               2 * Herder::CONSENSUS_STUCK_TIMEOUT_SECONDS,
-                               false);
+    // all nodes are synced as there was no disagreement about upgrades
+    REQUIRE(allSynced());
 
-        auto checkpointFrequency =
-            simulation->getNode(keys.begin()->getPublicKey())
-                ->getHistoryManager()
-                .getCheckpointFrequency();
-
-        // and then wait until it catches up again ans assumes upgrade values
-        // from the history
-        simulation->crankUntil(allSynced,
-                               2 * checkpointFrequency *
-                                   Herder::EXP_LEDGER_TIMESPAN_SECONDS,
-                               false);
-        statesMatch(afterCatchedUp);
-    }
-    else
-    {
-        // all nodes are synced as there was no disagreement about upgrades
-        REQUIRE(allSynced());
-    }
-
-    if (checkUpgradeAfterCatchup)
+    if (checkUpgradeStatus)
     {
         // at least one node should show message thats it has some
         // pending upgrades
-        auto atLeastOneMessagesAboutUpgrades = [&]() {
-            return std::any_of(
-                std::begin(keys), std::end(keys), [&](SecretKey const& key) {
-                    auto const& node = simulation->getNode(key.getPublicKey());
-                    return !node->getStatusManager()
-                                .getStatusMessage(
-                                    StatusCategory::REQUIRES_UPGRADES)
-                                .empty();
-                });
-        };
-        simulation->crankUntil(atLeastOneMessagesAboutUpgrades,
-                               2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        REQUIRE(std::any_of(
+            std::begin(keys), std::end(keys), [&](SecretKey const& key) {
+                auto const& node = simulation->getNode(key.getPublicKey());
+                return !node->getStatusManager()
+                            .getStatusMessage(StatusCategory::REQUIRES_UPGRADES)
+                            .empty();
+            }));
     }
 }
 
@@ -561,16 +540,16 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
     auto epoch = VirtualClock::from_time_t(0);
     // no upgrade is done
     auto noUpgrade =
-        LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION,
+        LedgerUpgradeableData(LedgerManager::GENESIS_LEDGER_VERSION,
                               LedgerManager::GENESIS_LEDGER_BASE_FEE,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE,
-                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE};
+                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE);
     // all values are upgraded
     auto upgrade =
-        LedgerUpgradeableData{Config::CURRENT_LEDGER_PROTOCOL_VERSION,
+        LedgerUpgradeableData(Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                               LedgerManager::GENESIS_LEDGER_BASE_FEE + 1,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1,
-                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1};
+                              LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1);
 
     SECTION("0 of 3 vote - dont upgrade")
     {
@@ -589,13 +568,13 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         simulateUpgrade(nodes, checks, true);
     }
 
-    SECTION("2 of 3 vote - 2 upgrade, 1 after catchup")
+    SECTION("2 of 3 vote (v-blocking) - 3 upgrade")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{
             {upgrade, genesis(0, 0)}, {upgrade, genesis(0, 0)}, {}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 10), {upgrade, upgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks, false, {upgrade, upgrade, upgrade});
+            {genesis(0, 10), {upgrade, upgrade, upgrade}}};
+        simulateUpgrade(nodes, checks);
     }
 
     SECTION("3 of 3 vote - upgrade")
@@ -609,7 +588,22 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         simulateUpgrade(nodes, checks);
     }
 
-    SECTION("1 of 3 vote early - 3 upgrade late")
+    SECTION("3 votes for bogus fee - all 3 upgrade but ignore bad fee")
+    {
+        auto upgradeBadFee = upgrade;
+        upgradeBadFee.baseFee = 0;
+        auto expectedResult = upgradeBadFee;
+        expectedResult.baseFee = LedgerManager::GENESIS_LEDGER_BASE_FEE;
+        auto nodes =
+            std::vector<LedgerUpgradeNode>{{upgradeBadFee, genesis(0, 0)},
+                                           {upgradeBadFee, genesis(0, 0)},
+                                           {upgradeBadFee, genesis(0, 0)}};
+        auto checks = std::vector<LedgerUpgradeCheck>{
+            {genesis(0, 10), {expectedResult, expectedResult, expectedResult}}};
+        simulateUpgrade(nodes, checks, true);
+    }
+
+    SECTION("1 of 3 vote early - 2 upgrade late")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
                                                     {upgrade, genesis(0, 30)},
@@ -620,14 +614,14 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
         simulateUpgrade(nodes, checks);
     }
 
-    SECTION("2 of 3 vote early - 2 upgrade early, 1 after catchup")
+    SECTION("2 of 3 vote early (v-blocking) - 3 upgrade anyways")
     {
         auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
                                                     {upgrade, genesis(0, 10)},
                                                     {upgrade, genesis(0, 30)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
             {genesis(0, 9), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 20), {upgrade, upgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks, false, {upgrade, upgrade, upgrade});
+            {genesis(0, 20), {upgrade, upgrade, upgrade}}};
+        simulateUpgrade(nodes, checks);
     }
 }

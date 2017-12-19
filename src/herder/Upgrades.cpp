@@ -237,9 +237,10 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                  LedgerUpgradeType& upgradeType) const
+                  LedgerUpgradeType& upgradeType, bool nomination,
+                  Config const& cfg) const
 {
-    if (!timeForUpgrade(closeTime))
+    if (nomination && !timeForUpgrade(closeTime))
     {
         return false;
     }
@@ -255,32 +256,50 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
         return false;
     }
 
-    bool res;
+    bool res = true;
     switch (lupgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
     {
         uint32 newVersion = lupgrade.newLedgerVersion();
-        res = mParams.mProtocolVersion &&
-              (newVersion == *mParams.mProtocolVersion);
+        if (nomination)
+        {
+            res = mParams.mProtocolVersion &&
+                  (newVersion == *mParams.mProtocolVersion);
+        }
+        // only upgrade to the latest supported version of the protocol
+        // is allowed
+        res = res && (newVersion == cfg.LEDGER_PROTOCOL_VERSION);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
     {
         uint32 newFee = lupgrade.newBaseFee();
-        res = mParams.mBaseFee && (newFee == *mParams.mBaseFee);
+        if (nomination)
+        {
+            res = mParams.mBaseFee && (newFee == *mParams.mBaseFee);
+        }
+        res = res && (newFee != 0);
     }
     break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     {
         uint32 newMax = lupgrade.newMaxTxSetSize();
-        res = mParams.mMaxTxSize && (newMax == *mParams.mMaxTxSize);
+        if (nomination)
+        {
+            res = mParams.mMaxTxSize && (newMax == *mParams.mMaxTxSize);
+        }
+        res = res && (newMax != 0);
     }
     break;
     case LEDGER_UPGRADE_BASE_RESERVE:
     {
         uint32 newReserve = lupgrade.newBaseReserve();
-        res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
+        if (nomination)
+        {
+            res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
+        }
+        res = res && (newReserve != 0);
     }
     break;
     default:
