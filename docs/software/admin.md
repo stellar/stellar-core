@@ -217,24 +217,25 @@ IMPORTANT:
 
 ## Network configuration
 
-The network itself has network wide settings that can be updated by validators by voting for a new value.
+The network itself has network wide settings that can be updated. This is done by validators voting for and agreeing to new values.
 
 A node can be configured to vote for upgrades using the `upgrades` endpoint . see [`commands.md`](commands.md) for more information.
 
 The network settings are:
  * the version of the protocol used to process transactions
- * the maximum number of transactions that can be included in a ledger
+ * the maximum number of transactions that can be included in a given ledger close
  * the cost (fee) associated with processing operations
+ * the base reserve used to calculate the lumen balance needed to store things in the ledger
 
-When the network time is later than the upgradetime specified in
-the upgrade settings, the validator will start to vote to update the network
-to the value specified in the upgrade.
+When the network time is later than the `upgradetime` specified in
+the upgrade settings, the validator will vote to update the network
+to the value specified in the upgrade setting.
 
-When a validator is voting to change network values, the output of `info` will
+When a validator is armed to change network values, the output of `info` will
 contain information about the vote.
 
 For a new value to be adopted, the same level of consensus between nodes needs
-to be reached than for transaction sets.
+to be reached as for transaction sets.
 
 ### Important notes on network wide settings
 
@@ -242,10 +243,7 @@ Changes to network wide settings have to be orchestrated properly between
 validators as well as non validating nodes:
 * a change is vetted between operators (changes can be bundled)
 * an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
-  * as soon as the date is decided, a best practice is to update
-  the configuration file before upgrading the binaries (as updating the version of stellar core
-  may trigger a vote for the new protocol version supported by that version of core)
-* if applicable, communication is sent out to consumers of the network
+* if applicable, communication is sent out to all network users
 
 An improper plan may cause issues such as:
 * nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
