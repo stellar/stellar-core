@@ -19,15 +19,15 @@ using namespace stellar;
 
 struct LedgerUpgradeableData
 {
-    uint32_t ledgerVersion;
-    uint32_t baseFee;
-    uint32_t maxTxSetSize;
-    uint32_t baseReserve;
+    uint32_t ledgerVersion{0};
+    uint32_t baseFee{0};
+    uint32_t maxTxSetSize{0};
+    uint32_t baseReserve{0};
 };
 
 struct LedgerUpgradeNode
 {
-    LedgerUpgradeableData starting;
+    LedgerUpgradeableData desiredUpgrades;
     VirtualClock::time_point preferredUpgradeDatetime;
 };
 
@@ -40,7 +40,7 @@ struct LedgerUpgradeCheck
 void
 simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
                 std::vector<LedgerUpgradeCheck> const& checks,
-                bool proposeUpgradeAfterCatchedUp = false,
+                bool checkUpgradeAfterCatchup = false,
                 std::vector<LedgerUpgradeableData> const& afterCatchedUp = {})
 {
     auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
@@ -57,15 +57,8 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         keys.push_back(
             SecretKey::fromSeed(sha256("NODE_SEED_" + std::to_string(i))));
         configs.push_back(simulation->newConfig());
-        configs.back().LEDGER_PROTOCOL_VERSION =
-            nodes[i].starting.ledgerVersion;
-        configs.back().TESTING_UPGRADE_DESIRED_FEE = nodes[i].starting.baseFee;
-        configs.back().TESTING_UPGRADE_MAX_TX_PER_LEDGER =
-            nodes[i].starting.maxTxSetSize;
-        configs.back().TESTING_UPGRADE_RESERVE = nodes[i].starting.baseReserve;
-        configs.back().TESTING_UPGRADE_DATETIME =
-            nodes[i].preferredUpgradeDatetime;
-
+        // disable upgrade from config
+        configs.back().TESTING_UPGRADE_DATETIME = VirtualClock::time_point();
         // first node can write to history, all can read
         configurator.configure(configs.back(), i == 0);
     }
@@ -76,10 +69,27 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     qSet.validators.push_back(keys[1].getPublicKey());
     qSet.validators.push_back(keys[2].getPublicKey());
 
+    auto setUpgrade = [](optional<uint32>& o, uint32 v) {
+        o = make_optional<uint32>(v);
+    };
     // create nodes
     for (size_t i = 0; i < nodes.size(); i++)
     {
-        simulation->addNode(keys[i], qSet, &configs[i]);
+        auto app = simulation->addNode(keys[i], qSet, &configs[i]);
+
+        auto& upgradeTime = nodes[i].preferredUpgradeDatetime;
+
+        if (upgradeTime.time_since_epoch().count() != 0)
+        {
+            auto& du = nodes[i].desiredUpgrades;
+            Upgrades::UpgradeParameters upgrades;
+            setUpgrade(upgrades.mBaseFee, du.baseFee);
+            setUpgrade(upgrades.mBaseReserve, du.baseReserve);
+            setUpgrade(upgrades.mMaxTxSize, du.maxTxSetSize);
+            setUpgrade(upgrades.mProtocolVersion, du.ledgerVersion);
+            upgrades.mUpgradeTime = upgradeTime;
+            app->getHerder().setUpgrades(upgrades);
+        }
     }
 
     HistoryManager::initializeHistoryArchive(
@@ -157,10 +167,10 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         REQUIRE(allSynced());
     }
 
-    if (proposeUpgradeAfterCatchedUp)
+    if (checkUpgradeAfterCatchup)
     {
-        // at least one node should show message thats its upgrades from config
-        // are different than network values
+        // at least one node should show message thats it has some
+        // pending upgrades
         auto atLeastOneMessagesAboutUpgrades = [&]() {
             return std::any_of(
                 std::begin(keys), std::end(keys), [&](SecretKey const& key) {
@@ -328,75 +338,136 @@ testValidateUpgrades(VirtualClock::time_point preferredUpgradeDatetime,
     auto checkTime = VirtualClock::to_time_t(genesis(0, 0));
     auto ledgerUpgradeType = LedgerUpgradeType{};
 
-    SECTION("invalid upgrade data")
-    {
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
-                                       ledgerUpgradeType));
-    }
+    auto checkWith = [&](bool nomination) {
+        SECTION("invalid upgrade data")
+        {
+            REQUIRE(!Upgrades{cfg}.isValid(checkTime, UpgradeType{},
+                                           ledgerUpgradeType, nomination, cfg));
+        }
 
-    SECTION("version")
-    {
-        REQUIRE(canBeValid == Upgrades{cfg}.isValid(
-                                  checkTime,
-                                  toUpgradeType(makeProtocolVersionUpgrade(10)),
-                                  ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
-            ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
-            ledgerUpgradeType));
-    }
+        SECTION("version")
+        {
+            if (nomination)
+            {
+                REQUIRE(canBeValid ==
+                        Upgrades{cfg}.isValid(
+                            checkTime,
+                            toUpgradeType(makeProtocolVersionUpgrade(10)),
+                            ledgerUpgradeType, nomination, cfg));
+            }
+            else
+            {
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeProtocolVersionUpgrade(10)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            REQUIRE(!Upgrades{cfg}.isValid(
+                checkTime, toUpgradeType(makeProtocolVersionUpgrade(9)),
+                ledgerUpgradeType, nomination, cfg));
+            REQUIRE(!Upgrades{cfg}.isValid(
+                checkTime, toUpgradeType(makeProtocolVersionUpgrade(11)),
+                ledgerUpgradeType, nomination, cfg));
+        }
 
-    SECTION("base fee")
-    {
-        REQUIRE(canBeValid ==
-                Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeBaseFeeUpgrade(100)),
-                                      ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(99)),
-                                       ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeBaseFeeUpgrade(101)),
-                                       ledgerUpgradeType));
-    }
+        SECTION("base fee")
+        {
+            if (nomination)
+            {
+                REQUIRE(canBeValid ==
+                        Upgrades{cfg}.isValid(
+                            checkTime, toUpgradeType(makeBaseFeeUpgrade(100)),
+                            ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseFeeUpgrade(99)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseFeeUpgrade(101)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            else
+            {
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseFeeUpgrade(100)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseFeeUpgrade(99)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseFeeUpgrade(101)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            REQUIRE(!Upgrades{cfg}.isValid(checkTime,
+                                           toUpgradeType(makeBaseFeeUpgrade(0)),
+                                           ledgerUpgradeType, nomination, cfg));
+        }
 
-    SECTION("tx count")
-    {
-        REQUIRE(canBeValid ==
-                Upgrades{cfg}.isValid(checkTime,
-                                      toUpgradeType(makeTxCountUpgrade(50)),
-                                      ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(49)),
-                                       ledgerUpgradeType));
-        REQUIRE(!Upgrades{cfg}.isValid(checkTime,
-                                       toUpgradeType(makeTxCountUpgrade(51)),
-                                       ledgerUpgradeType));
-    }
+        SECTION("tx count")
+        {
+            if (nomination)
+            {
+                REQUIRE(canBeValid == Upgrades{cfg}.isValid(
+                                          checkTime,
+                                          toUpgradeType(makeTxCountUpgrade(50)),
+                                          ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeTxCountUpgrade(49)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeTxCountUpgrade(51)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            else
+            {
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeTxCountUpgrade(50)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeTxCountUpgrade(49)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeTxCountUpgrade(51)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            REQUIRE(!Upgrades{cfg}.isValid(checkTime,
+                                           toUpgradeType(makeTxCountUpgrade(0)),
+                                           ledgerUpgradeType, nomination, cfg));
+        }
 
-    SECTION("valid reserve")
-    {
-        REQUIRE(canBeValid ==
-                Upgrades{cfg}.isValid(
+        SECTION("reserve")
+        {
+            if (nomination)
+            {
+                REQUIRE(canBeValid ==
+                        Upgrades{cfg}.isValid(
+                            checkTime,
+                            toUpgradeType(makeBaseReserveUpgrade(100000000)),
+                            ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseReserveUpgrade(99999999)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(!Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseReserveUpgrade(100000001)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            else
+            {
+                REQUIRE(Upgrades{cfg}.isValid(
                     checkTime, toUpgradeType(makeBaseReserveUpgrade(100000000)),
-                    ledgerUpgradeType));
-    }
-
-    SECTION("too small reserve")
-    {
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeBaseReserveUpgrade(99999999)),
-            ledgerUpgradeType));
-    }
-
-    SECTION("too big reserve")
-    {
-        REQUIRE(!Upgrades{cfg}.isValid(
-            checkTime, toUpgradeType(makeBaseReserveUpgrade(100000001)),
-            ledgerUpgradeType));
-    }
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseReserveUpgrade(99999999)),
+                    ledgerUpgradeType, nomination, cfg));
+                REQUIRE(Upgrades{cfg}.isValid(
+                    checkTime, toUpgradeType(makeBaseReserveUpgrade(100000001)),
+                    ledgerUpgradeType, nomination, cfg));
+            }
+            REQUIRE(!Upgrades{cfg}.isValid(
+                checkTime, toUpgradeType(makeBaseReserveUpgrade(0)),
+                ledgerUpgradeType, nomination, cfg));
+        }
+    };
+    checkWith(true);
+    checkWith(false);
 }
 
 TEST_CASE("validate upgrades when no time set for upgrade", "[upgrades]")
@@ -413,10 +484,11 @@ TEST_CASE("validate upgrades at upgrade time", "[upgrades]")
     testValidateUpgrades(genesis(0, 0), true);
 }
 
-TEST_CASE("upgrade in LedgerCloseData changes herder values", "[upgrades]")
+TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
 {
     VirtualClock clock;
-    auto app = Application::create(clock, getTestConfig(0));
+    auto cfg = getTestConfig(0);
+    auto app = Application::create(clock, cfg);
     app->start();
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -444,8 +516,9 @@ TEST_CASE("upgrade in LedgerCloseData changes herder values", "[upgrades]")
 
     SECTION("ledger version")
     {
-        REQUIRE(executeUpgrade(makeProtocolVersionUpgrade(4))
-                    .header.ledgerVersion == 4);
+        REQUIRE(executeUpgrade(
+                    makeProtocolVersionUpgrade(cfg.LEDGER_PROTOCOL_VERSION))
+                    .header.ledgerVersion == cfg.LEDGER_PROTOCOL_VERSION);
     }
 
     SECTION("base fee")
@@ -470,12 +543,13 @@ TEST_CASE("upgrade in LedgerCloseData changes herder values", "[upgrades]")
     SECTION("all")
     {
         auto header =
-            executeUpgrades({toUpgradeType(makeProtocolVersionUpgrade(4)),
+            executeUpgrades({toUpgradeType(makeProtocolVersionUpgrade(
+                                 cfg.LEDGER_PROTOCOL_VERSION)),
                              toUpgradeType(makeBaseFeeUpgrade(1000)),
                              toUpgradeType(makeTxCountUpgrade(1300)),
                              toUpgradeType(makeBaseReserveUpgrade(1000))})
                 .header;
-        REQUIRE(header.ledgerVersion == 4);
+        REQUIRE(header.ledgerVersion == cfg.LEDGER_PROTOCOL_VERSION);
         REQUIRE(header.baseFee == 1000);
         REQUIRE(header.maxTxSetSize == 1300);
         REQUIRE(header.baseReserve == 1000);
@@ -484,6 +558,7 @@ TEST_CASE("upgrade in LedgerCloseData changes herder values", "[upgrades]")
 
 TEST_CASE("simulate upgrades", "[herder][upgrades]")
 {
+    auto epoch = VirtualClock::from_time_t(0);
     // no upgrade is done
     auto noUpgrade =
         LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION,
@@ -492,71 +567,67 @@ TEST_CASE("simulate upgrades", "[herder][upgrades]")
                               LedgerManager::GENESIS_LEDGER_BASE_RESERVE};
     // all values are upgraded
     auto upgrade =
-        LedgerUpgradeableData{LedgerManager::GENESIS_LEDGER_VERSION + 1,
+        LedgerUpgradeableData{Config::CURRENT_LEDGER_PROTOCOL_VERSION,
                               LedgerManager::GENESIS_LEDGER_BASE_FEE + 1,
                               LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE + 1,
                               LedgerManager::GENESIS_LEDGER_BASE_RESERVE + 1};
 
     SECTION("0 of 3 vote - dont upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{noUpgrade, genesis(0, 0)},
-                                                    {noUpgrade, genesis(0, 0)},
-                                                    {noUpgrade, genesis(0, 0)}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{}, {}, {}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
+            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
     SECTION("1 of 3 vote, dont upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)},
-                                                    {noUpgrade, genesis(0, 0)},
-                                                    {noUpgrade, genesis(0, 0)}};
+        auto nodes =
+            std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)}, {}, {}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}}};
+            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks, true);
     }
 
     SECTION("2 of 3 vote - 2 upgrade, 1 after catchup")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 0)},
-                                                    {upgrade, genesis(0, 0)},
-                                                    {noUpgrade, genesis(0, 0)}};
+        auto nodes = std::vector<LedgerUpgradeNode>{
+            {upgrade, genesis(0, 0)}, {upgrade, genesis(0, 0)}, {}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 30), {upgrade, upgrade, noUpgrade}}};
-        simulateUpgrade(nodes, checks, true, {upgrade, upgrade, upgrade});
+            {genesis(0, 10), {upgrade, upgrade, noUpgrade}}};
+        simulateUpgrade(nodes, checks, false, {upgrade, upgrade, upgrade});
     }
 
     SECTION("3 of 3 vote - upgrade")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(1, 0)},
-                                                    {upgrade, genesis(1, 0)},
-                                                    {upgrade, genesis(1, 0)}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 15)},
+                                                    {upgrade, genesis(0, 15)},
+                                                    {upgrade, genesis(0, 15)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 30), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(1, 30), {upgrade, upgrade, upgrade}}};
+            {genesis(0, 10), {noUpgrade, noUpgrade, noUpgrade}},
+            {genesis(0, 21), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
     SECTION("1 of 3 vote early - 3 upgrade late")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 30)},
-                                                    {upgrade, genesis(1, 0)},
-                                                    {upgrade, genesis(1, 0)}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
+                                                    {upgrade, genesis(0, 30)},
+                                                    {upgrade, genesis(0, 30)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 45), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(1, 15), {upgrade, upgrade, upgrade}}};
+            {genesis(0, 20), {noUpgrade, noUpgrade, noUpgrade}},
+            {genesis(0, 36), {upgrade, upgrade, upgrade}}};
         simulateUpgrade(nodes, checks);
     }
 
     SECTION("2 of 3 vote early - 2 upgrade early, 1 after catchup")
     {
-        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 30)},
-                                                    {upgrade, genesis(0, 30)},
-                                                    {upgrade, genesis(1, 0)}};
+        auto nodes = std::vector<LedgerUpgradeNode>{{upgrade, genesis(0, 10)},
+                                                    {upgrade, genesis(0, 10)},
+                                                    {upgrade, genesis(0, 30)}};
         auto checks = std::vector<LedgerUpgradeCheck>{
-            {genesis(0, 15), {noUpgrade, noUpgrade, noUpgrade}},
-            {genesis(0, 45), {upgrade, upgrade, noUpgrade}}};
+            {genesis(0, 9), {noUpgrade, noUpgrade, noUpgrade}},
+            {genesis(0, 20), {upgrade, upgrade, noUpgrade}}};
         simulateUpgrade(nodes, checks, false, {upgrade, upgrade, upgrade});
     }
 }
