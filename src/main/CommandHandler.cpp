@@ -67,45 +67,79 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
     mServer->add404(std::bind(&CommandHandler::fileNotFound, this, _1, _2));
 
-    mServer->addRoute("bans", std::bind(&CommandHandler::bans, this, _1, _2));
-    mServer->addRoute("catchup",
-                      std::bind(&CommandHandler::catchup, this, _1, _2));
-    mServer->addRoute("checkdb",
-                      std::bind(&CommandHandler::checkdb, this, _1, _2));
+    mServer->addRoute("bans", std::bind(&CommandHandler::safeRouter, this,
+                                        &CommandHandler::bans, _1, _2));
+    mServer->addRoute("catchup", std::bind(&CommandHandler::safeRouter, this,
+                                           &CommandHandler::catchup, _1, _2));
+    mServer->addRoute("checkdb", std::bind(&CommandHandler::safeRouter, this,
+                                           &CommandHandler::checkdb, _1, _2));
     mServer->addRoute("checkpoint",
-                      std::bind(&CommandHandler::checkpoint, this, _1, _2));
-    mServer->addRoute("connect",
-                      std::bind(&CommandHandler::connect, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::checkpoint, _1, _2));
+    mServer->addRoute("connect", std::bind(&CommandHandler::safeRouter, this,
+                                           &CommandHandler::connect, _1, _2));
     mServer->addRoute("dropcursor",
-                      std::bind(&CommandHandler::dropcursor, this, _1, _2));
-    mServer->addRoute("droppeer",
-                      std::bind(&CommandHandler::dropPeer, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::dropcursor, _1, _2));
+    mServer->addRoute("droppeer", std::bind(&CommandHandler::safeRouter, this,
+                                            &CommandHandler::dropPeer, _1, _2));
     mServer->addRoute("generateload",
-                      std::bind(&CommandHandler::generateLoad, this, _1, _2));
-    mServer->addRoute("info", std::bind(&CommandHandler::info, this, _1, _2));
-    mServer->addRoute("ll", std::bind(&CommandHandler::ll, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::generateLoad, _1, _2));
+    mServer->addRoute("info", std::bind(&CommandHandler::safeRouter, this,
+                                        &CommandHandler::info, _1, _2));
+    mServer->addRoute("ll", std::bind(&CommandHandler::safeRouter, this,
+                                      &CommandHandler::ll, _1, _2));
     mServer->addRoute("logrotate",
-                      std::bind(&CommandHandler::logRotate, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::logRotate, _1, _2));
     mServer->addRoute("maintenance",
-                      std::bind(&CommandHandler::maintenance, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::maintenance, _1, _2));
     mServer->addRoute("manualclose",
-                      std::bind(&CommandHandler::manualClose, this, _1, _2));
-    mServer->addRoute("metrics",
-                      std::bind(&CommandHandler::metrics, this, _1, _2));
-    mServer->addRoute("peers", std::bind(&CommandHandler::peers, this, _1, _2));
-    mServer->addRoute("quorum",
-                      std::bind(&CommandHandler::quorum, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::manualClose, _1, _2));
+    mServer->addRoute("metrics", std::bind(&CommandHandler::safeRouter, this,
+                                           &CommandHandler::metrics, _1, _2));
+    mServer->addRoute("peers", std::bind(&CommandHandler::safeRouter, this,
+                                         &CommandHandler::peers, _1, _2));
+    mServer->addRoute("quorum", std::bind(&CommandHandler::safeRouter, this,
+                                          &CommandHandler::quorum, _1, _2));
     mServer->addRoute("setcursor",
-                      std::bind(&CommandHandler::setcursor, this, _1, _2));
-    mServer->addRoute("scp", std::bind(&CommandHandler::scpInfo, this, _1, _2));
-    mServer->addRoute("testacc",
-                      std::bind(&CommandHandler::testAcc, this, _1, _2));
-    mServer->addRoute("testtx",
-                      std::bind(&CommandHandler::testTx, this, _1, _2));
-    mServer->addRoute("tx", std::bind(&CommandHandler::tx, this, _1, _2));
-    mServer->addRoute("upgrades",
-                      std::bind(&CommandHandler::upgrades, this, _1, _2));
-    mServer->addRoute("unban", std::bind(&CommandHandler::unban, this, _1, _2));
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::setcursor, _1, _2));
+    mServer->addRoute("scp", std::bind(&CommandHandler::safeRouter, this,
+                                       &CommandHandler::scpInfo, _1, _2));
+    mServer->addRoute("testacc", std::bind(&CommandHandler::safeRouter, this,
+                                           &CommandHandler::testAcc, _1, _2));
+    mServer->addRoute("testtx", std::bind(&CommandHandler::safeRouter, this,
+                                          &CommandHandler::testTx, _1, _2));
+    mServer->addRoute("tx", std::bind(&CommandHandler::safeRouter, this,
+                                      &CommandHandler::tx, _1, _2));
+    mServer->addRoute("upgrades", std::bind(&CommandHandler::safeRouter, this,
+                                            &CommandHandler::upgrades, _1, _2));
+    mServer->addRoute("unban", std::bind(&CommandHandler::safeRouter, this,
+                                         &CommandHandler::unban, _1, _2));
+}
+
+void
+CommandHandler::safeRouter(CommandHandler::HandlerRoute route,
+                           std::string const& params, std::string& retStr)
+{
+    try
+    {
+        route(this, params, retStr);
+    }
+    catch (std::exception& e)
+    {
+        retStr =
+            (fmt::MemoryWriter() << "{\"exception\": \"" << e.what() << "\"}")
+                .str();
+    }
+    catch (...)
+    {
+        retStr = "{\"exception\": \"generic\"}";
+    }
 }
 
 void
@@ -794,36 +828,23 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
 
     NodeID n;
 
-    try
-    {
-        std::string nID = retMap["node"];
+    std::string nID = retMap["node"];
 
-        if (nID.empty())
+    if (nID.empty())
+    {
+        n = mApp.getConfig().NODE_SEED.getPublicKey();
+    }
+    else
+    {
+        if (!mApp.getHerder().resolveNodeID(nID, n))
         {
-            n = mApp.getConfig().NODE_SEED.getPublicKey();
+            throw std::invalid_argument("unknown name");
         }
-        else
-        {
-            if (!mApp.getHerder().resolveNodeID(nID, n))
-            {
-                throw std::invalid_argument("unknown name");
-            }
-        }
+    }
 
-        mApp.getHerder().dumpQuorumInfo(root, n, retMap["compact"] == "true");
+    mApp.getHerder().dumpQuorumInfo(root, n, retMap["compact"] == "true");
 
-        retStr = root.toStyledString();
-    }
-    catch (std::exception& e)
-    {
-        retStr =
-            (fmt::MemoryWriter() << "{\"exception\": \"" << e.what() << "\"}")
-                .str();
-    }
-    catch (...)
-    {
-        retStr = "{\"exception\": \"generic\"}";
-    }
+    retStr = root.toStyledString();
 }
 
 void
@@ -911,61 +932,48 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     if (params.compare(0, prefix.size(), prefix) == 0)
     {
         TransactionEnvelope envelope;
-        try
-        {
-            std::string blob = params.substr(prefix.size());
-            std::vector<uint8_t> binBlob;
-            bn::decode_b64(blob, binBlob);
+        std::string blob = params.substr(prefix.size());
+        std::vector<uint8_t> binBlob;
+        bn::decode_b64(blob, binBlob);
 
-            xdr::xdr_from_opaque(binBlob, envelope);
-            TransactionFramePtr transaction =
-                TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
-                                                          envelope);
-            if (transaction)
+        xdr::xdr_from_opaque(binBlob, envelope);
+        TransactionFramePtr transaction =
+            TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
+                                                      envelope);
+        if (transaction)
+        {
+            // add it to our current set
+            // and make sure it is valid
+            Herder::TransactionSubmitStatus status =
+                mApp.getHerder().recvTransaction(transaction);
+
+            if (status == Herder::TX_STATUS_PENDING)
             {
-                // add it to our current set
-                // and make sure it is valid
-                Herder::TransactionSubmitStatus status =
-                    mApp.getHerder().recvTransaction(transaction);
-
-                if (status == Herder::TX_STATUS_PENDING)
-                {
-                    StellarMessage msg;
-                    msg.type(TRANSACTION);
-                    msg.transaction() = envelope;
-                    mApp.getOverlayManager().broadcastMessage(msg);
-                }
-
-                output << "{"
-                       << "\"status\": "
-                       << "\"" << TX_STATUS_STRING[status] << "\"";
-                if (status == Herder::TX_STATUS_ERROR)
-                {
-                    std::string resultBase64;
-                    auto resultBin =
-                        xdr::xdr_to_opaque(transaction->getResult());
-                    resultBase64.reserve(bn::encoded_size64(resultBin.size()) +
-                                         1);
-                    resultBase64 = bn::encode_b64(resultBin);
-
-                    output << " , \"error\": \"" << resultBase64 << "\"";
-                }
-                output << "}";
+                StellarMessage msg;
+                msg.type(TRANSACTION);
+                msg.transaction() = envelope;
+                mApp.getOverlayManager().broadcastMessage(msg);
             }
-        }
-        catch (std::exception& e)
-        {
-            output << "{\"exception\": \"" << e.what() << "\"}";
-        }
-        catch (...)
-        {
-            output << "{\"exception\": \"generic\"}";
+
+            output << "{"
+                   << "\"status\": "
+                   << "\"" << TX_STATUS_STRING[status] << "\"";
+            if (status == Herder::TX_STATUS_ERROR)
+            {
+                std::string resultBase64;
+                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+                resultBase64.reserve(bn::encoded_size64(resultBin.size()) + 1);
+                resultBase64 = bn::encode_b64(resultBin);
+
+                output << " , \"error\": \"" << resultBase64 << "\"";
+            }
+            output << "}";
         }
     }
     else
     {
-        output << "{\"exception\": \"Must specify a tx blob: tx?blob=<tx in "
-                  "xdr format>\"}";
+        throw std::exception("Must specify a tx blob: tx?blob=<tx in "
+                             "xdr format>\"}");
     }
 
     retStr = output.str();

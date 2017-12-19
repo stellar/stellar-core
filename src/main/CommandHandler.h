@@ -17,9 +17,15 @@ class Application;
 
 class CommandHandler
 {
+    typedef std::function<void(CommandHandler*, std::string const&,
+                               std::string&)>
+        HandlerRoute;
 
     Application& mApp;
     std::unique_ptr<http::server::server> mServer;
+
+    void safeRouter(HandlerRoute route, std::string const& params,
+                    std::string& retStr);
 
   public:
     CommandHandler(Application& app);
