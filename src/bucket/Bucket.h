@@ -75,7 +75,6 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
     {
         std::string mFilename;
         XDROutputFileStream mOut;
-        BucketEntryIdCmp mCmp;
         std::unique_ptr<BucketEntry> mBuf;
         std::unique_ptr<SHA256> mHasher;
         size_t mBytesPut{0};
