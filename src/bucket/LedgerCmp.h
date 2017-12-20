@@ -95,7 +95,6 @@ struct LedgerEntryIdCmp
  */
 struct BucketEntryIdCmp
 {
-    LedgerEntryIdCmp mCmp;
     bool
     operator()(BucketEntry const& a, BucketEntry const& b) const
     {
@@ -106,22 +105,23 @@ struct BucketEntryIdCmp
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.liveEntry().data, b.liveEntry().data);
+                return LedgerEntryIdCmp{}(a.liveEntry().data,
+                                          b.liveEntry().data);
             }
             else
             {
-                return mCmp(a.liveEntry().data, b.deadEntry());
+                return LedgerEntryIdCmp{}(a.liveEntry().data, b.deadEntry());
             }
         }
         else
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.deadEntry(), b.liveEntry().data);
+                return LedgerEntryIdCmp{}(a.deadEntry(), b.liveEntry().data);
             }
             else
             {
-                return mCmp(a.deadEntry(), b.deadEntry());
+                return LedgerEntryIdCmp{}(a.deadEntry(), b.deadEntry());
             }
         }
     }
