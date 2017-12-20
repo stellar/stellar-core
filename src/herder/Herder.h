@@ -130,7 +130,7 @@ class Herder
     // sets the upgrades that should be applied during consensus
     virtual void setUpgrades(Upgrades::UpgradeParameters const& upgrades) = 0;
     // gets the upgrades that are scheduled by this node
-    virtual std::string getUpgrades() = 0;
+    virtual std::string getUpgradesJson() = 0;
 
     virtual ~Herder()
     {

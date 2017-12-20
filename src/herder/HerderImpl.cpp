@@ -808,7 +808,7 @@ HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
 }
 
 std::string
-HerderImpl::getUpgrades()
+HerderImpl::getUpgradesJson()
 {
     return mUpgrades.getParameters().toJson();
 }

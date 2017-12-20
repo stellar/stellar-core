@@ -758,7 +758,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
     }
     if (s == "get")
     {
-        retStr = mApp.getHerder().getUpgrades();
+        retStr = mApp.getHerder().getUpgradesJson();
     }
     else if (s == "set")
     {
