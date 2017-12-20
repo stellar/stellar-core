@@ -315,32 +315,30 @@ Bucket::fresh(BucketManager& bucketManager,
 
 inline void
 maybePut(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
-         Bucket::InputIterator& in,
+         BucketEntry const& entry,
          std::vector<Bucket::InputIterator>& shadowIterators)
 {
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
-        while (si && cmp(*si, *in))
+        while (si && cmp(*si, entry))
         {
             ++si;
         }
         // We have stepped si forward to the point that either si is exhausted,
-        // or else *si >= *in; we now check the opposite direction to see if we
-        // have equality.
-        if (si && !cmp(*in, *si))
+        // or else *si >= entry; we now check the opposite direction to see if
+        // we have equality.
+        if (si && !cmp(entry, *si))
         {
-            // If so, then *in is shadowed in at least one level and we will
+            // If so, then entry is shadowed in at least one level and we will
             // not be doing a 'put'; we return early. There is no need to
-            // advance
-            // the other iterators, they will advance as and if necessary in
-            // future
-            // calls to maybePut.
+            // advance the other iterators, they will advance as and if
+            // necessary in future calls to maybePut.
             return;
         }
     }
     // Nothing shadowed.
-    out.put(*in);
+    out.put(entry);
 }
 
 std::shared_ptr<Bucket>
@@ -372,31 +370,31 @@ Bucket::merge(BucketManager& bucketManager,
         if (!ni)
         {
             // Out of new entries, take old entries.
-            maybePut(cmp, out, oi, shadowIterators);
+            maybePut(cmp, out, *oi, shadowIterators);
             ++oi;
         }
         else if (!oi)
         {
             // Out of old entries, take new entries.
-            maybePut(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, *ni, shadowIterators);
             ++ni;
         }
         else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
-            maybePut(cmp, out, oi, shadowIterators);
+            maybePut(cmp, out, *oi, shadowIterators);
             ++oi;
         }
         else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
-            maybePut(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, *ni, shadowIterators);
             ++ni;
         }
         else
         {
             // Old and new are for the same key, take new.
-            maybePut(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, *ni, shadowIterators);
             ++oi;
             ++ni;
         }
