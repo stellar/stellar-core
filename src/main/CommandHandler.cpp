@@ -17,7 +17,6 @@
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
-#include <iomanip>
 
 #include "medida/reporting/json_reporter.h"
 #include "util/basen.h"
@@ -766,17 +765,17 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         Upgrades::UpgradeParameters p;
 
         auto upgradeTime = retMap["upgradetime"];
-
-        std::istringstream is(upgradeTime);
         std::tm tm;
-        is >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%SZ");
-        if (is.fail())
+        try
+        {
+            tm = VirtualClock::isoStringToTm(upgradeTime);
+        }
+        catch (std::exception)
         {
             retStr =
                 fmt::format("could not parse upgradetime: '{}'", upgradeTime);
             return;
         }
-        tm.tm_isdst = false;
         p.mUpgradeTime = VirtualClock::tmToPoint(tm);
 
         auto addParam = [&](std::string const& name,
@@ -972,8 +971,8 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
     }
     else
     {
-        throw std::exception("Must specify a tx blob: tx?blob=<tx in "
-                             "xdr format>\"}");
+        throw std::invalid_argument("Must specify a tx blob: tx?blob=<tx in "
+                                    "xdr format>\"}");
     }
 
     retStr = output.str();
