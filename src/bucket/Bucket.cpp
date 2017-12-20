@@ -314,9 +314,9 @@ Bucket::fresh(BucketManager& bucketManager,
 }
 
 inline void
-maybe_put(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
-          Bucket::InputIterator& in,
-          std::vector<Bucket::InputIterator>& shadowIterators)
+maybePut(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
+         Bucket::InputIterator& in,
+         std::vector<Bucket::InputIterator>& shadowIterators)
 {
     for (auto& si : shadowIterators)
     {
@@ -335,7 +335,7 @@ maybe_put(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
             // advance
             // the other iterators, they will advance as and if necessary in
             // future
-            // calls to maybe_put.
+            // calls to maybePut.
             return;
         }
     }
@@ -372,31 +372,31 @@ Bucket::merge(BucketManager& bucketManager,
         if (!ni)
         {
             // Out of new entries, take old entries.
-            maybe_put(cmp, out, oi, shadowIterators);
+            maybePut(cmp, out, oi, shadowIterators);
             ++oi;
         }
         else if (!oi)
         {
             // Out of old entries, take new entries.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, ni, shadowIterators);
             ++ni;
         }
         else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
-            maybe_put(cmp, out, oi, shadowIterators);
+            maybePut(cmp, out, oi, shadowIterators);
             ++oi;
         }
         else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, ni, shadowIterators);
             ++ni;
         }
         else
         {
             // Old and new are for the same key, take new.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybePut(cmp, out, ni, shadowIterators);
             ++oi;
             ++ni;
         }
