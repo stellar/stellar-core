@@ -1904,7 +1904,8 @@ BallotProtocol::validateValues(SCPStatement const& st)
     SCPDriver::ValidationLevel res = SCPDriver::kFullyValidatedValue;
     for (auto const& v : values)
     {
-        auto tr = mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v);
+        auto tr =
+            mSlot.getSCPDriver().validateValue(mSlot.getSlotIndex(), v, false);
         if (tr != SCPDriver::kFullyValidatedValue)
         {
             if (tr == SCPDriver::kInvalidValue)

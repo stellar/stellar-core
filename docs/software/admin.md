@@ -217,35 +217,33 @@ IMPORTANT:
 
 ## Network configuration
 
-The network itself has network wide settings, for example:
+The network itself has network wide settings that can be updated. This is done by validators voting for and agreeing to new values.
+
+A node can be configured to vote for upgrades using the `upgrades` endpoint . see [`commands.md`](commands.md) for more information.
+
+The network settings are:
  * the version of the protocol used to process transactions
- * the maximum number of transactions that can be included in a ledger
+ * the maximum number of transactions that can be included in a given ledger close
  * the cost (fee) associated with processing operations
+ * the base reserve used to calculate the lumen balance needed to store things in the ledger
 
-See the section on "Network wide settings" in the [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg)
-for more details on those parameters.
+When the network time is later than the `upgradetime` specified in
+the upgrade settings, the validator will vote to update the network
+to the value specified in the upgrade setting.
 
-When a network value is not the same as the one specified in its configuration,
-a validator will start to vote to update the network to the value specified in the
-configuration during ledgers following the date specified in `PREFERRED_UPGRADE_DATETIME`.
-
-When a validator is voting to change network values, the output of `info` will
-contain information about the vote. This can be useful to spot a misconfigured
-validator (if the operator didn't know about a network wide change for example).
+When a validator is armed to change network values, the output of `info` will
+contain information about the vote.
 
 For a new value to be adopted, the same level of consensus between nodes needs
-to be reached than for transaction sets.
+to be reached as for transaction sets.
 
 ### Important notes on network wide settings
 
 Changes to network wide settings have to be orchestrated properly between
 validators as well as non validating nodes:
 * a change is vetted between operators (changes can be bundled)
-* an effective date in the future is picked for the change to take effect (controlled by `PREFERRED_UPGRADE_DATETIME`)
-  * as soon as the date is decided, a best practice is to update
-  the configuration file before upgrading the binaries (as updating the version of stellar core
-  may trigger a vote for the new protocol version supported by that version of core)
-* if applicable, communication is sent out to consumers of the network
+* an effective date in the future is picked for the change to take effect (controlled by `upgradetime`)
+* if applicable, communication is sent out to all network users
 
 An improper plan may cause issues such as:
 * nodes missing consensus (aka "getting stuck"), and having to use history to rejoin
@@ -499,6 +497,22 @@ Run:
   - to set a flag to force each node to start SCP immediatly rather than wait to hear from the network. 
 4. `$ stellar-core` 
   - on each node to start it.
+
+## Upgrading network settings
+
+Read the section on [`network-configuration`](admin.md#network-configuration) for process to follow.
+
+Example here is to upgrade the protocol version to version 9 on January-31-2018.
+
+1. `$ stellar-core -c 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+
+2. `$ stellar-core -c info`
+At this point `info` will tell you that the node is setup to vote for this upgrade:
+```
+      "status" : [
+         "Armed with network upgrades: upgradetime=2018-01-31T20:00:00Z, protocolversion=9"
+      ]
+```
 
 # Understanding the availability and health of your instance
 ## General info

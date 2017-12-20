@@ -89,6 +89,9 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.ALLOW_LOCALHOST_FOR_TESTING = true;
 
+        // this forces to pick up any other potential upgrades
+        thisConfig.TESTING_UPGRADE_DATETIME = VirtualClock::from_time_t(1);
+
         // Tests are run in standalone by default, meaning that no external
         // listening interfaces are opened (all sockets must be manually created
         // and connected loopback sockets), no external connections are
@@ -185,20 +188,20 @@ test(int argc, char* const* argv, el::Level ll,
 }
 
 void
-for_versions_to(int to, Application& app, std::function<void(void)> const& f)
+for_versions_to(uint32 to, Application& app, std::function<void(void)> const& f)
 {
     for_versions(1, to, app, f);
 }
 
 void
-for_versions_from(int from, Application& app,
+for_versions_from(uint32 from, Application& app,
                   std::function<void(void)> const& f)
 {
     for_versions(from, Config::CURRENT_LEDGER_PROTOCOL_VERSION, app, f);
 }
 
 void
-for_versions_from(std::vector<int> const& versions, Application& app,
+for_versions_from(std::vector<uint32> const& versions, Application& app,
                   std::function<void(void)> const& f)
 {
     for_versions(versions, app, f);
@@ -212,14 +215,14 @@ for_all_versions(Application& app, std::function<void(void)> const& f)
 }
 
 void
-for_versions(int from, int to, Application& app,
+for_versions(uint32 from, uint32 to, Application& app,
              std::function<void(void)> const& f)
 {
     if (from > to)
     {
         return;
     }
-    auto versions = std::vector<int>{};
+    auto versions = std::vector<uint32>{};
     versions.resize(to - from + 1);
     std::iota(std::begin(versions), std::end(versions), from);
 
@@ -227,7 +230,7 @@ for_versions(int from, int to, Application& app,
 }
 
 void
-for_versions(std::vector<int> const& versions, Application& app,
+for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
@@ -247,11 +250,11 @@ for_versions(std::vector<int> const& versions, Application& app,
 }
 
 void
-for_all_versions_except(std::vector<int> const& versions, Application& app,
+for_all_versions_except(std::vector<uint32> const& versions, Application& app,
                         std::function<void(void)> const& f)
 {
-    int lastExcept = 0;
-    for (int except : versions)
+    uint32 lastExcept = 0;
+    for (uint32 except : versions)
     {
         for_versions(lastExcept + 1, except - 1, app, f);
         lastExcept = except;

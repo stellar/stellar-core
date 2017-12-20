@@ -32,7 +32,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string expandNodeID(std::string const& s) const;
 
   public:
-    static const int CURRENT_LEDGER_PROTOCOL_VERSION;
+    static const uint32 CURRENT_LEDGER_PROTOCOL_VERSION;
 
     typedef std::shared_ptr<Config> pointer;
 
@@ -123,7 +123,7 @@ class Config : public std::enable_shared_from_this<Config>
     bool UNSAFE_QUORUM;
 
     uint32_t LEDGER_PROTOCOL_VERSION;
-    VirtualClock::time_point PREFERRED_UPGRADE_DATETIME;
+    VirtualClock::time_point TESTING_UPGRADE_DATETIME;
 
     // note: all versions in the range
     // [OVERLAY_PROTOCOL_MIN_VERSION, OVERLAY_PROTOCOL_VERSION] must be handled
@@ -132,9 +132,9 @@ class Config : public std::enable_shared_from_this<Config>
     std::string VERSION_STR;
     std::string LOG_FILE_PATH;
     std::string BUCKET_DIR_PATH;
-    uint32_t DESIRED_BASE_FEE;     // in stroops
-    uint32_t DESIRED_BASE_RESERVE; // in stroops
-    uint32_t DESIRED_MAX_TX_PER_LEDGER;
+    uint32_t TESTING_UPGRADE_DESIRED_FEE; // in stroops
+    uint32_t TESTING_UPGRADE_RESERVE;     // in stroops
+    uint32_t TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     unsigned short HTTP_PORT; // what port to listen for commands
     bool PUBLIC_HTTP_PORT;    // if you accept commands from not localhost
     int HTTP_MAX_CLIENT;      // maximum number of http clients, i.e backlog

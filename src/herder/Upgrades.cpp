@@ -6,18 +6,86 @@
 #include "main/Config.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include <cereal/archives/json.hpp>
+#include <cereal/cereal.hpp>
 #include <lib/util/format.h>
 #include <xdrpp/marshal.h>
 
+namespace cereal
+{
+template <class Archive>
+void
+save(Archive& ar, stellar::Upgrades::UpgradeParameters const& p)
+{
+    ar(make_nvp("time", stellar::VirtualClock::to_time_t(p.mUpgradeTime)));
+    ar(make_nvp("version", p.mProtocolVersion));
+    ar(make_nvp("fee", p.mBaseFee));
+    ar(make_nvp("maxtxsize", p.mMaxTxSize));
+    ar(make_nvp("reserve", p.mBaseReserve));
+}
+
+template <class Archive>
+void
+load(Archive& ar, stellar::Upgrades::UpgradeParameters& o)
+{
+    time_t t;
+    ar(make_nvp("time", t));
+    o.mUpgradeTime = stellar::VirtualClock::from_time_t(t);
+    ar(make_nvp("version", o.mProtocolVersion));
+    ar(make_nvp("fee", o.mBaseFee));
+    ar(make_nvp("maxtxsize", o.mMaxTxSize));
+    ar(make_nvp("reserve", o.mBaseReserve));
+}
+} // namespace cereal
+
 namespace stellar
 {
+std::string
+Upgrades::UpgradeParameters::toJson() const
+{
+    std::ostringstream out;
+    {
+        cereal::JSONOutputArchive ar(out);
+        cereal::save(ar, *this);
+    }
+    return out.str();
+}
 
-Upgrades::Upgrades(Config const& cfg) : mCfg{cfg}
+void
+Upgrades::UpgradeParameters::fromJson(std::string const& s)
+{
+    std::istringstream in(s);
+    {
+        cereal::JSONInputArchive ar(in);
+        cereal::load(ar, *this);
+    }
+}
+
+Upgrades::Upgrades(UpgradeParameters const& params) : mParams(params)
 {
 }
 
+void
+Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
+{
+    if (params.mProtocolVersion &&
+        *params.mProtocolVersion != cfg.LEDGER_PROTOCOL_VERSION)
+    {
+        throw std::invalid_argument(
+            fmt::format("Protocol version error: supported is {}, passed is {}",
+                        cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
+    }
+    mParams = params;
+}
+
+Upgrades::UpgradeParameters const&
+Upgrades::getParameters() const
+{
+    return mParams;
+}
+
 std::vector<LedgerUpgrade>
-Upgrades::upgradesFor(LedgerHeader const& header) const
+Upgrades::createUpgradesFor(LedgerHeader const& header) const
 {
     auto result = std::vector<LedgerUpgrade>{};
     if (!timeForUpgrade(header.scpValue.closeTime))
@@ -25,25 +93,26 @@ Upgrades::upgradesFor(LedgerHeader const& header) const
         return result;
     }
 
-    if (header.ledgerVersion != mCfg.LEDGER_PROTOCOL_VERSION)
+    if (mParams.mProtocolVersion &&
+        (header.ledgerVersion != *mParams.mProtocolVersion))
     {
         result.emplace_back(LEDGER_UPGRADE_VERSION);
-        result.back().newLedgerVersion() = mCfg.LEDGER_PROTOCOL_VERSION;
+        result.back().newLedgerVersion() = *mParams.mProtocolVersion;
     }
-    if (header.baseFee != mCfg.DESIRED_BASE_FEE)
+    if (mParams.mBaseFee && (header.baseFee != *mParams.mBaseFee))
     {
         result.emplace_back(LEDGER_UPGRADE_BASE_FEE);
-        result.back().newBaseFee() = mCfg.DESIRED_BASE_FEE;
+        result.back().newBaseFee() = *mParams.mBaseFee;
     }
-    if (header.maxTxSetSize != mCfg.DESIRED_MAX_TX_PER_LEDGER)
+    if (mParams.mMaxTxSize && (header.maxTxSetSize != *mParams.mMaxTxSize))
     {
         result.emplace_back(LEDGER_UPGRADE_MAX_TX_SET_SIZE);
-        result.back().newMaxTxSetSize() = mCfg.DESIRED_MAX_TX_PER_LEDGER;
+        result.back().newMaxTxSetSize() = *mParams.mMaxTxSize;
     }
-    if (header.baseReserve != mCfg.DESIRED_BASE_RESERVE)
+    if (mParams.mBaseReserve && (header.baseReserve != *mParams.mBaseReserve))
     {
         result.emplace_back(LEDGER_UPGRADE_BASE_RESERVE);
-        result.back().newBaseReserve() = mCfg.DESIRED_BASE_RESERVE;
+        result.back().newBaseReserve() = *mParams.mBaseReserve;
     }
 
     return result;
@@ -80,53 +149,98 @@ Upgrades::toString(LedgerUpgrade const& upgrade)
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        return fmt::format("PROTOCOL_VERSION={0}", upgrade.newLedgerVersion());
+        return fmt::format("protocolversion={0}", upgrade.newLedgerVersion());
     case LEDGER_UPGRADE_BASE_FEE:
-        return fmt::format("BASE_FEE={0}", upgrade.newBaseFee());
+        return fmt::format("basefee={0}", upgrade.newBaseFee());
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
-        return fmt::format("MAX_TX_SET_SIZE={0}", upgrade.newMaxTxSetSize());
+        return fmt::format("maxtxsetsize={0}", upgrade.newMaxTxSetSize());
     case LEDGER_UPGRADE_BASE_RESERVE:
-        return fmt::format("BASE_RESERVE={0}", upgrade.newBaseReserve());
+        return fmt::format("basereserve={0}", upgrade.newBaseReserve());
     default:
         return "<unsupported>";
     }
 }
 
 std::string
-Upgrades::toString(std::vector<LedgerUpgrade> const& upgrades)
+Upgrades::toString() const
 {
-    if (upgrades.empty())
-    {
-        return {};
-    }
+    fmt::MemoryWriter r;
 
-    auto result = std::string{};
-    for (auto const& upgrade : upgrades)
-    {
-        if (!result.empty())
+    auto appendInfo = [&](std::string const& s, optional<uint32> const& o) {
+        if (o)
         {
-            result += ", ";
+            if (!r.size())
+            {
+                r << "upgradetime="
+                  << VirtualClock::pointToISOString(mParams.mUpgradeTime);
+            }
+            r << ", " << s << "=" << *o;
         }
-        result += toString(upgrade);
-    }
+    };
+    appendInfo("protocolversion", mParams.mProtocolVersion);
+    appendInfo("basefee", mParams.mBaseFee);
+    appendInfo("basereserve", mParams.mBaseReserve);
+    appendInfo("maxtxsize", mParams.mMaxTxSize);
 
-    return fmt::format("[{0}]", result);
+    return r.str();
 }
 
-std::string
-Upgrades::toString(LedgerHeader const& header)
+Upgrades::UpgradeParameters
+Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
+                         std::vector<UpgradeType>::const_iterator endUpdates,
+                         bool& updated)
 {
-    return fmt::format("PROTOCOL_VERSION={0}, BASE_FEE={1}, "
-                       "MAX_TX_SET_SIZE={2}, BASE_RESERVE={3}",
-                       header.ledgerVersion, header.baseFee,
-                       header.maxTxSetSize, header.baseReserve);
+    updated = false;
+    UpgradeParameters res = mParams;
+
+    auto resetParam = [&](optional<uint32>& o, uint32 v) {
+        if (o && *o == v)
+        {
+            o.reset();
+            updated = true;
+        }
+    };
+
+    for (auto it = beginUpdates; it != endUpdates; it++)
+    {
+        auto& u = *it;
+        LedgerUpgrade lu;
+        try
+        {
+            xdr::xdr_from_opaque(u, lu);
+        }
+        catch (xdr::xdr_runtime_error&)
+        {
+            continue;
+        }
+        switch (lu.type())
+        {
+        case LEDGER_UPGRADE_VERSION:
+            resetParam(res.mProtocolVersion, lu.newLedgerVersion());
+            break;
+        case LEDGER_UPGRADE_BASE_FEE:
+            resetParam(res.mBaseFee, lu.newBaseFee());
+            break;
+        case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
+            resetParam(res.mMaxTxSize, lu.newMaxTxSetSize());
+            break;
+        case LEDGER_UPGRADE_BASE_RESERVE:
+            resetParam(res.mBaseReserve, lu.newBaseReserve());
+            break;
+        default:
+            // skip unknown
+            break;
+        }
+    }
+    return res;
 }
 
 bool
 Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                  LedgerUpgradeType& upgradeType) const
+                  LedgerUpgradeType& upgradeType, bool nomination,
+                  Config const& cfg) const
 {
-    if (!timeForUpgrade(closeTime))
+    if (nomination && !timeForUpgrade(closeTime))
     {
         return false;
     }
@@ -142,31 +256,50 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
         return false;
     }
 
-    bool res;
+    bool res = true;
     switch (lupgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
     {
         uint32 newVersion = lupgrade.newLedgerVersion();
-        res = (newVersion == mCfg.LEDGER_PROTOCOL_VERSION);
+        if (nomination)
+        {
+            res = mParams.mProtocolVersion &&
+                  (newVersion == *mParams.mProtocolVersion);
+        }
+        // only upgrade to the latest supported version of the protocol
+        // is allowed
+        res = res && (newVersion == cfg.LEDGER_PROTOCOL_VERSION);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:
     {
         uint32 newFee = lupgrade.newBaseFee();
-        res = (newFee == mCfg.DESIRED_BASE_FEE);
+        if (nomination)
+        {
+            res = mParams.mBaseFee && (newFee == *mParams.mBaseFee);
+        }
+        res = res && (newFee != 0);
     }
     break;
     case LEDGER_UPGRADE_MAX_TX_SET_SIZE:
     {
         uint32 newMax = lupgrade.newMaxTxSetSize();
-        res = (newMax == mCfg.DESIRED_MAX_TX_PER_LEDGER);
+        if (nomination)
+        {
+            res = mParams.mMaxTxSize && (newMax == *mParams.mMaxTxSize);
+        }
+        res = res && (newMax != 0);
     }
     break;
     case LEDGER_UPGRADE_BASE_RESERVE:
     {
         uint32 newReserve = lupgrade.newBaseReserve();
-        res = (newReserve == mCfg.DESIRED_BASE_RESERVE);
+        if (nomination)
+        {
+            res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
+        }
+        res = res && (newReserve != 0);
     }
     break;
     default:
@@ -182,6 +315,6 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
 bool
 Upgrades::timeForUpgrade(uint64_t time) const
 {
-    return mCfg.PREFERRED_UPGRADE_DATETIME <= VirtualClock::from_time_t(time);
+    return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
 }
 }

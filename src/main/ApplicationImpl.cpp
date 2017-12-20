@@ -304,6 +304,11 @@ ApplicationImpl::start()
 {
     mDatabase->upgradeToCurrentSchema();
 
+    if (mConfig.TESTING_UPGRADE_DATETIME.time_since_epoch().count() != 0)
+    {
+        mHerder->setUpgrades(mConfig);
+    }
+
     if (mPersistentState->getState(PersistentState::kForceSCPOnNextLaunch) ==
         "true")
     {
@@ -339,8 +344,8 @@ ApplicationImpl::start()
                     "Unable to restore last-known ledger state");
             }
 
-            // restores the SCP state before starting overlay
-            mHerder->restoreSCPState();
+            // restores Herder's state before starting overlay
+            mHerder->restoreState();
             // perform maintenance tasks if configured to do so
             // for now, we only perform it when CATCHUP_COMPLETE is not set
             if (mConfig.MAINTENANCE_ON_STARTUP && !mConfig.CATCHUP_COMPLETE)

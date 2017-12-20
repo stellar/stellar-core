@@ -94,7 +94,8 @@ class HerderSCPDriver : public SCPDriver
 
     // value validation
     SCPDriver::ValidationLevel validateValue(uint64_t slotIndex,
-                                             Value const& value) override;
+                                             Value const& value,
+                                             bool nomination) override;
     Value extractValidValue(uint64_t slotIndex, Value const& value) override;
 
     // value marshaling

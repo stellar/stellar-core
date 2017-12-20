@@ -72,7 +72,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
     , mPendingEnvelopes(app, *this)
-    , mUpgrades(app.getConfig())
     , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
@@ -189,6 +188,17 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     mApp.getHerderPersistence().saveSCPHistory(
         static_cast<uint32>(slotIndex),
         getSCP().getExternalizingState(slotIndex));
+
+    // reflect upgrades with the ones included in this SCP round
+    {
+        bool updated;
+        auto newUpgrades = mUpgrades.removeUpgrades(
+            value.upgrades.begin(), value.upgrades.end(), updated);
+        if (updated)
+        {
+            setUpgrades(newUpgrades);
+        }
+    }
 
     // tell the LedgerManager that this value got externalized
     // LedgerManager will perform the proper action based on its internal
@@ -748,7 +758,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
                                   0);
 
     // see if we need to include some upgrades
-    auto upgrades = mUpgrades.upgradesFor(lcl.header);
+    auto upgrades = mUpgrades.createUpgradesFor(lcl.header);
     for (auto const& upgrade : upgrades)
     {
         Value v(xdr::xdr_to_opaque(upgrade));
@@ -765,24 +775,42 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
-    if (!upgrades.empty())
+    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
+                              lcl.header.scpValue);
+}
+
+void
+HerderImpl::setUpgrades(Upgrades::UpgradeParameters const& upgrades)
+{
+    mUpgrades.setParameters(upgrades, mApp.getConfig());
+    persistUpgrades();
+
+    auto desc = mUpgrades.toString();
+
+    if (!desc.empty())
     {
-        auto message = fmt::format(
-            "Proposing herder configuration upgrades: {0}; network "
-            "values for LCL are: {1}",
-            Upgrades::toString(upgrades), Upgrades::toString(lcl.header));
-        CLOG(INFO, "Herder") << message;
-        mApp.getStatusManager().setStatusMessage(
-            StatusCategory::REQUIRES_UPGRADES, message);
+        auto message = fmt::format("Armed with network upgrades: {}", desc);
+        auto prev = mApp.getStatusManager().getStatusMessage(
+            StatusCategory::REQUIRES_UPGRADES);
+        if (prev != message)
+        {
+            CLOG(INFO, "Herder") << message;
+            mApp.getStatusManager().setStatusMessage(
+                StatusCategory::REQUIRES_UPGRADES, message);
+        }
     }
     else
     {
+        CLOG(INFO, "Herder") << "Network upgrades cleared";
         mApp.getStatusManager().removeStatusMessage(
             StatusCategory::REQUIRES_UPGRADES);
     }
+}
 
-    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
-                              lcl.header.scpValue);
+std::string
+HerderImpl::getUpgradesJson()
+{
+    return mUpgrades.getParameters().toJson();
 }
 
 bool
@@ -954,6 +982,42 @@ HerderImpl::restoreSCPState()
                                 "proceeding without them : "
                              << e.what();
     }
+}
+
+void
+HerderImpl::persistUpgrades()
+{
+    auto s = mUpgrades.getParameters().toJson();
+    mApp.getPersistentState().setState(PersistentState::kLedgerUpgrades, s);
+}
+
+void
+HerderImpl::restoreUpgrades()
+{
+    std::string s =
+        mApp.getPersistentState().getState(PersistentState::kLedgerUpgrades);
+    if (!s.empty())
+    {
+        Upgrades::UpgradeParameters p;
+        p.fromJson(s);
+        try
+        {
+            // use common code to set status
+            setUpgrades(p);
+        }
+        catch (std::exception e)
+        {
+            CLOG(INFO, "Herder") << "Error restoring upgrades '" << e.what()
+                                 << "' with upgrades '" << s << "'";
+        }
+    }
+}
+
+void
+HerderImpl::restoreState()
+{
+    restoreSCPState();
+    restoreUpgrades();
 }
 
 void

@@ -394,13 +394,13 @@ newLoadTestApp(VirtualClock& clock)
 #endif
                       getTestConfig(0, Config::TESTDB_ON_DISK_SQLITE);
     cfg.RUN_STANDALONE = false;
-    cfg.DESIRED_MAX_TX_PER_LEDGER = 10000;
+    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 10000;
     Application::pointer appPtr = Application::create(clock, cfg);
     appPtr->start();
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
     appPtr->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.DESIRED_MAX_TX_PER_LEDGER;
+        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
     return appPtr;
 }
 

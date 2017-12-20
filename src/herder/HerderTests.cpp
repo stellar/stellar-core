@@ -303,7 +303,7 @@ TEST_CASE("txset", "[herder]")
 TEST_CASE("surge", "[herder]")
 {
     Config cfg(getTestConfig());
-    cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 5;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -313,7 +313,7 @@ TEST_CASE("surge", "[herder]")
     auto& lm = app->getLedgerManager();
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.DESIRED_MAX_TX_PER_LEDGER;
+        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -416,7 +416,7 @@ TEST_CASE("surge", "[herder]")
 TEST_CASE("SCP Driver", "[herder]")
 {
     Config cfg(getTestConfig());
-    cfg.DESIRED_MAX_TX_PER_LEDGER = 5;
+    cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER = 5;
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
@@ -424,7 +424,7 @@ TEST_CASE("SCP Driver", "[herder]")
     app->start();
 
     app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.DESIRED_MAX_TX_PER_LEDGER;
+        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 

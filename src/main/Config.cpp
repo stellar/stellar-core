@@ -20,7 +20,7 @@ namespace stellar
 {
 using xdr::operator<;
 
-const int Config::CURRENT_LEDGER_PROTOCOL_VERSION = 9;
+const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 9;
 
 Config::Config() : NODE_SEED(SecretKey::random())
 {
@@ -53,9 +53,9 @@ Config::Config() : NODE_SEED(SecretKey::random())
     LOG_FILE_PATH = "stellar-core.%datetime{%Y.%M.%d-%H:%m:%s}.log";
     BUCKET_DIR_PATH = "buckets";
 
-    DESIRED_BASE_FEE = LedgerManager::GENESIS_LEDGER_BASE_FEE;
-    DESIRED_BASE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
-    DESIRED_MAX_TX_PER_LEDGER = 50;
+    TESTING_UPGRADE_DESIRED_FEE = LedgerManager::GENESIS_LEDGER_BASE_FEE;
+    TESTING_UPGRADE_RESERVE = LedgerManager::GENESIS_LEDGER_BASE_RESERVE;
+    TESTING_UPGRADE_MAX_TX_PER_LEDGER = 50;
 
     HTTP_PORT = DEFAULT_PEER_PORT + 1;
     PUBLIC_HTTP_PORT = false;
@@ -225,47 +225,6 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid PUBLIC_HTTP_PORT");
                 }
                 PUBLIC_HTTP_PORT = item.second->as<bool>()->value();
-            }
-            else if (item.first == "DESIRED_BASE_FEE")
-            {
-                if (!item.second->as<int64_t>())
-                {
-                    throw std::invalid_argument("invalid DESIRED_BASE_FEE");
-                }
-                int64_t f = item.second->as<int64_t>()->value();
-                if (f < 0 || f >= UINT32_MAX)
-                {
-                    throw std::invalid_argument("invalid DESIRED_BASE_FEE");
-                }
-                DESIRED_BASE_FEE = (uint32_t)f;
-            }
-            else if (item.first == "DESIRED_BASE_RESERVE")
-            {
-                if (!item.second->as<int64_t>())
-                {
-                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
-                }
-                int64_t f = item.second->as<int64_t>()->value();
-                if (f < 0 || f >= UINT32_MAX)
-                {
-                    throw std::invalid_argument("invalid DESIRED_BASE_RESERVE");
-                }
-                DESIRED_BASE_RESERVE = (uint32_t)f;
-            }
-            else if (item.first == "DESIRED_MAX_TX_PER_LEDGER")
-            {
-                if (!item.second->as<int64_t>())
-                {
-                    throw std::invalid_argument(
-                        "invalid DESIRED_MAX_TX_PER_LEDGER");
-                }
-                int64_t f = item.second->as<int64_t>()->value();
-                if (f <= 0 || f >= UINT32_MAX)
-                {
-                    throw std::invalid_argument(
-                        "invalid DESIRED_MAX_TX_PER_LEDGER");
-                }
-                DESIRED_MAX_TX_PER_LEDGER = (uint32_t)f;
             }
             else if (item.first == "FAILURE_SAFETY")
             {
@@ -665,16 +624,6 @@ Config::load(std::string const& filename)
                     throw std::invalid_argument("invalid NTP_SERVER");
                 }
                 NTP_SERVER = item.second->as<std::string>()->value();
-            }
-            else if (item.first == "PREFERRED_UPGRADE_DATETIME")
-            {
-                if (!item.second->as<std::tm>())
-                {
-                    throw std::invalid_argument(
-                        "invalid PREFERRED_UPGRADE_DATETIME");
-                }
-                PREFERRED_UPGRADE_DATETIME = VirtualClock::tmToPoint(
-                    item.second->as<std::tm>()->value());
             }
             else if (item.first == "INVARIANT_CHECKS")
             {

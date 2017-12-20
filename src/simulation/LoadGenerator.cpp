@@ -919,7 +919,7 @@ LoadGenerator::TxInfo::execute(Application& app)
             return false;
         }
     }
-    recordExecution(app.getConfig().DESIRED_BASE_FEE);
+    recordExecution(app.getConfig().TESTING_UPGRADE_DESIRED_FEE);
     return true;
 }
 

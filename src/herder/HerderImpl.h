@@ -47,8 +47,7 @@ class HerderImpl : public Herder
     // Bootstraps the HerderImpl if we're creating a new Network
     void bootstrap() override;
 
-    // restores SCP state based on the last messages saved on disk
-    void restoreSCPState() override;
+    void restoreState() override;
 
     SCP& getSCP();
     HerderSCPDriver&
@@ -80,6 +79,9 @@ class HerderImpl : public Herder
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
 
     void triggerNextLedger(uint32_t ledgerSeqToTrigger) override;
+
+    void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
+    std::string getUpgradesJson() override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
@@ -133,6 +135,12 @@ class HerderImpl : public Herder
 
     // saves the SCP messages that the instance sent out last
     void persistSCPState(uint64 slot);
+    // restores SCP state based on the last messages saved on disk
+    void restoreSCPState();
+
+    // saves upgrade parameters
+    void persistUpgrades();
+    void restoreUpgrades();
 
     // called every time we get ledger externalized
     // ensures that if we don't hear from the network, we throw the herder into
