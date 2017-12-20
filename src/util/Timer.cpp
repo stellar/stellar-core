@@ -7,6 +7,7 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include <chrono>
+#include <cstdio>
 #include <thread>
 
 namespace stellar
@@ -126,6 +127,28 @@ VirtualClock::tmToPoint(tm t)
 {
     time_t tt = timegm(&t);
     return VirtualClock::time_point() + std::chrono::seconds(tt);
+}
+
+std::tm
+VirtualClock::isoStringToTm(std::string const& iso)
+{
+    std::tm res;
+    int y, M, d, h, m, s;
+    if (std::sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%dZ", &y, &M, &d, &h, &m,
+                    &s) != 6)
+    {
+        throw std::invalid_argument("Could not parse iso date");
+    }
+    res.tm_year = y - 1900;
+    res.tm_mon = M - 1;
+    res.tm_mday = d;
+    res.tm_hour = h;
+    res.tm_min = m;
+    res.tm_sec = s;
+    res.tm_isdst = 0;
+    res.tm_wday = 0;
+    res.tm_yday = 0;
+    return res;
 }
 
 std::string
