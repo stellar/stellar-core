@@ -16,6 +16,11 @@
 
 using namespace stellar;
 
+namespace stellar
+{
+using xdr::operator<;
+}
+
 static LedgerEntry
 generateRandomLedgerEntry(std::map<LedgerKey, LedgerEntry>& liveEntries,
                           uint32_t ledgerSeq, bool update)
