@@ -30,6 +30,11 @@
 using namespace stellar;
 using namespace std::placeholders;
 
+namespace stellar
+{
+using xdr::operator<;
+}
+
 namespace BucketListIsConsistentWithDatabaseTests
 {
 
