@@ -29,6 +29,11 @@ Run stellar-core if you want to:
 See [readme](https://github.com/stellar/stellar-core/blob/master/README.md) for build instructions.
 We also provide a [docker container](https://github.com/stellar/docker-stellar-core-horizon) for a potentially quicker set up than building from source.
 
+## Package based Installation
+If you are using Ubuntu 16.04 LTS we provide the latest stable releases of [stellar-core](https://github.com/stellar/stellar-core) and [stellar-horizon](https://github.com/stellar/go/tree/master/services/horizon) in Debian binary package format.
+
+See [detailed installation instructions](https://github.com/stellar/packages#sdf---packages)
+
 ## Configuring
 All configuration for stellar-core is done with a TOML file. By default 
 stellar-core loads 
