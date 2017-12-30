@@ -110,12 +110,11 @@ BucketManagerImpl::getBucketDir()
 
         std::string lock = d + "/" + kLockFilename;
 
-        if (!fs::lockFile(lock))
-        {
-            std::string msg("Found existing lockfile '" + lock +
-                            "' that is already locked.");
-            throw std::runtime_error(msg);
-        }
+        // there are many reasons the lock can fail so let lockFile throw
+        // directly for more clear error messages since we end up just raising
+        // a runtime exception anyway
+        fs::lockFile(lock);
+
         mLockedBucketDir = make_unique<std::string>(d);
     }
     return *(mLockedBucketDir);

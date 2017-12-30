@@ -23,8 +23,8 @@ bool processExists(long pid);
 // Utility functions for operating on the filesystem.
 ////
 
-// returns true if the lock could be aquired
-bool lockFile(std::string const& path);
+// raises an exception if a lock file cannot be created
+void lockFile(std::string const& path);
 // unlocks a file locked with `lockFile`
 void unlockFile(std::string const& path);
 

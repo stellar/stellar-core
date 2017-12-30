@@ -8,6 +8,7 @@
 #include "util/Logging.h"
 #include <map>
 #include <regex>
+#include <sstream>
 
 #ifdef _WIN32
 #include <direct.h>
@@ -30,12 +31,15 @@ namespace fs
 
 static std::map<std::string, HANDLE> lockMap;
 
-bool
+void
 lockFile(std::string const& path)
 {
+    std::ostringstream errmsg;
+
     if (lockMap.find(path) != lockMap.end())
     {
-        throw std::runtime_error("file is already locked by this process");
+        errmsg << "file already locked by this process: " << path;
+        throw std::runtime_error(errmsg.str());
     }
     HANDLE h = ::CreateFile(path.c_str(), GENERIC_WRITE,
                             0, // don't allow sharing
@@ -43,11 +47,14 @@ lockFile(std::string const& path)
                             FILE_ATTRIBUTE_NORMAL | FILE_ATTRIBUTE_TEMPORARY |
                                 FILE_FLAG_DELETE_ON_CLOSE,
                             NULL);
-    if (h != INVALID_HANDLE_VALUE)
+    if (h == INVALID_HANDLE_VALUE)
     {
-        lockMap.insert(std::make_pair(path, h));
+        // not sure if there is more verbose info that can be obtained here
+        errmsg << "unable to create lock file: " << path;
+        throw std::runtime_error(errmsg.str());
     }
-    return h != INVALID_HANDLE_VALUE;
+
+    lockMap.insert(std::make_pair(path, h));
 }
 
 void
@@ -152,29 +159,35 @@ processExists(long pid)
 
 static std::map<std::string, int> lockMap;
 
-bool
+void
 lockFile(std::string const& path)
 {
+    std::ostringstream errmsg;
+
     if (lockMap.find(path) != lockMap.end())
     {
-        throw std::runtime_error("file is already locked by this process");
+        errmsg << "file is already locked by this process: " << path;
+        throw std::runtime_error(errmsg.str());
     }
     int fd = open(path.c_str(), O_RDWR | O_CREAT, S_IRWXU);
 
-    if (fd != -1)
+    if (fd == -1)
     {
-        int r = flock(fd, LOCK_EX | LOCK_NB);
-        if (r == 0)
-        {
-            lockMap.insert(std::make_pair(path, fd));
-        }
-        else
-        {
-            close(fd);
-            fd = -1;
-        }
+        errmsg << "unable to open lock file: " << path << " ("
+               << strerror(errno) << ")";
+        throw std::runtime_error(errmsg.str());
     }
-    return fd != -1;
+
+    int r = flock(fd, LOCK_EX | LOCK_NB);
+    if (r != 0)
+    {
+        close(fd);
+        errmsg << "unable to flock file: " << path << " (" << strerror(errno)
+               << ")";
+        throw std::runtime_error(errmsg.str());
+    }
+
+    lockMap.insert(std::make_pair(path, fd));
 }
 
 void
