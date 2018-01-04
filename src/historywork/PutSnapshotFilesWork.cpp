@@ -20,7 +20,7 @@ PutSnapshotFilesWork::PutSnapshotFilesWork(
     Application& app, WorkParent& parent,
     std::shared_ptr<HistoryArchive const> archive,
     std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "put-snapshot-files")
+    : Work(app, parent, "put-snapshot-files-" + archive->getName())
     , mArchive(archive)
     , mSnapshot(snapshot)
 {
