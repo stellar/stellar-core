@@ -226,6 +226,35 @@ returns a JSON object with the following properties status:
 status is "ERROR".
 Base64 encoded, XDR serialized \[aq]TransactionResult\[aq]
 .RE
+.IP \[bu] 2
+\f[B]upgrades\f[]
+.IP \[bu] 2
+\f[C]/upgrades?mode=get\f[] retrieves the currently configured upgrade
+settings
+.IP \[bu] 2
+\f[C]/upgrades?mode=clear\f[] clears any upgrade settings
+.IP \[bu] 2
+\f[C]/upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]\f[]
+upgradetime is a required date (UTC) in the form 1970\-01\-01T00:00:00Z.
+.RS 2
+.IP \[bu] 2
+fee (uint32) This is what you would prefer the base fee to be.
+It is in stroops
+.IP \[bu] 2
+basereserve (uint32) This is what you would prefer the base reserve to
+be.
+It is in stroops.
+.IP \[bu] 2
+maxtxsize (uint32) This defines the maximum number of transactions to
+include in a ledger.
+When too many transactions are pending, surge pricing is applied.
+The instance picks the top maxtxsize transactions locally to be
+considered in the next ledger.Where transactions are ordered by
+transaction fee(lower fee transactions are held for later).
+.IP \[bu] 2
+protocolversion (uint32) defines the protocol version to upgrade to.
+When specified it must match the protocol version supported by the node
+.RE
 .SS The following HTTP commands are exposed on test instances
 .IP \[bu] 2
 \f[B]generateload\f[]
