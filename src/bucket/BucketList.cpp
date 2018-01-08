@@ -135,8 +135,8 @@ BucketLevel::prepare(Application& app, uint32_t currLedger,
         }
     }
 
-    bool keepDeadEntries = mLevel < BucketList::kNumLevels - 1;
-    mNextCurr = FutureBucket(app, curr, snap, shadows, keepDeadEntries);
+    mNextCurr = FutureBucket(app, curr, snap, shadows,
+                             BucketList::keepDeadEntries(mLevel));
     assert(mNextCurr.isMerging());
 }
 
@@ -323,6 +323,12 @@ BucketList::levelShouldSpill(uint32_t ledger, uint32_t level)
             ledger == mask(ledger, levelSize(level)));
 }
 
+bool
+BucketList::keepDeadEntries(uint32_t level)
+{
+    return level < BucketList::kNumLevels - 1;
+}
+
 BucketLevel&
 BucketList::getLevel(uint32_t i)
 {
@@ -429,20 +435,19 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app)
 {
-    uint32_t i = 0;
-    for (auto& level : mLevels)
+    for (auto i = 0; i < mLevels.size(); i++)
     {
+        auto& level = mLevels[i];
         auto& next = level.getNext();
         if (next.hasHashes() && !next.isLive())
         {
-            next.makeLive(app);
+            next.makeLive(app, keepDeadEntries(i));
             if (next.isMerging())
             {
                 CLOG(INFO, "Bucket")
                     << "Restarted merge on BucketList level " << i;
             }
         }
-        ++i;
     }
 }
 
