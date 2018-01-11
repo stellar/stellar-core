@@ -673,6 +673,7 @@ main(int argc, char* const* argv)
         LOG(FATAL) << "Could not initialize crypto";
         return 1;
     }
+    xdr::marshaling_stack_limit = 1000;
 
     std::string cfgFile("stellar-core.cfg");
     std::string command;
