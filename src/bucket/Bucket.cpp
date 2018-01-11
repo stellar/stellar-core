@@ -177,13 +177,14 @@ Bucket::OutputIterator::put(BucketEntry const& e)
     // Check to see if there's an existing buffered entry.
     if (mBuf)
     {
-        // mCmp(e, *mBuf) means e < *mBuf; this should never be true since
+        BucketEntryIdCmp cmp;
+        // cmp(e, *mBuf) means e < *mBuf; this should never be true since
         // it would mean that we're getting entries out of order.
-        assert(!mCmp(e, *mBuf));
+        assert(!cmp(e, *mBuf));
 
         // Check to see if the new entry should flush (greater identity), or
         // merely replace (same identity), the buffered entry.
-        if (mCmp(*mBuf, e))
+        if (cmp(*mBuf, e))
         {
             mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
             mObjectsPut++;
@@ -314,10 +315,10 @@ Bucket::fresh(BucketManager& bucketManager,
 }
 
 inline void
-maybe_put(BucketEntryIdCmp const& cmp, Bucket::OutputIterator& out,
-          Bucket::InputIterator& in,
+maybe_put(Bucket::OutputIterator& out, Bucket::InputIterator& in,
           std::vector<Bucket::InputIterator>& shadowIterators)
 {
+    BucketEntryIdCmp cmp;
     for (auto& si : shadowIterators)
     {
         // Advance the shadowIterator while it's less than the candidate
@@ -372,31 +373,31 @@ Bucket::merge(BucketManager& bucketManager,
         if (!ni)
         {
             // Out of new entries, take old entries.
-            maybe_put(cmp, out, oi, shadowIterators);
+            maybe_put(out, oi, shadowIterators);
             ++oi;
         }
         else if (!oi)
         {
             // Out of old entries, take new entries.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybe_put(out, ni, shadowIterators);
             ++ni;
         }
         else if (cmp(*oi, *ni))
         {
             // Next old-entry has smaller key, take it.
-            maybe_put(cmp, out, oi, shadowIterators);
+            maybe_put(out, oi, shadowIterators);
             ++oi;
         }
         else if (cmp(*ni, *oi))
         {
             // Next new-entry has smaller key, take it.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybe_put(out, ni, shadowIterators);
             ++ni;
         }
         else
         {
             // Old and new are for the same key, take new.
-            maybe_put(cmp, out, ni, shadowIterators);
+            maybe_put(out, ni, shadowIterators);
             ++oi;
             ++ni;
         }

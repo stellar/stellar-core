@@ -43,15 +43,13 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger)
 {
-    BucketEntryIdCmp cmp;
-
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
     bool hasPreviousEntry = false;
     BucketEntry previousEntry;
     for (Bucket::InputIterator iter(bucket); iter; ++iter)
     {
         auto const& e = *iter;
-        if (hasPreviousEntry && !cmp(previousEntry, e))
+        if (hasPreviousEntry && !BucketEntryIdCmp{}(previousEntry, e))
         {
             std::string s = "Bucket has out of order entries: ";
             s += xdr::xdr_to_string(previousEntry, "previous");
