@@ -57,11 +57,6 @@ FutureBucket::setLiveOutput(std::shared_ptr<Bucket> output)
     checkState();
 }
 
-FutureBucket::FutureBucket(std::shared_ptr<Bucket> output)
-{
-    setLiveOutput(output);
-}
-
 static void
 checkHashEq(std::shared_ptr<Bucket> b, std::string const& h)
 {

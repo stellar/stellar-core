@@ -86,8 +86,6 @@ class FutureBucket
                  std::vector<std::shared_ptr<Bucket>> const& shadows,
                  bool keepDeadEntries);
 
-    FutureBucket(std::shared_ptr<Bucket> output);
-
     FutureBucket() = default;
     FutureBucket(FutureBucket const& other) = default;
     FutureBucket& operator=(FutureBucket const& other) = default;
