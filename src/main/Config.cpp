@@ -62,6 +62,7 @@ Config::Config() : NODE_SEED(SecretKey::random())
     HTTP_MAX_CLIENT = 128;
     PEER_PORT = DEFAULT_PEER_PORT;
     TARGET_PEER_CONNECTIONS = 8;
+    MAX_ADDITIONAL_PEER_CONNECTIONS = -1;
     MAX_PEER_CONNECTIONS = 12;
     MAX_PENDING_CONNECTIONS = 5000;
     PEER_AUTHENTICATION_TIMEOUT = 2;
@@ -426,6 +427,22 @@ Config::load(std::string const& filename)
                 MAX_PEER_CONNECTIONS =
                     static_cast<unsigned short>(parsedMaxPeerConnections);
             }
+            else if (item.first == "MAX_ADDITIONAL_PEER_CONNECTIONS")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid MAX_ADDITIONAL_PEER_CONNECTIONS");
+                }
+                int64_t parsedMaxConn = item.second->as<int64_t>()->value();
+                if (parsedMaxConn < -1 || parsedMaxConn > UINT16_MAX)
+                {
+                    throw std::invalid_argument(
+                        "invalid MAX_ADDITIONAL_PEER_CONNECTIONS");
+                }
+                MAX_ADDITIONAL_PEER_CONNECTIONS =
+                    static_cast<int>(parsedMaxConn);
+            }
             else if (item.first == "MAX_PENDING_CONNECTIONS")
             {
                 if (!item.second->as<int64_t>())
@@ -682,6 +699,20 @@ Config::load(std::string const& filename)
                 loadQset(qset->as_group(), QUORUM_SET, 0);
             }
         }
+        if (MAX_ADDITIONAL_PEER_CONNECTIONS < 0)
+        {
+            MAX_ADDITIONAL_PEER_CONNECTIONS = TARGET_PEER_CONNECTIONS;
+        }
+        if (MAX_ADDITIONAL_PEER_CONNECTIONS >
+            (UINT16_MAX - TARGET_PEER_CONNECTIONS))
+        {
+            throw std::invalid_argument(
+                "invalid MAX_ADDITIONAL_PEER_CONNECTIONS");
+        }
+        MAX_PEER_CONNECTIONS = std::max(
+            MAX_PEER_CONNECTIONS,
+            static_cast<unsigned short>(MAX_ADDITIONAL_PEER_CONNECTIONS +
+                                        TARGET_PEER_CONNECTIONS));
 
         validateConfig();
     }

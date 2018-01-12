@@ -54,9 +54,9 @@ class PeerRecord
      */
     static optional<PeerRecord> loadPeerRecord(Database& db, std::string ip,
                                                unsigned short port);
-    static void loadPeerRecords(Database& db, uint32_t max,
+    static void loadPeerRecords(Database& db, int batchSize,
                                 VirtualClock::time_point nextAttemptCutoff,
-                                vector<PeerRecord>& retList);
+                                std::function<bool(PeerRecord const& pr)> p);
     const std::string&
     ip() const
     {

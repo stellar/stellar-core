@@ -143,6 +143,7 @@ class Config : public std::enable_shared_from_this<Config>
     // overlay config
     unsigned short PEER_PORT;
     unsigned short TARGET_PEER_CONNECTIONS;
+    int MAX_ADDITIONAL_PEER_CONNECTIONS;
     unsigned short MAX_PEER_CONNECTIONS;
     unsigned short MAX_PENDING_CONNECTIONS;
     unsigned short PEER_AUTHENTICATION_TIMEOUT;

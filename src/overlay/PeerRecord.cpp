@@ -172,45 +172,58 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
 }
 
 void
-PeerRecord::loadPeerRecords(Database& db, uint32_t max,
+PeerRecord::loadPeerRecords(Database& db, int batchSize,
                             VirtualClock::time_point nextAttemptCutoff,
-                            vector<PeerRecord>& retList)
+                            std::function<bool(PeerRecord const& pr)> p)
 {
     try
     {
-        tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
-        std::string ip;
-        tm nextAttempt;
-        uint32_t lport;
-        uint32_t numFailures;
-        auto prep = db.getPreparedStatement(
-            "SELECT ip, port, nextattempt, numfailures "
-            "FROM peers "
-            "WHERE nextattempt <= :nextattempt "
-            "ORDER BY nextattempt ASC, numfailures ASC limit :max ");
-        auto& st = prep.statement();
-        st.exchange(use(nextAttemptMax));
-        st.exchange(use(max));
-        st.exchange(into(ip));
-        st.exchange(into(lport));
-        st.exchange(into(nextAttempt));
-        st.exchange(into(numFailures));
-        st.define_and_bind();
+        int offset = 0;
+        bool didSomething;
+        do
         {
-            auto timer = db.getSelectTimer("peer");
-            st.execute(true);
-        }
-        while (st.got_data())
-        {
-            if (!ip.empty() && lport > 0)
+            tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
+            std::string ip;
+            tm nextAttempt;
+            uint32_t lport;
+            uint32_t numFailures;
+            auto prep = db.getPreparedStatement(
+                "SELECT ip, port, nextattempt, numfailures "
+                "FROM peers "
+                "WHERE nextattempt <= :nextattempt "
+                "ORDER BY nextattempt ASC, numfailures ASC LIMIT :max OFFSET "
+                ":o");
+            auto& st = prep.statement();
+            st.exchange(use(nextAttemptMax));
+            st.exchange(use(batchSize));
+            st.exchange(use(offset));
+            st.exchange(into(ip));
+            st.exchange(into(lport));
+            st.exchange(into(nextAttempt));
+            st.exchange(into(numFailures));
+            st.define_and_bind();
             {
-                auto pr = PeerRecord{ip, static_cast<unsigned short>(lport),
-                                     VirtualClock::tmToPoint(nextAttempt),
-                                     numFailures};
-                retList.push_back(pr);
-                st.fetch();
+                auto timer = db.getSelectTimer("peer");
+                st.execute(true);
             }
-        }
+            didSomething = false;
+            while (st.got_data())
+            {
+                didSomething = true;
+                offset++;
+                if (!ip.empty() && lport > 0)
+                {
+                    auto pr = PeerRecord{ip, static_cast<unsigned short>(lport),
+                                         VirtualClock::tmToPoint(nextAttempt),
+                                         numFailures};
+                    if (!p(pr))
+                    {
+                        return;
+                    }
+                    st.fetch();
+                }
+            }
+        } while (didSomething);
     }
     catch (soci_error& err)
     {
