@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <lib/util/basen.h>
+#include <string>
 
 namespace stellar
 {
@@ -10,44 +11,54 @@ namespace stellar
 namespace decoder
 {
 
+inline size_t
+encoded_size32(size_t rawsize)
+{
+    return ((rawsize + 4) / 5 * 8);
+}
+
+inline size_t
+encoded_size64(size_t rawsize)
+{
+    return ((rawsize + 2) / 3 * 4);
+}
+
 template <class T>
 inline std::string
 encode_b32(T const& v)
 {
-    return bn::encode_b32(v);
+    std::string res;
+    res.reserve(encoded_size64(v.size() * sizeof(typename T::value_type)) + 1);
+    bn::encode_b32(v.begin(), v.end(), std::back_inserter(res));
+    return res;
 }
 
 template <class T>
 inline std::string
 encode_b64(T const& v)
 {
-    return bn::encode_b64(v);
-}
-
-inline size_t
-encoded_size32(size_t rawsize)
-{
-    return bn::encoded_size32(rawsize);
-}
-
-inline size_t
-encoded_size64(size_t rawsize)
-{
-    return bn::encoded_size64(rawsize);
+    std::string res;
+    res.reserve(encoded_size64(v.size() * sizeof(typename T::value_type)) + 1);
+    bn::encode_b64(v.begin(), v.end(), std::back_inserter(res));
+    return res;
 }
 
 template <class V, class T>
 inline void
 decode_b32(V const& v, T& out)
 {
-    bn::decode_b32(v, out);
+    out.clear();
+    out.reserve(v.size() * sizeof(typename T::value_type));
+    bn::decode_b32(v.begin(), v.end(), std::back_inserter(out));
 }
 
 template <class V, class T>
 inline void
 decode_b64(V const& v, T& out)
 {
-    bn::decode_b64(v, out);
+    out.clear();
+    out.reserve(v.size() * sizeof(typename T::value_type));
+    bn::decode_b64(v.begin(), v.end(), std::back_inserter(out));
 }
 
 template <class Iter1, class Iter2>
