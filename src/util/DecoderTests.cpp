@@ -2,10 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "util/Decoder.h"
+
 #include <autocheck/autocheck.hpp>
 #include <lib/catch.hpp>
-#include <lib/util/basen.h>
 #include <map>
+
+using namespace stellar;
 
 namespace
 {
@@ -53,7 +56,7 @@ TEST_CASE("encode_b32", "[decoder]")
     {
         SECTION(item.first)
         {
-            REQUIRE(item.second == bn::encode_b32(item.first));
+            REQUIRE(item.second == decoder::encode_b32(item.first));
         }
     }
 }
@@ -64,7 +67,7 @@ TEST_CASE("encode_b64", "[decoder]")
     {
         SECTION(item.first)
         {
-            REQUIRE(item.second == bn::encode_b64(item.first));
+            REQUIRE(item.second == decoder::encode_b64(item.first));
         }
     }
 }
@@ -76,7 +79,7 @@ TEST_CASE("encoded_size32", "[decoder]")
         SECTION(item.first)
         {
             REQUIRE(item.second.size() ==
-                    bn::encoded_size32(item.first.size()));
+                    decoder::encoded_size32(item.first.size()));
         }
     }
 }
@@ -88,7 +91,7 @@ TEST_CASE("encoded_size64", "[decoder]")
         SECTION(item.first)
         {
             REQUIRE(item.second.size() ==
-                    bn::encoded_size64(item.first.size()));
+                    decoder::encoded_size64(item.first.size()));
         }
     }
 }
@@ -100,7 +103,7 @@ TEST_CASE("decode_b32", "[decoder]")
         SECTION(item.second)
         {
             auto out = std::string{};
-            bn::decode_b32(item.second, out);
+            decoder::decode_b32(item.second, out);
             REQUIRE(item.first == out);
         }
     }
@@ -113,7 +116,7 @@ TEST_CASE("decode_b64", "[decoder]")
         SECTION(item.second)
         {
             auto out = std::string{};
-            bn::decode_b64(item.second, out);
+            decoder::decode_b64(item.second, out);
             REQUIRE(item.first == out);
         }
     }
@@ -127,8 +130,8 @@ TEST_CASE("decode_b64 with iterators", "[decoder]")
         {
             auto out = std::string{};
             out.reserve(item.second.size());
-            bn::decode_b64(std::begin(item.second), std::end(item.second),
-                           std::back_inserter(out));
+            decoder::decode_b64(std::begin(item.second), std::end(item.second),
+                                std::back_inserter(out));
             REQUIRE(item.first == out);
         }
     }
@@ -141,10 +144,10 @@ TEST_CASE("base64 roundtrip", "[decoder]")
     for (int s = 0; s < 100; s++)
     {
         std::vector<uint8_t> in(input(s));
-        std::string encoded = bn::encode_b64(in);
+        std::string encoded = decoder::encode_b64(in);
         std::vector<uint8_t> decoded;
 
-        bn::decode_b64(encoded, decoded);
+        decoder::decode_b64(encoded, decoded);
         REQUIRE(in == decoded);
     }
 }

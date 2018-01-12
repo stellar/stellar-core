@@ -29,6 +29,7 @@
 #include <cctype>
 #include <cassert>
 #include <cstring>
+#include <string>
 
 namespace bn
 {
