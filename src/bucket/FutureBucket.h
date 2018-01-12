@@ -70,11 +70,10 @@ class FutureBucket
     std::string mInputSnapBucketHash;
     std::vector<std::string> mInputShadowBucketHashes;
     std::string mOutputBucketHash;
-    bool mKeepDeadEntries;
 
     void checkHashesMatch() const;
     void checkState() const;
-    void startMerge(Application& app);
+    void startMerge(Application& app, bool keepDeadEntries);
 
     void clearInputs();
     void clearOutput();
@@ -116,7 +115,7 @@ class FutureBucket
     std::shared_ptr<Bucket> resolve();
 
     // Precondition: !isLive(); transitions from FB_HASH_FOO to FB_LIVE_FOO
-    void makeLive(Application& app);
+    void makeLive(Application& app, bool keepDeadEntries);
 
     // Return all hashes referenced by this future.
     std::vector<std::string> getHashes() const;

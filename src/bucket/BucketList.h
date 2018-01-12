@@ -321,6 +321,9 @@ class BucketList
     // should spill curr->snap and start merging snap into its next level.
     static bool levelShouldSpill(uint32_t ledger, uint32_t level);
 
+    // Returns true if at given `level` dead entries should be kept.
+    static bool keepDeadEntries(uint32_t level);
+
     // Create a new BucketList with every `kNumLevels` levels, each with
     // an empty bucket in `curr` and `snap`.
     BucketList();
