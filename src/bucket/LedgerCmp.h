@@ -86,21 +86,6 @@ struct LedgerEntryIdCmp
         }
         return false;
     }
-
-    template <typename T>
-    bool
-    operator()(T const& a, LedgerEntry const& b) const
-    {
-        return (*this)(a, b.data);
-    }
-
-    template <typename T, typename = typename std::enable_if<
-                              !std::is_same<T, LedgerEntry>::value>::type>
-    bool
-    operator()(LedgerEntry const& a, T const& b) const
-    {
-        return (*this)(a.data, b);
-    }
 };
 
 /**
@@ -110,7 +95,6 @@ struct LedgerEntryIdCmp
  */
 struct BucketEntryIdCmp
 {
-    LedgerEntryIdCmp mCmp;
     bool
     operator()(BucketEntry const& a, BucketEntry const& b) const
     {
@@ -121,22 +105,23 @@ struct BucketEntryIdCmp
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.liveEntry(), b.liveEntry());
+                return LedgerEntryIdCmp{}(a.liveEntry().data,
+                                          b.liveEntry().data);
             }
             else
             {
-                return mCmp(a.liveEntry(), b.deadEntry());
+                return LedgerEntryIdCmp{}(a.liveEntry().data, b.deadEntry());
             }
         }
         else
         {
             if (bty == LIVEENTRY)
             {
-                return mCmp(a.deadEntry(), b.liveEntry());
+                return LedgerEntryIdCmp{}(a.deadEntry(), b.liveEntry().data);
             }
             else
             {
-                return mCmp(a.deadEntry(), b.deadEntry());
+                return LedgerEntryIdCmp{}(a.deadEntry(), b.deadEntry());
             }
         }
     }
