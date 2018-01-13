@@ -83,7 +83,7 @@ HerderImpl::HerderImpl(Application& app)
     , mSCPMetrics(app)
 {
     Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
-    mPendingEnvelopes.addSCPQuorumSet(hash, 0,
+    mPendingEnvelopes.addSCPQuorumSet(hash,
                                       getSCP().getLocalNode()->getQuorumSet());
 }
 
@@ -961,7 +961,7 @@ HerderImpl::restoreSCPState()
         for (auto const& qset : latestQSets)
         {
             Hash hash = sha256(xdr::xdr_to_opaque(qset));
-            mPendingEnvelopes.addSCPQuorumSet(hash, 0, qset);
+            mPendingEnvelopes.addSCPQuorumSet(hash, qset);
         }
         for (auto const& e : latestEnvs)
         {
