@@ -59,15 +59,14 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 }
 
 void
-PendingEnvelopes::addSCPQuorumSet(Hash hash, uint64 lastSeenSlotIndex,
-                                  const SCPQuorumSet& q)
+PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
     assert(isQuorumSetSane(q, false));
 
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
-    mQsetCache.put(hash, std::make_pair(lastSeenSlotIndex, qset));
+    mQsetCache.put(hash, qset);
     mQuorumSetFetcher.recv(hash);
 }
 
@@ -84,7 +83,7 @@ PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 
     if (isQuorumSetSane(q, false))
     {
-        addSCPQuorumSet(hash, lastSeenSlotIndex, q);
+        addSCPQuorumSet(hash, q);
         return true;
     }
     else
@@ -353,8 +352,8 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
     if (mQsetCache.exists(qsetHash))
     {
-        auto& item = mQsetCache.get(qsetHash);
-        item.first = std::max(item.first, envelope.statement.slotIndex);
+        // touch LRU
+        mQsetCache.get(qsetHash);
     }
 
     for (auto const& h : getTxSetHashes(envelope))
@@ -413,9 +412,6 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 
     // 0 is special mark for data that we do not know the slot index
     // it is used for state loaded from database
-    mQsetCache.erase_if([&](SCPQuorumSetCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex;
-    });
     mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
         return i.first != 0 && i.first < slotIndex;
     });
@@ -435,9 +431,6 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
         mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
 
-        mQsetCache.erase_if([&](SCPQuorumSetCacheItem const& i) {
-            return i.first == slotIndex;
-        });
         mTxSetCache.erase_if(
             [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
     }
@@ -459,7 +452,7 @@ PendingEnvelopes::getQSet(Hash const& hash)
 {
     if (mQsetCache.exists(hash))
     {
-        return mQsetCache.get(hash).second;
+        return mQsetCache.get(hash);
     }
 
     return SCPQuorumSetPtr();
