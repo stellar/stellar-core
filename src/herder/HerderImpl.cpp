@@ -171,6 +171,8 @@ void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
     updateSCPCounters();
+
+    // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
 
     if (Logging::logDebug("Herder"))
@@ -217,6 +219,10 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     }
 
     ledgerClosed();
+
+    // heart beat *after* doing all the work (ensures that we do not include
+    // the overhead of externalization in the way we track SCP)
+    trackingHeartBeat();
 }
 
 void
