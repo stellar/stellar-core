@@ -35,6 +35,7 @@ class Slot : public std::enable_shared_from_this<Slot>
     // it is used for debugging purpose
     struct HistoricalStatement
     {
+        time_t mWhen;
         SCPStatement mStatement;
         bool mValidated;
     };

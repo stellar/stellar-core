@@ -13,6 +13,7 @@
 #include "util/make_unique.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
+#include <ctime>
 #include <functional>
 
 namespace stellar
@@ -100,7 +101,8 @@ Slot::getExternalizingState() const
 void
 Slot::recordStatement(SCPStatement const& st)
 {
-    mStatementsHistory.emplace_back(HistoricalStatement{st, mFullyValidated});
+    mStatementsHistory.emplace_back(
+        HistoricalStatement{std::time(nullptr), st, mFullyValidated});
 }
 
 SCP::EnvelopeState
@@ -305,6 +307,7 @@ Slot::dumpInfo(Json::Value& ret)
     for (auto const& item : mStatementsHistory)
     {
         Json::Value& v = slotValue["statements"][count++];
+        v.append((Json::UInt64)item.mWhen);
         v.append(mSCP.envToStr(item.mStatement));
         v.append(item.mValidated);
 
