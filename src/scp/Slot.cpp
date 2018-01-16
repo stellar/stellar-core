@@ -100,7 +100,7 @@ Slot::getExternalizingState() const
 void
 Slot::recordStatement(SCPStatement const& st)
 {
-    mStatementsHistory.emplace_back(std::make_pair(st, mFullyValidated));
+    mStatementsHistory.emplace_back(HistoricalStatement{st, mFullyValidated});
 }
 
 SCP::EnvelopeState
@@ -190,8 +190,8 @@ Slot::isNodeInQuorum(NodeID const& node)
     // statements for each protocol
     for (auto const& e : mStatementsHistory)
     {
-        auto& n = m[e.first.nodeID];
-        n.emplace_back(&e.first);
+        auto& n = m[e.mStatement.nodeID];
+        n.emplace_back(&e.mStatement);
     }
     return mSCP.getLocalNode()->isNodeInQuorum(
         node,
@@ -305,11 +305,11 @@ Slot::dumpInfo(Json::Value& ret)
     for (auto const& item : mStatementsHistory)
     {
         Json::Value& v = slotValue["statements"][count++];
-        v.append(mSCP.envToStr(item.first));
-        v.append(item.second);
+        v.append(mSCP.envToStr(item.mStatement));
+        v.append(item.mValidated);
 
         Hash const& qSetHash =
-            getCompanionQuorumSetHashFromStatement(item.first);
+            getCompanionQuorumSetHashFromStatement(item.mStatement);
         auto qSet = getSCPDriver().getQSet(qSetHash);
         if (qSet)
         {
