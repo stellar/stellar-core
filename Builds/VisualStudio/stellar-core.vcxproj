@@ -121,6 +121,7 @@
     </CustomBuild>
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -179,6 +180,7 @@ exit /b 0
     </CustomBuild>
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -233,6 +235,7 @@ exit /b 0
     </CustomBuild>
     <PostBuildEvent>
       <Command>robocopy $(MSBuildProjectDirectory)\..\..\docs $(OutDir)\testdata *.cfg &gt; nul
+robocopy $(MSBuildProjectDirectory)\..\..\src\history\serialize-tests $(OutDir)\testdata *.json &gt; nul
 exit /b 0
 </Command>
     </PostBuildEvent>
@@ -309,6 +312,7 @@ exit /b 0
     <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp" />
+    <ClCompile Include="..\..\src\history\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp" />
@@ -743,6 +747,8 @@ exit /b 0
     <None Include="..\..\src\database\readme.md" />
     <None Include="..\..\src\herder\readme.md" />
     <None Include="..\..\src\history\readme.md" />
+    <None Include="..\..\src\history\serialize-tests\stellar-history.livenet.15686975.json" />
+    <None Include="..\..\src\history\serialize-tests\stellar-history.testnet.6714239.json" />
     <None Include="..\..\src\ledger\readme.md" />
     <None Include="..\..\lib\xdrpp\tests\xdrtest.x" />
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">
