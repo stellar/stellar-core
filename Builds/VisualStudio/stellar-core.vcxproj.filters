@@ -127,6 +127,9 @@
     <Filter Include="work\tests">
       <UniqueIdentifier>{e28534ec-c0fa-46c7-83f5-92058298855b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="history\tests\serialize-tests">
+      <UniqueIdentifier>{be18f522-3b16-4f78-9e18-85751659363e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -825,6 +828,9 @@
     <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
       <Filter>database\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\SerializeTests.cpp">
+      <Filter>history\tests</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1516,6 +1522,12 @@
     <None Include="..\..\ISSUE_TEMPLATE.md" />
     <None Include="..\..\src\history\readme.md">
       <Filter>history</Filter>
+    </None>
+    <None Include="..\..\src\history\serialize-tests\stellar-history.livenet.15686975.json">
+      <Filter>history\tests\serialize-tests</Filter>
+    </None>
+    <None Include="..\..\src\history\serialize-tests\stellar-history.testnet.6714239.json">
+      <Filter>history\tests\serialize-tests</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

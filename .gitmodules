@@ -7,3 +7,6 @@
 [submodule "lib/libmedida"]
 	path = lib/libmedida
 	url = https://github.com/stellar/medida.git
+[submodule "lib/cereal"]
+	path = lib/cereal
+	url = https://github.com/USCiLab/cereal
