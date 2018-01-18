@@ -33,8 +33,14 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // keeps track of all statements seen so far for this slot.
     // it is used for debugging purpose
-    // second: if the slot was fully validated at the time
-    std::vector<std::pair<SCPStatement, bool>> mStatementsHistory;
+    struct HistoricalStatement
+    {
+        time_t mWhen;
+        SCPStatement mStatement;
+        bool mValidated;
+    };
+
+    std::vector<HistoricalStatement> mStatementsHistory;
 
     // true if the Slot was fully validated
     bool mFullyValidated;

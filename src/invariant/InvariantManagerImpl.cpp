@@ -157,6 +157,7 @@ InvariantManagerImpl::enableInvariant(std::string const& name)
     if (iter == mEnabled.end())
     {
         mEnabled.push_back(registryIter->second);
+        CLOG(INFO, "Invariant") << "Enabled invariant '" << name << "'";
     }
     else
     {
