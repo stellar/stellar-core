@@ -209,6 +209,10 @@ The actual deletion is performed by invoking the \f[C]maintenance\f[]
 endpoint or on startup.
 See also \f[C]dropcursor\f[].
 .IP \[bu] 2
+\f[B]getcursor\f[] \f[C]/getcursor?[id=ID]\f[] gets the cursor
+identified by \f[C]ID\f[]. If ID is not defined then all cursors will 
+be returned.
+.IP \[bu] 2
 \f[B]scp\f[] `/scp?[limit=n] Returns a JSON object with the internal
 state of the SCP engine for the last n (default 2) ledgers.
 .IP \[bu] 2

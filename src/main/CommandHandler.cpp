@@ -107,6 +107,9 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     mServer->addRoute("setcursor",
                       std::bind(&CommandHandler::safeRouter, this,
                                 &CommandHandler::setcursor, _1, _2));
+    mServer->addRoute("getcursor",
+                      std::bind(&CommandHandler::safeRouter, this,
+                                &CommandHandler::getcursor, _1, _2));
     mServer->addRoute("scp", std::bind(&CommandHandler::safeRouter, this,
                                        &CommandHandler::scpInfo, _1, _2));
     mServer->addRoute("testacc", std::bind(&CommandHandler::safeRouter, this,
@@ -347,6 +350,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "ledger sequence N the data can be safely removed by the instance."
         "The actual deletion is performed by invoking the `maintenance` "
         "endpoint."
+        "</p><p><h1> /getcursor?[id=ID]</h1> gets the cursor identified by "
+        "'ID'.  If ID is not defined then all cursors will be returned."
         "</p><p><h1> /maintenance[?queue=true]</h1> Performs maintenance tasks "
         "on the instance."
         "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
@@ -1023,6 +1028,34 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
         ps.setCursorForResource(id, cursor);
         retStr = "Done";
     }
+}
+
+void
+CommandHandler::getcursor(std::string const& params, std::string& retStr)
+{
+    Json::Value root;
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+    std::string const& id = map["id"];
+
+    // the decision was made not to check validity here
+    // because there are subsequent checks for that in
+    // ExternalQueue and if an exception is thrown for
+    // validity there, the ret format is technically more
+    // correct for the mime type
+    ExternalQueue ps(mApp);
+    std::map<std::string, uint32> curMap;
+    int counter = 0;
+    ps.getCursorForResource(id, curMap);
+    root["cursors"][0];
+    for (auto cursor : curMap)
+    {
+        root["cursors"][counter]["id"] = cursor.first;
+        root["cursors"][counter]["cursor"] = cursor.second;
+        counter++;
+    }
+
+    retStr = root.toStyledString();
 }
 
 void

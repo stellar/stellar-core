@@ -630,6 +630,9 @@
     <ClCompile Include="..\..\src\main\ConfigTests.cpp">
       <Filter>main\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp">
+      <Filter>main\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\catchup\ApplyBucketsWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>

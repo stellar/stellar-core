@@ -81,6 +81,46 @@ ExternalQueue::setCursorForResource(std::string const& resid, uint32 cursor)
 }
 
 void
+ExternalQueue::getCursorForResource(std::string const& resid,
+                                    std::map<std::string, uint32>& curMap)
+{
+    // no resid set, get all cursors
+    if (resid.empty())
+    {
+        std::string n;
+        uint32_t v;
+
+        auto& db = mApp.getDatabase();
+        auto prep =
+            db.getPreparedStatement("SELECT resid, lastread FROM pubsub;");
+        auto& st = prep.statement();
+        st.exchange(soci::into(n));
+        st.exchange(soci::into(v));
+        st.define_and_bind();
+        {
+            auto timer = db.getSelectTimer("pubsub");
+            st.execute(true);
+        }
+
+        while (st.got_data())
+        {
+            curMap[n] = v;
+            st.fetch();
+        }
+    }
+    else
+    {
+        // if resid is set attempt to look up the cursor
+        // and add it to the map if anything is found
+        std::string cursor = getCursor(resid);
+        if (!cursor.empty())
+        {
+            curMap[resid] = strtoul(cursor.c_str(), NULL, 0);
+        }
+    }
+}
+
+void
 ExternalQueue::deleteCursor(std::string const& resid)
 {
     checkID(resid);

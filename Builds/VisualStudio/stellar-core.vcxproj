@@ -409,6 +409,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\NtpSynchronizationChecker.cpp" />
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
+    <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\FloodTests.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp" />
