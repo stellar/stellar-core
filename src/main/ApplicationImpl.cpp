@@ -232,9 +232,9 @@ ApplicationImpl::getJsonInfo()
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    info["pending_peers_count"] =
+    info["peers"]["pending_count"] =
         (int)getOverlayManager().getPendingPeersCount();
-    info["authenticated_peers_count"] =
+    info["peers"]["authenticated_count"] =
         (int)getOverlayManager().getAuthenticatedPeersCount();
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
