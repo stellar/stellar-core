@@ -1002,7 +1002,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
     {
-        mApp.maintenance();
+        mApp.maintenance(50000);
         retStr = "Done";
     }
     else

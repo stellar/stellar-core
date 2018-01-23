@@ -135,7 +135,7 @@ ExternalQueue::deleteCursor(std::string const& resid)
 }
 
 void
-ExternalQueue::process()
+ExternalQueue::deleteOldEntries(uint32 count)
 {
     auto& db = mApp.getDatabase();
     int m;
@@ -178,8 +178,7 @@ ExternalQueue::process()
                           << " (rmin=" << rmin << ", qmin=" << qmin
                           << ", lmin=" << lmin << ")";
 
-    mApp.getLedgerManager().deleteOldEntries(
-        mApp.getDatabase(), cmin, std::numeric_limits<uint32_t>::max());
+    mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), cmin, count);
 }
 
 void

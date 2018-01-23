@@ -350,7 +350,7 @@ ApplicationImpl::start()
             // for now, we only perform it when CATCHUP_COMPLETE is not set
             if (mConfig.MAINTENANCE_ON_STARTUP && !mConfig.CATCHUP_COMPLETE)
             {
-                maintenance();
+                maintenance(50000);
             }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
@@ -499,11 +499,11 @@ ApplicationImpl::checkDB()
 }
 
 void
-ApplicationImpl::maintenance()
+ApplicationImpl::maintenance(uint32 count)
 {
     LOG(INFO) << "Performing maintenance";
     ExternalQueue ps(*this);
-    ps.process();
+    ps.deleteOldEntries(count);
 }
 
 void

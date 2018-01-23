@@ -238,8 +238,8 @@ class Application
     // Run a consistency check between the database and the bucketlist.
     virtual void checkDB() = 0;
 
-    // perform maintenance tasks
-    virtual void maintenance() = 0;
+    // perform maintenance tasks, removes maximum count entries from each table
+    virtual void maintenance(uint32 count) = 0;
 
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to

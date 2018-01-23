@@ -92,7 +92,7 @@ class ApplicationImpl : public Application
 
     virtual void checkDB() override;
 
-    virtual void maintenance() override;
+    virtual void maintenance(uint32 count) override;
 
     virtual void applyCfgCommands() override;
 

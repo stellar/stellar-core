@@ -29,8 +29,8 @@ class ExternalQueue
     // deletes the subscription for the resource
     void deleteCursor(std::string const& resid);
 
-    // safely delete data
-    void process();
+    // safely delete data, maximum count entries from each table
+    void deleteOldEntries(uint32 count);
 
   private:
     void checkID(std::string const& resid);
