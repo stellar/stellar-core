@@ -326,10 +326,11 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "endpoint."
         "</p><p><h1> /getcursor?[id=ID]</h1> gets the cursor identified by "
         "'ID'.  If ID is not defined then all cursors will be returned."
-        "</p><p><h1> /maintenance[?queue=true]</h1> Performs maintenance tasks "
-        "on the instance."
-        "<ul><li><i>queue</i> performs deletion of queue data.See setcursor "
-        "for more information</li></ul>"
+        "</p><p><h1> /maintenance[?queue=true[&count=N]]</h1> Performs "
+        "maintenance tasks on the instance."
+        "<ul><li><i>queue</i> performs deletion of queue data. Deletes at most "
+        "count entries from each table (defaults to 50000). See setcursor for "
+        "more information</li></ul>"
         "</p><p><h1> "
         "/unban?node=NODE_ID</h1>"
         "remove ban for PEER_ID"
@@ -1002,7 +1003,12 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     if (map["queue"] == "true")
     {
-        mApp.maintenance(50000);
+        uint32_t count = 50000;
+        if (!parseNumParam(map, "count", count, retStr,
+                           Requirement::OPTIONAL_REQ))
+            return;
+
+        mApp.maintenance(count);
         retStr = "Done";
     }
     else
