@@ -838,10 +838,14 @@ TransactionFrame::dropAll(Database& db)
 }
 
 void
-TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                   uint32_t count)
 {
-    db.getSession() << "DELETE FROM txhistory WHERE ledgerseq <= " << ledgerSeq;
-    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq <= "
-                    << ledgerSeq;
+    db.getSession() << "DELETE FROM txhistory WHERE ledgerseq IN (SELECT "
+                       "ledgerseq FROM txhistory WHERE ledgerseq <= "
+                    << ledgerSeq << " LIMIT " << count << ")";
+    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq IN (SELECT "
+                       "ledgerseq FROM txfeehistory WHERE ledgerseq <= "
+                    << ledgerSeq << " LIMIT " << count << ")";
 }
 }

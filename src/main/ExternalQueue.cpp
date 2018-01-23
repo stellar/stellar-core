@@ -178,7 +178,8 @@ ExternalQueue::process()
                           << " (rmin=" << rmin << ", qmin=" << qmin
                           << ", lmin=" << lmin << ")";
 
-    mApp.getLedgerManager().deleteOldEntries(mApp.getDatabase(), cmin);
+    mApp.getLedgerManager().deleteOldEntries(
+        mApp.getDatabase(), cmin, std::numeric_limits<uint32_t>::max());
 }
 
 void
