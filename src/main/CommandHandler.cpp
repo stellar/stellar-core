@@ -12,6 +12,7 @@
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/Maintainer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
@@ -1008,7 +1009,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
                            Requirement::OPTIONAL_REQ))
             return;
 
-        mApp.maintenance(count);
+        mApp.getMaintainer().performMaintenance(count);
         retStr = "Done";
     }
     else
