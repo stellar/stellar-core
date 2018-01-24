@@ -80,7 +80,7 @@ class LedgerState
 
     ~LedgerState();
 
-    void commit(std::function<void()> f = {});
+    void commit(std::function<void()> onCommitToDatabase = {});
     void rollback();
 
     LedgerEntryChanges getChanges();

@@ -162,14 +162,14 @@ LedgerState::getDeadEntries()
 }
 
 void
-LedgerState::commit(std::function<void()> f)
+LedgerState::commit(std::function<void()> onCommitToDatabase)
 {
     assert(mParent || mRoot);
     assert(!mChild);
 
     if (mParent)
     {
-        assert(!f);
+        assert(!onCommitToDatabase);
         mergeStateIntoParent();
         mergeHeaderIntoParent();
         mParent->mChild = nullptr;
@@ -182,9 +182,9 @@ LedgerState::commit(std::function<void()> f)
         {
             mergeStateIntoRoot();
             mergeHeaderIntoRoot();
-            if (f)
+            if (onCommitToDatabase)
             {
-                f();
+                onCommitToDatabase();
             }
             sqlTx.commit();
         }
