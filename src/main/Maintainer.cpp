@@ -3,14 +3,37 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Maintainer.h"
+#include "main/Config.h"
 #include "main/ExternalQueue.h"
 #include "util/Logging.h"
 
 namespace stellar
 {
 
-Maintainer::Maintainer(Application& app) : mApp{app}
+Maintainer::Maintainer(Application& app) : mApp{app}, mTimer{mApp}
 {
+}
+
+void
+Maintainer::start()
+{
+    if (mApp.getConfig().AUTOMATIC_MAINTENANCE_PERIOD.count() > 0 &&
+        mApp.getConfig().AUTOMATIC_MAINTENANCE_COUNT > 0)
+        scheduleMaintenance();
+}
+
+void
+Maintainer::scheduleMaintenance()
+{
+    mTimer.expires_from_now(mApp.getConfig().AUTOMATIC_MAINTENANCE_PERIOD);
+    mTimer.async_wait([this]() { tick(); }, VirtualTimer::onFailureNoop);
+}
+
+void
+Maintainer::tick()
+{
+    performMaintenance(mApp.getConfig().AUTOMATIC_MAINTENANCE_COUNT);
+    scheduleMaintenance();
 }
 
 void
