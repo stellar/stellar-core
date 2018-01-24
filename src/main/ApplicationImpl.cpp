@@ -348,12 +348,6 @@ ApplicationImpl::start()
 
             // restores Herder's state before starting overlay
             mHerder->restoreState();
-            // perform maintenance tasks if configured to do so
-            // for now, we only perform it when CATCHUP_COMPLETE is not set
-            if (mConfig.MAINTENANCE_ON_STARTUP && !mConfig.CATCHUP_COMPLETE)
-            {
-                getMaintainer().performMaintenance(50000);
-            }
             mOverlayManager->start();
             auto npub = mHistoryManager->publishQueuedHistory();
             if (npub != 0)

@@ -78,8 +78,12 @@ class Config : public std::enable_shared_from_this<Config>
     // If you want, say, a week of history, set this to 120000.
     uint32_t CATCHUP_RECENT;
 
-    // Enables or disables automatic maintenance on startup
-    bool MAINTENANCE_ON_STARTUP;
+    // Interval between automatic maintenance executions
+    std::chrono::seconds AUTOMATIC_MAINTENANCE_PERIOD;
+
+    // Number of unneeded rows in each table that will be removed during one
+    // maintenance run
+    uint32_t AUTOMATIC_MAINTENANCE_COUNT;
 
     // A config parameter that enables synthetic load generation on demand,
     // using the `generateload` runtime command (see CommandHandler.cpp). This

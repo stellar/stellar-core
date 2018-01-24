@@ -40,7 +40,8 @@ Config::Config() : NODE_SEED(SecretKey::random())
     MANUAL_CLOSE = false;
     CATCHUP_COMPLETE = false;
     CATCHUP_RECENT = 0;
-    MAINTENANCE_ON_STARTUP = true;
+    AUTOMATIC_MAINTENANCE_PERIOD = std::chrono::seconds{3600};
+    AUTOMATIC_MAINTENANCE_COUNT = 50000;
     ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = false;
     ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = false;
     ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 0;
@@ -321,14 +322,37 @@ Config::load(std::string const& filename)
                 }
                 ALLOW_LOCALHOST_FOR_TESTING = item.second->as<bool>()->value();
             }
-            else if (item.first == "MAINTENANCE_ON_STARTUP")
+            else if (item.first == "AUTOMATIC_MAINTENANCE_PERIOD")
             {
-                if (!item.second->as<bool>())
+                if (!item.second->as<int64_t>())
                 {
                     throw std::invalid_argument(
-                        "invalid MAINTENANCE_ON_STARTUP");
+                        "invalid AUTOMATIC_MAINTENANCE_PERIOD");
                 }
-                MAINTENANCE_ON_STARTUP = item.second->as<bool>()->value();
+                int64_t parsedAutomaticMaintenancePeriod =
+                    item.second->as<int64_t>()->value();
+                if (parsedAutomaticMaintenancePeriod < 0 ||
+                    parsedAutomaticMaintenancePeriod > UINT32_MAX)
+                    throw std::invalid_argument(
+                        "invalid AUTOMATIC_MAINTENANCE_PERIOD");
+                AUTOMATIC_MAINTENANCE_PERIOD =
+                    std::chrono::seconds{parsedAutomaticMaintenancePeriod};
+            }
+            else if (item.first == "AUTOMATIC_MAINTENANCE_COUNT")
+            {
+                if (!item.second->as<int64_t>())
+                {
+                    throw std::invalid_argument(
+                        "invalid AUTOMATIC_MAINTENANCE_COUNT");
+                }
+                int64_t parsedAutomaticMaintenanceCount =
+                    item.second->as<int64_t>()->value();
+                if (parsedAutomaticMaintenanceCount < 0 ||
+                    parsedAutomaticMaintenanceCount > UINT32_MAX)
+                    throw std::invalid_argument(
+                        "invalid AUTOMATIC_MAINTENANCE_COUNT");
+                AUTOMATIC_MAINTENANCE_COUNT = static_cast<uint32_t>(
+                    parsedAutomaticMaintenanceCount);
             }
             else if (item.first == "MANUAL_CLOSE")
             {
