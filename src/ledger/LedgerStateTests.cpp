@@ -341,6 +341,56 @@ TEST_CASE("LedgerState::loadBestOffer matches database order",
     REQUIRE(mixedBestOffers == dbBestOffers);
 }
 
+TEST_CASE("LedgerState::loadBestOffer in database but modified in memory",
+          "[ledger][ledgerstate][loadbestoffer]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto generateOffer = []() {
+        auto le = generateLedgerEntry(OFFER);
+        le.data.offer().selling.alphaNum4().issuer = PublicKey();
+        le.data.offer().buying.alphaNum4().issuer = PublicKey();
+        return le;
+    };
+    auto generateOfferWithSameKey = [](LedgerEntry const& entry) {
+        auto le = generateLedgerEntryWithSameKey(entry);
+        le.data.offer().selling.alphaNum4().issuer = PublicKey();
+        le.data.offer().buying.alphaNum4().issuer = PublicKey();
+        return le;
+    };
+
+    auto le1 = generateOffer();
+    auto le2 = generateOfferWithSameKey(le1);
+
+    Asset const& selling = le1.data.offer().selling;
+    Asset const& buying = le1.data.offer().buying;
+
+    LedgerStateRoot& root(app->getLedgerStateRoot());
+    for (auto const& entries :
+         {std::make_pair(le1, le2), std::make_pair(le2, le1)})
+    {
+        {
+            LedgerState ls(root);
+            ls.create(entries.first);
+            ls.commit();
+        }
+        {
+            LedgerState ls(root);
+            auto ler = ls.load(LedgerEntryKey(entries.first));
+            *ler->entry() = entries.second;
+            ler->invalidate();
+
+            auto lerBestOffer = ls.loadBestOffer(selling, buying);
+            REQUIRE(*lerBestOffer->entry() == entries.second);
+            lerBestOffer->erase();
+            ls.commit();
+        }
+    }
+}
+
 TEST_CASE("LedgerState::loadInflationWinners",
           "[ledger][ledgerstate][inflation]")
 {
