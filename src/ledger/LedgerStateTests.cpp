@@ -3,12 +3,14 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include <xdrpp/autocheck.h>
 
 // TODO(jonjove): Remove this header (used for LedgerEntryKey)
 #include "ledger/EntryFrame.h"
@@ -519,4 +521,54 @@ TEST_CASE("LedgerState cannot load or create TrustLine if accountID is issuer",
     REQUIRE_THROWS_WITH(ls.create(le), "TrustLine accountID is issuer");
     REQUIRE_THROWS_WITH(ls.load(LedgerEntryKey(le)),
                         "TrustLine accountID is issuer");
+}
+
+TEST_CASE("LedgerState::loadHeader", "[ledger][ledgerstate][loadheader]")
+{
+    auto generateLedgerHeader = autocheck::map(
+        [](LedgerHeader&& lh, size_t s) {
+            lh.ledgerSeq &= INT32_MAX;
+            lh.scpValue.closeTime &= INT64_MAX;
+            return lh;
+        },
+        autocheck::generator<LedgerHeader>());
+
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        ls.loadHeader()->header() = generateLedgerHeader();
+        ls.commit();
+    }
+
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        auto lhr1 = ls.loadHeader();
+        auto lh1 = lhr1->header();
+        lhr1->invalidate();
+
+        auto lhr2 = ls.loadHeader();
+        auto lh2 = lhr2->header();
+        lhr2->invalidate();
+
+        REQUIRE(lh1 == lh2);
+    }
+
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        auto lh1 = ls.loadHeader()->header();
+        LedgerHeader lh2;
+        {
+            LedgerState lsChild(ls);
+            auto lhr = lsChild.loadHeader();
+            REQUIRE(lh1 == lhr->header());
+            lhr->header() = generateLedgerHeader();
+            lh2 = lhr->header();
+            lsChild.commit();
+        }
+        REQUIRE(ls.loadHeader()->header() == lh2);
+    }
 }
