@@ -151,6 +151,8 @@ class LedgerState
 
     std::vector<InflationVotes>
     loadInflationWinnersFromDatabase(size_t maxWinners, int64_t minBalance);
+
+    bool isLoadedInMemory(LedgerKey const& key);
 };
 
 class LedgerState::LoadBestOfferContext

@@ -660,6 +660,24 @@ LedgerState::getOffers(Asset const& selling, Asset const& buying,
     }
 }
 
+bool
+LedgerState::isLoadedInMemory(LedgerKey const& key)
+{
+    auto iter = mState.find(key);
+    if (iter != mState.end())
+    {
+        return true;
+    }
+    else if (mParent)
+    {
+        return mParent->isLoadedInMemory(key);
+    }
+    else
+    {
+        return false;
+    }
+}
+
 LedgerState::LoadBestOfferContext::LoadBestOfferContext(
     Asset const& selling, Asset const& buying, LedgerState& ledgerState)
     : mSelling(selling)
@@ -702,29 +720,36 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
         mTop.reset();
     }
 
-    loadFromDatabaseIfNecessary();
-    if (mInMemory.empty())
+    while (!mTop)
     {
-        if (mFromDatabase.empty())
+        loadFromDatabaseIfNecessary();
+        if (mInMemory.empty())
         {
-            return nullptr;
+            if (mFromDatabase.empty())
+            {
+                return nullptr;
+            }
+            else
+            {
+                mTop = mFromDatabase.front();
+                mFromDatabase.erase(mFromDatabase.begin());
+            }
+        }
+        else if (mFromDatabase.empty() ||
+                 compareOffers(mInMemory.top(), mFromDatabase.front()))
+        {
+            mTop = mInMemory.top();
+            mInMemory.pop();
         }
         else
         {
             mTop = mFromDatabase.front();
             mFromDatabase.erase(mFromDatabase.begin());
+            if (mLedgerState.isLoadedInMemory(LedgerEntryKey(*mTop->entry())))
+            {
+                mTop.reset();
+            }
         }
-    }
-    else if (mFromDatabase.empty() ||
-             compareOffers(mInMemory.top(), mFromDatabase.front()))
-    {
-        mTop = mInMemory.top();
-        mInMemory.pop();
-    }
-    else
-    {
-        mTop = mFromDatabase.front();
-        mFromDatabase.erase(mFromDatabase.begin());
     }
 
     auto const& entry = mTop->ignoreInvalid().entry();
