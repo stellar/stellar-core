@@ -25,6 +25,9 @@ operator==(InflationVotes const& lhs, InflationVotes const& rhs)
 
 LedgerStateRoot::LedgerStateRoot(Database& db) : mHasChild(false), mDb(db)
 {
+    // TODO(jonjove): Remove this once LedgerStateRoot is properly integrated
+    // with LedgerManager. This is required to make tests pass right now though
+    mPreviousHeader.ledgerSeq = 2;
 }
 
 void
@@ -74,6 +77,10 @@ LedgerState::LedgerState(LedgerState& parent)
     for (auto const& state : mParent->mState)
     {
         state.second->invalidate();
+    }
+    if (mParent->mHeader)
+    {
+        mParent->mHeader->invalidate();
     }
     mParent->mLoadBestOfferContext.clear();
 }
@@ -262,11 +269,12 @@ LedgerState::mergeStateIntoRoot()
 void
 LedgerState::mergeHeaderIntoRoot()
 {
-    if (mHeader)
+    if (!mHeader)
     {
-        storeHeaderInDatabase();
-        mRoot->setPreviousHeader(mHeader->ignoreInvalid().header());
+        loadHeader()->invalidate();
     }
+    storeHeaderInDatabase();
+    mRoot->setPreviousHeader(mHeader->ignoreInvalid().header());
 }
 
 void
@@ -417,10 +425,6 @@ LedgerState::loadHeader()
     assert(!mChild);
 
     mHeader = loadHeaderHelper();
-    auto& header = mHeader->header();
-    ++header.ledgerSeq;
-    header.previousLedgerHash = sha256(xdr::xdr_to_opaque(header));
-    mHeader->invalidate();
     return mHeader;
 }
 
@@ -453,8 +457,11 @@ LedgerState::loadHeaderHelper()
     }
     else
     {
-        auto const& header = mRoot->getPreviousHeader();
-        lhr = StateHeader(new LedgerHeaderReference(header, header));
+        auto const& previousHeader = mRoot->getPreviousHeader();
+        lhr = StateHeader(new LedgerHeaderReference(previousHeader, previousHeader));
+        auto& header = lhr->header();
+        ++header.ledgerSeq;
+        header.previousLedgerHash = sha256(xdr::xdr_to_opaque(previousHeader));
     }
     return lhr;
 }

@@ -34,6 +34,7 @@ class LedgerStateRoot
 
     bool mHasChild;
     Database& mDb;
+    // TODO(jonjove): This needs to be set by LedgerManager
     LedgerHeader mPreviousHeader;
 
   public:
