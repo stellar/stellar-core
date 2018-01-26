@@ -280,7 +280,7 @@ The quorum here is the set of players that end up with the winning hat color.
 
 A traditional quorum has people see everybody else (placed on a circle, at
 the right distance).
-Here, each player can decide to look wherever they want. Even look at only one
+Here, each player can decide to look wherever they want. Even to look at only one
 other player, which is a risk if this other player decides to quit the game.
 
 ## Quorum set
