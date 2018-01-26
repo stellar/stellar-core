@@ -195,7 +195,9 @@ Config::load(std::string const& filename)
                 }
                 int64_t parsedPort = item.second->as<int64_t>()->value();
                 if (parsedPort <= 0 || parsedPort > UINT16_MAX)
+                {
                     throw std::invalid_argument("bad port number");
+                }
                 PEER_PORT = static_cast<unsigned short>(parsedPort);
             }
             else if (item.first == "HTTP_PORT")
@@ -206,7 +208,9 @@ Config::load(std::string const& filename)
                 }
                 int64_t parsedPort = item.second->as<int64_t>()->value();
                 if (parsedPort <= 0 || parsedPort > UINT16_MAX)
+                {
                     throw std::invalid_argument("bad port number");
+                }
                 HTTP_PORT = static_cast<unsigned short>(parsedPort);
             }
             else if (item.first == "HTTP_MAX_CLIENT")
@@ -217,7 +221,9 @@ Config::load(std::string const& filename)
                 }
                 int64_t maxHttpClient = item.second->as<int64_t>()->value();
                 if (maxHttpClient < 0 || maxHttpClient > UINT16_MAX)
+                {
                     throw std::invalid_argument("bad HTTP_MAX_CLIENT");
+                }
                 HTTP_MAX_CLIENT = static_cast<unsigned short>(maxHttpClient);
             }
             else if (item.first == "PUBLIC_HTTP_PORT")
@@ -333,8 +339,10 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value();
                 if (parsedAutomaticMaintenancePeriod < 0 ||
                     parsedAutomaticMaintenancePeriod > UINT32_MAX)
+                {
                     throw std::invalid_argument(
                         "invalid AUTOMATIC_MAINTENANCE_PERIOD");
+                }
                 AUTOMATIC_MAINTENANCE_PERIOD =
                     std::chrono::seconds{parsedAutomaticMaintenancePeriod};
             }
@@ -349,8 +357,10 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value();
                 if (parsedAutomaticMaintenanceCount < 0 ||
                     parsedAutomaticMaintenanceCount > UINT32_MAX)
+                {
                     throw std::invalid_argument(
                         "invalid AUTOMATIC_MAINTENANCE_COUNT");
+                }
                 AUTOMATIC_MAINTENANCE_COUNT = static_cast<uint32_t>(
                     parsedAutomaticMaintenanceCount);
             }
@@ -432,8 +442,10 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value();
                 if (parsedTargetPeerConnections <= 0 ||
                     parsedTargetPeerConnections > UINT16_MAX)
+                {
                     throw std::invalid_argument(
                         "invalid TARGET_PEER_CONNECTIONS");
+                }
                 TARGET_PEER_CONNECTIONS =
                     static_cast<unsigned short>(parsedTargetPeerConnections);
             }
@@ -447,7 +459,9 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value();
                 if (parsedMaxPeerConnections <= 0 ||
                     parsedMaxPeerConnections > UINT16_MAX)
+                {
                     throw std::invalid_argument("invalid MAX_PEER_CONNECTIONS");
+                }
                 MAX_PEER_CONNECTIONS =
                     static_cast<unsigned short>(parsedMaxPeerConnections);
             }
@@ -478,8 +492,10 @@ Config::load(std::string const& filename)
                     item.second->as<int64_t>()->value();
                 if (parsedMaxPendingConnections <= 0 ||
                     parsedMaxPendingConnections > UINT16_MAX)
+                {
                     throw std::invalid_argument(
                         "invalid MAX_PENDING_CONNECTIONS");
+                }
                 MAX_PENDING_CONNECTIONS =
                     static_cast<unsigned short>(parsedMaxPendingConnections);
             }
@@ -492,8 +508,10 @@ Config::load(std::string const& filename)
                 }
                 auto v = item.second->as<int64_t>()->value();
                 if (v <= 0 || v > UINT16_MAX)
+                {
                     throw std::invalid_argument(
                         "bad PEER_AUTHENTICATION_TIMEOUT");
+                }
                 PEER_AUTHENTICATION_TIMEOUT = static_cast<unsigned short>(v);
             }
             else if (item.first == "PEER_TIMEOUT")
@@ -833,7 +851,9 @@ Config::parseNodeID(std::string configStr, PublicKey& retKey, SecretKey& sKey,
                     bool isSeed)
 {
     if (configStr.size() < 2)
+    {
         throw std::invalid_argument("invalid key");
+    }
 
     // check if configStr is a PublicKey or a common name
     if (configStr[0] == '$')
