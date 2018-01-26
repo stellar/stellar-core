@@ -373,6 +373,50 @@ TEST_CASE("merge", "[tx][merge]")
         });
     }
 
+    SECTION("create, merge, create")
+    {
+        auto c = getAccount("C");
+        auto d = getAccount("D");
+
+        REQUIRE(loadAccount(a1, *app));
+        REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
+        REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+        auto a1Balance = a1.getBalance();
+
+        auto txFrame =
+            a1.tx({createAccount(c.getPublicKey(),
+                                 app->getLedgerManager().getMinBalance(0)),
+                   accountMerge(c.getPublicKey()),
+                   createAccount(d.getPublicKey(),
+                                 app->getLedgerManager().getMinBalance(0))});
+
+        for_versions_to(7, *app, [&] {
+            applyCheck(txFrame, *app);
+
+            REQUIRE(loadAccount(a1, *app));
+            REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
+            REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+            REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
+
+            REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
+        });
+
+        for_versions_from(8, *app, [&] {
+            applyCheck(txFrame, *app);
+
+            REQUIRE(loadAccount(a1, *app));
+            REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
+            REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+            REQUIRE(txFrame->getResultCode() == txFAILED);
+
+            REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
+            REQUIRE(txFrame->getResult().result.results()[0].code() == opINNER);
+            REQUIRE(txFrame->getResult().result.results()[1].code() == opINNER);
+            REQUIRE(txFrame->getResult().result.results()[2].code() ==
+                    opNO_ACCOUNT);
+        });
+    }
+
     SECTION("Account has static auth flag set")
     {
         for_all_versions(*app, [&] {
