@@ -87,6 +87,11 @@ LedgerState::LedgerState(LedgerState& parent)
 
 LedgerState::~LedgerState()
 {
+    // We want to rollback by default if neither commit nor rollback have been
+    // called, and do nothing otherwise. When commit or rollback succeed, we
+    // have mParent == mRoot == nullptr. Analogous asserts appear in commit and
+    // rollback to prevent them from being called more than once for a given
+    // LedgerState.
     if (mParent || mRoot)
     {
         rollback();
@@ -330,6 +335,13 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
     auto iter = mState.find(key);
     if (iter != mState.end())
     {
+        // This condition handles cases like the following example:
+        //    LedgerKey key = ...;
+        //    LedgerState lsParent(...);
+        //    LedgerState lsChild(lsParent);
+        //    lsChild.load(key)->erase();
+        //    lsChild.commit();
+        //    lsParent.create(key);
         if (iter->second->ignoreInvalid().entry())
         {
             throw std::runtime_error("Key already exists in memory");
@@ -379,6 +391,13 @@ LedgerState::loadHelper(LedgerKey const& key)
     auto iter = mState.find(key);
     if (iter != mState.end())
     {
+        // This condition handles cases like the following example:
+        //    LedgerKey key = ...;
+        //    LedgerState lsParent(...);
+        //    LedgerState lsChild(lsParent);
+        //    lsChild.load(key);
+        //    lsChild.commit();
+        //    lsParent.load(key);
         if (iter->second->valid())
         {
             throw std::runtime_error(
@@ -707,11 +726,84 @@ LedgerState::LoadBestOfferContext::loadFromDatabaseIfNecessary()
     }
 }
 
+// loadBestOffer has analogous functionality to std::priority_queue<...>::top()
+// which returns the data but does not remove it from the data structure. For
+// example, the following test case should succeed:
+//	Asset a1, a2 = ...;
+//	LedgerState ls(...);
+//	auto ler1 = ls.loadBestOffer(a1, a2);
+//	auto le1 = *ler1->entry();
+//	ler1->invalidate();
+//	auto ler2 = ls.loadBestOffer(a1, a2);
+//	auto le2 = *ler2->entry();
+//	REQUIRE(le1 == le2);
+// If you desire behavior like top() followed by pop() then code like the
+// following is required:
+//      Asset a1, a2 = ...;
+//      LedgerState ls(...);
+//      auto ler1 = ls.loadBestOffer(a1, a2);
+//      auto le1 = *ler1->entry();
+//      ler1->erase(); // Now we have popped
+//      ler1->invalidate();
+//      auto ler2 = ls.loadBestOffer(a1, a2);
+//      auto le2 = *ler2->entry();
+//      REQUIRE(le1 != le2);
+// This functionality is natural given that there are cases where you want to
+// load the best offer but do not want to erase it.
+//
+// LoadBestOfferContext maintains the invariant that there is at most one valid
+// LedgerEntryReference referring to an offer (with the correct assets), and if
+// there is one then it is the one that was just returned by loadBestOffer. This
+// means it is incorrect to call loadBestOffer if any LedgerEntryReference
+// referring to an offer (with the correct assets) is valid.
+//
+// Why is this required though? I think it would be possible to implement this
+// without this constraint, but it would make it impossible to do the
+// performance optimization which is done in LoadBestOfferContext. Specifically,
+// if there could be multiple valid LedgerEntryReferences referring to offers
+// (with the correct assets) then LoadBestOfferContext::loadBestOffer would have
+// to re-process the entire mInMemory on each invocation. It is easy to see that
+// this is the case. Any valid LedgerEntryReference can be modified at any time
+// (and there is no callback to notify LedgerState that a modification has
+// occurred). Suppose that I invoke LoadBestOfferContext::loadBestOffer, then
+// modify many offers (with the correct assets), then call
+// LoadBestOfferContext::loadBestOffer again. At this point mInMemory could be
+// invalid (in the heap sense) at arbitrarily many locations, so it would need
+// to be re-formed into a heap. But that would be no better than just iterating
+// to find the best offer at every invocation. By making the restriction that if
+// a LedgerEntryReference referring to an offer (with the correct assets) is
+// only valid if it was just returned by loadBestOffer then we know that
+// modifications can only occur at the top of the heap.
+//
+// The consequence of this is that a sequence of calls to loadBestOffer can be
+// efficient if you do not make any intervening calls to LedgerState::load or
+// LedgerState::create that constructed a LedgerEntryReference referring to an
+// offer (with the correct assets). If such an intervening call is made, then
+// the LoadBestOfferContext is destroyed so that it has to be reconstructed at
+// the next call to loadBestOffer, thereby maintaining the constraint.
 LedgerState::StateEntry
 LedgerState::LoadBestOfferContext::loadBestOffer()
 {
     if (mTop)
     {
+        // This condition is needed to ensure that the following examples
+        // work correctly:
+        //      Asset a1, a2 = ...;
+        //      LedgerState ls(...);
+        //      ls.loadBestOffer(a1, a2)->erase();
+        //      auto ler = ls.loadBestOffer(a1, a2);
+        //      ...
+        // and:
+        //      Asset a1, a2 = ...;
+        //      LedgerState ls(...);
+        //      *ls.loadBestOffer(a1, a2)->entry() = ...;
+        //      auto ler = ls.loadBestOffer(a1, a2);
+        //      ...
+        // In the first case, we end up resetting mTop so that the next data is
+        // returned. In the second case, mTop still refers to a valid in-memory
+        // value so we push it back onto the heap before loading the next data.
+        // In the second case, it is possible that mTop is returned again (if it
+        // is still the best offer) or that a different offer is returned.
         assert(!mTop->valid());
         if (mTop->ignoreInvalid().entry())
         {
@@ -743,6 +835,11 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
         }
         else
         {
+            // In this case, there are offers (with the correct assets) in
+            // memory. It is possible, then, that the best offer in the
+            // database is already loaded in memory. If that is the case, we
+            // must skip the result from the database. Then we repeat the
+            // entire process (not just this branch) to find the next data.
             mTop = mFromDatabase.front();
             mFromDatabase.erase(mFromDatabase.begin());
             if (mLedgerState.isInMemory(LedgerEntryKey(*mTop->entry())))
