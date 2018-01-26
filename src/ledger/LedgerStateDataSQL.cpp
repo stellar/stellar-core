@@ -52,9 +52,7 @@ LedgerState::loadDataFromDatabase(LedgerKey const& key)
     bn::decode_b64(dataValue, de.dataValue);
 
     auto entry = std::make_shared<LedgerEntry>(std::move(le));
-    std::shared_ptr<LedgerEntryReference> ler(
-        new LedgerEntryReference(entry, entry));
-    return ler;
+    return getLeafLedgerState().makeStateEntry(entry, entry);
 }
 
 void

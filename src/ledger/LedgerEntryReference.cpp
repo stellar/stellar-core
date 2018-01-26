@@ -3,9 +3,13 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerState.h"
 #include "util/make_unique.h"
 #include "xdr/Stellar-ledger.h"
 #include <cassert>
+
+// TODO(jonjove): Remove this header (used for LedgerEntryKey)
+#include "ledger/EntryFrame.h"
 
 namespace stellar
 {
@@ -28,9 +32,9 @@ LedgerEntryReference::IgnoreInvalid::previousEntry()
 }
 
 LedgerEntryReference::LedgerEntryReference(
-    std::shared_ptr<LedgerEntry const> const& entry,
+    LedgerState* ledgerState, std::shared_ptr<LedgerEntry const> const& entry,
     std::shared_ptr<LedgerEntry const> const& previous)
-    : mValid(true)
+    : mLedgerState(ledgerState)
     , mEntry(entry ? std::make_shared<LedgerEntry>(*entry) : nullptr)
     , mPreviousEntry(previous ? std::make_shared<LedgerEntry const>(*previous)
                               : nullptr)
@@ -61,13 +65,22 @@ LedgerEntryReference::erase()
 bool
 LedgerEntryReference::valid()
 {
-    return mValid;
+    return mLedgerState;
 }
 
 void
 LedgerEntryReference::invalidate()
 {
-    mValid = false;
+    mLedgerState = nullptr;
+}
+
+void
+LedgerEntryReference::forgetFromLedgerState()
+{
+    assert(valid());
+    assert(mEntry);
+    mLedgerState->forget(LedgerEntryKey(*mEntry));
+    invalidate();
 }
 
 LedgerEntryReference::IgnoreInvalid

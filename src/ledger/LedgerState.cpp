@@ -221,7 +221,7 @@ LedgerState::mergeStateIntoParent()
         auto iter = mParent->mState.find(state.first);
         if (iter == mParent->mState.end())
         {
-            StateEntry ler(new LedgerEntryReference(entry, nullptr));
+            auto ler = mParent->makeStateEntry(entry, nullptr);
             ler->invalidate();
             mParent->mState[state.first] = ler;
         }
@@ -229,7 +229,7 @@ LedgerState::mergeStateIntoParent()
         {
             auto const& previous =
                 iter->second->ignoreInvalid().previousEntry();
-            StateEntry ler(new LedgerEntryReference(entry, previous));
+            auto ler = mParent->makeStateEntry(entry, previous);
             ler->invalidate();
             iter->second = ler;
         }
@@ -243,7 +243,7 @@ LedgerState::mergeHeaderIntoParent()
     {
         auto const& header = mHeader->ignoreInvalid().header();
         auto const& previous = mHeader->ignoreInvalid().previousHeader();
-        StateHeader lhr(new LedgerHeaderReference(header, previous));
+        auto lhr = makeStateHeader(header, previous);
         lhr->invalidate();
         mParent->mHeader = lhr;
     }
@@ -335,7 +335,7 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
             throw std::runtime_error("Key already exists in memory");
         }
         auto newEntry = std::make_shared<LedgerEntry>(entry);
-        ler = StateEntry(new LedgerEntryReference(newEntry, nullptr));
+        ler = getLeafLedgerState().makeStateEntry(newEntry, nullptr);
     }
     else if (mParent)
     {
@@ -348,7 +348,7 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
             throw std::runtime_error("Key already exists in database");
         }
         auto newEntry = std::make_shared<LedgerEntry>(entry);
-        ler = StateEntry(new LedgerEntryReference(newEntry, nullptr));
+        ler = getLeafLedgerState().makeStateEntry(newEntry, nullptr);
     }
     return ler;
 }
@@ -396,11 +396,11 @@ LedgerState::loadHelper(LedgerKey const& key)
         {
             auto const& previous =
                 iter->second->ignoreInvalid().previousEntry();
-            ler = StateEntry(new LedgerEntryReference(entry, previous));
+            ler = getLeafLedgerState().makeStateEntry(entry, previous);
         }
         else
         {
-            ler = StateEntry(new LedgerEntryReference(entry, entry));
+            ler = getLeafLedgerState().makeStateEntry(entry, entry);
         }
     }
     else if (mParent)
@@ -444,11 +444,11 @@ LedgerState::loadHeaderHelper()
         if (!mChild)
         {
             auto const& previous = mHeader->ignoreInvalid().previousHeader();
-            lhr = StateHeader(new LedgerHeaderReference(header, previous));
+            lhr = makeStateHeader(header, previous);
         }
         else
         {
-            lhr = StateHeader(new LedgerHeaderReference(header, header));
+            lhr = makeStateHeader(header, header);
         }
     }
     else if (mParent)
@@ -458,7 +458,7 @@ LedgerState::loadHeaderHelper()
     else
     {
         auto const& previousHeader = mRoot->getPreviousHeader();
-        lhr = StateHeader(new LedgerHeaderReference(previousHeader, previousHeader));
+        lhr = makeStateHeader(previousHeader, previousHeader);
         auto& header = lhr->header();
         ++header.ledgerSeq;
         header.previousLedgerHash = sha256(xdr::xdr_to_opaque(previousHeader));
@@ -477,7 +477,7 @@ LedgerState::loadFromDatabase(LedgerKey const& key)
         auto cached = mRoot->getCache().get(cacheKey);
         if (cached)
         {
-            return StateEntry(new LedgerEntryReference(cached, cached));
+            return getLeafLedgerState().makeStateEntry(cached, cached);
         }
         else
         {
@@ -661,7 +661,7 @@ LedgerState::getOffers(Asset const& selling, Asset const& buying,
 }
 
 bool
-LedgerState::isLoadedInMemory(LedgerKey const& key)
+LedgerState::isInMemory(LedgerKey const& key)
 {
     auto iter = mState.find(key);
     if (iter != mState.end())
@@ -670,7 +670,7 @@ LedgerState::isLoadedInMemory(LedgerKey const& key)
     }
     else if (mParent)
     {
-        return mParent->isLoadedInMemory(key);
+        return mParent->isInMemory(key);
     }
     else
     {
@@ -745,7 +745,7 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
         {
             mTop = mFromDatabase.front();
             mFromDatabase.erase(mFromDatabase.begin());
-            if (mLedgerState.isLoadedInMemory(LedgerEntryKey(*mTop->entry())))
+            if (mLedgerState.isInMemory(LedgerEntryKey(*mTop->entry())))
             {
                 mTop.reset();
             }
@@ -758,11 +758,11 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
     if (iter != mLedgerState.mState.end())
     {
         auto const& previous = iter->second->ignoreInvalid().previousEntry();
-        mTop = StateEntry(new LedgerEntryReference(entry, previous));
+        mTop = mLedgerState.makeStateEntry(entry, previous);
     }
     else
     {
-        mTop = StateEntry(new LedgerEntryReference(entry, entry));
+        mTop = mLedgerState.makeStateEntry(entry, entry);
     }
     mLedgerState.mState[key] = mTop;
 
@@ -829,5 +829,53 @@ LedgerState::loadInflationWinners(size_t maxWinners, int64_t minBalance)
 
     // Note: When this SQL query returns, the transaction will rollback.
     return root->loadInflationWinnersFromDatabase(maxWinners, minBalance);
+}
+
+void
+LedgerState::forget(LedgerKey const& key)
+{
+    auto iter = mState.find(key);
+    assert(iter != mState.end());
+    if (key.type() == OFFER)
+    {
+        auto le = iter->second->ignoreInvalid().entry();
+        if (le)
+        {
+            invalidateLoadBestOfferContext(le->data.offer().selling,
+                                           le->data.offer().buying);
+        }
+    }
+    mState.erase(iter);
+}
+
+LedgerState::StateEntry
+LedgerState::makeStateEntry(std::shared_ptr<LedgerEntry const> const& entry,
+                            std::shared_ptr<LedgerEntry const> const& previous)
+{
+    // Can't use std::make_shared here since LedgerEntryReference has a private
+    // constructor (note that std::make_shared does not have access to a private
+    // method).
+    return StateEntry(new LedgerEntryReference(this, entry, previous));
+}
+
+LedgerState::StateHeader
+LedgerState::makeStateHeader(LedgerHeader const& header,
+                             LedgerHeader const& previous)
+{
+    // Can't use std::make_shared here since LedgerHeaderReference has a private
+    // constructor (note that std::make_shared does not have access to a private
+    // method).
+    return StateHeader(new LedgerHeaderReference(header, previous));
+}
+
+LedgerState&
+LedgerState::getLeafLedgerState()
+{
+    LedgerState* leaf = this;
+    while (leaf->mChild != nullptr)
+    {
+        leaf = leaf->mChild;
+    }
+    return *leaf;
 }
 }

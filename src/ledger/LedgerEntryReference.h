@@ -30,7 +30,7 @@ class LedgerEntryReference
         std::shared_ptr<LedgerEntry const> const& previousEntry();
     };
 
-    bool mValid;
+    LedgerState* mLedgerState;
     std::shared_ptr<LedgerEntry> mEntry;
     std::shared_ptr<LedgerEntry const> const mPreviousEntry;
 
@@ -50,8 +50,11 @@ class LedgerEntryReference
 
     void invalidate();
 
+    void forgetFromLedgerState();
+
   private:
     explicit LedgerEntryReference(
+        LedgerState* ledgerState,
         std::shared_ptr<LedgerEntry const> const& entry,
         std::shared_ptr<LedgerEntry const> const& previous);
 

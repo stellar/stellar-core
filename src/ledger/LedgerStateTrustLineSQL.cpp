@@ -72,9 +72,7 @@ LedgerState::loadTrustLineFromDatabase(LedgerKey const& key)
     tl.asset = key.trustLine().asset;
 
     auto entry = std::make_shared<LedgerEntry>(std::move(le));
-    std::shared_ptr<LedgerEntryReference> ler(
-        new LedgerEntryReference(entry, entry));
-    return ler;
+    return getLeafLedgerState().makeStateEntry(entry, entry);
 }
 
 void

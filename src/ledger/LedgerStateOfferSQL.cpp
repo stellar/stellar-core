@@ -132,9 +132,7 @@ LedgerState::loadOffersFromDatabase(StatementContext& prep)
                      buyingAssetCodeIndicator);
 
         auto entry = std::make_shared<LedgerEntry>(std::move(le));
-        std::shared_ptr<LedgerEntryReference> ler(
-            new LedgerEntryReference(entry, entry));
-        offers.emplace_back(std::move(ler));
+        offers.emplace_back(getLeafLedgerState().makeStateEntry(entry, entry));
         st.fetch();
     }
 

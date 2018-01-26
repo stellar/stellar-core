@@ -97,7 +97,15 @@ class LedgerState
     std::vector<InflationVotes> loadInflationWinners(size_t maxWinners,
                                                      int64_t minBalance);
 
+    void forget(LedgerKey const& key);
+
   private:
+    StateEntry
+    makeStateEntry(std::shared_ptr<LedgerEntry const> const& entry,
+                   std::shared_ptr<LedgerEntry const> const& previous);
+    StateHeader makeStateHeader(LedgerHeader const& header,
+                                LedgerHeader const& previous);
+
     void mergeStateIntoParent();
     void mergeHeaderIntoParent();
     void mergeStateIntoRoot();
@@ -152,7 +160,9 @@ class LedgerState
     std::vector<InflationVotes>
     loadInflationWinnersFromDatabase(size_t maxWinners, int64_t minBalance);
 
-    bool isLoadedInMemory(LedgerKey const& key);
+    bool isInMemory(LedgerKey const& key);
+
+    LedgerState& getLeafLedgerState();
 };
 
 class LedgerState::LoadBestOfferContext
