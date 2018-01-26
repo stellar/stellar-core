@@ -622,3 +622,34 @@ TEST_CASE("LedgerState::loadHeader", "[ledger][ledgerstate][loadheader]")
         REQUIRE(ls.loadHeader()->header() == lh2);
     }
 }
+
+// TODO(jonjove): Might be a few other cases worth testing
+TEST_CASE("LedgerState::forget and LedgerEntryReference::forgetFromLedgerState",
+          "[ledger][ledgerstate][forget]")
+{
+    for (auto val : xdr::xdr_traits<LedgerEntryType>::enum_values())
+    {
+        LedgerEntryType let = static_cast<LedgerEntryType>(val);
+        std::string letStr = xdr::xdr_traits<LedgerEntryType>::enum_name(let);
+        SECTION(letStr)
+        {
+            VirtualClock clock;
+            Config cfg = getTestConfig();
+            cfg.INVARIANT_CHECKS = {};
+            Application::pointer app = createTestApplication(clock, cfg);
+
+            auto le = generateLedgerEntry(let);
+            auto key = LedgerEntryKey(le);
+
+            LedgerState ls(app->getLedgerStateRoot());
+            ls.create(le)->forgetFromLedgerState();
+            REQUIRE_THROWS_AS(ls.load(key), std::runtime_error);
+            {
+                LedgerState lsChild(ls);
+                lsChild.create(le)->forgetFromLedgerState();
+                lsChild.commit();
+            }
+            REQUIRE_THROWS_AS(ls.load(key), std::runtime_error);
+        }
+    }
+}
