@@ -23,6 +23,9 @@ class ExternalQueue
 
     // sets the cursor of a given resource
     void setCursorForResource(std::string const& resid, uint32 cursor);
+    // gets the cursor of a given resource, gets all cursors of resid is empty
+    void getCursorForResource(std::string const& resid,
+                              std::map<std::string, uint32>& curMap);
     // deletes the subscription for the resource
     void deleteCursor(std::string const& resid);
 

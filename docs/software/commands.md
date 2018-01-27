@@ -125,6 +125,10 @@ debugging purpose).
   The actual deletion is performed by invoking the `maintenance` endpoint or on startup.
   See also `dropcursor`.
 
+* **getcursor**
+ `/getcursor?[id=ID]`<br>
+ gets the cursor identified by `ID`. If ID is not defined then all cursors will be returned.
+
 * **scp**
   `/scp?[limit=n]
   Returns a JSON object with the internal state of the SCP engine for the last n (default 2) ledgers.
