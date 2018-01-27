@@ -262,12 +262,9 @@ checkInitialized(Application::pointer app)
 }
 
 static int
-catchup(Config const& cfg, uint32_t to, uint32_t count,
+catchup(Application::pointer app, uint32_t to, uint32_t count,
         Json::Value& catchupInfo)
 {
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    Application::pointer app = Application::create(clock, cfg, false);
-
     if (!checkInitialized(app))
     {
         return 1;
@@ -284,6 +281,7 @@ catchup(Config const& cfg, uint32_t to, uint32_t count,
 
             done = true;
         });
+    auto& clock = app->getClock();
     while (!done && clock.crank(true))
         ;
 
@@ -334,36 +332,33 @@ catchup(Config const& cfg, uint32_t to, uint32_t count,
     }
 
     catchupInfo = app->getJsonInfo();
-    app->gracefulStop();
-    while (clock.crank(true))
-        ;
-
     return synced ? 0 : 3;
 }
 
 static int
-catchupAt(Config const& cfg, uint32_t at, Json::Value& catchupInfo)
+catchupAt(Application::pointer app, uint32_t at, Json::Value& catchupInfo)
 {
-    return catchup(cfg, at, 0, catchupInfo);
+    return catchup(app, at, 0, catchupInfo);
 }
 
 static int
-catchupComplete(Config const& cfg, Json::Value& catchupInfo)
+catchupComplete(Application::pointer app, Json::Value& catchupInfo)
 {
-    return catchup(cfg, CatchupConfiguration::CURRENT,
+    return catchup(app, CatchupConfiguration::CURRENT,
                    std::numeric_limits<uint32_t>::max(), catchupInfo);
 }
 
 static int
-catchupRecent(Config const& cfg, uint32_t count, Json::Value& catchupInfo)
+catchupRecent(Application::pointer app, uint32_t count,
+              Json::Value& catchupInfo)
 {
-    return catchup(cfg, CatchupConfiguration::CURRENT, count, catchupInfo);
+    return catchup(app, CatchupConfiguration::CURRENT, count, catchupInfo);
 }
 
 static int
-catchupTo(Config const& cfg, uint32_t to, Json::Value& catchupInfo)
+catchupTo(Application::pointer app, uint32_t to, Json::Value& catchupInfo)
 {
-    return catchup(cfg, to, std::numeric_limits<uint32_t>::max(), catchupInfo);
+    return catchup(app, to, std::numeric_limits<uint32_t>::max(), catchupInfo);
 }
 
 static void
@@ -856,22 +851,31 @@ main(int argc, char* const* argv)
             doCatchupComplete || doCatchupRecent || doCatchupTo ||
             doReportLastHistoryCheckpoint)
         {
-            Json::Value catchupInfo;
-
             auto result = 0;
             setNoListen(cfg);
-            if ((result == 0) && newDB)
+            if (newDB)
                 initializeDatabase(cfg);
-            if ((result == 0) && doCatchupAt)
-                result = catchupAt(cfg, catchupAtTarget, catchupInfo);
-            if ((result == 0) && doCatchupComplete)
-                result = catchupComplete(cfg, catchupInfo);
-            if ((result == 0) && doCatchupRecent)
-                result = catchupRecent(cfg, catchupRecentCount, catchupInfo);
-            if ((result == 0) && doCatchupTo)
-                result = catchupTo(cfg, catchupToTarget, catchupInfo);
-            if (!catchupInfo.isNull())
-                writeCatchupInfo(catchupInfo, outputFile);
+            if ((result == 0) && (doCatchupAt || doCatchupComplete ||
+                                  doCatchupRecent || doCatchupTo))
+            {
+                Json::Value catchupInfo;
+                VirtualClock clock(VirtualClock::REAL_TIME);
+                auto app = Application::create(clock, cfg, false);
+                if (doCatchupAt)
+                    result = catchupAt(app, catchupAtTarget, catchupInfo);
+                if ((result == 0) && doCatchupComplete)
+                    result = catchupComplete(app, catchupInfo);
+                if ((result == 0) && doCatchupRecent)
+                    result =
+                        catchupRecent(app, catchupRecentCount, catchupInfo);
+                if ((result == 0) && doCatchupTo)
+                    result = catchupTo(app, catchupToTarget, catchupInfo);
+                app->gracefulStop();
+                while (app->getClock().crank(true))
+                    ;
+                if (!catchupInfo.isNull())
+                    writeCatchupInfo(catchupInfo, outputFile);
+            }
             if ((result == 0) && forceSCP)
                 setForceSCPFlag(cfg, *forceSCP);
             if ((result == 0) && getOfflineInfo)
