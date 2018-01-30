@@ -526,7 +526,9 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(applyCheck(tx, *app));
+            // as the account gets re-created we have to disable seqnum
+            // verification
+            REQUIRE(applyCheck(tx, *app, false));
             REQUIRE(loadAccount(sourceAccount, *app));
             REQUIRE(loadAccount(payAndMergeDestination, *app));
             REQUIRE(sourceAccount.getBalance() == createAmount);
@@ -647,7 +649,9 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(applyCheck(tx, *app));
+            // as the account gets re-created we have to disable seqnum
+            // verification
+            REQUIRE(applyCheck(tx, *app, false));
             REQUIRE(loadAccount(sourceAccount, *app));
             REQUIRE(loadAccount(payAndMergeDestination, *app));
             REQUIRE(sourceAccount.getBalance() == createAmount - pay2Amount);
@@ -774,7 +778,9 @@ TEST_CASE("payment", "[tx][payment]")
         });
 
         for_versions_from(8, *app, [&] {
-            REQUIRE(applyCheck(tx, *app));
+            // as the account gets re-created we have to disable seqnum
+            // verification
+            REQUIRE(applyCheck(tx, *app, false));
             REQUIRE(loadAccount(sourceAccount, *app));
             REQUIRE(loadAccount(secondSourceAccount, *app));
             REQUIRE(loadAccount(payAndMergeDestination, *app));
