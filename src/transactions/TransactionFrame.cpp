@@ -481,13 +481,13 @@ TransactionFrame::markResultFailed()
 bool
 TransactionFrame::apply(LedgerDelta& delta, Application& app)
 {
-    TransactionMeta tm;
-    return apply(delta, tm, app);
+    TransactionMeta tm(1);
+    return apply(delta, tm.v1(), app);
 }
 
 bool
-TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
-                        Application& app)
+TransactionFrame::apply(LedgerDelta& delta, TransactionMetaV1& meta,
+                        Application & app)
 {
     resetSigningAccount();
     SignatureChecker signatureChecker{
@@ -524,7 +524,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
                 app.getInvariantManager().checkOnOperationApply(
                     op->getOperation(), op->getResult(), opDelta);
             }
-            meta.operations().emplace_back(opDelta.getChanges());
+            meta.operations.emplace_back(opDelta.getChanges());
             opDelta.commit();
         }
 
@@ -549,7 +549,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
 
     if (errorEncountered)
     {
-        meta.operations().clear();
+        meta.operations.clear();
         markResultFailed();
     }
 

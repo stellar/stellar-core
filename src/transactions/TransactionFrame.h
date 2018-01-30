@@ -147,7 +147,7 @@ class TransactionFrame
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMeta& meta, Application& app);
+    bool apply(LedgerDelta& delta, TransactionMetaV1& meta, Application& app);
 
     // version without meta
     bool apply(LedgerDelta& delta, Application& app);
