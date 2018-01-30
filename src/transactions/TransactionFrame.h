@@ -51,8 +51,19 @@ class TransactionFrame
 
     bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
                      Database& app);
-    bool commonValid(SignatureChecker& signatureChecker, Application& app,
-                     LedgerDelta* delta, SequenceNumber current);
+
+    enum ValidationType
+    {
+        kInvalid,             // transaction is not valid at all
+        kInvalidUpdateSeqNum, // transaction is invalid but its sequence number
+                              // should be updated
+        kFullyValid
+    };
+
+    bool commonValidPreSeqNum(Application& app, LedgerDelta* delta);
+    ValidationType commonValid(SignatureChecker& signatureChecker,
+                               Application& app, LedgerDelta* delta,
+                               SequenceNumber current);
 
     void resetSigningAccount();
     void resetResults();
@@ -67,6 +78,11 @@ class TransactionFrame
                              const SignerKey& signerKey,
                              LedgerManager& ledgerManager) const;
     void markResultFailed();
+
+    bool applyOperations(SignatureChecker& checker, LedgerDelta& delta,
+                         TransactionMetaV1& meta, Application& app);
+
+    void processSeqNum(LedgerManager& lm, LedgerDelta& delta);
 
   public:
     TransactionFrame(Hash const& networkID,
