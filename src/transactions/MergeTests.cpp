@@ -115,7 +115,8 @@ TEST_CASE("merge", "[tx][merge]")
         txFrame->addSignature(b1.getSecretKey());
 
         for_all_versions(*app, [&] {
-            applyCheck(txFrame, *app);
+            // a1 gets re-created so we disable sequence number checks
+            applyCheck(txFrame, *app, false);
 
             auto mergeResult = txFrame->getResult()
                                    .result.results()[2]

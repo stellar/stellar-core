@@ -228,7 +228,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         auto toAccountAfter = loadAccount(destination, mApp, false);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
-        if (toAccount && toAccountAfter)
+        if (toAccount && toAccountAfter &&
+            !(fromAccount->getID() == toAccount->getID()))
         {
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }

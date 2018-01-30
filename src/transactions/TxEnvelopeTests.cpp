@@ -342,7 +342,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, *app, [&] {
+                        for_versions(3, 9, *app, [&] {
+                            REQUIRE(!tx->checkValid(*app, 0));
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -963,7 +968,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("duplicate payment")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
+                    REQUIRE(!txFrame->checkValid(*app, 0));
+                    REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                });
+                for_versions_from(10, *app, [&] {
                     applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
@@ -1023,7 +1032,15 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("transaction gap")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
+                    txFrame =
+                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
+                    txFrame->getEnvelope().tx.seqNum--;
+                    REQUIRE(!txFrame->checkValid(*app, 0));
+
+                    REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                });
+                for_versions_from(10, *app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;
