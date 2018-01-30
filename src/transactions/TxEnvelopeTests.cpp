@@ -326,7 +326,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                       ex_SET_OPTIONS_BAD_SIGNER);
                 });
 
-                testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
                 SECTION("single signature")
                 {
                     SECTION("invalid seq nr")
@@ -676,8 +675,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("empty X")
         {
-            testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
-
             SecretKey s1 = getAccount("S1");
             Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
 
