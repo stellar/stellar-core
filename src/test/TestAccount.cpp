@@ -36,6 +36,12 @@ TestAccount::getBalance() const
     return loadAccount(getPublicKey(), mApp)->getBalance();
 }
 
+bool
+TestAccount::exists() const
+{
+    return loadAccount(getPublicKey(), mApp, false) != nullptr;
+}
+
 TransactionFramePtr
 TestAccount::tx(std::vector<Operation> const& ops, SequenceNumber sn)
 {

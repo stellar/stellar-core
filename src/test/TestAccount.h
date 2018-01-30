@@ -117,6 +117,8 @@ class TestAccount
 
     int64_t getBalance() const;
 
+    bool exists() const;
+
   private:
     Application& mApp;
     SecretKey mSk;
