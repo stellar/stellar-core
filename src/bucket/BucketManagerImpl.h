@@ -71,7 +71,6 @@ class BucketManagerImpl : public BucketManager
 
     std::vector<std::string>
     checkForMissingBucketsFiles(HistoryArchiveState const& has) override;
-    void retainAll(HistoryArchiveState const& has) override;
     void assumeState(HistoryArchiveState const& has) override;
     void shutdown() override;
 };

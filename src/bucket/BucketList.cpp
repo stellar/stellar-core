@@ -68,29 +68,13 @@ void
 BucketLevel::setCurr(std::shared_ptr<Bucket> b)
 {
     mNextCurr.clear();
-    if (mCurr)
-    {
-        mCurr->setRetain(false);
-    }
     mCurr = b;
-    if (mCurr)
-    {
-        mCurr->setRetain(true);
-    }
 }
 
 void
 BucketLevel::setSnap(std::shared_ptr<Bucket> b)
 {
-    if (mSnap)
-    {
-        mSnap->setRetain(false);
-    }
     mSnap = b;
-    if (mSnap)
-    {
-        mSnap->setRetain(true);
-    }
 }
 
 void

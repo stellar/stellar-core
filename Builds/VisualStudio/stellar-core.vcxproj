@@ -247,8 +247,10 @@ exit /b 0
     <ClCompile Include="..\..\lib\util\easylogging++.cc" />
     <ClCompile Include="..\..\src\bucket\Bucket.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketApplicator.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketInputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketList.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp" />
+    <ClCompile Include="..\..\src\bucket\BucketOutputIterator.cpp" />
     <ClCompile Include="..\..\src\bucket\BucketTests.cpp" />
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp" />
     <ClCompile Include="..\..\src\bucket\PublishQueueBuckets.cpp" />
@@ -518,9 +520,11 @@ exit /b 0
     <ClInclude Include="..\..\lib\catch.hpp" />
     <ClInclude Include="..\..\src\bucket\Bucket.h" />
     <ClInclude Include="..\..\src\bucket\BucketApplicator.h" />
+    <ClInclude Include="..\..\src\bucket\BucketInputIterator.h" />
     <ClInclude Include="..\..\src\bucket\BucketList.h" />
     <ClInclude Include="..\..\src\bucket\BucketManager.h" />
     <ClInclude Include="..\..\src\bucket\BucketManagerImpl.h" />
+    <ClInclude Include="..\..\src\bucket\BucketOutputIterator.h" />
     <ClInclude Include="..\..\src\bucket\FutureBucket.h" />
     <ClInclude Include="..\..\src\bucket\LedgerCmp.h" />
     <ClInclude Include="..\..\src\bucket\PublishQueueBuckets.h" />

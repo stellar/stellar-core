@@ -260,15 +260,6 @@ FutureBucket::startMerge(Application& app, bool keepDeadEntries)
     assert(snap);
     assert(!mOutputBucket.valid());
 
-    // Retain all buckets while being merged. They'll be freed by the
-    // BucketManagers only after the merge is done and resolved.
-    curr->setRetain(true);
-    snap->setRetain(true);
-    for (auto b : shadows)
-    {
-        b->setRetain(true);
-    }
-
     CLOG(TRACE, "Bucket") << "Preparing merge of curr="
                           << hexAbbrev(curr->getHash())
                           << " with snap=" << hexAbbrev(snap->getHash());

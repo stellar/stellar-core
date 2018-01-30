@@ -977,8 +977,6 @@ LedgerManagerImpl::storeCurrentLedger()
         has.resolveAnyReadyFutures();
     }
 
-    // we will need these buckets after restart
-    mApp.getBucketManager().retainAll(has);
     mApp.getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                        has.toString());
 }

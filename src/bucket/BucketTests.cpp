@@ -6,8 +6,8 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-
 #include "bucket/Bucket.h"
+#include "bucket/BucketInputIterator.h"
 #include "bucket/BucketList.h"
 #include "bucket/BucketManager.h"
 #include "bucket/BucketManagerImpl.h"
@@ -106,7 +106,7 @@ checkBucketSizeAndBounds(BucketList& bl, uint32_t ledgerSeq, uint32_t level,
     std::set<uint32_t> ledgers;
     uint32_t lbound = std::numeric_limits<uint32_t>::max();
     uint32_t ubound = 0;
-    for (Bucket::InputIterator iter(bucket); iter; ++iter)
+    for (BucketInputIterator iter(bucket); iter; ++iter)
     {
         auto lastModified = (*iter).liveEntry().lastModifiedLedgerSeq;
         ledgers.insert(lastModified);
