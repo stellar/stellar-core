@@ -917,7 +917,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     {
         auto txTime = mTransactionApply.TimeScope();
         LedgerDelta delta(ledgerDelta);
-        TransactionMeta tm;
+        TransactionMeta tm(1);
         try
         {
             CLOG(DEBUG, "Tx")
@@ -925,7 +925,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
 
-            if (tx->apply(delta, tm, mApp))
+            if (tx->apply(delta, tm.v1(), mApp))
             {
                 delta.commit();
             }
