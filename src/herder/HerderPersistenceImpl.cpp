@@ -266,11 +266,14 @@ HerderPersistence::dropAll(Database& db)
 }
 
 void
-HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq)
+HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                    uint32_t count)
 {
-    db.getSession() << "DELETE FROM scphistory WHERE ledgerseq <= "
-                    << ledgerSeq;
-    db.getSession() << "DELETE FROM scpquorums WHERE lastledgerseq <= "
-                    << ledgerSeq;
+    db.getSession() << "DELETE FROM scphistory WHERE ledgerseq IN (SELECT "
+                       "ledgerseq FROM scphistory WHERE ledgerseq <= "
+                    << ledgerSeq << " LIMIT " << count << ")";
+    db.getSession() << "DELETE FROM scpquorums WHERE lastledgerseq IN (SELECT "
+                       "lastledgerseq FROM scpquorums WHERE lastledgerseq <= "
+                    << ledgerSeq << " LIMIT " << count << ")";
 }
 }

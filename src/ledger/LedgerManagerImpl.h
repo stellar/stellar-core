@@ -105,7 +105,8 @@ class LedgerManagerImpl : public LedgerManager
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const&,
                            bool manualCatchup) const override;
     void closeLedger(LedgerCloseData const& ledgerData) override;
-    void deleteOldEntries(Database& db, uint32_t ledgerSeq) override;
+    void deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                          uint32_t count) override;
     void checkDbState() override;
 };
 }

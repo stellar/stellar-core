@@ -37,6 +37,7 @@ class HerderPersistence
                                          uint32_t ledgerCount,
                                          XDROutputFileStream& scpHistory);
     static void dropAll(Database& db);
-    static void deleteOldEntries(Database& db, uint32_t ledgerSeq);
+    static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                 uint32_t count);
 };
 }

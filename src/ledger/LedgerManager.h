@@ -179,7 +179,8 @@ class LedgerManager
     virtual void closeLedger(LedgerCloseData const& ledgerData) = 0;
 
     // deletes old entries stored in the database
-    virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq) = 0;
+    virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                  uint32_t count) = 0;
 
     // checks the database for inconsistencies between objects
     virtual void checkDbState() = 0;
