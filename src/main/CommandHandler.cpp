@@ -36,6 +36,8 @@ using std::placeholders::_2;
 
 namespace stellar
 {
+using xdr::operator<;
+
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
     if (mApp.getConfig().HTTP_PORT)
