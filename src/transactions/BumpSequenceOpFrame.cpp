@@ -18,7 +18,7 @@ BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
                                          OperationResult& res,
                                          TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
-    , mBumpSequence(mOperation.body.bumpSequenceOp())
+    , mBumpSequenceOp(mOperation.body.bumpSequenceOp())
 {
 }
 
@@ -33,25 +33,23 @@ bool
 BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
                              LedgerManager& ledgerManager)
 {
-    // sourceAccount guaranteed to exist as precondition to calling doApply.
-    AccountFrame& bumpAccount = getSourceAccount();
+    SequenceNumber current = mSourceAccount->getSeqNum();
 
-    SequenceNumber current = bumpAccount.getSeqNum();
-    // fail if the current sequence is not in the allowed range (inclusive)
-    if (mBumpSequence.range && (current < mBumpSequence.range->min ||
-                                current > mBumpSequence.range->max))
+    SequenceNumber maxBump = ledgerManager.getCurrentLedgerHeader().ledgerSeq;
+    maxBump = (maxBump << 32) - 1;
+
+    if (mBumpSequenceOp.bumpTo > maxBump)
     {
         app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "out-of-range"},
-                      "operation")
+            .NewMeter({"op-bump-sequence", "failure", "too-far"}, "operation")
             .Mark();
-        innerResult().code(BUMP_SEQUENCE_OUT_OF_RANGE);
+        innerResult().code(BUMP_SEQUENCE_TOO_FAR);
         return false;
     }
 
     // Apply the bump (bump succeeds silently if bumpTo < current)
-    bumpAccount.setSeqNum(std::max(mBumpSequence.bumpTo, current));
-    bumpAccount.storeChange(delta, ledgerManager.getDatabase());
+    mSourceAccount->setSeqNum(std::max(mBumpSequenceOp.bumpTo, current));
+    mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
 
     // Return successful results
     innerResult().code(BUMP_SEQUENCE_SUCCESS);
@@ -64,7 +62,7 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() < 9)
+    if (app.getLedgerManager().getCurrentLedgerVersion() <= 9)
     {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "not-supported-yet"},
@@ -72,31 +70,6 @@ BumpSequenceOpFrame::doCheckValid(Application& app)
             .Mark();
         innerResult().code(BUMP_SEQUENCE_NOT_SUPPORTED_YET);
         return false;
-    }
-
-    // Check that we aren't self-bumping
-    if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID())
-    {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "no-self-bump"},
-                      "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQUENCE_NO_SELF_BUMP);
-        return false;
-    }
-
-    // Sanity check the range argument
-    if (mBumpSequence.range)
-    {
-        if (mBumpSequence.range->max < mBumpSequence.range->min)
-        {
-            app.getMetrics()
-                .NewMeter({"op-bump-sequence", "failure", "invalid-range"},
-                          "operation")
-                .Mark();
-            innerResult().code(BUMP_SEQUENCE_INVALID_RANGE);
-            return false;
-        }
     }
 
     return true;

@@ -229,15 +229,9 @@ struct ManageDataOp
     Result: BumpSequenceResult
 */
 
-struct BumpSeqValidRange
-{
-    SequenceNumber min;
-    SequenceNumber max;
-};
 struct BumpSequenceOp
 {
     SequenceNumber bumpTo;
-    BumpSeqValidRange* range;
 };
 
 /* An operation is the lowest unit of work that a transaction does */
@@ -678,12 +672,9 @@ enum BumpSequenceResultCode
     // codes considered as "success" for the operation
     BUMP_SEQUENCE_SUCCESS = 0,
     // codes considered as "failure" for the operation
+    BUMP_SEQUENCE_TOO_FAR = -1, // operation would bump past the maximum sequence number allowed
     BUMP_SEQUENCE_NOT_SUPPORTED_YET =
-        -1, // The network hasn't moved to this protocol change yet
-    BUMP_SEQUENCE_INVALID_RANGE = -2, // The range is invalid (min > max)
-    BUMP_SEQUENCE_OUT_OF_RANGE =
-        -3, // The range is invalid !(min <= current_seq <= max)
-    BUMP_SEQUENCE_NO_SELF_BUMP = -4 // Can't bump source account
+        -2 // The network hasn't moved to this protocol change yet
 };
 
 union BumpSequenceResult switch (BumpSequenceResultCode code)

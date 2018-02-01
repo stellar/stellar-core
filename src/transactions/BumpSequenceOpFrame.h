@@ -16,7 +16,7 @@ class BumpSequenceOpFrame : public OperationFrame
     {
         return mResult.tr().bumpSeqResult();
     }
-    BumpSequenceOp const& mBumpSequence;
+    BumpSequenceOp const& mBumpSequenceOp;
 
   public:
     BumpSequenceOpFrame(Operation const& op, OperationResult& res,

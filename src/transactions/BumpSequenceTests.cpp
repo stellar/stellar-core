@@ -20,22 +20,6 @@
 using namespace stellar;
 using namespace stellar::txtest;
 
-typedef std::unique_ptr<Application> appPtr;
-
-template <typename Callable>
-void
-for_versions_bumpseq(ApplicationEditableVersion& app, Callable&& f)
-{
-    for_versions_to(std::max(8, // Config::CURRENT_LEDGER_PROTOCOL_VERSION //
-                                // TODO: For some reason I'm getting a linker
-                                // error on this const?
-                             9),
-                    app, f);
-}
-
-#define BUMPSEQ_ENABLED() \
-    (app.getLedgerManager().getCurrentLedgerVersion() >= 9)
-
 TEST_CASE("bump sequence", "[tx][bumpsequence]")
 {
     using xdr::operator==;
@@ -43,174 +27,51 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;
-    ApplicationEditableVersion app(clock, cfg);
-    app.start();
+    auto app = createTestApplication(clock, cfg);
+    app->start();
 
     // set up world
-    auto root = TestAccount::createRoot(app);
-    auto a1 = root.create("A", app.getLedgerManager().getMinBalance(0) + 1000);
-    auto a2 = root.create("B", app.getLedgerManager().getMinBalance(0) + 1000);
-    std::vector<SecretKey> signers{
-        a2.getSecretKey(),
-    };
+    auto root = TestAccount::createRoot(*app);
+    auto& lm = app->getLedgerManager();
 
-    SECTION("tests without a range")
-    {
-        SECTION("test no-account")
-        {
+    auto a = root.create("A", lm.getMinBalance(0) + 1000);
+    auto b = root.create("B", lm.getMinBalance(0) + 1000);
 
-            SequenceNumber num = 1;
-            auto not_created = TestAccount{app, getAccount("not created"), num};
-            std::vector<SecretKey> signers2{not_created.getSecretKey()};
-            for_versions_bumpseq(app, [&] {
-                if (BUMPSEQ_ENABLED())
-                    REQUIRE_THROWS_AS(
-                        a1.bumpSequence(not_created.getPublicKey(), &signers2,
-                                        num + 110, nullptr),
-                        ex_txNO_ACCOUNT);
-                else
-                    REQUIRE_THROWS_AS(
-                        a1.bumpSequence(not_created.getPublicKey(), &signers2,
-                                        num + 110, nullptr),
-                        ex_txNO_ACCOUNT);
-            });
-        }
-        SECTION("test self-bump")
-        {
-            for_versions_bumpseq(app, [&] {
-                auto num = a2.loadSequenceNumber();
-                if (BUMPSEQ_ENABLED())
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a1.getPublicKey(),
-                                                      &signers, num + 110,
-                                                      nullptr),
-                                      ex_BUMP_SEQUENCE_NO_SELF_BUMP);
-                else
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a1.getPublicKey(),
-                                                      &signers, num + 110,
-                                                      nullptr),
-                                      ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                REQUIRE(num == a2.loadSequenceNumber());
-            });
-        }
+    // close the ledger (this is required as bumpseq cannot work for
+    // an account just created)
+    closeLedgerOn(*app, 2, 1, 1, 2018);
+
+    SequenceNumber maxSeqNum =
+        (uint64(lm.getCurrentLedgerHeader().ledgerSeq) << 32) - 1;
+
+    for_versions_from(10, *app, [&]() {
         SECTION("test success")
         {
-            for_versions_bumpseq(app, [&] {
-                auto num = a2.loadSequenceNumber();
-                if (BUMPSEQ_ENABLED())
-                {
-                    REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(), &signers,
-                                                    num + 100, nullptr));
-                    REQUIRE(num + 100 == a2.loadSequenceNumber());
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                      &signers, num + 100,
-                                                      nullptr),
-                                      ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                }
-            });
-        }
-    }
-    SECTION("tests with a range")
-    {
-
-        SECTION("test invalid-range")
-        {
-            BumpSeqValidRange invalid_range{1000, 100};
-            for_versions_bumpseq(app, [&] {
-                auto num = a2.loadSequenceNumber();
-                if (BUMPSEQ_ENABLED())
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                      &signers, 110,
-                                                      &invalid_range),
-                                      ex_BUMP_SEQUENCE_INVALID_RANGE);
-                else
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                      &signers, 110,
-                                                      &invalid_range),
-                                      ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                REQUIRE(num == a2.loadSequenceNumber());
-            });
-        }
-        SECTION("test out-of-range")
-        {
-            SECTION("below range")
+            SECTION("min jump")
             {
-                for_versions_bumpseq(app, [&] {
-                    auto num = a2.loadSequenceNumber();
-                    BumpSeqValidRange below_range{num + 10, num + 20};
-                    if (BUMPSEQ_ENABLED())
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                          &signers, num + 300,
-                                                          &below_range),
-                                          ex_BUMP_SEQUENCE_OUT_OF_RANGE);
-                    else
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                          &signers, num + 300,
-                                                          &below_range),
-                                          ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                    REQUIRE(num == a2.loadSequenceNumber());
-                });
+                auto newSeq = a.loadSequenceNumber() + 2;
+                a.bumpSequence(newSeq);
+                REQUIRE(a.loadSequenceNumber() == newSeq);
             }
-            SECTION("above range")
+            SECTION("max jump")
             {
-                for_versions_bumpseq(app, [&] {
-                    auto num = a2.loadSequenceNumber();
-                    BumpSeqValidRange above_range{num - 3, num - 2};
-                    if (BUMPSEQ_ENABLED())
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                          &signers, num + 300,
-                                                          &above_range),
-                                          ex_BUMP_SEQUENCE_OUT_OF_RANGE);
-                    else
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                          &signers, num + 300,
-                                                          &above_range),
-                                          ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                    REQUIRE(num == a2.loadSequenceNumber());
-                });
-            }
-            SECTION("in range")
-            {
-                for_versions_bumpseq(app, [&] {
-                    auto num = a2.loadSequenceNumber();
-                    BumpSeqValidRange in_range{num - 10, num + 10};
-                    if (BUMPSEQ_ENABLED())
-                    {
-                        REQUIRE_NOTHROW(a1.bumpSequence(
-                            a2.getPublicKey(), &signers, num + 100, &in_range));
-                        REQUIRE(num + 100 == a2.loadSequenceNumber());
-                    }
-                    else
-                    {
-                        REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                          &signers, num + 100,
-                                                          &in_range),
-                                          ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                    }
-                });
+                a.bumpSequence(maxSeqNum);
+                REQUIRE(a.loadSequenceNumber() == maxSeqNum);
             }
         }
-        SECTION("test locked-range")
+        SECTION("errors")
         {
-            auto num = a2.loadSequenceNumber();
-            BumpSeqValidRange exact_range{num, num};
-            for_versions_bumpseq(app, [&] {
-                if (BUMPSEQ_ENABLED())
-                {
-                    REQUIRE_NOTHROW(a1.bumpSequence(a2.getPublicKey(), &signers,
-                                                    num + 100, &exact_range));
-                    REQUIRE(num + 100 == a2.loadSequenceNumber());
-                }
-                else
-                {
-                    REQUIRE_THROWS_AS(a1.bumpSequence(a2.getPublicKey(),
-                                                      &signers, num + 100,
-                                                      &exact_range),
-                                      ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-                }
-            });
+            SECTION("too far")
+            {
+                auto prev = a.loadSequenceNumber();
+                REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum + 1),
+                                  ex_BUMP_SEQUENCE_TOO_FAR);
+                REQUIRE(a.loadSequenceNumber() == prev + 1);
+            }
         }
-    }
+    });
+    for_versions_to(9, *app, [&]() {
+        REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum),
+                          ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
+    });
 }

@@ -189,9 +189,9 @@ checkTransaction(TransactionFrame& txFrame, Application& app)
 }
 
 void
-applyTx(TransactionFramePtr const& tx, Application& app)
+applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
 {
-    applyCheck(tx, app);
+    applyCheck(tx, app, checkSeqNum);
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
 }
@@ -698,17 +698,11 @@ manageData(std::string const& name, DataValue* value)
 }
 
 Operation
-bumpSequence(AccountID const& account, SequenceNumber to,
-             BumpSeqValidRange* range)
+bumpSequence(SequenceNumber to)
 {
     Operation op;
-    op.sourceAccount.activate() = account;
     op.body.type(BUMP_SEQUENCE);
     op.body.bumpSequenceOp().bumpTo = to;
-    if (range)
-    {
-        op.body.bumpSequenceOp().range.activate() = *range;
-    }
     return op;
 }
 

@@ -265,16 +265,12 @@ throwIf(BumpSequenceResult const& result)
 {
     switch (result.code())
     {
-    case BUMP_SEQUENCE_NOT_SUPPORTED_YET:
-        throw ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET{};
-    case BUMP_SEQUENCE_INVALID_RANGE:
-        throw ex_BUMP_SEQUENCE_INVALID_RANGE{};
-    case BUMP_SEQUENCE_OUT_OF_RANGE:
-        throw ex_BUMP_SEQUENCE_OUT_OF_RANGE{};
-    case BUMP_SEQUENCE_NO_SELF_BUMP:
-        throw ex_BUMP_SEQUENCE_NO_SELF_BUMP{};
     case BUMP_SEQUENCE_SUCCESS:
         break;
+    case BUMP_SEQUENCE_TOO_FAR:
+        throw ex_BUMP_SEQUENCE_TOO_FAR{};
+    case BUMP_SEQUENCE_NOT_SUPPORTED_YET:
+        throw ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET{};
     default:
         throw ex_UNKNOWN{};
     }
