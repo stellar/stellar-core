@@ -20,7 +20,7 @@ class BumpSequenceOpFrame : public OperationFrame
 
   public:
     BumpSequenceOpFrame(Operation const& op, OperationResult& res,
-                      TransactionFrame& parentTx);
+                        TransactionFrame& parentTx);
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;

@@ -79,7 +79,8 @@ Operation accountMerge(PublicKey const& dest);
 
 Operation manageData(std::string const& name, DataValue* value);
 
-Operation bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range);
+Operation bumpSequence(AccountID const& account, SequenceNumber to,
+                       BumpSeqValidRange* range);
 
 Operation createAccount(PublicKey const& dest, int64_t amount);
 

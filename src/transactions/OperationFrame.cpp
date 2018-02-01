@@ -80,7 +80,7 @@ OperationFrame::makeHelper(Operation const& op, OperationResult& res,
         return std::make_shared<InflationOpFrame>(op, res, tx);
     case MANAGE_DATA:
         return std::make_shared<ManageDataOpFrame>(op, res, tx);
-    case BUMP_SEQ:
+    case BUMP_SEQUENCE:
         return std::make_shared<BumpSequenceOpFrame>(op, res, tx);
     default:
         ostringstream err;

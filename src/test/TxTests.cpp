@@ -698,13 +698,15 @@ manageData(std::string const& name, DataValue* value)
 }
 
 Operation
-bumpSequence(AccountID const& account, SequenceNumber to, BumpSeqValidRange* range)
+bumpSequence(AccountID const& account, SequenceNumber to,
+             BumpSeqValidRange* range)
 {
     Operation op;
     op.sourceAccount.activate() = account;
-    op.body.type(BUMP_SEQ);
+    op.body.type(BUMP_SEQUENCE);
     op.body.bumpSequenceOp().bumpTo = to;
-    if (range) {
+    if (range)
+    {
         op.body.bumpSequenceOp().range.activate() = *range;
     }
     return op;

@@ -265,15 +265,15 @@ throwIf(BumpSequenceResult const& result)
 {
     switch (result.code())
     {
-    case BUMP_SEQ_NOT_SUPPORTED_YET:
-        throw ex_BUMP_SEQ_NOT_SUPPORTED_YET{};
-    case BUMP_SEQ_INVALID_RANGE:
-        throw ex_BUMP_SEQ_INVALID_RANGE{};
-    case BUMP_SEQ_OUT_OF_RANGE:
-        throw ex_BUMP_SEQ_OUT_OF_RANGE{};
-    case BUMP_SEQ_NO_SELF_BUMP:
-        throw ex_BUMP_SEQ_NO_SELF_BUMP{};
-    case BUMP_SEQ_SUCCESS:
+    case BUMP_SEQUENCE_NOT_SUPPORTED_YET:
+        throw ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET{};
+    case BUMP_SEQUENCE_INVALID_RANGE:
+        throw ex_BUMP_SEQUENCE_INVALID_RANGE{};
+    case BUMP_SEQUENCE_OUT_OF_RANGE:
+        throw ex_BUMP_SEQUENCE_OUT_OF_RANGE{};
+    case BUMP_SEQUENCE_NO_SELF_BUMP:
+        throw ex_BUMP_SEQUENCE_NO_SELF_BUMP{};
+    case BUMP_SEQUENCE_SUCCESS:
         break;
     default:
         throw ex_UNKNOWN{};
@@ -334,7 +334,7 @@ throwIf(TransactionResult const& result)
     case MANAGE_DATA:
         throwIf(opResult.tr().manageDataResult());
         break;
-    case BUMP_SEQ:
+    case BUMP_SEQUENCE:
         throwIf(opResult.tr().bumpSeqResult());
         break;
     }

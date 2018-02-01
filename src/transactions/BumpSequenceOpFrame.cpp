@@ -3,20 +3,20 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/BumpSequenceOpFrame.h"
-#include "transactions/TransactionFrame.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionFrame.h"
 
 namespace stellar
 {
 using xdr::operator==;
 
-
-BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op, OperationResult& res,
-                                     TransactionFrame& parentTx)
+BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
+                                         OperationResult& res,
+                                         TransactionFrame& parentTx)
     : OperationFrame(op, res, parentTx)
     , mBumpSequence(mOperation.body.bumpSequenceOp())
 {
@@ -31,19 +31,21 @@ BumpSequenceOpFrame::getThresholdLevel() const
 
 bool
 BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+                             LedgerManager& ledgerManager)
 {
     // sourceAccount guaranteed to exist as precondition to calling doApply.
     AccountFrame& bumpAccount = getSourceAccount();
 
     SequenceNumber current = bumpAccount.getSeqNum();
     // fail if the current sequence is not in the allowed range (inclusive)
-    if (mBumpSequence.range && (current < mBumpSequence.range->min || current > mBumpSequence.range->max)) {
+    if (mBumpSequence.range && (current < mBumpSequence.range->min ||
+                                current > mBumpSequence.range->max))
+    {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "out-of-range"},
-                    "operation")
+                      "operation")
             .Mark();
-        innerResult().code(BUMP_SEQ_OUT_OF_RANGE);
+        innerResult().code(BUMP_SEQUENCE_OUT_OF_RANGE);
         return false;
     }
 
@@ -52,7 +54,7 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
     bumpAccount.storeChange(delta, ledgerManager.getDatabase());
 
     // Return successful results
-    innerResult().code(BUMP_SEQ_SUCCESS);
+    innerResult().code(BUMP_SEQUENCE_SUCCESS);
     app.getMetrics()
         .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
         .Mark();
@@ -66,35 +68,36 @@ BumpSequenceOpFrame::doCheckValid(Application& app)
     {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "not-supported-yet"},
-                    "operation")
+                      "operation")
             .Mark();
-        innerResult().code(BUMP_SEQ_NOT_SUPPORTED_YET);
+        innerResult().code(BUMP_SEQUENCE_NOT_SUPPORTED_YET);
         return false;
     }
 
     // Check that we aren't self-bumping
-    if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID()) {
+    if (mParentTx.getEnvelope().tx.sourceAccount == getSourceID())
+    {
         app.getMetrics()
             .NewMeter({"op-bump-sequence", "failure", "no-self-bump"},
-                    "operation")
+                      "operation")
             .Mark();
-        innerResult().code(BUMP_SEQ_NO_SELF_BUMP);
+        innerResult().code(BUMP_SEQUENCE_NO_SELF_BUMP);
         return false;
     }
 
     // Sanity check the range argument
-    if (mBumpSequence.range) {
-        if (mBumpSequence.range->max < mBumpSequence.range->min) {
+    if (mBumpSequence.range)
+    {
+        if (mBumpSequence.range->max < mBumpSequence.range->min)
+        {
             app.getMetrics()
                 .NewMeter({"op-bump-sequence", "failure", "invalid-range"},
-                        "operation")
+                          "operation")
                 .Mark();
-            innerResult().code(BUMP_SEQ_INVALID_RANGE);
+            innerResult().code(BUMP_SEQUENCE_INVALID_RANGE);
             return false;
         }
-
     }
-
 
     return true;
 }
