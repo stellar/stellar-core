@@ -115,6 +115,11 @@ OperationFrame::getThresholdLevel() const
     return ThresholdLevel::MEDIUM;
 }
 
+bool OperationFrame::isVersionSupported(uint32_t) const
+{
+    return true;
+}
+
 bool
 OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
 {
@@ -155,6 +160,15 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
                            LedgerDelta* delta)
 {
     bool forApply = (delta != nullptr);
+    if (!isVersionSupported(app.getLedgerManager().getCurrentLedgerVersion()))
+    {
+        app.getMetrics()
+            .NewMeter({"operation", "invalid", "not-supported"}, "operation")
+            .Mark();
+        mResult.code(opNOT_SUPPORTED);
+        return false;
+    }
+
     if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta,
                      app.getDatabase()))
     {

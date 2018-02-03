@@ -281,6 +281,9 @@ throwIf(TransactionResult const& result)
 {
     switch (result.result.code())
     {
+    case txSUCCESS:
+    case txFAILED:
+        break;
     case txNO_ACCOUNT:
         throw ex_txNO_ACCOUNT{};
     case txINTERNAL_ERROR:
@@ -290,11 +293,27 @@ throwIf(TransactionResult const& result)
     case txBAD_AUTH:
         throw ex_txBAD_AUTH{};
     default:
-        // ignore rest for now
-        break;
+        throw ex_UNKNOWN{};
     }
 
     auto opResult = result.result.results()[0];
+    switch (opResult.code())
+    {
+    case opINNER:
+        break;
+    case opBAD_AUTH:
+        throw ex_opBAD_AUTH{};
+        break;
+    case opNO_ACCOUNT:
+        throw ex_opNO_ACCOUNT{};
+        break;
+    case opNOT_SUPPORTED:
+        throw ex_opNOT_SUPPORTED{};
+        break;
+    default:
+        throw ex_UNKNOWN{};
+    };
+
     switch (opResult.tr().type())
     {
     case CREATE_ACCOUNT:

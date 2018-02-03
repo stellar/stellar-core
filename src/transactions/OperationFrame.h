@@ -44,7 +44,11 @@ class OperationFrame
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(Application& app, LedgerDelta& delta,
                          LedgerManager& ledgerManager) = 0;
+    // returns the threshold this operation requires
     virtual ThresholdLevel getThresholdLevel() const;
+
+    // returns true if the operation is supported given a protocol version
+    virtual bool isVersionSupported(uint32_t protocolVersion) const;
 
   public:
     static std::shared_ptr<OperationFrame>
