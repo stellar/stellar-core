@@ -71,7 +71,6 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
         }
     });
     for_versions_to(9, *app, [&]() {
-        REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum),
-                          ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET);
+        REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum), ex_opNOT_SUPPORTED);
     });
 }

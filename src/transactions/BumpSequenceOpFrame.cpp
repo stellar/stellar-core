@@ -30,6 +30,12 @@ BumpSequenceOpFrame::getThresholdLevel() const
 }
 
 bool
+BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
+{
+    return protocolVersion >= 10;
+}
+
+bool
 BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
                              LedgerManager& ledgerManager)
 {
@@ -62,16 +68,6 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() <= 9)
-    {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "not-supported-yet"},
-                      "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQUENCE_NOT_SUPPORTED_YET);
-        return false;
-    }
-
     return true;
 }
 }

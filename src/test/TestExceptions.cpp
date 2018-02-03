@@ -269,8 +269,6 @@ throwIf(BumpSequenceResult const& result)
         break;
     case BUMP_SEQUENCE_TOO_FAR:
         throw ex_BUMP_SEQUENCE_TOO_FAR{};
-    case BUMP_SEQUENCE_NOT_SUPPORTED_YET:
-        throw ex_BUMP_SEQUENCE_NOT_SUPPORTED_YET{};
     default:
         throw ex_UNKNOWN{};
     }

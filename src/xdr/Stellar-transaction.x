@@ -672,9 +672,8 @@ enum BumpSequenceResultCode
     // codes considered as "success" for the operation
     BUMP_SEQUENCE_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    BUMP_SEQUENCE_TOO_FAR = -1, // operation would bump past the maximum sequence number allowed
-    BUMP_SEQUENCE_NOT_SUPPORTED_YET =
-        -2 // The network hasn't moved to this protocol change yet
+    BUMP_SEQUENCE_TOO_FAR =
+        -1 // operation would bump past the maximum sequence number allowed
 };
 
 union BumpSequenceResult switch (BumpSequenceResultCode code)
