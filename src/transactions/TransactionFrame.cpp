@@ -277,6 +277,10 @@ TransactionFrame::processSeqNum(LedgerManager& lm, LedgerDelta& delta)
 {
     if (lm.getCurrentLedgerVersion() >= 10)
     {
+        if (mSigningAccount->getSeqNum() > mEnvelope.tx.seqNum)
+        {
+            throw std::runtime_error("unexpected sequence number");
+        }
         mSigningAccount->setSeqNum(mEnvelope.tx.seqNum);
         mSigningAccount->storeChange(delta, lm.getDatabase());
     }
@@ -306,7 +310,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         {
             current = mSigningAccount->getSeqNum();
         }
-        if (current + 1 != mEnvelope.tx.seqNum)
+        if (current == UINT64_MAX || current + 1 != mEnvelope.tx.seqNum)
         {
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
