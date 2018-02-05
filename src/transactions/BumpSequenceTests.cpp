@@ -51,6 +51,10 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
                 auto newSeq = UINT64_MAX;
                 a.bumpSequence(newSeq);
                 REQUIRE(a.loadSequenceNumber() == newSeq);
+                SECTION("no more tx when UINT64_MAX is reached")
+                {
+                    REQUIRE_THROWS_AS(a.pay(root, 1), ex_txBAD_SEQ);
+                }
             }
             SECTION("backward jump (no-op)")
             {

@@ -282,6 +282,8 @@ throwIf(TransactionResult const& result)
     case txSUCCESS:
     case txFAILED:
         break;
+    case txBAD_SEQ:
+        throw ex_txBAD_SEQ{};
     case txNO_ACCOUNT:
         throw ex_txNO_ACCOUNT{};
     case txINTERNAL_ERROR:

@@ -115,7 +115,7 @@ class TestAccount
         updateSequenceNumber();
         return ++mSn;
     }
-    SequenceNumber loadSequenceNumber() const;
+    SequenceNumber loadSequenceNumber();
 
     int64_t getBalance() const;
 

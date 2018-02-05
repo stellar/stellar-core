@@ -16,17 +16,22 @@ namespace stellar
 using namespace txtest;
 
 SequenceNumber
-TestAccount::loadSequenceNumber() const
+TestAccount::loadSequenceNumber()
 {
-    return loadAccount(getPublicKey(), mApp)->getSeqNum();
+    mSn = 0;
+    return getLastSequenceNumber();
 }
 
 void
 TestAccount::updateSequenceNumber()
 {
-    if (mSn == 0 && loadAccount(getPublicKey(), mApp, false))
+    if (mSn == 0)
     {
-        mSn = loadSequenceNumber();
+        auto a = loadAccount(getPublicKey(), mApp, false);
+        if (a)
+        {
+            mSn = a->getSeqNum();
+        }
     }
 }
 
