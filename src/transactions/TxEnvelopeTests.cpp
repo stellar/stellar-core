@@ -442,8 +442,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("accountMerge signing account")
                     {
-                        auto b1 = root.create("a1", paymentAmount);
+                        auto b1 = root.create("b1", paymentAmount);
                         a1.pay(b1, 1000);
+
+                        closeLedgerOn(*app, 2, 1, 1, 2016);
 
                         auto tx = b1.tx({accountMerge(a1)},
                                         b1.getLastSequenceNumber() + 2);
