@@ -37,40 +37,34 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
     auto a = root.create("A", lm.getMinBalance(0) + 1000);
     auto b = root.create("B", lm.getMinBalance(0) + 1000);
 
-    // close the ledger (this is required as bumpseq cannot work for
-    // an account just created)
-    closeLedgerOn(*app, 2, 1, 1, 2018);
-
-    SequenceNumber maxSeqNum =
-        (uint64(lm.getCurrentLedgerHeader().ledgerSeq) << 32) - 1;
-
-    for_versions_from(10, *app, [&]() {
-        SECTION("test success")
-        {
-            SECTION("min jump")
+    SECTION("test success")
+    {
+        for_versions_from(10, *app, [&]() {
+            SECTION("small bump")
             {
                 auto newSeq = a.loadSequenceNumber() + 2;
                 a.bumpSequence(newSeq);
                 REQUIRE(a.loadSequenceNumber() == newSeq);
             }
-            SECTION("max jump")
+            SECTION("large bump")
             {
-                a.bumpSequence(maxSeqNum);
-                REQUIRE(a.loadSequenceNumber() == maxSeqNum);
+                auto newSeq = UINT64_MAX;
+                a.bumpSequence(newSeq);
+                REQUIRE(a.loadSequenceNumber() == newSeq);
             }
-        }
-        SECTION("errors")
-        {
-            SECTION("too far")
+            SECTION("backward jump (no-op)")
             {
-                auto prev = a.loadSequenceNumber();
-                REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum + 1),
-                                  ex_BUMP_SEQUENCE_TOO_FAR);
-                REQUIRE(a.loadSequenceNumber() == prev + 1);
+                auto oldSeq = a.loadSequenceNumber();
+                a.bumpSequence(1);
+                // tx consumes sequence, bumpSequence doesn't do anything
+                REQUIRE(a.loadSequenceNumber() == oldSeq + 1);
             }
-        }
-    });
-    for_versions_to(9, *app, [&]() {
-        REQUIRE_THROWS_AS(a.bumpSequence(maxSeqNum), ex_opNOT_SUPPORTED);
-    });
+        });
+    }
+    SECTION("not supported")
+    {
+        for_versions_to(9, *app, [&]() {
+            REQUIRE_THROWS_AS(a.bumpSequence(1), ex_opNOT_SUPPORTED);
+        });
+    }
 }

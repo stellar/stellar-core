@@ -41,21 +41,12 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 {
     SequenceNumber current = mSourceAccount->getSeqNum();
 
-    SequenceNumber maxBump = ledgerManager.getCurrentLedgerHeader().ledgerSeq;
-    maxBump = (maxBump << 32) - 1;
-
-    if (mBumpSequenceOp.bumpTo > maxBump)
+    // Apply the bump (bump succeeds silently if bumpTo <= current)
+    if (mBumpSequenceOp.bumpTo > current)
     {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "failure", "too-far"}, "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQUENCE_TOO_FAR);
-        return false;
+        mSourceAccount->setSeqNum(mBumpSequenceOp.bumpTo);
+        mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
     }
-
-    // Apply the bump (bump succeeds silently if bumpTo < current)
-    mSourceAccount->setSeqNum(std::max(mBumpSequenceOp.bumpTo, current));
-    mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
 
     // Return successful results
     innerResult().code(BUMP_SEQUENCE_SUCCESS);

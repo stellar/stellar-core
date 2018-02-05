@@ -670,10 +670,9 @@ default:
 enum BumpSequenceResultCode
 {
     // codes considered as "success" for the operation
-    BUMP_SEQUENCE_SUCCESS = 0,
+    BUMP_SEQUENCE_SUCCESS = 0
     // codes considered as "failure" for the operation
-    BUMP_SEQUENCE_TOO_FAR =
-        -1 // operation would bump past the maximum sequence number allowed
+    // (this operation never fails)
 };
 
 union BumpSequenceResult switch (BumpSequenceResultCode code)
