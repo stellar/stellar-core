@@ -111,6 +111,11 @@ class Herder
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
+    // We are learning about a new fully-fetched envelope.
+    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
+                                           const SCPQuorumSet& qset,
+                                           TxSetFrame txset) = 0;
+
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
 

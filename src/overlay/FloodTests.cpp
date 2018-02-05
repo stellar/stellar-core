@@ -255,10 +255,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
                     inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
 
             // inject the message
-            REQUIRE(herder.recvSCPEnvelope(envelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(txSet.getContentsHash(), txSet));
-            REQUIRE(herder.recvSCPQuorumSet(qSetHash, qset));
+            REQUIRE(herder.recvSCPEnvelope(envelope, qset, txSet) ==
+                    Herder::ENVELOPE_STATUS_READY);
 
         };
 

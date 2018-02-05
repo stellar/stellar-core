@@ -422,6 +422,17 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
     return status;
 }
 
+Herder::EnvelopeStatus
+HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
+                            const SCPQuorumSet& qset, TxSetFrame txset)
+{
+    mPendingEnvelopes.addTxSet(txset.getContentsHash(),
+                               envelope.statement.slotIndex,
+                               std::make_shared<TxSetFrame>(txset));
+    mPendingEnvelopes.addSCPQuorumSet(sha256(xdr::xdr_to_opaque(qset)), qset);
+    return recvSCPEnvelope(envelope);
+}
+
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
 {
