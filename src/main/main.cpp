@@ -540,7 +540,7 @@ inferQuorumAndWrite(Config const& cfg)
     InferredQuorum iq;
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = Application::create(clock, cfg, false);
         iq = app->getHistoryManager().inferQuorum();
     }
     LOG(INFO) << "Inferred quorum";
@@ -551,7 +551,7 @@ static void
 checkQuorumIntersection(Config const& cfg)
 {
     VirtualClock clock;
-    Application::pointer app = Application::create(clock, cfg);
+    Application::pointer app = Application::create(clock, cfg, false);
     InferredQuorum iq = app->getHistoryManager().inferQuorum();
     iq.checkQuorumIntersection(cfg);
 }
@@ -562,7 +562,7 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile)
     InferredQuorum iq;
     {
         VirtualClock clock;
-        Application::pointer app = Application::create(clock, cfg);
+        Application::pointer app = Application::create(clock, cfg, false);
         iq = app->getHistoryManager().inferQuorum();
     }
     std::string filename = outputFile.empty() ? "-" : outputFile;
