@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SignerKey.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -453,43 +454,43 @@ TEST_CASE("merge", "[tx][merge]")
 
     SECTION("With sub entries")
     {
-        Asset usd = makeAsset(gateway, "USD");
-        a1.changeTrust(usd, trustLineLimit);
-
-        SECTION("account has trust line")
+        SECTION("with trustline")
         {
-            for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(a1.merge(b1),
-                                  ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-            });
-        }
-        SECTION("account has offer")
-        {
-            for_all_versions(*app, [&] {
-                gateway.pay(a1, usd, trustLineBalance);
-                auto xlm = makeNativeAsset();
+            Asset usd = makeAsset(gateway, "USD");
+            a1.changeTrust(usd, trustLineLimit);
 
-                const Price somePrice(3, 2);
-                for (int i = 0; i < 4; i++)
-                {
-                    a1.manageOffer(0, xlm, usd, somePrice, 100);
-                }
-                // empty out balance
-                a1.pay(gateway, usd, trustLineBalance);
-                // delete the trust line
-                a1.changeTrust(usd, 0);
+            SECTION("account has trust line")
+            {
+                for_all_versions(*app, [&] {
+                    REQUIRE_THROWS_AS(a1.merge(b1),
+                                      ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                });
+            }
+            SECTION("account has offer")
+            {
+                for_all_versions(*app, [&] {
+                    gateway.pay(a1, usd, trustLineBalance);
+                    auto xlm = makeNativeAsset();
 
-                REQUIRE_THROWS_AS(a1.merge(b1),
-                                  ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-            });
+                    const Price somePrice(3, 2);
+                    for (int i = 0; i < 4; i++)
+                    {
+                        a1.manageOffer(0, xlm, usd, somePrice, 100);
+                    }
+                    // empty out balance
+                    a1.pay(gateway, usd, trustLineBalance);
+                    // delete the trust line
+                    a1.changeTrust(usd, 0);
+
+                    REQUIRE_THROWS_AS(a1.merge(b1),
+                                      ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+                });
+            }
         }
 
         SECTION("account has data")
         {
             for_versions_from({2, 4}, *app, [&] {
-                // delete the trust line
-                a1.changeTrust(usd, 0);
-
                 DataValue value;
                 value.resize(20);
                 for (int n = 0; n < 20; n++)
@@ -502,6 +503,15 @@ TEST_CASE("merge", "[tx][merge]")
                 a1.manageData(t1, &value);
                 REQUIRE_THROWS_AS(a1.merge(b1),
                                   ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
+            });
+        }
+        SECTION("account has signer")
+        {
+            for_all_versions(*app, [&]() {
+                Signer s(
+                    KeyUtils::convertKey<SignerKey>(gateway.getPublicKey()), 5);
+                a1.setOptions(nullptr, nullptr, nullptr, nullptr, &s, nullptr);
+                a1.merge(b1);
             });
         }
     }
