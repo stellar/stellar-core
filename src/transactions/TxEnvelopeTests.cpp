@@ -326,7 +326,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                       ex_SET_OPTIONS_BAD_SIGNER);
                 });
 
-                testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
                 SECTION("single signature")
                 {
                     SECTION("invalid seq nr")
@@ -676,8 +675,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("empty X")
         {
-            testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
-
             SecretKey s1 = getAccount("S1");
             Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
 
@@ -985,33 +982,42 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     clock.setCurrentTime(ledgerTime);
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(start + 1000, start + 10000);
+                    SECTION("too early")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(start + 1000, start + 10000);
 
-                    closeLedgerOn(*app, 3, 1, 7, 2014);
-                    applyCheck(txFrame, *app);
+                        closeLedgerOn(*app, 3, 1, 7, 2014);
+                        applyCheck(txFrame, *app);
 
-                    REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
+                        REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
+                    }
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(1000, start + 300000);
+                    SECTION("on time")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(1000, start + 300000);
 
-                    closeLedgerOn(*app, 4, 2, 7, 2014);
-                    applyCheck(txFrame, *app);
-                    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                        closeLedgerOn(*app, 3, 2, 7, 2014);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(1000, start);
+                    SECTION("too late")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(1000, start);
 
-                    closeLedgerOn(*app, 5, 3, 7, 2014);
-                    applyCheck(txFrame, *app);
-                    REQUIRE(txFrame->getResultCode() == txTOO_LATE);
+                        closeLedgerOn(*app, 3, 3, 7, 2014);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txTOO_LATE);
+                    }
                 });
             }
 
