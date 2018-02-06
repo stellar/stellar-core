@@ -16,6 +16,8 @@
 namespace stellar
 {
 
+using xdr::operator<;
+
 Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
                                     Peer::pointer peer)
     : mLedgerSeq(ledger), mMessage(msg)
