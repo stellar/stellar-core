@@ -62,6 +62,9 @@ class HerderImpl : public Herder
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
+    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
+                                   const SCPQuorumSet& qset,
+                                   TxSetFrame txset) override;
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
