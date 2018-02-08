@@ -20,6 +20,7 @@
 #include "lib/util/getopt.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/PersistentState.h"
 #include "main/dumpxdr.h"
@@ -861,6 +862,9 @@ main(int argc, char* const* argv)
                 Json::Value catchupInfo;
                 VirtualClock clock(VirtualClock::REAL_TIME);
                 auto app = Application::create(clock, cfg, false);
+                // set known cursors before starting maintenance job
+                ExternalQueue ps(*app);
+                ps.setInitialCursors(cfg.KNOWN_CURSORS);
                 app->getMaintainer().start();
                 if (doCatchupAt)
                     result = catchupAt(app, catchupAtTarget, catchupInfo);

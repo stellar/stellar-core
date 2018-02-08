@@ -44,6 +44,24 @@ ExternalQueue::validateResourceID(std::string const& resid)
 }
 
 void
+ExternalQueue::setInitialCursors(std::vector<std::string> const& initialResids)
+{
+    for (auto const& resid : initialResids)
+    {
+        addCursorForResource(resid, 1);
+    }
+}
+
+void
+ExternalQueue::addCursorForResource(std::string const& resid, uint32 cursor)
+{
+    if (getCursor(resid).empty())
+    {
+        setCursorForResource(resid, cursor);
+    }
+}
+
+void
 ExternalQueue::setCursorForResource(std::string const& resid, uint32 cursor)
 {
     checkID(resid);
