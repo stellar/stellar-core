@@ -13,6 +13,7 @@
 #ifdef _WIN32
 #include <direct.h>
 #else
+#include <dirent.h>
 #include <sys/stat.h>
 #endif
 
@@ -116,6 +117,13 @@ deltree(std::string const& d)
     {
         throw std::runtime_error("SHFileOperation failed in deltree");
     }
+}
+
+std::vector<std::string>
+findfiles(std::string const& path,
+          std::function<bool(std::string const& name)> predicate)
+{
+    return {};
 }
 
 long
@@ -267,6 +275,38 @@ deltree(std::string const& d)
     if (nftw(d.c_str(), nftw_deltree_callback, FOPEN_MAX, FTW_DEPTH) != 0)
     {
         throw std::runtime_error("nftw failed in deltree for " + d);
+    }
+}
+
+std::vector<std::string>
+findfiles(std::string const& path,
+          std::function<bool(std::string const& name)> predicate)
+{
+    auto dir = opendir(path.c_str());
+    auto result = std::vector<std::string>{};
+    if (!dir)
+    {
+        return result;
+    }
+
+    try
+    {
+        while (auto entry = readdir(dir))
+        {
+            auto name = std::string{entry->d_name};
+            if (predicate(name))
+            {
+                result.push_back(name);
+            }
+        }
+
+        return result;
+    }
+    catch (...)
+    {
+        // small RAII class could do here
+        closedir(dir);
+        throw;
     }
 }
 
