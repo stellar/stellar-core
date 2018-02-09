@@ -313,6 +313,12 @@ BucketList::keepDeadEntries(uint32_t level)
     return level < BucketList::kNumLevels - 1;
 }
 
+BucketLevel const&
+BucketList::getLevel(uint32_t i) const
+{
+    return mLevels.at(i);
+}
+
 BucketLevel&
 BucketList::getLevel(uint32_t i)
 {

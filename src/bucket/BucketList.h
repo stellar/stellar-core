@@ -329,6 +329,9 @@ class BucketList
     BucketList();
 
     // Return level `i` of the BucketList.
+    BucketLevel const& getLevel(uint32_t i) const;
+
+    // Return level `i` of the BucketList.
     BucketLevel& getLevel(uint32_t i);
 
     // Return a cumulative hash of the entire bucketlist; this is the hash of
