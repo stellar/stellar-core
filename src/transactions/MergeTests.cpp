@@ -623,22 +623,32 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("merge too far")
     {
         for_versions_from(10, *app, [&]() {
-            SequenceNumber maxSeqNum = app->getLedgerManager().getLedgerNum();
-            maxSeqNum = (maxSeqNum << 32) - 1;
-            maxSeqNum--; // a1.merge will increment at the transaction level
+            SequenceNumber curStartSeqNum =
+                LedgerHeaderFrame::getStartingSequenceNumber(
+                    app->getLedgerManager().getLedgerNum());
+            auto maxSeqNum = curStartSeqNum - 1;
+
+            auto txFrame = root.tx({a1.op(accountMerge(b1))});
+            txFrame->addSignature(a1.getSecretKey());
+
             SECTION("at max = success")
             {
                 a1.bumpSequence(maxSeqNum);
                 REQUIRE(a1.loadSequenceNumber() == maxSeqNum);
-                a1.merge(b1);
+                REQUIRE(applyCheck(txFrame, *app));
             }
             SECTION("passed max = failure")
             {
                 maxSeqNum++;
                 a1.bumpSequence(maxSeqNum);
                 REQUIRE(a1.loadSequenceNumber() == maxSeqNum);
-                REQUIRE_THROWS_AS(a1.merge(b1),
-                                  ex_ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+
+                REQUIRE(!applyCheck(txFrame, *app));
+                REQUIRE(txFrame->getResult()
+                            .result.results()[0]
+                            .tr()
+                            .accountMergeResult()
+                            .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
             }
         });
     }

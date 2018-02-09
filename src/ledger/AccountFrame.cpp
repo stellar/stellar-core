@@ -233,10 +233,9 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
                                 "inflationdest, homedomain, thresholds, "
                                 "flags, lastmodified "
                                 "FROM accounts WHERE accountid=:v1");
-    int64 seqNumS;
     auto& st = prep.statement();
     st.exchange(into(account.balance));
-    st.exchange(into(seqNumS));
+    st.exchange(into(account.seqNum));
     st.exchange(into(account.numSubEntries));
     st.exchange(into(inflationDest, inflationDestInd));
     st.exchange(into(homeDomain));
@@ -255,7 +254,6 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         return nullptr;
     }
 
-    account.seqNum = static_cast<uint64>(seqNumS);
     account.homeDomain = homeDomain;
 
     bn::decode_b64(thresholds.begin(), thresholds.end(),
@@ -459,12 +457,10 @@ AccountFrame::storeUpdate(LedgerDelta& delta, Database& db, bool insert)
     string thresholds(bn::encode_b64(mAccountEntry.thresholds));
 
     {
-        int64 seqNumS = safeConvertToSigned<int64>(mAccountEntry.seqNum);
-
         soci::statement& st = prep.statement();
         st.exchange(use(actIDStrKey, "id"));
         st.exchange(use(mAccountEntry.balance, "v1"));
-        st.exchange(use(seqNumS, "v2"));
+        st.exchange(use(mAccountEntry.seqNum, "v2"));
         st.exchange(use(mAccountEntry.numSubEntries, "v3"));
         st.exchange(use(inflationDestStrKey, inflation_ind, "v4"));
         string homeDomain(mAccountEntry.homeDomain);

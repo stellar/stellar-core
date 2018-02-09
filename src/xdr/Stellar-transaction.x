@@ -671,9 +671,9 @@ default:
 enum BumpSequenceResultCode
 {
     // codes considered as "success" for the operation
-    BUMP_SEQUENCE_SUCCESS = 0
+    BUMP_SEQUENCE_SUCCESS = 0,
     // codes considered as "failure" for the operation
-    // (this operation never fails)
+    BUMP_SEQUENCE_BAD_SEQ = -1 // `bumpTo` is not within bounds
 };
 
 union BumpSequenceResult switch (BumpSequenceResultCode code)

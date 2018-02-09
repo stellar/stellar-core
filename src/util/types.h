@@ -80,24 +80,4 @@ bool iequals(std::string const& a, std::string const& b);
 bool operator>=(Price const& a, Price const& b);
 bool operator>(Price const& a, Price const& b);
 bool operator==(Price const& a, Price const& b);
-
-template <typename T, typename UT = std::make_unsigned<T>::type,
-          class = typename std::enable_if<std::is_signed<T>::value>::type>
-T
-safeConvertToSigned(UT x)
-{
-    T res;
-    UT m = static_cast<UT>(std::numeric_limits<T>::max());
-    if (x <= m)
-    {
-        res = x;
-    }
-    else
-    {
-        UT d = (x - m - 1);
-        assert(d <= static_cast<UT>(std::numeric_limits<T>::max()));
-        res = std::numeric_limits<T>::min() + static_cast<T>(d);
-    }
-    return res;
-}
 }

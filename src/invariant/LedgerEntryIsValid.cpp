@@ -106,6 +106,10 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae) const
     {
         return fmt::format("Account balance ({}) is negative", ae.balance);
     }
+    if (ae.seqNum < 0)
+    {
+        return fmt::format("Account seqNum ({}) is negative", ae.seqNum);
+    }
     if (ae.numSubEntries > INT32_MAX)
     {
         return fmt::format("Account numSubEntries ({}) exceeds limit ({})",

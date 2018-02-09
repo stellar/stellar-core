@@ -59,6 +59,14 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
 {
+    if (mBumpSequenceOp.bumpTo < 0)
+    {
+        app.getMetrics()
+            .NewMeter({"op-bump-sequence", "invalid", "bad-seq"}, "operation")
+            .Mark();
+        innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
+        return false;
+    }
     return true;
 }
 }

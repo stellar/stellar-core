@@ -4,6 +4,7 @@
 
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -94,11 +95,12 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (ledgerManager.getCurrentLedgerVersion() >= 10)
     {
-        SequenceNumber maxSeqNum =
-            ledgerManager.getCurrentLedgerHeader().ledgerSeq;
-        maxSeqNum = (maxSeqNum << 32) - 1;
+        SequenceNumber maxSeq = LedgerHeaderFrame::getStartingSequenceNumber(
+            ledgerManager.getCurrentLedgerHeader().ledgerSeq);
 
-        if (mSourceAccount->getSeqNum() > maxSeqNum)
+        // don't allow the account to be merged if recreating it would cause it
+        // to jump backwards
+        if (mSourceAccount->getSeqNum() >= maxSeq)
         {
             app.getMetrics()
                 .NewMeter({"op-merge", "failure", "too-far"}, "operation")

@@ -48,10 +48,10 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
             }
             SECTION("large bump")
             {
-                auto newSeq = UINT64_MAX;
+                auto newSeq = INT64_MAX;
                 a.bumpSequence(newSeq);
                 REQUIRE(a.loadSequenceNumber() == newSeq);
-                SECTION("no more tx when UINT64_MAX is reached")
+                SECTION("no more tx when INT64_MAX is reached")
                 {
                     REQUIRE_THROWS_AS(a.pay(root, 1), ex_txBAD_SEQ);
                 }
@@ -62,6 +62,12 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
                 a.bumpSequence(1);
                 // tx consumes sequence, bumpSequence doesn't do anything
                 REQUIRE(a.loadSequenceNumber() == oldSeq + 1);
+            }
+            SECTION("bad seq")
+            {
+                REQUIRE_THROWS_AS(a.bumpSequence(-1), ex_BUMP_SEQUENCE_BAD_SEQ);
+                REQUIRE_THROWS_AS(a.bumpSequence(INT64_MIN),
+                                  ex_BUMP_SEQUENCE_BAD_SEQ);
             }
         });
     }

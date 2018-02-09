@@ -310,7 +310,7 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         {
             current = mSigningAccount->getSeqNum();
         }
-        if (current == UINT64_MAX || current + 1 != mEnvelope.tx.seqNum)
+        if (current == INT64_MAX || current + 1 != mEnvelope.tx.seqNum)
         {
             app.getMetrics()
                 .NewMeter({"transaction", "invalid", "bad-seq"}, "transaction")
