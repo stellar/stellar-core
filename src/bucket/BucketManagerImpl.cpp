@@ -16,6 +16,7 @@
 #include "util/types.h"
 #include <fstream>
 #include <map>
+#include <regex>
 #include <set>
 
 #include "medida/counter.h"
@@ -211,11 +212,10 @@ BucketManagerImpl::getBucketByHash(uint256 const& hash)
     return std::shared_ptr<Bucket>();
 }
 
-void
-BucketManagerImpl::forgetUnreferencedBuckets()
+std::set<Hash>
+BucketManagerImpl::getReferencedBuckets() const
 {
-    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
-    std::set<Hash> referenced;
+    auto referenced = std::set<Hash>{};
     for (uint32_t i = 0; i < BucketList::kNumLevels; ++i)
     {
         auto const& level = mBucketList.getLevel(i);
@@ -239,6 +239,48 @@ BucketManagerImpl::forgetUnreferencedBuckets()
             referenced.insert(hexToBin256(h));
         }
     }
+
+    return referenced;
+}
+
+void
+BucketManagerImpl::cleanupStaleFiles()
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    auto referenced = getReferencedBuckets();
+    std::transform(std::begin(mSharedBuckets), std::end(mSharedBuckets),
+                   std::inserter(referenced, std::end(referenced)),
+                   [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
+                       return p.first;
+                   });
+
+    auto isBucketFile = [](std::string const& name) {
+        static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
+        return std::regex_match(name, re);
+    };
+    auto extractFromFilename = [](std::string const& name) {
+        return hexToBin256(name.substr(7, 64));
+    };
+
+    for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
+    {
+        auto hash = extractFromFilename(f);
+        if (referenced.find(hash) == std::end(referenced))
+        {
+            // we don't care about failure here
+            // if removing file failed one time, it may not fail when this is
+            // called again
+            auto fullName = getBucketDir() + "/" + f;
+            std::remove(fullName.c_str());
+        }
+    }
+}
+
+void
+BucketManagerImpl::forgetUnreferencedBuckets()
+{
+    std::lock_guard<std::recursive_mutex> lock(mBucketMutex);
+    auto referenced = getReferencedBuckets();
 
     for (auto i = mSharedBuckets.begin(); i != mSharedBuckets.end();)
     {
@@ -351,6 +393,7 @@ BucketManagerImpl::assumeState(HistoryArchiveState const& has)
     }
 
     mBucketList.restartMerges(mApp);
+    cleanupStaleFiles();
 }
 
 void
