@@ -9,6 +9,7 @@
 #include "crypto/KeyUtils.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerManager.h"
+#include "main/ExternalQueue.h"
 #include "scp/LocalNode.h"
 #include "util/Logging.h"
 #include "util/types.h"
@@ -267,6 +268,18 @@ Config::load(std::string const& filename)
             else if (item.first == "UNSAFE_QUORUM")
             {
                 UNSAFE_QUORUM = readBool(item);
+            }
+            else if (item.first == "KNOWN_CURSORS")
+            {
+                KNOWN_CURSORS = readStringArray(item);
+                for (auto const& c : KNOWN_CURSORS)
+                {
+                    if (!ExternalQueue::validateResourceID(c))
+                    {
+                        throw std::invalid_argument(
+                            fmt::format("invalid cursor: \"{}\"", c));
+                    }
+                }
             }
             else if (item.first == "RUN_STANDALONE")
             {

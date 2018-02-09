@@ -21,6 +21,10 @@ class ExternalQueue
     // checks if a given resource ID is well formed
     static bool validateResourceID(std::string const& resid);
 
+    // sets initial cursors for given resource (if not already present)
+    void setInitialCursors(std::vector<std::string> const& initialResids);
+    // sets the cursor of a given resource if not already present
+    void addCursorForResource(std::string const& resid, uint32 cursor);
     // sets the cursor of a given resource
     void setCursorForResource(std::string const& resid, uint32 cursor);
     // gets the cursor of a given resource, gets all cursors of resid is empty
