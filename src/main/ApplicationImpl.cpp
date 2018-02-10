@@ -69,6 +69,7 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
     , mAppStateChanges(mMetrics->NewTimer({"app", "state", "changes"}))
     , mLastStateChange(clock.now())
+    , mStartedOn(clock.now())
 {
 #ifdef SIGQUIT
     mStopSignals.add(SIGQUIT);
@@ -226,6 +227,7 @@ ApplicationImpl::getJsonInfo()
     info["build"] = STELLAR_CORE_VERSION;
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
+    info["startedOn"] = VirtualClock::pointToISOString(mStartedOn);
     info["ledger"]["num"] = (int)lm.getLedgerNum();
     auto const& lcl = lm.getLastClosedLedgerHeader();
     info["ledger"]["hash"] = binToHex(lcl.hash);
