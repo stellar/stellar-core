@@ -71,10 +71,22 @@ BucketManagerImpl::BucketManagerImpl(Application& app)
 
 const std::string BucketManagerImpl::kLockFilename = "stellar-core.lock";
 
-static std::string
+namespace
+{
+std::string
 bucketBasename(std::string const& bucketHexHash)
 {
     return "bucket-" + bucketHexHash + ".xdr";
+}
+
+bool isBucketFile(std::string const& name) {
+    static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
+    return std::regex_match(name, re);
+};
+
+uint256 extractFromFilename(std::string const& name) {
+    return hexToBin256(name.substr(7, 64));
+};
 }
 
 std::string
@@ -253,14 +265,6 @@ BucketManagerImpl::cleanupStaleFiles()
                    [](std::pair<Hash, std::shared_ptr<Bucket>> const& p) {
                        return p.first;
                    });
-
-    auto isBucketFile = [](std::string const& name) {
-        static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
-        return std::regex_match(name, re);
-    };
-    auto extractFromFilename = [](std::string const& name) {
-        return hexToBin256(name.substr(7, 64));
-    };
 
     for (auto f : fs::findfiles(getBucketDir(), isBucketFile))
     {
