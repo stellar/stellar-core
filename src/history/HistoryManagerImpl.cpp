@@ -566,17 +566,20 @@ HistoryManagerImpl::getPublishQueueStates()
     return states;
 }
 
-std::vector<std::string>
+PublishQueueBuckets::storage
 HistoryManagerImpl::loadBucketsReferencedByPublishQueue()
 {
     auto states = getPublishQueueStates();
-    std::set<std::string> buckets;
+    auto result = PublishQueueBuckets::storage{};
     for (auto const& s : states)
     {
         auto sb = s.allBuckets();
-        buckets.insert(sb.begin(), sb.end());
+        for (auto const& b : sb)
+        {
+            result[b]++;
+        }
     }
-    return std::vector<std::string>(buckets.begin(), buckets.end());
+    return result;
 }
 
 std::vector<std::string>
@@ -584,7 +587,7 @@ HistoryManagerImpl::getBucketsReferencedByPublishQueue()
 {
     if (!mPublishQueueBucketsFilled)
     {
-        mPublishQueueBuckets.addBuckets(loadBucketsReferencedByPublishQueue());
+        mPublishQueueBuckets.setBuckets(loadBucketsReferencedByPublishQueue());
         mPublishQueueBucketsFilled = true;
     }
 
