@@ -43,6 +43,7 @@ bool mkdir(std::string const& path);
 bool mkpath(std::string const& path);
 
 // Get list of all files with names matching predicate
+// Returned names are relative to path
 std::vector<std::string>
 findfiles(std::string const& path,
           std::function<bool(std::string const& name)> predicate);
