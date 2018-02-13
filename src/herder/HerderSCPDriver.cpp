@@ -627,7 +627,8 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
 {
     std::string res;
     Json::Value v;
-    mApp.getHerder().dumpQuorumInfo(v, mSCP.getLocalNodeID(), true, index);
+    mApp.getHerder().dumpQuorumInfo(
+        v, mApp.getConfig().NODE_SEED.getPublicKey(), true, index);
     auto slots = v.get("slots", "");
     if (!slots.empty())
     {
