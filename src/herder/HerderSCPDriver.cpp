@@ -64,8 +64,6 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
     , mPendingEnvelopes{pendingEnvelopes}
-    , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
-           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
     , mLastStateChange{mApp.getClock().now()}
 {

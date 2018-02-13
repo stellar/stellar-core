@@ -22,7 +22,6 @@ class Application;
 class HerderImpl;
 class LedgerManager;
 class PendingEnvelopes;
-class SCP;
 class Upgrades;
 class VirtualTimer;
 struct StellarValue;
@@ -81,12 +80,6 @@ class HerderSCPDriver : public SCPDriver
         return lastConsensusLedgerIndex() + 1;
     }
 
-    SCP&
-    getSCP()
-    {
-        return mSCP;
-    }
-
     // envelope handling
     void signEnvelope(SCPEnvelope& envelope) override;
     bool verifyEnvelope(SCPEnvelope const& envelope) override;
@@ -133,7 +126,6 @@ class HerderSCPDriver : public SCPDriver
     LedgerManager& mLedgerManager;
     Upgrades const& mUpgrades;
     PendingEnvelopes& mPendingEnvelopes;
-    SCP mSCP;
 
     struct SCPMetrics
     {

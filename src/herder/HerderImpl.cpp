@@ -71,16 +71,18 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
-    , mPendingEnvelopes(app, *this)
-    , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
-    , mLastSlotSaved(0)
-    , mTrackingTimer(app)
-    , mLastTrigger(app.getClock().now())
-    , mTriggerTimer(app)
-    , mRebroadcastTimer(app)
     , mApp(app)
-    , mLedgerManager(app.getLedgerManager())
-    , mSCPMetrics(app)
+    , mPendingEnvelopes(mApp, *this)
+    , mHerderSCPDriver(mApp, *this, mUpgrades, mPendingEnvelopes)
+    , mSCP(mHerderSCPDriver, mApp.getConfig().NODE_SEED.getPublicKey(),
+           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
+    , mLastSlotSaved(0)
+    , mTrackingTimer(mApp)
+    , mLastTrigger(mApp.getClock().now())
+    , mTriggerTimer(mApp)
+    , mRebroadcastTimer(mApp)
+    , mLedgerManager(mApp.getLedgerManager())
+    , mSCPMetrics(mApp)
 {
     Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
     mPendingEnvelopes.addSCPQuorumSet(hash,
@@ -100,7 +102,7 @@ HerderImpl::getState() const
 SCP&
 HerderImpl::getSCP()
 {
-    return mHerderSCPDriver.getSCP();
+    return mSCP;
 }
 
 void
