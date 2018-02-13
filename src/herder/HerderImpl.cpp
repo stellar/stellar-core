@@ -803,8 +803,20 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
-    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
-                              lcl.header.scpValue);
+    // Submit a value to consider for slotIndex
+    // previousValue is the value from slotIndex-1
+    auto currentValue = xdr::xdr_to_opaque(newProposedValue);
+    auto valueHash = sha256(xdr::xdr_to_opaque(currentValue));
+    CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
+                          << " txSet.size: "
+                          << proposedSet->mTransactions.size()
+                          << " previousLedgerHash: "
+                          << hexAbbrev(proposedSet->previousLedgerHash())
+                          << " value: " << hexAbbrev(valueHash)
+                          << " slot: " << slotIndex;
+
+    auto prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
+    getSCP().nominate(slotIndex, currentValue, prevValue);
 }
 
 void

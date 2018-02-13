@@ -632,25 +632,6 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
     }
 }
 
-void
-HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetFramePtr proposedSet,
-                          StellarValue const& previousValue)
-{
-    auto currentValue = xdr::xdr_to_opaque(value);
-    auto valueHash = sha256(xdr::xdr_to_opaque(currentValue));
-    CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
-                          << " txSet.size: "
-                          << proposedSet->mTransactions.size()
-                          << " previousLedgerHash: "
-                          << hexAbbrev(proposedSet->previousLedgerHash())
-                          << " value: " << hexAbbrev(valueHash)
-                          << " slot: " << slotIndex;
-
-    auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(slotIndex, currentValue, prevValue);
-}
-
 SCPQuorumSetPtr
 HerderSCPDriver::getQSet(Hash const& qSetHash)
 {

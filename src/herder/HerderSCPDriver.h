@@ -112,11 +112,6 @@ class HerderSCPDriver : public SCPDriver
                             std::set<Value> const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
-    // Submit a value to consider for slotIndex
-    // previousValue is the value from slotIndex-1
-    void nominate(uint64_t slotIndex, StellarValue const& value,
-                  TxSetFramePtr proposedSet, StellarValue const& previousValue);
-
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     // listeners
