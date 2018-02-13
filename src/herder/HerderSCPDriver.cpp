@@ -596,17 +596,6 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         logQuorumInformation(slotIndex - 2);
     }
 
-    if (!mCurrentValue.empty())
-    {
-        // stop nomination
-        // this may or may not be the ledger that is currently externalizing
-        // in both cases, we want to stop nomination as:
-        // either we're closing the current ledger (typical case)
-        // or we're going to trigger catchup from history
-        mSCP.stopNomination(mLedgerSeqNominating);
-        mCurrentValue.clear();
-    }
-
     if (!mTrackingSCP)
     {
         stateChanged();
@@ -648,10 +637,8 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
                           TxSetFramePtr proposedSet,
                           StellarValue const& previousValue)
 {
-    mCurrentValue = xdr::xdr_to_opaque(value);
-    mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
-
-    auto valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
+    auto currentValue = xdr::xdr_to_opaque(value);
+    auto valueHash = sha256(xdr::xdr_to_opaque(currentValue));
     CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
                           << " txSet.size: "
                           << proposedSet->mTransactions.size()
@@ -661,7 +648,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
                           << " slot: " << slotIndex;
 
     auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
+    mSCP.nominate(slotIndex, currentValue, prevValue);
 }
 
 SCPQuorumSetPtr

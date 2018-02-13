@@ -169,9 +169,6 @@ class HerderSCPDriver : public SCPDriver
 
     SCPMetrics mSCPMetrics;
 
-    uint32_t mLedgerSeqNominating;
-    Value mCurrentValue;
-
     // timers used by SCP
     // indexed by slotIndex, timerID
     std::map<uint64_t, std::map<int, std::unique_ptr<VirtualTimer>>> mSCPTimers;

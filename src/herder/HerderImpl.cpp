@@ -170,6 +170,17 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    // stop nomination
+    // this may or may not be the ledger that is currently externalizing
+    // in both cases, we want to stop nomination as:
+    // either we're closing the current ledger (typical case)
+    // or we're going to trigger catchup from history
+    for (auto i = getSCP().getLowSlotIndex(); i <= getSCP().getHighSlotIndex();
+         i++)
+    {
+        getSCP().stopNomination(i);
+    }
+
     updateSCPCounters();
 
     // called both here and at the end (this one is in case of an exception)
