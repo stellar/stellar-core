@@ -35,7 +35,7 @@ class HistoryManagerImpl : public HistoryManager
     medida::Meter& mPublishSuccess;
     medida::Meter& mPublishFailure;
 
-    PublishQueueBuckets::storage loadBucketsReferencedByPublishQueue();
+    PublishQueueBuckets::BucketCount loadBucketsReferencedByPublishQueue();
 
   public:
     HistoryManagerImpl(Application& app);

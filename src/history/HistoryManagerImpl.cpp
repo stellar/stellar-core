@@ -566,11 +566,11 @@ HistoryManagerImpl::getPublishQueueStates()
     return states;
 }
 
-PublishQueueBuckets::storage
+PublishQueueBuckets::BucketCount
 HistoryManagerImpl::loadBucketsReferencedByPublishQueue()
 {
     auto states = getPublishQueueStates();
-    auto result = PublishQueueBuckets::storage{};
+    PublishQueueBuckets::BucketCount result{};
     for (auto const& s : states)
     {
         auto sb = s.allBuckets();

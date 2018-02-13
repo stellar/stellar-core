@@ -8,7 +8,7 @@ namespace stellar
 {
 
 void
-PublishQueueBuckets::setBuckets(storage const& buckets)
+PublishQueueBuckets::setBuckets(BucketCount const& buckets)
 {
     mBucketUsage = buckets;
 }

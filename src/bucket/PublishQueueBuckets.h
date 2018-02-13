@@ -14,9 +14,9 @@ namespace stellar
 class PublishQueueBuckets
 {
   public:
-    using storage = std::map<std::string, int>;
+    using BucketCount = std::map<std::string, int>;
 
-    void setBuckets(storage const& buckets);
+    void setBuckets(BucketCount const& buckets);
 
     void addBuckets(std::vector<std::string> const& buckets);
     void addBucket(std::string const& bucket);
@@ -24,13 +24,13 @@ class PublishQueueBuckets
     void removeBuckets(std::vector<std::string> const& buckets);
     void removeBucket(std::string const& bucket);
 
-    storage const&
+    BucketCount const&
     map() const
     {
         return mBucketUsage;
     }
 
   private:
-    storage mBucketUsage;
+    BucketCount mBucketUsage;
 };
 }
