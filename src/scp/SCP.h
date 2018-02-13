@@ -26,7 +26,7 @@ class SCP
     SCPDriver& mDriver;
 
   public:
-    SCP(SCPDriver& driver, SecretKey const& secretKey, bool isValidator,
+    SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
         SCPQuorumSet const& qSetLocal);
 
     SCPDriver&
@@ -86,9 +86,6 @@ class SCP
     // Purges all data relative to all the slots whose slotIndex is smaller
     // than the specified `maxSlotIndex`.
     void purgeSlots(uint64 maxSlotIndex);
-
-    // Retrieves the local secret key as specified at construction
-    SecretKey const& getSecretKey();
 
     // Returns whether the local node is a validator.
     bool isValidator();

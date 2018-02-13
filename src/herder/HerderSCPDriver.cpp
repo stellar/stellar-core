@@ -64,7 +64,7 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
     , mPendingEnvelopes{pendingEnvelopes}
-    , mSCP(*this, mApp.getConfig().NODE_SEED,
+    , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
     , mLastStateChange{mApp.getClock().now()}
@@ -130,7 +130,7 @@ void
 HerderSCPDriver::signEnvelope(SCPEnvelope& envelope)
 {
     mSCPMetrics.mEnvelopeSign.Mark();
-    envelope.signature = mSCP.getSecretKey().sign(xdr::xdr_to_opaque(
+    envelope.signature = mApp.getConfig().NODE_SEED.sign(xdr::xdr_to_opaque(
         mApp.getNetworkID(), ENVELOPE_TYPE_SCP, envelope.statement));
 }
 

@@ -34,12 +34,12 @@ class TestSCP : public SCPDriver
   public:
     SCP mSCP;
 
-    TestSCP(SecretKey const& secretKey, SCPQuorumSet const& qSetLocal,
+    TestSCP(NodeID const& nodeID, SCPQuorumSet const& qSetLocal,
             bool isValidator = true)
-        : mSCP(*this, secretKey, isValidator, qSetLocal)
+        : mSCP(*this, nodeID, isValidator, qSetLocal)
     {
         mPriorityLookup = [&](NodeID const& n) {
-            return (n == secretKey.getPublicKey()) ? 1000 : 1;
+            return (n == nodeID) ? 1000 : 1;
         };
 
         mHashValueCalculator = [&](Value const& v) { return 0; };
@@ -519,7 +519,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
 
-    TestSCP scp(v0SecretKey, qSet);
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
 
     scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
     uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
@@ -1920,7 +1920,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     SECTION("non validator watching the network")
     {
         SIMULATION_CREATE_NODE(NV);
-        TestSCP scpNV(vNVSecretKey, qSet, false);
+        TestSCP scpNV(vNVSecretKey.getPublicKey(), qSet, false);
         scpNV.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
         uint256 qSetHashNV = scpNV.mSCP.getLocalNode()->getQuorumSetHash();
 
@@ -1949,7 +1949,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
 
     SECTION("restore ballot protocol")
     {
-        TestSCP scp2(v0SecretKey, qSet);
+        TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
         scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
         SCPBallot b(2, xValue);
         SECTION("prepare")
@@ -1995,7 +1995,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 
     SECTION("nomination - v0 is top")
     {
-        TestSCP scp(v0SecretKey, qSet);
+        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
         uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
@@ -2102,7 +2102,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
             }
             SECTION("nomination - restored state")
             {
-                TestSCP scp2(v0SecretKey, qSet);
+                TestSCP scp2(v0SecretKey.getPublicKey(), qSet);
                 scp2.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
                 // at this point
@@ -2248,7 +2248,7 @@ TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
     }
     SECTION("v1 is top node")
     {
-        TestSCP scp(v0SecretKey, qSet);
+        TestSCP scp(v0SecretKey.getPublicKey(), qSet);
         uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
         scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
 
