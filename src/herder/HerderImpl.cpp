@@ -866,7 +866,7 @@ void
 HerderImpl::dumpInfo(Json::Value& ret, size_t limit)
 {
     ret["you"] =
-        mApp.getConfig().toStrKey(getSCP().getSecretKey().getPublicKey());
+        mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
 
     getSCP().dumpInfo(ret, limit);
 
