@@ -596,7 +596,7 @@ Maintenance here refers to anything involving taking your validator temporarily 
 the network (to apply security patches, system upgrade, etc).
 
 As an administrator of a validator, you must ensure that the maintenance you are
-about to take on a validator is safe for the overall network and for your validator.
+about to apply to the validator is safe for the overall network and for your validator.
 Safe means that the other validators that depend on yours will not be affected
 too much when you turn off your validator for maintenance and that your validator
 will continue to operate as part of the network when it comes back up.
