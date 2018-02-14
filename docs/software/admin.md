@@ -603,7 +603,7 @@ will continue to operate as part of the network when it comes back up.
 
 If you are changing some settings that may impact network wide settings, such as
 upgrading to a new version of stellar-core that supports a new version of the
-protocol or if you're updating other network wide settings such , review the
+protocol or if you're updating other network wide settings, review the
 section "Important notes on network wide settings".
 
 We recommend performing the following steps in order (once per machine if you
