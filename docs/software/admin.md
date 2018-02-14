@@ -378,7 +378,7 @@ up to them! All you need is to have a good overlap across the population of
 
 If you are running a single node, your best bet is to configure your QUORUM_SET
 organized such that the validators you consider "stable" are at the top of
-the list "Stable", and other nodes that you are not ready yet to fully relly
+the list "Stable", and other nodes that you are not ready yet to fully rely
  on, but that you are considering for your stable list under various "Trial"
  groups. Individual trial groups have the same weight than a single stable
  validator when configured as below.
