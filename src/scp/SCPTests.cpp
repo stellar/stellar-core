@@ -39,7 +39,7 @@ class TestSCP : public SCPDriver
         : mSCP(*this, nodeID, isValidator, qSetLocal)
     {
         mPriorityLookup = [&](NodeID const& n) {
-            return (n == nodeID) ? 1000 : 1;
+            return (n == mSCP.getLocalNodeID()) ? 1000 : 1;
         };
 
         mHashValueCalculator = [&](Value const& v) { return 0; };
