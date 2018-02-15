@@ -414,8 +414,11 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     }
     auto& timer = *it->second;
     timer.cancel();
-    timer.expires_from_now(timeout);
-    timer.async_wait(cb, &VirtualTimer::onFailureNoop);
+    if (cb)
+    {
+        timer.expires_from_now(timeout);
+        timer.async_wait(cb, &VirtualTimer::onFailureNoop);
+    }
 }
 
 // core SCP
