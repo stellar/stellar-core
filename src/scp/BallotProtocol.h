@@ -260,5 +260,6 @@ class BallotProtocol
     bool federatedRatify(StatementPredicate voted);
 
     void startBallotProtocolTimer();
+    void checkHeardFromQuorum();
 };
 }

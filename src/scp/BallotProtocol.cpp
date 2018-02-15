@@ -1804,30 +1804,7 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
     // we do this here so that we have a chance to evaluate it between
     // transitions
     // when a single message causes several
-    if (!mHeardFromQuorum && mCurrentBallot)
-    {
-        if (LocalNode::isQuorum(
-                getLocalNode()->getQuorumSet(), mLatestEnvelopes,
-                std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-                [&](SCPStatement const& st) {
-                    bool res;
-                    if (st.pledges.type() == SCP_ST_PREPARE)
-                    {
-                        res = mCurrentBallot->counter <=
-                              st.pledges.prepare().ballot.counter;
-                    }
-                    else
-                    {
-                        res = true;
-                    }
-                    return res;
-                }))
-        {
-            mHeardFromQuorum = true;
-            mSlot.getSCPDriver().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
-                                                         *mCurrentBallot);
-        }
-    }
+    checkHeardFromQuorum();
 
     // attempt* methods will queue up messages, causing advanceSlot to be
     // called recursively
@@ -2089,5 +2066,34 @@ bool
 BallotProtocol::federatedRatify(StatementPredicate voted)
 {
     return mSlot.federatedRatify(voted, mLatestEnvelopes);
+}
+
+void
+BallotProtocol::checkHeardFromQuorum()
+{
+    if (!mHeardFromQuorum && mCurrentBallot)
+    {
+        if (LocalNode::isQuorum(
+            getLocalNode()->getQuorumSet(), mLatestEnvelopes,
+            std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
+            [&](SCPStatement const& st) {
+            bool res;
+            if (st.pledges.type() == SCP_ST_PREPARE)
+            {
+                res = mCurrentBallot->counter <=
+                    st.pledges.prepare().ballot.counter;
+            }
+            else
+            {
+                res = true;
+            }
+            return res;
+        }))
+        {
+            mHeardFromQuorum = true;
+            mSlot.getSCPDriver().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
+                *mCurrentBallot);
+        }
+    }
 }
 }
