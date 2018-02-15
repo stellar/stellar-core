@@ -378,7 +378,7 @@ up to them! All you need is to have a good overlap across the population of
 
 If you are running a single node, your best bet is to configure your QUORUM_SET
 organized such that the validators you consider "stable" are at the top of
-the list "Stable", and other nodes that you are not ready yet to fully relly
+the list "Stable", and other nodes that you are not ready yet to fully rely
  on, but that you are considering for your stable list under various "Trial"
  groups. Individual trial groups have the same weight than a single stable
  validator when configured as below.
@@ -596,14 +596,14 @@ Maintenance here refers to anything involving taking your validator temporarily 
 the network (to apply security patches, system upgrade, etc).
 
 As an administrator of a validator, you must ensure that the maintenance you are
-about to take on a validator is safe for the overall network and for your validator.
+about to apply to the validator is safe for the overall network and for your validator.
 Safe means that the other validators that depend on yours will not be affected
 too much when you turn off your validator for maintenance and that your validator
 will continue to operate as part of the network when it comes back up.
 
 If you are changing some settings that may impact network wide settings, such as
 upgrading to a new version of stellar-core that supports a new version of the
-protocol or if you're updating other network wide settings such , review the
+protocol or if you're updating other network wide settings, review the
 section "Important notes on network wide settings".
 
 We recommend performing the following steps in order (once per machine if you

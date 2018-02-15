@@ -136,7 +136,7 @@ debugging purpose).
 * **tx**
   `/tx?blob=Base64`<br>
   submit a [transaction](../../learn/concepts/transactions.md) to the network.
-  blob is a base64 encoded XDR serialized 'TransactionEnvelope'
+  blob is a base64 encoded XDR serialized 'TransactionEnvelope', and it
   returns a JSON object with the following properties
   status:
     * "PENDING" - transaction is being considered by consensus
@@ -159,7 +159,7 @@ debugging purpose).
     * maxtxsize (uint32) This defines the maximum number of transactions 
         to include in a ledger. When too many transactions are pending, 
         surge pricing is applied. The instance picks the top maxtxsize
-         transactions locally to be considered in the next ledger.Where 
+         transactions locally to be considered in the next ledger. Where 
         transactions are ordered by transaction fee(lower fee transactions
          are held for later).<br>
     * protocolversion (uint32) defines the protocol version to upgrade to.
