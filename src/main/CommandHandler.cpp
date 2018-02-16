@@ -421,7 +421,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             {
                 autoRate = true;
             }
-            maybeParseNumParam(map, "txrate", txRate);
+            else
+            {
+                maybeParseNumParam(map, "txrate", txRate);
+            }
         }
 
         double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
