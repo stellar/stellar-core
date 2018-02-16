@@ -64,8 +64,6 @@ HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
     , mPendingEnvelopes{pendingEnvelopes}
-    , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
-           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
     , mLastStateChange{mApp.getClock().now()}
 {
@@ -596,17 +594,6 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         logQuorumInformation(slotIndex - 2);
     }
 
-    if (!mCurrentValue.empty())
-    {
-        // stop nomination
-        // this may or may not be the ledger that is currently externalizing
-        // in both cases, we want to stop nomination as:
-        // either we're closing the current ledger (typical case)
-        // or we're going to trigger catchup from history
-        mSCP.stopNomination(mLedgerSeqNominating);
-        mCurrentValue.clear();
-    }
-
     if (!mTrackingSCP)
     {
         stateChanged();
@@ -627,7 +614,8 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
 {
     std::string res;
     Json::Value v;
-    mApp.getHerder().dumpQuorumInfo(v, mSCP.getLocalNodeID(), true, index);
+    mApp.getHerder().dumpQuorumInfo(
+        v, mApp.getConfig().NODE_SEED.getPublicKey(), true, index);
     auto slots = v.get("slots", "");
     if (!slots.empty())
     {
@@ -640,27 +628,6 @@ HerderSCPDriver::logQuorumInformation(uint64_t index)
                 << "Quorum information for " << index << " : " << fw.write(i);
         }
     }
-}
-
-void
-HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
-                          TxSetFramePtr proposedSet,
-                          StellarValue const& previousValue)
-{
-    mCurrentValue = xdr::xdr_to_opaque(value);
-    mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
-
-    auto valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
-    CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
-                          << " txSet.size: "
-                          << proposedSet->mTransactions.size()
-                          << " previousLedgerHash: "
-                          << hexAbbrev(proposedSet->previousLedgerHash())
-                          << " value: " << hexAbbrev(valueHash)
-                          << " slot: " << slotIndex;
-
-    auto prevValue = xdr::xdr_to_opaque(previousValue);
-    mSCP.nominate(slotIndex, mCurrentValue, prevValue);
 }
 
 SCPQuorumSetPtr

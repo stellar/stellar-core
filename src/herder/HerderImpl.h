@@ -123,9 +123,11 @@ class HerderImpl : public Herder
     void
     updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
 
+    Application& mApp;
     PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
+    SCP mSCP;
 
     void herderOutOfSync();
 
@@ -155,7 +157,6 @@ class HerderImpl : public Herder
 
     VirtualTimer mRebroadcastTimer;
 
-    Application& mApp;
     LedgerManager& mLedgerManager;
 
     struct SCPMetrics

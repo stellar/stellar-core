@@ -22,7 +22,6 @@ class Application;
 class HerderImpl;
 class LedgerManager;
 class PendingEnvelopes;
-class SCP;
 class Upgrades;
 class VirtualTimer;
 struct StellarValue;
@@ -81,12 +80,6 @@ class HerderSCPDriver : public SCPDriver
         return lastConsensusLedgerIndex() + 1;
     }
 
-    SCP&
-    getSCP()
-    {
-        return mSCP;
-    }
-
     // envelope handling
     void signEnvelope(SCPEnvelope& envelope) override;
     bool verifyEnvelope(SCPEnvelope const& envelope) override;
@@ -112,11 +105,6 @@ class HerderSCPDriver : public SCPDriver
                             std::set<Value> const& candidates) override;
     void valueExternalized(uint64_t slotIndex, Value const& value) override;
 
-    // Submit a value to consider for slotIndex
-    // previousValue is the value from slotIndex-1
-    void nominate(uint64_t slotIndex, StellarValue const& value,
-                  TxSetFramePtr proposedSet, StellarValue const& previousValue);
-
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     // listeners
@@ -138,7 +126,6 @@ class HerderSCPDriver : public SCPDriver
     LedgerManager& mLedgerManager;
     Upgrades const& mUpgrades;
     PendingEnvelopes& mPendingEnvelopes;
-    SCP mSCP;
 
     struct SCPMetrics
     {
@@ -168,9 +155,6 @@ class HerderSCPDriver : public SCPDriver
     };
 
     SCPMetrics mSCPMetrics;
-
-    uint32_t mLedgerSeqNominating;
-    Value mCurrentValue;
 
     // timers used by SCP
     // indexed by slotIndex, timerID

@@ -71,16 +71,18 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
-    , mPendingEnvelopes(app, *this)
-    , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
-    , mLastSlotSaved(0)
-    , mTrackingTimer(app)
-    , mLastTrigger(app.getClock().now())
-    , mTriggerTimer(app)
-    , mRebroadcastTimer(app)
     , mApp(app)
-    , mLedgerManager(app.getLedgerManager())
-    , mSCPMetrics(app)
+    , mPendingEnvelopes(mApp, *this)
+    , mHerderSCPDriver(mApp, *this, mUpgrades, mPendingEnvelopes)
+    , mSCP(mHerderSCPDriver, mApp.getConfig().NODE_SEED.getPublicKey(),
+           mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
+    , mLastSlotSaved(0)
+    , mTrackingTimer(mApp)
+    , mLastTrigger(mApp.getClock().now())
+    , mTriggerTimer(mApp)
+    , mRebroadcastTimer(mApp)
+    , mLedgerManager(mApp.getLedgerManager())
+    , mSCPMetrics(mApp)
 {
     Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
     mPendingEnvelopes.addSCPQuorumSet(hash,
@@ -100,7 +102,7 @@ HerderImpl::getState() const
 SCP&
 HerderImpl::getSCP()
 {
-    return mHerderSCPDriver.getSCP();
+    return mSCP;
 }
 
 void
@@ -170,6 +172,17 @@ findOrAdd(HerderImpl::AccountTxMap& acc, AccountID const& aid)
 void
 HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
 {
+    // stop nomination
+    // this may or may not be the ledger that is currently externalizing
+    // in both cases, we want to stop nomination as:
+    // either we're closing the current ledger (typical case)
+    // or we're going to trigger catchup from history
+    for (auto i = getSCP().getLowSlotIndex(); i <= getSCP().getHighSlotIndex();
+         i++)
+    {
+        getSCP().stopNomination(i);
+    }
+
     updateSCPCounters();
 
     // called both here and at the end (this one is in case of an exception)
@@ -792,8 +805,20 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         }
     }
 
-    mHerderSCPDriver.nominate(slotIndex, newProposedValue, proposedSet,
-                              lcl.header.scpValue);
+    // Submit a value to consider for slotIndex
+    // previousValue is the value from slotIndex-1
+    auto currentValue = xdr::xdr_to_opaque(newProposedValue);
+    auto valueHash = sha256(xdr::xdr_to_opaque(currentValue));
+    CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
+                          << " txSet.size: "
+                          << proposedSet->mTransactions.size()
+                          << " previousLedgerHash: "
+                          << hexAbbrev(proposedSet->previousLedgerHash())
+                          << " value: " << hexAbbrev(valueHash)
+                          << " slot: " << slotIndex;
+
+    auto prevValue = xdr::xdr_to_opaque(lcl.header.scpValue);
+    getSCP().nominate(slotIndex, currentValue, prevValue);
 }
 
 void
