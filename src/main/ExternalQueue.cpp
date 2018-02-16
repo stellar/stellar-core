@@ -24,7 +24,6 @@ string ExternalQueue::kSQLCreateStatement =
 
 ExternalQueue::ExternalQueue(Application& app) : mApp(app)
 {
-    mApp.getDatabase().getSession() << kSQLCreateStatement;
 }
 
 void
