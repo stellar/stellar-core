@@ -408,7 +408,8 @@ Config::load(std::string const& filename)
             }
             else if (item.first == "MAX_CONCURRENT_SUBPROCESSES")
             {
-                MAX_CONCURRENT_SUBPROCESSES = readInt<size_t>(item, 1);
+                MAX_CONCURRENT_SUBPROCESSES =
+                    static_cast<size_t>(readInt<int>(item, 1));
             }
             else if (item.first == "MINIMUM_IDLE_PERCENT")
             {

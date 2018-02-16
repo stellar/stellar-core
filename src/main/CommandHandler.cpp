@@ -421,7 +421,10 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             {
                 autoRate = true;
             }
-            maybeParseNumParam(map, "txrate", txRate);
+            else
+            {
+                maybeParseNumParam(map, "txrate", txRate);
+            }
         }
 
         double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
@@ -514,23 +517,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
-    uint32_t ledger = 0;
-    auto ledgerP = retMap.find("ledger");
-    if (ledgerP == retMap.end())
-    {
-        retStr = "Missing required parameter 'ledger=NNN'";
-        return;
-    }
-    else
-    {
-        std::stringstream str(ledgerP->second);
-        str >> ledger;
-        if (ledger == 0)
-        {
-            retStr = "Failed to parse ledger number";
-            return;
-        }
-    }
+    uint32_t ledger = parseNumParam<uint32_t>(retMap, "ledger");
 
     auto modeP = retMap.find("mode");
     if (modeP != retMap.end())
@@ -777,15 +764,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
 
     size_t lim = 2;
-    std::string limStr = retMap["limit"];
-    if (!limStr.empty())
-    {
-        size_t n = strtoul(limStr.c_str(), NULL, 0);
-        if (n != 0)
-        {
-            lim = n;
-        }
-    }
+    maybeParseNumParam(retMap, "limit", lim);
 
     mApp.getHerder().dumpInfo(root, lim);
 

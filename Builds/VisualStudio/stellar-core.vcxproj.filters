@@ -840,6 +840,9 @@
     <ClCompile Include="..\..\src\history\SerializeTests.cpp">
       <Filter>history\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\Maintainer.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1444,6 +1447,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\MinimumAccountBalance.h">
       <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\Maintainer.h">
+      <Filter>main</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
