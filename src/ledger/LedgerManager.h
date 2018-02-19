@@ -159,16 +159,18 @@ class LedgerManager
     // local buffer in which LedgerManager accumulates SCP consensus results
     // during catchup
     //
-    // If catchup is manual then that buffer is empty, and VERIFY_HASH_OK is
+    // If catchup is manual then that buffer is empty, and VERIFY_STATUS_OK is
     // returned.
     //
-    // Otherwise LedgerManager returns VERIFY_HASH_OK if the proposed ledger is
-    // a first member of that buffer (and has matching hash). VERIFY_HASH_BAD
-    // is returned otherwise.
+    // Otherwise LedgerManager returns VERIFY_STATUS_OK if the proposed ledger
+    // is a first member of that buffer (and has matching hash).
+    // VERIFY_STATUS_ERR_BAD_HASH is returned when hashes do not match.
+    // VERIFY_STATUS_ERR_BAD_LEDGER_VERSION is returned when history uses
+    // unknown ledger versions.
     //
     // If first member of consensus buffer has different sequnce than candidate
     // then we have error in code and stellar-core is aborted.
-    virtual HistoryManager::VerifyHashStatus
+    virtual HistoryManager::LedgerVerificationStatus
     verifyCatchupCandidate(LedgerHeaderHistoryEntry const& candidate,
                            bool manualCatchup) const = 0;
 

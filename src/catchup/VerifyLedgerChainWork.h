@@ -30,13 +30,14 @@ class VerifyLedgerChainWork : public Work
 
     medida::Meter& mVerifyLedgerSuccessOld;
     medida::Meter& mVerifyLedgerSuccess;
+    medida::Meter& mVerifyLedgerFailureLedgerVersion;
     medida::Meter& mVerifyLedgerFailureOvershot;
     medida::Meter& mVerifyLedgerFailureLink;
     medida::Meter& mVerifyLedgerChainSuccess;
     medida::Meter& mVerifyLedgerChainFailure;
     medida::Meter& mVerifyLedgerChainFailureEnd;
 
-    HistoryManager::VerifyHashStatus verifyHistoryOfSingleCheckpoint();
+    HistoryManager::LedgerVerificationStatus verifyHistoryOfSingleCheckpoint();
 
   public:
     VerifyLedgerChainWork(Application& app, WorkParent& parent,
