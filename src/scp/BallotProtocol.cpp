@@ -28,7 +28,7 @@ static const int MAX_ADVANCE_SLOT_RECURSION = 50;
 
 BallotProtocol::BallotProtocol(Slot& slot)
     : mSlot(slot)
-    , mHeardFromQuorum(true)
+    , mHeardFromQuorum(false)
     , mPhase(SCP_PHASE_PREPARE)
     , mCurrentMessageLevel(0)
 {
@@ -392,6 +392,7 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
     {
         mSlot.getSCPDriver().startedBallotProtocol(mSlot.getSlotIndex(), newb);
         emitCurrentStateStatement();
+        checkHeardFromQuorum();
     }
 
     return updated;
@@ -474,14 +475,15 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
                   compareBallots(ballot, *mCurrentBallot) >= 0);
     }
 
-    bool gotBumped = !mCurrentBallot || !(*mCurrentBallot == ballot);
+    bool gotBumped =
+        !mCurrentBallot || (mCurrentBallot->counter != ballot.counter);
 
     mCurrentBallot = make_unique<SCPBallot>(ballot);
 
-    mHeardFromQuorum = false;
-
     if (gotBumped)
-        startBallotProtocolTimer();
+    {
+        mHeardFromQuorum = false;
+    }
 }
 
 void
@@ -497,18 +499,18 @@ BallotProtocol::startBallotProtocolTimer()
 }
 
 void
+BallotProtocol::stopBallotProtocolTimer()
+{
+    std::shared_ptr<Slot> slot = mSlot.shared_from_this();
+    mSlot.getSCPDriver().setupTimer(mSlot.getSlotIndex(),
+                                    Slot::BALLOT_PROTOCOL_TIMER,
+                                    std::chrono::seconds::zero(), nullptr);
+}
+
+void
 BallotProtocol::ballotProtocolTimerExpired()
 {
-    // don't abandon the ballot until we have heard from a slice
-    if (mHeardFromQuorum)
-    {
-        abandonBallot(0);
-    }
-    else
-    {
-        CLOG(DEBUG, "SCP") << "Waiting to hear from a slice.";
-        startBallotProtocolTimer();
-    }
+    abandonBallot(0);
 }
 
 SCPStatement
@@ -1800,35 +1802,6 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
             "maximum number of transitions reached in advanceSlot");
     }
 
-    // Check if we should call `ballotDidHearFromQuorum`
-    // we do this here so that we have a chance to evaluate it between
-    // transitions
-    // when a single message causes several
-    if (!mHeardFromQuorum && mCurrentBallot)
-    {
-        if (LocalNode::isQuorum(
-                getLocalNode()->getQuorumSet(), mLatestEnvelopes,
-                std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
-                [&](SCPStatement const& st) {
-                    bool res;
-                    if (st.pledges.type() == SCP_ST_PREPARE)
-                    {
-                        res = mCurrentBallot->counter <=
-                              st.pledges.prepare().ballot.counter;
-                    }
-                    else
-                    {
-                        res = true;
-                    }
-                    return res;
-                }))
-        {
-            mHeardFromQuorum = true;
-            mSlot.getSCPDriver().ballotDidHearFromQuorum(mSlot.getSlotIndex(),
-                                                         *mCurrentBallot);
-        }
-    }
-
     // attempt* methods will queue up messages, causing advanceSlot to be
     // called recursively
 
@@ -1856,6 +1829,15 @@ BallotProtocol::advanceSlot(SCPStatement const& hint)
             didBump = attemptBump();
             didWork = didBump || didWork;
         } while (didBump);
+
+        // Check if we should call `ballotDidHearFromQuorum` and set/reset the
+        // timer, we only do it if didWork is true (ie: when we changed state)
+        // this is to avoid being arbitrary delayed by messages that we
+        // don't care about
+        if (didWork)
+        {
+            checkHeardFromQuorum();
+        }
     }
 
     if (Logging::logDebug("SCP"))
@@ -2089,5 +2071,52 @@ bool
 BallotProtocol::federatedRatify(StatementPredicate voted)
 {
     return mSlot.federatedRatify(voted, mLatestEnvelopes);
+}
+
+void
+BallotProtocol::checkHeardFromQuorum()
+{
+    if (mCurrentBallot)
+    {
+        if (LocalNode::isQuorum(
+                getLocalNode()->getQuorumSet(), mLatestEnvelopes,
+                std::bind(&Slot::getQuorumSetFromStatement, &mSlot, _1),
+                [&](SCPStatement const& st) {
+                    bool res;
+                    if (st.pledges.type() == SCP_ST_PREPARE)
+                    {
+                        res = mCurrentBallot->counter <=
+                              st.pledges.prepare().ballot.counter;
+                    }
+                    else
+                    {
+                        res = true;
+                    }
+                    return res;
+                }))
+        {
+            bool oldHQ = mHeardFromQuorum;
+            mHeardFromQuorum = true;
+            if (!oldHQ)
+            {
+                // if we transition from not heard -> heard, we start the timer
+                mSlot.getSCPDriver().ballotDidHearFromQuorum(
+                    mSlot.getSlotIndex(), *mCurrentBallot);
+                if (mPhase != SCP_PHASE_EXTERNALIZE)
+                {
+                    startBallotProtocolTimer();
+                }
+            }
+            if (mPhase == SCP_PHASE_EXTERNALIZE)
+            {
+                stopBallotProtocolTimer();
+            }
+        }
+        else
+        {
+            mHeardFromQuorum = false;
+            stopBallotProtocolTimer();
+        }
+    }
 }
 }

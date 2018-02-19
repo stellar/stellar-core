@@ -99,6 +99,7 @@ class SCPDriver
                                     std::set<Value> const& candidates) = 0;
 
     // `setupTimer`: requests to trigger 'cb' after timeout
+    // if cb is nullptr, the timer is cancelled
     virtual void setupTimer(uint64 slotIndex, int timerID,
                             std::chrono::milliseconds timeout,
                             std::function<void()> cb) = 0;
