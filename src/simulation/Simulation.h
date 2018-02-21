@@ -35,10 +35,10 @@ class Simulation : public LoadGenerator
         OVER_LOOPBACK
     };
 
-    typedef std::shared_ptr<Simulation> pointer;
+    using pointer = std::shared_ptr<Simulation>;
+    using ConfigGen = std::function<Config(int i)>;
 
-    Simulation(Mode mode, Hash const& networkID,
-               std::function<Config()> confGen = nullptr);
+    Simulation(Mode mode, Hash const& networkID, ConfigGen = nullptr);
     ~Simulation();
 
     // updates all clocks in the simulation to the same time_point
@@ -113,7 +113,7 @@ class Simulation : public LoadGenerator
     std::vector<std::pair<NodeID, NodeID>> mPendingConnections;
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 
-    std::function<Config()> mConfigGen; // config generator
+    ConfigGen mConfigGen; // config generator
 
     std::chrono::milliseconds const quantum = std::chrono::milliseconds(100);
 };

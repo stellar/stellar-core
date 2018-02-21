@@ -25,8 +25,7 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(Mode mode, Hash const& networkID,
-                       std::function<Config()> confGen)
+Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen)
     : LoadGenerator(networkID)
     , mVirtualClockMode(mode != OVER_TCP)
     , mClock(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
@@ -676,7 +675,7 @@ Simulation::newConfig()
 {
     if (mConfigGen)
     {
-        return mConfigGen();
+        return mConfigGen(mConfigCount++);
     }
     else
     {

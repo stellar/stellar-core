@@ -11,7 +11,7 @@ using namespace std;
 
 Simulation::pointer
 Topologies::pair(Simulation::Mode mode, Hash const& networkID,
-                 std::function<Config()> confGen)
+                 Simulation::ConfigGen confGen)
 {
     Simulation::pointer simulation =
         make_shared<Simulation>(mode, networkID, confGen);
@@ -33,7 +33,7 @@ Topologies::pair(Simulation::Mode mode, Hash const& networkID,
 }
 
 Simulation::pointer
-Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
+Topologies::cycle4(Hash const& networkID, Simulation::ConfigGen confGen)
 {
     Simulation::pointer simulation =
         make_shared<Simulation>(Simulation::OVER_LOOPBACK, networkID, confGen);
@@ -85,7 +85,7 @@ Topologies::cycle4(Hash const& networkID, std::function<Config()> confGen)
 Simulation::pointer
 Topologies::separate(int nNodes, double quorumThresoldFraction,
                      Simulation::Mode mode, Hash const& networkID,
-                     std::function<Config()> confGen)
+                     Simulation::ConfigGen confGen)
 {
     Simulation::pointer simulation =
         make_shared<Simulation>(mode, networkID, confGen);
@@ -116,7 +116,7 @@ Topologies::separate(int nNodes, double quorumThresoldFraction,
 Simulation::pointer
 Topologies::core(int nNodes, double quorumThresoldFraction,
                  Simulation::Mode mode, Hash const& networkID,
-                 std::function<Config()> confGen)
+                 Simulation::ConfigGen confGen)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
                                            networkID, confGen);
@@ -138,7 +138,7 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
 Simulation::pointer
 Topologies::cycle(int nNodes, double quorumThresoldFraction,
                   Simulation::Mode mode, Hash const& networkID,
-                  std::function<Config()> confGen)
+                  Simulation::ConfigGen confGen)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
                                            networkID, confGen);
@@ -158,7 +158,7 @@ Topologies::cycle(int nNodes, double quorumThresoldFraction,
 Simulation::pointer
 Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
                           Simulation::Mode mode, Hash const& networkID,
-                          std::function<Config()> confGen)
+                          Simulation::ConfigGen confGen)
 {
     auto simulation = Topologies::separate(nNodes, quorumThresoldFraction, mode,
                                            networkID, confGen);
@@ -181,7 +181,7 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
 Simulation::pointer
 Topologies::hierarchicalQuorum(int nBranches, Simulation::Mode mode,
                                Hash const& networkID,
-                               std::function<Config()> confGen,
+                               Simulation::ConfigGen confGen,
                                int connectionsToCore) // Figure 3 from the paper
 {
     auto sim = Topologies::core(4, 0.75, mode, networkID, confGen);
@@ -248,7 +248,7 @@ Simulation::pointer
 Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
                                          Simulation::Mode mode,
                                          Hash const& networkID,
-                                         std::function<Config()> confGen,
+                                         Simulation::ConfigGen confGen,
                                          int connectionsToCore)
 {
     // outer nodes are independent validators that point to a [core network]
@@ -286,7 +286,7 @@ Topologies::hierarchicalQuorumSimplified(int coreSize, int nbOuterNodes,
 
 Simulation::pointer
 Topologies::customA(Simulation::Mode mode, Hash const& networkID,
-                    std::function<Config()> confGen, int connections)
+                    Simulation::ConfigGen confGen, int connections)
 {
     Simulation::pointer s = make_shared<Simulation>(mode, networkID, confGen);
 
