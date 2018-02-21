@@ -436,7 +436,7 @@ TEST_CASE("connecting to saturated nodes", "[overlay]")
 
     simulation->startAllNodes();
     simulation->crankForAtLeast(std::chrono::seconds{30}, false);
-    // only one (two-way) connection is made
-    REQUIRE(numberOfSimulationConnections() == 2);
+    // all three (two-way) connections are made
+    REQUIRE(numberOfSimulationConnections() == 6);
     simulation->crankForAtLeast(std::chrono::seconds{1}, true);
 }

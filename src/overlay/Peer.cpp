@@ -1063,6 +1063,12 @@ Peer::recvAuth(StellarMessage const& msg)
 
     auto self = shared_from_this();
 
+    if (mRole == REMOTE_CALLED_US)
+    {
+        sendAuth();
+        sendPeers();
+    }
+
     if (!mApp.getOverlayManager().acceptAuthenticatedPeer(self))
     {
         CLOG(WARNING, "Overlay") << "New peer rejected, all slots taken";
@@ -1072,12 +1078,6 @@ Peer::recvAuth(StellarMessage const& msg)
     }
 
     noteHandshakeSuccessInPeerRecord();
-
-    if (mRole == REMOTE_CALLED_US)
-    {
-        sendAuth();
-        sendPeers();
-    }
 
     // send SCP State
     // remove when all known peers implements the next line
