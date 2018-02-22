@@ -39,6 +39,9 @@ In order to make changes, you'll need to install the proper version of clang-for
 
 See [installing gcc 4.9 on ubuntu 14.04](http://askubuntu.com/questions/428198/getting-installing-gcc-g-4-9-on-ubuntu)
 
+Additional, for proper documentation generation (man page), pandoc is needed:
+    # sudo apt-get install pandoc
+
 ### OS X
 When building on OSX, here's some dependencies you'll need:
 - Install xcode
