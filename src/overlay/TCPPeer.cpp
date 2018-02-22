@@ -123,6 +123,13 @@ TCPPeer::getIP()
 void
 TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
 {
+    if (mState == CLOSING)
+    {
+        CLOG(ERROR, "Overlay")
+            << "Trying to send message to " << toString() << " after drop";
+        return;
+    }
+
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay") << "TCPPeer:sendMessage to " << toString();
     assertThreadIsMain();
@@ -140,6 +147,64 @@ TCPPeer::sendMessage(xdr::msg_ptr&& xdrBytes)
         // kick off the async write chain if we're the first one
         self->messageSender();
     }
+}
+
+void
+TCPPeer::shutdown()
+{
+    if (mShutdownScheduled)
+    {
+        // should not happen, leave here for debugging purposes
+        CLOG(ERROR, "Overlay") << "Double schedule of shutdown " << toString();
+        return;
+    }
+
+    mIdleTimer.cancel();
+    mShutdownScheduled = true;
+    auto self = static_pointer_cast<TCPPeer>(shared_from_this());
+
+    // To shutdown, we first queue up our desire to shutdown in the strand,
+    // behind any pending read/write calls. We'll let them issue first.
+    self->getApp().getClock().getIOService().post([self]() {
+        // Gracefully shut down connection: this pushes a FIN packet into TCP
+        // which, if we wanted to be really polite about, we would wait for an
+        // ACK from by doing repeated reads until we get a 0-read.
+        //
+        // But since we _might_ be dropping a hostile or unresponsive
+        // connection, we're going to just post a close() immediately after, and
+        // hope the kernel does something useful as far as putting any queued
+        // last-gasp ERROR_MSG packet on the wire.
+        //
+        // All of this is voluntary. We can also just close(2) here and be done
+        // with it, but we want to give some chance of telling peers why we're
+        // disconnecting them.
+        asio::error_code ec;
+        self->mSocket->next_layer().shutdown(
+            asio::ip::tcp::socket::shutdown_both, ec);
+        if (ec)
+        {
+            CLOG(ERROR, "Overlay")
+                << "TCPPeer::drop shutdown socket failed: " << ec.message();
+        }
+        self->getApp().getClock().getIOService().post([self]() {
+            // Close fd associated with socket. Socket is already shut down, but
+            // depending on platform (and apparently whether there was unread
+            // data when we issued shutdown()) this call might push RST onto the
+            // wire, or some other action; in any case it has to be done to free
+            // the OS resources.
+            //
+            // It will also, at this point, cancel any pending asio read/write
+            // handlers, i.e. fire them with an error code indicating
+            // cancellation.
+            asio::error_code ec2;
+            self->mSocket->close(ec2);
+            if (ec2)
+            {
+                CLOG(ERROR, "Overlay")
+                    << "TCPPeer::drop close socket failed: " << ec2.message();
+            }
+        });
+    });
 }
 
 void
@@ -163,6 +228,12 @@ TCPPeer::messageSender()
                 else
                 {
                     self->mWriting = false;
+                    // there is nothing to send and delayed shutdown was
+                    // requested - time to perform it
+                    if (self->mDelayedShutdown)
+                    {
+                        self->shutdown();
+                    }
                 }
             }
         });
@@ -205,7 +276,16 @@ TCPPeer::writeHandler(asio::error_code const& error,
             CLOG(ERROR, "Overlay")
                 << "TCPPeer::writeHandler error to " << toString();
         }
-        drop();
+        if (mDelayedShutdown)
+        {
+            // delayed shutdown was requested - time to perform it
+            shutdown();
+        }
+        else
+        {
+            // no delayed shutdown - we can drop normally
+            drop();
+        }
     }
     else if (bytes_transferred != 0)
     {
@@ -365,10 +445,10 @@ TCPPeer::recvMessage()
 }
 
 void
-TCPPeer::drop()
+TCPPeer::drop(bool force)
 {
     assertThreadIsMain();
-    if (mState == CLOSING)
+    if (shouldAbort())
     {
         return;
     }
@@ -377,53 +457,18 @@ TCPPeer::drop()
                            << mState << " we called:" << mRole;
 
     mState = CLOSING;
-    mIdleTimer.cancel();
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
     getApp().getOverlayManager().dropPeer(this);
 
-    // To shutdown, we first queue up our desire to shutdown in the strand,
-    // behind any pending read/write calls. We'll let them issue first.
-    getApp().getClock().getIOService().post([self]() {
-        // Gracefully shut down connection: this pushes a FIN packet into
-        // TCP which, if we wanted to be really polite about, we would wait
-        // for an ACK from by doing repeated reads until we get a 0-read.
-        //
-        // But since we _might_ be dropping a hostile or unresponsive
-        // connection, we're going to just post a close() immediately after,
-        // and hope the kernel does something useful as far as putting
-        // any queued last-gasp ERROR_MSG packet on the wire.
-        //
-        // All of this is voluntary. We can also just close(2) here and
-        // be done with it, but we want to give some chance of telling
-        // peers why we're disconnecting them.
-        asio::error_code ec;
-        self->mSocket->next_layer().shutdown(
-            asio::ip::tcp::socket::shutdown_both, ec);
-        if (ec)
-        {
-            CLOG(ERROR, "Overlay")
-                << "TCPPeer::drop shutdown socket failed: " << ec.message();
-        }
-        self->getApp().getClock().getIOService().post([self]() {
-            // Close fd associated with socket. Socket is already
-            // shut down, but depending on platform (and apparently
-            // whether there was unread data when we issued
-            // shutdown()) this call might push RST onto the wire,
-            // or some other action; in any case it has to be done
-            // to free the OS resources.
-            //
-            // It will also, at this point, cancel any pending asio
-            // read/write handlers, i.e. fire them with an error
-            // code indicating cancellation.
-            asio::error_code ec2;
-            self->mSocket->close(ec2);
-            if (ec2)
-            {
-                CLOG(ERROR, "Overlay")
-                    << "TCPPeer::drop close socket failed: " << ec2.message();
-            }
-        });
-    });
+    // if write queue is not empty, messageSender will take care of shutdown
+    if (force || !mWriting)
+    {
+        self->shutdown();
+    }
+    else
+    {
+        self->mDelayedShutdown = true;
+    }
 }
 }

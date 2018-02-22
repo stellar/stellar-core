@@ -216,6 +216,11 @@ Peer::getIOTimeoutSeconds() const
 void
 Peer::receivedBytes(size_t byteCount, bool gotFullMessage)
 {
+    if (shouldAbort())
+    {
+        return;
+    }
+
     LoadManager::PeerContext loadCtx(mApp, mPeerID);
     mLastRead = mApp.getClock().now();
     if (gotFullMessage)
@@ -284,8 +289,9 @@ Peer::drop(ErrorCode err, std::string const& msg)
     sendMessage(m);
     // note: this used to be a post which caused delays in stopping
     // to process read messages.
-    // this has no effect wrt the sending queue.
-    drop();
+    // this will try to send all data from send queue if the error is ERR_LOAD
+    // - it sends list of peers
+    drop(err != ERR_LOAD);
 }
 
 void
