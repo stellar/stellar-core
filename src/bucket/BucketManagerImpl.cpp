@@ -79,12 +79,16 @@ bucketBasename(std::string const& bucketHexHash)
     return "bucket-" + bucketHexHash + ".xdr";
 }
 
-bool isBucketFile(std::string const& name) {
+bool
+isBucketFile(std::string const& name)
+{
     static std::regex re("^bucket-[a-z0-9]{64}\\.xdr(\\.gz)?$");
     return std::regex_match(name, re);
 };
 
-uint256 extractFromFilename(std::string const& name) {
+uint256
+extractFromFilename(std::string const& name)
+{
     return hexToBin256(name.substr(7, 64));
 };
 }
