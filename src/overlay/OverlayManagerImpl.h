@@ -81,10 +81,10 @@ class OverlayManagerImpl : public OverlayManager
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
     bool isPreferred(Peer* peer) override;
     std::vector<Peer::pointer> const& getPendingPeers() const override;
-    size_t getPendingPeersCount() const override;
+    int getPendingPeersCount() const override;
     std::map<NodeID, Peer::pointer> const&
     getAuthenticatedPeers() const override;
-    size_t getAuthenticatedPeersCount() const override;
+    int getAuthenticatedPeersCount() const override;
 
     // returns NULL if the passed peer isn't found
     Peer::pointer getConnectedPeer(std::string const& ip,

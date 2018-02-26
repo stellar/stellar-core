@@ -422,16 +422,16 @@ OverlayManagerImpl::getAuthenticatedPeers() const
     return mAuthenticatedPeers;
 }
 
-size_t
+int
 OverlayManagerImpl::getPendingPeersCount() const
 {
-    return mPendingPeers.size();
+    return static_cast<int>(mPendingPeers.size());
 }
 
-size_t
+int
 OverlayManagerImpl::getAuthenticatedPeersCount() const
 {
-    return mAuthenticatedPeers.size();
+    return static_cast<int>(mAuthenticatedPeers.size());
 }
 
 bool

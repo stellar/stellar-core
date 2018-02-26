@@ -104,14 +104,14 @@ class OverlayManager
     virtual std::vector<Peer::pointer> const& getPendingPeers() const = 0;
 
     // Return number of pending peers
-    virtual size_t getPendingPeersCount() const = 0;
+    virtual int getPendingPeersCount() const = 0;
 
     // Return the current in-memory set of authenticated peers.
     virtual std::map<NodeID, Peer::pointer> const&
     getAuthenticatedPeers() const = 0;
 
     // Return number of authenticated peers
-    virtual size_t getAuthenticatedPeersCount() const = 0;
+    virtual int getAuthenticatedPeersCount() const = 0;
 
     // Attempt to connect to a peer identified by string. The form of the string
     // should be an IP address or hostname, optionally followed by a colon and
