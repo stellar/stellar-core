@@ -236,10 +236,9 @@ ApplicationImpl::getJsonInfo()
     info["ledger"]["baseFee"] = lcl.header.baseFee;
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    info["peers"]["pending_count"] =
-        (int)getOverlayManager().getPendingPeersCount();
+    info["peers"]["pending_count"] = getOverlayManager().getPendingPeersCount();
     info["peers"]["authenticated_count"] =
-        (int)getOverlayManager().getAuthenticatedPeersCount();
+        getOverlayManager().getAuthenticatedPeersCount();
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
     auto& statusMessages = getStatusManager();

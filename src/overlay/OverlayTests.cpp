@@ -22,6 +22,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
+#include <numeric>
 
 using namespace stellar;
 
@@ -388,7 +389,7 @@ TEST_CASE("connecting to saturated nodes", "[overlay]")
     auto simulation =
         std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
 
-    auto getConfiguration = [](int id, int peerConnections) {
+    auto getConfiguration = [](int id, unsigned short peerConnections) {
         auto cfg = getTestConfig(id);
         cfg.MAX_PEER_CONNECTIONS = peerConnections;
         cfg.TARGET_PEER_CONNECTIONS = peerConnections;
