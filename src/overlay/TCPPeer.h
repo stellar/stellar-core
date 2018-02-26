@@ -33,6 +33,8 @@ class TCPPeer : public Peer
 
     std::queue<std::shared_ptr<xdr::msg_ptr>> mWriteQueue;
     bool mWriting{false};
+    bool mDelayedShutdown{false};
+    bool mShutdownScheduled{false};
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;
@@ -49,6 +51,7 @@ class TCPPeer : public Peer
                            std::size_t bytes_transferred) override;
     void readBodyHandler(asio::error_code const& error,
                          std::size_t bytes_transferred) override;
+    void shutdown();
 
   public:
     typedef std::shared_ptr<TCPPeer> pointer;
@@ -65,7 +68,7 @@ class TCPPeer : public Peer
 
     virtual ~TCPPeer();
 
-    virtual void drop() override;
+    virtual void drop(bool force = true) override;
     virtual std::string getIP() override;
 };
 }

@@ -12,6 +12,7 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
+#include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Logging.h"
@@ -379,4 +380,63 @@ TEST_CASE("reject peers with the same nodeid", "[overlay]")
     REQUIRE(app2->getMetrics()
                 .NewMeter({"overlay", "drop", "recv-hello-peerid"}, "drop")
                 .count() != 0);
+}
+
+TEST_CASE("connecting to saturated nodes", "[overlay]")
+{
+    auto networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
+    auto simulation =
+        std::make_shared<Simulation>(Simulation::OVER_TCP, networkID);
+
+    auto getConfiguration = [](int id, int peerConnections) {
+        auto cfg = getTestConfig(id);
+        cfg.MAX_PEER_CONNECTIONS = peerConnections;
+        cfg.TARGET_PEER_CONNECTIONS = peerConnections;
+        cfg.MAX_ADDITIONAL_PEER_CONNECTIONS = 0;
+        return cfg;
+    };
+
+    auto numberOfAppConnections = [](Application& app) {
+        return app.getOverlayManager().getAuthenticatedPeersCount();
+    };
+
+    auto numberOfSimulationConnections = [&]() {
+        auto nodes = simulation->getNodes();
+        return std::accumulate(std::begin(nodes), std::end(nodes), 0,
+                               [&](int x, Application::pointer app) {
+                                   return x + numberOfAppConnections(*app);
+                               });
+    };
+
+    auto headCfg = getConfiguration(1, 1);
+    auto node1Cfg = getConfiguration(2, 2);
+    auto node2Cfg = getConfiguration(3, 2);
+    auto node3Cfg = getConfiguration(4, 2);
+
+    SIMULATION_CREATE_NODE(Head);
+    SIMULATION_CREATE_NODE(Node1);
+    SIMULATION_CREATE_NODE(Node2);
+    SIMULATION_CREATE_NODE(Node3);
+
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(vHeadNodeID);
+    qSet.validators.push_back(vNode1NodeID);
+    qSet.validators.push_back(vNode2NodeID);
+    qSet.validators.push_back(vNode3NodeID);
+
+    simulation->addNode(vHeadSecretKey, qSet, &headCfg);
+    simulation->addNode(vNode1SecretKey, qSet, &node1Cfg);
+    simulation->addNode(vNode2SecretKey, qSet, &node2Cfg);
+    simulation->addNode(vNode3SecretKey, qSet, &node3Cfg);
+
+    simulation->addPendingConnection(vNode1NodeID, vHeadNodeID);
+    simulation->addPendingConnection(vNode2NodeID, vHeadNodeID);
+    simulation->addPendingConnection(vNode3NodeID, vHeadNodeID);
+
+    simulation->startAllNodes();
+    simulation->crankForAtLeast(std::chrono::seconds{30}, false);
+    // all three (two-way) connections are made
+    REQUIRE(numberOfSimulationConnections() == 6);
+    simulation->crankForAtLeast(std::chrono::seconds{1}, true);
 }

@@ -39,7 +39,7 @@ class PeerStub : public Peer
         mRemoteListeningPort = port;
     }
     virtual void
-    drop() override
+    drop(bool) override
     {
     }
     virtual string

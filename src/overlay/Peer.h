@@ -267,7 +267,10 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     void drop(ErrorCode err, std::string const& msg);
-    virtual void drop() = 0;
+
+    // If force is true, it will drop immediately without waiting for all
+    // outgoing messages to be sent
+    virtual void drop(bool force = true) = 0;
     virtual std::string getIP() = 0;
     virtual ~Peer()
     {
