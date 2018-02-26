@@ -136,6 +136,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     while (hdrIn && hdrIn.readOne(curr))
     {
+        if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            mVerifyLedgerFailureLedgerVersion.Mark();
+            return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
+        }
+
         if (prev.header.ledgerSeq == 0)
         {
             // When we have no previous state to connect up with
