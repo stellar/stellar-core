@@ -153,5 +153,4 @@ ip | VARCHAR(15) NOT NULL |
 port | INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL |
 nextattempt | TIMESTAMP NOT NULL |
 numfailures | INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL |
-rank | INT DEFAULT 0 CHECK (rank >= 0) NOT NULL |
 
