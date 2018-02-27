@@ -148,6 +148,12 @@ LedgerManagerImpl::setState(State s)
         {
             mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
         }
+
+        if (mState == LM_SYNCED_STATE)
+        {
+            // we can now publish history again
+            mApp.getHistoryManager().publishQueuedHistory();
+        }
     }
 }
 

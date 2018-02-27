@@ -510,7 +510,10 @@ HistoryManagerImpl::queueCurrentHistory()
 void
 HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
 {
-    if (mPublishWork)
+    // we can only publish when ledger is synced
+    // if not, ResolveSnapshotWork will fail
+    if (mPublishWork ||
+        mApp.getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE)
     {
         mPublishDelay.Mark();
         return;
