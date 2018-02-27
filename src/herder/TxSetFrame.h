@@ -21,6 +21,13 @@ class TxSetFrame
 
     Hash mPreviousLedgerHash;
 
+    bool
+    checkOrTrim(Application& app,
+                std::function<bool(TransactionFramePtr, SequenceNumber)>
+                    processInvalidTxLambda,
+                std::function<bool(std::vector<TransactionFramePtr> const&)>
+                    processLastInvalidTxLambda);
+
   public:
     std::vector<TransactionFramePtr> mTransactions;
 
@@ -41,7 +48,7 @@ class TxSetFrame
 
     std::vector<TransactionFramePtr> sortForApply();
 
-    bool checkValid(Application& app) const;
+    bool checkValid(Application& app);
     void trimInvalid(Application& app,
                      std::vector<TransactionFramePtr>& trimmed);
     void surgePricingFilter(LedgerManager const& lm);
@@ -63,4 +70,4 @@ class TxSetFrame
 
     void toXDR(TransactionSet& set);
 };
-}
+} // namespace stellar

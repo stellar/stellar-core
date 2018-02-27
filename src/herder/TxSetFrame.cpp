@@ -186,98 +186,19 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm)
     }
 }
 
-// TODO.3 this and checkValid share a lot of code
-void
-TxSetFrame::trimInvalid(Application& app,
-                        std::vector<TransactionFramePtr>& trimmed)
-{
-    soci::transaction sqltx(app.getDatabase().getSession());
-    app.getDatabase().setCurrentTransactionReadOnly();
-
-    sortForHash();
-
-    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
-
-    for (auto tx : mTransactions)
-    {
-        accountTxMap[tx->getSourceID()].push_back(tx);
-    }
-
-    for (auto& item : accountTxMap)
-    {
-        // order by sequence number
-        std::sort(item.second.begin(), item.second.end(), SeqSorter);
-
-        TransactionFramePtr lastTx;
-        SequenceNumber lastSeq = 0;
-        int64_t totFee = 0;
-        for (auto& tx : item.second)
-        {
-            if (!tx->checkValid(app, lastSeq))
-            {
-                trimmed.push_back(tx);
-                removeTx(tx);
-                continue;
-            }
-            totFee += tx->getFee();
-
-            lastTx = tx;
-            lastSeq = tx->getSeqNum();
-        }
-        if (lastTx)
-        {
-            // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
-            {
-                for (auto& tx : item.second)
-                {
-                    trimmed.push_back(tx);
-                    removeTx(tx);
-                }
-            }
-        }
-    }
-}
-
-// need to make sure every account that is submitting a tx has enough to pay
-// the fees of all the tx it has submitted in this set
-// check seq num
 bool
-TxSetFrame::checkValid(Application& app) const
+TxSetFrame::checkOrTrim(
+    Application& app,
+    std::function<bool(TransactionFramePtr, SequenceNumber)>
+        processInvalidTxLambda,
+    std::function<bool(std::vector<TransactionFramePtr> const&)>
+        processInsufficientBalance)
 {
-    // Establish read-only transaction for duration of checkValid.
-    soci::transaction sqltx(app.getDatabase().getSession());
-    app.getDatabase().setCurrentTransactionReadOnly();
-
-    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
-    // Start by checking previousLedgerHash
-    if (lcl.hash != mPreviousLedgerHash)
-    {
-        CLOG(DEBUG, "Herder")
-            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-            << " ; expected: "
-            << hexAbbrev(
-                   app.getLedgerManager().getLastClosedLedgerHeader().hash);
-        return false;
-    }
-
-    if (mTransactions.size() > lcl.header.maxTxSetSize)
-    {
-        CLOG(DEBUG, "Herder")
-            << "Got bad txSet: too many txs " << mTransactions.size() << " > "
-            << lcl.header.maxTxSetSize;
-        return false;
-    }
-
     map<AccountID, vector<TransactionFramePtr>> accountTxMap;
 
     Hash lastHash;
-    for (auto tx : mTransactions)
+    for (auto& tx : mTransactions)
     {
-        // make sure the set is sorted correctly
         if (tx->getFullHash() < lastHash)
         {
             CLOG(DEBUG, "Herder")
@@ -301,12 +222,8 @@ TxSetFrame::checkValid(Application& app) const
         {
             if (!tx->checkValid(app, lastSeq))
             {
-                CLOG(DEBUG, "Herder")
-                    << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                    << " tx invalid"
-                    << " lastSeq:" << lastSeq
-                    << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
-                    << " result: " << tx->getResultCode();
+                if (processInvalidTxLambda(tx, lastSeq))
+                    continue;
 
                 return false;
             }
@@ -323,16 +240,94 @@ TxSetFrame::checkValid(Application& app) const
             if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
                                  app.getLedgerManager()))
             {
-                CLOG(DEBUG, "Herder")
-                    << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
-                    << " account can't pay fee"
-                    << " tx:" << xdr::xdr_to_string(lastTx->getEnvelope());
-
-                return false;
+                if (!processInsufficientBalance(item.second))
+                    return false;
             }
         }
     }
+
     return true;
+}
+
+void
+TxSetFrame::trimInvalid(Application& app,
+                        std::vector<TransactionFramePtr>& trimmed)
+{
+    // Establish read-only transaction for duration of trimInvalid
+    soci::transaction sqltx(app.getDatabase().getSession());
+    app.getDatabase().setCurrentTransactionReadOnly();
+
+    sortForHash();
+
+    auto processInvalidTxLambda = [&](TransactionFramePtr tx,
+                                      SequenceNumber lastSeq) {
+        trimmed.push_back(tx);
+        removeTx(tx);
+        return true;
+    };
+    auto processInsufficientBalance =
+        [&](vector<TransactionFramePtr> const& item) {
+            for (auto& tx : item)
+            {
+                trimmed.push_back(tx);
+                removeTx(tx);
+            }
+            return true;
+        };
+
+    checkOrTrim(app, processInvalidTxLambda, processInsufficientBalance);
+}
+
+// need to make sure every account that is submitting a tx has enough to pay
+// the fees of all the tx it has submitted in this set
+// check seq num
+bool
+TxSetFrame::checkValid(Application& app)
+{
+    // Establish read-only transaction for duration of checkValid
+    soci::transaction sqltx(app.getDatabase().getSession());
+    app.getDatabase().setCurrentTransactionReadOnly();
+
+    auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
+    // Start by checking previousLedgerHash
+    if (lcl.hash != mPreviousLedgerHash)
+    {
+        CLOG(DEBUG, "Herder")
+            << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+            << " ; expected: "
+            << hexAbbrev(
+                   app.getLedgerManager().getLastClosedLedgerHeader().hash);
+        return false;
+    }
+
+    if (mTransactions.size() > lcl.header.maxTxSetSize)
+    {
+        CLOG(DEBUG, "Herder")
+            << "Got bad txSet: too many txs " << mTransactions.size() << " > "
+            << lcl.header.maxTxSetSize;
+        return false;
+    }
+
+    auto processInvalidTxLambda = [&](TransactionFramePtr tx,
+                                      SequenceNumber const& lastSeq) {
+        CLOG(DEBUG, "Herder")
+            << "bad txSet: " << hexAbbrev(mPreviousLedgerHash) << " tx invalid"
+            << " lastSeq:" << lastSeq
+            << " tx: " << xdr::xdr_to_string(tx->getEnvelope())
+            << " result: " << tx->getResultCode();
+
+        return false;
+    };
+    auto processInsufficientBalance =
+        [&](vector<TransactionFramePtr> const& item) {
+            CLOG(DEBUG, "Herder")
+                << "bad txSet: " << hexAbbrev(mPreviousLedgerHash)
+                << " account can't pay fee"
+                << " tx:" << xdr::xdr_to_string(item.back()->getEnvelope());
+
+            return false;
+        };
+    return checkOrTrim(app, processInvalidTxLambda, processInsufficientBalance);
 }
 
 void
@@ -385,4 +380,4 @@ TxSetFrame::toXDR(TransactionSet& txSet)
     }
     txSet.previousLedgerHash = mPreviousLedgerHash;
 }
-}
+} // namespace stellar
