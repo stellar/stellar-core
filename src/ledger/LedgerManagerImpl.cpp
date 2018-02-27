@@ -495,7 +495,7 @@ LedgerManagerImpl::startCatchUp(CatchupConfiguration configuration,
         std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
 }
 
-HistoryManager::VerifyHashStatus
+HistoryManager::LedgerVerificationStatus
 LedgerManagerImpl::verifyCatchupCandidate(
     LedgerHeaderHistoryEntry const& candidate, bool manualCatchup) const
 {
@@ -504,7 +504,7 @@ LedgerManagerImpl::verifyCatchupCandidate(
         assert(mSyncingLedgers.empty());
         CLOG(WARNING, "History")
             << "Accepting unknown-hash ledger due to manual catchup";
-        return HistoryManager::VERIFY_HASH_OK;
+        return HistoryManager::VERIFY_STATUS_OK;
     }
 
     assert(!mSyncingLedgers.empty());
@@ -518,11 +518,11 @@ LedgerManagerImpl::verifyCatchupCandidate(
         mSyncingLedgers.front().getTxSet()->previousLedgerHash() ==
             candidate.hash)
     {
-        return HistoryManager::VERIFY_HASH_OK;
+        return HistoryManager::VERIFY_STATUS_OK;
     }
     else
     {
-        return HistoryManager::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
     }
 }
 
@@ -691,6 +691,17 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     mLedgerAgeClosed.Update(now - mLastClose);
     mLastClose = now;
     mLedgerAge.set_count(0);
+
+    // If we do not support ledger version, we can't apply that ledger, fail!
+    if (mCurrentLedger->mHeader.ledgerVersion >
+        Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+    {
+        CLOG(ERROR, "Ledger") << "Unknown ledger version: "
+                              << mCurrentLedger->mHeader.ledgerVersion;
+        throw std::runtime_error(
+            fmt::format("cannot apply ledger with not supported version: {}",
+                        mCurrentLedger->mHeader.ledgerVersion));
+    }
 
     if (ledgerData.getTxSet()->previousLedgerHash() !=
         getLastClosedLedgerHeader().hash)

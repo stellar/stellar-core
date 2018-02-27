@@ -15,7 +15,7 @@
 namespace stellar
 {
 
-static HistoryManager::VerifyHashStatus
+static HistoryManager::LedgerVerificationStatus
 verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
 {
     LedgerHeaderFrame lFrame(hhe.header);
@@ -26,17 +26,18 @@ verifyLedgerHistoryEntry(LedgerHeaderHistoryEntry const& hhe)
             << "Bad ledger-header history entry: claimed ledger "
             << LedgerManager::ledgerAbbrev(hhe) << " actually hashes to "
             << hexAbbrev(calculated);
-        return HistoryManager::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
     }
-    return HistoryManager::VERIFY_HASH_OK;
+    return HistoryManager::VERIFY_STATUS_OK;
 }
 
-static HistoryManager::VerifyHashStatus
+static HistoryManager::LedgerVerificationStatus
 verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 {
-    if (verifyLedgerHistoryEntry(curr) != HistoryManager::VERIFY_HASH_OK)
+    auto entryResult = verifyLedgerHistoryEntry(curr);
+    if (entryResult != HistoryManager::VERIFY_STATUS_OK)
     {
-        return HistoryManager::VERIFY_HASH_BAD;
+        return entryResult;
     }
     if (prev != curr.header.previousLedgerHash)
     {
@@ -44,9 +45,9 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
             << "Bad hash-chain: " << LedgerManager::ledgerAbbrev(curr)
             << " wants prev hash " << hexAbbrev(curr.header.previousLedgerHash)
             << " but actual prev hash is " << hexAbbrev(prev);
-        return HistoryManager::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
     }
-    return HistoryManager::VERIFY_HASH_OK;
+    return HistoryManager::VERIFY_STATUS_OK;
 }
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
@@ -66,6 +67,8 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
           {"history", "verify-ledger", "success-old"}, "event"))
     , mVerifyLedgerSuccess(app.getMetrics().NewMeter(
           {"history", "verify-ledger", "success"}, "event"))
+    , mVerifyLedgerFailureLedgerVersion(app.getMetrics().NewMeter(
+          {"history", "verify-ledger", "failure-ledger-version"}, "event"))
     , mVerifyLedgerFailureOvershot(app.getMetrics().NewMeter(
           {"history", "verify-ledger", "failure-overshot"}, "event"))
     , mVerifyLedgerFailureLink(app.getMetrics().NewMeter(
@@ -116,7 +119,7 @@ VerifyLedgerChainWork::onReset()
         mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
 }
 
-HistoryManager::VerifyHashStatus
+HistoryManager::LedgerVerificationStatus
 VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 {
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
@@ -133,6 +136,12 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
 
     while (hdrIn && hdrIn.readOne(curr))
     {
+        if (curr.header.ledgerVersion > Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            mVerifyLedgerFailureLedgerVersion.Mark();
+            return HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION;
+        }
+
         if (prev.header.ledgerSeq == 0)
         {
             // When we have no previous state to connect up with
@@ -158,13 +167,13 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                 << "History chain overshot expected ledger seq " << expectedSeq
                 << ", got " << curr.header.ledgerSeq << " instead";
             mVerifyLedgerFailureOvershot.Mark();
-            return HistoryManager::VERIFY_HASH_BAD;
+            return HistoryManager::VERIFY_STATUS_ERR_OVERSHOT;
         }
-        if (verifyLedgerHistoryLink(prev.hash, curr) !=
-            HistoryManager::VERIFY_HASH_OK)
+        auto linkResult = verifyLedgerHistoryLink(prev.hash, curr);
+        if (linkResult != HistoryManager::VERIFY_STATUS_OK)
         {
             mVerifyLedgerFailureLink.Mark();
-            return HistoryManager::VERIFY_HASH_BAD;
+            return linkResult;
         }
         mVerifyLedgerSuccess.Mark();
         prev = curr;
@@ -185,10 +194,10 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
         CLOG(ERROR, "History") << "History chain did not end with "
                                << mCurrCheckpoint << " or " << mRange.last();
         mVerifyLedgerChainFailureEnd.Mark();
-        return HistoryManager::VERIFY_HASH_BAD;
+        return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
     }
 
-    auto status = HistoryManager::VERIFY_HASH_OK;
+    auto status = HistoryManager::VERIFY_STATUS_OK;
     if (curr.header.ledgerSeq == mRange.last())
     {
         CLOG(INFO, "History") << "Verifying catchup candidate "
@@ -197,7 +206,7 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
                                                                 mManualCatchup);
     }
 
-    if (status == HistoryManager::VERIFY_HASH_OK)
+    if (status == HistoryManager::VERIFY_STATUS_OK)
     {
         mVerifyLedgerChainSuccess.Mark();
         if (mCurrCheckpoint ==
@@ -229,7 +238,7 @@ VerifyLedgerChainWork::onSuccess()
     // This is in onSuccess rather than onRun, so we can force a FAILURE_RAISE.
     switch (verifyHistoryOfSingleCheckpoint())
     {
-    case HistoryManager::VERIFY_HASH_OK:
+    case HistoryManager::VERIFY_STATUS_OK:
         if (mLastVerified.header.ledgerSeq == mRange.last())
         {
             CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
@@ -239,9 +248,22 @@ VerifyLedgerChainWork::onSuccess()
 
         mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
         return WORK_RUNNING;
-    case HistoryManager::VERIFY_HASH_BAD:
-        CLOG(ERROR, "History")
-            << "Catchup material failed verification, propagating failure";
+    case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "unsupported ledger version, propagating "
+                                  "failure";
+        return WORK_FAILURE_FATAL;
+    case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
+        CLOG(ERROR, "History") << "Catchup material failed verification - hash "
+                                  "mismatch, propagating failure";
+        return WORK_FAILURE_FATAL;
+    case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "overshot, propagating failure";
+        return WORK_FAILURE_FATAL;
+    case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "missing entries, propagating failure";
         return WORK_FAILURE_FATAL;
     default:
         assert(false);

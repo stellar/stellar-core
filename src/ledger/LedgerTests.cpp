@@ -138,3 +138,27 @@ TEST_CASE("DB cache interaction with transactions", "[ledger][dbcache]")
 
     CHECK(balance0 == acc->getAccount().balance);
 }
+
+TEST_CASE("cannot close ledger with unsupported ledger version", "[ledger]")
+{
+    VirtualClock clock;
+    Application::pointer app = Application::create(clock, getTestConfig(0));
+    app->start();
+
+    auto applyEmptyLedger = [&]() {
+        auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
+        auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+
+        StellarValue sv(txSet->getContentsHash(), 1, emptyUpgradeSteps, 0);
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+        app->getLedgerManager().closeLedger(ledgerData);
+    };
+
+    applyEmptyLedger();
+    testutil::setCurrentLedgerVersion(app->getLedgerManager(),
+                                      Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    applyEmptyLedger();
+    testutil::setCurrentLedgerVersion(
+        app->getLedgerManager(), Config::CURRENT_LEDGER_PROTOCOL_VERSION + 1);
+    REQUIRE_THROWS_AS(applyEmptyLedger(), std::runtime_error);
+}
