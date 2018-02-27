@@ -338,6 +338,12 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
             ++ledgerSeq;
         }
 
+        mBucketListAtLastPublish = getApp().getBucketManager().getBucketList();
+
+        // One more ledger is needed to close as stellar-core only publishes
+        // to just-before-LCL
+        generateRandomLedger();
+        ++ledgerSeq;
         REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
 
         // Advance until we've published (or failed to!)
@@ -351,7 +357,8 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
     REQUIRE(hm.getPublishFailureCount() == 0);
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
     REQUIRE(lm.getLedgerNum() ==
-            ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()));
+            ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()) +
+                1);
 }
 
 Application::pointer
