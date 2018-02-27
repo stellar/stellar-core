@@ -94,7 +94,7 @@ dumpxdr(std::string const& filename)
                                  xdr_strerror(errno)); \
     } while (0)
 
-static std::string
+static xdr::opaque_vec<>
 readFile(const std::string& filename, bool base64 = false)
 {
     using namespace std;
@@ -108,14 +108,12 @@ readFile(const std::string& filename, bool base64 = false)
             throw_perror(filename);
         input << file.rdbuf();
     }
+    string ret;
     if (base64)
-    {
-        string ret;
         bn::decode_b64(input.str(), ret);
-        return ret;
-    }
     else
-        return input.str();
+        ret = input.str();
+    return {ret.begin(), ret.end()};
 }
 
 void
