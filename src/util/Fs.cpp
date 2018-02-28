@@ -12,7 +12,9 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#include <filesystem>
 #else
+#include <dirent.h>
 #include <sys/stat.h>
 #endif
 
@@ -116,6 +118,28 @@ deltree(std::string const& d)
     {
         throw std::runtime_error("SHFileOperation failed in deltree");
     }
+}
+
+std::vector<std::string>
+findfiles(std::string const& p,
+          std::function<bool(std::string const& name)> predicate)
+{
+    using namespace std;
+    namespace fs = std::experimental::filesystem;
+
+    std::vector<std::string> res;
+    for (auto& entry : fs::directory_iterator(fs::path(p)))
+    {
+        if (fs::is_regular_file(entry.status()))
+        {
+            auto n = entry.path().filename().string();
+            if (predicate(n))
+            {
+                res.emplace_back(n);
+            }
+        }
+    }
+    return res;
 }
 
 long
@@ -267,6 +291,38 @@ deltree(std::string const& d)
     if (nftw(d.c_str(), nftw_deltree_callback, FOPEN_MAX, FTW_DEPTH) != 0)
     {
         throw std::runtime_error("nftw failed in deltree for " + d);
+    }
+}
+
+std::vector<std::string>
+findfiles(std::string const& path,
+          std::function<bool(std::string const& name)> predicate)
+{
+    auto dir = opendir(path.c_str());
+    auto result = std::vector<std::string>{};
+    if (!dir)
+    {
+        return result;
+    }
+
+    try
+    {
+        while (auto entry = readdir(dir))
+        {
+            auto name = std::string{entry->d_name};
+            if (predicate(name))
+            {
+                result.push_back(name);
+            }
+        }
+
+        return result;
+    }
+    catch (...)
+    {
+        // small RAII class could do here
+        closedir(dir);
+        throw;
     }
 }
 

@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
@@ -44,6 +45,9 @@ class BucketManagerImpl : public BucketManager
     medida::Timer& mBucketAddBatch;
     medida::Timer& mBucketSnapMerge;
     medida::Counter& mSharedBucketsSize;
+
+    std::set<Hash> getReferencedBuckets() const;
+    void cleanupStaleFiles();
 
   protected:
     void calculateSkipValues(LedgerHeader& currentHeader);

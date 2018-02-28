@@ -4,7 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include <functional>
 #include <string>
+#include <vector>
 
 namespace stellar
 {
@@ -39,6 +41,12 @@ bool mkdir(std::string const& path);
 
 // Make a dir path like mkdir -p, i.e. recursive, uses '/' as dir separator
 bool mkpath(std::string const& path);
+
+// Get list of all files with names matching predicate
+// Returned names are relative to path
+std::vector<std::string>
+findfiles(std::string const& path,
+          std::function<bool(std::string const& name)> predicate);
 
 class PathSplitter
 {
