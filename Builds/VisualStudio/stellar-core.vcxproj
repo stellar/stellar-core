@@ -276,6 +276,7 @@ exit /b 0
     <ClCompile Include="..\..\src\database\DatabaseConnectionString.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp" />
     <ClCompile Include="..\..\src\database\DatabaseTests.cpp" />
+    <ClCompile Include="..\..\src\database\DatabaseUtils.cpp" />
     <ClCompile Include="..\..\src\herder\Herder.cpp" />
     <ClCompile Include="..\..\src\herder\HerderImpl.cpp" />
     <ClCompile Include="..\..\src\herder\HerderPersistenceImpl.cpp" />
@@ -550,6 +551,7 @@ exit /b 0
     <ClInclude Include="..\..\src\crypto\StrKey.h" />
     <ClInclude Include="..\..\src\database\Database.h" />
     <ClInclude Include="..\..\src\database\DatabaseConnectionString.h" />
+    <ClInclude Include="..\..\src\database\DatabaseUtils.h" />
     <ClInclude Include="..\..\src\herder\HerderPersistence.h" />
     <ClInclude Include="..\..\src\herder\HerderPersistenceImpl.h" />
     <ClInclude Include="..\..\src\herder\HerderSCPDriver.h" />

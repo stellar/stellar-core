@@ -5,6 +5,7 @@
 #include "herder/HerderPersistenceImpl.h"
 #include "crypto/Hex.h"
 #include "database/Database.h"
+#include "database/DatabaseUtils.h"
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "scp/Slot.h"
@@ -269,11 +270,9 @@ void
 HerderPersistence::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
-    db.getSession() << "DELETE FROM scphistory WHERE ledgerseq IN (SELECT "
-                       "ledgerseq FROM scphistory WHERE ledgerseq <= "
-                    << ledgerSeq << " LIMIT " << count << ")";
-    db.getSession() << "DELETE FROM scpquorums WHERE lastledgerseq IN (SELECT "
-                       "lastledgerseq FROM scpquorums WHERE lastledgerseq <= "
-                    << ledgerSeq << " LIMIT " << count << ")";
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "scphistory", "ledgerseq");
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "scpquorums", "lastledgerseq");
 }
 }

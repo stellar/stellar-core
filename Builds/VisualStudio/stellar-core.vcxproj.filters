@@ -843,6 +843,9 @@
     <ClCompile Include="..\..\src\main\Maintainer.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\database\DatabaseUtils.cpp">
+      <Filter>database</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1450,6 +1453,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\Maintainer.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\database\DatabaseUtils.h">
+      <Filter>database</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
