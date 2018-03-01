@@ -9,6 +9,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
+#include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
@@ -841,11 +842,9 @@ void
 TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                    uint32_t count)
 {
-    db.getSession() << "DELETE FROM txhistory WHERE ledgerseq IN (SELECT "
-                       "ledgerseq FROM txhistory WHERE ledgerseq <= "
-                    << ledgerSeq << " LIMIT " << count << ")";
-    db.getSession() << "DELETE FROM txfeehistory WHERE ledgerseq IN (SELECT "
-                       "ledgerseq FROM txfeehistory WHERE ledgerseq <= "
-                    << ledgerSeq << " LIMIT " << count << ")";
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "txhistory", "ledgerseq");
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "txfeehistory", "ledgerseq");
 }
 }

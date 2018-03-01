@@ -8,6 +8,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "database/DatabaseUtils.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
 #include "util/format.h"
@@ -243,9 +244,8 @@ void
 LedgerHeaderFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
-    db.getSession() << "DELETE FROM ledgerheaders WHERE ledgerseq IN (SELECT "
-                       "ledgerseq FROM ledgerheaders WHERE ledgerseq <= "
-                    << ledgerSeq << " LIMIT " << count << ")";
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "ledgerheaders", "ledgerseq");
 }
 
 void
