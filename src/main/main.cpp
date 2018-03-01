@@ -181,8 +181,7 @@ usage(int err = 1)
           "      --netid STRING       Specify network ID for subsequent "
           "signtxn\n"
           "                           (Default is STELLAR_NETWORK_ID "
-          "environment\n"
-          "variable)\n"
+          "environment variable)\n"
           "      --test               Run self-tests\n"
           "      --version            Print version information\n";
     exit(err);
