@@ -42,7 +42,7 @@ void
 replaceControlCharacters(T& s, int minSize)
 {
     std::locale loc("C");
-    if (s.size() < minSize)
+    if (static_cast<int>(s.size()) < minSize)
     {
         s.resize(minSize);
     }

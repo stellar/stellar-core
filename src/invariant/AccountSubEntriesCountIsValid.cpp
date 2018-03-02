@@ -66,7 +66,7 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
             auto const& change = subEntriesChange[account.accountID];
             int32_t numSigners =
                 account.numSubEntries + change.numSubEntries - change.signers;
-            if (numSigners != account.signers.size())
+            if (numSigners != static_cast<int32_t>(account.signers.size()))
             {
                 int32_t otherSubEntries =
                     static_cast<int32_t>(account.numSubEntries) -

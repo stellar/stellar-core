@@ -122,7 +122,7 @@ Topologies::core(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen);
 
     auto nodes = simulation->getNodeIDs();
-    assert(nodes.size() == nNodes);
+    assert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes - 1; from++)
     {
@@ -144,7 +144,7 @@ Topologies::cycle(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen);
 
     auto nodes = simulation->getNodeIDs();
-    assert(nodes.size() == nNodes);
+    assert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes; from++)
     {
@@ -164,7 +164,7 @@ Topologies::branchedcycle(int nNodes, double quorumThresoldFraction,
                                            networkID, confGen);
 
     auto nodes = simulation->getNodeIDs();
-    assert(nodes.size() == nNodes);
+    assert(static_cast<int>(nodes.size()) == nNodes);
 
     for (int from = 0; from < nNodes; from++)
     {
@@ -353,7 +353,7 @@ Topologies::customA(Simulation::Mode mode, Hash const& networkID,
 
     // create connections between nodes
     auto nodes = s->getNodeIDs();
-    for (int i = 0; i < nodes.size(); i++)
+    for (int i = 0; i < static_cast<int>(nodes.size()); i++)
     {
         auto from = nodes[i];
         for (int j = 1; j <= connections; j++)

@@ -148,7 +148,7 @@ class LedgerPerformanceTests : public Simulation
 
 TEST_CASE("ledger performance test", "[performance][hide]")
 {
-    int nAccounts = 10000000;
+    uint64_t nAccounts = 10000000;
     int nLedgers =
         9 /* weeks */ * 7 * 24 * 60 * 60 / 5 /* seconds between ledgers */;
     int nTransactionsPerLedger = 3;
