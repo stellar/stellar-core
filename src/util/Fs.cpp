@@ -316,6 +316,7 @@ findfiles(std::string const& path,
             }
         }
 
+        closedir(dir);
         return result;
     }
     catch (...)
