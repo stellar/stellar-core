@@ -350,7 +350,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp" />
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp" />
     <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
-    <ClCompile Include="..\..\lib\asio\src\asio.cpp" />
+    <ClCompile Include="..\..\lib\asio.cpp" />
     <ClCompile Include="..\..\lib\http\connection.cpp" />
     <ClCompile Include="..\..\lib\http\connection_manager.cpp" />
     <ClCompile Include="..\..\lib\http\HttpClient.cpp" />

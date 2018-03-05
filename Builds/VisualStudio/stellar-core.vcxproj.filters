@@ -303,7 +303,7 @@
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp">
       <Filter>transactions\tests</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\lib\asio\src\asio.cpp">
+    <ClCompile Include="..\..\lib\asio.cpp">
       <Filter>lib</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketManagerImpl.cpp">
