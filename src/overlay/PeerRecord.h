@@ -22,7 +22,7 @@ class PeerRecord
 
   public:
     VirtualClock::time_point mNextAttempt;
-    uint32_t mNumFailures;
+    int mNumFailures;
 
     /**
      * Create new PeerRecord object. If preconditions are not met - exception
@@ -32,7 +32,7 @@ class PeerRecord
      * @pre: port > 0
      */
     PeerRecord(string const& ip, unsigned short port,
-               VirtualClock::time_point nextAttempt, uint32_t fails = 0);
+               VirtualClock::time_point nextAttempt, int fails = 0);
 
     bool
     operator==(PeerRecord& other)

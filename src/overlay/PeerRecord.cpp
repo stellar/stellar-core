@@ -24,7 +24,7 @@ using namespace std;
 using namespace soci;
 
 PeerRecord::PeerRecord(string const& ip, unsigned short port,
-                       VirtualClock::time_point nextAttempt, uint32_t fails)
+                       VirtualClock::time_point nextAttempt, int fails)
     : mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails)
 {
     if (mIP.empty())
@@ -146,14 +146,14 @@ PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
     tm tm;
     // SOCI only support signed short, using intermediate int avoids ending up
     // with negative numbers in the database
-    uint32_t numFailures;
+    int numFailures;
     auto prep = db.getPreparedStatement("SELECT nextattempt, numfailures FROM "
                                         "peers WHERE ip = :v1 AND port = :v2");
     auto& st = prep.statement();
     st.exchange(into(tm));
     st.exchange(into(numFailures));
     st.exchange(use(ip));
-    uint32_t port32(port);
+    int port32(port);
     st.exchange(use(port32));
     st.define_and_bind();
     {
@@ -185,8 +185,8 @@ PeerRecord::loadPeerRecords(Database& db, int batchSize,
             tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
             std::string ip;
             tm nextAttempt;
-            uint32_t lport;
-            uint32_t numFailures;
+            int lport;
+            int numFailures;
             auto prep = db.getPreparedStatement(
                 "SELECT ip, port, nextattempt, numfailures "
                 "FROM peers "
@@ -293,7 +293,7 @@ PeerRecord::insertIfNew(Database& db)
             "(:v1, :v2,  :v3,         :v4)");
         auto& st = prep.statement();
         st.exchange(use(mIP));
-        uint32_t port = uint32_t(mPort);
+        int port = mPort;
         st.exchange(use(port));
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
@@ -320,7 +320,7 @@ PeerRecord::storePeerRecord(Database& db)
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
         st.exchange(use(mIP));
-        uint32_t port = uint32_t(mPort);
+        int port = mPort;
         st.exchange(use(port));
         st.define_and_bind();
         {
@@ -358,11 +358,10 @@ PeerRecord::backOff(VirtualClock& clock)
 std::chrono::seconds
 PeerRecord::computeBackoff(VirtualClock& clock)
 {
-    uint32 backoffCount = std::min<uint32>(MAX_BACKOFF_EXPONENT, mNumFailures);
+    int32 backoffCount = std::min<int32>(MAX_BACKOFF_EXPONENT, mNumFailures);
 
     auto nsecs = std::chrono::seconds(
-        std::rand() %
-        (static_cast<uint32>(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF)));
+        std::rand() % int(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF));
     mNextAttempt = clock.now() + nsecs;
     return nsecs;
 }
