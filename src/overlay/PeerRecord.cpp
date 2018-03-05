@@ -403,7 +403,7 @@ PeerRecord::computeBackoff(VirtualClock& clock)
     int32 backoffCount = std::min<int32>(MAX_BACKOFF_EXPONENT, mNumFailures);
 
     auto nsecs = std::chrono::seconds(
-        std::rand() % int(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF));
+        std::rand() % int(std::pow(2, backoffCount) * SECONDS_PER_BACKOFF) + 1);
     mNextAttempt = clock.now() + nsecs;
     return nsecs;
 }
