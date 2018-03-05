@@ -3,12 +3,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
+#include "database/Database.h"
 #include "main/ApplicationImpl.h"
 #include "main/Config.h"
-
-#include "database/Database.h"
-#include "lib/catch.hpp"
-#include "overlay/OverlayManager.h"
 #include "overlay/OverlayManagerImpl.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -16,9 +13,11 @@
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
 #include "transport/PreferredPeers.h"
+#include "transport/Transport.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
+#include <lib/catch.hpp>
 #include <soci.h>
 
 using namespace stellar;
@@ -58,15 +57,15 @@ class PeerStub : public Peer
     }
 };
 
-class OverlayManagerStub : public OverlayManagerImpl
+class TransportStub : public Transport
 {
   public:
-    OverlayManagerStub(Application& app) : OverlayManagerImpl(app)
+    TransportStub(Application& app) : Transport(app)
     {
     }
 
     virtual void
-    connectTo(PeerRecord& pr) override
+    connectTo(PeerRecord& pr)
     {
         if (!getConnectedPeer(pr.getAddress()))
         {
@@ -75,7 +74,7 @@ class OverlayManagerStub : public OverlayManagerImpl
 
             auto peerStub = std::make_shared<PeerStub>(mApp, pr.getAddress());
             addPendingPeer(peerStub);
-            REQUIRE(acceptAuthenticatedPeer(peerStub));
+            REQUIRE(mApp.getTransport().acceptAuthenticatedPeer(peerStub));
         }
     }
 };
@@ -90,18 +89,11 @@ class OverlayManagerTests
         {
         }
 
-        virtual OverlayManagerStub&
-        getOverlayManager() override
-        {
-            auto& overlay = ApplicationImpl::getOverlayManager();
-            return static_cast<OverlayManagerStub&>(overlay);
-        }
-
       private:
-        virtual std::unique_ptr<OverlayManager>
-        createOverlayManager() override
+        virtual std::unique_ptr<Transport>
+        createTransport() override
         {
-            return make_unique<OverlayManagerStub>(*this);
+            return make_unique<TransportStub>(*this);
         }
     };
 
@@ -142,7 +134,7 @@ class OverlayManagerTests
     sentCounts(OverlayManagerImpl& pm)
     {
         vector<int> result;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : app->getTransport().mAuthenticatedPeers)
             result.push_back(static_pointer_cast<PeerStub>(p.second)->sent);
         return result;
     }
@@ -156,7 +148,7 @@ class OverlayManagerTests
         app->getPreferredPeers().storePeerList(threePeers, false, false);
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
-        REQUIRE(pm.mAuthenticatedPeers.size() == 5);
+        REQUIRE(app->getTransport().mAuthenticatedPeers.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};
         auto c = TestAccount{*app, getAccount("c")};
@@ -164,7 +156,7 @@ class OverlayManagerTests
 
         StellarMessage AtoC = a.tx({payment(b, 10)})->toStellarMessage();
         auto i = 0;
-        for (auto p : pm.mAuthenticatedPeers)
+        for (auto p : app->getTransport().mAuthenticatedPeers)
             if (i++ == 2)
                 pm.recvFloodedMsg(AtoC, 1, p.second);
         pm.broadcastMessage(AtoC, 1);

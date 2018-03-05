@@ -5,7 +5,6 @@
 #include "overlay/FetchingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "herder/Herder.h"
 #include "item/ItemFetcher.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"

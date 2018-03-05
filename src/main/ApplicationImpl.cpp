@@ -50,6 +50,7 @@
 #include "transport/BanManager.h"
 #include "transport/PeerAuth.h"
 #include "transport/PreferredPeers.h"
+#include "transport/Transport.h"
 #include "util/StatusManager.h"
 #include "work/WorkManager.h"
 
@@ -131,6 +132,7 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+    mTransport = createTransport();
     mPeerAuth = make_unique<PeerAuth>(*this);
     mConnectionHandler = make_unique<HerderConnectionHandler>(*this);
     mMessageHandler = make_unique<OverlayMessageHandler>(*this);
@@ -258,9 +260,9 @@ ApplicationImpl::getJsonInfo()
     info["ledger"]["baseReserve"] = lcl.header.baseReserve;
     info["ledger"]["maxTxSetSize"] = lcl.header.maxTxSetSize;
     info["ledger"]["age"] = (int)lm.secondsSinceLastLedgerClose();
-    info["peers"]["pending_count"] = getOverlayManager().getPendingPeersCount();
+    info["peers"]["pending_count"] = getTransport().getPendingPeersCount();
     info["peers"]["authenticated_count"] =
-        getOverlayManager().getAuthenticatedPeersCount();
+        getTransport().getAuthenticatedPeersCount();
     info["network"] = getConfig().NETWORK_PASSPHRASE;
 
     auto& statusMessages = getStatusManager();
@@ -767,6 +769,12 @@ ApplicationImpl::getStatusManager()
     return *mStatusManager;
 }
 
+Transport&
+ApplicationImpl::getTransport()
+{
+    return *mTransport;
+}
+
 PreferredPeers&
 ApplicationImpl::getPreferredPeers()
 {
@@ -840,5 +848,11 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+std::unique_ptr<Transport>
+ApplicationImpl::createTransport()
+{
+    return make_unique<Transport>(*this);
 }
 }

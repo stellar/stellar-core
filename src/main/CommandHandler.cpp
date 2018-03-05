@@ -7,29 +7,28 @@
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
-#include "lib/http/server.hpp"
-#include "lib/json/json.h"
-#include "lib/util/format.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "overlay/OverlayManager.h"
-#include "transport/BanManager.h"
-#include "util/Logging.h"
-#include "util/StatusManager.h"
-#include "util/make_unique.h"
-
-#include "medida/reporting/json_reporter.h"
-#include "util/Decoder.h"
-#include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
-#include "xdrpp/printer.h"
-
-#include "ExternalQueue.h"
-
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "transport/BanManager.h"
+#include "transport/Transport.h"
+#include "util/Decoder.h"
+#include "util/Logging.h"
+#include "util/StatusManager.h"
+#include "util/XDROperators.h"
+#include "util/make_unique.h"
+
+#include <lib/http/server.hpp>
+#include <lib/json/json.h>
+#include <lib/util/format.h>
+#include <medida/reporting/json_reporter.h>
 #include <regex>
+#include <xdrpp/marshal.h>
+#include <xdrpp/printer.h>
 
 using namespace stellar::txtest;
 
@@ -477,7 +476,7 @@ CommandHandler::peers(std::string const&, std::string& retStr)
 
     root["pending_peers"];
     int counter = 0;
-    for (auto peer : mApp.getOverlayManager().getPendingPeers())
+    for (auto peer : mApp.getTransport().getPendingPeers())
     {
         root["pending_peers"][counter]["address"] = peer->toString();
 
@@ -486,7 +485,7 @@ CommandHandler::peers(std::string const&, std::string& retStr)
 
     root["authenticated_peers"];
     counter = 0;
-    for (auto peer : mApp.getOverlayManager().getAuthenticatedPeers())
+    for (auto peer : mApp.getTransport().getAuthenticatedPeers())
     {
         root["authenticated_peers"][counter]["address"] =
             peer.second->toString();
@@ -598,7 +597,7 @@ CommandHandler::connect(std::string const& params, std::string& retStr)
         str << peerP->second << ":" << portP->second;
         retStr = "Connect to: ";
         retStr += str.str();
-        mApp.getOverlayManager().connectTo(str.str());
+        mApp.getTransport().connectTo(str.str());
     }
     else
     {
@@ -620,11 +619,11 @@ CommandHandler::dropPeer(std::string const& params, std::string& retStr)
         NodeID n;
         if (mApp.getHerder().resolveNodeID(peerId->second, n))
         {
-            auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
+            auto peers = mApp.getTransport().getAuthenticatedPeers();
             auto peer = peers.find(n);
             if (peer != peers.end())
             {
-                mApp.getOverlayManager().dropPeer(peer->second.get());
+                mApp.getTransport().dropPeer(peer->second.get());
                 if (ban != retMap.end() && ban->second == "1")
                 {
                     retStr = "Drop and ban peer: ";

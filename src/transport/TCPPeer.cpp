@@ -6,15 +6,15 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "overlay/OverlayManager.h"
-#include "overlay/StellarXDR.h"
 #include "transport/LoadManager.h"
 #include "transport/PeerRecord.h"
+#include "transport/Transport.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
-#include "xdrpp/marshal.h"
+
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 using namespace soci;
 
@@ -468,7 +468,7 @@ TCPPeer::drop(bool force)
     mState = CLOSING;
 
     auto self = static_pointer_cast<TCPPeer>(shared_from_this());
-    getApp().getOverlayManager().dropPeer(this);
+    getApp().getTransport().dropPeer(this);
 
     // if write queue is not empty, messageSender will take care of shutdown
     if (force || !mWriting)

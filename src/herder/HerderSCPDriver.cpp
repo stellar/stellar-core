@@ -11,6 +11,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PendingEnvelopes.h"
 #include "overlay/QSetCache.h"
 #include "overlay/TxSetCache.h"
 #include "scp/SCP.h"

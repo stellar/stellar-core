@@ -9,6 +9,8 @@
 #include "transport/Peer.h"
 #include "transport/TransactionHandler.h"
 
+#include <set>
+
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
  * remote TCP peers (TCPPeer), a mechanism for flooding messages to all peers
@@ -48,8 +50,7 @@
 namespace stellar
 {
 
-class PeerBareAddress;
-class PeerRecord;
+class Database;
 class LoadManager;
 class QSetCache;
 class TxSetCache;
@@ -85,53 +86,6 @@ class OverlayManager
     // Herder.
     virtual void broadcastMessage(StellarMessage const& msg, uint32_t ledgerSeq,
                                   bool force = false) = 0;
-
-    // Return a list of random peers from the set of authenticated peers.
-    virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
-
-    // Return an already-connected peer at the given address; returns a
-    // `nullptr`-valued pointer if no such connected peer exists.
-    virtual Peer::pointer getConnectedPeer(PeerBareAddress const& address) = 0;
-
-    // Add a peer to the in-memory set of pending peers.
-    virtual void addPendingPeer(Peer::pointer peer) = 0;
-
-    // Forget about a peer, removing it from the in-memory set of connected
-    // peers. Presumably due to it disconnecting.
-    virtual void dropPeer(Peer* peer) = 0;
-
-    // Try to move peer from pending to authenticated list. If there is no room
-    // for provided peer, it is checked if it is a "preferred" peer (as
-    // specified in the config file's PREFERRED_PEERS/PREFERRED_PEER_KEYS
-    // setting) - if so, one random non-preferred peer is removed.
-    //
-    // If moving peer to authenticated list succeeded, true is returned.
-    virtual bool acceptAuthenticatedPeer(Peer::pointer peer) = 0;
-
-    // Return the current in-memory set of pending peers.
-    virtual std::vector<Peer::pointer> const& getPendingPeers() const = 0;
-
-    // Return number of pending peers
-    virtual int getPendingPeersCount() const = 0;
-
-    // Return the current in-memory set of authenticated peers.
-    virtual std::map<NodeID, Peer::pointer> const&
-    getAuthenticatedPeers() const = 0;
-
-    // Return number of authenticated peers
-    virtual int getAuthenticatedPeersCount() const = 0;
-
-    // Attempt to connect to a peer identified by string. The form of the string
-    // should be an IP address or hostname, optionally followed by a colon and
-    // a TCP port number.
-    virtual void connectTo(std::string const& addr) = 0;
-
-    // Attempt to connect to a peer identified by peer address.
-    virtual void connectTo(PeerBareAddress const& address) = 0;
-
-    // Attempt to connect to a peer identified by peer record. Can modify back
-    // off value of pr and save it do database.
-    virtual void connectTo(PeerRecord& pr) = 0;
 
     // Return the persistent peer-load-accounting cache.
     virtual LoadManager& getLoadManager() = 0;

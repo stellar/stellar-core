@@ -2,17 +2,17 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TCPPeer.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/OverlayManager.h"
 #include "simulation/Simulation.h"
 #include "test/test.h"
-#include "transport/PeerBareAddress.h"
 #include "transport/TCPAcceptor.h"
+#include "transport/TCPPeer.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+
+#include <lib/catch.hpp>
 
 namespace stellar
 {
@@ -41,10 +41,10 @@ TEST_CASE("TCPPeer can communicate", "[overlay]")
     s->startAllNodes();
     s->crankForAtLeast(std::chrono::seconds(1), false);
 
-    auto p0 = n0->getOverlayManager().getConnectedPeer(
+    auto p0 = n0->getTransport().getConnectedPeer(
         PeerBareAddress{"127.0.0.1", n1->getConfig().PEER_PORT});
 
-    auto p1 = n1->getOverlayManager().getConnectedPeer(
+    auto p1 = n1->getTransport().getConnectedPeer(
         PeerBareAddress{"127.0.0.1", n0->getConfig().PEER_PORT});
 
     REQUIRE(p0);

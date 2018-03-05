@@ -6,7 +6,7 @@
 #include "crypto/Hex.h"
 #include "item/ItemKey.h"
 #include "main/Application.h"
-#include "overlay/OverlayManager.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 
 #include <medida/metrics_registry.h>
@@ -133,8 +133,7 @@ ItemFetcher::getNextPeerAndTimeout(ItemPeerQueue& itemPeerQueue)
         return std::make_pair(peer, MS_TO_WAIT_FOR_FETCH_REPLY);
     }
 
-    auto authenticatedPeers =
-        mApp.getOverlayManager().getRandomAuthenticatedPeers();
+    auto authenticatedPeers = mApp.getTransport().getRandomAuthenticatedPeers();
     assert(!authenticatedPeers.empty());
 
     itemPeerQueue.setPeers(authenticatedPeers);
@@ -150,7 +149,7 @@ void
 ItemFetcher::fetchFromQueue()
 {
     // enusre that we will get at least one valid peer trying to start fetching
-    if (mApp.getOverlayManager().getAuthenticatedPeersCount() == 0)
+    if (mApp.getTransport().getAuthenticatedPeersCount() == 0)
     {
         return;
     }

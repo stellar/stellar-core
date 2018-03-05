@@ -46,6 +46,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class Transport;
 class PreferredPeers;
 class PeerAuth;
 class PendingEnvelopes;
@@ -216,6 +217,7 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+    virtual Transport& getTransport() = 0;
     virtual PreferredPeers& getPreferredPeers() = 0;
     virtual PeerAuth& getPeerAuth() = 0;
     virtual ConnectionHandler& getConnectionHandler() = 0;

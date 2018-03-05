@@ -8,6 +8,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -97,7 +98,7 @@ LoadManager::maybeShedExcessLoad(Application& app)
                                  << "DB " << idleDb << "%";
         CLOG(WARNING, "Overlay") << "";
 
-        auto peers = app.getOverlayManager().getAuthenticatedPeers();
+        auto peers = app.getTransport().getAuthenticatedPeers();
         reportLoads(peers, app);
 
         // Look for the worst-behaved of the current peers and kick them out.

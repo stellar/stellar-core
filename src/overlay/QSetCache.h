@@ -21,7 +21,7 @@ class QSetCache
   public:
     QSetCache();
 
-    void add(Hash hash, const SCPQuorumSet& qset);
+    void add(Hash hash, SCPQuorumSet const& qset);
     void touch(Hash hash);
 
     bool contains(Hash hash) const;

@@ -3,10 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SHA.h"
-#include "herder/HerderImpl.h"
-#include "main/ApplicationImpl.h"
+#include "main/Application.h"
 #include "overlay/PendingEnvelopes.h"
+#include "test/TestAccount.h"
 #include "test/TestUtils.h"
+#include "test/TxTests.h"
 #include "test/test.h"
 
 #include <lib/catch.hpp>

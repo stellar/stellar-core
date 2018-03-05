@@ -4,7 +4,6 @@
 
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManagerImpl.h"
@@ -15,15 +14,17 @@
 #include "transport/LoopbackPeer.h"
 #include "transport/PeerRecord.h"
 #include "transport/TCPPeer.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-#include "util/format.h"
+#include <lib/catch.hpp>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
 #include <numeric>
+#include <util/format.h>
 
 using namespace stellar;
 
@@ -399,7 +400,7 @@ TEST_CASE("connecting to saturated nodes", "[overlay]")
     };
 
     auto numberOfAppConnections = [](Application& app) {
-        return app.getOverlayManager().getAuthenticatedPeersCount();
+        return app.getTransport().getAuthenticatedPeersCount();
     };
 
     auto numberOfSimulationConnections = [&]() {
@@ -459,7 +460,7 @@ TEST_CASE("preferred peers always connect", "[overlay]")
     };
 
     auto numberOfAppConnections = [](Application& app) {
-        return app.getOverlayManager().getAuthenticatedPeersCount();
+        return app.getTransport().getAuthenticatedPeersCount();
     };
 
     Config configs[3];

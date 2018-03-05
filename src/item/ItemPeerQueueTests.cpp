@@ -4,6 +4,7 @@
 
 #include "item/ItemPeerQueue.h"
 #include "main/ApplicationImpl.h"
+// #include "overlay/OverlayManagerImpl.h"
 #include "test/test.h"
 
 #include <lib/catch.hpp>

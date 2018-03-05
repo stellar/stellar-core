@@ -12,6 +12,7 @@
 #include "transport/BanManager.h"
 #include "transport/ConnectionHandler.h"
 #include "transport/PeerAuth.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 
 #include <medida/meter.h>
@@ -81,8 +82,7 @@ OverlayMessageHandler::acceptHello(Peer::pointer peer, Hello const& elo)
         return std::make_pair(false, std::string{"wrong network passphrase"});
     }
 
-    auto const& authenticated =
-        mApp.getOverlayManager().getAuthenticatedPeers();
+    auto const& authenticated = mApp.getTransport().getAuthenticatedPeers();
     auto authenticatedIt = authenticated.find(elo.peerID);
     // no need to self-check here as this one cannot be in authenticated yet
     if (authenticatedIt != std::end(authenticated))
@@ -98,7 +98,7 @@ OverlayMessageHandler::acceptHello(Peer::pointer peer, Hello const& elo)
         }
     }
 
-    for (auto const& p : mApp.getOverlayManager().getPendingPeers())
+    for (auto const& p : mApp.getTransport().getPendingPeers())
     {
         if (&(p->getPeerID()) == &elo.peerID)
         {
@@ -121,7 +121,7 @@ OverlayMessageHandler::acceptHello(Peer::pointer peer, Hello const& elo)
 bool
 OverlayMessageHandler::acceptAuthenticated(Peer::pointer peer)
 {
-    if (!mApp.getOverlayManager().acceptAuthenticatedPeer(peer))
+    if (!mApp.getTransport().acceptAuthenticatedPeer(peer))
     {
         return false;
     }

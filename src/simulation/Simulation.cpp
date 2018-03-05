@@ -11,6 +11,7 @@
 #include "scp/LocalNode.h"
 #include "test/test.h"
 #include "transport/PeerRecord.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
@@ -185,7 +186,7 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
         {
             auto& cAcceptor = mNodes[acceptor].mApp->getConfig();
 
-            auto peer = iApp->getOverlayManager().getConnectedPeer(
+            auto peer = iApp->getTransport().getConnectedPeer(
                 PeerBareAddress{"127.0.0.1", cAcceptor.PEER_PORT});
             if (peer)
             {
@@ -241,7 +242,7 @@ Simulation::addTCPConnection(NodeID initiator, NodeID acceptor)
         throw runtime_error("PEER_PORT cannot be set to 0");
     }
     auto address = PeerBareAddress{"127.0.0.1", to->getConfig().PEER_PORT};
-    from->getOverlayManager().connectTo(address);
+    from->getTransport().connectTo(address);
 }
 
 void

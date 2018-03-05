@@ -7,14 +7,14 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "herder/Herder.h"
 #include "item/ItemKey.h"
 #include "main/Application.h"
-#include "overlay/OverlayManager.h"
+#include "transport/EnvelopeHandler.h"
 #include "transport/LoadManager.h"
 #include "transport/MessageHandler.h"
 #include "transport/PeerAuth.h"
 #include "transport/PeerRecord.h"
+#include "transport/TransactionHandler.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -309,6 +309,7 @@ Peer::sendGetTxSet(uint256 const& setID)
 
     sendMessage(newMsg);
 }
+
 void
 Peer::sendGetQuorumSet(uint256 const& setID)
 {

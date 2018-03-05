@@ -6,7 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "main/Application.h"
-#include "overlay/OverlayManager.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -99,7 +99,7 @@ Floodgate::broadcast(StellarMessage const& msg, uint32_t ledgerSeq, bool force)
     std::set<Peer::pointer>& peersTold = result->second->mPeersTold;
 
     // make a copy, in case peers gets modified
-    auto peers = mApp.getOverlayManager().getAuthenticatedPeers();
+    auto peers = mApp.getTransport().getAuthenticatedPeers();
 
     for (auto peer : peers)
     {

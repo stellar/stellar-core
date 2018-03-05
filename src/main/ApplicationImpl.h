@@ -71,6 +71,7 @@ class ApplicationImpl : public Application
     virtual WorkManager& getWorkManager() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
+    virtual Transport& getTransport() override;
     virtual PreferredPeers& getPreferredPeers() override;
     virtual PeerAuth& getPeerAuth() override;
     virtual ConnectionHandler& getConnectionHandler() override;
@@ -140,6 +141,7 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
+    std::unique_ptr<Transport> mTransport;
     std::unique_ptr<PreferredPeers> mPreferredPeers;
     std::unique_ptr<PeerAuth> mPeerAuth;
     std::unique_ptr<ConnectionHandler> mConnectionHandler;
@@ -189,5 +191,6 @@ class ApplicationImpl : public Application
     virtual std::unique_ptr<Herder> createHerder();
     virtual std::unique_ptr<InvariantManager> createInvariantManager();
     virtual std::unique_ptr<OverlayManager> createOverlayManager();
+    virtual std::unique_ptr<Transport> createTransport();
 };
 }

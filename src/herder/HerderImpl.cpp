@@ -6,6 +6,7 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SHA.h"
+#include "database/Database.h"
 #include "herder/HerderPersistence.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"

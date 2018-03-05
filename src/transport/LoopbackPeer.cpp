@@ -9,8 +9,10 @@
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayManagerImpl.h"
 #include "overlay/StellarXDR.h"
 #include "transport/LoadManager.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 
@@ -86,7 +88,7 @@ LoopbackPeer::drop(bool)
     }
     mState = CLOSING;
     mIdleTimer.cancel();
-    getApp().getOverlayManager().dropPeer(this);
+    getApp().getTransport().dropPeer(this);
 
     auto remote = mRemote.lock();
     if (remote)
@@ -376,8 +378,8 @@ LoopbackPeerConnection::LoopbackPeerConnection(Application& initiator,
     mAcceptor->mRemote = mInitiator;
     mAcceptor->mState = Peer::CONNECTED;
 
-    initiator.getOverlayManager().addPendingPeer(mInitiator);
-    acceptor.getOverlayManager().addPendingPeer(mAcceptor);
+    initiator.getTransport().addPendingPeer(mInitiator);
+    acceptor.getTransport().addPendingPeer(mAcceptor);
 
     // if connection was dropped during addPendingPeer, we don't want do call
     // connectHandler

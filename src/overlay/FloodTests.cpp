@@ -18,6 +18,7 @@
 #include "test/test.h"
 #include "transport/TCPAcceptor.h"
 #include "transport/TCPPeer.h"
+#include "transport/Transport.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 
@@ -159,7 +160,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
                        << sources.size() << " authenticated peers: "
-                       << app->getOverlayManager().getAuthenticatedPeersCount();
+                       << app->getTransport().getAuthenticatedPeersCount();
             return res;
         };
 
@@ -290,7 +291,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             LOG(DEBUG) << app->getConfig().PEER_PORT
                        << (res ? " OK " : " BEHIND ") << okCount << " / "
                        << sources.size() << " authenticated peers: "
-                       << app->getOverlayManager().getAuthenticatedPeersCount();
+                       << app->getTransport().getAuthenticatedPeersCount();
             return res;
         };
 

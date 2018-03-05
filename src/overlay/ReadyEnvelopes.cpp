@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/ReadyEnvelopes.h"
-#include "herder/Herder.h"
 #include "main/Application.h"
 #include "scp/SCP.h"
 #include "scp/SCPUtils.h"

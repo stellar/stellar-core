@@ -6,7 +6,9 @@
 
 #include "overlay/StellarXDR.h"
 #include "transport/Peer.h"
+
 #include <map>
+#include <set>
 
 /**
  * FloodGate keeps track of which peers have sent us which broadcast messages,
