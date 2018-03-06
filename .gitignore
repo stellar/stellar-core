@@ -31,6 +31,7 @@
 /INSTALL
 
 /src/StellarCoreVersion.h
+/src/testdata
 /src/xdr/*.h
 /Makefile
 /Makefile.in
@@ -57,6 +58,8 @@
 /test-driver
 /stamp-h1
 /ylwrap
+/docs/stellar-core.1
+/docs/stellar-core.1.in
 /src/Makefile
 /src/Makefile.in
 /lib/Makefile

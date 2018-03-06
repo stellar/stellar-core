@@ -25,6 +25,7 @@ addons:
     - libtool
     - pkg-config
     - clang-format-5.0
+    - pandoc
 
 script: ./travis-build.sh
 
