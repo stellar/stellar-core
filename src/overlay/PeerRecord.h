@@ -54,9 +54,11 @@ class PeerRecord
      */
     static optional<PeerRecord> loadPeerRecord(Database& db, std::string ip,
                                                unsigned short port);
+
+    // pred returns false if we should stop processing entries
     static void loadPeerRecords(Database& db, int batchSize,
                                 VirtualClock::time_point nextAttemptCutoff,
-                                std::function<bool(PeerRecord const& pr)> p);
+                                std::function<bool(PeerRecord const& pr)> pred);
     const std::string&
     ip() const
     {
@@ -88,6 +90,10 @@ class PeerRecord
     std::string toString();
 
   private:
+    // peerRecordProcessor returns false if we should stop processing entries
+    static void
+    loadPeerRecords(Database& db, StatementContext& prep,
+                    std::function<bool(PeerRecord const&)> peerRecordProcessor);
     std::chrono::seconds computeBackoff(VirtualClock& clock);
     static void ipToXdr(std::string ip, xdr::opaque_array<4U>& ret);
     static const char* kSQLCreateStatement;
