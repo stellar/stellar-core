@@ -390,7 +390,6 @@ BallotProtocol::bumpState(Value const& value, uint32 n)
 
     if (updated)
     {
-        mSlot.getSCPDriver().startedBallotProtocol(mSlot.getSlotIndex(), newb);
         emitCurrentStateStatement();
         checkHeardFromQuorum();
     }
@@ -477,6 +476,12 @@ BallotProtocol::bumpToBallot(SCPBallot const& ballot, bool check)
 
     bool gotBumped =
         !mCurrentBallot || (mCurrentBallot->counter != ballot.counter);
+
+    if (!mCurrentBallot)
+    {
+        mSlot.getSCPDriver().startedBallotProtocol(mSlot.getSlotIndex(),
+                                                   ballot);
+    }
 
     mCurrentBallot = make_unique<SCPBallot>(ballot);
 
