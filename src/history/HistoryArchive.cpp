@@ -7,7 +7,6 @@
 // else.
 #include "util/asio.h"
 #include "history/HistoryArchive.h"
-#include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketList.h"
 #include "crypto/Hex.h"
@@ -15,6 +14,7 @@
 #include "history/HistoryManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "main/StellarCoreVersion.h"
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/Logging.h"

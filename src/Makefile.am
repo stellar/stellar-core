@@ -8,7 +8,7 @@ include $(srcdir)/src.mk
 
 noinst_HEADERS = $(SRC_H_FILES)
 
-stellar_core_SOURCES = $(SRC_CXX_FILES)
+stellar_core_SOURCES = main/StellarCoreVersion.cpp $(SRC_CXX_FILES)
 stellar_core_LDADD = $(soci_LIBS) $(libmedida_LIBS)		\
 	$(top_builddir)/lib/lib3rdparty.a $(sqlite3_LIBS)	\
 	$(libpq_LIBS) $(xdrpp_LIBS) $(libsodium_LIBS)
@@ -17,7 +17,7 @@ TESTDATA_DIR = testdata
 TEST_FILES = $(TESTDATA_DIR)/stellar-core_example.cfg $(TESTDATA_DIR)/stellar-core_standalone.cfg $(TESTDATA_DIR)/stellar-core_testnet.cfg \
 	     $(TESTDATA_DIR)/stellar-history.testnet.6714239.json $(TESTDATA_DIR)/stellar-history.livenet.15686975.json
 
-BUILT_SOURCES = $(SRC_X_FILES:.x=.h) StellarCoreVersion.h $(TEST_FILES)
+BUILT_SOURCES = $(SRC_X_FILES:.x=.h) main/StellarCoreVersion.cpp $(TEST_FILES)
 
 SUFFIXES = .x .h
 .x.h: $(XDRC)
@@ -37,11 +37,11 @@ always:
 	@:
 
 # Always rebuild because .git/HEAD is a symbolic ref one can't depend on
-StellarCoreVersion.h: always
+main/StellarCoreVersion.cpp: always
 	@vers=$$(cd "$(srcdir)" \
 		&& git describe --always --dirty --tags 2>/dev/null \
 		|| echo "$(PACKAGE) $(VERSION)"); \
-	    echo "#define STELLAR_CORE_VERSION \"$$vers\"" > $@~
+		sed -e "s/%%VERSION%%/$$vers/" < main/StellarCoreVersion.cpp.in > $@~
 	@if cmp -s $@~ $@; then rm -f $@~; else \
 	    mv -f $@~ $@ && printf "echo '%s' > $@\n" "$$(cat $@)"; fi
 
