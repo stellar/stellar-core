@@ -20,15 +20,24 @@
 namespace stellar
 {
 
+enum PeerRecordFlags
+{
+    PEER_RECORD_FLAGS_PREFERRED = 1
+};
+
 static const char* loadPeerRecordSelector =
-    "SELECT ip, port, nextattempt, numfailures FROM peers ";
+    "SELECT ip, port, nextattempt, numfailures, flags FROM peers ";
 
 using namespace std;
 using namespace soci;
 
 PeerRecord::PeerRecord(string const& ip, unsigned short port,
                        VirtualClock::time_point nextAttempt, int fails)
-    : mIP(ip), mPort(port), mNextAttempt(nextAttempt), mNumFailures(fails)
+    : mIP(ip)
+    , mPort(port)
+    , mIsPreferred(false)
+    , mNextAttempt(nextAttempt)
+    , mNumFailures(fails)
 {
     if (mIP.empty())
     {
@@ -153,6 +162,8 @@ PeerRecord::loadPeerRecords(
     st.exchange(into(lport));
     st.exchange(into(nextAttempt));
     st.exchange(into(numFailures));
+    int flags;
+    st.exchange(into(flags));
 
     st.define_and_bind();
     {
@@ -166,6 +177,7 @@ PeerRecord::loadPeerRecords(
             auto pr =
                 PeerRecord{ip, static_cast<unsigned short>(lport),
                            VirtualClock::tmToPoint(nextAttempt), numFailures};
+            pr.setPreferred((flags & PEER_RECORD_FLAGS_PREFERRED) != 0);
 
             if (!peerRecordProcessor(pr))
             {
@@ -287,6 +299,18 @@ PeerRecord::isLocalhost() const
 }
 
 bool
+PeerRecord::isPreferred() const
+{
+    return mIsPreferred;
+}
+
+void
+PeerRecord::setPreferred(bool p)
+{
+    mIsPreferred = p;
+}
+
+bool
 PeerRecord::insertIfNew(Database& db)
 {
     auto tm = VirtualClock::pointToTm(mNextAttempt);
@@ -301,14 +325,17 @@ PeerRecord::insertIfNew(Database& db)
     {
         auto prep = db.getPreparedStatement(
             "INSERT INTO peers "
-            "( ip,  port, nextattempt, numfailures) VALUES "
-            "(:v1, :v2,  :v3,         :v4)");
+            "( ip,  port, nextattempt, numfailures, flags) VALUES "
+            "(:v1, :v2,  :v3,         :v4,          :v5)");
         auto& st = prep.statement();
         st.exchange(use(mIP));
         int port = mPort;
         st.exchange(use(port));
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
+        int flags = (mIsPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0);
+        st.exchange(use(flags));
+
         st.define_and_bind();
         {
             auto timer = db.getInsertTimer("peer");
@@ -326,11 +353,14 @@ PeerRecord::storePeerRecord(Database& db)
         auto tm = VirtualClock::pointToTm(mNextAttempt);
         auto prep = db.getPreparedStatement("UPDATE peers SET "
                                             "nextattempt = :v1, "
-                                            "numfailures = :v2 "
-                                            "WHERE ip = :v3 AND port = :v4");
+                                            "numfailures = :v2, "
+                                            "flags = :v3 "
+                                            "WHERE ip = :v4 AND port = :v5");
         auto& st = prep.statement();
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
+        int flags = (mIsPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0);
+        st.exchange(use(flags));
         st.exchange(use(mIP));
         int port = mPort;
         st.exchange(use(port));
@@ -348,10 +378,10 @@ PeerRecord::storePeerRecord(Database& db)
 }
 
 void
-PeerRecord::resetBackOff(VirtualClock& clock, bool preferred)
+PeerRecord::resetBackOff(VirtualClock& clock)
 {
     mNumFailures = 0;
-    mNextAttempt = preferred ? VirtualClock::time_point() : clock.now();
+    mNextAttempt = mIsPreferred ? VirtualClock::time_point() : clock.now();
     CLOG(DEBUG, "Overlay") << "PeerRecord: " << toString() << " backoff reset";
 }
 

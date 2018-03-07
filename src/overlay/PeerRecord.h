@@ -19,6 +19,7 @@ class PeerRecord
   private:
     std::string mIP;
     unsigned short mPort;
+    bool mIsPreferred;
 
   public:
     VirtualClock::time_point mNextAttempt;
@@ -74,6 +75,9 @@ class PeerRecord
     bool isPrivateAddress() const;
     bool isLocalhost() const;
 
+    void setPreferred(bool p);
+    bool isPreferred() const;
+
     // insert record in database if it's a new record
     // returns true if inserted
     bool insertIfNew(Database& db);
@@ -81,7 +85,7 @@ class PeerRecord
     // insert or update record from database
     void storePeerRecord(Database& db);
 
-    void resetBackOff(VirtualClock& clock, bool preferred);
+    void resetBackOff(VirtualClock& clock);
     void backOff(VirtualClock& clock);
 
     void toXdr(PeerAddress& ret) const;

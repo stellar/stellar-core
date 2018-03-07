@@ -146,9 +146,10 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         try
         {
             auto pr = PeerRecord::parseIPPort(peerStr, mApp);
+            pr.setPreferred(preferred);
             if (resetBackOff)
             {
-                pr.resetBackOff(mApp.getClock(), preferred);
+                pr.resetBackOff(mApp.getClock());
                 pr.storePeerRecord(mApp.getDatabase());
             }
             else
