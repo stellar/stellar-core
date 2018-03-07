@@ -887,8 +887,8 @@ Peer::noteHandshakeSuccessInPeerRecord()
                                          getRemoteListeningPort());
     if (pr)
     {
-        pr->resetBackOff(mApp.getClock(),
-                         mApp.getOverlayManager().isPreferred(this));
+        pr->setPreferred(mApp.getOverlayManager().isPreferred(this));
+        pr->resetBackOff(mApp.getClock());
     }
     else
     {

@@ -146,9 +146,10 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
         try
         {
             auto pr = PeerRecord::parseIPPort(peerStr, mApp);
+            pr.setPreferred(preferred);
             if (resetBackOff)
             {
-                pr.resetBackOff(mApp.getClock(), preferred);
+                pr.resetBackOff(mApp.getClock());
                 pr.storePeerRecord(mApp.getDatabase());
             }
             else
@@ -190,31 +191,50 @@ OverlayManagerImpl::storeConfigPeers()
     storePeerList(ppeers, true, true);
 }
 
-void
-OverlayManagerImpl::connectToMorePeers(int max)
+std::vector<PeerRecord>
+OverlayManagerImpl::getPreferredPeersFromConfig()
 {
-    const int batchSize = std::max(10, max);
+    std::vector<PeerRecord> peers;
+    for (auto& pp : mPreferredPeers)
+    {
+        auto prParsed = PeerRecord::parseIPPort(pp, mApp);
+        if (!getConnectedPeer(prParsed.ip(), prParsed.port()))
+        {
+            auto pr = PeerRecord::loadPeerRecord(
+                mApp.getDatabase(), prParsed.ip(), prParsed.port());
+            if (pr && pr->mNextAttempt <= mApp.getClock().now())
+            {
+                peers.emplace_back(*pr);
+            }
+        }
+    }
+    return peers;
+}
 
-    // load best candidates from the database,
-    // when PREFERRED_PEER_ONLY is set and we connect to a non
-    // preferred_peer we just end up dropping & backing off
-    // it during handshake (this allows for preferred_peers
-    // to work for both ip based and key based preferred mode)
+std::vector<PeerRecord>
+OverlayManagerImpl::getPeersToConnectTo(int maxNum)
+{
+    const int batchSize = std::max(20, maxNum);
 
-    vector<PeerRecord> peers;
+    std::vector<PeerRecord> peers;
 
     PeerRecord::loadPeerRecords(mApp.getDatabase(), batchSize,
                                 mApp.getClock().now(),
                                 [&](PeerRecord const& pr) {
-                                    // skip peers that we're already connected
-                                    // to
+                                    // skip peers that we're already
+                                    // connected/connecting to
                                     if (!getConnectedPeer(pr.ip(), pr.port()))
                                     {
                                         peers.emplace_back(pr);
                                     }
-                                    return peers.size() < max;
+                                    return peers.size() < maxNum;
                                 });
+    return peers;
+}
 
+void
+OverlayManagerImpl::connectToMorePeers(vector<PeerRecord>& peers)
+{
     orderByPreferredPeers(peers);
 
     for (auto& pr : peers)
@@ -223,8 +243,9 @@ OverlayManagerImpl::connectToMorePeers(int max)
         {
             continue;
         }
-        if (getAuthenticatedPeersCount() >=
-            mApp.getConfig().TARGET_PEER_CONNECTIONS)
+        // we always try to connect to preferred peers
+        if (!pr.isPreferred() && getAuthenticatedPeersCount() >=
+                                     mApp.getConfig().TARGET_PEER_CONNECTIONS)
         {
             break;
         }
@@ -249,11 +270,21 @@ OverlayManagerImpl::tick()
 
     mLoad.maybeShedExcessLoad(mApp);
 
+    // first, see if we should trigger connections to preferred peers
+    auto peers = getPreferredPeersFromConfig();
+    connectToMorePeers(peers);
+
     if (getAuthenticatedPeersCount() < mApp.getConfig().TARGET_PEER_CONNECTIONS)
     {
-        connectToMorePeers(
+        // load best candidates from the database,
+        // when PREFERRED_PEER_ONLY is set and we connect to a non
+        // preferred_peer we just end up dropping & backing off
+        // it during handshake (this allows for preferred_peers
+        // to work for both ip based and key based preferred mode)
+        peers = getPeersToConnectTo(
             static_cast<int>(mApp.getConfig().TARGET_PEER_CONNECTIONS -
                              getAuthenticatedPeersCount()));
+        connectToMorePeers(peers);
     }
 
     mTimer.expires_from_now(

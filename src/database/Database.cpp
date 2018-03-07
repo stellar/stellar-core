@@ -53,7 +53,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 5;
+static unsigned long const SCHEMA_VERSION = 6;
 
 static void
 setSerializable(soci::session& sess)
@@ -140,7 +140,9 @@ Database::applySchemaUpgrade(unsigned long vers)
             }
         }
         break;
-
+    case 6:
+        mSession << "ALTER TABLE peers ADD flags INT NOT NULL DEFAULT 0";
+        break;
     default:
         throw std::runtime_error("Unknown DB schema version");
         break;
@@ -452,6 +454,11 @@ Database::recentIdleDbPercent()
 
     std::chrono::nanoseconds total = mApp.getClock().now() - mLastIdleTotalTime;
     total -= mExcludedTotalTime;
+
+    if (total == std::chrono::nanoseconds::zero())
+    {
+        return 100;
+    }
 
     uint32_t queryPercent =
         static_cast<uint32_t>((100 * query.count()) / total.count());

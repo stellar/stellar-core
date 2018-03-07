@@ -168,7 +168,20 @@ Simulation::dropConnection(NodeID initiator, NodeID acceptor)
     if (mMode == OVER_LOOPBACK)
         dropLoopbackConnection(initiator, acceptor);
     else
-        throw runtime_error("Cannot drop a TCP connection");
+    {
+        auto iApp = mNodes[initiator].mApp;
+        if (iApp)
+        {
+            auto& cAcceptor = mNodes[acceptor].mApp->getConfig();
+
+            auto peer = iApp->getOverlayManager().getConnectedPeer(
+                "127.0.0.1", cAcceptor.PEER_PORT);
+            if (peer)
+            {
+                peer->drop(true);
+            }
+        }
+    }
 }
 
 void

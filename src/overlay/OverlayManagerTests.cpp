@@ -109,12 +109,14 @@ class OverlayManagerTests
     vector<string> threePeers;
 
     OverlayManagerTests()
-        : app(createTestApplication<ApplicationStub>(clock, getTestConfig()))
-        , fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
+        : fourPeers(vector<string>{"127.0.0.1:2011", "127.0.0.1:2012",
                                    "127.0.0.1:2013", "127.0.0.1:2014"})
-        , threePeers(vector<string>{"127.0.0.1:201", "127.0.0.1:202",
-                                    "127.0.0.1:203", "127.0.0.1:204"})
+        , threePeers(vector<string>{"127.0.0.1:64000", "127.0.0.1:64001",
+                                    "127.0.0.1:64002"})
     {
+        auto cfg = getTestConfig();
+        cfg.TARGET_PEER_CONNECTIONS = 5;
+        app = createTestApplication<ApplicationStub>(clock, cfg);
     }
 
     void
@@ -125,7 +127,7 @@ class OverlayManagerTests
         pm.storePeerList(fourPeers, false, false);
 
         rowset<row> rs = app->getDatabase().getSession().prepare
-                         << "SELECT ip,port FROM peers";
+                         << "SELECT ip,port FROM peers ORDER BY nextattempt";
         vector<string> actual;
         for (auto it = rs.begin(); it != rs.end(); ++it)
             actual.push_back(it->get<string>(0) + ":" +
@@ -150,7 +152,8 @@ class OverlayManagerTests
 
         pm.storePeerList(fourPeers, false, false);
         pm.storePeerList(threePeers, false, false);
-        pm.connectToMorePeers(5);
+        // connect to peers, respecting TARGET_PEER_CONNECTIONS
+        pm.tick();
         REQUIRE(pm.mAuthenticatedPeers.size() == 5);
         auto a = TestAccount{*app, getAccount("a")};
         auto b = TestAccount{*app, getAccount("b")};

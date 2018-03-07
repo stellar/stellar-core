@@ -90,7 +90,7 @@ class OverlayManagerImpl : public OverlayManager
     Peer::pointer getConnectedPeer(std::string const& ip,
                                    unsigned short port) override;
 
-    void connectToMorePeers(int max);
+    void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
 
     std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
@@ -105,6 +105,9 @@ class OverlayManagerImpl : public OverlayManager
     bool isShuttingDown() const override;
 
   private:
+    std::vector<PeerRecord> getPreferredPeersFromConfig();
+    std::vector<PeerRecord> getPeersToConnectTo(int maxNum);
+
     void orderByPreferredPeers(vector<PeerRecord>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
     void updateSizeCounters();
