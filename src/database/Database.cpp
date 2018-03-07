@@ -455,6 +455,11 @@ Database::recentIdleDbPercent()
     std::chrono::nanoseconds total = mApp.getClock().now() - mLastIdleTotalTime;
     total -= mExcludedTotalTime;
 
+    if (total == std::chrono::nanoseconds::zero())
+    {
+        return 100;
+    }
+
     uint32_t queryPercent =
         static_cast<uint32_t>((100 * query.count()) / total.count());
     uint32_t idlePercent = 100 - queryPercent;
