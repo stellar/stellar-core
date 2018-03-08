@@ -22,7 +22,10 @@ deleteOldEntriesHelper(soci::session& sess, uint32_t ledgerSeq, uint32_t count,
     st.execute(true);
     if (st.got_data() && gotMin == soci::i_ok)
     {
-        uint32 m = std::min(curMin + count, ledgerSeq);
+        uint64 m64 =
+            std::min<uint64>(static_cast<uint64>(curMin) + count, ledgerSeq);
+        // safe to cast down as it's at most ledgerSeq
+        uint64 m = static_cast<uint32>(m64);
         sess << "DELETE FROM " << tableName << " WHERE " << ledgerSeqColumn
              << " <= " << m;
     }
