@@ -807,9 +807,13 @@ void
 LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                     uint32_t count)
 {
+    soci::transaction txscope(db.getSession());
+    db.clearPreparedStatementCache();
     LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq, count);
     TransactionFrame::deleteOldEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
+    db.clearPreparedStatementCache();
+    txscope.commit();
 }
 
 void
