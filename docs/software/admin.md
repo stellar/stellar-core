@@ -8,44 +8,184 @@ This document describes various aspects of running `stellar-core` for **system a
 
 ## Introduction
 
-Stellar Core is responsible for communicating directly with and maintaining 
-the Stellar peer-to-peer network. For a high-level introduction to Stellar Core, [watch this talk](https://www.youtube.com/watch?v=pt_mm8S9_WU) on the architecture and ledger basics:
+Stellar Core is responsible for communicating directly with and maintaining the Stellar peer-to-peer network. For a high-level introduction to Stellar Core, [watch this talk](https://www.youtube.com/watch?v=pt_mm8S9_WU) on the architecture and ledger basics:
 
 [![Introduction to Stellar Core](https://i.ytimg.com/vi/pt_mm8S9_WU/hqdefault.jpg "Introduction to Stellar Core")](https://www.youtube.com/watch?v=pt_mm8S9_WU)
 
-It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in stellar-core.
+It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in the system.
+
+## Zero to completed: node checklist
+ - [ ] [deciding to run a node](#why-run-a-node)
+ - [ ] [setting up an instance to run core](#instance-setup)
+ - [ ] [install stellar-core](#installing)
+ - [ ] [craft a configuration](#configuring)
+ - [ ] [crafting  a quorum set](#crafting-a-quorum-set)
+ - [ ] [preparing the environment before the first run](#environment-preparation)
+ - [ ] [joining the network](#joining-the-network)
+ - [ ] [logging](#logging)
+ - [ ] [monitoring and diagnostics](#monitoring-and-diagnostics)
+ - [ ] [performing validator maintenance](#validator-maintenance)
+ - [ ] [performing network wide updates](#network-configuration)
+ - [ ] [advanced topics and internals](#advanced-topics-and-internals)
 
 ## Why run a node?
 
-Run stellar-core if you want to:
-* Obtain the most up-to-date and reliable data from the Stellar network
-* Generate extended meta data on activity within the Stellar network (change tracking, etc)
-* Submit transactions and their confirmations without depending on a third party
-* Extended control on which parties to trust in the Stellar network
-* Participate in validating the Stellar network
+### Benefits of running a node
 
+You get to run your own Horizon instance:
+* Allows for customizations (triggers, etc) of the business logic or APIs
+* Full control of which data to retain (historical or online)
+* A trusted entry point to the network
+  * Trusted end to end (can implement additional counter measures to secure services)
+  * Open Horizon increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
+* Control of SLA
 
-## Building
-See [readme](https://github.com/stellar/stellar-core/blob/master/README.md) for build instructions.
-We also provide a [docker container](https://github.com/stellar/docker-stellar-core-horizon) for a potentially quicker set up than building from source.
+note: in this document we use "Horizon" as the example implementation of a first tier service built on top of stellar-core, but any other system would get the same benefits.
 
-## Package based Installation
+### Level of participation to the network
+
+As a node operator you can participate to the network in multiple ways.
+
+|                                                    | watcher       | archiver                            | basic validator                                                                                                             | full validator                       |
+| -------------------------------------------------- | ------------- | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| description                                        | non-validator | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
+| submits transactions                               | yes           | yes                                 | yes                                                                                                                         | yes                                  |
+| supports horizon                                   | yes           | yes                                 | yes                                                                                                                         | yes                                  |
+| participates in consensus                          | no            | no                                  | yes                                                                                                                         | yes                                  |
+| helps other nodes to catch up and join the network | no            | yes                                 | no                                                                                                                          | yes                                  |
+| Increase the resiliency of the network             | No            | Medium                              | Low                                                                                                                         | High                                 |
+
+From an operational point of view "watchers" and "basic validators" are about the
+ same (they both compute an up to date version of the ledger).
+"Archivers" or "Full validators" publish into an history archive which
+ has additional cost.
+
+#### Watcher nodes
+
+Watcher nodes are configured to watch the activity from the network
+
+Use cases:
+* Ephemeral instances, where having other nodes depend on those nodes is not desired
+* Potentially reduced administration cost (no or reduced SLA)
+* Real time network monitoring (which validators are present, etc)
+* Generate network meta-data for other systems (Horizon) 
+
+**Operational requirements**:
+* a [database](#database)
+
+#### Archiver nodes
+
+The purpose of Archiver nodes is to record the activity of the network in long term storage (AWS, Azure, etc).
+
+[History Archives](#history-archives) contain snapshots of the ledger, all transactions and their results.
+
+Use cases:
+* Everything that a watcher node can do
+* Need for a low cost compliance story
+* Participate to the network’s resiliency
+* Analysis of historical data
+
+**Operational requirements**:
+* requires an additional internet facing blob store
+* a [database](#database)
+
+#### Basic validators
+Nodes configured to actively vote on the network.
+
+Use cases:
+* Everything that a watcher node can do
+* Increase the network reliability
+* Enables deeper integrations by clients and business partners
+* Official endorsement of specific ledgers in real time (via signatures)
+* Quorum Set aligned with business priorities
+* Additional checks/invariants enabled
+  * Validator can halt and/or signal that for example (in the case of an issuer) that it does not agree to something.
+
+**Operational requirements**: 
+* secret key management (used for signing messages on the network)
+* a [database](#database)
+
+#### Full validators
+
+Nodes fully participating in the network.
+
+Full validators are the true measure of how decentralized and redundant the network is as they are the only type of validators that perform all functions on the network.
+
+Use cases:
+* All other use cases
+* Some full validators required to be v-blocking (~ N full validators, M other validators on the network -> require at least M+1 threshold)
+* Branding - strongest association with the network
+* Mutually beneficial - best way to support the network’s health and resilience
+
+**Operational requirements**:
+* requires an additional internet facing blob store 
+* secret key management (used for signing messages on the network)
+* a [database](#database)
+
+## Instance setup
+Regardless of how you install stellar-core (apt, source, docker, etc), you will need to configure the instance hosting it roughly the same way.
+
+### Compute requirements
+CPU, RAM, Disk and network depends on network activity. If you decide to collocate certain workloads, you will need to take this into account.
+
+As of early 2018, stellar-core with PostgreSQL running on the same machine has no problem running on a [m5.large](https://aws.amazon.com/ec2/instance-types/m5/) in AWS (dual core 2.5 GHz Intel Xeon, 8 GB RAM).
+
+Storage wise, 20 GB seems to be an excellent working set as it leaves plenty of room for growth.
+
+### Network access
+
+#### Interaction with the peer to peer network
+* **inbound**: stellar-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
+* **outbound**: stellar-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
+
+#### Interaction with other internal systems
+
+* **outbound**:
+  * stellar-core needs access to a database (postgresql for example), which may reside on a different machine on the network
+  * other connections can safely be blocked
+* **inbound**: stellar-core exposes an *unauthenticated* HTTP endpoint on port `HTTP_PORT` (default 11626)
+  * it is used by other systems (such as Horizon) to submit transactions (so may have to be exposed to the rest of your internal ips)
+  *  query information (info, metrics, ...) for humans and automation
+  *  perform administrative commands (schedule upgrades, change log levels, ...)
+
+Note on exposing the HTTP endpoint:
+if you need to expose this endpoint to other hosts in your local network, it is recommended to use an intermediate reverse proxy server to implement authentication. Don't expose the HTTP endpoint to the raw and cruel open internet.
+
+## Installing
+
+### Release version
+
+In general you should aim to run the latest [release](https://github.com/stellar/stellar-core/releases) as builds are backward compatible and are cummulative.
+
+The version number scheme that we follow is `protocol_version.release_number.patch_number`, where
+* `protocol_version` is the maximum protocol version supported by that release (all versions are 100% backward compatible),
+* `release_number` is bumped when a set of new features or bug fixes not impacting the protocol are included in the release,
+* `patch_number` is used when a critical fix has to be deployed 
+
+### Installing from source
+See the [INSTALL](https://github.com/stellar/stellar-core/blob/master/INSTALL.md) for build instructions.
+
+### Package based Installation
 If you are using Ubuntu 16.04 LTS we provide the latest stable releases of [stellar-core](https://github.com/stellar/stellar-core) and [stellar-horizon](https://github.com/stellar/go/tree/master/services/horizon) in Debian binary package format.
 
 See [detailed installation instructions](https://github.com/stellar/packages#sdf---packages)
 
+### Container based installation
+Docker images are maintained in a few places, good starting points are:
+ * the [quickstart image](https://github.com/stellar/docker-stellar-core-horizon)
+ * the [standalone image](https://github.com/stellar/docker-stellar-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/stellar/stellar-core/releases) that you want to use.
+
 ## Configuring
+
+Before attempting to configure stellar-core, it is highly recommended to first try running a private network or joining the test network. 
+
+### Configuration basics
 All configuration for stellar-core is done with a TOML file. By default 
-stellar-core loads 
-
-`./stellar-core.cfg`
-
-, but you can specify a different file to load on the command line:
+stellar-core loads `./stellar-core.cfg`, but you can specify a different file to load on the command line:
 
 `$ stellar-core --conf betterfile.cfg` 
 
-The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) describes all the possible 
-configuration options.
+The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) is not a real configuration and is the most important one: it documents all possible configuration elements as well as default values.
 
 Here is an [example test network config](https://github.com/stellar/docker-stellar-core-horizon/blob/master/testnet/core/etc/stellar-core.cfg) for connecting to the test network.
 
@@ -53,81 +193,7 @@ Here is an [example public network config](https://github.com/stellar/docs/blob/
 
 The examples in this file don't specify `--conf betterfile.cfg` for brevity.
 
-## Running
-Stellar-core can be run directly from the command line, or through a supervision 
-system such as `init`, `upstart`, or `systemd`.
-
-Stellar-core sends logs to standard output and `stellar-core.log` by default, 
-configurable as `LOG_FILE_PATH`.
- Log messages are classified by progressive _priority levels_:
-  `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`.
-   The logging system only emits those messages at or above its configured logging level. 
-
-The log level can be controlled by configuration, by the `-ll` command-line flag 
-or adjusted dynamically by administrative (HTTP) commands. Run:
-
-`$ stellar-core -c "ll?level=debug"`
-
-against a running system.
-Log levels can also be adjusted on a partition-by-partition basis through the 
-administrative interface.
- For example the history system can be set to DEBUG-level logging by running:
-
-`$ stellar-core -c "ll?level=debug&partition=history"` 
-
-against a running system.
- The default log level is `INFO`, which is moderately verbose and should emit 
- progress messages every few seconds under normal operation.
-
-Stellar-core can be gracefully exited at any time by delivering `SIGINT` or
- pressing `CTRL-C`. It can be safely, forcibly terminated with `SIGTERM` or
-  `SIGKILL`. The latter may leave a stale lock file in the `BUCKET_DIR_PATH`,
-   and you may need to remove the file before it will restart. 
-   Otherwise, all components are designed to recover from abrupt termination.
-
-Stellar-core can also be packaged in a container system such as Docker, so long 
-as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
-volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core-horizon).
-
-Note: `BUCKET_DIR_PATH` and `TMP_DIR_PATH` *must* reside on the same volume
-as stellar-core needs to rename files between the two.
-
-## Administrative commands
-While running, interaction with stellar-core is done via an administrative 
-HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
-as `curl`, or by 
-
-`$ stellar-core -c <command>`
-
-. The endpoint is not intended to be exposed to the public internet. It's typically accessed by administrators, 
-or by a mid-tier application to submit transactions to the Stellar network. 
-See [commands](./commands.md) for a description of the available commands.
-
-## Hardware requirements
-The hardware requirements scale with the amount of activity in the network. 
-Currently stellar-core requires very modest hardware. It would be fine to run 
-on an AWS micro instance, for example.
-
-# Configuration Choices
-
-## Level of participation to the network
-
-As a node operator you can participate to the network in multiple ways.
-
-|              | watcher | archiver | basic validator | full validator |
-| ------------ | ------  | ---------| --------------  | -------------- |
-| description  | non-validator | all of watcher + publish to archive | all of watcher + active participation in consensus (submit proposals for the transaction set to include in the next ledger) | basic validator + publish to archive |
-| submits transactions | yes | yes | yes | yes |
-| supports horizon | yes | yes | yes | yes |
-| participates in consensus | no | no | yes | yes |
-| helps other nodes to catch up and join the network | no | yes | no | yes |
-
-From an operational point of view "watchers" and "basic validators" are about the
- same (they both compute an up to date version of the ledger).
-"Archivers" or "Full validators" publish into an history archive which
- has additional cost.
-
-## Validating
+### Validating node
 Nodes are considered **validating** if they take part in SCP and sign messages 
 pledging that the network agreed to a particular transaction set. It isn't 
 necessary to be a validator. Only set your node to validate if other nodes 
@@ -141,7 +207,7 @@ messages will look like they came from you.
 Generate a key pair like this:
 
 `$ stellar-core --genseed`
-the output will look like
+the output will look something like
 ```
 Secret seed: SBAAOHEU4WSWX6GBZ3VOXEGQGWRBJ72ZN3B3MFAJZWXRYGDIWHQO37SY
 Public: GDMTUTQRCP6L3JQKX3OOKYIGZC6LG2O6K2BSUCI6WNGLL4XXCIB3OK2P
@@ -159,33 +225,174 @@ Tell other people your public key (GDMTUTQ... ) so people can add it to their `Q
 If you don't include a `NODE_SEED` or set `NODE_IS_VALIDATOR=true`, you will still
 watch SCP and see all the data in the network but will not send validation messages.
 
-See a [list of other validators](https://github.com/stellar/docs/blob/master/validators.md).
+### Crafting a quorum set
 
-## Database
-Stellar-core stores the state of the ledger in a SQL database. This DB should 
-either be a SQLite database or, for larger production instances, a separate 
-PostgreSQL server. For how to specify the database, 
-see [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
+This section describes how to configure the quorum set for a validator and assumes basic understanding of the [Stellar Consensus Protocol](https://www.stellar.org/developers/guides/concepts/scp.html).
 
-When running stellar-core for the first time, you must initialize the database:
+#### Validator list
+
+You will find lists of validators in a few places:
+* [list of validators](https://github.com/stellar/docs/blob/master/validators.md)
+* the [Stellar Dashboard](https://dashboard.stellar.org/)
+
+#### Understanding requirements for a good quorum
+
+The way quorum sets are configured is explained in detail in the [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
+
+As an administrator what you need to do is ensure that your quorum configuration:
+* is aligned with how you want to trust other nodes on the network
+* gives good guarantees on the quorum intersection property of the network
+* provides the right properties in the event of arbitrary node failures
+
+If you are running multiple validators, the availability model of your organization as a "group of validators" (the way people are likely to refer to your validators) is not like traditional web services:
+* traditional web services stay available down to the last node
+* in the consensus world, for your group to be available, 67% of your nodes have to agree to each other
+
+#### Recommended pattern for building a quorum set
+
+Divide the validators into two categories:
+* [full validators](#full-validators)
+* [basic validators](#basic-validators) 
+
+One of the goals is to ensure that here will always be some full validators in any given quorum (from your node's point of view).
+
+As the way quorum sets are specified is done using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
+
+```toml
+[QUORUM_SET]
+THRESHOLD_PERCENT= ?
+VALIDATORS= [ ... ]
+
+# optional, other full validators grouped by entity
+[QUORUM_SET.FULLSDF]
+THRESHOLD_PERCENT= 66
+VALIDATORS = [ ... ]
+
+# other basic validators
+[QUORUM_SET.BASIC]
+THRESHOLD_PERCENT= ?
+VALIDATORS= [ ... ]
+
+# optional, more basic validators from entity XYZ
+[QUORUM_SET.BASIC.XYZ]
+THRESHOLD_PERCENT= 66
+VALIDATORS= [ ... ]
+```
+
+A simple configuration with those properties could look like this:
+```toml
+[QUORUM_SET]
+# this setup puts all basic entities into one top level one
+# this makes the minimum number of entities at the top level to be 2
+# with 3 validators, we then end up with a minimum of 50%
+# more would be better at the expense of liveness in this example
+THRESHOLD_PERCENT= 67
+VALIDATORS= [ "$sdf1", "$sdf2", "$sdf3" ]
+
+[QUORUM_SET.BASIC]
+THRESHOLD_PERCENT= 67
+VALIDATORS= [ ... ]
+
+[QUORUM_SET.BASIC.XYZ]
+THRESHOLD_PERCENT= 67
+VALIDATORS= [ ... ]
+```
+
+#### Picking thresholds
+
+Thresholds and groupings go hand in hand, and balance:
+ * liveness - network doesn't halt when some nodes are missing (during maintenance for example)
+ * safety - resistance to bad votes, some nodes being more important (full validators) for the normal operation of the network
+
+Liveness pushes thresholds lower and safety pushes thresholds higher.
+
+On the safety front, ideally any group (regardless of its composition), can suffer a 33% byzantine failure, but in some cases this is not practical and a different configuration needs to be picked.
+
+You may have to change the grouping in order to achieve the expected properties:
+* merging groups typically makes the group more resilient, compare:
+  * [51%, [51%, A, B, C, D], [51%, E, F, G, H]] # group of 4 has a threshold of 3 nodes -> 2 nodes missing enough to halt
+  * [51%, A, B, C, D, E, F, G, H] # 8 nodes -> 5 nodes threshold -> 4 nodes missing to halt 
+* splitting groups can also be useful to make certain entities optional, compare:
+  * [100%, [51%, A, B, C], [50%, D, E]] # requires D or E to agree
+  * [ 67%, A, B, C, [50%, D, E]] # D or E only required if one of A,B,C doesn't agree (the [D,E] group acts as a tie breaker)
+
+#### Quorum and overlay network
+
+It is generally a good idea to give information to your validator on other validators that you rely on. This is achieved by configuring `KNOWN_PEERS` and `PREFERRED_PEERS` with the addresses of your dependencies.
+
+Additionally, configuring `PREFERRED_PEER_KEYS` with the keys from your quorum set might be a good idea to give priority to the nodes that allows you to reach consensus.
+
+Without those settings, your validator depends on other nodes on the network to forward you the right messages, which is typically done as a best effort.
+
+#### Special considerations during quorum set updates
+
+Sometimes an organization needs to make changes that impact other's quorum sets:
+* taking a validator down for long period of time
+* adding new validators to their pool
+
+In both cases, it's crucial to stage the changes to preserve quorum intersection and general good health of the network:
+* removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits 
+* adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
+
+Recommended steps are for the entity that adds/removes nodes to do so first between their own nodes, and then have people reflect those changes gradually (over several rounds) in their quorum configuration.
+
+## Environment preparation
+
+### stellar-core configuration
+Cross reference your validator settings, in particular:
+* environment specific settings
+  * network passphrase
+  * known peers
+* quorum set
+  * public keys of the validators that you manage grouped properly
+* seed defined if validating
+* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjonction with a downstream system like Horizon. 
+
+### Database and local state
+
+After configuring your [database](#database) and [buckets](#buckets) settings, when running stellar-core for the first time, you must initialize the database:
 
 `$ stellar-core --newdb`
 
-This command will initialize the database and then exit. You can also use this 
-command if your DB gets corrupted and you want to restart it from scratch. 
+This command will initialize the database as well as the bucket directory and then exit. 
 
-## Buckets
+You can also use this command if your DB gets corrupted and you want to restart it from scratch. 
+
+#### Database
+Stellar-core stores the state of the ledger in a SQL database.
+
+This DB should either be a SQLite database or, for larger production instances, a separate PostgreSQL server.
+
+*Note: Horizon currently depends on using PostgreSQL.*
+
+For how to specify the database, 
+see the [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg).
+
+##### Cursors and automatic maintenance
+
+Some tables in the database act as a publishing queue for external systems such as Horizon and generate **meta data** for changes happening to the distributed ledger.
+
+If not managed properly those tables will grow without bounds. To avoid this, a built-in scheduler will delete data from old ledgers that are not used anymore by other parts of the system (external systems included).
+
+The settings that control the automatic maintenance behavior are: `AUTOMATIC_MAINTENANCE_PERIOD`,  `AUTOMATIC_MAINTENANCE_COUNT` and `KNOWN_CURSORS`.
+
+By default, stellar-core will perform this automatic maintenance, so be sure to disable it until you have done the appropriate data ingestion in downstream systems (Horizon for example sometimes needs to reingest data).
+
+If you need to regenerate the meta data, the simplest is to replay ledgers for the range you're interest in after (optionally) clearing the database with `newdb`.
+
+#### Buckets
 Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
 called "buckets." These files are placed in a directory specified in the config 
 file as `BUCKET_DIR_PATH`, which defaults to `buckets`. The bucket files are used
  for hashing and transmission of ledger differences to history archives. This 
  directory must be on the same file system as the configured temporary 
- directory `TMP_DIR_PATH`. For the most part, the contents of both directories 
-can be ignored--they are managed by stellar-core, but they should be stored on 
-a fast local disk with sufficient space to store several times the size of the 
-current ledger. 
+ directory `TMP_DIR_PATH`.
 
-## History archives
+Buckets should be stored on a fast local disk with sufficient space to store several times the size of the current ledger. 
+ 
+ For the most part, the contents of both directories can be ignored as they are managed by stellar-core.
+
+### History archives
 Stellar-core normally interacts with one or more "history archives," which are 
 configurable facilities for storing and retrieving flat files containing history 
 checkpoints: bucket files and history logs. History archives are usually off-site 
@@ -204,25 +411,331 @@ least, if you are joining an existing network in a read-only capacity, you
 will still need to configure a `get` command to access that network's history 
 archives.
 
-## Configuring to publish to an archive
+#### Configuring to publish to an archive
 Archive sections can also be configured with `put` and `mkdir` commands to
- cause the instance to publish to that archive.
+ cause the instance to publish to that archive (for nodes configured as [archiver nodes](#archiver-nodes) or [full validators](#full-validators)).
 
-The very first time you want to use your archive, you need to initialize it with:
+The very first time you want to use your archive *before starting your node* you need to initialize it with:
 `$ stellar-core --newhist <historyarchive>`
 
-before starting your node.
-
-IMPORTANT:
+**IMPORTANT:**
  * make sure that you configure both `put` and `mkdir` if `put` doesn't
  automatically create sub-folders
  * writing to the same archive from different nodes is not supported and
  will result in undefined behavior, *potentially data loss*.
- * do not run `newhist` on an existing archive unless you want to erase it
+ * do not run `newhist` on an existing archive unless you want to erase it.
+
+### Other preparation
+
+In addition, your should ensure that your operating environment is also functional.
+
+In no particular order:
+* logging and log rotation
+* monitoring and alerting infrastructure
+
+## Starting your node
+
+After having configured your node and its environment, you're ready to start stellar-core.
+
+This can be done with a command equivalent to
+
+`$ stellar-core`
+
+At this point you're ready to observe core's activity as it joins the network.
+
+Review the [logging](#logging) section to get yourself familiar with the output of stellar-core.
+
+### Interacting with your instance
+While running, interaction with stellar-core is done via an administrative 
+HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
+as `curl`, or by running a command such as
+
+`$ stellar-core -c <command>`
+
+The endpoint is [not intended to be exposed to the public internet](#interaction-with other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
+
+See [commands](./commands.md) for a description of the available commands.
+
+### Joining the network
+
+You can review the section on [general node information](#general-node-information);
+
+the node will go through the following phases as it joins the network:
+
+#### Establish connection to other peers
+
+You should see `authenticated_count` increase.
+
+```json
+"peers" : {
+         "authenticated_count" : 3,
+         "pending_count" : 4
+      },
+```
+
+#### Observing consensus
+
+Until the node sees a quorum, it will say
+```json
+"state" : "Joining SCP"
+```
+
+After observing consensus, a new field `quorum` will be set with information on what the network decided on, at this point the node will switch to "*Catching up*":
+```json
+      "quorum" : {
+         "7667384" : {
+            "agree" : 3,
+            "disagree" : 0,
+            "fail_at" : 2,
+            "hash" : "273af2",
+            "missing" : 0,
+            "phase" : "EXTERNALIZE"
+         }
+      },
+      "state" : "Catching up",
+```
+
+#### Catching up
+
+This is a phase where the node downloads data from archives.
+The state will start with something like
+```json
+      "state" : "Catching up",
+      "status" : [ "Catching up: Awaiting checkpoint (ETA: 35 seconds)" ]
+```
+
+and then go through the various phases of downloading and applying state such as
+```json
+      "state" : "Catching up",
+      "status" : [ "Catching up: downloading ledger files 20094/119803 (16%)" ]
+```
+
+#### Synced
+
+When the node is done catching up, its state will change to
+```json
+      "state" : "Synced!"
+```
+
+## Logging
+Stellar-core sends logs to standard output and `stellar-core.log` by default, 
+configurable as `LOG_FILE_PATH`.
+
+ Log messages are classified by progressive _priority levels_:
+  `TRACE`, `DEBUG`, `INFO`, `WARNING`, `ERROR` and `FATAL`.
+   The logging system only emits those messages at or above its configured logging level. 
+
+The log level can be controlled by configuration, the `-ll` command-line flag 
+or adjusted dynamically by administrative (HTTP) commands. Run:
+
+`$ stellar-core -c "ll?level=debug"`
+
+against a running system.
+Log levels can also be adjusted on a partition-by-partition basis through the 
+administrative interface.
+ For example the history system can be set to DEBUG-level logging by running:
+
+`$ stellar-core -c "ll?level=debug&partition=history"` 
+
+against a running system.
+ The default log level is `INFO`, which is moderately verbose and should emit 
+ progress messages every few seconds under normal operation.
+
+
+## Monitoring and diagnostics
+
+Information provided here can be used for both human operators and programmatic access.
+
+### General node information
+Run `$ stellar-core --c 'info'`
+The output will look something like
+```json
+ {
+   "info" : {
+      "UNSAFE_QUORUM" : "UNSAFE QUORUM ALLOWED",
+      "build" : "v9.2.0",
+      "ledger" : {
+         "age" : 1,
+         "baseFee" : 100,
+         "baseReserve" : 5000000,
+         "closeTime" : 1519857801,
+         "hash" : "c8e484c665cdb8280cc2923d1ead5277f6c31f5baab382f54b22c801e2c50a66",
+         "num" : 7667629,
+         "version" : 9
+      },
+      "network" : "Test SDF Network ; September 2015",
+      "peers" : {
+         "authenticated_count" : 3,
+         "pending_count" : 5
+      },
+      "protocol_version" : 9,
+      "quorum" : {
+         "7667628" : {
+            "agree" : 3,
+            "disagree" : 0,
+            "fail_at" : 2,
+            "hash" : "273af2",
+            "missing" : 0,
+            "phase" : "EXTERNALIZE"
+         }
+      },
+      "startedOn" : "2018-02-28T22:38:20Z",
+      "state" : "Synced!"
+   }
+}
+```
+
+`peers` gives information on the connectivity to the network, `authenticated_count` are live connections while `pending_count` are connections that are not fully established yet.
+
+`ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example.
+
+notable fields in ledger are:
+* `age` : time elapsed since this ledger closed (during normal operation less than 10 seconds)
+* `num` : ledger number
+* `version` : protocol version supported by this ledger
+
+
+The state of a fresh node (reset with `newdb`), will look something like this:
+```json
+"ledger" : {
+         "age" : 1519857653,
+         "baseFee" : 100,
+         "baseReserve" : 100000000,
+         "closeTime" : 0,
+         "hash" : "63d98f536ee68d1b27b5b89f23af5311b7569a24faf1403ad0b52b633b07be99",
+         "num" : 2,
+         "version" : 0
+      },
+```
+
+Additional fields typically used by downstream systems:
+* `build` is the build number for this stellar-core instance
+* `network` is the network passphrase that this core instance is connecting to
+* `protocol_version` is the maximum version of the protocol that this instance recognizes
+
+In some cases, nodes will display additional status information:
+
+```json
+      "status" : [
+         "Armed with network upgrades: upgradetime=2018-01-31T20:00:00Z, protocolversion=9"
+      ]
+```
+### Overlay information
+
+The `peers` command returns information on the peers the instance is connected to.
+
+This list is the result of both inbound connections from other peers and outbound connections from this node to other peers.
+
+`$ stellar-core --c 'peers'`
+
+```json
+{
+   "authenticated_peers" : [
+      {
+         "id" : "sdf2",
+         "ip" : "54.211.174.177",
+         "olver" : 5,
+         "port" : 11625,
+         "ver" : "v9.1.0"
+      },
+      {
+         "id" : "sdf3",
+         "ip" : "54.160.175.7",
+         "olver" : 5,
+         "port" : 11625,
+         "ver" : "v9.1.0"
+      },
+      {
+         "id" : "sdf1",
+         "ip" : "54.161.82.181",
+         "olver" : 5,
+         "port" : 11625,
+         "ver" : "v9.1.0"
+      }
+   ],
+   "pending_peers" : null
+}
+```
+
+### Quorum set Health
+
+The `quorum` command allows to diagnose problems with the quorum set of the local node.
+
+Run
+
+`$ stellar-core --c 'quorum'`
+
+The output looks something like:
+```json
+"474313" : {
+         "agree" : 6,
+         "disagree" : null,
+         "fail_at" : 2,
+         "fail_with" : [ "lab1", "lab2" ],
+         "hash" : "d1dacb",
+         "missing" : [ "donovan" ],
+         "phase" : "EXTERNALIZE",
+         "value" : {
+            "t" : 5,
+            "v" : [ "lab1", "lab2", "lab3", "donovan", "GDVFV", "nelisky1", "nelisky2" ]
+         }
+```
+
+Entries to watch for are:
+  * `agree` : the number of nodes in the quorum set that agree with this instance.
+  * `disagree`: the nodes that were participating but disagreed with this instance.
+  * `fail_at` : the number of failed nodes that *would* cause this instance to halt.
+  * `fail_with`: an example of such potential failure.
+  * `missing` : the nodes that were missing during this consensus round.
+  * `value` : the quorum set used by this node (`t` is the threshold expressed as a number of nodes).
+
+In the example above, 6 nodes are functioning properly, one is down (`donovan`), and
+ the instance will fail if any two nodes out of the ones still working fail as well.
+
+If a node is stuck in state `Joining SCP`, this command allows to quickly find the reason:
+* too many validators missing (down or without a good connectivity), solutions are:
+  * [adjust quorum set](#crafting-a-quorum-set) (thresholds, grouping, etc) based on the nodes that are not missing
+  * try to get a [better connectivity path](#quorum-and-overlay-network) to the missing validators
+
+* network split would cause SCP to be stuck because of nodes that disagree. This would happen if either there is a bug in SCP, the network does not have quorum intersection or the disagreeing nodes are misbehaving (compromised, etc)
+
+Note that the node not being able to reach consensus does not mean that the network
+as a whole will not be able to reach consensus (and the opposite is true, the network
+may fail because of a different set of validators failing).
+
+You can get a sense of the quorum set health of a different node by doing
+`$ stellar-core --c 'quorum?node=$sdf1` or `$ stellar-core --c 'quorum?node=@GABCDE` 
+
+Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for other nodes is not reliable).
+
+## Validator maintenance
+
+Maintenance here refers to anything involving taking your validator temporarily out of the network (to apply security patches, system upgrade, etc).
+
+As an administrator of a validator, you must ensure that the maintenance you are about to apply to the validator is safe for the overall network and for your validator.
+
+Safe means that the other validators that depend on yours will not be affected too much when you turn off your validator for maintenance and that your validator will continue to operate as part of the network when it comes back up.
+
+If you are changing some settings that may impact network wide settings such as protocol version, review [the section on network configuration](#network-configuration).
+
+If you're changing your quorum set configuration, also read the [section on what to do](#special-considerations-during-quorum-set-updates).
+
+### Recommended steps to perform as part of a maintenance
+
+We recommend performing the following steps in order (repeat sequentially as needed if you run multiple nodes).
+
+1. Advertise your intention to others that may depend on you. Some coordination is required to avoid situations where too many nodes go down at the same time.
+2. Dependencies should assess the health of their quorum, refer to the section
+ "Understanding quorum and reliability".
+3. If there is no objection, take your instance down
+4. When done, start your instance that should rejoin the network
+5. The instance will be completely caught up when it's both `Synced` and *there is no backlog in uploading history*.
 
 ## Network configuration
 
-The network itself has network wide settings that can be updated. This is done by validators voting for and agreeing to new values.
+The network itself has network wide settings that can be updated.
+
+This is performed by validators voting for and agreeing to new values the same way than consensus is reached for transaction sets, etc.
 
 A node can be configured to vote for upgrades using the `upgrades` endpoint . see [`commands.md`](commands.md) for more information.
 
@@ -236,11 +749,9 @@ When the network time is later than the `upgradetime` specified in
 the upgrade settings, the validator will vote to update the network
 to the value specified in the upgrade setting.
 
-When a validator is armed to change network values, the output of `info` will
-contain information about the vote.
+When a validator is armed to change network values, the output of `info` will contain information about the vote.
 
-For a new value to be adopted, the same level of consensus between nodes needs
-to be reached as for transaction sets.
+For a new value to be adopted, the same level of consensus between nodes needs to be reached as for transaction sets.
 
 ### Important notes on network wide settings
 
@@ -256,256 +767,7 @@ An improper plan may cause issues such as:
 
 For more information look at [`docs/versioning.md`](../versioning.md).
 
-# Quorum
-
-## A brief explanation
-An important distinction in Stellar compared to traditional quorum based
-networks is that validators that form the network do not necessarily share
- the same configuration of what a quorum is.
-Quorum set represents the configuration of a specific node, where as quorum
-is derived from the set of all quorum sets from the participants.
-
-Here is a way to think about the distinction:
-Imagine a game where people are put in a room and the goal is to get as many
- people to match hat color.
-The rules are:
- * each person in the room can only see the people in front of them.
- * each person can pick their location in the room for the duration of the
-exercise (this basically defines the player's quorum set).
- * when the game starts, light is turned on every minute for 1 second.
-
- SCP is the protocol (gestures, when to switch hat color, etc) that causes
- people in the room to converge to the same hat color.
-The quorum here is the set of players that end up with the winning hat color.
-
-A traditional quorum has people see everybody else (placed on a circle, at
-the right distance).
-Here, each player can decide to look wherever they want. Even look at only one
-other player, which is a risk if this other player decides to quit the game.
-
-## Quorum set
-
-Configuring your QUORUM_SET properly is one of the most important thing you should be doing.
-
-The simplest way to configure it is by using a flat QUORUM_SET, something that looks like this:
-```
-[QUORUM_SET]
-THRESHOLD_PERCENT=70
-VALIDATORS=[
-"GDKXE2OZMJIPOSLNA6N6F2BVCI3O777I2OOC4BV7VOYUEHYX7RTRYA7Y sdf1",
-"GCUCJTIYXSOXKBSNFGNFWW5MUQ54HKRPGJUTQFJ5RQXZXNOLNXYDHRAP sdf2",
-"GC2V2EFSXN6SQTWVYA5EPJPBWWIMSD2XQNKUOHGEKB535AQE2I6IXV2Z sdf3",
-...
-]
-```
-THRESHOLD_PERCENT is simply the threshold of nodes that should agree with each other
-for your node to be convinced of something.
-
-### Balancing safety and liveness
-When configuring it, you want to balance safety and liveness:
-a threshold of 100% will obviously guarantee that your node will agree with all
-nodes in your quorum set at all time but if any of those nodes fails your
-node will be stuck until all nodes come back and agree.
-On the other hand, a threshold too low may cause the node to follow a broken minority.
-
-### THRESHOLD_PERCENT and the "3f+1 rule"
-One thing to keep in mind is that more validators doesn't translate
-necessarily to better resilience as the number of byzantine failures `f`
- is linked to the number of nodes `n` by `n>=3f+1`.
-The implication is that a 4 nodes network can only handle one byzantine
-failure (f=1).
-If you add 2 nodes (bringing the network to 6 nodes), it can still only handle
-one failure (2 failures requires 7 nodes).
-
-### Quorum intersection
-As each quorum set refers to other nodes (that themselves have a quorum set
- configured), the overall network will reach consensus using this graph of
- nodes.
-Particular attention has to be made to ensure that the overall network has
-what is called "quorum intersection":
-no two distinct sets of nodes should be allowed to agree to something
- different. It's similar to what happens on a network that is fully
- partitioned where for example, a DNS request could yield completely
- different results depending on which partition you're talking to.
-The easiest way to ensure that is that all nodes should have a large overlap
-in how they configured their quorum set. Just like having redundant paths
-between machines in a network increases the reliability of the network.
-Overlap here means that any two nodes that reference a set of nodes:
- * have a large overlap of the nodes
- * the threshold is such that there will always be some overlap between nodes
-   regardless of which node fails
-
-For example, consider two nodes that respectively reference the sets Set1 and
- Set2 composed of some common nodes and some other nodes.
-
- * Set1 = Common + extra1
- * Set2 = Common + extra2
-
-Then if you want to ensure that when reaching consensus, each node has
-at least "safety" number of nodes in common.
- * threshold1 >= (size(extra1) + safety)/size(Set1)
- * threshold2 >= (size(extra2) + safety)/size(Set2)
-
-This can be expressed in percentage:
- * safetyP = safety/common * 100
- * commonP = common/sizeof(SetN) * 100
- 
-threshold then should be greater or equal to
- * 100 - commonP + (safetyP*commonP)/100   or 
- * 100 - (1 - safetyP/100)*commonP
-
-so if 80% of the nodes in the set are common, and you consider that seeing 60% of those is enough
-threshold should be set to 100 - 80 + 60*80/100 = 68
-
-### Picking validators
-You want to pick validators that are reliable:
- * they are available (not crashed/down often)
- * they follow the protocol (configured properly, not buggy, not malicious)
-
-You do not need to put a lot of nodes there, just the ones that you think
- are the most representative of the network. Of course, as you increase the
- number of validators in your quorum set (at constant threshold), your node
- will be more resilient to validator failures.
-
- A good starting point is to pick all validators from the network and
- remove over time the ones that are causing you problems.
-
-Other node operators may or may not chose the same validators than you, it's
-up to them! All you need is to have a good overlap across the population of
- validators.
-
-### Typical way to configure QUORUM_SET
-
-If you are running a single node, your best bet is to configure your QUORUM_SET
-organized such that the validators you consider "stable" are at the top of
-the list "Stable", and other nodes that you are not ready yet to fully rely
- on, but that you are considering for your stable list under various "Trial"
- groups. Individual trial groups have the same weight than a single stable
- validator when configured as below.
-
- ```
-[QUORUM_SET]
-THRESHOLD_PERCENT=70 # optional, the default is fine
-# "Stable validators" 
-VALIDATORS=[
-"sdf1",
-"sdf2",
-"sdf3",
-...
-]
-# Nodes that are being considered for inclusion
-[QUORUM_SET.trial_group_1]
-THRESHOLD_PERCENT=51
-VALIDATORS=[
-"someNewValidator1",
-"someNewValidator2",
-"someNewValidator3"
-]
-[QUORUM_SET.trial_group_2]
-VALIDATORS=[
-"someNewValidator4"
-]
-```
-
- Be sure to not add too many "trial" groups at the top level:
- too many non reliable groups at the top level are a threat
- to liveness and may cause your node to get stuck.
- If you have too many top level "trial" groups, you may have to group "trial"
- groups into hierarchies of "trial" groups in order to keep the top level
- reliable.
-
- How many "trial" groups you can add depends on the level of risk you're
- willing to take:
- your "stable" group should represent a figure above the threshold that
- you picked (and the threshold should be 66% for the top level).
-
- Example:
- If you have 3 nodes in your "stable" list, you may have one node in your "trial" group
- but consider that in this case you cannot tolerate any failure from your "stable" set
- (as you would only have 2 nodes out of 4).
- Once you have 6 nodes in your "stable" list you can handle a failure of
- one of your "stable" list and one failure in the "trial" list.
-
- As you can see, in order to bootstrap a public network, you will need at least
-6 "stable" nodes in order to start vetting other nodes over time.
-
-### Advanced QUORUM_SET configuration
-A more advanced way to configure your QUORUM_SET is to group validators by
- entity type or organization.
-For example, you can imagine a QUORUM_SET that looks like
-```
-[t: 100,
-    [ t: 66, bank-1, bank-2, bank-3 ], # banks
-    [ t: 51, sdf, foundation-1, ...  ], # nonprofits
-    [ t: 51, univ-1, ... ], # universities
-    [ t: 51, friend-1, ... ] # friends
-]
-```
-or more exactly, as entities are represented by validators
-```
-[t: 100, # requires all entities to be present
-    [ t: 66, # super majority of banks
-       [t: 66, bank1-server1, bank1-server2, bank1-server3],
-       [t: 51, bank2-server1, bank2-server2],
-       [t: 100, bank3-server1]
-    ],
-    [ t: 51, # majority of nonprofits
-       [t: 51, sdf1, sdf2, sdf3],
-       [t: 51, foundation-1-server1, ...],
-       ...
-    ],
-    [ t: 51, # majority of universities
-        ...
-    ],
-    [ t: 51, # majority of friends
-        ...
-    ]
-]
-```
-
-This will configure the node to require one node of each category to reach consensus.
-
-# Recipes
-
-## Joining an existing network
-
-Put the network's `KNOWN_PEERS`, `QUORUM_SET`, and `HISTORY` details in a config file.
-Optionally: If you're going to be a validating node, generate key pair and 
-set `NODE_SEED` to your seed, and `NODE_IS_VALIDATOR=true`.
-Optionally: Create an external database to use--e.g., by using 
-PostgreSQL's `createdb` command.
-Set the `DATABASE` config variable to your choice of database.
-
-Run:
-
-1. `$ stellar-core --newdb`
-  - if you need to initialize the database
-2. `$ stellar-core`
-  - to start the node
-
-## Starting a new network
-
-Generate a keypair for each node, and set `NODE_SEED` and `NODE_IS_VALIDATOR=true`
-on each node of your new network.
-Set the `QUORUM_SET` and `KNOWN_PEERS` of each node to refer to one another.
-Decide on a history archive and add a HISTORY config entry for it on each node.
-Optionally: Create databases for each to use--e.g., by using PostgreSQL's `createdb` command.
-Set the `DATABASE` config variables on each node to your choice of database.
-
-Run:
-
-1. `$ stellar-core --newhist <historyarchive>`
-  - to initialize every history archive you are putting to (be sure to not push to the same archive from different nodes).
-2. `$ stellar-core --newdb`
-  - to initialize the database on each node. 
-3. `$ stellar-core --forcescp`
-  - to set a flag to force each node to start SCP immediatly rather than wait to hear from the network. 
-4. `$ stellar-core` 
-  - on each node to start it.
-
-## Upgrading network settings
-
-Read the section on [`network-configuration`](admin.md#network-configuration) for process to follow.
+### Example upgrade command
 
 Example here is to upgrade the protocol version to version 9 on January-31-2018.
 
@@ -513,125 +775,42 @@ Example here is to upgrade the protocol version to version 9 on January-31-2018.
 
 2. `$ stellar-core -c info`
 At this point `info` will tell you that the node is setup to vote for this upgrade:
-```
+```json
       "status" : [
          "Armed with network upgrades: upgradetime=2018-01-31T20:00:00Z, protocolversion=9"
       ]
 ```
 
-# Understanding the availability and health of your instance
-## General info
-Run `$ stellar-core --c 'info'`
-The output will look something like
-```
-   "info" : {
-      "build" : "v0.2.3-9-g73147b7",
-      "ledger" : {
-         "age" : 6,
-         "closeTime" : 1446178539,
-         "hash" : "f3c3424b85c004ebea1ae25991cf2ff902b46a5fea3bce1850c032118cd4567c",
-         "num" : 474367
-      },
-      "network" : "Public Global Stellar Network ; September 2015",
-      "numPeers" : 12,
-      "protocol_version" : 1,
-      "quorum" : {
-         "474366" : {
-            "agree" : 5,
-            "disagree" : 0,
-            "fail_at" : 2,
-            "hash" : "ac8c66",
-            "missing" : 0,
-            "phase" : "EXTERNALIZE"
-         }
-      },
-      "state" : "Synced!"
-```
-Key fields to watch for:
- * `state` : should be "Synced!"
- * `ledger age`: when was the last ledger closed, should be less than 10 seconds
- * `numPeers` : number of peers connected
- * `quorum` : summary of the quorum information for this node (see below)
+## Advanced topics and internals
 
-## Quorum Health
-Run `$ stellar-core --c 'quorum'`
-The output looks something like
-```
-"474313" : {
-         "agree" : 6,
-         "disagree" : null,
-         "fail_at" : 2,
-         "fail_with" : [ "lab1", "lab2" ],
-         "hash" : "d1dacb",
-         "missing" : [ "donovan" ],
-         "phase" : "EXTERNALIZE",
-         "value" : {
-            "t" : 5,
-            "v" : [ "lab1", "lab2", "lab3", "donovan", "GDVFV", "nelisky1", "nelisky2" ]
-         }
-```
-The key entries to watch are:
-  * `value` : the quorum set used by this node.
-  * `agree` : the number of nodes in the quorum set that agree with this instance.
-  * `disagree`: the nodes that were participating but disagreed with this instance.
-  * `missing` : the nodes that were missing during this consensus round.
-  * `fail_at` : the number of failed nodes that would cause this instance to halt.
-  * `fail_with`: an example of such failure.
-In the example above, 6 nodes are functioning properly, one is down (`donovan`), and
- the instance will fail if any two nodes out of the ones still working fail as well.
+This section contains information that is useful to know but that should not stop somebody from running a node.
 
-Note that the node not being able to reach consensus does not mean that the network
-as a whole will not be able to reach consensus (and the opposite is true, the network
-may fail because of a different set of validators failing).
+### Creating your own private network
 
-You can get a sense of the quorum set health of a different node by doing
-`$ stellar-core --c 'quorum?node=$sdf1` or `$ stellar-core --c 'quorum?node=@GABCDE` 
-
-You can get a sense of the general health of the network by looking at the quorum set
-health of all nodes.
-
-# Validator maintenance
-
-Maintenance here refers to anything involving taking your validator temporarily out of
-the network (to apply security patches, system upgrade, etc).
-
-As an administrator of a validator, you must ensure that the maintenance you are
-about to apply to the validator is safe for the overall network and for your validator.
-Safe means that the other validators that depend on yours will not be affected
-too much when you turn off your validator for maintenance and that your validator
-will continue to operate as part of the network when it comes back up.
-
-If you are changing some settings that may impact network wide settings, such as
-upgrading to a new version of stellar-core that supports a new version of the
-protocol or if you're updating other network wide settings, review the
-section "Important notes on network wide settings".
-
-We recommend performing the following steps in order (once per machine if you
- run multiple nodes).
-
-1. Advertise your intention to others that may depend on you. Some coordination
- is required to avoid situations where too many nodes go down at the same time.
-2. Dependencies should assess the health of their quorum, refer to the section
- "Understanding quorum and reliability".
-3. If there is no objection, take your instance down
-4. When done, start your instance that should rejoin the network
-5. The instance will be completely caught up when it's both `Synced` and there
- is no backlog in uploading history.
-
-# Notes
-
-It can take up to 5 or 6 minutes to sync to the network when you start up. Most 
-of this syncing time is simply stellar-core waiting for the next history 
-checkpoint to be made in a history archive it is reading from.
-
-## Additional documentation
-
-This directory contains the following additional documentation:
-
-* [testnet.md](./testnet.md) is a short tutorial demonstrating how to
+[testnet.md](./testnet.md) is a short tutorial demonstrating how to
   configure and run a short-lived, isolated test network.
 
-* [architecture.md](https://github.com/stellar/stellar-core/blob/master/docs/architecture.md) 
+### Runtime information: start and stop
+
+Stellar-core can be started directly from the command line, or through a supervision 
+system such as `init`, `upstart`, or `systemd`.
+
+Stellar-core can be gracefully exited at any time by delivering `SIGINT` or
+ pressing `CTRL-C`. It can be safely, forcibly terminated with `SIGTERM` or
+  `SIGKILL`. The latter may leave a stale lock file in the `BUCKET_DIR_PATH`,
+   and you may need to remove the file before it will restart. 
+   Otherwise, all components are designed to recover from abrupt termination.
+
+Stellar-core can also be packaged in a container system such as Docker, so long 
+as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
+volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core-horizon).
+
+Note: `BUCKET_DIR_PATH` and `TMP_DIR_PATH` *must* reside on the same volume
+as stellar-core needs to rename files between the two.
+
+### In depth architecture
+
+[architecture.md](https://github.com/stellar/stellar-core/blob/master/docs/architecture.md) 
   describes how stellar-core is structured internally, how it is intended to be 
   deployed, and the collection of servers and services needed to get the full 
   functionality and performance.
