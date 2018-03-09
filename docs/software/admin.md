@@ -12,9 +12,9 @@ Stellar Core is responsible for communicating directly with and maintaining the 
 
 [![Introduction to Stellar Core](https://i.ytimg.com/vi/pt_mm8S9_WU/hqdefault.jpg "Introduction to Stellar Core")](https://www.youtube.com/watch?v=pt_mm8S9_WU)
 
-It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in stellar-core.
+It will also be useful to understand how [data flows](https://www.stellar.org/developers/stellar-core/software/core-data-flow.pdf) and is stored in the system.
 
-## Zero to 'c'ompleted: node checklist
+## Zero to completed: node checklist
  - [ ] [deciding to run a node](#why-run-a-node)
  - [ ] [setting up an instance to run core](#instance-setup)
  - [ ] [install stellar-core](#installing)
@@ -30,15 +30,15 @@ It will also be useful to understand how [data flows](https://www.stellar.org/de
 
 ## Why run a node?
 
-### Shared benefits of running a node
+### Benefits of running a node
 
 You get to run your own Horizon instance:
 * Allows for customizations (triggers, etc) of the business logic or APIs
 * Full control of which data to retain (historical or online)
-* Allows to have a trusted entry point to the network
-  * Control of SLA (if it's down it cannot be trusted)
+* A trusted entry point to the network
   * Trusted end to end (can implement additional counter measures to secure services)
   * Open Horizon increases customer trust by allowing to query at the source (ie: larger token issuers have an official endpoint that can be queried)
+* Control of SLA
 
 note: in this document we use "Horizon" as the example implementation of a first tier service built on top of stellar-core, but any other system would get the same benefits.
 
@@ -75,7 +75,7 @@ Use cases:
 
 #### Archiver nodes
 
-Archivers are nodes which purpose is to record the activity of the network in long term storage (AWS, Azure, etc).
+The purpose of Archiver nodes is to record the activity of the network in long term storage (AWS, Azure, etc).
 
 [History Archives](#history-archives) contain snapshots of the ledger, all transactions and their results.
 
@@ -107,7 +107,7 @@ Use cases:
 
 #### Full validators
 
-Nodes fully participating to the network.
+Nodes fully participating in the network.
 
 Full validators are the true measure of how decentralized and redundant the network is as they are the only type of validators that perform all functions on the network.
 
@@ -135,7 +135,7 @@ Storage wise, 20 GB seems to be an excellent working set as it leaves plenty of 
 ### Network access
 
 #### Interaction with the peer to peer network
-* **inbound**: stellar-core needs is for all ips to connect to its `PEER_PORT` (default 11625) over TCP.
+* **inbound**: stellar-core needs to allow all ips to connect to its `PEER_PORT` (default 11625) over TCP.
 * **outbound**: stellar-core needs access to connect to other peers on the internet on `PEER_PORT` (most use the default as well) over TCP.
 
 #### Interaction with other internal systems
@@ -149,7 +149,7 @@ Storage wise, 20 GB seems to be an excellent working set as it leaves plenty of 
   *  perform administrative commands (schedule upgrades, change log levels, ...)
 
 Note on exposing the HTTP endpoint:
-if you need to expose this endpoint to other hosts in your local network, it is recommended to use an intermediate reverse proxy server to implement authentication.
+if you need to expose this endpoint to other hosts in your local network, it is recommended to use an intermediate reverse proxy server to implement authentication. Don't expose the HTTP endpoint to the raw and cruel open internet.
 
 ## Installing
 
@@ -173,11 +173,11 @@ See [detailed installation instructions](https://github.com/stellar/packages#sdf
 ### Container based installation
 Docker images are maintained in a few places, good starting points are:
  * the [quickstart image](https://github.com/stellar/docker-stellar-core-horizon)
- * the [standalone image](https://github.com/stellar/docker-stellar-core). **Warning**: this only tracks latest master, so you have to find the image based on the [release](https://github.com/stellar/stellar-core/releases) that you want to use
+ * the [standalone image](https://github.com/stellar/docker-stellar-core). **Warning**: this only tracks the latest master, so you have to find the image based on the [release](https://github.com/stellar/stellar-core/releases) that you want to use.
 
 ## Configuring
 
-Before attempting to configure stellar-core, it is highly recommended to first try running a private network or join the test network. 
+Before attempting to configure stellar-core, it is highly recommended to first try running a private network or joining the test network. 
 
 ### Configuration basics
 All configuration for stellar-core is done with a TOML file. By default 
@@ -207,7 +207,7 @@ messages will look like they came from you.
 Generate a key pair like this:
 
 `$ stellar-core --genseed`
-the output will look like
+the output will look something like
 ```
 Secret seed: SBAAOHEU4WSWX6GBZ3VOXEGQGWRBJ72ZN3B3MFAJZWXRYGDIWHQO37SY
 Public: GDMTUTQRCP6L3JQKX3OOKYIGZC6LG2O6K2BSUCI6WNGLL4XXCIB3OK2P
@@ -227,7 +227,7 @@ watch SCP and see all the data in the network but will not send validation messa
 
 ### Crafting a quorum set
 
-This section describes how to configure the quorum set for a validator and assumes basic understanding of the Stellar Consensus Protocol.
+This section describes how to configure the quorum set for a validator and assumes basic understanding of the [Stellar Consensus Protocol](https://www.stellar.org/developers/guides/concepts/scp.html).
 
 #### Validator list
 
@@ -242,7 +242,7 @@ The way quorum sets are configured is explained in detail in the [example config
 As an administrator what you need to do is ensure that your quorum configuration:
 * is aligned with how you want to trust other nodes on the network
 * gives good guarantees on the quorum intersection property of the network
-* provides the right properties  in the event of arbitrary node failures
+* provides the right properties in the event of arbitrary node failures
 
 If you are running multiple validators, the availability model of your organization as a "group of validators" (the way people are likely to refer to your validators) is not like traditional web services:
 * traditional web services stay available down to the last node
@@ -254,9 +254,9 @@ Divide the validators into two categories:
 * [full validators](#full-validators)
 * [basic validators](#basic-validators) 
 
-One of the goals is to ensure that here will always be some full validators in any given quorum (from this node point of view).
+One of the goals is to ensure that here will always be some full validators in any given quorum (from your node's point of view).
 
-As the way quorum sets are specified is done using a threshold, ie require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold equal at least equal to the number of basic entities at the top level + 1.
+As the way quorum sets are specified is done using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
 ```toml
 [QUORUM_SET]
@@ -318,11 +318,9 @@ You may have to change the grouping in order to achieve the expected properties:
 
 #### Quorum and overlay network
 
-It is generally a good idea to give information to your validator on other validators that you rely on:
+It is generally a good idea to give information to your validator on other validators that you rely on. This is achieved by configuring `KNOWN_PEERS` and `PREFERRED_PEERS` with the addresses of your dependencies.
 
-this is achieved by configuring `KNOWN_PEERS` and `PREFERRED_PEERS` with the addresses of your dependencies.
-
-Additionally, configuring `PREFERRED_PEER_KEYS` with the keys from your quorum set might be a good idea as to give priority to the nodes that allows you to rach consensus.
+Additionally, configuring `PREFERRED_PEER_KEYS` with the keys from your quorum set might be a good idea to give priority to the nodes that allows you to reach consensus.
 
 Without those settings, your validator depends on other nodes on the network to forward you the right messages, which is typically done as a best effort.
 
@@ -332,7 +330,7 @@ Sometimes an organization needs to make changes that impact other's quorum sets:
 * taking a validator down for long period of time
 * adding new validators to their pool
 
-In both cases, it's crucial to stage the changes as to preserve quorum intersection and general good health of the network:
+In both cases, it's crucial to stage the changes to preserve quorum intersection and general good health of the network:
 * removing too many nodes from your quorum set *before* the nodes are taken down : if different people remove different sets the remaining sets may not overlap between nodes and may cause network splits 
 * adding too many nodes in your quorum set at the same time : if not done carefully can cause those nodes to overpower your configuration
 
@@ -425,7 +423,7 @@ The very first time you want to use your archive *before starting your node* you
  automatically create sub-folders
  * writing to the same archive from different nodes is not supported and
  will result in undefined behavior, *potentially data loss*.
- * do not run `newhist` on an existing archive unless you want to erase it
+ * do not run `newhist` on an existing archive unless you want to erase it.
 
 ### Other preparation
 
@@ -587,7 +585,7 @@ The output will look something like
 }
 ```
 
-`peers` is information on the connectivity to the network, `authenticated_count` are live connections while `pending_count` are connections that are not fully established yet.
+`peers` gives information on the connectivity to the network, `authenticated_count` are live connections while `pending_count` are connections that are not fully established yet.
 
 `ledger` represents the local state of your node, it may be different from the network state if your node was disconnected from the network for example.
 
