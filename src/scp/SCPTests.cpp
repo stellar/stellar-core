@@ -623,10 +623,6 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         if (withChecks && delayedQuorum)
         {
             REQUIRE(scp.mEnvs.size() == i);
-            if (checkUpcoming)
-            {
-                REQUIRE(scp.hasBallotTimerUpcoming());
-            }
         }
     };
     auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
@@ -910,7 +906,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                     REQUIRE(scp.mEnvs.size() == 7);
                                     REQUIRE(scp.mExternalizedValues.size() ==
                                             0);
-                                    REQUIRE(!scp.hasBallotTimer());
+                                    // timer scheduled as there is a quorum
+                                    // with (2, *)
+                                    REQUIRE(scp.hasBallotTimerUpcoming());
                                 }
                                 SECTION("Network CONFIRMS other ballot")
                                 {
@@ -947,7 +945,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
                                             0);
-                                        REQUIRE(!scp.hasBallotTimer());
+                                        // timer scheduled as there is a quorum
+                                        // with (3, *)
+                                        REQUIRE(scp.hasBallotTimerUpcoming());
                                     }
                                 }
                             }
@@ -1348,7 +1348,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                     REQUIRE(scp.mEnvs.size() == 7);
                                     REQUIRE(scp.mExternalizedValues.size() ==
                                             0);
-                                    REQUIRE(!scp.hasBallotTimer());
+                                    // timer scheduled as there is a quorum
+                                    // with (inf, *)
+                                    REQUIRE(scp.hasBallotTimerUpcoming());
                                 }
                                 SECTION("Network CONFIRMS other ballot")
                                 {
@@ -1385,7 +1387,9 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                                         REQUIRE(
                                             scp.mExternalizedValues.size() ==
                                             0);
-                                        REQUIRE(!scp.hasBallotTimer());
+                                        // timer scheduled as there is a quorum
+                                        // with (3, *)
+                                        REQUIRE(scp.hasBallotTimerUpcoming());
                                     }
                                 }
                             }
