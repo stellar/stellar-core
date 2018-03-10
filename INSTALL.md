@@ -27,6 +27,7 @@ When running a node, the best bet is to go with the latest release.
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
 - `clang-format-5.0` (for `make format` to work)
+- `pandoc`
 
 ### Ubuntu 14.04
 
