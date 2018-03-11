@@ -378,7 +378,7 @@ The settings that control the automatic maintenance behavior are: `AUTOMATIC_MAI
 
 By default, stellar-core will perform this automatic maintenance, so be sure to disable it until you have done the appropriate data ingestion in downstream systems (Horizon for example sometimes needs to reingest data).
 
-If you need to regenerate the meta data, the simplest is to replay ledgers for the range you're interest in after (optionally) clearing the database with `newdb`.
+If you need to regenerate the meta data, the simplest way is to replay ledgers for the range you're interested in after (optionally) clearing the database with `newdb`.
 
 #### Buckets
 Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
