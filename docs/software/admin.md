@@ -254,7 +254,7 @@ Divide the validators into two categories:
 * [full validators](#full-validators)
 * [basic validators](#basic-validators) 
 
-One of the goals is to ensure that here will always be some full validators in any given quorum (from your node's point of view).
+One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
 
 As the way quorum sets are specified is done using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
