@@ -346,7 +346,7 @@ Cross reference your validator settings, in particular:
 * quorum set
   * public keys of the validators that you manage grouped properly
 * seed defined if validating
-* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjonction with a downstream system like Horizon. 
+* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjunction with a downstream system like Horizon.
 
 ### Database and local state
 
