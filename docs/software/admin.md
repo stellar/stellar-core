@@ -254,7 +254,7 @@ Divide the validators into two categories:
 * [full validators](#full-validators)
 * [basic validators](#basic-validators) 
 
-One of the goals is to ensure that here will always be some full validators in any given quorum (from your node's point of view).
+One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
 
 As the way quorum sets are specified is done using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
@@ -346,7 +346,7 @@ Cross reference your validator settings, in particular:
 * quorum set
   * public keys of the validators that you manage grouped properly
 * seed defined if validating
-* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjonction with a downstream system like Horizon. 
+* [Automatic maintenance](#cursors-and-automatic-maintenance) configured properly, especially when stellar-core is used in conjunction with a downstream system like Horizon.
 
 ### Database and local state
 
@@ -378,7 +378,7 @@ The settings that control the automatic maintenance behavior are: `AUTOMATIC_MAI
 
 By default, stellar-core will perform this automatic maintenance, so be sure to disable it until you have done the appropriate data ingestion in downstream systems (Horizon for example sometimes needs to reingest data).
 
-If you need to regenerate the meta data, the simplest is to replay ledgers for the range you're interest in after (optionally) clearing the database with `newdb`.
+If you need to regenerate the meta data, the simplest way is to replay ledgers for the range you're interested in after (optionally) clearing the database with `newdb`.
 
 #### Buckets
 Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
