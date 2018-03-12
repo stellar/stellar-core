@@ -653,14 +653,16 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
     mCurrentValue = xdr::xdr_to_opaque(value);
     mLedgerSeqNominating = static_cast<uint32_t>(slotIndex);
 
-    auto valueHash = sha256(xdr::xdr_to_opaque(mCurrentValue));
-    CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
-                          << " txSet.size: "
-                          << proposedSet->mTransactions.size()
-                          << " previousLedgerHash: "
-                          << hexAbbrev(proposedSet->previousLedgerHash())
-                          << " value: " << hexAbbrev(valueHash)
-                          << " slot: " << slotIndex;
+    if (Logging::logDebug("Herder")) {
+        auto valueHash = sha256(mCurrentValue);
+        CLOG(DEBUG, "Herder") << "HerderSCPDriver::triggerNextLedger"
+                              << " txSet.size: "
+                              << proposedSet->mTransactions.size()
+                              << " previousLedgerHash: "
+                              << hexAbbrev(proposedSet->previousLedgerHash())
+                              << " value: " << hexAbbrev(valueHash)
+                              << " slot: " << slotIndex;
+    }
 
     auto prevValue = xdr::xdr_to_opaque(previousValue);
     mSCP.nominate(slotIndex, mCurrentValue, prevValue);
