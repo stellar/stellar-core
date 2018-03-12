@@ -46,8 +46,9 @@
 namespace stellar
 {
 
-class PeerRecord;
 class PeerAuth;
+class PeerBareAddress;
+class PeerRecord;
 class LoadManager;
 
 class OverlayManager
@@ -78,10 +79,9 @@ class OverlayManager
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;
 
-    // Return an already-connected peer at the given ip address and port;
-    // returns a `nullptr`-valued pointer if no such connected peer exists.
-    virtual Peer::pointer getConnectedPeer(std::string const& ip,
-                                           unsigned short port) = 0;
+    // Return an already-connected peer at the given address; returns a
+    // `nullptr`-valued pointer if no such connected peer exists.
+    virtual Peer::pointer getConnectedPeer(PeerBareAddress const& address) = 0;
 
     // Add a peer to the in-memory set of pending peers.
     virtual void addPendingPeer(Peer::pointer peer) = 0;
@@ -118,7 +118,11 @@ class OverlayManager
     // a TCP port number.
     virtual void connectTo(std::string const& addr) = 0;
 
-    // Attempt to connect to a peer identified by peer record.
+    // Attempt to connect to a peer identified by peer address.
+    virtual void connectTo(PeerBareAddress const& address) = 0;
+
+    // Attempt to connect to a peer identified by peer record. Can modify back
+    // off value of pr and save it do database.
     virtual void connectTo(PeerRecord& pr) = 0;
 
     // returns the list of peers that sent us the item with hash `h`

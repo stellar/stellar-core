@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/PeerBareAddress.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
@@ -109,8 +110,8 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
 {
     try
     {
-        auto pr = PeerRecord::parseIPPort(peerStr, mApp);
-        connectTo(pr);
+        auto address = PeerBareAddress::resolve(peerStr, mApp);
+        connectTo(address);
     }
     catch (const std::runtime_error&)
     {
@@ -119,15 +120,22 @@ OverlayManagerImpl::connectTo(std::string const& peerStr)
 }
 
 void
+OverlayManagerImpl::connectTo(PeerBareAddress const& address)
+{
+    auto pr = PeerRecord{address, mApp.getClock().now(), 0};
+    connectTo(pr);
+}
+
+void
 OverlayManagerImpl::connectTo(PeerRecord& pr)
 {
     mConnectionsAttempted.Mark();
-    if (!getConnectedPeer(pr.ip(), pr.port()))
+    if (!getConnectedPeer(pr.getAddress()))
     {
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addPendingPeer(TCPPeer::initiate(mApp, pr.ip(), pr.port()));
+        addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
     }
     else
     {
@@ -145,7 +153,8 @@ OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
     {
         try
         {
-            auto pr = PeerRecord::parseIPPort(peerStr, mApp);
+            auto address = PeerBareAddress::resolve(peerStr, mApp);
+            auto pr = PeerRecord{address, mApp.getClock().now(), 0};
             pr.setPreferred(preferred);
             if (resetBackOff)
             {
@@ -173,7 +182,7 @@ OverlayManagerImpl::storeConfigPeers()
     {
         try
         {
-            auto pr = PeerRecord::parseIPPort(s, mApp);
+            auto pr = PeerBareAddress::resolve(s, mApp);
             auto r = mPreferredPeers.insert(pr.toString());
             if (r.second)
             {
@@ -197,11 +206,10 @@ OverlayManagerImpl::getPreferredPeersFromConfig()
     std::vector<PeerRecord> peers;
     for (auto& pp : mPreferredPeers)
     {
-        auto prParsed = PeerRecord::parseIPPort(pp, mApp);
-        if (!getConnectedPeer(prParsed.ip(), prParsed.port()))
+        auto address = PeerBareAddress::resolve(pp, mApp);
+        if (!getConnectedPeer(address))
         {
-            auto pr = PeerRecord::loadPeerRecord(
-                mApp.getDatabase(), prParsed.ip(), prParsed.port());
+            auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), address);
             if (pr && pr->mNextAttempt <= mApp.getClock().now())
             {
                 peers.emplace_back(*pr);
@@ -223,7 +231,7 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum)
                                 [&](PeerRecord const& pr) {
                                     // skip peers that we're already
                                     // connected/connecting to
-                                    if (!getConnectedPeer(pr.ip(), pr.port()))
+                                    if (!getConnectedPeer(pr.getAddress()))
                                     {
                                         peers.emplace_back(pr);
                                     }
@@ -293,13 +301,12 @@ OverlayManagerImpl::tick()
 }
 
 Peer::pointer
-OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
+OverlayManagerImpl::getConnectedPeer(PeerBareAddress const& address)
 {
     auto pendingPeerIt =
         std::find_if(std::begin(mPendingPeers), std::end(mPendingPeers),
-                     [ip, port](Peer::pointer const& peer) {
-                         return peer->getIP() == ip &&
-                                peer->getRemoteListeningPort() == port;
+                     [address](Peer::pointer const& peer) {
+                         return peer->getAddress() == address;
                      });
     if (pendingPeerIt != std::end(mPendingPeers))
     {
@@ -308,9 +315,8 @@ OverlayManagerImpl::getConnectedPeer(std::string const& ip, unsigned short port)
 
     auto authenticatedPeerIt = std::find_if(
         std::begin(mAuthenticatedPeers), std::end(mAuthenticatedPeers),
-        [ip, port](std::pair<NodeID, Peer::pointer> const& peer) {
-            return peer.second->getIP() == ip &&
-                   peer.second->getRemoteListeningPort() == port;
+        [address](std::pair<NodeID, Peer::pointer> const& peer) {
+            return peer.second->getAddress() == address;
         });
     if (authenticatedPeerIt != std::end(mAuthenticatedPeers))
     {
