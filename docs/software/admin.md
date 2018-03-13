@@ -452,7 +452,7 @@ as `curl`, or by running a command such as
 
 `$ stellar-core -c <command>`
 
-The endpoint is [not intended to be exposed to the public internet](#interaction-with other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
+The endpoint is [not intended to be exposed to the public internet](#interaction-with-other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
 
 See [commands](./commands.md) for a description of the available commands.
 
