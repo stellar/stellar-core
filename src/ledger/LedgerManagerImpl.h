@@ -32,6 +32,7 @@ namespace stellar
 class Application;
 class Database;
 class LedgerDelta;
+class LedgerHeaderReference;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -57,14 +58,16 @@ class LedgerManagerImpl : public LedgerManager
                          LedgerHeaderHistoryEntry const& lastClosed);
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            LedgerDelta& delta);
+                            LedgerState& ls);
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           LedgerDelta& ledgerDelta,
+                           LedgerState& ls,
                            TransactionResultSet& txResultSet);
 
-    void ledgerClosed(LedgerDelta const& delta);
-    void storeCurrentLedger();
-    void advanceLedgerPointers();
+    void ledgerClosed(LedgerState& ls);
+    void storeCurrentLedger(std::shared_ptr<LedgerHeaderReference> header);
+    void advanceLedgerPointers(std::shared_ptr<LedgerHeaderReference> header);
+
+    void storeHeaderInDatabase(LedgerHeader const& header);
 
     State mState;
 
