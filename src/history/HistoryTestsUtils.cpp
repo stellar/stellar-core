@@ -247,7 +247,7 @@ CatchupSimulation::generateRandomLedger()
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
     uint32_t ledgerSeq = getCurrentLedgerNum(mApp.getLedgerStateRoot());
-    uint64_t minBalance = lm.getMinBalance(5);
+    uint64_t minBalance = getCurrentMinBalance(mApp.getLedgerStateRoot(), 5);
     uint64_t big = minBalance + ledgerSeq;
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;

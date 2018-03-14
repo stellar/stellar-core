@@ -52,8 +52,8 @@ TEST_CASE("standalone", "[herder]")
     auto b1 = TestAccount{*app, getAccount("B")};
     auto c1 = TestAccount{*app, getAccount("C")};
 
-    auto txfee = app->getLedgerManager().getTxFee();
-    const int64_t minBalance = app->getLedgerManager().getMinBalance(0);
+    auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
+    const int64_t minBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
     const int64_t paymentAmount = 100;
     const int64_t startingBalance = minBalance + (paymentAmount + txfee) * 3;
 
@@ -240,7 +240,7 @@ TEST_CASE("txset", "[herder]")
 
     auto accounts = std::vector<TestAccount>{};
 
-    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
+    const int64_t paymentAmount = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
 
     int64_t amountPop =
         nbAccounts * nbTransactions * getCurrentTxFee(app->getLedgerStateRoot()) +

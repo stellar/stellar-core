@@ -45,7 +45,7 @@ TEST_CASE("merge", "[tx][merge]")
     auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     const int64_t minBalance =
-        app->getLedgerManager().getMinBalance(5) + 20 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 5) + 20 * txfee;
 
     auto a1 = root.create("A", 2 * minBalance);
     auto b1 = root.create("B", minBalance);
@@ -73,7 +73,7 @@ TEST_CASE("merge", "[tx][merge]")
     {
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
-        auto createBalance = app->getLedgerManager().getMinBalance(1);
+        auto createBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 1);
         auto txFrame =
             a1.tx({a1.op(accountMerge(b1)),
                    b1.op(createAccount(a1.getPublicKey(), createBalance)),
@@ -130,7 +130,7 @@ TEST_CASE("merge", "[tx][merge]")
     {
         auto a1Balance = a1.getBalance();
         auto b1Balance = b1.getBalance();
-        auto createBalance = app->getLedgerManager().getMinBalance(1);
+        auto createBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 1);
         auto txFrame =
             a1.tx({a1.op(accountMerge(b1)),
                    b1.op(createAccount(a1.getPublicKey(), createBalance)),
@@ -163,7 +163,7 @@ TEST_CASE("merge", "[tx][merge]")
         auto b1Balance = b1.getBalance();
         auto a1SeqNum = a1.loadSequenceNumber();
         auto b1SeqNum = b1.loadSequenceNumber();
-        auto createBalance = app->getLedgerManager().getMinBalance(1);
+        auto createBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 1);
         auto tx = a1.tx({accountMerge(b1), createAccount(b1, createBalance),
                          accountMerge(b1)});
 
@@ -292,7 +292,7 @@ TEST_CASE("merge", "[tx][merge]")
         auto b1Balance = b1.getBalance();
         auto a1SeqNum = a1.loadSequenceNumber();
         auto b1SeqNum = b1.loadSequenceNumber();
-        auto createBalance = app->getLedgerManager().getMinBalance(1);
+        auto createBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 1);
         auto tx = a1.tx({accountMerge(b1),
                          createAccount(c1.getPublicKey(), createBalance),
                          accountMerge(b1)});
@@ -411,10 +411,10 @@ TEST_CASE("merge", "[tx][merge]")
 
         auto txFrame =
             a1.tx({createAccount(c.getPublicKey(),
-                                 app->getLedgerManager().getMinBalance(0)),
+                                 getCurrentMinBalance(app->getLedgerStateRoot(), 0)),
                    accountMerge(c.getPublicKey()),
                    createAccount(d.getPublicKey(),
-                                 app->getLedgerManager().getMinBalance(0))});
+                                 getCurrentMinBalance(app->getLedgerStateRoot(), 0))});
 
         for_versions_to(7, *app, [&] {
             applyCheck(txFrame, *app);
@@ -552,7 +552,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve")
     {
         auto mergeFrom =
-            root.create("merge-from", app->getLedgerManager().getMinBalance(0));
+            root.create("merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0));
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -561,7 +561,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + one stroop")
     {
         auto mergeFrom = root.create(
-            "merge-from", app->getLedgerManager().getMinBalance(0) + 1);
+            "merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 1);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -570,7 +570,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + one operation fee - one stroop")
     {
         auto mergeFrom = root.create(
-            "merge-from", app->getLedgerManager().getMinBalance(0) + txfee - 1);
+            "merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + txfee - 1);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
         });
@@ -579,7 +579,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + one operation fee")
     {
         auto mergeFrom = root.create(
-            "merge-from", app->getLedgerManager().getMinBalance(0) + txfee);
+            "merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + txfee);
         closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
@@ -591,7 +591,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + one operation fee + one stroop")
     {
         auto mergeFrom = root.create(
-            "merge-from", app->getLedgerManager().getMinBalance(0) + txfee + 1);
+            "merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + txfee + 1);
         closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
             REQUIRE_THROWS_AS(mergeFrom.merge(root), ex_txINSUFFICIENT_BALANCE);
@@ -603,7 +603,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + two operation fees - one stroop")
     {
         auto mergeFrom =
-            root.create("merge-from", app->getLedgerManager().getMinBalance(0) +
+            root.create("merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) +
                                           2 * txfee - 1);
         closeLedgerOn(*app, 3, 1, 1, 2017);
         for_versions_to(8, *app, [&] {
@@ -616,7 +616,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("account has only base reserve + two operation fees")
     {
         auto mergeFrom = root.create(
-            "merge-from", app->getLedgerManager().getMinBalance(0) + 2 * txfee);
+            "merge-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 2 * txfee);
         closeLedgerOn(*app, 3, 1, 1, 2017);
         for_all_versions(*app, [&] { mergeFrom.merge(root); });
     }

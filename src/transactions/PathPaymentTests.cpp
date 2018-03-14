@@ -92,20 +92,20 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     auto xlm = makeNativeAsset();
     auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
-    auto const minBalanceNoTx = app->getLedgerManager().getMinBalance(0);
+    auto const minBalanceNoTx = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
     auto const minBalance =
-        app->getLedgerManager().getMinBalance(0) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 10 * txfee;
 
     auto const minBalance1 =
-        app->getLedgerManager().getMinBalance(1) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 1) + 10 * txfee;
     auto const minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 2) + 10 * txfee;
     auto const minBalance3 =
-        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 3) + 10 * txfee;
     auto const minBalance4 =
-        app->getLedgerManager().getMinBalance(4) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 4) + 10 * txfee;
     auto const minBalance5 =
-        app->getLedgerManager().getMinBalance(5) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 5) + 10 * txfee;
 
     auto const paymentAmount = minBalance3;
     auto const morePayment = paymentAmount / 2;
@@ -3548,7 +3548,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto paymentToReceive = 240000000;
         auto offerSize = paymentToReceive / 2;
         auto initialBalance =
-            app->getLedgerManager().getMinBalance(10) + txfee * 10 + 1000000000;
+            getCurrentMinBalance(app->getLedgerStateRoot(), 10) + txfee * 10 + 1000000000;
         auto mm = root.create("mm", initialBalance);
         auto source = root.create("source", initialBalance);
         auto destination = root.create("destination", initialBalance);

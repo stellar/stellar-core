@@ -9,6 +9,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -26,7 +27,7 @@ TEST_CASE("allow trust", "[tx][allowtrust]")
     const int64_t trustLineLimit = INT64_MAX;
     const int64_t trustLineStartingBalance = 20000;
 
-    auto const minBalance2 = app->getLedgerManager().getMinBalance(2);
+    auto const minBalance2 = getCurrentMinBalance(app->getLedgerStateRoot(), 2);
 
     // set up world
     auto root = TestAccount::createRoot(*app);

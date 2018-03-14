@@ -13,6 +13,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -32,10 +33,9 @@ TEST_CASE("bump sequence", "[tx][bumpsequence]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto& lm = app->getLedgerManager();
 
-    auto a = root.create("A", lm.getMinBalance(0) + 1000);
-    auto b = root.create("B", lm.getMinBalance(0) + 1000);
+    auto a = root.create("A", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 1000);
+    auto b = root.create("B", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 1000);
 
     SECTION("test success")
     {

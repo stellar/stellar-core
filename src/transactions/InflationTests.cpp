@@ -16,6 +16,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <functional>
@@ -345,7 +346,7 @@ TEST_CASE("inflation", "[tx][inflation]")
         auto target1 = TestAccount{*app, getAccount("target1"), 0};
         auto target2 = TestAccount{*app, getAccount("target2"), 0};
 
-        auto minBalance = app->getLedgerManager().getMinBalance(0);
+        auto minBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
         auto rootBalance = root.getBalance();
 
         auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});

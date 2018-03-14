@@ -29,7 +29,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto const minBalance2 = app->getLedgerManager().getMinBalance(2);
+    auto const minBalance2 = getCurrentMinBalance(app->getLedgerStateRoot(), 2);
     auto gateway = root.create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 

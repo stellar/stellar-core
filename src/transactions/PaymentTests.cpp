@@ -48,11 +48,11 @@ TEST_CASE("payment", "[tx][payment]")
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 2) + 10 * txfee;
 
     // minimum balance necessary to hold 2 trust lines and an offer
     const int64_t minBalance3 =
-        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 3) + 10 * txfee;
 
     const int64_t paymentAmount = minBalance2;
 
@@ -99,12 +99,12 @@ TEST_CASE("payment", "[tx][payment]")
         {
             for_all_versions(*app, [&] {
                 auto b1 =
-                    root.create("B", app->getLedgerManager().getMinBalance(0));
+                    root.create("B", getCurrentMinBalance(app->getLedgerStateRoot(), 0));
                 SECTION("Account already exists")
                 {
                     REQUIRE_THROWS_AS(
                         root.create("B",
-                                    app->getLedgerManager().getMinBalance(0)),
+                                    getCurrentMinBalance(app->getLedgerStateRoot(), 0)),
                         ex_CREATE_ACCOUNT_ALREADY_EXIST);
                 }
             });
@@ -121,7 +121,7 @@ TEST_CASE("payment", "[tx][payment]")
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(
                     root.create("B",
-                                app->getLedgerManager().getMinBalance(0) - 1),
+                                getCurrentMinBalance(app->getLedgerStateRoot(), 0) - 1),
                     ex_CREATE_ACCOUNT_LOW_RESERVE);
             });
         }
@@ -131,7 +131,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         auto paymentAmountMerge = 1000000;
         auto amount =
-            app->getLedgerManager().getMinBalance(0) + paymentAmountMerge;
+            getCurrentMinBalance(app->getLedgerStateRoot(), 0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -157,7 +157,7 @@ TEST_CASE("payment", "[tx][payment]")
     {
         auto paymentAmountMerge = 1000000;
         auto amount =
-            app->getLedgerManager().getMinBalance(0) + paymentAmountMerge;
+            getCurrentMinBalance(app->getLedgerStateRoot(), 0) + paymentAmountMerge;
         auto b1 = root.create("B", amount);
 
         int64 a1Balance = a1.getBalance();
@@ -183,7 +183,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     SECTION("merge then send")
     {
-        auto b1 = root.create("B", app->getLedgerManager().getMinBalance(0));
+        auto b1 = root.create("B", getCurrentMinBalance(app->getLedgerStateRoot(), 0));
 
         int64 a1Balance = a1.getBalance();
         int64 b1Balance = b1.getBalance();
@@ -252,7 +252,7 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("rescue account (was below reserve)")
     {
         for_all_versions(*app, [&] {
-            int64 orgReserve = app->getLedgerManager().getMinBalance(0);
+            int64 orgReserve = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
 
             auto b1 = root.create("B", orgReserve + 1000);
 
@@ -267,7 +267,7 @@ TEST_CASE("payment", "[tx][payment]")
             REQUIRE(tx->getResultCode() == txINSUFFICIENT_BALANCE);
 
             // top up the account to unblock it
-            int64 topUp = app->getLedgerManager().getMinBalance(0) - orgReserve;
+            int64 topUp = getCurrentMinBalance(app->getLedgerStateRoot(), 0) - orgReserve;
             root.pay(b1, topUp);
 
             // payment goes through
@@ -278,7 +278,7 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("two payments, first breaking second")
     {
         int64 startingBalance = paymentAmount + 5 +
-                                app->getLedgerManager().getMinBalance(0) +
+                                getCurrentMinBalance(app->getLedgerStateRoot(), 0) +
                                 txfee * 2;
         auto b1 = root.create("B", startingBalance);
         auto tx1 = b1.tx({payment(root, paymentAmount)});
@@ -292,7 +292,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance =
-                app->getLedgerManager().getMinBalance(0) + 5;
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 5;
             REQUIRE(expectedb1Balance == b1.getBalance());
             REQUIRE(expectedrootBalance == root.getBalance());
         });
@@ -308,7 +308,7 @@ TEST_CASE("payment", "[tx][payment]")
 
             int64 expectedrootBalance = rootBalance + paymentAmount;
             int64 expectedb1Balance =
-                app->getLedgerManager().getMinBalance(0) + 5;
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 5;
             REQUIRE(expectedb1Balance == b1.getBalance());
             REQUIRE(expectedrootBalance == root.getBalance());
         });
@@ -1648,7 +1648,7 @@ TEST_CASE("payment", "[tx][payment]")
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1659,7 +1659,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1671,7 +1671,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1685,7 +1685,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1699,7 +1699,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1712,7 +1712,7 @@ TEST_CASE("payment", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
@@ -1726,7 +1726,7 @@ TEST_CASE("payment", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 1);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
@@ -1736,7 +1736,7 @@ TEST_CASE("payment", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 2 * txfee);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1763,7 +1763,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1774,7 +1774,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1786,7 +1786,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1800,7 +1800,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1814,7 +1814,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1827,7 +1827,7 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
@@ -1841,7 +1841,7 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 1);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
@@ -1851,7 +1851,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 2 * txfee);
             for_all_versions(*app,
                              [&] { REQUIRE_NOTHROW(payFrom.pay(root, 1)); });
         }
@@ -1873,7 +1873,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         SECTION("account has only base reserve + amount")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount);
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1884,7 +1884,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 1);
             for_all_versions(*app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1896,7 +1896,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee - 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee - 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1910,7 +1910,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1924,7 +1924,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + txfee + 1);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + txfee + 1);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
                                   ex_txINSUFFICIENT_BALANCE);
@@ -1937,7 +1937,7 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "two stroops")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 2);
             for_versions_to(8, *app, [&] {
                 REQUIRE_THROWS_AS(payFrom.pay(root, 1),
@@ -1951,7 +1951,7 @@ TEST_CASE("payment fees", "[tx][payment]")
                 "one stroop")
         {
             auto payFrom = root.create(
-                "pay-from", app->getLedgerManager().getMinBalance(0) + amount +
+                "pay-from", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount +
                                 2 * txfee - 1);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
@@ -1960,7 +1960,7 @@ TEST_CASE("payment fees", "[tx][payment]")
         {
             auto payFrom = root.create(
                 "pay-from",
-                app->getLedgerManager().getMinBalance(0) + amount + 2 * txfee);
+                getCurrentMinBalance(app->getLedgerStateRoot(), 0) + amount + 2 * txfee);
             for_all_versions(*app, [&] { payFrom.pay(root, 1); });
         }
     }
@@ -1982,7 +1982,7 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
     auto root = TestAccount::createRoot(*app);
     int64_t txfee = getCurrentTxFee(app->getLedgerStateRoot());
     const int64_t paymentAmount =
-        app->getLedgerManager().getMinBalance(1) + txfee * 10;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 1) + txfee * 10;
 
     {
         auto ctx = app->getDatabase().captureAndLogSQL("createAccount");

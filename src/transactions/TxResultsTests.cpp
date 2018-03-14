@@ -379,7 +379,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto d = root.create("d", startAmount);
     auto e = root.create("e", startAmount);
     auto f = TestAccount{*app, getAccount("f")};
-    auto g = root.create("g", lm.getMinBalance(0));
+    auto g = root.create("g", getCurrentMinBalance(app->getLedgerStateRoot(), 0));
 
     SECTION("transaction errors")
     {

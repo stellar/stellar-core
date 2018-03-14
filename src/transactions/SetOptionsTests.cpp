@@ -12,6 +12,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -38,7 +39,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("A", app->getLedgerManager().getMinBalance(0) + 1000);
+    auto a1 = root.create("A", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 1000);
 
     SECTION("Signers")
     {
@@ -74,7 +75,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         for_versions_to(2, *app, [&] {
             // add some funds
-            root.pay(a1, app->getLedgerManager().getMinBalance(2));
+            root.pay(a1, getCurrentMinBalance(app->getLedgerStateRoot(), 2));
 
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
@@ -150,7 +151,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
         for_versions_from(3, *app, [&] {
             // add some funds
-            root.pay(a1, app->getLedgerManager().getMinBalance(2));
+            root.pay(a1, getCurrentMinBalance(app->getLedgerStateRoot(), 2));
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
             AccountFrame::pointer a1Account;
