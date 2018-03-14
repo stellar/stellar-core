@@ -41,6 +41,27 @@ ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
 ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
 
+class LoadBestOfferContext
+{
+    Asset const mSelling;
+    Asset const mBuying;
+
+    Database& mDb;
+
+    std::vector<OfferFrame::pointer> mBatch;
+    std::vector<OfferFrame::pointer>::iterator mBatchIterator;
+
+    void loadBatchIfNecessary();
+
+  public:
+    LoadBestOfferContext(Database& db, Asset const& selling,
+                         Asset const& buying);
+
+    OfferFrame::pointer loadBestOffer();
+
+    void eraseAndUpdate();
+};
+
 class OfferExchange
 {
 
@@ -67,8 +88,7 @@ class OfferExchange
     enum OfferFilterResult
     {
         eKeep,
-        eStop,
-        eSkip
+        eStop
     };
 
     enum ConvertResult
