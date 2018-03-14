@@ -5,6 +5,8 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
@@ -48,7 +50,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     auto root = TestAccount::createRoot(*app);
 
     const uint64_t paymentAmount =
-        app->getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
+        app->getLedgerManager().getLastClosedLedgerHeader().header.baseReserve * 10;
 
     SECTION("outer envelope")
     {
@@ -717,6 +719,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
     }
 
+    auto getTxFee = [&app] () {
+        return app->getLedgerManager().getLastClosedLedgerHeader().header.baseFee;
+    };
+
     SECTION("batching")
     {
         SECTION("empty batch")
@@ -812,7 +818,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getTxFee());
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -846,7 +852,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getTxFee());
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -879,7 +885,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getTxFee());
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -921,7 +927,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     applyCheck(tx, *app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app->getLedgerManager().getTxFee());
+                            2 * getTxFee());
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(CreateAccountOpFrame::getInnerCode(
@@ -951,7 +957,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         LedgerCloseData ledgerData(1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 
-        REQUIRE(app->getLedgerManager().getLedgerNum() == 3);
+        {
+            LedgerState ls(app->getLedgerStateRoot());
+            REQUIRE(ls.loadHeader()->header().ledgerSeq == 3);
+        }
 
         {
             SECTION("Insufficient fee")
@@ -960,7 +969,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
-                        app->getLedgerManager().getTxFee() - 1);
+                        getTxFee() - 1);
 
                     applyCheck(txFrame, *app);
 

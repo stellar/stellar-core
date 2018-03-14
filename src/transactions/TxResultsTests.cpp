@@ -5,6 +5,8 @@
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -185,9 +187,6 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
-        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
-                          app->getDatabase());
-
         auto shouldValidateOk = validationResult.code == txSUCCESS;
         REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
         REQUIRE(tx->getResult().result.code() == validationResult.code);
@@ -211,18 +210,22 @@ TEST_CASE("txresults", "[tx][txresults]")
         }
 
         auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-        auto applyOk = tx->apply(delta, *app);
+        LedgerState ls(app->getLedgerStateRoot());
+        auto applyOk = tx->apply(ls, *app);
+        ls.commit();
         REQUIRE(tx->getResult() == applyResult);
         REQUIRE(applyOk == shouldApplyOk);
     };
 
     auto& lm = app->getLedgerManager();
-    auto& clh = lm.getCurrentLedgerHeader();
-    clh.scpValue.closeTime = 10;
-    const int64_t baseReserve = clh.baseReserve;
-    const int64_t baseFee = clh.baseFee;
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    header->header().scpValue.closeTime = 10;
+    const int64_t baseReserve = header->header().baseReserve;
+    const int64_t baseFee = header->header().baseFee;
     const int64_t startAmount = baseReserve * 100;
     const int64_t paymentAmount = baseReserve * 10;
+    ls.commit();
 
     auto amount = [&](PaymentValidity t) {
         switch (t)
@@ -377,6 +380,15 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto f = TestAccount{*app, getAccount("f")};
     auto g = root.create("g", lm.getMinBalance(0));
 
+    auto getCloseTime = [&app] () {
+        LedgerState ls(app->getLedgerStateRoot());
+        return ls.loadHeader()->header().scpValue.closeTime;
+    };
+
+    //auto getCloseTime = [&lm] () {
+    //    return lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
+    //};
+
     SECTION("transaction errors")
     {
         SECTION("signed")
@@ -393,7 +405,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -403,7 +415,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -460,7 +472,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -471,7 +483,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -538,7 +550,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCloseTime() + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -549,7 +561,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCloseTime() - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });

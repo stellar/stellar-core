@@ -10,6 +10,7 @@
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 
 #include "crypto/SHA.h"
 #include "database/Database.h"
@@ -242,7 +243,7 @@ TEST_CASE("txset", "[herder]")
     const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
 
     int64_t amountPop =
-        nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
+        nbAccounts * nbTransactions * getCurrentTxFee(app->getLedgerStateRoot()) +
         paymentAmount;
 
     auto sourceAccount = root.create("source", amountPop);
@@ -403,7 +404,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(root.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -418,7 +419,7 @@ TEST_CASE("surge", "[herder]")
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -434,7 +435,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -458,7 +459,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -477,7 +478,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(accountC.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
