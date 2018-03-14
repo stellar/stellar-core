@@ -317,12 +317,6 @@ LedgerManagerImpl::getDatabase()
     return mApp.getDatabase();
 }
 
-uint32_t
-LedgerManagerImpl::getMaxTxSetSize() const
-{
-    return mCurrentLedger->mHeader.maxTxSetSize;
-}
-
 int64_t
 LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
 {
