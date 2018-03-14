@@ -7,6 +7,7 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "main/Config.h"

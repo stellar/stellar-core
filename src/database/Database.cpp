@@ -16,6 +16,7 @@
 
 #include "bucket/BucketManager.h"
 #include "herder/HerderPersistence.h"
+#include "history/HistoryManager.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"

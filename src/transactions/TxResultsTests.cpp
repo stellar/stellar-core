@@ -220,7 +220,6 @@ TEST_CASE("txresults", "[tx][txresults]")
         REQUIRE(applyOk == shouldApplyOk);
     };
 
-    auto& lm = app->getLedgerManager();
     LedgerState ls(app->getLedgerStateRoot());
     auto header = ls.loadHeader();
     header->header().scpValue.closeTime = 10;

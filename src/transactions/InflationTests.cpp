@@ -5,7 +5,6 @@
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
-#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"

@@ -4,7 +4,6 @@
 #include "database/Database.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
-#include "ledger/LedgerManager.h"
 #include "ledger/TrustLineReference.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
