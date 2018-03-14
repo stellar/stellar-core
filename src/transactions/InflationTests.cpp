@@ -307,7 +307,6 @@ TEST_CASE("inflation", "[tx][inflation]")
             closeLedgerOn(*app, 3, 1, 7, 2014);
 
             auto txFrame = root.tx({inflation()});
-
             closeLedgerOn(*app, 4, 7, 7, 2014, {txFrame});
             REQUIRE(getInflationSeq() == 1);
 
@@ -329,6 +328,26 @@ TEST_CASE("inflation", "[tx][inflation]")
             closeLedgerOn(*app, 8, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
             REQUIRE(getInflationSeq() == 3);
+
+            {
+                auto txFrameInflationTwice = root.tx({inflation(), inflation()});
+                closeLedgerOn(*app, 9, 28, 7, 2014);
+                applyCheck(txFrameInflationTwice, *app);
+                auto const& opResults = txFrameInflationTwice->getResult().result.results();
+                REQUIRE(opResults[0].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(opResults[1].tr().inflationResult().code() == INFLATION_NOT_TIME);
+                REQUIRE(getInflationSeq() == 3);
+            }
+
+            {
+                auto txFrameInflationTwice = root.tx({inflation(), inflation()});
+                closeLedgerOn(*app, 10, 29, 7, 2014);
+                applyCheck(txFrameInflationTwice, *app);
+                auto const& opResults = txFrameInflationTwice->getResult().result.results();
+                REQUIRE(opResults[0].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(opResults[1].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(getInflationSeq() == 5);
+            }
         });
     }
 
