@@ -249,30 +249,20 @@ getAccount(const char* n)
     return SecretKey::fromSeed(seed);
 }
 
-AccountFrame::pointer
-loadAccount(PublicKey const& k, Application& app, bool mustExist)
+bool
+hasAccount(Application& app, PublicKey const& k)
 {
-    auto res = AccountFrame::loadAccount(k, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
-void
-requireNoAccount(PublicKey const& k, Application& app)
-{
-    AccountFrame::pointer res = loadAccount(k, app, false);
-    REQUIRE(!res);
+    LedgerState ls(app.getLedgerStateRoot());
+    return !!stellar::loadAccount(ls, k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    AccountFrame::pointer account;
-    account = loadAccount(k, app);
-    return account->getAccount().signers;
+    LedgerState ls(app.getLedgerStateRoot());
+    auto account = stellar::loadAccount(ls, k);
+    REQUIRE(account);
+    return account.account().signers;
 }
 
 TransactionFramePtr

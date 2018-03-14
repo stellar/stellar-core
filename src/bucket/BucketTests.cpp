@@ -1082,6 +1082,7 @@ TEST_CASE("bucket apply", "[bucket]")
 
     for (auto& e : live)
     {
+        e.lastModifiedLedgerSeq = 2;
         e.data.type(ACCOUNT);
         auto& a = e.data.account();
         a = LedgerTestUtils::generateValidAccountEntry(5);
@@ -1101,13 +1102,13 @@ TEST_CASE("bucket apply", "[bucket]")
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
     birth->apply(*app);
-    auto count = AccountFrame::countObjects(sess);
+    auto count = app->countAccounts({1, INT32_MAX});
     REQUIRE(count == live.size() + 1 /* root account */);
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size()
                          << " dead entries";
     death->apply(*app);
-    count = AccountFrame::countObjects(sess);
+    count = app->countAccounts({1, INT32_MAX});
     REQUIRE(count == 1);
 }
 

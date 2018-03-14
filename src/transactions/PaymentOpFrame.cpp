@@ -68,8 +68,7 @@ PaymentOpFrame::doApply(Application& app, LedgerState& ls)
     opRes.code(opINNER);
     opRes.tr().type(PATH_PAYMENT);
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
-    // TODO(jonjove): This needs to be changed
-    ppayment.setSourceAccountPtr(mSourceAccount);
+    // TODO(jonjove): Used to set source account pointer here, why?
 
     if (!ppayment.doCheckValid(app, ledgerVersion) ||
         !ppayment.doApply(app, ls))

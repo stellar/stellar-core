@@ -90,7 +90,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
                 REQUIRE_THROWS_AS(root.changeTrust(idr, 99),
                                   ex_CHANGE_TRUST_NO_ISSUER);
-                REQUIRE(!loadAccount(gateway, *app, false));
+                REQUIRE(!hasAccount(*app, gateway));
             });
         }
     }
@@ -101,6 +101,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
             auto trustLine = loadTrustLine(ls, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
             REQUIRE(trustLine->getBalance() == INT64_MAX);
+        };
+        auto loadAccountBalance = [&] (AccountID const& key) {
+            LedgerState ls(app->getLedgerStateRoot());
+            auto account = stellar::loadAccount(ls, key);
+            REQUIRE(account);
+            return account.getBalance();
         };
 
         validateTrustLineIsConst();
@@ -115,12 +121,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
             gateway.changeTrust(idr, INT64_MAX);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
+            auto gatewayBalanceBefore = loadAccountBalance(gateway);
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
+            auto gatewayBalanceAfter = loadAccountBalance(gateway);
+            REQUIRE(gatewayBalanceAfter ==
+                    (gatewayBalanceBefore -
                      getCurrentTxFee(app->getLedgerStateRoot())));
 
             // lower the limit will fail, because it is still INT64_MAX
@@ -143,12 +149,12 @@ TEST_CASE("change trust", "[tx][changetrust]")
                               ex_CHANGE_TRUST_SELF_NOT_ALLOWED);
             validateTrustLineIsConst();
 
-            auto gatewayAccountBefore = loadAccount(gateway, *app);
+            auto gatewayBalanceBefore = loadAccountBalance(gateway);
             gateway.pay(gateway, idr, 50);
             validateTrustLineIsConst();
-            auto gatewayAccountAfter = loadAccount(gateway, *app);
-            REQUIRE(gatewayAccountAfter->getBalance() ==
-                    (gatewayAccountBefore->getBalance() -
+            auto gatewayBalanceAfter = loadAccountBalance(gateway);
+            REQUIRE(gatewayBalanceAfter ==
+                    (gatewayBalanceBefore -
                      getCurrentTxFee(app->getLedgerStateRoot())));
 
             // lower the limit will fail, because it is still INT64_MAX

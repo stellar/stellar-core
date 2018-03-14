@@ -156,22 +156,6 @@ TransactionFrame::addSignature(DecoratedSignature const& signature)
 
 bool
 TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
-                                 AccountFrame& account, int32_t neededWeight)
-{
-    std::vector<Signer> signers;
-    if (account.getAccount().thresholds[0])
-        signers.push_back(
-            Signer(KeyUtils::convertKey<SignerKey>(account.getID()),
-                   account.getAccount().thresholds[0]));
-    signers.insert(signers.end(), account.getAccount().signers.begin(),
-                   account.getAccount().signers.end());
-
-    return signatureChecker.checkSignature(account.getID(), signers,
-                                           neededWeight);
-}
-
-bool
-TransactionFrame::checkSignature(SignatureChecker& signatureChecker,
                                  AccountReference account, int32_t neededWeight)
 {
     std::vector<Signer> signers;

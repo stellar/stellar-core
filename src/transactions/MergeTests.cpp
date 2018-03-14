@@ -4,6 +4,7 @@
 
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -90,7 +91,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(b1.getBalance() == 2 * a1Balance + b1Balance -
                                            createBalance -
                                            2 * txFrame->getFee());
-            REQUIRE(!loadAccount(a1, *app, false));
+            REQUIRE(!hasAccount(*app, a1));
         });
 
         for_versions(6, 9, *app, [&] {
@@ -102,7 +103,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1.getBalance() ==
                     a1Balance + b1Balance - txFrame->getFee());
-            REQUIRE(!loadAccount(a1, *app, false));
+            REQUIRE(!hasAccount(*app, a1));
         });
 
         for_versions_from(10, *app, [&]() {
@@ -150,7 +151,7 @@ TEST_CASE("merge", "[tx][merge]")
                     a1Balance + b1Balance - createBalance - txFrame->getFee());
             REQUIRE(a1.getBalance() ==
                     a1Balance + b1Balance - txFrame->getFee());
-            REQUIRE(!loadAccount(b1, *app, false));
+            REQUIRE(!hasAccount(*app, b1));
             // a1 gets recreated with a sequence number based on the current
             // ledger
             REQUIRE(a1.loadSequenceNumber() == 0x300000000ull);
@@ -170,8 +171,8 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_to(4, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(hasAccount(*app, a1));
+            REQUIRE(hasAccount(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getFee());
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
@@ -217,8 +218,8 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions(5, 7, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(hasAccount(*app, a1));
+            REQUIRE(hasAccount(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getFee());
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
@@ -259,8 +260,8 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(8, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
+            REQUIRE(hasAccount(*app, a1));
+            REQUIRE(hasAccount(*app, b1));
             REQUIRE(a1.getBalance() == a1Balance - tx->getFee());
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
@@ -300,9 +301,9 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_to(7, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
-            REQUIRE(!loadAccount(c1.getPublicKey(), *app, false));
+            REQUIRE(hasAccount(*app, a1));
+            REQUIRE(hasAccount(*app, b1));
+            REQUIRE(!hasAccount(*app, c1.getPublicKey()));
             REQUIRE(a1.getBalance() == a1Balance - tx->getFee());
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
@@ -314,9 +315,9 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(8, *app, [&] {
             REQUIRE(!applyCheck(tx, *app));
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(loadAccount(b1, *app));
-            REQUIRE(!loadAccount(c1.getPublicKey(), *app, false));
+            REQUIRE(hasAccount(*app, a1));
+            REQUIRE(hasAccount(*app, b1));
+            REQUIRE(!hasAccount(*app, c1.getPublicKey()));
             REQUIRE(a1.getBalance() == a1Balance - tx->getFee());
             REQUIRE(b1.getBalance() == b1Balance);
             REQUIRE(a1.loadSequenceNumber() == a1SeqNum + 1);
@@ -357,7 +358,7 @@ TEST_CASE("merge", "[tx][merge]")
             REQUIRE(result == ACCOUNT_MERGE_SUCCESS);
             REQUIRE(b1Balance + a1BalanceAfterFee + a1BalanceAfterFee ==
                     b1.getBalance());
-            REQUIRE(!loadAccount(a1, *app, false));
+            REQUIRE(!hasAccount(*app, a1));
         });
 
         for_versions(5, 7, *app, [&] {
@@ -395,7 +396,7 @@ TEST_CASE("merge", "[tx][merge]")
             auto a1BalanceAfterFee = a1Balance - txFrame->getFee();
             REQUIRE(result == ACCOUNT_MERGE_NO_ACCOUNT);
             REQUIRE(a1BalanceAfterFee == a1.getBalance());
-            REQUIRE(loadAccount(a1, *app, false));
+            REQUIRE(hasAccount(*app, a1));
         });
     }
 
@@ -404,9 +405,12 @@ TEST_CASE("merge", "[tx][merge]")
         auto c = getAccount("C");
         auto d = getAccount("D");
 
-        REQUIRE(loadAccount(a1, *app));
-        REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
-        REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+        {
+            LedgerState ls(app->getLedgerStateRoot());
+            REQUIRE(stellar::loadAccount(ls, a1));
+            REQUIRE(!stellar::loadAccount(ls, c.getPublicKey()));
+            REQUIRE(!stellar::loadAccount(ls, d.getPublicKey()));
+        }
         auto a1Balance = a1.getBalance();
 
         auto txFrame =
@@ -419,9 +423,12 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_to(7, *app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
-            REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                REQUIRE(stellar::loadAccount(ls, a1));
+                REQUIRE(!stellar::loadAccount(ls, c.getPublicKey()));
+                REQUIRE(!stellar::loadAccount(ls, d.getPublicKey()));
+            }
             REQUIRE(txFrame->getResultCode() == txINTERNAL_ERROR);
 
             REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
@@ -430,9 +437,12 @@ TEST_CASE("merge", "[tx][merge]")
         for_versions_from(8, *app, [&] {
             applyCheck(txFrame, *app);
 
-            REQUIRE(loadAccount(a1, *app));
-            REQUIRE(!loadAccount(c.getPublicKey(), *app, false));
-            REQUIRE(!loadAccount(d.getPublicKey(), *app, false));
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                REQUIRE(stellar::loadAccount(ls, a1));
+                REQUIRE(!stellar::loadAccount(ls, c.getPublicKey()));
+                REQUIRE(!stellar::loadAccount(ls, d.getPublicKey()));
+            }
             REQUIRE(txFrame->getResultCode() == txFAILED);
 
             REQUIRE(a1Balance == a1.getBalance() + txFrame->getFee());
@@ -523,8 +533,8 @@ TEST_CASE("merge", "[tx][merge]")
         {
             for_all_versions(*app, [&] {
                 a1.merge(b1);
-                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                                   app->getDatabase()));
+                LedgerState ls(app->getLedgerStateRoot());
+                REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
             });
         }
         SECTION("success, invalidates dependent tx")
@@ -538,8 +548,10 @@ TEST_CASE("merge", "[tx][merge]")
                 checkTx(0, r, txSUCCESS);
                 checkTx(1, r, txNO_ACCOUNT);
 
-                REQUIRE(!AccountFrame::loadAccount(a1.getPublicKey(),
-                                                   app->getDatabase()));
+                {
+                    LedgerState ls(app->getLedgerStateRoot());
+                    REQUIRE(!stellar::loadAccount(ls, a1.getPublicKey()));
+                }
 
                 int64 expectedB1Balance =
                     a1Balance + b1Balance -

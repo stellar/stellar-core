@@ -5,7 +5,7 @@
 #include "TCPPeer.h"
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -18,6 +18,7 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "xdrpp/marshal.h"
 
 namespace stellar
 {
@@ -50,28 +51,30 @@ TEST_CASE("Flooding", "[flood][overlay]")
         const int nbTx = 100;
 
         auto root = TestAccount::createRoot(*app0);
-        auto rootA =
-            AccountFrame::loadAccount(root.getPublicKey(), app0->getDatabase());
 
         // directly create a bunch of accounts by cloning the root account (one
         // per tx so that we can easily identify them)
         {
-            LedgerEntry gen(rootA->mEntry);
+            LedgerEntry gen;
+            {
+                LedgerKey key(ACCOUNT);
+                key.account().accountID = root.getPublicKey();
+                LedgerState ls(app0->getLedgerStateRoot());
+                gen = *ls.load(key)->entry();
+            }
             auto& account = gen.data.account();
             for (int i = 0; i < nbTx; i++)
             {
                 sources.emplace_back(
                     TestAccount{*app0, SecretKey::random(), 0});
                 account.accountID = sources.back();
-                auto newAccount = EntryFrame::FromXDR(gen);
 
                 // need to create on all nodes
                 for (auto n : nodes)
                 {
-                    LedgerHeader lh;
-                    Database& db = n->getDatabase();
-                    LedgerDelta delta(lh, db, false);
-                    newAccount->storeAdd(delta, db);
+                    LedgerState ls(n->getLedgerStateRoot());
+                    ls.create(gen);
+                    ls.commit();
                 }
             }
         }

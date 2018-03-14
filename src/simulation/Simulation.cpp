@@ -6,10 +6,12 @@
 
 #include "herder/Herder.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"

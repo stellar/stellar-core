@@ -42,22 +42,6 @@ namespace
 {
 
 int32_t
-getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
-{
-    switch (level)
-    {
-    case ThresholdLevel::LOW:
-        return account.getLowThreshold();
-    case ThresholdLevel::MEDIUM:
-        return account.getMediumThreshold();
-    case ThresholdLevel::HIGH:
-        return account.getHighThreshold();
-    default:
-        abort();
-    }
-}
-
-int32_t
 getNeededThreshold(AccountReference account, ThresholdLevel const level)
 {
     switch (level)

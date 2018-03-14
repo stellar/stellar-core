@@ -6,7 +6,9 @@
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "herder/Herder.h"
+#include "ledger/AccountReference.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "lib/http/server.hpp"
 #include "lib/json/json.h"
 #include "lib/util/format.h"
@@ -15,6 +17,7 @@
 #include "main/Maintainer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/make_unique.h"
@@ -155,13 +158,14 @@ CommandHandler::testAcc(std::string const& params, std::string& retStr)
         {
             key = getAccount(accName->second.c_str());
         }
-        auto acc = loadAccount(key.getPublicKey(), mApp, false);
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto acc = stellar::loadAccount(ls, key.getPublicKey());
         if (acc)
         {
             root["name"] = accName->second;
-            root["id"] = KeyUtils::toStrKey(acc->getID());
-            root["balance"] = (Json::Int64)acc->getBalance();
-            root["seqnum"] = (Json::UInt64)acc->getSeqNum();
+            root["id"] = KeyUtils::toStrKey(acc.getID());
+            root["balance"] = (Json::Int64)acc.getBalance();
+            root["seqnum"] = (Json::UInt64)acc.getSeqNum();
         }
     }
     retStr = root.toStyledString();

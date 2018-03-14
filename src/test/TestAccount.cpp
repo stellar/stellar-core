@@ -29,10 +29,11 @@ TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        auto a = loadAccount(getPublicKey(), mApp, false);
-        if (a)
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto account = stellar::loadAccount(ls, getPublicKey());
+        if (account)
         {
-            mSn = a->getSeqNum();
+            mSn = account.getSeqNum();
         }
     }
 }
@@ -40,13 +41,17 @@ TestAccount::updateSequenceNumber()
 int64_t
 TestAccount::getBalance() const
 {
-    return loadAccount(getPublicKey(), mApp)->getBalance();
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto account = stellar::loadAccount(ls, getPublicKey());
+    REQUIRE(account);
+    return account.getBalance();
 }
 
 bool
 TestAccount::exists() const
 {
-    return loadAccount(getPublicKey(), mApp, false) != nullptr;
+    LedgerState ls(mApp.getLedgerStateRoot());
+    return stellar::loadAccount(ls, getPublicKey());
 }
 
 TransactionFramePtr
@@ -74,11 +79,30 @@ TestAccount::createRoot(Application& app)
     return TestAccount{app, secretKey};
 }
 
+std::shared_ptr<AccountEntry>
+static loadAccountEntry(Application& app, AccountID const& key)
+{
+    LedgerState ls(app.getLedgerStateRoot());
+    auto ler = stellar::loadAccount(ls, key);
+    if (ler)
+    {
+        return std::make_shared<AccountEntry>(ler.account());
+    }
+    return nullptr;
+}
+
+std::shared_ptr<AccountEntry>
+static loadAccountEntry(Application& app, SecretKey const& key)
+{
+    return loadAccountEntry(app, key.getPublicKey());
+}
+
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    auto toCreate = loadAccount(secretKey.getPublicKey(), mApp, false);
-    auto self = loadAccount(getSecretKey().getPublicKey(), mApp);
+    auto toCreate = loadAccountEntry(mApp, secretKey);
+    auto self = loadAccountEntry(mApp, getSecretKey());
+    REQUIRE(self);
 
     try
     {
@@ -87,17 +111,17 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        auto toCreateAfter = loadAccount(secretKey.getPublicKey(), mApp, false);
+        auto toCreateAfter = loadAccountEntry(mApp, secretKey);
         // check that the target account didn't change
         REQUIRE(!!toCreate == !!toCreateAfter);
         if (toCreate && toCreateAfter)
         {
-            REQUIRE(toCreate->getAccount() == toCreateAfter->getAccount());
+            REQUIRE(*toCreate == *toCreateAfter);
         }
         throw;
     }
 
-    REQUIRE(loadAccount(secretKey.getPublicKey(), mApp));
+    REQUIRE(loadAccountEntry(mApp, secretKey));
     return TestAccount{mApp, secretKey};
 }
 
@@ -112,8 +136,9 @@ TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
-    REQUIRE(loadAccount(into, mApp));
-    REQUIRE(!loadAccount(getPublicKey(), mApp, false));
+    LedgerState ls(mApp.getLedgerStateRoot());
+    REQUIRE(stellar::loadAccount(ls, into));
+    REQUIRE(!stellar::loadAccount(ls, getPublicKey()));
 }
 
 void
@@ -203,8 +228,8 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
 void
 TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
-    auto toAccount = loadAccount(destination, mApp, false);
-    auto fromAccount = loadAccount(getPublicKey(), mApp);
+    auto toAccount = loadAccountEntry(mApp, destination);
+    auto fromAccount = loadAccountEntry(mApp, getPublicKey());
     auto transaction = tx({payment(destination, amount)});
 
     try
@@ -213,18 +238,18 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     }
     catch (...)
     {
-        auto toAccountAfter = loadAccount(destination, mApp, false);
+        auto toAccountAfter = loadAccountEntry(mApp, destination);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter &&
-            !(fromAccount->getID() == toAccount->getID()))
+            !(fromAccount->accountID == toAccount->accountID))
         {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
+            REQUIRE(*toAccount == *toAccountAfter);
         }
         throw;
     }
 
-    auto toAccountAfter = loadAccount(destination, mApp, false);
+    auto toAccountAfter = loadAccountEntry(mApp, destination);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
 }

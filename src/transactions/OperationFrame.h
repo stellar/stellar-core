@@ -35,7 +35,6 @@ class OperationFrame
   protected:
     Operation const& mOperation;
     TransactionFrame& mParentTx;
-    AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
     bool checkSignature(SignatureChecker& signatureChecker,
@@ -61,14 +60,6 @@ class OperationFrame
     OperationFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
     OperationFrame(OperationFrame const&) = delete;
-
-    // overrides internal sourceAccount used by this operation
-    // normally set automatically by checkValid
-    void
-    setSourceAccountPtr(AccountFrame::pointer sa)
-    {
-        mSourceAccount = sa;
-    }
 
     AccountID const& getSourceID() const;
 

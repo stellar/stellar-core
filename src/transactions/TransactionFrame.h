@@ -44,8 +44,6 @@ class TransactionFrame
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
 
-    AccountFrame::pointer mSigningAccount;
-
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
     mutable Hash mContentsHash; // the hash of the contents
@@ -144,8 +142,6 @@ class TransactionFrame
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
-    bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
     bool checkSignature(SignatureChecker& signatureChecker,
                         AccountReference account, int32_t neededWeight);
     bool checkSignature(SignatureChecker& signatureChecker,

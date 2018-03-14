@@ -174,18 +174,19 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         if (getBalance(i) < 0)
         {
             balances[i] = -1;
-            requireNoAccount(getTestAccount(i).getPublicKey(), app);
+            REQUIRE(!hasAccount(app, getTestAccount(i).getPublicKey()));
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(getTestAccount(i).getPublicKey(), app);
-            balances[i] = act->getBalance();
+            LedgerState ls(app.getLedgerStateRoot());
+            auto act = stellar::loadAccount(ls, getTestAccount(i).getPublicKey());
+            REQUIRE(act);
+            balances[i] = act.getBalance();
             // double check that inflationDest is setup properly
-            if (act->getAccount().inflationDest)
+            if (act.account().inflationDest)
             {
                 REQUIRE(getTestAccount(getVote(i)).getPublicKey() ==
-                        *act->getAccount().inflationDest);
+                        *act.account().inflationDest);
             }
             else
             {
@@ -232,14 +233,15 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         auto const& k = getTestAccount(i);
         if (expectedBalances[i] < 0)
         {
-            requireNoAccount(k.getPublicKey(), app);
+            REQUIRE(!hasAccount(app, k.getPublicKey()));
             REQUIRE(balances[i] < 0); // account didn't get deleted
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(k.getPublicKey(), app);
-            REQUIRE(expectedBalances[i] == act->getBalance());
+            LedgerState ls(app.getLedgerStateRoot());
+            auto act = stellar::loadAccount(ls, k.getPublicKey());
+            REQUIRE(act);
+            REQUIRE(expectedBalances[i] == act.getBalance());
 
             if (expectedBalances[i] != balances[i])
             {

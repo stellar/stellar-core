@@ -469,7 +469,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == ACCOUNT_MERGE_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 0);
-                            REQUIRE(!loadAccount(b1, *app, false));
+
+                            LedgerState ls(app->getLedgerStateRoot());
+                            REQUIRE(!stellar::loadAccount(ls, b1));
                         });
                     }
 
