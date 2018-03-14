@@ -20,6 +20,7 @@
 #include "simulation/Topologies.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/format.h"

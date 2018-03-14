@@ -231,8 +231,8 @@ ApplicationImpl::getJsonInfo()
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
     info["startedOn"] = VirtualClock::pointToISOString(mStartedOn);
-    info["ledger"]["num"] = (int)lm.getLedgerNum();
     auto const& lcl = lm.getLastClosedLedgerHeader();
+    info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
     info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
     info["ledger"]["version"] = lcl.header.ledgerVersion;

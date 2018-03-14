@@ -25,6 +25,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -224,7 +225,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
 
-    uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
+    uint32_t ledgerNum = getCurrentLedgerNum(mApp.getLedgerStateRoot());
 
     for (uint32_t i = 0; i < txPerStep; ++i)
     {

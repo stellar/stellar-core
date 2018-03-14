@@ -20,6 +20,8 @@
 #include "historywork/PublishWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "historywork/RepairMissingBucketsWork.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
@@ -28,6 +30,7 @@
 #include "medida/metrics_registry.h"
 #include "overlay/StellarXDR.h"
 #include "process/ProcessManager.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/StatusManager.h"
@@ -449,9 +452,11 @@ HistoryManagerImpl::getMaxLedgerQueuedToPublish()
 }
 
 bool
-HistoryManagerImpl::maybeQueueHistoryCheckpoint()
+HistoryManagerImpl::maybeQueueHistoryCheckpoint(LedgerState& ls)
 {
-    uint32_t seq = mApp.getLedgerManager().getLedgerNum();
+    auto header = ls.loadHeader();
+    uint32_t seq = getCurrentLedgerNum(header);
+    header->invalidate();
     if (seq != nextCheckpointLedger(seq))
     {
         return false;

@@ -101,9 +101,6 @@ class LedgerManager
     virtual LedgerHeaderHistoryEntry const&
     getLastClosedLedgerHeader() const = 0;
 
-    // Return the sequence number of the current ledger.
-    virtual uint32_t getLedgerNum() const = 0;
-
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 

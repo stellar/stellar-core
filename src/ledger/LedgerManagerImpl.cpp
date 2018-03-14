@@ -327,12 +327,6 @@ LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
         return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
 }
 
-uint32_t
-LedgerManagerImpl::getLedgerNum() const
-{
-    return mCurrentLedger->mHeader.ledgerSeq;
-}
-
 uint64_t
 LedgerManagerImpl::getCloseTime() const
 {
@@ -805,7 +799,7 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 1
     auto& hm = mApp.getHistoryManager();
-    hm.maybeQueueHistoryCheckpoint();
+    hm.maybeQueueHistoryCheckpoint(ls);
 
     // step 2
     mApp.getDatabase().clearPreparedStatementCache();

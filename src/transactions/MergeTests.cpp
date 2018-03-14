@@ -625,8 +625,7 @@ TEST_CASE("merge", "[tx][merge]")
     {
         for_versions_from(10, *app, [&]() {
             SequenceNumber curStartSeqNum =
-                LedgerHeaderFrame::getStartingSequenceNumber(
-                    app->getLedgerManager().getLedgerNum());
+                getStartingSequenceNumber(app->getLedgerStateRoot());
             auto maxSeqNum = curStartSeqNum - 1;
 
             auto txFrame = root.tx({a1.op(accountMerge(b1))});

@@ -220,9 +220,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     auto z2 =
         TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
-    LedgerState ls(app.getLedgerStateRoot());
-    REQUIRE(ls.loadHeader()->header().ledgerSeq == (ledgerSeq + 1));
-    ls.rollback();
+    REQUIRE(getCurrentLedgerNum(app.getLedgerStateRoot()) == (ledgerSeq + 1));
 
     TxSetResultMeta res;
     std::transform(

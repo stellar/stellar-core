@@ -19,6 +19,7 @@
 #include "overlay/OverlayManager.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
@@ -234,7 +235,7 @@ void
 HerderImpl::rebroadcast()
 {
     for (auto const& e :
-         getSCP().getLatestMessagesSend(mLedgerManager.getLedgerNum()))
+         getSCP().getLatestMessagesSend(getCurrentLedgerNum(mApp.getLedgerStateRoot())))
     {
         broadcast(e);
     }

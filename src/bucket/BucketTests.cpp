@@ -24,6 +24,7 @@
 #include "medida/timer.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -767,13 +768,13 @@ closeLedger(Application& app)
     auto& lm = app.getLedgerManager();
     auto lclHash = lm.getLastClosedLedgerHeader().hash;
     CLOG(INFO, "Bucket")
-        << "Artificially closing ledger " << lm.getLedgerNum()
+        << "Artificially closing ledger " << getCurrentLedgerNum(app.getLedgerStateRoot())
         << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
     auto txSet = std::make_shared<TxSetFrame>(lclHash);
     StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
                     emptyUpgradeSteps, 0);
-    LedgerCloseData lcd(lm.getLedgerNum(), txSet, sv);
+    LedgerCloseData lcd(getCurrentLedgerNum(app.getLedgerStateRoot()), txSet, sv);
     lm.valueExternalized(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }

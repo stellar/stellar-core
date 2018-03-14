@@ -11,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "work/WorkManager.h"
 
 #include <medida/metrics_registry.h>
@@ -245,7 +246,7 @@ CatchupSimulation::generateRandomLedger()
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
-    uint32_t ledgerSeq = lm.getLedgerNum();
+    uint32_t ledgerSeq = getCurrentLedgerNum(mApp.getLedgerStateRoot());
     uint64_t minBalance = lm.getMinBalance(5);
     uint64_t big = minBalance + ledgerSeq;
     uint64_t small = 100 + ledgerSeq;
@@ -356,7 +357,7 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
 
     REQUIRE(hm.getPublishFailureCount() == 0);
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
-    REQUIRE(lm.getLedgerNum() ==
+    REQUIRE(getCurrentLedgerNum(mApp.getLedgerStateRoot()) ==
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()) +
                 1);
 }
@@ -427,11 +428,11 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     // externalizable to knit-up with on the catchup side.
     if (mApp.getHistoryManager().nextCheckpointLedger(
             mApp.getLedgerManager().getLastClosedLedgerNum()) ==
-        mApp.getLedgerManager().getLedgerNum())
+        getCurrentLedgerNum(mApp.getLedgerStateRoot()))
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
-            << mApp.getLedgerManager().getLedgerNum();
+            << getCurrentLedgerNum(mApp.getLedgerStateRoot());
         generateRandomLedger();
     }
 
@@ -491,7 +492,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
             computeCatchupPerformedWork(lastLedger, catchupConfiguration,
                                         app2->getHistoryManager()));
 
-    uint32_t nextLedger = lm.getLedgerNum();
+    uint32_t nextLedger = getCurrentLedgerNum(app2->getLedgerStateRoot());
 
     CLOG(INFO, "History") << "Caught up: lastLedger = " << lastLedger;
     CLOG(INFO, "History") << "Caught up: initLedger = " << initLedger;
