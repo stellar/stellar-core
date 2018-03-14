@@ -14,6 +14,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/format.h"
@@ -44,7 +45,7 @@ TEST_CASE("create offer", "[tx][offers]")
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    int64_t txfee = app->getLedgerManager().getTxFee();
+    int64_t txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =

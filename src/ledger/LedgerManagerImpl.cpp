@@ -318,12 +318,6 @@ LedgerManagerImpl::getDatabase()
 }
 
 uint32_t
-LedgerManagerImpl::getTxFee() const
-{
-    return mCurrentLedger->mHeader.baseFee;
-}
-
-uint32_t
 LedgerManagerImpl::getMaxTxSetSize() const
 {
     return mCurrentLedger->mHeader.maxTxSetSize;

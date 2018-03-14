@@ -15,6 +15,7 @@
 #include "transactions/ChangeTrustOpFrame.h"
 #include "transactions/MergeOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -43,7 +44,7 @@ TEST_CASE("payment", "[tx][payment]")
 
     Asset xlm;
 
-    int64_t txfee = app->getLedgerManager().getTxFee();
+    int64_t txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
@@ -1757,7 +1758,7 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         // set up world
         auto root = TestAccount::createRoot(*app);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
         SECTION("account has only base reserve + amount")
         {
@@ -1867,7 +1868,7 @@ TEST_CASE("payment fees", "[tx][payment]")
 
         // set up world
         auto root = TestAccount::createRoot(*app);
-        auto txfee = app->getLedgerManager().getTxFee();
+        auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
         SECTION("account has only base reserve + amount")
         {
@@ -1979,7 +1980,7 @@ TEST_CASE("single create account SQL", "[singlesql][paymentsql][hide]")
     app->start();
 
     auto root = TestAccount::createRoot(*app);
-    int64_t txfee = app->getLedgerManager().getTxFee();
+    int64_t txfee = getCurrentTxFee(app->getLedgerStateRoot());
     const int64_t paymentAmount =
         app->getLedgerManager().getMinBalance(1) + txfee * 10;
 

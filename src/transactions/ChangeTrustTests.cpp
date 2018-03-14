@@ -10,6 +10,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 
@@ -117,7 +118,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             auto gatewayAccountAfter = loadAccount(gateway, *app);
             REQUIRE(gatewayAccountAfter->getBalance() ==
                     (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
+                     getCurrentTxFee(app->getLedgerStateRoot())));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),
@@ -145,7 +146,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
             auto gatewayAccountAfter = loadAccount(gateway, *app);
             REQUIRE(gatewayAccountAfter->getBalance() ==
                     (gatewayAccountBefore->getBalance() -
-                     app->getLedgerManager().getTxFee()));
+                     getCurrentTxFee(app->getLedgerStateRoot())));
 
             // lower the limit will fail, because it is still INT64_MAX
             REQUIRE_THROWS_AS(gateway.changeTrust(idr, 50),

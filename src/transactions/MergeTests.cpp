@@ -13,6 +13,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/MergeOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -41,7 +42,7 @@ TEST_CASE("merge", "[tx][merge]")
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    auto txfee = app->getLedgerManager().getTxFee();
+    auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     const int64_t minBalance =
         app->getLedgerManager().getMinBalance(5) + 20 * txfee;
@@ -542,7 +543,7 @@ TEST_CASE("merge", "[tx][merge]")
 
                 int64 expectedB1Balance =
                     a1Balance + b1Balance -
-                    2 * app->getLedgerManager().getTxFee();
+                    2 * getCurrentTxFee(app->getLedgerStateRoot());
                 REQUIRE(expectedB1Balance == b1.getBalance());
             });
         }

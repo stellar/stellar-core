@@ -29,6 +29,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/types.h"
@@ -180,7 +181,7 @@ void
 checkTransaction(TransactionFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
-            app.getLedgerManager().getTxFee());
+            getCurrentTxFee(app.getLedgerStateRoot()));
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -308,7 +309,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
     e.tx.fee = static_cast<uint32_t>(
-        (ops.size() * app.getLedgerManager().getTxFee()) & UINT32_MAX);
+        (ops.size() * getCurrentTxFee(app.getLedgerStateRoot())) & UINT32_MAX);
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));

@@ -9,6 +9,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 #include <deque>
@@ -89,7 +90,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     // set up world
     auto root = TestAccount::createRoot(*app);
     auto xlm = makeNativeAsset();
-    auto txfee = app->getLedgerManager().getTxFee();
+    auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     auto const minBalanceNoTx = app->getLedgerManager().getMinBalance(0);
     auto const minBalance =
@@ -3643,7 +3644,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                  // as in the
             // offer because of Price{2, 1} that is
             // used in one case
-            auto txFee = app->getLedgerManager().getTxFee();
+            auto txFee = getCurrentTxFee(app->getLedgerStateRoot());
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
             int pathSize = (int)assets.size();

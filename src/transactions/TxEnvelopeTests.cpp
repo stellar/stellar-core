@@ -22,6 +22,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -719,10 +720,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
     }
 
-    auto getTxFee = [&app] () {
-        return app->getLedgerManager().getLastClosedLedgerHeader().header.baseFee;
-    };
-
     SECTION("batching")
     {
         SECTION("empty batch")
@@ -818,7 +815,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -852,7 +849,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -885,7 +882,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -927,7 +924,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     applyCheck(tx, *app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * getTxFee());
+                            2 * getCurrentTxFee(app->getLedgerStateRoot()));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(CreateAccountOpFrame::getInnerCode(
@@ -969,7 +966,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
-                        getTxFee() - 1);
+                        getCurrentTxFee(app->getLedgerStateRoot()) - 1);
 
                     applyCheck(txFrame, *app);
 

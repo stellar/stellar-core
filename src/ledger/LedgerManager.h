@@ -116,9 +116,6 @@ class LedgerManager
     // epoch.
     virtual uint64_t getCloseTime() const = 0;
 
-    // Return the fee required to apply a transaction to the current ledger.
-    virtual uint32_t getTxFee() const = 0;
-
     // return the maximum size of a transaction set to apply to the current
     // ledger
     virtual uint32_t getMaxTxSetSize() const = 0;
