@@ -34,7 +34,6 @@ getTestAccount(int i)
     return getAccount(name.str().c_str());
 }
 
-// TODO(jonjove): Move to LedgerState or better to use transactions
 static void
 createTestAccounts(Application& app, int nbAccounts,
                    std::function<int64(int)> getBalance,
@@ -43,10 +42,6 @@ createTestAccounts(Application& app, int nbAccounts,
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    auto& lm = app.getLedgerManager();
-    auto& db = app.getDatabase();
-
-    LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
         int64 bal = getBalance(i);
@@ -55,11 +50,11 @@ createTestAccounts(Application& app, int nbAccounts,
             SecretKey to = getTestAccount(i);
             root.create(to, bal);
 
-            AccountFrame::pointer act;
-            act = loadAccount(to.getPublicKey(), app);
-            act->getAccount().inflationDest.activate() =
+            LedgerState ls(app.getLedgerStateRoot());
+            auto account = stellar::loadAccount(ls, to.getPublicKey());
+            account.account().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
-            act->storeChange(delta, db);
+            ls.commit();
         }
     }
 }
@@ -444,9 +439,11 @@ TEST_CASE("inflation", "[tx][inflation]")
     // minVote to participate in inflation
     const int64 minVote = 1000000000LL;
     // .05% of all coins
-    const int64 winnerVote =
-        bigDivide(app->getLedgerManager().getCurrentLedgerHeader().totalCoins,
-                  5, 10000, ROUND_DOWN);
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    const int64 winnerVote = bigDivide(header->header().totalCoins,
+                                       5, 10000, ROUND_DOWN);
+    ls.rollback();
 
     SECTION("inflation scenarios")
     {

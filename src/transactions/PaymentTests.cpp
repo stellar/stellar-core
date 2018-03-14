@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 #include "database/Database.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -235,11 +237,12 @@ TEST_CASE("payment", "[tx][payment]")
     SECTION("send XLM to a new account (no destination)")
     {
         for_all_versions(*app, [&] {
+            LedgerState ls(app->getLedgerStateRoot());
+            auto baseReserve = ls.loadHeader()->header().baseReserve;
+            ls.rollback();
+
             REQUIRE_THROWS_AS(root.pay(getAccount("B").getPublicKey(),
-                                       app->getLedgerManager()
-                                               .getCurrentLedgerHeader()
-                                               .baseReserve *
-                                           2),
+                                       2* baseReserve),
                               ex_PAYMENT_NO_DESTINATION);
 
             AccountFrame::pointer rootAccount2;
@@ -258,8 +261,9 @@ TEST_CASE("payment", "[tx][payment]")
 
             // raise the reserve
             uint32 addReserve = 100000;
-            app->getLedgerManager().getCurrentLedgerHeader().baseReserve +=
-                addReserve;
+            LedgerState ls(app->getLedgerStateRoot());
+            ls.loadHeader()->header().baseReserve += addReserve;
+            ls.commit();
 
             // verify that the account can't do anything
             auto tx = b1.tx({payment(root, 1)});

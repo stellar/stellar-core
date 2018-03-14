@@ -398,10 +398,7 @@ TEST_CASE("Publish/catchup via s3", "[hide][s3]")
 
     catchupSimulation.generateAndPublishInitialHistory(3);
     auto app2 = catchupSimulation.catchupNewApplication(
-        catchupSimulation.getApp()
-            .getLedgerManager()
-            .getCurrentLedgerHeader()
-            .ledgerSeq,
+        getCurrentLedgerNum(catchupSimulation.getApp().getLedgerStateRoot()),
         std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE, "s3");
 }

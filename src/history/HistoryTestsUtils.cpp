@@ -234,7 +234,7 @@ CatchupSimulation::generateAndPublishInitialHistory(size_t nPublishes)
 
     // At this point LCL should be 1, current ledger should be 2
     REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
-    REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+    REQUIRE(getCurrentLedgerNum(mApp.getLedgerStateRoot()) == 2);
 
     generateAndPublishHistory(nPublishes);
 }
@@ -328,7 +328,7 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
     auto& hm = mApp.getHistoryManager();
 
     size_t publishSuccesses = hm.getPublishSuccessCount();
-    SequenceNumber ledgerSeq = lm.getCurrentLedgerHeader().ledgerSeq;
+    SequenceNumber ledgerSeq = getCurrentLedgerNum(mApp.getLedgerStateRoot());
 
     while (hm.getPublishSuccessCount() < (publishSuccesses + nPublishes))
     {
@@ -345,7 +345,7 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
         // to just-before-LCL
         generateRandomLedger();
         ++ledgerSeq;
-        REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
+        REQUIRE(getCurrentLedgerNum(mApp.getLedgerStateRoot()) == ledgerSeq);
 
         // Advance until we've published (or failed to!)
         while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())

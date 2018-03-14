@@ -244,11 +244,11 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         }
         SECTION("protocol version " + std::to_string(v))
         {
-            testutil::setCurrentLedgerVersion(app.getLedgerManager(), v);
+            testutil::setCurrentLedgerVersion(app, v);
             f();
         }
     }
-    testutil::setCurrentLedgerVersion(app.getLedgerManager(), previousVersion);
+    testutil::setCurrentLedgerVersion(app, previousVersion);
 }
 
 void

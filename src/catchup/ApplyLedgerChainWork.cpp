@@ -11,6 +11,7 @@
 #include "ledger/LedgerManager.h"
 #include "lib/xdrpp/xdrpp/printer.h"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 #include "util/format.h"
 #include <medida/meter.h>
 #include <medida/metrics_registry.h>
@@ -99,7 +100,7 @@ TxSetFramePtr
 ApplyLedgerChainWork::getCurrentTxSet()
 {
     auto& lm = mApp.getLedgerManager();
-    auto seq = lm.getCurrentLedgerHeader().ledgerSeq;
+    auto seq = getCurrentLedgerNum(mApp.getLedgerStateRoot());
 
     do
     {
@@ -188,12 +189,12 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     }
 
     // If we are past current, we can't catch up: fail.
-    if (header.ledgerSeq != lm.getCurrentLedgerHeader().ledgerSeq)
+    if (header.ledgerSeq != getCurrentLedgerNum(mApp.getLedgerStateRoot()))
     {
         mApplyLedgerFailurePastCurrent.Mark();
         throw std::runtime_error(fmt::format(
             "replay overshot current ledger: {:d} > {:d}", header.ledgerSeq,
-            lm.getCurrentLedgerHeader().ledgerSeq));
+            getCurrentLedgerNum(mApp.getLedgerStateRoot())));
     }
 
     // If we do not agree about LCL hash, we can't catch up: fail.

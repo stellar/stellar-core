@@ -14,6 +14,8 @@
 
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -381,10 +383,12 @@ TEST_CASE("surge", "[herder]")
 
     app->start();
 
-    auto& lm = app->getLedgerManager();
-
-    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        ls.loadHeader()->header().maxTxSetSize =
+            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        ls.commit();
+    }
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -494,8 +498,12 @@ TEST_CASE("SCP Driver", "[herder]")
 
     app->start();
 
-    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        ls.loadHeader()->header().maxTxSetSize =
+            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        ls.commit();
+    }
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 
