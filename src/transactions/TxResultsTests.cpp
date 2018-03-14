@@ -646,9 +646,9 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto tx = makeTx(signs, ops);
         for_all_versions(*app, [&] {
             auto validationResult = makeValidationResult(
-                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, getCurrentLedgerVersion(app->getLedgerStateRoot()));
             auto applyResult = makeApplyResult(
-                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, getCurrentLedgerVersion(app->getLedgerStateRoot()));
             validate(tx, validationResult, applyResult);
         });
     };

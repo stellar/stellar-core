@@ -1524,7 +1524,7 @@ TEST_CASE("payment", "[tx][payment]")
             };
 
             // in ledger versions 1 and 2 each of these payment succeeds
-            if (app->getLedgerManager().getCurrentLedgerVersion() < 3)
+            if (getCurrentLedgerVersion(app->getLedgerStateRoot()) < 3)
             {
                 payNoTrust = payOk;
                 payLineFull = payOk;

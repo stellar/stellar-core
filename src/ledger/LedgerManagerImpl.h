@@ -93,7 +93,6 @@ class LedgerManagerImpl : public LedgerManager
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
     LedgerHeader const& getCurrentLedgerHeader() const override;
     LedgerHeader& getCurrentLedgerHeader() override;
-    uint32_t getCurrentLedgerVersion() const override;
 
     Database& getDatabase() override;
 

@@ -463,7 +463,7 @@ TEST_CASE("inflation", "[tx][inflation]")
                     closeLedgerOn(*app, 2, 21, 7, 2014);
 
                     doInflation(
-                        *app, app->getLedgerManager().getCurrentLedgerVersion(),
+                        *app, getCurrentLedgerVersion(app->getLedgerStateRoot()),
                         nbAccounts, balanceFunc, voteFunc, expectedWinners);
                 }
             };

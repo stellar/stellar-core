@@ -10,6 +10,7 @@
 #include "main/StellarCoreVersion.h"
 #include "test.h"
 #include "test/TestUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
@@ -234,7 +235,7 @@ void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
-    auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
+    auto previousVersion = getCurrentLedgerVersion(app.getLedgerStateRoot());
     for (auto v : versions)
     {
         if (!gTestAllVersions && v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)

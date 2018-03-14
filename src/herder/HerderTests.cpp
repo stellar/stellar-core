@@ -134,7 +134,7 @@ TEST_CASE("standalone", "[herder]")
                 }
 
                 bool hasC =
-                    app->getLedgerManager().getCurrentLedgerVersion() >= 10;
+                    getCurrentLedgerVersion(app->getLedgerStateRoot()) >= 10;
                 if (hasC)
                 {
                     for (auto c : txCs)
