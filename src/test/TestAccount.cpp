@@ -4,7 +4,8 @@
 
 #include "TestAccount.h"
 
-#include "ledger/DataFrame.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
@@ -160,16 +161,16 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
-    auto dataFrame =
-        DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto data = loadData(ls, getPublicKey(), name);
     if (value)
     {
-        REQUIRE(dataFrame != nullptr);
-        REQUIRE(dataFrame->getData().dataValue == *value);
+        REQUIRE(data != nullptr);
+        REQUIRE(data->entry()->data.data().dataValue == *value);
     }
     else
     {
-        REQUIRE(dataFrame == nullptr);
+        REQUIRE(data == nullptr);
     }
 }
 
