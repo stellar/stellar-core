@@ -327,12 +327,6 @@ LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
         return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
 }
 
-uint64_t
-LedgerManagerImpl::getCloseTime() const
-{
-    return mCurrentLedger->mHeader.scpValue.closeTime;
-}
-
 LedgerHeader const&
 LedgerManagerImpl::getCurrentLedgerHeader() const
 {

@@ -772,7 +772,7 @@ closeLedger(Application& app)
         << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
     auto txSet = std::make_shared<TxSetFrame>(lclHash);
-    StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
+    StellarValue sv(txSet->getContentsHash(), getCurrentCloseTime(app.getLedgerStateRoot()),
                     emptyUpgradeSteps, 0);
     LedgerCloseData lcd(getCurrentLedgerNum(app.getLedgerStateRoot()), txSet, sv);
     lm.valueExternalized(lcd);

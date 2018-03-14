@@ -12,6 +12,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 #include "xdrpp/printer.h"
 #include <algorithm>
@@ -380,15 +381,6 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto f = TestAccount{*app, getAccount("f")};
     auto g = root.create("g", lm.getMinBalance(0));
 
-    auto getCloseTime = [&app] () {
-        LedgerState ls(app->getLedgerStateRoot());
-        return ls.loadHeader()->header().scpValue.closeTime;
-    };
-
-    //auto getCloseTime = [&lm] () {
-    //    return lm.getLastClosedLedgerHeader().header.scpValue.closeTime;
-    //};
-
     SECTION("transaction errors")
     {
         SECTION("signed")
@@ -405,7 +397,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    getCloseTime() + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -415,7 +407,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    getCloseTime() - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -472,7 +464,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    getCloseTime() + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -483,7 +475,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    getCloseTime() - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -550,7 +542,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    getCloseTime() + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -561,7 +553,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    getCloseTime() - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });

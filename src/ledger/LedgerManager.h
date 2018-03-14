@@ -109,10 +109,6 @@ class LedgerManager
     // current ledger's `baseReserve` value.
     virtual int64_t getMinBalance(uint32_t ownerCount) const = 0;
 
-    // Return the close time of the current ledger, in seconds since the POSIX
-    // epoch.
-    virtual uint64_t getCloseTime() const = 0;
-
     // Return the (changing) number of seconds since the LCL closed.
     virtual uint64_t secondsSinceLastLedgerClose() const = 0;
 
