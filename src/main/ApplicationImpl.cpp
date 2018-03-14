@@ -25,6 +25,7 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/MinimumAccountBalance.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
@@ -120,6 +121,8 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+    mLedgerStateRoot =
+        std::unique_ptr<LedgerStateRoot>(new LedgerStateRoot(getDatabase()));
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -726,6 +729,12 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
+}
+
+LedgerStateRoot&
+ApplicationImpl::getLedgerStateRoot()
+{
+    return *mLedgerStateRoot;
 }
 
 asio::io_service&
