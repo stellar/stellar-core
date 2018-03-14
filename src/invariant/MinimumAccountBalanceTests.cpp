@@ -11,6 +11,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include <random>
 
 using namespace stellar;
@@ -23,8 +24,8 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
 {
     auto& account = le.data.account();
 
-    auto minBalance =
-        app.getLedgerManager().getMinBalance(account.numSubEntries);
+    int64_t minBalance = getCurrentMinBalance(app.getLedgerStateRoot(),
+                                              account.numSubEntries);
 
     int64_t lbound = 0;
     int64_t ubound = std::numeric_limits<int64_t>::max();
@@ -65,7 +66,7 @@ TEST_CASE("Create account above minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, true, 0);
-        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
+        REQUIRE(store(*app, makeUpdateList(&le, nullptr)));
     }
 }
 
@@ -83,7 +84,7 @@ TEST_CASE("Create account below minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, false, 0);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
+        REQUIRE(!store(*app, makeUpdateList(&le, nullptr)));
     }
 }
 
@@ -101,10 +102,9 @@ TEST_CASE("Create account then decrease balance below minimum",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, true, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(store(*app, makeUpdateList(&le1, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(!store(*app, makeUpdateList(&le2, &le1)));
     }
 }
 
@@ -122,10 +122,9 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(!store(*app, makeUpdateList(&le1, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 1);
-        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(store(*app, makeUpdateList(&le2, &le1)));
     }
 }
 
@@ -143,9 +142,8 @@ TEST_CASE("Account below minimum balance decreases",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(!store(*app, makeUpdateList(&le1, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, -1);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(!store(*app, makeUpdateList(&le2, &le1)));
     }
 }

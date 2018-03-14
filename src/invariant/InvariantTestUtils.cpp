@@ -5,12 +5,15 @@
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/EntryFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "util/make_unique.h"
+
+#include "util/Logging.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -29,36 +32,48 @@ generateRandomAccount(uint32_t ledgerSeq)
 }
 
 bool
-store(Application& app, UpdateList const& apply, LedgerDelta* ldPtr,
+store(Application& app, UpdateList const& apply, LedgerState* lsPtr,
       OperationResult const* resPtr)
 {
-    LedgerHeader lh(app.getLedgerManager().getCurrentLedgerHeader());
-    LedgerDelta ld(lh, app.getDatabase(), false);
-    if (ldPtr == nullptr)
+    bool shouldCommit = !lsPtr;
+    std::unique_ptr<LedgerState> lsStore;
+    if (!lsPtr)
     {
-        ldPtr = &ld;
+        lsStore = make_unique<LedgerState>(app.getLedgerStateRoot());
+        lsPtr = lsStore.get();
     }
+
     for (auto const& toApply : apply)
     {
-        auto& current = std::get<0>(toApply);
-        auto& previous = std::get<1>(toApply);
-        if (current && !previous)
+        auto current = std::get<0>(toApply);
+        auto previous = std::get<1>(toApply);
+
+        std::shared_ptr<LedgerEntryReference> ler;
+        if (previous)
         {
-            current->storeAdd(*ldPtr, app.getDatabase());
+            ler = lsPtr->load(LedgerEntryKey(*previous));
+            if (current)
+            {
+                *ler->entry() = *current;
+            }
+            else
+            {
+                ler->erase();
+            }
         }
-        else if (current && previous)
+        else if (current)
         {
-            ldPtr->recordEntry(*previous);
-            current->storeChange(*ldPtr, app.getDatabase());
-        }
-        else if (!current && previous)
-        {
-            ldPtr->recordEntry(*previous);
-            previous->storeDelete(*ldPtr, app.getDatabase());
+            ler = lsPtr->create(*current);
         }
         else
         {
             abort();
+        }
+
+        if (current && current->data.type() == ACCOUNT)
+        {
+            AccountReference ar = ler;
+            ar.normalizeSigners();
         }
     }
 
@@ -70,17 +85,25 @@ store(Application& app, UpdateList const& apply, LedgerDelta* ldPtr,
 
     try
     {
-        app.getInvariantManager().checkOnOperationApply({}, *resPtr, *ldPtr);
+        app.getInvariantManager().checkOnOperationApply({}, *resPtr, *lsPtr);
+        if (shouldCommit)
+        {
+            lsPtr->commit();
+        }
     }
     catch (InvariantDoesNotHold&)
     {
+        if (shouldCommit)
+        {
+            lsPtr->commit();
+        }
         return false;
     }
     return true;
 }
 
 UpdateList
-makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right)
+makeUpdateList(LedgerEntry const* left, LedgerEntry const* right)
 {
     UpdateList ul;
     ul.push_back(std::make_tuple(left, right));
