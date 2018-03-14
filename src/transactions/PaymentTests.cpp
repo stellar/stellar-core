@@ -1455,10 +1455,16 @@ TEST_CASE("payment", "[tx][payment]")
             a1.pay(gateway, idr, INT64_MAX);
             loadTrustLineAndCheckBalance(a1, idr, 0);
 
-            std::vector<TrustFrame::pointer> gwLines;
-            TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
-                                  app->getDatabase());
-            REQUIRE(gwLines.size() == 0);
+            {
+                LedgerKey key(TRUSTLINE);
+                key.trustLine().accountID = a1.getPublicKey();
+                key.trustLine().asset = idr;
+                LedgerState ls(app->getLedgerStateRoot());
+                REQUIRE_NOTHROW(ls.load(key));
+            }
+            REQUIRE(app->countTrustLines({1, INT32_MAX}) == 1);
+            // Since a1 has a trustline, and there is only 1 trustline, we know
+            // that gateway has no trustlines.
         });
     }
     SECTION("authorize flag")
