@@ -6,15 +6,17 @@
 #include "transactions/CreateAccountOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "util/Logging.h"
+#include "transactions/TransactionUtils.h"
 #include <algorithm>
 
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+
+#include "ledger/AccountReference.h"
 
 namespace stellar
 {
@@ -31,18 +33,13 @@ CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
 }
 
 bool
-CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
-                              LedgerManager& ledgerManager)
+CreateAccountOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    AccountFrame::pointer destAccount;
-
-    Database& db = ledgerManager.getDatabase();
-
-    destAccount =
-        AccountFrame::loadAccount(delta, mCreateAccount.destination, db);
+    auto destAccount = stellar::loadAccount(ls, mCreateAccount.destination);
     if (!destAccount)
     {
-        if (mCreateAccount.startingBalance < ledgerManager.getMinBalance(0))
+        auto header = ls.loadHeader();
+        if (mCreateAccount.startingBalance < getCurrentMinBalance(header, 0))
         { // not over the minBalance to make an account
             app.getMetrics()
                 .NewMeter({"op-create-account", "failure", "low-reserve"},
@@ -53,10 +50,11 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         else
         {
+            auto sourceAccount = loadSourceAccount(ls, header);
             int64_t minBalance =
-                mSourceAccount->getMinimumBalance(ledgerManager);
+                sourceAccount.getMinimumBalance(header);
 
-            if ((mSourceAccount->getAccount().balance - minBalance) <
+            if ((sourceAccount.account().balance - minBalance) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
                 app.getMetrics()
@@ -67,18 +65,32 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
+            if (getCurrentLedgerVersion(header) < 8)
+            {
+                sourceAccount.forget(ls);
+                auto thisAccount = stellar::loadAccountRaw(ls, getSourceID());
+                if (!thisAccount)
+                {
+                    throw std::runtime_error("modifying account that does not exist");
+                }
+                thisAccount->invalidate();
+                sourceAccount = loadSourceAccount(ls, header);
+            }
+
             auto ok =
-                mSourceAccount->addBalance(-mCreateAccount.startingBalance);
+                sourceAccount.addBalance(-mCreateAccount.startingBalance);
             assert(ok);
 
-            mSourceAccount->storeChange(delta, db);
+            LedgerEntry newAccount;
+            newAccount.data.type(ACCOUNT);
+            newAccount.data.account().thresholds[0] = 1;
+            newAccount.data.account().accountID = mCreateAccount.destination;
+            newAccount.data.account().seqNum =
+                getStartingSequenceNumber(header);
+            newAccount.data.account().balance = mCreateAccount.startingBalance;
+            destAccount = ls.create(newAccount);
 
-            destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
-            destAccount->getAccount().seqNum =
-                delta.getHeaderFrame().getStartingSequenceNumber();
-            destAccount->getAccount().balance = mCreateAccount.startingBalance;
-
-            destAccount->storeAdd(delta, db);
+            header->invalidate();
 
             app.getMetrics()
                 .NewMeter({"op-create-account", "success", "apply"},
@@ -100,7 +112,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-CreateAccountOpFrame::doCheckValid(Application& app)
+CreateAccountOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mCreateAccount.startingBalance <= 0)
     {
