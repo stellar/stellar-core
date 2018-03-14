@@ -9,9 +9,11 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "xdrpp/printer.h"
 
@@ -87,16 +89,20 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
 void
 InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& opres,
-                                            LedgerDelta const& delta)
+                                            LedgerState& ls)
 {
-    if (delta.getHeader().ledgerVersion < 8)
+    auto header = ls.loadHeader();
+    auto ledgerSeq = getCurrentLedgerVersion(header);
+    header->invalidate();
+
+    if (ledgerSeq < 8)
     {
         return;
     }
 
     for (auto invariant : mEnabled)
     {
-        auto result = invariant->checkOnOperationApply(operation, opres, delta);
+        auto result = invariant->checkOnOperationApply(operation, opres, ls);
         if (result.empty())
         {
             continue;
@@ -105,7 +111,7 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
         auto message = fmt::format(
             R"(Invariant "{}" does not hold on operation: {}{}{})",
             invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
-        onInvariantFailure(invariant, message, delta.getHeader().ledgerSeq);
+        onInvariantFailure(invariant, message, ledgerSeq);
     }
 }
 

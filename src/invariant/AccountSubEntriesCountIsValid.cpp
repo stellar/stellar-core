@@ -5,6 +5,7 @@
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 #include "util/format.h"
@@ -34,15 +35,10 @@ AccountSubEntriesCountIsValid::getName() const
 std::string
 AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerDelta const& delta)
+    LedgerState& ls)
 {
     std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
-    countChangedSubEntries(subEntriesChange, delta.added().begin(),
-                           delta.added().end());
-    countChangedSubEntries(subEntriesChange, delta.modified().begin(),
-                           delta.modified().end());
-    countChangedSubEntries(subEntriesChange, delta.deleted().begin(),
-                           delta.deleted().end());
+    countChangedSubEntries(subEntriesChange, ls);
 
     for (auto const& kv : subEntriesChange)
     {
@@ -57,9 +53,14 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
         }
     }
 
-    for (auto const& del : delta.deleted())
+    for (auto const& state : ls)
     {
-        auto const& previous = del.previous->mEntry;
+        if (state.entry())
+        {
+            continue;
+        }
+
+        auto const& previous = *state.previousEntry();
         if (previous.data.type() == ACCOUNT)
         {
             auto const& account = previous.data.account();
@@ -82,8 +83,9 @@ AccountSubEntriesCountIsValid::checkOnOperationApply(
 }
 
 int32_t
-AccountSubEntriesCountIsValid::calculateDelta(LedgerEntry const* current,
-                                              LedgerEntry const* previous) const
+AccountSubEntriesCountIsValid::calculateDelta(
+    std::shared_ptr<LedgerEntry const> const& current,
+    std::shared_ptr<LedgerEntry const> const& previous) const
 {
     int32_t delta = 0;
     if (current)
@@ -98,9 +100,23 @@ AccountSubEntriesCountIsValid::calculateDelta(LedgerEntry const* current,
 }
 
 void
+AccountSubEntriesCountIsValid::countChangedSubEntries(
+    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
+    LedgerState const& ls) const
+{
+    for (auto const& state : ls)
+    {
+        updateChangedSubEntriesCount(subEntriesChange,
+                                     state.entry(),
+                                     state.previousEntry());
+    }
+}
+
+void
 AccountSubEntriesCountIsValid::updateChangedSubEntriesCount(
     std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerEntry const* current, LedgerEntry const* previous) const
+    std::shared_ptr<LedgerEntry const> const& current,
+    std::shared_ptr<LedgerEntry const> const& previous) const
 {
     auto valid = current ? current : previous;
     assert(valid);
@@ -143,45 +159,6 @@ AccountSubEntriesCountIsValid::updateChangedSubEntriesCount(
     }
     default:
         abort();
-    }
-}
-
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::AddedIterator iter,
-    LedgerDelta::AddedIterator const& end) const
-{
-    for (; iter != end; ++iter)
-    {
-        updateChangedSubEntriesCount(subEntriesChange, &iter->current->mEntry,
-                                     nullptr);
-    }
-}
-
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::ModifiedIterator iter,
-    LedgerDelta::ModifiedIterator const& end) const
-{
-    for (; iter != end; ++iter)
-    {
-        updateChangedSubEntriesCount(subEntriesChange, &iter->current->mEntry,
-                                     &iter->previous->mEntry);
-    }
-}
-
-void
-AccountSubEntriesCountIsValid::countChangedSubEntries(
-    std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-    LedgerDelta::DeletedIterator iter,
-    LedgerDelta::DeletedIterator const& end) const
-{
-    for (; iter != end; ++iter)
-    {
-        updateChangedSubEntriesCount(subEntriesChange, nullptr,
-                                     &iter->previous->mEntry);
     }
 }
 }

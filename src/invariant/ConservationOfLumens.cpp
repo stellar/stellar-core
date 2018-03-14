@@ -5,9 +5,14 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include <numeric>
+
+#include "util/Logging.h"
+#include "xdrpp/printer.h"
 
 namespace stellar
 {
@@ -29,8 +34,9 @@ ConservationOfLumens::getName() const
 }
 
 int64_t
-ConservationOfLumens::calculateDeltaBalance(LedgerEntry const* current,
-                                            LedgerEntry const* previous) const
+ConservationOfLumens::calculateDeltaBalance(
+    std::shared_ptr<LedgerEntry const> const& current,
+    std::shared_ptr<LedgerEntry const> const& previous) const
 {
     assert(current || previous);
     auto let = current ? current->data.type() : previous->data.type();
@@ -45,29 +51,19 @@ ConservationOfLumens::calculateDeltaBalance(LedgerEntry const* current,
 std::string
 ConservationOfLumens::checkOnOperationApply(Operation const& operation,
                                             OperationResult const& result,
-                                            LedgerDelta const& delta)
+                                            LedgerState& ls)
 {
-    auto const& lhCurr = delta.getHeader();
-    auto const& lhPrev = delta.getPreviousHeader();
+    auto header = ls.loadHeader();
+    int64_t deltaTotalCoins = header->header().totalCoins -
+                              header->previousHeader().totalCoins;
+    int64_t deltaFeePool = header->header().feePool -
+                           header->previousHeader().feePool;
+    header->invalidate();
 
-    int64_t deltaTotalCoins = lhCurr.totalCoins - lhPrev.totalCoins;
-    int64_t deltaFeePool = lhCurr.feePool - lhPrev.feePool;
     int64_t deltaBalances = std::accumulate(
-        delta.added().begin(), delta.added().end(), static_cast<int64_t>(0),
-        [this](int64_t lhs, LedgerDelta::AddedLedgerEntry const& rhs) {
-            return lhs + calculateDeltaBalance(&rhs.current->mEntry, nullptr);
-        });
-    deltaBalances += std::accumulate(
-        delta.modified().begin(), delta.modified().end(),
-        static_cast<int64_t>(0),
-        [this](int64_t lhs, LedgerDelta::ModifiedLedgerEntry const& rhs) {
-            return lhs + calculateDeltaBalance(&rhs.current->mEntry,
-                                               &rhs.previous->mEntry);
-        });
-    deltaBalances += std::accumulate(
-        delta.deleted().begin(), delta.deleted().end(), static_cast<int64_t>(0),
-        [this](int64_t lhs, LedgerDelta::DeletedLedgerEntry const& rhs) {
-            return lhs + calculateDeltaBalance(nullptr, &rhs.previous->mEntry);
+        ls.begin(), ls.end(), static_cast<int64_t>(0),
+        [this](int64_t lhs, LedgerState::IteratorValueType const& rhs) {
+            return lhs + calculateDeltaBalance(rhs.entry(), rhs.previousEntry());
         });
 
     if (result.tr().type() == INFLATION)
@@ -97,18 +93,35 @@ ConservationOfLumens::checkOnOperationApply(Operation const& operation,
     {
         if (deltaTotalCoins != 0)
         {
+            auto header = ls.loadHeader();
             return fmt::format("LedgerHeader totalCoins changed from {} to"
                                " {} without inflation",
-                               lhPrev.totalCoins, lhCurr.totalCoins);
+                               header->previousHeader().totalCoins,
+                               header->header().totalCoins);
+            header->invalidate();
         }
         if (deltaFeePool != 0)
         {
+            auto header = ls.loadHeader();
             return fmt::format("LedgerHeader feePool changed from {} to"
                                " {} without inflation",
-                               lhPrev.feePool, lhCurr.feePool);
+                               header->previousHeader().feePool,
+                               header->header().feePool);
+            header->invalidate();
         }
         if (deltaBalances != 0)
         {
+            for (auto const& state : ls)
+            {
+                if (state.entry() && state.entry()->data.type() == ACCOUNT)
+                {
+                    if (state.previousEntry())
+                    {
+                        CLOG(INFO, "Ledger") << xdr::xdr_to_string(state.previousEntry()->data.account());
+                    }
+                    CLOG(INFO, "Ledger") << xdr::xdr_to_string(state.entry()->data.account());
+                }
+            }
             return fmt::format("LedgerEntry account balances changed by"
                                " {} without inflation",
                                deltaBalances);

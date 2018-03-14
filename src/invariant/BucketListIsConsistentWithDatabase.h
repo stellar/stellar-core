@@ -31,7 +31,7 @@ class BucketListIsConsistentWithDatabase : public Invariant
   public:
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
-    explicit BucketListIsConsistentWithDatabase(Database& db);
+    explicit BucketListIsConsistentWithDatabase(Application& app);
 
     virtual std::string getName() const override;
 
@@ -40,6 +40,6 @@ class BucketListIsConsistentWithDatabase : public Invariant
                                            uint32_t newestLedger) override;
 
   private:
-    Database& mDb;
+    Application& mApp;
 };
 }

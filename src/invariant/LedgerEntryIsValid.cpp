@@ -5,6 +5,8 @@
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -31,43 +33,35 @@ LedgerEntryIsValid::getName() const
 std::string
 LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
                                           OperationResult const& result,
-                                          LedgerDelta const& delta)
+                                          LedgerState& ls)
 {
-    uint32_t currLedgerSeq = delta.getHeader().ledgerSeq;
+    auto header = ls.loadHeader();
+    uint32_t currLedgerSeq = header->header().ledgerSeq;
+    header->invalidate();
     if (currLedgerSeq > INT32_MAX)
     {
         return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
                            currLedgerSeq, INT32_MAX);
     }
 
-    std::string msg =
-        check(delta.added().begin(), delta.added().end(), currLedgerSeq);
-    if (!msg.empty())
-    {
-        return msg;
-    }
-
-    msg =
-        check(delta.modified().begin(), delta.modified().end(), currLedgerSeq);
-    if (!msg.empty())
-    {
-        return msg;
-    }
-    return {};
+    return check(ls, currLedgerSeq);
 }
 
-template <typename IterType>
 std::string
-LedgerEntryIsValid::check(IterType iter, IterType const& end,
-                          uint32_t ledgerSeq) const
+LedgerEntryIsValid::check(LedgerState const& ls, uint32_t ledgerSeq) const
 {
-    for (; iter != end; ++iter)
+    for (auto const& state : ls)
     {
-        auto s = checkIsValid(iter->current->mEntry, ledgerSeq);
+        if (!state.entry())
+        {
+            continue;
+        }
+
+        auto s = checkIsValid(*state.entry(), ledgerSeq);
         if (!s.empty())
         {
             s += ": ";
-            s += xdr::xdr_to_string(iter->current->mEntry);
+            s += xdr::xdr_to_string(*state.entry());
             return s;
         }
     }

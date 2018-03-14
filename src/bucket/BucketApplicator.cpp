@@ -46,7 +46,13 @@ BucketApplicator::advance()
         }
         else
         {
-            ls.load(entry.deadEntry())->erase();
+            try
+            {
+                ls.load(entry.deadEntry())->erase();
+            }
+            catch (std::runtime_error& e)
+            {
+            }
         }
         if ((++mSize & 0xff) == 0xff)
         {

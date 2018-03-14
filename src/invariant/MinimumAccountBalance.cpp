@@ -5,9 +5,11 @@
 #include "invariant/MinimumAccountBalance.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
@@ -16,12 +18,11 @@ namespace stellar
 std::shared_ptr<Invariant>
 MinimumAccountBalance::registerInvariant(Application& app)
 {
-    return app.getInvariantManager().registerInvariant<MinimumAccountBalance>(
-        app.getLedgerManager());
+    return app.getInvariantManager().registerInvariant<MinimumAccountBalance>();
 }
 
-MinimumAccountBalance::MinimumAccountBalance(LedgerManager const& lm)
-    : Invariant(false), mLedgerManager{lm}
+MinimumAccountBalance::MinimumAccountBalance()
+    : Invariant(false)
 {
 }
 
@@ -34,67 +35,51 @@ MinimumAccountBalance::getName() const
 std::string
 MinimumAccountBalance::checkOnOperationApply(Operation const& operation,
                                              OperationResult const& result,
-                                             LedgerDelta const& delta)
+                                             LedgerState& ls)
 {
-    auto msg = checkAccountBalance(delta.added().begin(), delta.added().end());
-    if (!msg.empty())
+    auto header = ls.loadHeader();
+    for (auto const& state : ls)
     {
-        return msg;
-    }
-
-    msg = checkAccountBalance(delta.modified().begin(), delta.modified().end());
-    if (!msg.empty())
-    {
-        return msg;
-    }
-    return {};
-}
-
-bool
-MinimumAccountBalance::shouldCheckBalance(
-    LedgerDelta::AddedLedgerEntry const& ale) const
-{
-    return ale.current->mEntry.data.type() == ACCOUNT;
-}
-
-bool
-MinimumAccountBalance::shouldCheckBalance(
-    LedgerDelta::ModifiedLedgerEntry const& mle) const
-{
-    auto const& current = mle.current->mEntry;
-    if (current.data.type() == ACCOUNT)
-    {
-        auto const& previous = mle.previous->mEntry;
-        assert(previous.data.type() == ACCOUNT);
-        return current.data.account().balance < previous.data.account().balance;
-    }
-    return false;
-}
-
-template <typename IterType>
-std::string
-MinimumAccountBalance::checkAccountBalance(IterType iter,
-                                           IterType const& end) const
-{
-    for (; iter != end; ++iter)
-    {
-        auto const& current = iter->current->mEntry;
-        if (current.data.type() == ACCOUNT)
+        if (shouldCheckBalance(state))
         {
-            if (shouldCheckBalance(*iter))
+            auto const& account = state.entry()->data.account();
+            auto minBalance =
+                getCurrentMinBalance(header, account.numSubEntries);
+            if (account.balance < minBalance)
             {
-                auto const& account = current.data.account();
-                auto minBalance =
-                    mLedgerManager.getMinBalance(account.numSubEntries);
-                if (account.balance < minBalance)
-                {
-                    return fmt::format("Account does not meet the minimum "
-                                       "balance requirement: {}",
-                                       xdr::xdr_to_string(current));
-                }
+                header->invalidate();
+                return fmt::format("Account does not meet the minimum "
+                                   "balance requirement: {}",
+                                   xdr::xdr_to_string(*state.entry()));
             }
         }
     }
+    header->invalidate();
     return {};
+}
+
+bool
+MinimumAccountBalance::shouldCheckBalance(
+    LedgerState::IteratorValueType const& val) const
+{
+    if (!val.entry())
+    {
+        return false;
+    }
+
+    auto const& current = *val.entry();
+    if (current.data.type() == ACCOUNT)
+    {
+        if (val.previousEntry())
+        {
+            auto const& previous = *val.previousEntry();
+            return current.data.account().balance < previous.data.account().balance;
+        }
+        else
+        {
+            return true;
+        }
+    }
+    return false;
 }
 }

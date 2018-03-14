@@ -575,7 +575,8 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
             if (!errorEncountered)
             {
-                // TODO(jonjove): Invoke checkOnOperationApply
+                app.getInvariantManager().checkOnOperationApply(
+                    op->getOperation(), op->getResult(), lsOperation);
             }
             meta.operations.emplace_back(lsOperation.getChanges());
             lsOperation.commit();

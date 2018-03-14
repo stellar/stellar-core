@@ -8,6 +8,8 @@
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
 
+#include "util/Logging.h"
+
 namespace stellar
 {
 
@@ -71,6 +73,7 @@ void
 TestInvariantManager::handleInvariantFailure(
     std::shared_ptr<Invariant> invariant, std::string const& message) const
 {
+    CLOG(INFO, "Invariant") << message;
     throw InvariantDoesNotHold{message};
 }
 

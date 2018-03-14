@@ -19,7 +19,6 @@
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
-#include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
@@ -126,7 +125,6 @@ ApplicationImpl::initialize()
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
-    CacheIsConsistentWithDatabase::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
     MinimumAccountBalance::registerInvariant(*this);

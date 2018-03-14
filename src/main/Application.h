@@ -40,6 +40,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class LedgerRange;
 class LedgerStateRoot;
 
 class Application;

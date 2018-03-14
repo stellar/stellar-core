@@ -5,13 +5,9 @@
 #include "invariant/BucketListIsConsistentWithDatabase.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "crypto/Hex.h"
-#include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "xdrpp/printer.h"
@@ -19,17 +15,66 @@
 namespace stellar
 {
 
+static std::string
+checkAgainstDatabase(Application& app, LedgerEntry const& entry)
+{
+    // TODO(jonjove): Should flush cache here?
+    try
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        auto fromDb = ls.load(LedgerEntryKey(entry));
+
+        if (*fromDb->entry() == entry)
+        {
+            return {};
+        }
+        else
+        {
+            std::string s{"Inconsistent state between objects: "};
+            s += xdr::xdr_to_string(*fromDb->entry(), "db");
+            s += xdr::xdr_to_string(entry, "live");
+            return s;
+        }
+    }
+    catch (std::runtime_error& e)
+    {
+        std::string s{
+            "Inconsistent state between objects (not found in database): "};
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
+
+}
+
+static std::string
+checkAgainstDatabase(Application& app, LedgerKey const& key)
+{
+    // TODO(jonjove): Should flush cache here?
+    try
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        auto fromDb = ls.load(key);
+
+        std::string s = "Entry with type DEADENTRY found in database ";
+        s += xdr::xdr_to_string(*fromDb->entry(), "db");
+        return s;
+    }
+    catch (std::runtime_error& e)
+    {
+        return {};
+    }
+}
+
 std::shared_ptr<Invariant>
 BucketListIsConsistentWithDatabase::registerInvariant(Application& app)
 {
     return app.getInvariantManager()
-        .registerInvariant<BucketListIsConsistentWithDatabase>(
-            app.getDatabase());
+        .registerInvariant<BucketListIsConsistentWithDatabase>(app);
 }
 
 BucketListIsConsistentWithDatabase::BucketListIsConsistentWithDatabase(
-    Database& db)
-    : Invariant(true), mDb{db}
+    Application& app)
+    : Invariant(true), mApp(app)
 {
 }
 
@@ -98,7 +143,7 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
             default:
                 abort();
             }
-            auto s = EntryFrame::checkAgainstDatabase(e.liveEntry(), mDb);
+            auto s = checkAgainstDatabase(mApp, e.liveEntry());
             if (!s.empty())
             {
                 return s;
@@ -106,39 +151,36 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
         }
         else if (e.type() == DEADENTRY)
         {
-            if (EntryFrame::exists(mDb, e.deadEntry()))
+            auto s = checkAgainstDatabase(mApp, e.deadEntry());
+            if (!s.empty())
             {
-                auto fromDb = EntryFrame::storeLoad(e.deadEntry(), mDb);
-                std::string s = "Entry with type DEADENTRY found in database ";
-                s += xdr::xdr_to_string(fromDb->mEntry, "db");
                 return s;
             }
         }
     }
 
-    auto& sess = mDb.getSession();
     std::string countFormat = "Incorrect {} count: Bucket = {} Database = {}";
     uint64_t nAccountsInDb =
-        AccountFrame::countObjects(sess, {oldestLedger, newestLedger});
+        mApp.countAccounts({oldestLedger, newestLedger});
     if (nAccountsInDb != nAccounts)
     {
         return fmt::format(countFormat, "Account", nAccounts, nAccountsInDb);
     }
     uint64_t nTrustLinesInDb =
-        TrustFrame::countObjects(sess, {oldestLedger, newestLedger});
+        mApp.countTrustLines({oldestLedger, newestLedger});
     if (nTrustLinesInDb != nTrustLines)
     {
         return fmt::format(countFormat, "TrustLine", nTrustLines,
                            nTrustLinesInDb);
     }
     uint64_t nOffersInDb =
-        OfferFrame::countObjects(sess, {oldestLedger, newestLedger});
+        mApp.countOffers({oldestLedger, newestLedger});
     if (nOffersInDb != nOffers)
     {
         return fmt::format(countFormat, "Offer", nOffers, nOffersInDb);
     }
     uint64_t nDataInDb =
-        DataFrame::countObjects(sess, {oldestLedger, newestLedger});
+        mApp.countData({oldestLedger, newestLedger});
     if (nDataInDb != nData)
     {
         return fmt::format(countFormat, "Data", nData, nDataInDb);
