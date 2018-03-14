@@ -4,12 +4,16 @@
 
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerHeaderFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
+
+#include "ledger/AccountReference.h"
 
 using namespace soci;
 
@@ -35,17 +39,13 @@ MergeOpFrame::getThresholdLevel() const
 // make sure the we delete all the trustlines
 // move the XLM to the new account
 bool
-MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
-                      LedgerManager& ledgerManager)
+MergeOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    AccountFrame::pointer otherAccount;
-    Database& db = ledgerManager.getDatabase();
-    auto const& sourceAccount = mSourceAccount->getAccount();
-    int64 sourceBalance = sourceAccount.balance;
+    auto sourceAccount = loadSourceAccount(ls);
+    int64 sourceBalance = sourceAccount.getBalance();
 
-    otherAccount =
-        AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
-
+    auto otherAccount =
+        stellar::loadAccount(ls, mOperation.body.destination());
     if (!otherAccount)
     {
         app.getMetrics()
@@ -55,12 +55,13 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (ledgerManager.getCurrentLedgerVersion() > 4 &&
-        ledgerManager.getCurrentLedgerVersion() < 8)
+    auto header = ls.loadHeader();
+    if (getCurrentLedgerVersion(header) > 4 &&
+        getCurrentLedgerVersion(header) < 8)
     {
         // in versions < 8, merge account could be called with a stale account
-        AccountFrame::pointer thisAccount =
-            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
+        sourceAccount.forget(ls);
+        auto thisAccount = stellar::loadAccount(ls, getSourceID());
         if (!thisAccount)
         {
             app.getMetrics()
@@ -69,13 +70,15 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
             return false;
         }
-        if (ledgerManager.getCurrentLedgerVersion() > 5)
+        if (getCurrentLedgerVersion(header) > 5)
         {
-            sourceBalance = thisAccount->getBalance();
+            sourceBalance = thisAccount.getBalance();
         }
+        thisAccount.invalidate();
+        sourceAccount = loadSourceAccount(ls, header);
     }
 
-    if (mSourceAccount->isImmutableAuth())
+    if (sourceAccount.isImmutableAuth())
     {
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "static-auth"}, "operation")
@@ -84,7 +87,8 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
+    if (sourceAccount.account().numSubEntries !=
+        sourceAccount.account().signers.size())
     {
         app.getMetrics()
             .NewMeter({"op-merge", "failure", "has-sub-entries"}, "operation")
@@ -93,14 +97,13 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (ledgerManager.getCurrentLedgerVersion() >= 10)
+    if (getCurrentLedgerVersion(header) >= 10)
     {
-        SequenceNumber maxSeq = LedgerHeaderFrame::getStartingSequenceNumber(
-            ledgerManager.getCurrentLedgerHeader().ledgerSeq);
+        SequenceNumber maxSeq = getStartingSequenceNumber(header);
 
         // don't allow the account to be merged if recreating it would cause it
         // to jump backwards
-        if (mSourceAccount->getSeqNum() >= maxSeq)
+        if (sourceAccount.getSeqNum() >= maxSeq)
         {
             app.getMetrics()
                 .NewMeter({"op-merge", "failure", "too-far"}, "operation")
@@ -109,34 +112,15 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
     }
+    header->invalidate();
 
     // "success" path starts
-    if (!otherAccount->addBalance(sourceBalance))
+    if (!otherAccount.addBalance(sourceBalance))
     {
         throw std::runtime_error("merge overflowed destination balance");
     }
 
-    otherAccount->storeChange(delta, db);
-
-    if (ledgerManager.getCurrentLedgerVersion() < 8)
-    {
-        // we have to compensate for buggy behavior in version < 8
-        // to avoid tripping invariants
-        AccountFrame::pointer thisAccount =
-            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-        if (!thisAccount)
-        {
-            // ignore double delete
-        }
-        else
-        {
-            mSourceAccount->storeDelete(delta, db);
-        }
-    }
-    else
-    {
-        mSourceAccount->storeDelete(delta, db);
-    }
+    sourceAccount.erase();
 
     app.getMetrics()
         .NewMeter({"op-merge", "success", "apply"}, "operation")
@@ -147,7 +131,7 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-MergeOpFrame::doCheckValid(Application& app)
+MergeOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     // makes sure not merging into self
     if (getSourceID() == mOperation.body.destination())
