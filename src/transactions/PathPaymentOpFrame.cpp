@@ -6,15 +6,20 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include <algorithm>
 
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+
+#include "ledger/AccountReference.h"
+#include "ledger/OfferReference.h"
+#include "ledger/TrustLineReference.h"
 
 namespace stellar
 {
@@ -31,11 +36,8 @@ PathPaymentOpFrame::PathPaymentOpFrame(Operation const& op,
 }
 
 bool
-PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
-                            LedgerManager& ledgerManager)
+PathPaymentOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    Database& db = ledgerManager.getDatabase();
-
     innerResult().code(PATH_PAYMENT_SUCCESS);
 
     // tracks the last amount that was traded
@@ -61,13 +63,9 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                         (mPathPayment.sendAsset == mPathPayment.destAsset) &&
                         (getIssuer(curB) == mPathPayment.destination);
 
-    AccountFrame::pointer destination;
-
     if (!bypassIssuerCheck)
     {
-        destination =
-            AccountFrame::loadAccount(delta, mPathPayment.destination, db);
-
+        auto destination = stellar::loadAccount(ls, mPathPayment.destination);
         if (!destination)
         {
             app.getMetrics()
@@ -77,12 +75,14 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(PATH_PAYMENT_NO_DESTINATION);
             return false;
         }
+        destination.forget(ls);
     }
 
     // update last balance in the chain
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        if (!destination->addBalance(curBReceived))
+        auto destination = stellar::loadAccount(ls, mPathPayment.destination);
+        if (!destination.addBalance(curBReceived))
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "invalid", "balance-overflow"},
@@ -91,22 +91,15 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(PATH_PAYMENT_MALFORMED);
             return false;
         }
-        destination->storeChange(delta, db);
+        destination.invalidate();
     }
     else
     {
-        TrustFrame::pointer destLine;
-
-        if (bypassIssuerCheck)
+        auto destLine = loadTrustLine(ls, mPathPayment.destination, curB);
+        if (!bypassIssuerCheck)
         {
-            destLine = TrustFrame::loadTrustLine(mPathPayment.destination, curB,
-                                                 db, &delta);
-        }
-        else
-        {
-            auto tlI = TrustFrame::loadTrustLineIssuer(mPathPayment.destination,
-                                                       curB, db, delta);
-            if (!tlI.second)
+            auto issuer = stellar::loadAccount(ls, getIssuer(curB));
+            if (!issuer)
             {
                 app.getMetrics()
                     .NewMeter({"op-path-payment", "failure", "no-issuer"},
@@ -116,7 +109,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().noIssuer() = curB;
                 return false;
             }
-            destLine = tlI.first;
+            issuer.forget(ls);
         }
 
         if (!destLine)
@@ -149,7 +142,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        destLine->storeChange(delta, db);
+        destLine->invalidate();
     }
 
     innerResult().success().last =
@@ -168,7 +161,8 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (curA.type() != ASSET_TYPE_NATIVE)
         {
-            if (!AccountFrame::loadAccount(delta, getIssuer(curA), db))
+            auto issuer = stellar::loadAccount(ls, getIssuer(curA));
+            if (!issuer)
             {
                 app.getMetrics()
                     .NewMeter({"op-path-payment", "failure", "no-issuer"},
@@ -178,15 +172,17 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().noIssuer() = curA;
                 return false;
             }
+            issuer.forget(ls);
         }
 
-        OfferExchange oe(delta, ledgerManager);
+        OfferExchange oe;
 
         // curA -> curB
         medida::MetricsRegistry& metrics = app.getMetrics();
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            curA, INT64_MAX, curASent, curB, curBReceived, actualCurBReceived,
-            [this, &metrics](OfferFrame const& o) {
+            ls, curA, INT64_MAX, curASent, curB, curBReceived,
+            actualCurBReceived,
+            [this, &metrics](OfferReference o) {
                 if (o.getSellerID() == getSourceID())
                 {
                     // we are crossing our own offer, potentially invalidating
@@ -252,13 +248,11 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        auto sourceAccount = mSourceAccount;
-
-        if (ledgerManager.getCurrentLedgerVersion() > 7)
+        AccountReference sourceAccount;
+        auto header = ls.loadHeader();
+        if (getCurrentLedgerVersion(header) > 7)
         {
-            sourceAccount =
-                AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-
+            sourceAccount = stellar::loadAccount(ls, getSourceID());
             if (!sourceAccount)
             {
                 app.getMetrics()
@@ -269,10 +263,14 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
         }
+        else
+        {
+            sourceAccount = loadSourceAccount(ls, header);
+        }
 
-        int64_t minBalance = sourceAccount->getMinimumBalance(ledgerManager);
+        int64_t minBalance = sourceAccount.getMinimumBalance(header);
 
-        if ((sourceAccount->getAccount().balance - curBSent) < minBalance)
+        if ((sourceAccount.account().balance - curBSent) < minBalance)
         { // they don't have enough to send
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},
@@ -282,24 +280,31 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        auto ok = sourceAccount->addBalance(-curBSent);
+        if (getCurrentLedgerVersion(header) < 8)
+        {
+            sourceAccount.forget(ls);
+            auto thisAccount = stellar::loadAccountRaw(ls, getSourceID());
+            if (!thisAccount)
+            {
+                throw std::runtime_error("modifying account that does not exist");
+            }
+            thisAccount->invalidate();
+            sourceAccount = loadSourceAccount(ls, header);
+        }
+        header->invalidate();
+
+        auto ok = sourceAccount.addBalance(-curBSent);
         assert(ok);
-        sourceAccount->storeChange(delta, db);
     }
     else
     {
-        TrustFrame::pointer sourceLineFrame;
-        if (bypassIssuerCheck)
+        if (!bypassIssuerCheck)
         {
-            sourceLineFrame =
-                TrustFrame::loadTrustLine(getSourceID(), curB, db, &delta);
-        }
-        else
-        {
-            auto tlI =
-                TrustFrame::loadTrustLineIssuer(getSourceID(), curB, db, delta);
-
-            if (!tlI.second)
+            // We need a LedgerState here since it is possible that changes to
+            // issuer were already stored.
+            LedgerState lsIssuer(ls);
+            auto issuer = stellar::loadAccount(lsIssuer, getIssuer(curB));
+            if (!issuer)
             {
                 app.getMetrics()
                     .NewMeter({"op-path-payment", "failure", "no-issuer"},
@@ -309,10 +314,11 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().noIssuer() = curB;
                 return false;
             }
-            sourceLineFrame = tlI.first;
+            lsIssuer.rollback();
         }
+        auto sourceLine = loadTrustLine(ls, getSourceID(), curB);
 
-        if (!sourceLineFrame)
+        if (!sourceLine)
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "src-no-trust"},
@@ -322,7 +328,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        if (!sourceLineFrame->isAuthorized())
+        if (!sourceLine->isAuthorized())
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "src-not-authorized"},
@@ -332,7 +338,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        if (!sourceLineFrame->addBalance(-curBSent))
+        if (!sourceLine->addBalance(-curBSent))
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},
@@ -342,7 +348,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        sourceLineFrame->storeChange(delta, db);
+        sourceLine->invalidate();
     }
 
     app.getMetrics()
@@ -353,7 +359,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-PathPaymentOpFrame::doCheckValid(Application& app)
+PathPaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mPathPayment.destAmount <= 0 || mPathPayment.sendMax <= 0)
     {
