@@ -8,8 +8,6 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "lib/catch.hpp"

@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"

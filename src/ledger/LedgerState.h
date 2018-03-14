@@ -265,4 +265,7 @@ class LedgerState::LoadBestOfferContext
     static bool compareOffers(StateEntry const& lhsState,
                               StateEntry const& rhsState);
 };
+
+// static helper for getting a LedgerKey from a LedgerEntry.
+LedgerKey LedgerEntryKey(LedgerEntry const& e);
 }

@@ -5,7 +5,6 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "main/Application.h"

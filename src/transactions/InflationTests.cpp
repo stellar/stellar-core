@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/LedgerCloseData.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"

@@ -4,7 +4,6 @@
 
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "util/Logging.h"

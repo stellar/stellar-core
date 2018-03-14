@@ -5,7 +5,6 @@
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/Bucket.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerEntryReference.h"
 #include "ledger/LedgerState.h"
 #include "main/Application.h"

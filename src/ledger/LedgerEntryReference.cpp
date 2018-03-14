@@ -8,9 +8,6 @@
 #include "xdr/Stellar-ledger.h"
 #include <cassert>
 
-// TODO(jonjove): Remove this header (used for LedgerEntryKey)
-#include "ledger/EntryFrame.h"
-
 namespace stellar
 {
 using xdr::operator==;

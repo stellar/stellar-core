@@ -12,9 +12,6 @@
 #include "test/test.h"
 #include <xdrpp/autocheck.h>
 
-// TODO(jonjove): Remove this header (used for LedgerEntryKey)
-#include "ledger/EntryFrame.h"
-
 using namespace stellar;
 
 LedgerEntry

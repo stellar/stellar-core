@@ -4,7 +4,6 @@
 
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "lib/util/format.h"

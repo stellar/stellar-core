@@ -6,7 +6,6 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/MinimumAccountBalance.h"
-#include "ledger/AccountFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"

@@ -13,6 +13,7 @@
 
 namespace stellar
 {
+using xdr::operator<;
 using xdr::operator==;
 using xdr::operator!=;
 
@@ -1186,67 +1187,37 @@ LedgerState::updateLastModified()
     }
 }
 
-/*
-template <typename ValueType>
-LedgerState::Iterator<ValueType>::Iterator(std::map<LedgerKey, StateEntry>::const_iterator const& iter)
-    : mIter(iter), mCreateValue(false)
+LedgerKey
+LedgerEntryKey(LedgerEntry const& e)
 {
-}
-
-template <typename ValueType>
-void
-LedgerState::Iterator<ValueType>::createValueIfNecessary() const
-{
-    if (mCreateValue)
+    auto& d = e.data;
+    LedgerKey k;
+    switch (d.type())
     {
-        // Note: It is important to pass pointer-to-const to the constructor
-        // of ValueType since it cannot be allowed to modify the data.
-        std::shared_ptr<LedgerEntryReference const> entry =
-            mIter->second->ignoreInvalid().entry();
-        std::shared_ptr<LedgerEntryReference const> previousEntry =
-            mIter->second->ignoreInvalid().previousEntry();
-        mValue = ValueType(mIter->first, entry, previousEntry);
-        mCreateValue = false;
+
+    case ACCOUNT:
+        k.type(ACCOUNT);
+        k.account().accountID = d.account().accountID;
+        break;
+
+    case TRUSTLINE:
+        k.type(TRUSTLINE);
+        k.trustLine().accountID = d.trustLine().accountID;
+        k.trustLine().asset = d.trustLine().asset;
+        break;
+
+    case OFFER:
+        k.type(OFFER);
+        k.offer().sellerID = d.offer().sellerID;
+        k.offer().offerID = d.offer().offerID;
+        break;
+
+    case DATA:
+        k.type(DATA);
+        k.data().accountID = d.data().accountID;
+        k.data().dataName = d.data().dataName;
+        break;
     }
+    return k;
 }
-
-template <typename ValueType>
-ValueType const&
-LedgerState::Iterator<ValueType>::operator*() const
-{
-    createValueIfNecessary();
-    return mValue;
-}
-
-template <typename ValueType>
-ValueType const*
-LedgerState::Iterator<ValueType>::operator->() const
-{
-    createValueIfNecessary();
-    return &mValue;
-}
-
-template <typename ValueType>
-LedgerState::Iterator<ValueType>&
-LedgerState::Iterator<ValueType>::operator++()
-{
-    ++mIter;
-    mCreateValue = false;
-    return *this;
-}
-
-template <typename ValueType>
-bool
-LedgerState::Iterator<ValueType>::operator==(Iterator const& other) const
-{
-    return mIter == other.mIter;
-}
-
-template <typename ValueType>
-bool
-LedgerState::Iterator<ValueType>::operator!=(Iterator const& other) const
-{
-    return !(*this == other);
-}
-*/
 }

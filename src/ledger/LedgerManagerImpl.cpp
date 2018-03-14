@@ -3,9 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
-#include "DataFrame.h"
-#include "OfferFrame.h"
-#include "TrustFrame.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -20,7 +17,6 @@
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerHeaderReference.h"

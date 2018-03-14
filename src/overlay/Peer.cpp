@@ -34,6 +34,7 @@
 
 namespace stellar
 {
+using xdr::operator<;
 
 using namespace std;
 using namespace soci;
