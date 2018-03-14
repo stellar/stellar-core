@@ -4,13 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/OfferFrame.h"
 #include "transactions/OperationFrame.h"
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace stellar
 {
+class LedgerEntryReference;
+class LedgerState;
+class OfferReference;
 
 enum class ExchangeResultType
 {
@@ -41,38 +44,11 @@ ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
 ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
 
-class LoadBestOfferContext
-{
-    Asset const mSelling;
-    Asset const mBuying;
-
-    Database& mDb;
-
-    std::vector<OfferFrame::pointer> mBatch;
-    std::vector<OfferFrame::pointer>::iterator mBatchIterator;
-
-    void loadBatchIfNecessary();
-
-  public:
-    LoadBestOfferContext(Database& db, Asset const& selling,
-                         Asset const& buying);
-
-    OfferFrame::pointer loadBestOffer();
-
-    void eraseAndUpdate();
-};
-
 class OfferExchange
 {
-
-    LedgerDelta& mDelta;
-    LedgerManager& mLedgerManager;
-
     std::vector<ClaimOfferAtom> mOfferTrail;
 
   public:
-    OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager);
-
     // buys wheat with sheep from a single offer
     enum CrossOfferResult
     {
@@ -80,7 +56,7 @@ class OfferExchange
         eOfferTaken,
         eOfferCantConvert
     };
-    CrossOfferResult crossOffer(OfferFrame& sellingWheatOffer,
+    CrossOfferResult crossOffer(LedgerState& ls, std::shared_ptr<LedgerEntryReference> sellingWheatOffer,
                                 int64_t maxWheatReceived,
                                 int64_t& numWheatReceived, int64_t maxSheepSend,
                                 int64_t& numSheepSent);
@@ -99,9 +75,10 @@ class OfferExchange
     };
     // buys wheat with sheep, crossing as many offers as necessary
     ConvertResult convertWithOffers(
+        LedgerState& ls,
         Asset const& sheep, int64_t maxSheepSent, int64_t& sheepSend,
         Asset const& wheat, int64_t maxWheatReceive, int64_t& weatReceived,
-        std::function<OfferFilterResult(OfferFrame const&)> filter);
+        std::function<OfferFilterResult(OfferReference)> filter);
 
     std::vector<ClaimOfferAtom> const&
     getOfferTrail() const
