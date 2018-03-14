@@ -17,8 +17,10 @@ namespace stellar
 {
 class TransactionFrame;
 class LedgerDelta;
+class LedgerState;
 class OperationFrame;
 class TxSetFrame;
+class TrustLineReference;
 
 namespace txtest
 {
@@ -56,9 +58,6 @@ void requireNoAccount(PublicKey const& k, Application& app);
 
 OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
                               Application& app, bool mustExist);
-
-TrustFrame::pointer loadTrustLine(SecretKey const& k, Asset const& asset,
-                                  Application& app, bool mustExist = true);
 
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);

@@ -5,6 +5,7 @@
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/TrustLineReference.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -1352,6 +1353,15 @@ TEST_CASE("payment", "[tx][payment]")
         });
     }
 
+    auto loadAndCheckBalance =
+        [&] (SecretKey const& k, Asset const& asset, int64_t balance)
+        {
+            LedgerState ls(app->getLedgerStateRoot());
+            auto line = loadTrustLine(ls, k.getPublicKey(), asset);
+            REQUIRE(line);
+            REQUIRE(line->getBalance() == balance);
+        };
+
     SECTION("simple credit")
     {
         SECTION("credit sent to new account (no account error)")
@@ -1377,9 +1387,7 @@ TEST_CASE("payment", "[tx][payment]")
             a1.changeTrust(idr, 1000);
             gateway.pay(a1, idr, 100);
 
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == 100);
+            loadAndCheckBalance(a1, idr, 100);
 
             // create b1 account
             auto b1 = root.create("B", paymentAmount);
@@ -1392,16 +1400,13 @@ TEST_CASE("payment", "[tx][payment]")
                     // first, send 40 from a1 to b1
                     a1.pay(b1, idr, 40);
 
-                    line = loadTrustLine(a1, idr, *app);
-                    REQUIRE(line->getBalance() == 60);
-                    line = loadTrustLine(b1, idr, *app);
-                    REQUIRE(line->getBalance() == 40);
+                    loadAndCheckBalance(a1, idr, 60);
+                    loadAndCheckBalance(b1, idr, 40);
 
                     // then, send back to the gateway
                     // the gateway does not have a trust line as it's the issuer
                     b1.pay(gateway, idr, 40);
-                    line = loadTrustLine(b1, idr, *app);
-                    REQUIRE(line->getBalance() == 0);
+                    loadAndCheckBalance(b1, idr, 0);
                 });
             }
             SECTION("missing issuer")
@@ -1428,14 +1433,11 @@ TEST_CASE("payment", "[tx][payment]")
         for_all_versions(*app, [&] {
             a1.changeTrust(idr, INT64_MAX);
             gateway.pay(a1, idr, INT64_MAX);
-            TrustFrame::pointer line;
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == INT64_MAX);
+            loadAndCheckBalance(a1, idr, INT64_MAX);
 
             // send it all back
             a1.pay(gateway, idr, INT64_MAX);
-            line = loadTrustLine(a1, idr, *app);
-            REQUIRE(line->getBalance() == 0);
+            loadAndCheckBalance(a1, idr, 0);
 
             std::vector<TrustFrame::pointer> gwLines;
             TrustFrame::loadLines(gateway.getPublicKey(), gwLines,
@@ -1553,8 +1555,10 @@ TEST_CASE("payment", "[tx][payment]")
 
                         auto account = loadAccount(sendToSelf, *app);
                         REQUIRE(account->getBalance() == minBalance2 - txfee);
-                        REQUIRE(!loadTrustLine(sendToSelf, data.asset, *app,
-                                               false));
+                        {
+                            LedgerState ls(app->getLedgerStateRoot());
+                            REQUIRE(!loadTrustLine(ls, sendToSelf, data.asset));
+                        }
                     }
                 }
             }
@@ -1589,9 +1593,7 @@ TEST_CASE("payment", "[tx][payment]")
                         auto account = loadAccount(sendToSelf, *app);
                         REQUIRE(account->getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 0);
+                        loadAndCheckBalance(sendToSelf, data.asset, 0);
                     }
 
                     SECTION("with trustline and half balance")
@@ -1613,9 +1615,7 @@ TEST_CASE("payment", "[tx][payment]")
                         auto account = loadAccount(sendToSelf, *app);
                         REQUIRE(account->getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 500);
+                        loadAndCheckBalance(sendToSelf, data.asset, 500);
                     }
 
                     SECTION("with trustline and full balance")
@@ -1637,9 +1637,7 @@ TEST_CASE("payment", "[tx][payment]")
                         auto account = loadAccount(sendToSelf, *app);
                         REQUIRE(account->getBalance() ==
                                 minBalance2 - 4 * txfee);
-                        auto trustline =
-                            loadTrustLine(sendToSelf, data.asset, *app, true);
-                        REQUIRE(trustline->getBalance() == 1000);
+                        loadAndCheckBalance(sendToSelf, data.asset, 1000);
                     }
                 }
             }

@@ -9,6 +9,7 @@
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -142,19 +143,6 @@ void
 TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
 {
     applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
-}
-
-TrustLineEntry
-TestAccount::loadTrustLine(Asset const& asset) const
-{
-    return txtest::loadTrustLine(getSecretKey(), asset, mApp, true)
-        ->getTrustLine();
-}
-
-bool
-TestAccount::hasTrustLine(Asset const& asset) const
-{
-    return !!txtest::loadTrustLine(getSecretKey(), asset, mApp, false);
 }
 
 void

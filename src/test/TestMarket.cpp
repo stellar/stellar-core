@@ -2,9 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/TrustLineReference.h"
 #include "test/TestMarket.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 #include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
@@ -222,13 +225,15 @@ TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
             }
             else
             {
-                auto hasTrustLine = account.hasTrustLine(assetBalance.asset);
+                LedgerState ls(mApp.getLedgerStateRoot());
+                auto trustLine = loadTrustLine(ls, account.getPublicKey(),
+                                               assetBalance.asset);
+                auto hasTrustLine = !!trustLine;
                 auto trustLineOk = hasTrustLine || assetBalance.balance == 0;
                 REQUIRE(trustLineOk);
                 if (hasTrustLine)
                 {
-                    REQUIRE(account.loadTrustLine(assetBalance.asset).balance ==
-                            assetBalance.balance);
+                    REQUIRE(trustLine->getBalance() == assetBalance.balance);
                 }
             }
         }

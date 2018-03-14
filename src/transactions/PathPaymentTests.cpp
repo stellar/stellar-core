@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/TrustLineReference.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -3674,8 +3676,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
                 else
                 {
-                    REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
-                                ->getBalance() == initialBalance + difference);
+                    LedgerState ls(app->getLedgerStateRoot());
+                    auto line = loadTrustLine(ls, account.getPublicKey(),
+                                              assets[assetIndex]);
+                    REQUIRE(line);
+                    REQUIRE(line->getBalance() == initialBalance + difference);
+                    //REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
+                    //            ->getBalance() == initialBalance + difference);
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,

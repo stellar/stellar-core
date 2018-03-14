@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/TrustLineReference.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -62,7 +64,10 @@ TEST_CASE("change trust", "[tx][changetrust]")
 
             // delete the trust line
             root.changeTrust(idr, 0);
-            REQUIRE(!(TrustFrame::loadTrustLine(root.getPublicKey(), idr, db)));
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                REQUIRE(!loadTrustLine(ls, root.getPublicKey(), idr));
+            }
         });
     }
     SECTION("issuer does not exist")
@@ -91,11 +96,9 @@ TEST_CASE("change trust", "[tx][changetrust]")
     }
     SECTION("trusting self")
     {
-        auto loadTrustLine = [&]() {
-            return TrustFrame::loadTrustLine(gateway.getPublicKey(), idr, db);
-        };
         auto validateTrustLineIsConst = [&]() {
-            auto trustLine = loadTrustLine();
+            LedgerState ls(app->getLedgerStateRoot());
+            auto trustLine = loadTrustLine(ls, gateway.getPublicKey(), idr);
             REQUIRE(trustLine);
             REQUIRE(trustLine->getBalance() == INT64_MAX);
         };

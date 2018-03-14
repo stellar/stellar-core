@@ -279,19 +279,6 @@ loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
     return res;
 }
 
-TrustFrame::pointer
-loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
-              bool mustExist)
-{
-    TrustFrame::pointer res =
-        TrustFrame::loadTrustLine(k.getPublicKey(), asset, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
