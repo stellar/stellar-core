@@ -188,7 +188,10 @@ TEST_CASE("txresults", "[tx][txresults]")
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
         auto shouldValidateOk = validationResult.code == txSUCCESS;
-        REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
+        {
+            LedgerState lsCheck(app->getLedgerStateRoot());
+            REQUIRE(tx->checkValid(*app, lsCheck, 0) == shouldValidateOk);
+        }
         REQUIRE(tx->getResult().result.code() == validationResult.code);
         REQUIRE(tx->getResult().feeCharged == validationResult.fee);
 

@@ -48,9 +48,11 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 {
     app.getDatabase().clearPreparedStatementCache();
 
-    bool check = tx->checkValid(app, 0);
+    LedgerState lsCheck(app.getLedgerStateRoot());
+    bool check = tx->checkValid(app, lsCheck, 0);
     TransactionResult checkResult = tx->getResult();
     REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+    lsCheck.rollback();
 
     LedgerState ls(app.getLedgerStateRoot());
 

@@ -147,7 +147,7 @@ class TransactionFrame
     bool checkSignature(SignatureChecker& signatureChecker,
                         AccountID const& accountID);
 
-    bool checkValid(Application& app, SequenceNumber current);
+    bool checkValid(Application& app, LedgerState& ls, SequenceNumber current);
 
     // collect fee, consume sequence number
     void processFeeSeqNum(LedgerState& ls);

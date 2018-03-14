@@ -457,12 +457,11 @@ TransactionFrame::removeAccountSigner(AccountReference account,
 }
 
 bool
-TransactionFrame::checkValid(Application& app, SequenceNumber current)
+TransactionFrame::checkValid(Application& app, LedgerState& ls, SequenceNumber current)
 {
     resetResults();
 
     // No need to commit ls
-    LedgerState ls(app.getLedgerStateRoot());
     auto header = ls.loadHeader();
     SignatureChecker signatureChecker{
         header->header().ledgerVersion, getContentsHash(),

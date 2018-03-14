@@ -316,7 +316,8 @@ HerderImpl::TxMap::recalculate()
 Herder::TransactionSubmitStatus
 HerderImpl::recvTransaction(TransactionFramePtr tx)
 {
-    soci::transaction sqltx(mApp.getDatabase().getSession());
+    // Establish read-only transaction for duration of checkValid.
+    LedgerState lsOuter(mApp.getLedgerStateRoot());
     mApp.getDatabase().setCurrentTransactionReadOnly();
 
     auto const& acc = tx->getSourceID();
@@ -343,19 +344,23 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         }
     }
 
-    if (!tx->checkValid(mApp, highSeq))
     {
-        return TX_STATUS_ERROR;
+        LedgerState ls(lsOuter);
+        if (!tx->checkValid(mApp, ls, highSeq))
+        {
+            return TX_STATUS_ERROR;
+        }
     }
 
-    LedgerState ls(mApp.getLedgerStateRoot());
-    auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
-    if (sourceAccount.getBalanceAboveReserve(ls.loadHeader()) < totFee)
     {
-        tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TX_STATUS_ERROR;
+        LedgerState ls(lsOuter);
+        auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
+        if (sourceAccount.getBalanceAboveReserve(ls.loadHeader()) < totFee)
+        {
+            tx->getResult().result.code(txINSUFFICIENT_BALANCE);
+            return TX_STATUS_ERROR;
+        }
     }
-    ls.rollback();
 
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID)
