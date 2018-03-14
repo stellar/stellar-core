@@ -10,6 +10,7 @@
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -32,6 +33,8 @@
 
 #include <ctime>
 #include <lib/util/format.h>
+
+#include "ledger/AccountReference.h"
 
 using namespace std;
 
@@ -344,11 +347,14 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
         return TX_STATUS_ERROR;
     }
 
-    if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto sourceAccount = stellar::loadAccount(ls, tx->getSourceID());
+    if (sourceAccount.getBalanceAboveReserve(ls.loadHeader()) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
         return TX_STATUS_ERROR;
     }
+    ls.rollback();
 
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder") << "recv transaction " << hexAbbrev(txID)
@@ -745,7 +751,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     proposedSet->trimInvalid(mApp, removed);
     removeReceivedTxs(removed);
 
-    proposedSet->surgePricingFilter(mLedgerManager);
+    proposedSet->surgePricingFilter(mApp);
 
     if (!proposedSet->checkValid(mApp))
     {
