@@ -11,7 +11,6 @@
 namespace stellar
 {
 class Application;
-class LedgerDelta;
 
 // This Invariant is used to validate that LedgerEntries meet a number of simple
 // requirements, such as bounds checking for a variety of fields. The Invariant

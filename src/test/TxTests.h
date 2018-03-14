@@ -16,7 +16,6 @@
 namespace stellar
 {
 class TransactionFrame;
-class LedgerDelta;
 class LedgerState;
 class OperationFrame;
 class TxSetFrame;

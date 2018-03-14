@@ -11,7 +11,6 @@ namespace stellar
 
 class Application;
 class Database;
-class LedgerDelta;
 
 // This Invariant is used to validate that the BucketList and Database are
 // in a consistent state after a bucket apply, such as during catchup-minimal.

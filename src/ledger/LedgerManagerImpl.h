@@ -31,7 +31,6 @@ namespace stellar
 {
 class Application;
 class Database;
-class LedgerDelta;
 class LedgerHeaderReference;
 
 class LedgerManagerImpl : public LedgerManager
