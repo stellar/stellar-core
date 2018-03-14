@@ -110,6 +110,37 @@ exchangeV3(int64_t wheatReceived, Price price, int64_t maxWheatReceive,
     return result;
 }
 
+LoadBestOfferContext::LoadBestOfferContext(Database& db, Asset const& selling,
+                                           Asset const& buying)
+    : mSelling(selling), mBuying(buying), mDb(db), mBatchIterator(mBatch.end())
+{
+    loadBatchIfNecessary();
+}
+
+void
+LoadBestOfferContext::loadBatchIfNecessary()
+{
+    if (mBatchIterator == mBatch.end())
+    {
+        mBatch.clear();
+        OfferFrame::loadBestOffers(5, 0, mSelling, mBuying, mBatch, mDb);
+        mBatchIterator = mBatch.begin();
+    }
+}
+
+OfferFrame::pointer
+LoadBestOfferContext::loadBestOffer()
+{
+    return (mBatchIterator != mBatch.end()) ? *mBatchIterator : nullptr;
+}
+
+void
+LoadBestOfferContext::eraseAndUpdate()
+{
+    ++mBatchIterator;
+    loadBatchIfNecessary();
+}
+
 OfferExchange::OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager)
     : mDelta(delta), mLedgerManager(ledgerManager)
 {
@@ -262,78 +293,60 @@ OfferExchange::convertWithOffers(
 
     Database& db = mLedgerManager.getDatabase();
 
-    size_t offerOffset = 0;
-
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
-
-    while (needMore)
+    LoadBestOfferContext context(db, wheat, sheep);
+    OfferFrame::pointer wheatOffer;
+    while (needMore && (wheatOffer = context.loadBestOffer()))
     {
-        std::vector<OfferFrame::pointer> retList;
-        OfferFrame::loadBestOffers(5, offerOffset, wheat, sheep, retList, db);
-
-        offerOffset += retList.size();
-
-        for (auto& wheatOffer : retList)
+        if (filter)
         {
-            if (filter)
+            OfferFilterResult r = filter(*wheatOffer);
+            switch (r)
             {
-                OfferFilterResult r = filter(*wheatOffer);
-                switch (r)
-                {
-                case eKeep:
-                    break;
-                case eStop:
-                    return eFilterStop;
-                case eSkip:
-                    continue;
-                }
-            }
-
-            int64_t numWheatReceived;
-            int64_t numSheepSend;
-
-            CrossOfferResult cor =
-                crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
-                           maxSheepSend, numSheepSend);
-
-            assert(numSheepSend >= 0);
-            assert(numSheepSend <= maxSheepSend);
-            assert(numWheatReceived >= 0);
-            assert(numWheatReceived <= maxWheatReceive);
-
-            switch (cor)
-            {
-            case eOfferTaken:
-                assert(offerOffset > 0);
-                offerOffset--; // adjust offset as an offer was deleted
+            case eKeep:
                 break;
-            case eOfferPartial:
-                break;
-            case eOfferCantConvert:
-                return ePartial;
-            }
-
-            sheepSend += numSheepSend;
-            maxSheepSend -= numSheepSend;
-
-            wheatReceived += numWheatReceived;
-            maxWheatReceive -= numWheatReceived;
-
-            needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
-            if (!needMore)
-            {
-                return eOK;
-            }
-            else if (cor == eOfferPartial)
-            {
-                return ePartial;
+            case eStop:
+                return eFilterStop;
             }
         }
 
-        // still stuff to fill but no more offers
-        if (needMore && retList.size() < 5)
+        int64_t numWheatReceived;
+        int64_t numSheepSend;
+
+        CrossOfferResult cor =
+            crossOffer(*wheatOffer, maxWheatReceive, numWheatReceived,
+                       maxSheepSend, numSheepSend);
+
+        assert(numSheepSend >= 0);
+        assert(numSheepSend <= maxSheepSend);
+        assert(numWheatReceived >= 0);
+        assert(numWheatReceived <= maxWheatReceive);
+
+        switch (cor)
+        {
+        case eOfferTaken:
+            context.eraseAndUpdate();
+            break;
+        case eOfferPartial:
+            break;
+        case eOfferCantConvert:
+            return ePartial;
+        }
+
+        sheepSend += numSheepSend;
+        maxSheepSend -= numSheepSend;
+
+        wheatReceived += numWheatReceived;
+        maxWheatReceive -= numWheatReceived;
+
+        needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+        if (!needMore)
         {
             return eOK;
+        }
+        else if (cor == eOfferPartial)
+        {
+            return ePartial;
         }
     }
     return eOK;
