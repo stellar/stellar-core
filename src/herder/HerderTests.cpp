@@ -15,8 +15,8 @@
 #include "crypto/SHA.h"
 #include "database/Database.h"
 #include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerState.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/CommandHandler.h"
@@ -180,19 +180,18 @@ TEST_CASE("standalone", "[herder]")
             app->getCommandHandler().manualCmd("maintenance?queue=true");
             auto& db = app->getDatabase();
             auto& sess = db.getSession();
-            LedgerHeaderFrame::pointer lh;
 
             app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
             app->getCommandHandler().manualCmd("maintenance?queue=true");
-            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            auto lh = loadLedgerHeaderBySequence(db, sess, 2);
             REQUIRE(!!lh);
 
             app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
             // this should delete items older than sequence 2
             app->getCommandHandler().manualCmd("maintenance?queue=true");
-            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            lh = loadLedgerHeaderBySequence(db, sess, 2);
             REQUIRE(!lh);
-            lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+            lh = loadLedgerHeaderBySequence(db, sess, 3);
             REQUIRE(!!lh);
 
             // this should delete items older than sequence 3
@@ -200,14 +199,14 @@ TEST_CASE("standalone", "[herder]")
             {
                 app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=3");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                lh = loadLedgerHeaderBySequence(db, sess, 3);
                 REQUIRE(!lh);
             }
             SECTION("set min to 3 by deletion")
             {
                 app->getCommandHandler().manualCmd("dropcursor?id=A1");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                lh = loadLedgerHeaderBySequence(db, sess, 3);
                 REQUIRE(!lh);
             }
         }

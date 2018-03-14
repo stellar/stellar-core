@@ -16,7 +16,6 @@
 
 #include "bucket/BucketManager.h"
 #include "herder/HerderPersistence.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
 #include "overlay/BanManager.h"
@@ -293,7 +292,7 @@ Database::initialize()
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
-    LedgerHeaderFrame::dropAll(*this);
+    mApp.dropLedgerHeadersTable();
     TransactionFrame::dropAll(*this);
     HistoryManager::dropAll(*this);
     BucketManager::dropAll(mApp);

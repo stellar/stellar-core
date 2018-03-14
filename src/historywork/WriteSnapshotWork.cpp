@@ -6,7 +6,6 @@
 #include "database/Database.h"
 #include "history/StateSnapshot.h"
 #include "historywork/Progress.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "main/Application.h"
 #include "util/XDRStream.h"
 

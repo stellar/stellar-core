@@ -969,4 +969,20 @@ ApplicationImpl::dropDataTable()
         "PRIMARY KEY  (accountid, dataname)"
         ");";
 }
+
+void
+ApplicationImpl::dropLedgerHeadersTable()
+{
+    mDatabase->getSession() << "DROP TABLE IF EXISTS ledgerheaders;";
+    mDatabase->getSession() << "CREATE TABLE ledgerheaders ("
+                       "ledgerhash      CHARACTER(64) PRIMARY KEY,"
+                       "prevhash        CHARACTER(64) NOT NULL,"
+                       "bucketlisthash  CHARACTER(64) NOT NULL,"
+                       "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
+                       "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
+                       "data            TEXT NOT NULL"
+                       ");";
+    mDatabase->getSession()
+        << "CREATE INDEX ledgersbyseq ON ledgerheaders ( ledgerseq );";
+}
 }

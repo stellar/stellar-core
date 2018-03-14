@@ -108,6 +108,13 @@ generateOfferID(std::shared_ptr<LedgerEntryReference> offer,
 }
 
 uint64_t
+getStartingSequenceNumber(LedgerStateRoot& lsr)
+{
+    LedgerState ls(lsr);
+    return getStartingSequenceNumber(ls.loadHeader());
+}
+
+uint64_t
 getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference> header)
 {
     return static_cast<uint64_t>(header->header().ledgerSeq) << 32;

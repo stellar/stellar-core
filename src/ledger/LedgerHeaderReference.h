@@ -51,4 +51,6 @@ class LedgerHeaderReference
 
     IgnoreInvalid ignoreInvalid();
 };
+
+std::string ledgerAbbrev(LedgerHeader const& header);
 }

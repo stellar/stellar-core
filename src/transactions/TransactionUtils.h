@@ -51,6 +51,8 @@ generateOfferID(std::shared_ptr<LedgerEntryReference> offer,
                 std::shared_ptr<LedgerHeaderReference> header);
 
 uint64_t
+getStartingSequenceNumber(LedgerStateRoot& lsr);
+uint64_t
 getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference> header);
 
 AccountReference

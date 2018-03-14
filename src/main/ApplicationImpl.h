@@ -117,6 +117,7 @@ class ApplicationImpl : public Application
     void dropTrustLinesTable() override;
     void dropOffersTable() override;
     void dropDataTable() override;
+    void dropLedgerHeadersTable() override;
 
   protected:
     std::unique_ptr<LedgerManager>

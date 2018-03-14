@@ -292,6 +292,7 @@ class Application
     virtual void dropTrustLinesTable() = 0;
     virtual void dropOffersTable() = 0;
     virtual void dropDataTable() = 0;
+    virtual void dropLedgerHeadersTable() = 0;
 
   protected:
     Application()

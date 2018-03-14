@@ -12,8 +12,8 @@
 #include "database/DatabaseUtils.h"
 #include "herder/TxSetFrame.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "transactions/SignatureChecker.h"
@@ -716,15 +716,13 @@ saveTransactionHelper(Database& db, soci::session& sess, uint32 ledgerSeq,
                       XDROutputFileStream& txOut,
                       XDROutputFileStream& txResultOut)
 {
-    // TODO(jonjove): Do not use LedgerHeaderFrame here
     // prepare the txset for saving
-    LedgerHeaderFrame::pointer lh =
-        LedgerHeaderFrame::loadBySequence(ledgerSeq, db, sess);
+    auto lh = loadLedgerHeaderBySequence(db, sess, ledgerSeq);
     if (!lh)
     {
         throw std::runtime_error("Could not find ledger");
     }
-    txSet.previousLedgerHash() = lh->mHeader.previousLedgerHash;
+    txSet.previousLedgerHash() = lh->previousLedgerHash;
     txSet.sortForHash();
     TransactionHistoryEntry hist;
     hist.ledgerSeq = ledgerSeq;

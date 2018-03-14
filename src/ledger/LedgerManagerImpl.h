@@ -6,7 +6,6 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
@@ -36,7 +35,6 @@ class LedgerHeaderReference;
 class LedgerManagerImpl : public LedgerManager
 {
     LedgerHeaderHistoryEntry mLastClosedLedger;
-    LedgerHeaderFrame::pointer mCurrentLedger;
 
     Application& mApp;
     medida::Timer& mTransactionApply;
@@ -80,7 +78,6 @@ class LedgerManagerImpl : public LedgerManager
     void valueExternalized(LedgerCloseData const& ledgerData) override;
 
     uint32_t getLastClosedLedgerNum() const override;
-    int64_t getMinBalance(uint32_t ownerCount) const override;
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
 
@@ -90,8 +87,6 @@ class LedgerManagerImpl : public LedgerManager
         std::function<void(asio::error_code const& ec)> handler) override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
-    LedgerHeader const& getCurrentLedgerHeader() const override;
-    LedgerHeader& getCurrentLedgerHeader() override;
 
     Database& getDatabase() override;
 

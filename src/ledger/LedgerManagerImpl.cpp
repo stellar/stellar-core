@@ -18,11 +18,12 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerState.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -90,16 +91,6 @@ std::string
 LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     return ledgerAbbrev(header.ledgerSeq, hash);
-}
-
-std::string
-LedgerManager::ledgerAbbrev(LedgerHeaderFrame::pointer p)
-{
-    if (!p)
-    {
-        return "[empty]";
-    }
-    return ledgerAbbrev(p->mHeader, p->getHash());
 }
 
 std::string
@@ -240,15 +231,14 @@ LedgerManagerImpl::loadLastKnownLedger(
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        // TODO(jonjove): Do not use LedgerHeaderFrame here
         auto currentLedger =
-            LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
+            loadLedgerHeaderByHash(getDatabase(), lastLedgerHash);
         if (!currentLedger)
         {
             throw std::runtime_error("Could not load ledger from database");
         }
         LedgerState ls(mApp.getLedgerStateRoot());
-        ls.loadHeader()->header() = currentLedger->mHeader;
+        ls.loadHeader()->header() = *currentLedger;
         ls.commit();
 
         if (handler)
@@ -268,11 +258,11 @@ LedgerManagerImpl::loadLastKnownLedger(
                 {
                     mApp.getBucketManager().assumeState(has);
 
-                    CLOG(INFO, "Ledger") << "Loaded last known ledger: "
-                                         << ledgerAbbrev(mCurrentLedger);
-
                     LedgerState ls(mApp.getLedgerStateRoot());
-                    advanceLedgerPointers(ls.loadHeader());
+                    auto header = ls.loadHeader();
+                    CLOG(INFO, "Ledger") << "Loaded last known ledger: "
+                                         << stellar::ledgerAbbrev(header->header());
+                    advanceLedgerPointers(header);
                     ls.commit();
                     handler(ec);
                 }
@@ -311,28 +301,6 @@ Database&
 LedgerManagerImpl::getDatabase()
 {
     return mApp.getDatabase();
-}
-
-int64_t
-LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
-{
-    auto& lh = mCurrentLedger->mHeader;
-    if (lh.ledgerVersion <= 8)
-        return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
-    else
-        return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
-}
-
-LedgerHeader const&
-LedgerManagerImpl::getCurrentLedgerHeader() const
-{
-    return mCurrentLedger->mHeader;
-}
-
-LedgerHeader&
-LedgerManagerImpl::getCurrentLedgerHeader()
-{
-    return mCurrentLedger->mHeader;
 }
 
 LedgerHeaderHistoryEntry const&
@@ -674,8 +642,9 @@ void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     DBTimeExcluder qtExclude(mApp);
+    // TODO(jonjove): Unnecessary ledger state?
     CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
-                          << mCurrentLedger->mHeader.ledgerSeq;
+                          << getCurrentLedgerNum(mApp.getLedgerStateRoot());
 
     auto now = mApp.getClock().now();
     mLedgerAgeClosed.Update(now - mLastClose);
@@ -803,7 +772,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
 {
     soci::transaction txscope(db.getSession());
     db.clearPreparedStatementCache();
-    LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq, count);
+    deleteOldLedgerHeaders(db, ledgerSeq, count);
     TransactionFrame::deleteOldEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
     db.clearPreparedStatementCache();
@@ -862,9 +831,11 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                                      LedgerState& ls,
                                      TransactionResultSet& txResultSet)
 {
-    // TODO(jonjove): Re-enable this CLOG statement
-    //CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
-    //                  << mCurrentLedger->mHeader.ledgerSeq;
+    auto lh = ls.loadHeader();
+    CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
+                      << getCurrentLedgerNum(lh);
+    lh->invalidate();
+
     int index = 0;
     for (auto tx : txs)
     {
