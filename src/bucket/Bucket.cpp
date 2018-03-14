@@ -101,9 +101,9 @@ Bucket::countLiveAndDeadEntries() const
 }
 
 void
-Bucket::apply(Database& db) const
+Bucket::apply(Application& app) const
 {
-    BucketApplicator applicator(db, shared_from_this());
+    BucketApplicator applicator(app, shared_from_this());
     while (applicator)
     {
         applicator.advance();

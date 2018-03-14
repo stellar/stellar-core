@@ -283,6 +283,13 @@ class Application
         return ret;
     }
 
+    virtual uint64_t countAccounts(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countTrustLines(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countOffers(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countData(LedgerRange const& ledgers) = 0;
+
+    virtual void deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger) = 0;
+
   protected:
     Application()
     {

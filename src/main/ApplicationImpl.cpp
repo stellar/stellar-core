@@ -769,4 +769,110 @@ ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
 }
+
+uint64_t
+ApplicationImpl::countAccounts(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM accounts"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countTrustLines(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM trustlines"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countOffers(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM offers"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countData(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM accountdata"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+void
+ApplicationImpl::deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger)
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    // Have to clear the cache since we are modifying outside of LedgerState
+    mLedgerStateRoot->getCache().clear();
+
+    // Delete accounts and signers
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM signers WHERE accountid IN"
+            " (SELECT accountid FROM accounts WHERE lastmodified >= :v1)");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM accounts WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete data
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM accountdata WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete offers
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM offers WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete trustlines
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM trustlines WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+}
 }

@@ -108,6 +108,13 @@ class ApplicationImpl : public Application
 
     virtual Hash const& getNetworkID() const override;
 
+    uint64_t countAccounts(LedgerRange const& ledgers) override;
+    uint64_t countTrustLines(LedgerRange const& ledgers) override;
+    uint64_t countOffers(LedgerRange const& ledgers) override;
+    uint64_t countData(LedgerRange const& ledgers) override;
+
+    void deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger) override;
+
   protected:
     std::unique_ptr<LedgerManager>
         mLedgerManager;              // allow to change that for tests

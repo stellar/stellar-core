@@ -1100,13 +1100,13 @@ TEST_CASE("bucket apply", "[bucket]")
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
-    birth->apply(db);
+    birth->apply(*app);
     auto count = AccountFrame::countObjects(sess);
     REQUIRE(count == live.size() + 1 /* root account */);
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size()
                          << " dead entries";
-    death->apply(db);
+    death->apply(*app);
     count = AccountFrame::countObjects(sess);
     REQUIRE(count == 1);
 }
@@ -1140,7 +1140,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     {
         TIMED_SCOPE(timerObj, "apply");
         soci::transaction sqltx(sess);
-        birth->apply(db);
+        birth->apply(*app);
         sqltx.commit();
     }
 }
