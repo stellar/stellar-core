@@ -863,4 +863,110 @@ ApplicationImpl::deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger)
         st.execute(true);
     }
 }
+
+void
+ApplicationImpl::dropAccountsTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS accounts;";
+    mDatabase->getSession() << "DROP TABLE IF EXISTS signers;";
+    mDatabase->getSession() <<
+        "CREATE TABLE accounts"
+        "("
+        "accountid       VARCHAR(56)  PRIMARY KEY,"
+        "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
+        "seqnum          BIGINT       NOT NULL,"
+        "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
+        "inflationdest   VARCHAR(56),"
+        "homedomain      VARCHAR(32)  NOT NULL,"
+        "thresholds      TEXT         NOT NULL,"
+        "flags           INT          NOT NULL,"
+        "lastmodified    INT          NOT NULL"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE TABLE signers"
+        "("
+        "accountid       VARCHAR(56) NOT NULL,"
+        "publickey       VARCHAR(56) NOT NULL,"
+        "weight          INT         NOT NULL,"
+        "PRIMARY KEY (accountid, publickey)"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE INDEX signersaccount ON signers (accountid)";
+    mDatabase->getSession() <<
+        "CREATE INDEX accountbalances "
+        "ON accounts (balance) WHERE "
+        "balance >= 1000000000";
+}
+
+void
+ApplicationImpl::dropTrustLinesTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS trustlines;";
+    mDatabase->getSession() <<
+        "CREATE TABLE trustlines"
+        "("
+        "accountid    VARCHAR(56)     NOT NULL,"
+        "assettype    INT             NOT NULL,"
+        "issuer       VARCHAR(56)     NOT NULL,"
+        "assetcode    VARCHAR(12)     NOT NULL,"
+        "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
+        "balance      BIGINT          NOT NULL CHECK (balance >= 0),"
+        "flags        INT             NOT NULL,"
+        "lastmodified INT             NOT NULL,"
+        "PRIMARY KEY  (accountid, issuer, assetcode)"
+        ");";
+}
+
+void
+ApplicationImpl::dropOffersTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS offers;";
+    mDatabase->getSession() <<
+        "CREATE TABLE offers"
+        "("
+        "sellerid         VARCHAR(56)  NOT NULL,"
+        "offerid          BIGINT       NOT NULL CHECK (offerid >= 0),"
+        "sellingassettype INT          NOT NULL,"
+        "sellingassetcode VARCHAR(12),"
+        "sellingissuer    VARCHAR(56),"
+        "buyingassettype  INT          NOT NULL,"
+        "buyingassetcode  VARCHAR(12),"
+        "buyingissuer     VARCHAR(56),"
+        "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+        "pricen           INT              NOT NULL,"
+        "priced           INT              NOT NULL,"
+        "price            DOUBLE PRECISION NOT NULL,"
+        "flags            INT              NOT NULL,"
+        "lastmodified     INT              NOT NULL,"
+        "PRIMARY KEY      (offerid)"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE INDEX sellingissuerindex ON offers (sellingissuer);";
+    mDatabase->getSession() <<
+        "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
+    mDatabase->getSession() <<
+        "CREATE INDEX priceindex ON offers (price);";
+}
+
+void
+ApplicationImpl::dropDataTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS accountdata;";
+    mDatabase->getSession() <<
+        "CREATE TABLE accountdata"
+        "("
+        "accountid    VARCHAR(56)  NOT NULL,"
+        "dataname     VARCHAR(64)  NOT NULL,"
+        "datavalue    VARCHAR(112) NOT NULL,"
+        "PRIMARY KEY  (accountid, dataname)"
+        ");";
+}
 }

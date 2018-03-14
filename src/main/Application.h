@@ -288,6 +288,11 @@ class Application
 
     virtual void deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger) = 0;
 
+    virtual void dropAccountsTable() = 0;
+    virtual void dropTrustLinesTable() = 0;
+    virtual void dropOffersTable() = 0;
+    virtual void dropDataTable() = 0;
+
   protected:
     Application()
     {

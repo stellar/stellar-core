@@ -113,6 +113,11 @@ class ApplicationImpl : public Application
 
     void deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger) override;
 
+    void dropAccountsTable() override;
+    void dropTrustLinesTable() override;
+    void dropOffersTable() override;
+    void dropDataTable() override;
+
   protected:
     std::unique_ptr<LedgerManager>
         mLedgerManager;              // allow to change that for tests

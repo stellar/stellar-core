@@ -118,7 +118,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
 
     case 3:
-        DataFrame::dropAll(*this);
+        mApp.dropDataTable();
         break;
 
     case 4:
@@ -291,9 +291,9 @@ Database::initialize()
 
     // only time this section should be modified is when
     // consolidating changes found in applySchemaUpgrade here
-    AccountFrame::dropAll(*this);
-    OfferFrame::dropAll(*this);
-    TrustFrame::dropAll(*this);
+    mApp.dropAccountsTable();
+    mApp.dropOffersTable();
+    mApp.dropTrustLinesTable();
     OverlayManager::dropAll(*this);
     PersistentState::dropAll(*this);
     ExternalQueue::dropAll(*this);
