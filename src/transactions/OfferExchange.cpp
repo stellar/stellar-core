@@ -298,16 +298,9 @@ OfferExchange::convertWithOffers(
     OfferFrame::pointer wheatOffer;
     while (needMore && (wheatOffer = context.loadBestOffer()))
     {
-        if (filter)
+        if (filter && filter(*wheatOffer) == eStop)
         {
-            OfferFilterResult r = filter(*wheatOffer);
-            switch (r)
-            {
-            case eKeep:
-                break;
-            case eStop:
-                return eFilterStop;
-            }
+            return eFilterStop;
         }
 
         int64_t numWheatReceived;
