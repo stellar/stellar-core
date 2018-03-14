@@ -172,8 +172,6 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 
     // validates db state
     ls.commit();
-    app.getLedgerManager().checkDbState();
-
     return res;
 }
 

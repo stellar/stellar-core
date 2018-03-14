@@ -1030,46 +1030,6 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][count]")
     }
 }
 
-TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
-{
-    VirtualClock clock;
-    Config cfg(getTestConfig());
-    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-    Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
-
-    std::vector<stellar::LedgerKey> emptySet;
-
-    // Create accounts
-    app->generateLoad(true, 1000, 0, 1000, 100, false);
-    auto& m = app->getMetrics();
-    while (m.NewMeter({"loadgen", "run", "complete"}, "run").count() == 0)
-    {
-        clock.crank(false);
-    }
-
-    SECTION("successful checkdb")
-    {
-        app->checkDB();
-        while (m.NewTimer({"bucket", "checkdb", "execute"}).count() == 0)
-        {
-            clock.crank(false);
-        }
-        REQUIRE(
-            m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison")
-                .count() >= 10);
-    }
-
-    SECTION("failing checkdb")
-    {
-        app->checkDB();
-        app->getDatabase().getSession()
-            << ("UPDATE accounts SET balance = balance * 2"
-                " WHERE accountid = (SELECT accountid FROM accounts LIMIT 1);");
-        REQUIRE_THROWS(clock.crank(false));
-    }
-}
-
 TEST_CASE("bucket apply", "[bucket]")
 {
     VirtualClock clock;

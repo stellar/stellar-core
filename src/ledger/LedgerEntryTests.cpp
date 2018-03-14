@@ -61,7 +61,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             auto fromDb = AccountFrame::loadAccount(af->getID(), db);
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
-        app->getLedgerManager().checkDbState();
 
         // updating accounts
         for (auto& l : accountsMap)
@@ -78,7 +77,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             auto fromDb = AccountFrame::loadAccount(af->getID(), db);
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
-        app->getLedgerManager().checkDbState();
 
         // create a bunch of trust lines
         std::unordered_map<AccountID, std::vector<TrustFrame::pointer>>
@@ -135,8 +133,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             return 0;
         });
 
-        app->getLedgerManager().checkDbState();
-
         // modify trust lines
         trustLineProcessor([&](LedgerEntry& le) {
             auto& lines = trustLinesMap[le.data.trustLine().accountID];
@@ -155,8 +151,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             }
             return 0;
         });
-
-        app->getLedgerManager().checkDbState();
 
         std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
             offerMap;
@@ -196,8 +190,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             return 0;
         });
 
-        app->getLedgerManager().checkDbState();
-
         // modify offers
         offerProcessor([&](LedgerEntry& le) {
             auto& offers = offerMap[le.data.offer().sellerID];
@@ -224,8 +216,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             return 0;
         });
 
-        app->getLedgerManager().checkDbState();
-
         // delete offers
         for (auto& ofl : offerMap)
         {
@@ -240,8 +230,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             auto fromDb = AccountFrame::loadAccount(af->getID(), db);
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
-
-        app->getLedgerManager().checkDbState();
 
         // delete trust lines
         for (auto& atl : trustLinesMap)
@@ -258,8 +246,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             REQUIRE(af->getAccount() == fromDb->getAccount());
         }
 
-        app->getLedgerManager().checkDbState();
-
         // deleting accounts
         for (auto const& l : accountsMap)
         {
@@ -270,8 +256,6 @@ TEST_CASE("Ledger Entry tests", "[ledgerentry]")
             REQUIRE(AccountFrame::loadAccount(af->getID(), db) == nullptr);
             REQUIRE(!AccountFrame::exists(db, af->getKey()));
         }
-
-        app->getLedgerManager().checkDbState();
     }
 }
 }

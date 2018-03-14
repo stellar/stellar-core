@@ -494,16 +494,6 @@ ApplicationImpl::getLoadGenerator()
 }
 
 void
-ApplicationImpl::checkDB()
-{
-    getClock().getIOService().post([this] {
-        checkDBAgainstBuckets(this->getMetrics(), this->getBucketManager(),
-                              this->getDatabase(),
-                              this->getBucketManager().getBucketList());
-    });
-}
-
-void
 ApplicationImpl::applyCfgCommands()
 {
     for (auto cmd : mConfig.COMMANDS)

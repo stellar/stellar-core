@@ -603,7 +603,6 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
         CHECK(haveCarolSeq == wantCarolSeq);
     }
 
-    mApp.getLedgerManager().checkDbState();
     return true;
 }
 

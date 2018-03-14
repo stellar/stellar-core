@@ -167,9 +167,6 @@ class LedgerManager
     virtual void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                   uint32_t count) = 0;
 
-    // checks the database for inconsistencies between objects
-    virtual void checkDbState() = 0;
-
     virtual ~LedgerManager()
     {
     }

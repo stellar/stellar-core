@@ -4,6 +4,7 @@
 
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/AccountReference.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
@@ -119,7 +120,7 @@ LedgerEntryIsValid::checkIsValid(AccountEntry const& ae) const
     }
     if (std::adjacent_find(ae.signers.begin(), ae.signers.end(),
                            [](Signer const& s1, Signer const& s2) {
-                               return !AccountFrame::signerCompare(s1, s2);
+                               return !AccountReference::signerCompare(s1, s2);
                            }) != ae.signers.end())
     {
         return "Account signers are not strictly increasing";

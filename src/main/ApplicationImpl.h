@@ -96,8 +96,6 @@ class ApplicationImpl : public Application
 
     virtual LoadGenerator& getLoadGenerator() override;
 
-    virtual void checkDB() override;
-
     virtual void applyCfgCommands() override;
 
     virtual void reportCfgMetrics() override;

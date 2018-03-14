@@ -243,9 +243,6 @@ class Application
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
 
-    // Run a consistency check between the database and the bucketlist.
-    virtual void checkDB() = 0;
-
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to
     // occur automatically at startup.

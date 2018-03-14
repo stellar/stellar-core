@@ -89,8 +89,4 @@ class Bucket : public std::enable_shared_from_this<Bucket>,
               std::vector<std::shared_ptr<Bucket>>(),
           bool keepDeadEntries = true);
 };
-
-void checkDBAgainstBuckets(medida::MetricsRegistry& metrics,
-                           BucketManager& bucketManager, Database& db,
-                           BucketList& bl);
 }
