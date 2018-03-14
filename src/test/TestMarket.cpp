@@ -252,13 +252,15 @@ TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
 {
     for (auto const& o : offers)
     {
-        REQUIRE(OfferState{txtest::loadOffer(o.first.sellerID, o.first.offerID,
-                                             mApp, true)
-                               ->getOffer()} == o.second);
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto offer = loadOffer(ls, o.first.sellerID, o.first.offerID);
+        REQUIRE(offer);
+        REQUIRE(OfferState{offer->entry()->data.offer()} == o.second);
     }
     for (auto const& o : deletedOffers)
     {
-        REQUIRE(!txtest::loadOffer(o.sellerID, o.offerID, mApp, false));
+        LedgerState ls(mApp.getLedgerStateRoot());
+        REQUIRE(!loadOffer(ls, o.sellerID, o.offerID));
     }
 }
 }

@@ -267,18 +267,6 @@ requireNoAccount(PublicKey const& k, Application& app)
     REQUIRE(!res);
 }
 
-OfferFrame::pointer
-loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
-{
-    OfferFrame::pointer res =
-        OfferFrame::loadOffer(k, offerID, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
@@ -488,8 +476,6 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     auto& manageOfferResult = results[0].tr().manageOfferResult();
 
-    OfferFrame::pointer offer;
-
     auto& offerResult = manageOfferResult.success().offer;
 
     switch (offerResult.effect())
@@ -497,8 +483,10 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     case MANAGE_OFFER_CREATED:
     case MANAGE_OFFER_UPDATED:
     {
-        offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-        auto& offerEntry = offer->getOffer();
+        LedgerState ls(app.getLedgerStateRoot());
+        auto offer = loadOffer(ls, source.getPublicKey(), expectedOfferID);
+        REQUIRE(offer);
+        auto const& offerEntry = offer->entry()->data.offer();
         REQUIRE(offerEntry == offerResult.offer());
         REQUIRE(offerEntry.price == price);
         REQUIRE(offerEntry.selling == selling);
@@ -506,8 +494,11 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     }
     break;
     case MANAGE_OFFER_DELETED:
-        REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        REQUIRE(!loadOffer(ls, source.getPublicKey(), expectedOfferID));
         break;
+    }
     default:
         abort();
     }
@@ -565,8 +556,6 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
     {
-        OfferFrame::pointer offer;
-
         auto& offerResult = createPassiveOfferResult.success().offer;
 
         switch (offerResult.effect())
@@ -574,9 +563,10 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer =
-                loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-            auto& offerEntry = offer->getOffer();
+            LedgerState ls(app.getLedgerStateRoot());
+            auto offer = loadOffer(ls, source.getPublicKey(), expectedOfferID);
+            REQUIRE(offer);
+            auto const& offerEntry = offer->entry()->data.offer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
             REQUIRE(offerEntry.selling == selling);
@@ -585,9 +575,11 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         }
         break;
         case MANAGE_OFFER_DELETED:
-            REQUIRE(
-                !loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+        {
+            LedgerState ls(app.getLedgerStateRoot());
+            REQUIRE(!loadOffer(ls, source.getPublicKey(), expectedOfferID));
             break;
+        }
         default:
             abort();
         }

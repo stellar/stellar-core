@@ -56,9 +56,6 @@ AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,
 // short hand to check that an account does not exist
 void requireNoAccount(PublicKey const& k, Application& app);
 
-OfferFrame::pointer loadOffer(PublicKey const& k, uint64 offerID,
-                              Application& app, bool mustExist);
-
 xdr::xvector<Signer, 20> getAccountSigners(PublicKey const& k,
                                            Application& app);
 

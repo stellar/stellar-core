@@ -179,18 +179,6 @@ TestAccount::bumpSequence(SequenceNumber to)
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
 }
 
-OfferEntry
-TestAccount::loadOffer(uint64_t offerID) const
-{
-    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->getOffer();
-}
-
-bool
-TestAccount::hasOffer(uint64_t offerID) const
-{
-    return !!txtest::loadOffer(getPublicKey(), offerID, mApp, false);
-}
-
 uint64_t
 TestAccount::manageOffer(uint64_t offerID, Asset const& selling,
                          Asset const& buying, Price const& price,

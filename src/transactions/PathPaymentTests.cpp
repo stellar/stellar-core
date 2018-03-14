@@ -3695,11 +3695,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                          feeCount);
                 }
             };
-            auto validateOffer = [offerAmount](const TestAccount& account,
-                                               uint64_t offerId,
-                                               int64_t difference) {
-                auto offer = account.loadOffer(offerId);
-                REQUIRE(offer.amount == offerAmount + difference);
+            auto validateOffer = [offerAmount, app](const TestAccount& account,
+                                                    uint64_t offerId,
+                                                    int64_t difference) {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto offer = loadOffer(ls, account.getPublicKey(), offerId);
+                REQUIRE(offer);
+                REQUIRE(offer->entry()->data.offer().amount == offerAmount + difference);
             };
 
             auto source = setupAccount("S");
