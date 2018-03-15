@@ -9,7 +9,6 @@
 // first to include <windows.h> -- so we try to include it before everything
 // else.
 #include "util/asio.h"
-#include "StellarCoreVersion.h"
 #include "bucket/Bucket.h"
 #include "bucket/BucketManager.h"
 #include "crypto/SHA.h"
@@ -30,6 +29,7 @@
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
 #include "main/NtpSynchronizationChecker.h"
+#include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"

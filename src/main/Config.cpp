@@ -4,12 +4,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "main/Config.h"
-#include "StellarCoreVersion.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerManager.h"
 #include "main/ExternalQueue.h"
+#include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
 #include "util/Logging.h"
 #include "util/types.h"

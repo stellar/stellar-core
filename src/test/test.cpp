@@ -6,8 +6,8 @@
 
 #include "util/asio.h"
 
-#include "StellarCoreVersion.h"
 #include "main/Config.h"
+#include "main/StellarCoreVersion.h"
 #include "test.h"
 #include "test/TestUtils.h"
 #include "util/Logging.h"
