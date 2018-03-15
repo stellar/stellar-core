@@ -229,8 +229,11 @@ LedgerState::storeSignersInDatabase(StateEntry const& state)
     std::vector<Signer> signers;
     if (previousEntry)
     {
-        auto key = LedgerEntryKey(*previousEntry);
-        signers = loadSignersFromDatabase(key);
+        signers = previousEntry->data.account().signers;
+        assert(std::adjacent_find(signers.begin(), signers.end(),
+                                  [](Signer const& lhs, Signer const& rhs) {
+                                      return !(lhs.key < rhs.key);
+                                  }) == signers.end());
     }
 
     auto it_new = account.signers.begin();
