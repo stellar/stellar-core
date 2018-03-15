@@ -77,7 +77,6 @@ Database::Database(Application& app)
           app.getMetrics().NewMeter({"database", "query", "exec"}, "query"))
     , mStatementsSize(
           app.getMetrics().NewCounter({"database", "memory", "statements"}))
-    , mEntryCache(4096)
     , mExcludedQueryTime(0)
     , mExcludedTotalTime(0)
     , mLastIdleQueryTime(0)
@@ -337,12 +336,6 @@ Database::getPool()
     }
     assert(mPool);
     return *mPool;
-}
-
-cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>&
-Database::getEntryCache()
-{
-    return mEntryCache;
 }
 
 class SQLLogContext : NonCopyable

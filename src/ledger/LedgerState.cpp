@@ -23,7 +23,8 @@ operator==(InflationVotes const& lhs, InflationVotes const& rhs)
     return (lhs.votes == rhs.votes) && (lhs.inflationDest == rhs.inflationDest);
 }
 
-LedgerStateRoot::LedgerStateRoot(Database& db) : mHasChild(false), mDb(db)
+LedgerStateRoot::LedgerStateRoot(Database& db)
+    : mHasChild(false), mDb(db) , mEntryCache(4096)
 {
 }
 
@@ -58,12 +59,10 @@ LedgerStateRoot::getDatabase()
     return mDb;
 }
 
-Database::EntryCache&
+LedgerStateRoot::EntryCache&
 LedgerStateRoot::getCache()
 {
-    // TODO(jonjove): Do we want to continue using the cache from Database?
-    // We could refactor so the cache is a member of LedgerStateRoot
-    return mDb.getEntryCache();
+    return mEntryCache;
 }
 
 LedgerState::LedgerState(LedgerStateRoot& root)
@@ -197,9 +196,6 @@ LedgerState::commit(std::function<void()> onCommitToDatabase)
             mParent->mLoadBestOfferContext =
                 std::make_shared<LoadBestOfferContext>(
                         std::move(*mLoadBestOfferContext), *mParent);
-            //mParent->mLoadBestOfferContext =
-            //    std::make_shared<LoadBestOfferContext>(
-            //            std::move(*mParent->mLoadBestOfferContext), *mParent);
         }
 
         mParent->mChild = nullptr;

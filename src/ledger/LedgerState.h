@@ -32,9 +32,12 @@ class LedgerStateRoot
     friend class ApplicationImpl;
     friend class LedgerState;
 
+    typedef cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
+        EntryCache;
+
     bool mHasChild;
     Database& mDb;
-
+    EntryCache mEntryCache;
     LedgerHeader mCurrentHeader;
 
   public:
@@ -54,7 +57,7 @@ class LedgerStateRoot
     void setCurrentHeader(LedgerHeader const& header);
 
     Database& getDatabase();
-    Database::EntryCache& getCache();
+    EntryCache& getCache();
 };
 
 class LedgerState
