@@ -130,6 +130,9 @@
     <Filter Include="history\tests\serialize-tests">
       <UniqueIdentifier>{be18f522-3b16-4f78-9e18-85751659363e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="main\generated">
+      <UniqueIdentifier>{4342892d-4e39-46b8-9f3c-ce4e4ef089ac}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp">
@@ -846,6 +849,9 @@
     <ClCompile Include="..\..\src\database\DatabaseUtils.cpp">
       <Filter>database</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp">
+      <Filter>main\generated</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1457,6 +1463,9 @@
     <ClInclude Include="..\..\src\database\DatabaseUtils.h">
       <Filter>database</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\main\StellarCoreVersion.h">
+      <Filter>main</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\AUTHORS" />
@@ -1575,6 +1584,9 @@
     </CustomBuild>
     <CustomBuild Include="..\..\src\xdr\Stellar-SCP.x">
       <Filter>xdr</Filter>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
+      <Filter>main</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

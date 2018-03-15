@@ -418,6 +418,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\PersistentState.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueue.cpp" />
     <ClCompile Include="..\..\src\main\ExternalQueueTests.cpp" />
+    <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp" />
     <ClCompile Include="..\..\src\overlay\BanManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\FloodTests.cpp" />
     <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp" />
@@ -602,6 +603,7 @@ exit /b 0
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
     <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h" />
+    <ClInclude Include="..\..\src\main\StellarCoreVersion.h" />
     <ClInclude Include="..\..\src\overlay\BanManager.h" />
     <ClInclude Include="..\..\src\overlay\BanManagerImpl.h" />
     <ClInclude Include="..\..\src\overlay\LoadManager.h" />
@@ -849,6 +851,24 @@ exit /b 0
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">src/generated/xdr/Stellar-types.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">src/generated/xdr/Stellar-types.h</AdditionalInputs>
       <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">src/generated/xdr/Stellar-types.h</AdditionalInputs>
+    </CustomBuild>
+    <CustomBuild Include="..\..\src\main\StellarCoreVersion.cpp.in">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Generating StellarCoreVersion.cpp</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+      </AdditionalInputs>
+      <Command Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">sed.exe -e "s/%%%%VERSION%%%%/msvc custom/" &lt; %(FullPath) &gt; %(RelativeDir)\StellarCoreVersion.cpp</Command>
+      <Message Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">Generating StellarCoreVersion.cpp</Message>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Generating StellarCoreVersion.cpp</Message>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">
+      </AdditionalInputs>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">../../src/main/StellarCoreVersion.cpp</Outputs>
+      <AdditionalInputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+      </AdditionalInputs>
     </CustomBuild>
     <None Include="..\..\src\overlay\readme.md" />
     <None Include="..\..\src\scp\readme.md" />
