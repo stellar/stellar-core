@@ -14,6 +14,7 @@ namespace stellar
 class Application;
 class Bucket;
 class Invariant;
+class LedgerHeaderReference;
 class LedgerState;
 struct Operation;
 
@@ -39,9 +40,10 @@ class InvariantManager
                                     uint32_t ledger, uint32_t level,
                                     bool isCurr) = 0;
 
-    virtual void checkOnOperationApply(Operation const& operation,
-                                       OperationResult const& opres,
-                                       LedgerState& ls) = 0;
+    virtual void checkOnOperationApply(
+        Operation const& operation, OperationResult const& opres,
+        LedgerState const& ls,
+        std::shared_ptr<LedgerHeaderReference const> header) = 0;
 
     virtual void registerInvariant(std::shared_ptr<Invariant> invariant) = 0;
 

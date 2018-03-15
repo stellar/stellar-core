@@ -31,13 +31,11 @@ LedgerEntryIsValid::getName() const
 }
 
 std::string
-LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
-                                          OperationResult const& result,
-                                          LedgerState& ls)
+LedgerEntryIsValid::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerState const& ls, std::shared_ptr<LedgerHeaderReference const> header)
 {
-    auto header = ls.loadHeader();
     uint32_t currLedgerSeq = header->header().ledgerSeq;
-    header->invalidate();
     if (currLedgerSeq > INT32_MAX)
     {
         return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",

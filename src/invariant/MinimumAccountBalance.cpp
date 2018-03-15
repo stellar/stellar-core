@@ -32,11 +32,10 @@ MinimumAccountBalance::getName() const
 }
 
 std::string
-MinimumAccountBalance::checkOnOperationApply(Operation const& operation,
-                                             OperationResult const& result,
-                                             LedgerState& ls)
+MinimumAccountBalance::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerState const& ls, std::shared_ptr<LedgerHeaderReference const> header)
 {
-    auto header = ls.loadHeader();
     for (auto const& state : ls)
     {
         if (shouldCheckBalance(state))
@@ -46,14 +45,12 @@ MinimumAccountBalance::checkOnOperationApply(Operation const& operation,
                 getCurrentMinBalance(header, account.numSubEntries);
             if (account.balance < minBalance)
             {
-                header->invalidate();
                 return fmt::format("Account does not meet the minimum "
                                    "balance requirement: {}",
                                    xdr::xdr_to_string(*state.entry()));
             }
         }
     }
-    header->invalidate();
     return {};
 }
 

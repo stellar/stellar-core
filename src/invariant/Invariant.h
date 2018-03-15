@@ -11,6 +11,7 @@ namespace stellar
 {
 
 class Bucket;
+class LedgerHeaderReference;
 class LedgerState;
 struct Operation;
 struct OperationResult;
@@ -46,11 +47,11 @@ class Invariant
         return std::string{};
     }
 
-    // TODO(jonjove): LedgerState should be const, or maybe different signature entirely?
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerState& ls)
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header)
     {
         return std::string{};
     }

@@ -162,11 +162,11 @@ TEST_CASE("Total coins change without inflation",
     LedgerState ls(app->getLedgerStateRoot());
     auto header = ls.loadHeader();
     header->header().totalCoins = dist(gen);
-    header->invalidate();
     OperationResult res;
     REQUIRE_THROWS_AS(
-        app->getInvariantManager().checkOnOperationApply({}, res, ls),
+        app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
         InvariantDoesNotHold);
+    header->invalidate();
 }
 
 TEST_CASE("Fee pool change without inflation",
@@ -184,11 +184,11 @@ TEST_CASE("Fee pool change without inflation",
     LedgerState ls(app->getLedgerStateRoot());
     auto header = ls.loadHeader();
     header->header().feePool = dist(gen);
-    header->invalidate();
     OperationResult res;
     REQUIRE_THROWS_AS(
-        app->getInvariantManager().checkOnOperationApply({}, res, ls),
+        app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
         InvariantDoesNotHold);
+    header->invalidate();
 }
 
 TEST_CASE("Account balances changed without inflation",
@@ -323,17 +323,15 @@ TEST_CASE("Inflation changes are consistent",
             LedgerState ls(app->getLedgerStateRoot());
             auto header = ls.loadHeader();
             header->header().feePool += deltaFeePool;
-            header->invalidate();
             REQUIRE_THROWS_AS(
-                app->getInvariantManager().checkOnOperationApply({}, opRes, ls),
+                app->getInvariantManager().checkOnOperationApply({}, opRes, ls, header),
                 InvariantDoesNotHold);
 
-            header = ls.loadHeader();
             header->header().totalCoins += deltaFeePool + inflationAmount;
-            header->invalidate();
             REQUIRE_THROWS_AS(
-                app->getInvariantManager().checkOnOperationApply({}, opRes, ls),
+                app->getInvariantManager().checkOnOperationApply({}, opRes, ls, header),
                 InvariantDoesNotHold);
+            header->invalidate();
         }
 
         auto entries2 = updateBalances(entries1, *app, gen, inflationAmount);

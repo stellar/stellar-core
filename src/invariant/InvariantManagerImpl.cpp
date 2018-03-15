@@ -87,22 +87,18 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
 }
 
 void
-InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& opres,
-                                            LedgerState& ls)
+InvariantManagerImpl::checkOnOperationApply(
+    Operation const& operation, OperationResult const& opres,
+    LedgerState const& ls, std::shared_ptr<LedgerHeaderReference const> header)
 {
-    auto header = ls.loadHeader();
-    auto ledgerSeq = getCurrentLedgerVersion(header);
-    header->invalidate();
-
-    if (ledgerSeq < 8)
+    if (getCurrentLedgerVersion(header) < 8)
     {
         return;
     }
 
     for (auto invariant : mEnabled)
     {
-        auto result = invariant->checkOnOperationApply(operation, opres, ls);
+        auto result = invariant->checkOnOperationApply(operation, opres, ls, header);
         if (result.empty())
         {
             continue;
@@ -111,7 +107,7 @@ InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
         auto message = fmt::format(
             R"(Invariant "{}" does not hold on operation: {}{}{})",
             invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
-        onInvariantFailure(invariant, message, ledgerSeq);
+        onInvariantFailure(invariant, message, getCurrentLedgerNum(header));
     }
 }
 

@@ -30,7 +30,8 @@ class ConservationOfLumens : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerState& ls) override;
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header) override;
 
   private:
     int64_t calculateDeltaBalance(std::shared_ptr<LedgerEntry const> const& current,

@@ -34,7 +34,7 @@ AccountSubEntriesCountIsValid::getName() const
 std::string
 AccountSubEntriesCountIsValid::checkOnOperationApply(
     Operation const& operation, OperationResult const& result,
-    LedgerState& ls)
+    LedgerState const& ls, std::shared_ptr<LedgerHeaderReference const> header)
 {
     std::unordered_map<AccountID, SubEntriesChange> subEntriesChange;
     countChangedSubEntries(subEntriesChange, ls);

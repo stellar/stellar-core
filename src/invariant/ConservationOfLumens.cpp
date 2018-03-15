@@ -48,16 +48,14 @@ ConservationOfLumens::calculateDeltaBalance(
 }
 
 std::string
-ConservationOfLumens::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& result,
-                                            LedgerState& ls)
+ConservationOfLumens::checkOnOperationApply(
+    Operation const& operation, OperationResult const& result,
+    LedgerState const& ls, std::shared_ptr<LedgerHeaderReference const> header)
 {
-    auto header = ls.loadHeader();
     int64_t deltaTotalCoins = header->header().totalCoins -
                               header->previousHeader().totalCoins;
     int64_t deltaFeePool = header->header().feePool -
                            header->previousHeader().feePool;
-    header->invalidate();
 
     int64_t deltaBalances = std::accumulate(
         ls.begin(), ls.end(), static_cast<int64_t>(0),
@@ -92,21 +90,17 @@ ConservationOfLumens::checkOnOperationApply(Operation const& operation,
     {
         if (deltaTotalCoins != 0)
         {
-            auto header = ls.loadHeader();
             return fmt::format("LedgerHeader totalCoins changed from {} to"
                                " {} without inflation",
                                header->previousHeader().totalCoins,
                                header->header().totalCoins);
-            header->invalidate();
         }
         if (deltaFeePool != 0)
         {
-            auto header = ls.loadHeader();
             return fmt::format("LedgerHeader feePool changed from {} to"
                                " {} without inflation",
                                header->previousHeader().feePool,
                                header->header().feePool);
-            header->invalidate();
         }
         if (deltaBalances != 0)
         {

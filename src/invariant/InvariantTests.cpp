@@ -10,6 +10,7 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -45,7 +46,8 @@ class TestInvariant : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerState& ls) override
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -143,13 +145,14 @@ TEST_CASE("onOperationApply fail/succeed", "[invariant]")
 
     OperationResult res;
     LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
 
     SECTION("Fail")
     {
         app->getInvariantManager().registerInvariant<TestInvariant>(true);
         app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
         REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnOperationApply({}, res, ls),
+            app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
             InvariantDoesNotHold);
     }
     SECTION("Succeed")
@@ -157,6 +160,8 @@ TEST_CASE("onOperationApply fail/succeed", "[invariant]")
         app->getInvariantManager().registerInvariant<TestInvariant>(false);
         app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
         REQUIRE_NOTHROW(
-            app->getInvariantManager().checkOnOperationApply({}, res, ls));
+            app->getInvariantManager().checkOnOperationApply({}, res, ls, header));
     }
+
+    header->invalidate();
 }

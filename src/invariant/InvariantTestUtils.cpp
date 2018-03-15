@@ -5,6 +5,7 @@
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
+#include "ledger/LedgerHeaderReference.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
@@ -85,7 +86,9 @@ store(Application& app, UpdateList const& apply, LedgerState* lsPtr,
 
     try
     {
-        app.getInvariantManager().checkOnOperationApply({}, *resPtr, *lsPtr);
+        auto header = lsPtr->loadHeader();
+        app.getInvariantManager().checkOnOperationApply({}, *resPtr, *lsPtr, header);
+        header->invalidate();
         if (shouldCommit)
         {
             lsPtr->commit();
