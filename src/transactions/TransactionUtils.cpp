@@ -23,7 +23,7 @@ getCurrentTxFee(LedgerStateRoot& lsr)
 }
 
 uint32_t
-getCurrentTxFee(std::shared_ptr<LedgerHeaderReference> header)
+getCurrentTxFee(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return header->header().baseFee;
 }
@@ -36,7 +36,7 @@ getCurrentMaxTxSetSize(LedgerStateRoot& lsr)
 }
 
 uint32_t
-getCurrentMaxTxSetSize(std::shared_ptr<LedgerHeaderReference> header)
+getCurrentMaxTxSetSize(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return header->header().maxTxSetSize;
 }
@@ -49,7 +49,7 @@ getCurrentLedgerNum(LedgerStateRoot& lsr)
 }
 
 uint32_t
-getCurrentLedgerNum(std::shared_ptr<LedgerHeaderReference> header)
+getCurrentLedgerNum(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return header->header().ledgerSeq;
 }
@@ -62,7 +62,7 @@ getCurrentCloseTime(LedgerStateRoot& lsr)
 }
 
 uint64_t
-getCurrentCloseTime(std::shared_ptr<LedgerHeaderReference> header)
+getCurrentCloseTime(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return header->header().scpValue.closeTime;
 }
@@ -75,7 +75,7 @@ getCurrentMinBalance(LedgerStateRoot& lsr, uint32_t ownerCount)
 }
 
 int64_t
-getCurrentMinBalance(std::shared_ptr<LedgerHeaderReference> header, uint32_t ownerCount)
+getCurrentMinBalance(std::shared_ptr<LedgerHeaderReference const> header, uint32_t ownerCount)
 {
     if (header->header().ledgerVersion <= 8)
     {
@@ -95,16 +95,9 @@ getCurrentLedgerVersion(LedgerStateRoot& lsr)
 }
 
 uint32_t
-getCurrentLedgerVersion(std::shared_ptr<LedgerHeaderReference> header)
+getCurrentLedgerVersion(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return header->header().ledgerVersion;
-}
-
-void
-generateOfferID(std::shared_ptr<LedgerEntryReference> offer,
-                std::shared_ptr<LedgerHeaderReference> header)
-{
-    offer->entry()->data.offer().offerID = ++header->header().idPool;
 }
 
 uint64_t
@@ -115,7 +108,7 @@ getStartingSequenceNumber(LedgerStateRoot& lsr)
 }
 
 uint64_t
-getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference> header)
+getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference const> header)
 {
     return static_cast<uint64_t>(header->header().ledgerSeq) << 32;
 }
@@ -160,8 +153,6 @@ loadExplicitTrustLine(LedgerState& ls, AccountID const& accountID, Asset const& 
 std::shared_ptr<TrustLineReference>
 loadTrustLine(LedgerState& ls, AccountID const& accountID, Asset const& asset)
 {
-    assert(asset.type() == ASSET_TYPE_NATIVE || asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4 || asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12);
-    assert(asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4 || asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12);
     if (accountID == getIssuer(asset))
     {
         return std::make_shared<IssuerTrustLineReference>();

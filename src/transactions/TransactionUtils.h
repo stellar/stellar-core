@@ -19,41 +19,37 @@ class TrustLineReference;
 uint32_t
 getCurrentTxFee(LedgerStateRoot& lsr);
 uint32_t
-getCurrentTxFee(std::shared_ptr<LedgerHeaderReference> header);
+getCurrentTxFee(std::shared_ptr<LedgerHeaderReference const> header);
 
 uint32_t
 getCurrentMaxTxSetSize(LedgerStateRoot& lsr);
 uint32_t
-getCurrentMaxTxSetSize(std::shared_ptr<LedgerHeaderReference> header);
+getCurrentMaxTxSetSize(std::shared_ptr<LedgerHeaderReference const> header);
 
 uint32_t
 getCurrentLedgerNum(LedgerStateRoot& lsr);
 uint32_t
-getCurrentLedgerNum(std::shared_ptr<LedgerHeaderReference> header);
+getCurrentLedgerNum(std::shared_ptr<LedgerHeaderReference const> header);
 
 uint64_t
 getCurrentCloseTime(LedgerStateRoot& lsr);
 uint64_t
-getCurrentCloseTime(std::shared_ptr<LedgerHeaderReference> header);
+getCurrentCloseTime(std::shared_ptr<LedgerHeaderReference const> header);
 
 int64_t
 getCurrentMinBalance(LedgerStateRoot& lsr, uint32_t ownerCount);
 int64_t
-getCurrentMinBalance(std::shared_ptr<LedgerHeaderReference> header, uint32_t ownerCount);
+getCurrentMinBalance(std::shared_ptr<LedgerHeaderReference const> header, uint32_t ownerCount);
 
 uint32_t
 getCurrentLedgerVersion(LedgerStateRoot& lsr);
 uint32_t
-getCurrentLedgerVersion(std::shared_ptr<LedgerHeaderReference> header);
-
-void
-generateOfferID(std::shared_ptr<LedgerEntryReference> offer,
-                std::shared_ptr<LedgerHeaderReference> header);
+getCurrentLedgerVersion(std::shared_ptr<LedgerHeaderReference const> header);
 
 uint64_t
 getStartingSequenceNumber(LedgerStateRoot& lsr);
 uint64_t
-getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference> header);
+getStartingSequenceNumber(std::shared_ptr<LedgerHeaderReference const> header);
 
 AccountReference
 loadAccount(LedgerState& ls, AccountID const& accountID);
