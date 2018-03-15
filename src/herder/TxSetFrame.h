@@ -6,6 +6,7 @@
 
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include <functional>
 
 namespace stellar
 {
