@@ -39,9 +39,10 @@ class LedgerHeaderReference
     LedgerHeaderReference& operator=(LedgerHeaderReference&&) = delete;
 
     LedgerHeader& header();
-    LedgerHeader const& previousHeader();
+    LedgerHeader const& header() const;
+    LedgerHeader const& previousHeader() const;
 
-    bool valid();
+    bool valid() const;
 
     void invalidate();
 

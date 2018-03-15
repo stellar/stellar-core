@@ -44,14 +44,21 @@ LedgerHeaderReference::header()
 }
 
 LedgerHeader const&
-LedgerHeaderReference::previousHeader()
+LedgerHeaderReference::header() const
+{
+    assert(valid());
+    return mHeader;
+}
+
+LedgerHeader const&
+LedgerHeaderReference::previousHeader() const
 {
     assert(valid());
     return mPreviousHeader;
 }
 
 bool
-LedgerHeaderReference::valid()
+LedgerHeaderReference::valid() const
 {
     return mValid;
 }
