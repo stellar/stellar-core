@@ -178,8 +178,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     }
 
     virtual AuthCert getAuthCert();
-    virtual PeerBareAddress
-    makeAddress(unsigned short remoteListeningPort) const = 0;
+    virtual PeerBareAddress makeAddress(int remoteListeningPort) const = 0;
 
     void startIdleTimer();
     void idleTimerExpired(asio::error_code const& error);

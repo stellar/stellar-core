@@ -40,7 +40,7 @@ class PeerStub : public Peer
         mAddress = addres;
     }
     virtual PeerBareAddress
-    makeAddress(unsigned short) const override
+    makeAddress(int) const override
     {
         REQUIRE(false); // should not be called
         return {};

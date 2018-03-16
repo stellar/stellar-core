@@ -150,7 +150,7 @@ PeerBareAddress::toString() const
         return mIP + ":" + std::to_string(mPort);
     }
     default:
-        assert(false);
+        abort();
     }
 }
 
