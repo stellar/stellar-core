@@ -156,7 +156,6 @@ void
 IssuerTrustLineReference::forget(LedgerState& ls)
 {
     assert(mValid);
-    // TODO(jonjove): Other checks here?
 }
 
 void
