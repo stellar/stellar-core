@@ -28,6 +28,12 @@ LedgerStateRoot::LedgerStateRoot(Database& db)
 {
 }
 
+void
+LedgerStateRoot::flushCache()
+{
+    getCache().clear();
+}
+
 bool
 LedgerStateRoot::hasChild()
 {

@@ -19,7 +19,6 @@ namespace stellar
 static std::string
 checkAgainstDatabase(Application& app, LedgerEntry const& entry)
 {
-    // TODO(jonjove): Should flush cache here?
     try
     {
         LedgerState ls(app.getLedgerStateRoot());
@@ -50,7 +49,6 @@ checkAgainstDatabase(Application& app, LedgerEntry const& entry)
 static std::string
 checkAgainstDatabase(Application& app, LedgerKey const& key)
 {
-    // TODO(jonjove): Should flush cache here?
     try
     {
         LedgerState ls(app.getLedgerStateRoot());
@@ -90,6 +88,8 @@ BucketListIsConsistentWithDatabase::checkOnBucketApply(
     std::shared_ptr<Bucket const> bucket, uint32_t oldestLedger,
     uint32_t newestLedger)
 {
+    mApp.getLedgerStateRoot().flushCache();
+
     uint64_t nAccounts = 0, nTrustLines = 0, nOffers = 0, nData = 0;
     bool hasPreviousEntry = false;
     BucketEntry previousEntry;

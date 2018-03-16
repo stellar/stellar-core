@@ -47,6 +47,8 @@ class LedgerStateRoot
     LedgerStateRoot(LedgerStateRoot&&) = delete;
     LedgerStateRoot& operator=(LedgerStateRoot&&) = delete;
 
+    void flushCache();
+
   private:
     explicit LedgerStateRoot(Database& db);
 
