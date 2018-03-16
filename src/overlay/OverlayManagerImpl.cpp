@@ -135,7 +135,16 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
+        if (getPendingPeersCount() < mApp.getConfig().MAX_PENDING_CONNECTIONS)
+        {
+            addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
+        }
+        else
+        {
+            CLOG(DEBUG, "Overlay")
+                << "reached maximum number of pending connections, backing off "
+                << pr.toString();
+        }
     }
     else
     {
