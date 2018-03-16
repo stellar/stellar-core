@@ -58,7 +58,7 @@ PeerBareAddress::PeerBareAddress(PeerAddress const& pa) : mType{Type::IPv4}
     ip << (int)pa.ip.ipv4()[0] << "." << (int)pa.ip.ipv4()[1] << "."
        << (int)pa.ip.ipv4()[2] << "." << (int)pa.ip.ipv4()[3];
     mIP = ip.str();
-    mPort = pa.port;
+    mPort = static_cast<unsigned short>(pa.port);
 }
 
 PeerBareAddress
