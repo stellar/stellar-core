@@ -231,7 +231,11 @@ OverlayManagerImpl::getPreferredPeersFromConfig()
 std::vector<PeerRecord>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum)
 {
-    const int batchSize = std::max(20, maxNum);
+    // don't connect to too many peers at once
+    maxNum = std::min(maxNum, 50);
+
+    // batch is how many peers to load from the database every time
+    const int batchSize = std::max(50, maxNum);
 
     std::vector<PeerRecord> peers;
 
