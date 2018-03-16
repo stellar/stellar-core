@@ -642,24 +642,29 @@ void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     DBTimeExcluder qtExclude(mApp);
-    // TODO(jonjove): Unnecessary ledger state?
-    CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
-                          << getCurrentLedgerNum(mApp.getLedgerStateRoot());
-
-    auto now = mApp.getClock().now();
-    mLedgerAgeClosed.Update(now - mLastClose);
-    mLastClose = now;
-    mLedgerAge.set_count(0);
-
-    // If we do not support ledger version, we can't apply that ledger, fail!
-    if (getCurrentLedgerVersion(mApp.getLedgerStateRoot()) >
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+    LedgerState ls(mApp.getLedgerStateRoot());
     {
-        CLOG(ERROR, "Ledger") << "Unknown ledger version: "
-                              << getCurrentLedgerVersion(mApp.getLedgerStateRoot());
-        throw std::runtime_error(
-            fmt::format("cannot apply ledger with not supported version: {}",
-                        getCurrentLedgerVersion(mApp.getLedgerStateRoot())));
+        auto header = ls.loadHeader();
+        CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
+                              << getCurrentLedgerNum(header);
+
+        auto now = mApp.getClock().now();
+        mLedgerAgeClosed.Update(now - mLastClose);
+        mLastClose = now;
+        mLedgerAge.set_count(0);
+
+        // If we do not support ledger version, we can't apply that ledger, fail!
+        if (getCurrentLedgerVersion(header) >
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            CLOG(ERROR, "Ledger") << "Unknown ledger version: "
+                                  << getCurrentLedgerVersion(header);
+            throw std::runtime_error(
+                fmt::format("cannot apply ledger with not supported version: {}",
+                            getCurrentLedgerVersion(header)));
+        }
+
+        header->invalidate();
     }
 
     if (ledgerData.getTxSet()->previousLedgerHash() !=
@@ -682,8 +687,6 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     {
         throw std::runtime_error("corrupt transaction set");
     }
-
-    LedgerState ls(mApp.getLedgerStateRoot());
 
     auto ledgerTime = mLedgerClose.TimeScope();
 
@@ -906,7 +909,6 @@ LedgerManagerImpl::ledgerClosed(LedgerState& ls)
 {
     auto header = ls.loadHeader();
 
-    // TODO(jonjove): Mark LedgerState meters?
     mApp.getBucketManager().addBatch(mApp, header->header().ledgerSeq,
                                      ls.getLiveEntries(),
                                      ls.getDeadEntries());
