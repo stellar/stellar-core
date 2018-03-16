@@ -31,120 +31,24 @@ static const char* loadPeerRecordSelector =
 using namespace std;
 using namespace soci;
 
-PeerRecord::PeerRecord(string const& ip, unsigned short port,
+PeerRecord::PeerRecord(PeerBareAddress address,
                        VirtualClock::time_point nextAttempt, int fails)
-    : mIP(ip)
-    , mPort(port)
+    : mAddress(std::move(address))
     , mIsPreferred(false)
     , mNextAttempt(nextAttempt)
     , mNumFailures(fails)
 {
-    if (mIP.empty())
+    if (address.isEmpty())
     {
-        throw std::runtime_error("Cannot create PeerRecord with empty ip");
+        throw std::runtime_error("Cannot create PeerRecord with empty address");
     }
-    if (mPort == 0)
-    {
-        throw std::runtime_error("Cannot create PeerRecord with port 0");
-    }
-}
-
-void
-PeerRecord::ipToXdr(string ip, xdr::opaque_array<4U>& ret)
-{
-    stringstream ss(ip);
-    string item;
-    int n = 0;
-    while (getline(ss, item, '.') && n < 4)
-    {
-        ret[n] = static_cast<unsigned char>(atoi(item.c_str()));
-        n++;
-    }
-    if (n != 4)
-        throw runtime_error("PeerRecord::ipToXdr: failed on `" + ip + "`");
 }
 
 void
 PeerRecord::toXdr(PeerAddress& ret) const
 {
-    ret.port = mPort;
+    mAddress.toXdr(ret);
     ret.numFailures = mNumFailures;
-    ipToXdr(mIP, ret.ip.ipv4());
-}
-
-PeerRecord
-PeerRecord::parseIPPort(string const& ipPort, Application& app,
-                        unsigned short defaultPort)
-{
-    static std::regex re(
-        "^(?:(\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})|([[:alnum:].-]+))"
-        "(?:\\:(\\d{1,5}))?$");
-    std::smatch m;
-
-    if (!std::regex_search(ipPort, m, re) || m.empty())
-    {
-        throw std::runtime_error(
-            fmt::format("Cannot parse peer address '{}'", ipPort));
-    }
-
-    asio::ip::tcp::resolver::query::flags resolveflags;
-    std::string toResolve;
-    if (m[1].matched)
-    {
-        resolveflags = asio::ip::tcp::resolver::query::flags::numeric_host;
-        toResolve = m[1].str();
-    }
-    else
-    {
-        resolveflags = asio::ip::tcp::resolver::query::flags::v4_mapped;
-        toResolve = m[2].str();
-    }
-
-    asio::ip::tcp::resolver resolver(app.getWorkerIOService());
-    asio::ip::tcp::resolver::query query(toResolve, "", resolveflags);
-
-    asio::error_code ec;
-    asio::ip::tcp::resolver::iterator i = resolver.resolve(query, ec);
-    if (ec)
-    {
-        LOG(DEBUG) << "Could not resolve '" << ipPort << "' : " << ec.message();
-        throw std::runtime_error(
-            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
-    }
-
-    string ip;
-    while (i != asio::ip::tcp::resolver::iterator())
-    {
-        asio::ip::tcp::endpoint end = *i;
-        if (end.address().is_v4())
-        {
-            ip = end.address().to_v4().to_string();
-            break;
-        }
-        i++;
-    }
-    if (ip.empty())
-    {
-        throw std::runtime_error(
-            fmt::format("Could not resolve '{}': {}", ipPort, ec.message()));
-    }
-
-    unsigned short port = defaultPort;
-    if (m[3].matched)
-    {
-        int parsedPort = atoi(m[3].str().c_str());
-        if (parsedPort <= 0 || parsedPort > UINT16_MAX)
-        {
-            throw std::runtime_error(fmt::format("Could not resolve '{}': {}",
-                                                 ipPort, ec.message()));
-        }
-        port = static_cast<unsigned short>(parsedPort);
-    }
-
-    assert(!ip.empty());
-    assert(port != 0);
-
-    return PeerRecord{ip, port, app.getClock().now(), 0};
 }
 
 // peerRecordProcessor returns false if we should stop processing entries
@@ -174,9 +78,10 @@ PeerRecord::loadPeerRecords(
     {
         if (!ip.empty() && lport > 0)
         {
-            auto pr =
-                PeerRecord{ip, static_cast<unsigned short>(lport),
-                           VirtualClock::tmToPoint(nextAttempt), numFailures};
+            auto address =
+                PeerBareAddress{ip, static_cast<unsigned short>(lport)};
+            auto pr = PeerRecord{address, VirtualClock::tmToPoint(nextAttempt),
+                                 numFailures};
             pr.setPreferred((flags & PEER_RECORD_FLAGS_PREFERRED) != 0);
 
             if (!peerRecordProcessor(pr))
@@ -189,21 +94,17 @@ PeerRecord::loadPeerRecords(
 }
 
 optional<PeerRecord>
-PeerRecord::loadPeerRecord(Database& db, string ip, unsigned short port)
+PeerRecord::loadPeerRecord(Database& db, PeerBareAddress const& address)
 {
-    if (ip.empty() || port == 0)
-    {
-        return nullopt<PeerRecord>();
-    }
-
     std::string sql = loadPeerRecordSelector;
     sql += "WHERE ip = :v1 AND port = :v2";
 
     auto prep = db.getPreparedStatement(sql);
     auto& st = prep.statement();
 
+    auto ip = address.getIP();
     st.exchange(use(ip));
-    int port32(port);
+    int port32(address.getPort());
     st.exchange(use(port32));
 
     optional<PeerRecord> r;
@@ -256,49 +157,6 @@ PeerRecord::loadPeerRecords(Database& db, int batchSize,
 }
 
 bool
-PeerRecord::isSelfAddressAndPort(std::string const& ip,
-                                 unsigned short port) const
-{
-    asio::error_code ec;
-    asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
-    if (ec)
-    {
-        return false;
-    }
-    asio::ip::address_v4 otherAddr = asio::ip::address_v4::from_string(ip, ec);
-    if (ec)
-    {
-        return false;
-    }
-    return (addr == otherAddr && port == mPort);
-}
-
-bool
-PeerRecord::isPrivateAddress() const
-{
-    asio::error_code ec;
-    asio::ip::address_v4 addr = asio::ip::address_v4::from_string(mIP, ec);
-    if (ec)
-    {
-        return false;
-    }
-    unsigned long val = addr.to_ulong();
-    if (((val >> 24) == 10)        // 10.x.y.z
-        || ((val >> 20) == 2753)   // 172.[16-31].x.y
-        || ((val >> 16) == 49320)) // 192.168.x.y
-    {
-        return true;
-    }
-    return false;
-}
-
-bool
-PeerRecord::isLocalhost() const
-{
-    return mIP == "127.0.0.1";
-}
-
-bool
 PeerRecord::isPreferred() const
 {
     return mIsPreferred;
@@ -315,7 +173,7 @@ PeerRecord::insertIfNew(Database& db)
 {
     auto tm = VirtualClock::pointToTm(mNextAttempt);
 
-    auto other = loadPeerRecord(db, mIP, mPort);
+    auto other = loadPeerRecord(db, mAddress);
 
     if (other)
     {
@@ -328,8 +186,9 @@ PeerRecord::insertIfNew(Database& db)
             "( ip,  port, nextattempt, numfailures, flags) VALUES "
             "(:v1, :v2,  :v3,         :v4,          :v5)");
         auto& st = prep.statement();
-        st.exchange(use(mIP));
-        int port = mPort;
+        auto ip = mAddress.getIP();
+        st.exchange(use(ip));
+        int port = mAddress.getPort();
         st.exchange(use(port));
         st.exchange(use(tm));
         st.exchange(use(mNumFailures));
@@ -361,8 +220,9 @@ PeerRecord::storePeerRecord(Database& db)
         st.exchange(use(mNumFailures));
         int flags = (mIsPreferred ? PEER_RECORD_FLAGS_PREFERRED : 0);
         st.exchange(use(flags));
-        st.exchange(use(mIP));
-        int port = mPort;
+        auto ip = mAddress.getIP();
+        st.exchange(use(ip));
+        int port = mAddress.getPort();
         st.exchange(use(port));
         st.define_and_bind();
         {
@@ -408,10 +268,10 @@ PeerRecord::computeBackoff(VirtualClock& clock)
     return nsecs;
 }
 
-string
-PeerRecord::toString()
+std::string
+PeerRecord::toString() const
 {
-    return mIP + ":" + to_string(mPort);
+    return mAddress.toString();
 }
 
 void

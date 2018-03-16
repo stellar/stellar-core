@@ -57,7 +57,6 @@ Peer::Peer(Application& app, PeerRole role)
     , mRole(role)
     , mState(role == WE_CALLED_REMOTE ? CONNECTING : CONNECTED)
     , mRemoteOverlayVersion(0)
-    , mRemoteListeningPort(0)
     , mIdleTimer(app)
     , mLastRead(app.getClock().now())
     , mLastWrite(app.getClock().now())
@@ -156,8 +155,8 @@ Peer::Peer(Application& app, PeerRole role)
           {"overlay", "drop", "recv-hello-ban"}, "drop"))
     , mDropInRecvHelloNetMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-hello-net"}, "drop"))
-    , mDropInRecvHelloPortMeter(app.getMetrics().NewMeter(
-          {"overlay", "drop", "recv-hello-port"}, "drop"))
+    , mDropInRecvHelloAddressMeter(app.getMetrics().NewMeter(
+          {"overlay", "drop", "recv-hello-address"}, "drop"))
     , mDropInRecvAuthUnexpectedMeter(app.getMetrics().NewMeter(
           {"overlay", "drop", "recv-auth-unexpected"}, "drop"))
     , mDropInRecvAuthRejectMeter(app.getMetrics().NewMeter(
@@ -274,9 +273,7 @@ Peer::sendAuth()
 std::string
 Peer::toString()
 {
-    std::stringstream s;
-    s << getIP() << ":" << mRemoteListeningPort;
-    return s.str();
+    return mAddress.toString();
 }
 
 void
@@ -383,26 +380,20 @@ Peer::sendPeers()
 {
     // send top 50 peers we know about
     vector<PeerRecord> peerList;
-    PeerRecord::loadPeerRecords(
-        mApp.getDatabase(), 50, mApp.getClock().now(),
-        [&](PeerRecord const& pr) {
-            if (!pr.isPrivateAddress() &&
-                !pr.isSelfAddressAndPort(getIP(), mRemoteListeningPort))
-            {
-                peerList.emplace_back(pr);
-            }
-            return peerList.size() < 50;
-        });
+    PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
+                                [&](PeerRecord const& pr) {
+                                    if (!pr.getAddress().isPrivate() &&
+                                        pr.getAddress() != mAddress)
+                                    {
+                                        peerList.emplace_back(pr);
+                                    }
+                                    return peerList.size() < 50;
+                                });
     StellarMessage newMsg;
     newMsg.type(PEERS);
     newMsg.peers().reserve(peerList.size());
     for (auto const& pr : peerList)
     {
-        if (pr.isPrivateAddress() ||
-            pr.isSelfAddressAndPort(getIP(), mRemoteListeningPort))
-        {
-            continue;
-        }
         PeerAddress pa;
         pr.toXdr(pa);
         newMsg.peers().push_back(pa);
@@ -874,17 +865,15 @@ Peer::recvError(StellarMessage const& msg)
 void
 Peer::noteHandshakeSuccessInPeerRecord()
 {
-    if (getIP().empty() || getRemoteListeningPort() == 0)
+    if (getAddress().isEmpty())
     {
-        CLOG(ERROR, "Overlay") << "unable to handshake with " << getIP() << ":"
-                               << getRemoteListeningPort();
+        CLOG(ERROR, "Overlay") << "unable to handshake with " << toString();
         mDropInRecvAuthInvalidPeerMeter.Mark();
         drop();
         return;
     }
 
-    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getIP(),
-                                         getRemoteListeningPort());
+    auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getAddress());
     if (pr)
     {
         pr->setPreferred(mApp.getOverlayManager().isPreferred(this));
@@ -892,8 +881,7 @@ Peer::noteHandshakeSuccessInPeerRecord()
     }
     else
     {
-        pr = make_optional<PeerRecord>(getIP(), mRemoteListeningPort,
-                                       mApp.getClock().now());
+        pr = make_optional<PeerRecord>(getAddress(), mApp.getClock().now());
     }
     CLOG(INFO, "Overlay") << "successful handshake with "
                           << mApp.getConfig().toShortString(mPeerID) << "@"
@@ -931,7 +919,6 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    mRemoteListeningPort = static_cast<unsigned short>(elo.listeningPort);
     mRemoteOverlayMinVersion = elo.overlayMinVersion;
     mRemoteOverlayVersion = elo.overlayVersion;
     mRemoteVersion = elo.versionStr;
@@ -1026,11 +1013,12 @@ Peer::recvHello(Hello const& elo)
         }
     }
 
-    if (elo.listeningPort <= 0 || elo.listeningPort > UINT16_MAX)
+    mAddress = makeAddress(elo.listeningPort);
+    if (mAddress.isEmpty())
     {
-        CLOG(WARNING, "Overlay") << "bad port in recvHello";
-        mDropInRecvHelloPortMeter.Mark();
-        drop(ERR_CONF, "bad port number");
+        CLOG(WARNING, "Overlay") << "bad address in recvHello";
+        mDropInRecvHelloAddressMeter.Mark();
+        drop(ERR_CONF, "bad address");
         return;
     }
 
@@ -1117,31 +1105,30 @@ Peer::recvPeers(StellarMessage const& msg)
             mApp.getClock().now() +
             std::chrono::seconds(std::rand() % NEW_PEER_WINDOW_SECONDS);
 
-        stringstream ip;
-        ip << (int)peer.ip.ipv4()[0] << "." << (int)peer.ip.ipv4()[1] << "."
-           << (int)peer.ip.ipv4()[2] << "." << (int)peer.ip.ipv4()[3];
-        // don't use peer.numFailures here as we may have better luck
-        // (and we don't want to poison our failure count)
-        PeerRecord pr{ip.str(), static_cast<unsigned short>(peer.port),
-                      defaultNextAttempt, 0};
+        assert(peer.ip.type() == IPv4);
+        auto address = PeerBareAddress{peer};
 
-        if (pr.isPrivateAddress())
+        if (address.isPrivate())
         {
             CLOG(WARNING, "Overlay")
-                << "ignoring received private address " << pr.toString();
+                << "ignoring received private address " << address.toString();
         }
-        else if (pr.isSelfAddressAndPort(getIP(), mApp.getConfig().PEER_PORT))
+        else if (address == PeerBareAddress{getAddress().getIP(),
+                                            mApp.getConfig().PEER_PORT})
         {
             CLOG(WARNING, "Overlay")
-                << "ignoring received self-address " << pr.toString();
+                << "ignoring received self-address " << address.toString();
         }
-        else if (pr.isLocalhost() &&
+        else if (address.isLocalhost() &&
                  !mApp.getConfig().ALLOW_LOCALHOST_FOR_TESTING)
         {
             CLOG(WARNING, "Overlay") << "ignoring received localhost";
         }
         else
         {
+            // don't use peer.numFailures here as we may have better luck
+            // (and we don't want to poison our failure count)
+            PeerRecord pr{address, defaultNextAttempt, 0};
             pr.insertIfNew(mApp.getDatabase());
         }
     }
