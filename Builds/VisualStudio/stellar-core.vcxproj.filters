@@ -852,6 +852,9 @@
     <ClCompile Include="..\..\src\main\StellarCoreVersion.cpp">
       <Filter>main\generated</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1465,6 +1468,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\main\StellarCoreVersion.h">
       <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
+      <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
