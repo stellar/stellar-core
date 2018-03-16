@@ -28,7 +28,7 @@ LoopbackPeer::LoopbackPeer(Application& app, PeerRole role) : Peer(app, role)
 }
 
 PeerBareAddress
-LoopbackPeer::makeAddress(unsigned short remoteListeningPort) const
+LoopbackPeer::makeAddress(int remoteListeningPort) const
 {
     if (remoteListeningPort <= 0 || remoteListeningPort > UINT16_MAX)
     {
@@ -36,7 +36,8 @@ LoopbackPeer::makeAddress(unsigned short remoteListeningPort) const
     }
     else
     {
-        return PeerBareAddress{"127.0.0.1", remoteListeningPort};
+        return PeerBareAddress{
+            "127.0.0.1", static_cast<unsigned short>(remoteListeningPort)};
     }
 }
 

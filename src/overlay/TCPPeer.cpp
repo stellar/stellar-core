@@ -113,7 +113,7 @@ TCPPeer::~TCPPeer()
 }
 
 PeerBareAddress
-TCPPeer::makeAddress(unsigned short remoteListeningPort) const
+TCPPeer::makeAddress(int remoteListeningPort) const
 {
     asio::error_code ec;
     auto ep = mSocket->next_layer().remote_endpoint(ec);
@@ -123,7 +123,9 @@ TCPPeer::makeAddress(unsigned short remoteListeningPort) const
     }
     else
     {
-        return PeerBareAddress{ep.address().to_string(), remoteListeningPort};
+        return PeerBareAddress{
+            ep.address().to_string(),
+            static_cast<unsigned short>(remoteListeningPort)};
     }
 }
 

@@ -35,8 +35,7 @@ class TCPPeer : public Peer
     bool mDelayedShutdown{false};
     bool mShutdownScheduled{false};
 
-    PeerBareAddress
-    makeAddress(unsigned short remoteListeningPort) const override;
+    PeerBareAddress makeAddress(int remoteListeningPort) const override;
 
     void recvMessage();
     void sendMessage(xdr::msg_ptr&& xdrBytes) override;

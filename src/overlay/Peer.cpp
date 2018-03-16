@@ -378,19 +378,25 @@ Peer::sendGetScpState(uint32 ledgerSeq)
 void
 Peer::sendPeers()
 {
-    // send top 50 peers we know about
+    StellarMessage newMsg;
+    newMsg.type(PEERS);
+    uint32 maxPeerCount = std::min<uint32>(50, newMsg.peers().max_size());
+
+    // send top peers we know about
     vector<PeerRecord> peerList;
     PeerRecord::loadPeerRecords(mApp.getDatabase(), 50, mApp.getClock().now(),
                                 [&](PeerRecord const& pr) {
-                                    if (!pr.getAddress().isPrivate() &&
-                                        pr.getAddress() != mAddress)
+                                    bool r = peerList.size() < maxPeerCount;
+                                    if (r)
                                     {
-                                        peerList.emplace_back(pr);
+                                        if (!pr.getAddress().isPrivate() &&
+                                            pr.getAddress() != mAddress)
+                                        {
+                                            peerList.emplace_back(pr);
+                                        }
                                     }
-                                    return peerList.size() < 50;
+                                    return r;
                                 });
-    StellarMessage newMsg;
-    newMsg.type(PEERS);
     newMsg.peers().reserve(peerList.size());
     for (auto const& pr : peerList)
     {

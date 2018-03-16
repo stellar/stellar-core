@@ -85,5 +85,8 @@ std::string remoteName(std::string const& type, std::string const& hexStr,
 void checkGzipSuffix(std::string const& filename);
 
 void checkNoGzipSuffix(std::string const& filename);
+
+// returns the maximum number of connections that can be done at the same time
+int getMaxConnections();
 }
 }

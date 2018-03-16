@@ -135,7 +135,16 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
         pr.backOff(mApp.getClock());
         pr.storePeerRecord(mApp.getDatabase());
 
-        addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
+        if (getPendingPeersCount() < mApp.getConfig().MAX_PENDING_CONNECTIONS)
+        {
+            addPendingPeer(TCPPeer::initiate(mApp, pr.getAddress()));
+        }
+        else
+        {
+            CLOG(DEBUG, "Overlay")
+                << "reached maximum number of pending connections, backing off "
+                << pr.toString();
+        }
     }
     else
     {
@@ -222,7 +231,11 @@ OverlayManagerImpl::getPreferredPeersFromConfig()
 std::vector<PeerRecord>
 OverlayManagerImpl::getPeersToConnectTo(int maxNum)
 {
-    const int batchSize = std::max(20, maxNum);
+    // don't connect to too many peers at once
+    maxNum = std::min(maxNum, 50);
+
+    // batch is how many peers to load from the database every time
+    const int batchSize = std::max(50, maxNum);
 
     std::vector<PeerRecord> peers;
 

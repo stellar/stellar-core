@@ -125,7 +125,7 @@ PeerRecord::loadPeerRecords(Database& db, int batchSize,
     try
     {
         int offset = 0;
-        bool didSomething;
+        bool lastRes;
         do
         {
             tm nextAttemptMax = VirtualClock::pointToTm(nextAttemptCutoff);
@@ -141,14 +141,14 @@ PeerRecord::loadPeerRecords(Database& db, int batchSize,
             st.exchange(use(batchSize));
             st.exchange(use(offset));
 
-            didSomething = false;
+            lastRes = false;
 
             loadPeerRecords(db, prep, [&](PeerRecord const& pr) {
                 offset++;
-                didSomething = true;
-                return pred(pr);
+                lastRes = pred(pr);
+                return lastRes;
             });
-        } while (didSomething);
+        } while (lastRes);
     }
     catch (soci_error& err)
     {
