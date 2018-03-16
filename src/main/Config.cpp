@@ -11,6 +11,7 @@
 #include "main/ExternalQueue.h"
 #include "main/StellarCoreVersion.h"
 #include "scp/LocalNode.h"
+#include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/types.h"
 
@@ -527,6 +528,17 @@ Config::load(std::string const& filename)
             static_cast<unsigned short>(MAX_ADDITIONAL_PEER_CONNECTIONS +
                                         TARGET_PEER_CONNECTIONS));
 
+        // ensure that max pending connections is not above what the system
+        // supports
+        MAX_PENDING_CONNECTIONS = static_cast<unsigned short>(
+            std::min<int>(MAX_PENDING_CONNECTIONS, fs::getMaxConnections()));
+
+        // enforce TARGET_PEER_CONNECTIONS <= MAX_PEER_CONNECTIONS <=
+        // MAX_PENDING_CONNECTIONS
+        MAX_PEER_CONNECTIONS =
+            std::min(MAX_PEER_CONNECTIONS, MAX_PENDING_CONNECTIONS);
+        TARGET_PEER_CONNECTIONS =
+            std::min(TARGET_PEER_CONNECTIONS, MAX_PEER_CONNECTIONS);
         validateConfig();
     }
     catch (cpptoml::toml_parse_exception& ex)
