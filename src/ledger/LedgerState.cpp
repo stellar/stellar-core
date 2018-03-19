@@ -259,28 +259,6 @@ LedgerState::mergeStateIntoParent()
             ler->invalidate();
             iter->second = ler;
         }
-
-        /*auto const& previous =
-            state.second->ignoreInvalid().previousEntry();
-        auto ler = makeStateEntry(entry, previous);
-        ler->invalidate();
-        mParent->mState[state.first] = ler;*/
-
-        /*auto iter = mParent->mState.find(state.first);
-        if (iter == mParent->mState.end())
-        {
-            auto ler = makeStateEntry(entry, nullptr);
-            ler->invalidate();
-            mParent->mState[state.first] = ler;
-        }
-        else
-        {
-            auto const& previous =
-                iter->second->ignoreInvalid().previousEntry();
-            auto ler = makeStateEntry(entry, previous);
-            ler->invalidate();
-            iter->second = ler;
-        }*/
     }
 }
 
@@ -683,36 +661,6 @@ LedgerState::invalidateLoadBestOfferContext(Asset const& selling,
     }
 }
 
-/*
-LedgerState::LoadBestOfferContext&
-LedgerState::getLoadBestOfferContext(Asset const& selling, Asset const& buying)
-{
-    auto assetPair = std::make_pair(selling, buying);
-    auto iter = mLoadBestOfferContext.find(assetPair);
-    if (iter == mLoadBestOfferContext.end())
-    {
-        auto res = mLoadBestOfferContext.emplace(
-            std::piecewise_construct,
-            std::forward_as_tuple(assetPair),
-            std::forward_as_tuple(selling, buying, *this));
-        iter = res.first;
-    }
-    return iter->second;
-}
-
-void
-LedgerState::invalidateLoadBestOfferContext(Asset const& selling,
-                                            Asset const& buying)
-{
-    auto assetPair = std::make_pair(selling, buying);
-    auto iter = mLoadBestOfferContext.find(assetPair);
-    if (iter != mLoadBestOfferContext.end())
-    {
-        mLoadBestOfferContext.erase(iter);
-    }
-}
-*/
-
 std::vector<LedgerState::StateEntry>
 LedgerState::getOffers(Asset const& selling, Asset const& buying)
 {
@@ -759,15 +707,9 @@ LedgerState::getOffers(Asset const& selling, Asset const& buying,
 }
 
 bool
-LedgerState::isInMemoryNonRecursive(LedgerKey const& key)
-{
-    return mState.find(key) != mState.end();
-}
-
-bool
 LedgerState::isInMemory(LedgerKey const& key)
 {
-    if (isInMemoryNonRecursive(key))
+    if (mState.find(key) != mState.end())
     {
         return true;
     }

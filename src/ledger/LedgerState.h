@@ -80,8 +80,6 @@ class LedgerState
     std::map<LedgerKey, StateEntry> mState;
     StateHeader mHeader;
 
-    //typedef std::pair<Asset, Asset> AssetPair;
-    //std::map<AssetPair, LoadBestOfferContext> mLoadBestOfferContext;
     std::shared_ptr<LoadBestOfferContext> mLoadBestOfferContext;
 
   public:
@@ -109,8 +107,6 @@ class LedgerState
                                                      int64_t minBalance);
 
     void forget(StateEntry se);
-
-    bool isInMemoryNonRecursive(LedgerKey const& key);
 
     class Iterator;
 
@@ -145,28 +141,6 @@ class LedgerState
 
     Iterator begin() const;
     Iterator end() const;
-
-    /*template <typename ValueType>
-    class Iterator : public std::iterator<std::input_iterator_tag, ValueType>
-    {
-        std::map<LedgerKey, StateEntry>::const_iterator mIter;
-
-        mutable bool mCreateValue;
-        mutable ValueType mValue;
-
-        void createValueIfNecessary() const;
-
-      public:
-        Iterator(std::map<LedgerKey, StateEntry>::const_iterator const& iter);
-
-        ValueType const& operator*() const;
-        ValueType const* operator->() const;
-
-        Iterator<ValueType>& operator++();
-
-        bool operator==(Iterator const& other) const;
-        bool operator!=(Iterator const& other) const;
-    };*/
 
   private:
     StateEntry
