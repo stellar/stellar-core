@@ -24,8 +24,6 @@
 #include <random>
 #include <util/basen.h>
 
-#include "xdrpp/printer.h"
-
 using namespace stellar;
 using namespace std::placeholders;
 
@@ -110,15 +108,15 @@ generateLedgers(
         LedgerState lsLive(app->getLedgerStateRoot());
         for (auto& le : live)
         {
-            try
+            auto ler = lsLive.load(LedgerEntryKey(le));
+            if (ler)
             {
-                lsLive.create(le)->invalidate();
-            }
-            catch (std::runtime_error& e)
-            {
-                auto ler = lsLive.load(LedgerEntryKey(le));
                 *ler->entry() = le;
                 ler->invalidate();
+            }
+            else
+            {
+                lsLive.create(le)->invalidate();
             }
             allLive.insert(LedgerEntryKey(le));
         }
@@ -273,7 +271,6 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         , mType{addType}
         , mAdded{false}
     {
-        CLOG(INFO, "Invariant") << "Try to add @ " << mFromLedgerSeq;
     }
 
     Work::State
@@ -297,26 +294,18 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 switch (mType)
                 {
                 case ACCOUNT:
-                    CLOG(INFO, "Invariant")
-                        << "Added account @ " << mFromLedgerSeq;
                     entry.data.account() =
                         LedgerTestUtils::generateValidAccountEntry(5);
                     break;
                 case TRUSTLINE:
-                    CLOG(INFO, "Invariant")
-                        << "Added trustLine @ " << mFromLedgerSeq;
                     entry.data.trustLine() =
                         LedgerTestUtils::generateValidTrustLineEntry(5);
                     break;
                 case OFFER:
-                    CLOG(INFO, "Invariant")
-                        << "Added offer @ " << mFromLedgerSeq;
                     entry.data.offer() =
                         LedgerTestUtils::generateValidOfferEntry(5);
                     break;
                 case DATA:
-                    CLOG(INFO, "Invariant")
-                        << "Added data @ " << mFromLedgerSeq;
                     entry.data.data() =
                         LedgerTestUtils::generateValidDataEntry(5);
                     break;
@@ -365,21 +354,16 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     {
         if (!mDeleted)
         {
-            try
+            LedgerState ls(mApp.getLedgerStateRoot());
+            auto ler = ls.load(mKey);
+            if (ler)
             {
-                LedgerState ls(mApp.getLedgerStateRoot());
-                auto ler = ls.load(mKey);
-                CLOG(INFO, "Invariant") << xdr::xdr_to_string(*ler->entry());
-                CLOG(INFO, "Invariant") << xdr::xdr_to_string(mEntry);
                 if (*ler->entry() == mEntry)
                 {
                     ler->erase();
                     ls.commit();
                     mDeleted = true;
                 }
-            }
-            catch (std::runtime_error& e)
-            {
             }
         }
         auto r = ApplyBucketsWork::onSuccess();
@@ -464,13 +448,12 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
         if (!mModified)
         {
-            try
+            LedgerState ls(mApp.getLedgerStateRoot());
+            auto ler = ls.load(mKey);
+            if (ler)
             {
-                LedgerState ls(mApp.getLedgerStateRoot());
-                auto ler = ls.load(mKey);
                 if (*ler->entry() == mEntry)
                 {
-                    CLOG(INFO, "Invariant") << "Start modify";
                     switch (mEntry.data.type())
                     {
                     case ACCOUNT:
@@ -493,9 +476,6 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                     ls.commit();
                     mModified = true;
                 }
-            }
-            catch (std::runtime_error& e)
-            {
             }
         }
         auto r = ApplyBucketsWork::onSuccess();
@@ -808,7 +788,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
                                                           ledgerSeq));
             {
                 LedgerState ls(appApply->getLedgerStateRoot());
-                REQUIRE_NOTHROW(ls.load(key));
+                REQUIRE(ls.load(key));
             }
 
             // Generate entries to push the selected entry into the lowest
@@ -852,7 +832,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
                                                           ledgerSeq));
             {
                 LedgerState ls(appApply->getLedgerStateRoot());
-                REQUIRE_THROWS(ls.load(key));
+                REQUIRE(!ls.load(key));
             }
             ++nTests;
         }

@@ -19,24 +19,9 @@ namespace stellar
 static std::string
 checkAgainstDatabase(Application& app, LedgerEntry const& entry)
 {
-    try
-    {
-        LedgerState ls(app.getLedgerStateRoot());
-        auto fromDb = ls.load(LedgerEntryKey(entry));
-
-        if (*fromDb->entry() == entry)
-        {
-            return {};
-        }
-        else
-        {
-            std::string s{"Inconsistent state between objects: "};
-            s += xdr::xdr_to_string(*fromDb->entry(), "db");
-            s += xdr::xdr_to_string(entry, "live");
-            return s;
-        }
-    }
-    catch (std::runtime_error& e)
+    LedgerState ls(app.getLedgerStateRoot());
+    auto fromDb = ls.load(LedgerEntryKey(entry));
+    if (!fromDb)
     {
         std::string s{
             "Inconsistent state between objects (not found in database): "};
@@ -44,24 +29,32 @@ checkAgainstDatabase(Application& app, LedgerEntry const& entry)
         return s;
     }
 
+    if (*fromDb->entry() == entry)
+    {
+        return {};
+    }
+    else
+    {
+        std::string s{"Inconsistent state between objects: "};
+        s += xdr::xdr_to_string(*fromDb->entry(), "db");
+        s += xdr::xdr_to_string(entry, "live");
+        return s;
+    }
 }
 
 static std::string
 checkAgainstDatabase(Application& app, LedgerKey const& key)
 {
-    try
-    {
-        LedgerState ls(app.getLedgerStateRoot());
-        auto fromDb = ls.load(key);
-
-        std::string s = "Entry with type DEADENTRY found in database ";
-        s += xdr::xdr_to_string(*fromDb->entry(), "db");
-        return s;
-    }
-    catch (std::runtime_error& e)
+    LedgerState ls(app.getLedgerStateRoot());
+    auto fromDb = ls.load(key);
+    if (!fromDb)
     {
         return {};
     }
+
+    std::string s = "Entry with type DEADENTRY found in database ";
+    s += xdr::xdr_to_string(*fromDb->entry(), "db");
+    return s;
 }
 
 std::shared_ptr<Invariant>

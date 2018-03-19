@@ -43,7 +43,10 @@ LedgerStateRoot::hasChild()
 void
 LedgerStateRoot::hasChild(bool child)
 {
-    assert(!child || !mHasChild);
+    if (child && mHasChild)
+    {
+        throw std::runtime_error("LedgerStateRoot already has a child");
+    }
     mHasChild = child;
 }
 
@@ -85,7 +88,7 @@ LedgerState::LedgerState(LedgerState& parent)
                 std::move(*mParent->mLoadBestOfferContext), *this)
             : nullptr)
 {
-    assert(!mParent->mChild);
+    mParent->throwIfHasChild();
     mParent->mChild = this;
     for (auto const& state : mParent->mState)
     {
@@ -114,8 +117,8 @@ LedgerState::~LedgerState()
 LedgerEntryChanges
 LedgerState::getChanges()
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
     LedgerEntryChanges changes;
     for (auto const& state : mState)
@@ -152,8 +155,8 @@ LedgerState::getChanges()
 std::vector<LedgerEntry>
 LedgerState::getLiveEntries()
 {
-    assert(mRoot);
-    assert(!mChild);
+    throwIfNotRoot();
+    throwIfHasChild();
 
     std::vector<LedgerEntry> entries;
     for (auto const& state : mState)
@@ -170,8 +173,8 @@ LedgerState::getLiveEntries()
 std::vector<LedgerKey>
 LedgerState::getDeadEntries()
 {
-    assert(mRoot);
-    assert(!mChild);
+    throwIfNotRoot();
+    throwIfHasChild();
 
     std::vector<LedgerKey> keys;
     for (auto const& state : mState)
@@ -188,8 +191,8 @@ LedgerState::getDeadEntries()
 void
 LedgerState::commit(std::function<void()> onCommitToDatabase)
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
     if (mParent)
     {
@@ -305,7 +308,7 @@ LedgerState::mergeHeaderIntoRoot()
 void
 LedgerState::rollback()
 {
-    assert(mParent || mRoot);
+    throwIfAlreadyHandled();
 
     if (mChild)
     {
@@ -332,11 +335,15 @@ LedgerState::rollback()
 LedgerState::StateEntry
 LedgerState::create(LedgerEntry const& entry)
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
     auto key = LedgerEntryKey(entry);
     auto ler = createHelper(entry, key);
+    if (!ler)
+    {
+        return ler;
+    }
     mState[key] = ler;
 
     if (entry.data.type() == OFFER)
@@ -365,7 +372,7 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
         //    lsParent.create(key);
         if (iter->second->ignoreInvalid().entry())
         {
-            throw std::runtime_error("Key already exists in memory");
+            return nullptr;
         }
 
         auto newEntry = std::make_shared<LedgerEntry>(entry);
@@ -388,7 +395,7 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
     {
         if (loadFromDatabase(key))
         {
-            throw std::runtime_error("Key already exists in database");
+            return nullptr;
         }
         auto newEntry = std::make_shared<LedgerEntry>(entry);
         ler = makeStateEntry(newEntry, nullptr);
@@ -399,10 +406,14 @@ LedgerState::createHelper(LedgerEntry const& entry, LedgerKey const& key)
 LedgerState::StateEntry
 LedgerState::load(LedgerKey const& key)
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
     auto ler = loadHelper(key);
+    if (!ler)
+    {
+        return ler;
+    }
     mState[key] = ler;
 
     if (ler->entry()->data.type() == OFFER)
@@ -438,8 +449,7 @@ LedgerState::loadHelper(LedgerKey const& key)
         auto const& entry = iter->second->ignoreInvalid().entry();
         if (!entry)
         {
-            throw std::runtime_error(
-                "Key exists in memory but LedgerEntry has been erased");
+            return nullptr;
         }
 
         if (!mChild)
@@ -462,7 +472,7 @@ LedgerState::loadHelper(LedgerKey const& key)
         ler = loadFromDatabase(key);
         if (!ler)
         {
-            throw std::runtime_error("Key does not exist in database");
+            return nullptr;
         }
     }
     return ler;
@@ -471,8 +481,8 @@ LedgerState::loadHelper(LedgerKey const& key)
 LedgerState::StateHeader
 LedgerState::loadHeader()
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
     mHeader = loadHeaderHelper();
     return mHeader;
@@ -516,7 +526,7 @@ LedgerState::loadHeaderHelper()
 LedgerState::StateEntry
 LedgerState::loadFromDatabase(LedgerKey const& key)
 {
-    assert(mRoot);
+    throwIfNotRoot();
 
     auto cacheKey = binToHex(xdr::xdr_to_opaque(key));
     if (mRoot->getCache().exists(cacheKey))
@@ -566,8 +576,11 @@ LedgerState::loadFromDatabase(LedgerKey const& key)
 void
 LedgerState::storeInDatabase(StateEntry const& state)
 {
-    assert(mRoot);
-    assert(state->ignoreInvalid().entry());
+    throwIfNotRoot();
+    if (!state->ignoreInvalid().entry())
+    {
+        throw std::runtime_error("No LedgerEntry to store in database");
+    }
 
     auto const& entry = *state->ignoreInvalid().entry();
     auto key = LedgerEntryKey(entry);
@@ -596,8 +609,11 @@ LedgerState::storeInDatabase(StateEntry const& state)
 void
 LedgerState::deleteFromDatabase(StateEntry const& state)
 {
-    assert(mRoot);
-    assert(!state->ignoreInvalid().entry());
+    throwIfNotRoot();
+    if (state->ignoreInvalid().entry())
+    {
+        throw std::runtime_error("LedgerEntry still exists");
+    }
 
     if (!state->ignoreInvalid().previousEntry())
     {
@@ -631,8 +647,8 @@ LedgerState::deleteFromDatabase(StateEntry const& state)
 LedgerState::StateEntry
 LedgerState::loadBestOffer(Asset const& selling, Asset const& buying)
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
     return getLoadBestOfferContext(selling, buying)->loadBestOffer();
 }
 
@@ -689,7 +705,10 @@ LedgerState::getOffers(Asset const& selling, Asset const& buying,
         {
             continue;
         }
-        assert(!state.second->valid());
+        else if (state.second->valid())
+        {
+            throw std::runtime_error("Found valid offer while loading best offers");
+        }
 
         // Note: Can't compare Assets with !=
         auto const& offer = state.second->ignoreInvalid().entry()->data.offer();
@@ -854,7 +873,10 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
         // value so we push it back onto the heap before loading the next data.
         // In the second case, it is possible that mTop is returned again (if it
         // is still the best offer) or that a different offer is returned.
-        assert(!mTop->valid());
+        if (mTop->valid())
+        {
+            throw std::runtime_error("Previous best offer is still valid");
+        }
         if (mTop->ignoreInvalid().entry())
         {
             mInMemory.push(mTop);
@@ -991,11 +1013,13 @@ LedgerState::loadInflationWinners(size_t maxWinners, int64_t minBalance)
 void
 LedgerState::forget(StateEntry se)
 {
-    assert(mParent || mRoot);
-    assert(!mChild);
+    throwIfAlreadyHandled();
+    throwIfHasChild();
 
-    assert(se);
-    assert(se->valid());
+    if (!se || !se->valid())
+    {
+        throw std::runtime_error("LedgerEntryReference is invalid");
+    }
 
     if (!mHeader)
     {
@@ -1003,15 +1027,19 @@ LedgerState::forget(StateEntry se)
     }
     if (mHeader->ignoreInvalid().header().ledgerVersion >= 8)
     {
-        assert(se->entry());
-        assert(se->previousEntry());
-        assert(*se->entry() == *se->previousEntry());
+        if (!se->entry() || !se->previousEntry() ||
+            (*se->entry() != *se->previousEntry()))
+        {
+            throw std::runtime_error("LedgerEntry was modified");
+        }
     }
 
     auto key = LedgerEntryKey(*se->entry());
     auto iter = mState.find(key);
-    assert(iter != mState.end());
-    assert(iter->second == se);
+    if ((iter == mState.end()) || (iter->second != se))
+    {
+        throw std::runtime_error("LedgerEntryReference is not in memory");
+    }
 
     if (key.type() == OFFER)
     {
@@ -1128,6 +1156,33 @@ LedgerState::updateLastModified()
         {
             entry->lastModifiedLedgerSeq = ledgerSeq;
         }
+    }
+}
+
+void
+LedgerState::throwIfAlreadyHandled()
+{
+    if (!mParent && !mRoot)
+    {
+        throw std::runtime_error("LedgerState was already handled");
+    }
+}
+
+void
+LedgerState::throwIfHasChild()
+{
+    if (mChild)
+    {
+        throw std::runtime_error("LedgerState has a child");
+    }
+}
+
+void
+LedgerState::throwIfNotRoot()
+{
+    if (!mRoot)
+    {
+        throw std::runtime_error("LedgerState is not root");
     }
 }
 

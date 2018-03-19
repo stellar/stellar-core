@@ -1459,7 +1459,7 @@ TEST_CASE("payment", "[tx][payment]")
                 key.trustLine().accountID = a1.getPublicKey();
                 key.trustLine().asset = idr;
                 LedgerState ls(app->getLedgerStateRoot());
-                REQUIRE_NOTHROW(ls.load(key));
+                REQUIRE(ls.load(key));
             }
             REQUIRE(app->countTrustLines({1, INT32_MAX}) == 1);
             // Since a1 has a trustline, and there is only 1 trustline, we know

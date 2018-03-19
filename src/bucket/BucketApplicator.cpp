@@ -33,24 +33,23 @@ BucketApplicator::advance()
         auto const& entry = *mBucketIter;
         if (entry.type() == LIVEENTRY)
         {
-            try
+            auto key = LedgerEntryKey(entry.liveEntry());
+            auto ler = ls.load(key);
+            if (ler)
             {
-                auto key = LedgerEntryKey(entry.liveEntry());
-                *ls.load(key)->entry() = entry.liveEntry();
+                *ler->entry() = entry.liveEntry();
             }
-            catch (std::runtime_error& e)
+            else
             {
                 ls.create(entry.liveEntry());
             }
         }
         else
         {
-            try
+            auto ler = ls.load(entry.deadEntry());
+            if (ler)
             {
-                ls.load(entry.deadEntry())->erase();
-            }
-            catch (std::runtime_error& e)
-            {
+                ler->erase();
             }
         }
         if ((++mSize & 0xff) == 0xff)

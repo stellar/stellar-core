@@ -143,6 +143,10 @@ class LedgerState
     Iterator end() const;
 
   private:
+    void throwIfAlreadyHandled();
+    void throwIfHasChild();
+    void throwIfNotRoot();
+
     StateEntry
     makeStateEntry(std::shared_ptr<LedgerEntry const> const& entry,
                    std::shared_ptr<LedgerEntry const> const& previous);

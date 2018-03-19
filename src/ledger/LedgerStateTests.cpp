@@ -127,8 +127,7 @@ TEST_CASE("LedgerState::commit", "[ledger][ledgerstate][commit]")
                 }
                 {
                     LedgerState ls(root);
-                    REQUIRE_THROWS_WITH(ls.load(key),
-                                        "Key does not exist in database");
+                    REQUIRE(!ls.load(key));
                 }
             }
         }
@@ -158,8 +157,7 @@ TEST_CASE("LedgerState::create", "[ledger][ledgerstate][create]")
                 {
                     LedgerState ls(root);
                     auto ler = ls.create(le);
-                    REQUIRE_THROWS_WITH(ls.create(le),
-                                        "Key already exists in memory");
+                    REQUIRE(!ls.create(le));
 
                     ler->erase();
                     ler = ls.create(le);
@@ -187,8 +185,7 @@ TEST_CASE("LedgerState::create", "[ledger][ledgerstate][create]")
                 }
                 {
                     LedgerState ls(root);
-                    REQUIRE_THROWS_WITH(ls.create(le),
-                                        "Key already exists in database");
+                    REQUIRE(!ls.create(le));
                 }
             }
         }
@@ -225,9 +222,7 @@ TEST_CASE("LedgerState::load", "[ledger][ledgerstate][load]")
                                         "exists for this key");
                     ler->erase();
                     ler->invalidate();
-                    REQUIRE_THROWS_WITH(
-                        ls.load(key),
-                        "Key exists in memory but LedgerEntry has been erased");
+                    REQUIRE(!ls.load(key));
 
                     ler = ls.create(le);
                     *ler->entry() = le2;
@@ -492,8 +487,7 @@ TEST_CASE("LedgerState::rollback", "[ledger][ledgerstate][rollback]")
             }
             {
                 LedgerState ls(root);
-                REQUIRE_THROWS_WITH(ls.load(key),
-                                    "Key does not exist in database");
+                REQUIRE(!ls.load(key));
             }
 
             {
@@ -543,7 +537,7 @@ TEST_CASE("Exception during LedgerState::commit leaves cache valid",
             }
             {
                 LedgerState ls(root);
-                REQUIRE_THROWS_AS(ls.create(le), std::runtime_error);
+                REQUIRE(!ls.create(le));
             }
         }
     }
@@ -644,7 +638,7 @@ TEST_CASE("LedgerState::forget and LedgerEntryReference::forgetFromLedgerState",
                 LedgerState lsChild(ls);
                 auto ler = lsChild.load(key);
                 lsChild.forget(ler);
-                REQUIRE_THROWS_AS(lsChild.create(le), std::runtime_error);
+                REQUIRE(!lsChild.create(le));
                 REQUIRE(*lsChild.load(key)->entry() == le);
             }
         }

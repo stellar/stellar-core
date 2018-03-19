@@ -124,14 +124,7 @@ loadAccountRaw(LedgerState& ls, AccountID const& accountID)
 {
     LedgerKey key(ACCOUNT);
     key.account().accountID = accountID;
-    try
-    {
-        return ls.load(key);
-    }
-    catch (std::runtime_error& e)
-    {
-        return nullptr;
-    }
+    return ls.load(key);
 }
 
 std::shared_ptr<ExplicitTrustLineReference>
@@ -140,11 +133,12 @@ loadExplicitTrustLine(LedgerState& ls, AccountID const& accountID, Asset const& 
     LedgerKey key(TRUSTLINE);
     key.trustLine().accountID = accountID;
     key.trustLine().asset = asset;
-    try
+    auto ler = ls.load(key);
+    if (ler)
     {
-        return std::make_shared<ExplicitTrustLineReference>(ls.load(key));
+        return std::make_shared<ExplicitTrustLineReference>(ler);
     }
-    catch (std::runtime_error& e)
+    else
     {
         return nullptr;
     }
@@ -169,14 +163,7 @@ loadOffer(LedgerState& ls, AccountID const& accountID, uint64_t offerID)
     LedgerKey key(OFFER);
     key.offer().sellerID = accountID;
     key.offer().offerID = offerID;
-    try
-    {
-        return ls.load(key);
-    }
-    catch (std::runtime_error& e)
-    {
-        return {nullptr};
-    }
+    return ls.load(key);
 }
 
 std::shared_ptr<LedgerEntryReference>
@@ -185,13 +172,6 @@ loadData(LedgerState& ls, AccountID const& accountID, std::string const& dataNam
     LedgerKey key(DATA);
     key.data().accountID = accountID;
     key.data().dataName = dataName;
-    try
-    {
-        return ls.load(key);
-    }
-    catch (std::runtime_error& e)
-    {
-        return {nullptr};
-    }
+    return ls.load(key);
 }
 }

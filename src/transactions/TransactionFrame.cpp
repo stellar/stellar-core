@@ -558,7 +558,7 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
             }
             if (!errorEncountered)
             {
-                auto header = ls.loadHeader();
+                auto header = lsOperation.loadHeader();
                 app.getInvariantManager().checkOnOperationApply(
                     op->getOperation(), op->getResult(), lsOperation, header);
             }
