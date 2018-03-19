@@ -185,6 +185,7 @@ stellar-core loads `./stellar-core.cfg`, but you can specify a different file to
 
 `$ stellar-core --conf betterfile.cfg` 
 
+
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) is **not a real configuration** and should only be used as a reference guide: it documents all possible configuration elements as well as default values.
 
 Here is an [example test network config](https://github.com/stellar/docker-stellar-core-horizon/blob/master/testnet/core/etc/stellar-core.cfg) for connecting to the test network.
@@ -452,7 +453,7 @@ as `curl`, or by running a command such as
 
 `$ stellar-core -c <command>`
 
-The endpoint is [not intended to be exposed to the public internet](#interaction-with other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
+The endpoint is [not intended to be exposed to the public internet](#interaction-with-other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
 
 See [commands](./commands.md) for a description of the available commands.
 
