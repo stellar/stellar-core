@@ -158,11 +158,11 @@ _See [`src/transactions/readme.md`](../transactions/readme.md) for more detail
 on how transactions are applied._
 
 3. After applying each transaction its result is stored in the transaction history
-table (see [Historical Data](###Historical-Data)) and side effects (captured in LedgerDelta) are saved.
+table (see [Historical Data](#historical-data)) and side effects (captured in LedgerDelta) are saved.
 
 4. After all transactions have been applied, the changes are committed to
 the current state of the database via SQL commit and to the overall LedgerDelta
-for the entire Ledger close is fed to the BucketManager (see [BucketManager](##BucketManager)).
+for the entire Ledger close is fed to the BucketManager (see [BucketManager](#bucketmanager)).
 
 5. At this point the module notifies the history subsystem that a ledger was
 closed so that it can publish the new ledger/transaction set for long term storage.

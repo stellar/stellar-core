@@ -6,7 +6,7 @@ stellar-core can be controlled via the following commands.
 
 ## Command line options
 * **--?** or **--help**: Print the available command line options and then exit..
-* **--c** Send an [HTTP command](#HTTP-Commands) to an already running local instance of stellar-core and then exit. For example: 
+* **--c** Send an [HTTP command](#http-commands) to an already running local instance of stellar-core and then exit. For example: 
 
 `$ stellar-core -c info`
 
