@@ -161,7 +161,8 @@ PathPaymentOpFrame::doApply(Application& app, LedgerState& ls)
 
         if (curA.type() != ASSET_TYPE_NATIVE)
         {
-            auto issuer = stellar::loadAccount(ls, getIssuer(curA));
+            LedgerState lsIssuer(ls);
+            auto issuer = stellar::loadAccount(lsIssuer, getIssuer(curA));
             if (!issuer)
             {
                 app.getMetrics()
@@ -172,7 +173,6 @@ PathPaymentOpFrame::doApply(Application& app, LedgerState& ls)
                 innerResult().noIssuer() = curA;
                 return false;
             }
-            issuer.forget(ls);
         }
 
         OfferExchange oe;
