@@ -19,6 +19,10 @@
 
 #if defined(__MACH__) && defined(__APPLE__)
 
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+#include <atomic>
+#endif
+
 #include <libkern/OSAtomic.h>
 
 #include "asio/detail/push_options.hpp"
@@ -41,13 +45,23 @@ public:
   // Constructor for a full fenced block.
   explicit macos_fenced_block(full_t)
   {
+    #if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+    std::atomic_thread_fence(std::memory_order_acquire);
+    #else 
     OSMemoryBarrier();
+    #endif
+
+    
   }
 
   // Destructor.
   ~macos_fenced_block()
   {
+    #if MAC_OS_X_VERSION_MIN_REQUIRED >= MAC_OS_X_VERSION_10_12
+    std::atomic_thread_fence(std::memory_order_release);
+    #else 
     OSMemoryBarrier();
+    #endif
   }
 };
 
