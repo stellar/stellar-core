@@ -486,6 +486,7 @@ ProcessManagerImpl::maybeRunPendingProcesses()
         }
         catch (std::runtime_error& e)
         {
+            i->cancel(std::make_error_code(std::errc::io_error));
             CLOG(ERROR, "Process") << "Error starting process: " << e.what();
             CLOG(ERROR, "Process") << "When running: " << i->mCmdLine;
         }
