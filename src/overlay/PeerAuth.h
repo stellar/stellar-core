@@ -2,15 +2,16 @@
 
 #include "crypto/ECDH.h"
 #include "overlay/Peer.h"
+#include "overlay/PeerSharedKeyId.h"
 #include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
 
 // Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 namespace stellar
 {
-
 class PeerAuth
 {
     // Authentication system keys. Our ECDH secret and public keys are
@@ -29,7 +30,7 @@ class PeerAuth
     Curve25519Public mECDHPublicKey;
     AuthCert mCert;
 
-    cache::lru_cache<Curve25519Public, HmacSha256Key> mSharedKeyCache;
+    cache::lru_cache<PeerSharedKeyId, HmacSha256Key> mSharedKeyCache;
 
     HmacSha256Key getSharedKey(Curve25519Public const& remotePublic,
                                Peer::PeerRole role);

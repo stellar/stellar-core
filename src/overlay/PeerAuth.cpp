@@ -76,14 +76,16 @@ HmacSha256Key
 PeerAuth::getSharedKey(Curve25519Public const& remotePublic,
                        Peer::PeerRole role)
 {
-    if (mSharedKeyCache.exists(remotePublic))
+    auto key = PeerSharedKeyId{remotePublic, role};
+    if (mSharedKeyCache.exists(key))
     {
-        return mSharedKeyCache.get(remotePublic);
+        return mSharedKeyCache.get(key);
     }
-    auto k = EcdhDeriveSharedKey(mECDHSecretKey, mECDHPublicKey, remotePublic,
-                                 role == Peer::WE_CALLED_REMOTE);
-    mSharedKeyCache.put(remotePublic, k);
-    return k;
+    auto value =
+        EcdhDeriveSharedKey(mECDHSecretKey, mECDHPublicKey, remotePublic,
+                            role == Peer::WE_CALLED_REMOTE);
+    mSharedKeyCache.put(key, value);
+    return value;
 }
 
 HmacSha256Key
