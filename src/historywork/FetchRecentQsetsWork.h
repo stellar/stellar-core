@@ -15,9 +15,6 @@ struct InferredQuorum;
 
 class FetchRecentQsetsWork : public Work
 {
-
-    typedef std::function<void(asio::error_code const& ec)> handler;
-    handler mEndHandler;
     std::unique_ptr<TmpDir> mDownloadDir;
     InferredQuorum& mInferredQuorum;
     HistoryArchiveState mRemoteState;
@@ -26,10 +23,9 @@ class FetchRecentQsetsWork : public Work
 
   public:
     FetchRecentQsetsWork(Application& app, WorkParent& parent,
-                         InferredQuorum& iq, handler endHandler);
+                         InferredQuorum& iq);
     ~FetchRecentQsetsWork();
     void onReset() override;
-    void onFailureRaise() override;
     Work::State onSuccess() override;
 };
 }

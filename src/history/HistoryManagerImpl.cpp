@@ -347,15 +347,8 @@ InferredQuorum
 HistoryManagerImpl::inferQuorum()
 {
     InferredQuorum iq;
-    bool done = false;
-    auto handler = [&done](asio::error_code const& ec) { done = true; };
     CLOG(INFO, "History") << "Starting FetchRecentQsetsWork";
-    mApp.getWorkManager().addWork<FetchRecentQsetsWork>(iq, handler);
-    mApp.getWorkManager().advanceChildren();
-    while (!done)
-    {
-        mApp.getClock().crank(false);
-    }
+    mApp.getWorkManager().executeWork<FetchRecentQsetsWork>(false, iq);
     return iq;
 }
 
