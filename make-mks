@@ -45,10 +45,10 @@ listall() {
 
  echo SQLITE3_FILES = $(listall sqlite)
  echo UTIL_FILES = $(listall util http)
- echo ASIO_H_FILES = $(listall asio/include)
+ echo ASIO_H_FILES = $(listall asio/asio/include)
  # The following does not work without boost or -DASIO_STANDALONE=1
  #echo ASIO_CXX_FILES = asio/src/*.cpp
- echo ASIO_CXX_FILES = asio/src/asio.cpp
+ echo ASIO_CXX_FILES = asio.cpp
  echo JSON_FILES = $(listall json)
 
  echo MISC_H_FILES = *.hpp $(listall autocheck cereal)

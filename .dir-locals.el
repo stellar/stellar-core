@@ -5,7 +5,7 @@
  (nil . ((flycheck-clang-language-standard . "c++11")
          (flycheck-clang-include-path . ("."
                                          "src"
-                                         "lib/asio/include"
+                                         "lib/asio/asio/include"
                                          "lib/autocheck/include"
                                          "lib/cereal/include"
                                          "lib/util"

@@ -20,10 +20,17 @@ case "$1" in
 	;;
 esac
 
+
 case "${skip_submodules}" in
     0|no|false|"")
         git submodule update --init
-        git submodule foreach 'test ! -x ./autogen.sh || ./autogen.sh'
+        git submodule foreach '
+            autogen=$(find . -name autogen.sh)
+            if [ -x "$autogen" ]; then
+                cd $(dirname "$autogen")
+                ./autogen.sh
+            fi
+            '
     ;;
 esac
 
