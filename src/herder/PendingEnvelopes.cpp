@@ -67,6 +67,10 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
     mQsetCache.put(hash, qset);
+
+    // force recomputation of transitive quorum information
+    mNodesInQuorum.clear();
+
     mQuorumSetFetcher.recv(hash);
 }
 
@@ -139,27 +143,16 @@ PendingEnvelopes::isNodeInQuorum(NodeID const& node)
     {
         res = mNodesInQuorum.get(node);
     }
-
-    if (!res)
+    else
     {
         // search through the known slots
         SCP::TriBool r = mHerder.getSCP().isNodeInQuorum(node);
-        if (r == SCP::TB_TRUE)
-        {
-            // only cache positive answers
-            // so that nodes can be added during rounds
-            mNodesInQuorum.put(node, true);
-            res = true;
-        }
-        else if (r == SCP::TB_FALSE)
-        {
-            res = false;
-        }
-        else
-        {
-            // MAYBE -> return true, but don't cache
-            res = true;
-        }
+
+        // consider a node in quorum if it's either in quorum
+        // or we don't know if it is (until we get further evidence)
+        res = (r != SCP::TB_FALSE);
+
+        mNodesInQuorum.put(node, res);
     }
 
     return res;
@@ -420,6 +413,9 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
 void
 PendingEnvelopes::slotClosed(uint64 slotIndex)
 {
+    // force recomputing the quorums
+    mNodesInQuorum.clear();
+
     // stop processing envelopes & downloads for the slot falling off the
     // window
     if (slotIndex > Herder::MAX_SLOTS_TO_REMEMBER)
