@@ -29,9 +29,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
     Simulation::pointer simulation;
 
     // make closing very slow
-    auto cfgGen = []() {
-        static int cfgNum = 1;
-        Config cfg = getTestConfig(cfgNum++);
+    auto cfgGen = [](int cfgNum) {
+        Config cfg = getTestConfig(cfgNum);
         cfg.ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING = 10000;
         return cfg;
     };

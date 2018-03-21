@@ -73,6 +73,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         cfgs[instanceNumber] = stellar::make_unique<Config>();
         Config& thisConfig = *cfgs[instanceNumber];
+        thisConfig.USE_CONFIG_FOR_GENESIS = true;
 
         std::ostringstream sstream;
 
