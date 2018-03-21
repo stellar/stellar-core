@@ -34,8 +34,10 @@ struct ThresholdSetter
     optional<int> highThreshold;
 };
 
-bool applyCheck(TransactionFramePtr tx, Application& app);
-void applyTx(TransactionFramePtr const& tx, Application& app);
+bool applyCheck(TransactionFramePtr tx, Application& app,
+                bool checkSeqNum = true);
+void applyTx(TransactionFramePtr const& tx, Application& app,
+             bool checkSeqNum = true);
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
@@ -76,6 +78,8 @@ Operation inflation();
 Operation accountMerge(PublicKey const& dest);
 
 Operation manageData(std::string const& name, DataValue* value);
+
+Operation bumpSequence(SequenceNumber to);
 
 Operation createAccount(PublicKey const& dest, int64_t amount);
 

@@ -248,7 +248,6 @@ AccountFrame::loadAccount(AccountID const& accountID, Database& db)
         auto timer = db.getSelectTimer("account");
         st.execute(true);
     }
-
     if (!st.got_data())
     {
         putCachedEntry(key, nullptr, db);

@@ -4,6 +4,7 @@
 
 #include "transactions/MergeOpFrame.h"
 #include "database/Database.h"
+#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -92,6 +93,24 @@ MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
+    if (ledgerManager.getCurrentLedgerVersion() >= 10)
+    {
+        SequenceNumber maxSeq = LedgerHeaderFrame::getStartingSequenceNumber(
+            ledgerManager.getCurrentLedgerHeader().ledgerSeq);
+
+        // don't allow the account to be merged if recreating it would cause it
+        // to jump backwards
+        if (mSourceAccount->getSeqNum() >= maxSeq)
+        {
+            app.getMetrics()
+                .NewMeter({"op-merge", "failure", "too-far"}, "operation")
+                .Mark();
+            innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
+            return false;
+        }
+    }
+
+    // "success" path starts
     if (!otherAccount->addBalance(sourceBalance))
     {
         throw std::runtime_error("merge overflowed destination balance");

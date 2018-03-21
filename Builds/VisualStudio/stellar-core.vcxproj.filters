@@ -855,6 +855,12 @@
     <ClCompile Include="..\..\src\overlay\PeerBareAddress.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpSequenceTests.cpp">
+      <Filter>transactions\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
+      <Filter>transactions</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1465,6 +1471,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\database\DatabaseUtils.h">
       <Filter>database</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h">
+      <Filter>transactions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\StellarCoreVersion.h">
       <Filter>main</Filter>

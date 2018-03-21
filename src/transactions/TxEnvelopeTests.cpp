@@ -326,7 +326,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                                       ex_SET_OPTIONS_BAD_SIGNER);
                 });
 
-                testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
                 SECTION("single signature")
                 {
                     SECTION("invalid seq nr")
@@ -343,7 +342,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, *app, [&] {
+                        for_versions(3, 9, *app, [&] {
+                            REQUIRE(!tx->checkValid(*app, 0));
+                            REQUIRE(tx->getResultCode() == txBAD_SEQ);
+                            REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -438,8 +442,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SECTION("accountMerge signing account")
                     {
-                        auto b1 = root.create("a1", paymentAmount);
+                        auto b1 = root.create("b1", paymentAmount);
                         a1.pay(b1, 1000);
+
+                        closeLedgerOn(*app, 2, 1, 1, 2016);
 
                         auto tx = b1.tx({accountMerge(a1)},
                                         b1.getLastSequenceNumber() + 2);
@@ -676,8 +682,6 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("empty X")
         {
-            testutil::setCurrentLedgerVersion(app->getLedgerManager(), 3);
-
             SecretKey s1 = getAccount("S1");
             Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
 
@@ -966,7 +970,11 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SECTION("duplicate payment")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
+                    REQUIRE(!txFrame->checkValid(*app, 0));
+                    REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                });
+                for_versions_from(10, *app, [&] {
                     applyCheck(txFrame, *app);
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
@@ -985,39 +993,56 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     clock.setCurrentTime(ledgerTime);
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(start + 1000, start + 10000);
+                    SECTION("too early")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(start + 1000, start + 10000);
 
-                    closeLedgerOn(*app, 3, 1, 7, 2014);
-                    applyCheck(txFrame, *app);
+                        closeLedgerOn(*app, 3, 1, 7, 2014);
+                        applyCheck(txFrame, *app);
 
-                    REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
+                        REQUIRE(txFrame->getResultCode() == txTOO_EARLY);
+                    }
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(1000, start + 300000);
+                    SECTION("on time")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(1000, start + 300000);
 
-                    closeLedgerOn(*app, 4, 2, 7, 2014);
-                    applyCheck(txFrame, *app);
-                    REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                        closeLedgerOn(*app, 3, 2, 7, 2014);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txSUCCESS);
+                    }
 
-                    txFrame =
-                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
-                    txFrame->getEnvelope().tx.timeBounds.activate() =
-                        TimeBounds(1000, start);
+                    SECTION("too late")
+                    {
+                        txFrame = root.tx(
+                            {payment(a1.getPublicKey(), paymentAmount)});
+                        txFrame->getEnvelope().tx.timeBounds.activate() =
+                            TimeBounds(1000, start);
 
-                    closeLedgerOn(*app, 5, 3, 7, 2014);
-                    applyCheck(txFrame, *app);
-                    REQUIRE(txFrame->getResultCode() == txTOO_LATE);
+                        closeLedgerOn(*app, 3, 3, 7, 2014);
+                        applyCheck(txFrame, *app);
+                        REQUIRE(txFrame->getResultCode() == txTOO_LATE);
+                    }
                 });
             }
 
             SECTION("transaction gap")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
+                    txFrame =
+                        root.tx({payment(a1.getPublicKey(), paymentAmount)});
+                    txFrame->getEnvelope().tx.seqNum--;
+                    REQUIRE(!txFrame->checkValid(*app, 0));
+
+                    REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
+                });
+                for_versions_from(10, *app, [&] {
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;

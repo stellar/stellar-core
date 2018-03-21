@@ -16,17 +16,22 @@ namespace stellar
 using namespace txtest;
 
 SequenceNumber
-TestAccount::loadSequenceNumber() const
+TestAccount::loadSequenceNumber()
 {
-    return loadAccount(getPublicKey(), mApp)->getSeqNum();
+    mSn = 0;
+    return getLastSequenceNumber();
 }
 
 void
 TestAccount::updateSequenceNumber()
 {
-    if (mSn == 0 && loadAccount(getPublicKey(), mApp, false))
+    if (mSn == 0)
     {
-        mSn = loadSequenceNumber();
+        auto a = loadAccount(getPublicKey(), mApp, false);
+        if (a)
+        {
+            mSn = a->getSeqNum();
+        }
     }
 }
 
@@ -34,6 +39,12 @@ int64_t
 TestAccount::getBalance() const
 {
     return loadAccount(getPublicKey(), mApp)->getBalance();
+}
+
+bool
+TestAccount::exists() const
+{
+    return loadAccount(getPublicKey(), mApp, false) != nullptr;
 }
 
 TransactionFramePtr
@@ -174,6 +185,12 @@ TestAccount::manageData(std::string const& name, DataValue* value)
     }
 }
 
+void
+TestAccount::bumpSequence(SequenceNumber to)
+{
+    applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
+}
+
 OfferEntry
 TestAccount::loadOffer(uint64_t offerID) const
 {
@@ -222,7 +239,8 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
         auto toAccountAfter = loadAccount(destination, mApp, false);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
-        if (toAccount && toAccountAfter)
+        if (toAccount && toAccountAfter &&
+            !(fromAccount->getID() == toAccount->getID()))
         {
             REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
         }

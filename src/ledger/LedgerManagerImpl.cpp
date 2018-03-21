@@ -932,25 +932,14 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
-        LedgerDelta delta(ledgerDelta);
-        TransactionMeta tm;
+        TransactionMeta tm(1);
         try
         {
             CLOG(DEBUG, "Tx")
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
-
-            if (tx->apply(delta, tm, mApp))
-            {
-                delta.commit();
-            }
-            else
-            {
-                // failure means there should be no side effects
-                assert(delta.getChanges().size() == 0);
-                assert(delta.getHeader() == ledgerDelta.getHeader());
-            }
+            tx->apply(ledgerDelta, tm.v1(), mApp);
         }
         catch (InvariantDoesNotHold& e)
         {

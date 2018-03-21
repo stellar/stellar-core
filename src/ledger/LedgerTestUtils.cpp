@@ -91,7 +91,10 @@ makeValid(AccountEntry& a)
         }
     }
     a.numSubEntries = (uint32)a.signers.size();
-    a.seqNum = a.seqNum & INT64_MAX;
+    if (a.seqNum < 0)
+    {
+        a.seqNum = -a.seqNum;
+    }
     a.flags = a.flags & MASK_ACCOUNT_FLAGS;
 }
 

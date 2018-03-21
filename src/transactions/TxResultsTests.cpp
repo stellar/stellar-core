@@ -674,6 +674,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     SECTION("merge account")
     {
+        closeLedgerOn(*app, 2, 1, 1, 2016);
         SECTION("normal")
         {
             auto tx = a.tx({payment(b, 1000), accountMerge(root)});

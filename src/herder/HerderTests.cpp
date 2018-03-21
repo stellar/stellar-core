@@ -49,48 +49,118 @@ TEST_CASE("standalone", "[herder]")
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
     auto b1 = TestAccount{*app, getAccount("B")};
+    auto c1 = TestAccount{*app, getAccount("C")};
 
-    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
+    auto txfee = app->getLedgerManager().getTxFee();
+    const int64_t minBalance = app->getLedgerManager().getMinBalance(0);
+    const int64_t paymentAmount = 100;
+    const int64_t startingBalance = minBalance + (paymentAmount + txfee) * 3;
 
     SECTION("basic ledger close on valid txs")
     {
-        bool stop = false;
         VirtualTimer setupTimer(*app);
-        VirtualTimer checkTimer(*app);
 
-        auto check = [&](asio::error_code const& error) {
-            stop = true;
+        auto feedTx = [&](TransactionFramePtr& tx) {
+            REQUIRE(app->getHerder().recvTransaction(tx) ==
+                    Herder::TX_STATUS_PENDING);
+        };
 
-            REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() > 2);
+        auto waitForExternalize = [&]() {
+            VirtualTimer checkTimer(*app);
+            bool stop = false;
+            auto prev = app->getLedgerManager().getLastClosedLedgerNum();
 
-            AccountFrame::pointer a1Account, b1Account;
-            a1Account = loadAccount(a1.getPublicKey(), *app);
-            b1Account = loadAccount(b1.getPublicKey(), *app);
-            REQUIRE(a1Account->getBalance() == paymentAmount);
-            REQUIRE(b1Account->getBalance() == paymentAmount);
+            auto check = [&](asio::error_code const& error) {
+                REQUIRE(app->getLedgerManager().getLastClosedLedgerNum() >
+                        prev);
+                stop = true;
+            };
+
+            checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS +
+                                        std::chrono::seconds(1));
+            checkTimer.async_wait(check);
+            while (!stop)
+            {
+                app->getClock().crank(true);
+            }
         };
 
         auto setup = [&](asio::error_code const& error) {
             // create accounts
-            auto txFrameA1 = root.tx({createAccount(a1, paymentAmount)});
-            auto txFrameA2 = root.tx({createAccount(b1, paymentAmount)});
+            auto txFrameA = root.tx({createAccount(a1, startingBalance)});
+            auto txFrameB = root.tx({createAccount(b1, startingBalance)});
+            auto txFrameC = root.tx({createAccount(c1, startingBalance)});
 
-            REQUIRE(app->getHerder().recvTransaction(txFrameA1) ==
-                    Herder::TX_STATUS_PENDING);
-            REQUIRE(app->getHerder().recvTransaction(txFrameA2) ==
-                    Herder::TX_STATUS_PENDING);
+            feedTx(txFrameA);
+            feedTx(txFrameB);
+            feedTx(txFrameC);
         };
 
         setupTimer.expires_from_now(std::chrono::seconds(0));
         setupTimer.async_wait(setup);
 
-        checkTimer.expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS +
-                                    std::chrono::seconds(1));
-        checkTimer.async_wait(check);
+        waitForExternalize();
+        auto a1OldSeqNum = a1.getLastSequenceNumber();
 
-        while (!stop)
+        REQUIRE(a1.getBalance() == startingBalance);
+        REQUIRE(b1.getBalance() == startingBalance);
+        REQUIRE(c1.getBalance() == startingBalance);
+
+        SECTION("txset with valid txs - but failing later")
         {
-            app->getClock().crank(true);
+            std::vector<TransactionFramePtr> txAs, txBs, txCs;
+            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+            txAs.emplace_back(a1.tx({payment(root, paymentAmount)}));
+
+            txBs.emplace_back(b1.tx({payment(root, paymentAmount)}));
+            txBs.emplace_back(b1.tx({accountMerge(root)}));
+            txBs.emplace_back(b1.tx({payment(a1, paymentAmount)}));
+
+            auto expectedC1Seq = c1.getLastSequenceNumber() + 10;
+            txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+            txCs.emplace_back(c1.tx({bumpSequence(expectedC1Seq)}));
+            txCs.emplace_back(c1.tx({payment(root, paymentAmount)}));
+
+            for_all_versions(*app, [&]() {
+                for (auto a : txAs)
+                {
+                    feedTx(a);
+                }
+                for (auto b : txBs)
+                {
+                    feedTx(b);
+                }
+
+                bool hasC =
+                    app->getLedgerManager().getCurrentLedgerVersion() >= 10;
+                if (hasC)
+                {
+                    for (auto c : txCs)
+                    {
+                        feedTx(c);
+                    }
+                }
+
+                waitForExternalize();
+
+                // all of a1's transactions went through
+                // b1's last transaction failed due to account non existant
+                int64 expectedBalance =
+                    startingBalance - 3 * paymentAmount - 3 * txfee;
+                REQUIRE(a1.getBalance() == expectedBalance);
+                REQUIRE(a1.loadSequenceNumber() == a1OldSeqNum + 3);
+                REQUIRE(!b1.exists());
+
+                if (hasC)
+                {
+                    // c1's last transaction failed due to wrong sequence number
+                    int64 expectedCBalance =
+                        startingBalance - paymentAmount - 3 * txfee;
+                    REQUIRE(c1.getBalance() == expectedCBalance);
+                    REQUIRE(c1.loadSequenceNumber() == expectedC1Seq);
+                }
+            });
         }
 
         SECTION("Queue processing test")

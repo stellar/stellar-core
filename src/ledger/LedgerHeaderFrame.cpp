@@ -62,9 +62,15 @@ LedgerHeaderFrame::getHash() const
 }
 
 SequenceNumber
+LedgerHeaderFrame::getStartingSequenceNumber(uint32 ledgerSeq)
+{
+    return static_cast<SequenceNumber>(ledgerSeq) << 32;
+}
+
+SequenceNumber
 LedgerHeaderFrame::getStartingSequenceNumber() const
 {
-    return static_cast<uint64_t>(mHeader.ledgerSeq) << 32;
+    return getStartingSequenceNumber(mHeader.ledgerSeq);
 }
 
 uint64_t

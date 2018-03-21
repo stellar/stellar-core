@@ -487,7 +487,8 @@ LoadGenerator::createAccount(size_t i, uint32_t ledgerNum)
     auto accountName = "Account-" + to_string(i);
     return make_shared<AccountInfo>(
         i, txtest::getAccount(accountName.c_str()), 0,
-        (static_cast<SequenceNumber>(ledgerNum) << 32), ledgerNum, *this);
+        LedgerHeaderFrame::getStartingSequenceNumber(ledgerNum), ledgerNum,
+        *this);
 }
 
 vector<LoadGenerator::AccountInfoPtr>
@@ -755,7 +756,7 @@ LoadGenerator::AccountInfo::createDirectly(Application& app)
     AccountEntry& account = a.getAccount();
     auto ledger = app.getLedgerManager().getLedgerNum();
     account.balance = LOADGEN_ACCOUNT_BALANCE;
-    account.seqNum = ((SequenceNumber)ledger) << 32;
+    account.seqNum = LedgerHeaderFrame::getStartingSequenceNumber(ledger);
     a.touch(ledger);
     LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
                       app.getDatabase());

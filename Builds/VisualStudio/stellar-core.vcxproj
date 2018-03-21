@@ -454,6 +454,8 @@ exit /b 0
     <ClCompile Include="..\..\src\test\TxTests.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\AllowTrustTests.cpp" />
+    <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp" />
+    <ClCompile Include="..\..\src\transactions\BumpSequenceTests.cpp" />
     <ClCompile Include="..\..\src\transactions\ChangeTrustTests.cpp" />
     <ClCompile Include="..\..\src\transactions\CreateAccountOpFrame.cpp" />
     <ClCompile Include="..\..\src\transactions\CreatePassiveOfferOpFrame.cpp" />
@@ -678,6 +680,7 @@ exit /b 0
     <ClInclude Include="..\..\src\test\TestUtils.h" />
     <ClInclude Include="..\..\src\test\TxTests.h" />
     <ClInclude Include="..\..\src\transactions\AllowTrustOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\BumpSequenceOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreateAccountOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\CreatePassiveOfferOpFrame.h" />
     <ClInclude Include="..\..\src\transactions\ManageDataOpFrame.h" />

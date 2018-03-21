@@ -6,6 +6,7 @@
 
 #include "overlay/StellarXDR.h"
 #include "xdrpp/message.h"
+#include <type_traits>
 #include <vector>
 
 namespace stellar
