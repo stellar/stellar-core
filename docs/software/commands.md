@@ -95,7 +95,7 @@ command line option (see above). Most commands return their results in JSON form
 
 * **ll**  
   `/ll?level=L[&partition=P]`<br>
-  Adjust the log level for partition P (or all if no partition is specified).
+  Adjust the log level for partition P where P is one of Bucket, Database, Fs, Herder, History, Ledger, Overlay, Process, SCP, Tx (or all if no partition is specified).
   Level is one of FATAL, ERROR, WARNING, INFO, DEBUG, VERBOSE, TRACE
 
 * **maintenance**
