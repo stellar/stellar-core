@@ -11,6 +11,7 @@
 
 #include "main/Application.h"
 #include "main/Config.h"
+#include "process/PosixSpawnFileActions.h"
 #include "process/ProcessManager.h"
 #include "process/ProcessManagerImpl.h"
 #include "util/Logging.h"
@@ -402,29 +403,12 @@ ProcessExitEvent::Impl::run()
     argv.push_back(nullptr);
     int pid, err = 0;
 
-    posix_spawn_file_actions_t fileActions;
+    PosixSpawnFileActions fileActions;
     if (!mOutFile.empty())
     {
-        err = posix_spawn_file_actions_init(&fileActions);
-        if (err)
-        {
-            CLOG(ERROR, "Process")
-                << "posix_spawn_file_actions_init() failed: " << strerror(err);
-            throw std::runtime_error("posix_spawn_file_actions_init() failed");
-        }
-        err = posix_spawn_file_actions_addopen(
-            &fileActions, 1, mOutFile.c_str(), O_RDWR | O_CREAT, 0600);
-        if (err)
-        {
-            CLOG(ERROR, "Process")
-                << "posix_spawn_file_actions_addopen() failed: "
-                << strerror(err);
-            throw std::runtime_error(
-                "posix_spawn_file_actions_addopen() failed");
-        }
+        fileActions.addOpen(1, mOutFile, O_RDWR | O_CREAT, 0600);
     }
-
-    err = posix_spawnp(&pid, argv[0], mOutFile.empty() ? nullptr : &fileActions,
+    err = posix_spawnp(&pid, argv[0], fileActions,
                        nullptr, // posix_spawnattr_t*
                        argv.data(), environ);
     if (err)
@@ -433,18 +417,6 @@ ProcessExitEvent::Impl::run()
         throw std::runtime_error("posix_spawn() failed");
     }
 
-    if (!mOutFile.empty())
-    {
-        err = posix_spawn_file_actions_destroy(&fileActions);
-        if (err)
-        {
-            CLOG(ERROR, "Process")
-                << "posix_spawn_file_actions_destroy() failed: "
-                << strerror(err);
-            throw std::runtime_error(
-                "posix_spawn_file_actions_destroy() failed");
-        }
-    }
     ProcessManagerImpl::gImpls[pid] = shared_from_this();
     mRunning = true;
 }
