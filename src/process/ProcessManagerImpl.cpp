@@ -210,6 +210,10 @@ ProcessExitEvent::Impl::run()
                        &pi)     // Pointer to PROCESS_INFORMATION structure
     )
     {
+        if (si.hStdOutput != NULL)
+        {
+            CloseHandle(si.hStdOutput);
+        }
         CLOG(ERROR, "Process") << "CreateProcess() failed: " << GetLastError();
         throw std::runtime_error("CreateProcess() failed");
     }
