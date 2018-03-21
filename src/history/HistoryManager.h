@@ -315,10 +315,6 @@ class HistoryManager
     // tmpdir.
     virtual std::string localFilename(std::string const& basename) = 0;
 
-    // Return the number of checkpoints that have been skipped due to
-    // unavailability of any publish targets.
-    virtual uint64_t getPublishSkipCount() = 0;
-
     // Return the number of checkpoints that have been enqueued for
     // publication. This may be less than the number "started", but every
     // enqueued checkpoint should eventually start.
@@ -328,11 +324,6 @@ class HistoryManager
     // the publish system being busy with a previous checkpoint. This indicates
     // a degree of overloading in the publish system.
     virtual uint64_t getPublishDelayCount() = 0;
-
-    // Return the number of enqueued checkpoints that have "started", meaning
-    // that their history logs have been written to disk and the publish system
-    // has commenced running the external put commands for them.
-    virtual uint64_t getPublishStartCount() = 0;
 
     // Return the number of checkpoints that completed publication successfully.
     virtual uint64_t getPublishSuccessCount() = 0;

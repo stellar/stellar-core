@@ -511,6 +511,7 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
 
+    mPublishStart.Mark();
     mPublishWork = mApp.getWorkManager().addWork<PublishWork>(snap);
     mApp.getWorkManager().advanceChildren();
 }
@@ -644,12 +645,6 @@ HistoryManagerImpl::downloadMissingBuckets(
 }
 
 uint64_t
-HistoryManagerImpl::getPublishSkipCount()
-{
-    return mPublishSkip.count();
-}
-
-uint64_t
 HistoryManagerImpl::getPublishQueueCount()
 {
     return mPublishQueue.count();
@@ -659,12 +654,6 @@ uint64_t
 HistoryManagerImpl::getPublishDelayCount()
 {
     return mPublishDelay.count();
-}
-
-uint64_t
-HistoryManagerImpl::getPublishStartCount()
-{
-    return mPublishStart.count();
 }
 
 uint64_t

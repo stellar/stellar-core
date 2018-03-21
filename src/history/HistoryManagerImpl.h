@@ -91,10 +91,8 @@ class HistoryManagerImpl : public HistoryManager
 
     std::string localFilename(std::string const& basename) override;
 
-    uint64_t getPublishSkipCount() override;
     uint64_t getPublishQueueCount() override;
     uint64_t getPublishDelayCount() override;
-    uint64_t getPublishStartCount() override;
     uint64_t getPublishSuccessCount() override;
     uint64_t getPublishFailureCount() override;
 };
