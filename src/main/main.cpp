@@ -404,7 +404,7 @@ reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
     auto& wm = app->getWorkManager();
     auto getHistoryArchiveStateWork =
         wm.executeWork<GetHistoryArchiveStateWork>(
-            true, "get-history-archive-state-work", state);
+            "get-history-archive-state-work", state);
 
     auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
     if (ok)
