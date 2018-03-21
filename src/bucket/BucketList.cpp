@@ -425,7 +425,7 @@ BucketList::addBatch(Application& app, uint32_t currLedger,
 void
 BucketList::restartMerges(Application& app)
 {
-    for (auto i = 0; i < mLevels.size(); i++)
+    for (uint32_t i = 0; i < static_cast<uint32>(mLevels.size()); i++)
     {
         auto& level = mLevels[i];
         auto& next = level.getNext();

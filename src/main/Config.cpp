@@ -579,7 +579,7 @@ Config::validateConfig()
 
     try
     {
-        if (FAILURE_SAFETY >= r.size())
+        if (FAILURE_SAFETY >= static_cast<int32_t>(r.size()))
         {
             LOG(ERROR) << "Not enough nodes / thresholds too strict in your "
                           "Quorum set to ensure your desired level of "

@@ -329,6 +329,8 @@ catchup(Application::pointer app, uint32_t to, uint32_t count,
         }
         case LedgerManager::LM_CATCHING_UP_STATE:
             break;
+        case LedgerManager::LM_NUM_STATE:
+            abort();
         }
     }
 
