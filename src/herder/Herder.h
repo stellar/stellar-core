@@ -72,6 +72,8 @@ class Herder
         TX_STATUS_COUNT
     };
 
+    static const char* TX_STATUS_STRING[TX_STATUS_COUNT];
+
     enum EnvelopeStatus
     {
         // for some reason this envelope was discarded - either is was invalid,

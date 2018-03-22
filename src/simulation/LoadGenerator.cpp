@@ -678,11 +678,8 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     auto status = app.getHerder().recvTransaction(txf);
     if (status != Herder::TX_STATUS_PENDING)
     {
-        static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] = {
-            "PENDING", "DUPLICATE", "ERROR"};
-
         CLOG(INFO, "LoadGen")
-            << "tx rejected '" << TX_STATUS_STRING[status]
+            << "tx rejected '" << Herder::TX_STATUS_STRING[status]
             << "': " << xdr::xdr_to_string(txf->getEnvelope()) << " ===> "
             << xdr::xdr_to_string(txf->getResult());
         if (status == Herder::TX_STATUS_ERROR)

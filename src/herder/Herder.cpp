@@ -14,4 +14,5 @@ std::chrono::seconds const Herder::NODE_EXPIRATION_SECONDS(240);
 uint32 const Herder::LEDGER_VALIDITY_BRACKET = 100;
 // 12 slots give us about a minute to reconnect
 uint32 const Herder::MAX_SLOTS_TO_REMEMBER = 12;
+const char* Herder::TX_STATUS_STRING[TX_STATUS_COUNT] = {"PENDING", "DUPLICATE", "ERROR"};
 }
