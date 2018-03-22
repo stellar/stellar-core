@@ -131,7 +131,7 @@ fi
 PKG_CHECK_MODULES(sqlite3, [sqlite3 >= 3.8.0], :, sqlite3_INTERNAL=yes)
 AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
 if test yes = "$sqlite3_INTERNAL"; then
-   sqlite3_CFLAGS=-I'$(top_srcdir)/lib/sqlite'
+   sqlite3_CFLAGS=-isystem '$(top_srcdir)/lib/sqlite'
    sqlite3_LIBS=
 fi
 AC_SUBST(sqlite3_CFLAGS)
@@ -163,7 +163,7 @@ AC_SUBST(XDRC)
 mkdir -p src/xdr
 
 if test -s "$srcdir/lib/medida.mk"; then
-   libmedida_CFLAGS='-I$(top_srcdir)/lib/libmedida/src'
+   libmedida_CFLAGS='-isystem $(top_srcdir)/lib/libmedida/src'
    libmedida_LIBS='$(top_builddir)/lib/libmedida.a'
    libmedida_INTERNAL=yes
 else
@@ -174,13 +174,13 @@ AM_CONDITIONAL(LIBMEDIDA_INTERNAL, test -n "$libmedida_INTERNAL")
 AC_SUBST(libmedida_CFLAGS)
 AC_SUBST(libmedida_LIBS)
 
-soci_CFLAGS='-I$(top_srcdir)/lib/soci/src/core'
-soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/sqlite3'
+soci_CFLAGS='-isystem $(top_srcdir)/lib/soci/src/core'
+soci_CFLAGS="$soci_CFLAGS "'-isystem $(top_srcdir)/lib/soci/src/backends/sqlite3'
 soci_LIBS='$(top_builddir)/lib/libsoci.a'
 AC_SUBST(soci_CFLAGS)
 AC_SUBST(soci_LIBS)
 
-libasio_CFLAGS='-DASIO_SEPARATE_COMPILATION=1 -DASIO_STANDALONE -I$(top_srcdir)/lib/asio/asio/include'
+libasio_CFLAGS='-DASIO_SEPARATE_COMPILATION=1 -DASIO_STANDALONE -isystem $(top_srcdir)/lib/asio/asio/include'
 AC_SUBST(libasio_CFLAGS)
 
 AC_ARG_ENABLE(postgres,
@@ -194,7 +194,7 @@ if test x"$enable_postgres" != xno; then
     fi
     if test -n "$have_postgres"; then
        backend=
-       soci_CFLAGS="$soci_CFLAGS "'-I$(top_srcdir)/lib/soci/src/backends/postgresql'
+       soci_CFLAGS="$soci_CFLAGS "'-isystem $(top_srcdir)/lib/soci/src/backends/postgresql'
     fi
 fi
 AM_CONDITIONAL(USE_POSTGRES, [test -n "$have_postgres"])

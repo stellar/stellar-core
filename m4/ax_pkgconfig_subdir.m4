@@ -59,6 +59,7 @@ if test -n "$pcfile"; then
    pcname[]_CFLAGS=[$(sed -n \
                      -e 's|\${pcfiledir}|'"$pcfiledir"'/$1|g' \
                      -e 's|@\([a-zA-Z][a-zA-Z0-9_]*\)@|$(\1)/$1|g' \
+                     -e 's/-I/-isystem /g' \
                      -e 's/^Cflags: //p' $pcfile)]
    pcname[]_INTERNAL=yes
    AC_SUBST(pcname[]_LIBS)
