@@ -128,7 +128,7 @@ class PendingEnvelopes
 
     std::vector<uint64> readySlots();
 
-    void dumpInfo(Json::Value& ret, size_t limit);
+    Json::Value getJsonInfo(size_t limit);
 
     TxSetFramePtr getTxSet(Hash const& hash);
     SCPQuorumSetPtr getQSet(Hash const& hash);

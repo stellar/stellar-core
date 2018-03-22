@@ -252,15 +252,14 @@ ApplicationImpl::getJsonInfo()
     }
 
     auto& herder = getHerder();
-    Json::Value q;
-    herder.dumpQuorumInfo(q, getConfig().NODE_SEED.getPublicKey(), true,
-                          herder.getCurrentLedgerSeq());
+    auto q = herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(),
+                                      true, herder.getCurrentLedgerSeq());
     if (q["slots"].size() != 0)
     {
         info["quorum"] = q["slots"];
     }
 
-    Json::Value invariantFailures = getInvariantManager().getInformation();
+    auto invariantFailures = getInvariantManager().getJsonInfo();
     if (!invariantFailures.empty())
     {
         info["invariant_failures"] = invariantFailures;

@@ -133,10 +133,10 @@ class Slot : public std::enable_shared_from_this<Slot>
 
     // returns information about the local state in JSON format
     // including historical statements if available
-    void dumpInfo(Json::Value& ret);
+    Json::Value getJsonInfo();
 
     // returns information about the quorum for a given node
-    void dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary);
+    Json::Value getJsonQuorumInfo(NodeID const& id, bool summary);
 
     // returns the hash of the QuorumSet that should be downloaded
     // with the statement.

@@ -1918,20 +1918,22 @@ BallotProtocol::sendLatestEnvelope()
 const char* BallotProtocol::phaseNames[SCP_PHASE_NUM] = {"PREPARE", "FINISH",
                                                          "EXTERNALIZE"};
 
-void
-BallotProtocol::dumpInfo(Json::Value& ret)
+Json::Value
+BallotProtocol::getJsonInfo()
 {
-    Json::Value& state = ret["ballotProtocol"];
-    state["heard"] = mHeardFromQuorum;
-    state["ballot"] = mSlot.getSCP().ballotToStr(mCurrentBallot);
-    state["phase"] = phaseNames[mPhase];
+    Json::Value ret;
+    ret["heard"] = mHeardFromQuorum;
+    ret["ballot"] = mSlot.getSCP().ballotToStr(mCurrentBallot);
+    ret["phase"] = phaseNames[mPhase];
 
-    state["state"] = getLocalState();
+    ret["state"] = getLocalState();
+    return ret;
 }
 
-void
-BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
+Json::Value
+BallotProtocol::getJsonQuorumInfo(NodeID const& id, bool summary)
 {
+    Json::Value ret;
     auto& phase = ret["phase"];
 
     // find the state of the node `id`
@@ -1983,7 +1985,7 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
     if (!qSet)
     {
         phase = "expired";
-        return;
+        return ret;
     }
     LocalNode::forAllNodes(*qSet, [&](NodeID const& n) {
         auto it = mLatestEnvelopes.find(n);
@@ -2030,11 +2032,13 @@ BallotProtocol::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
         {
             f_ex.append(mSlot.getSCPDriver().toShortString(n));
         }
-        getLocalNode()->toJson(*qSet, ret["value"]);
+        ret["value"] = getLocalNode()->toJson(*qSet);
     }
 
     ret["hash"] = hexAbbrev(qSetHash);
     ret["agree"] = agree;
+
+    return ret;
 }
 
 std::string
