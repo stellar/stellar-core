@@ -540,7 +540,6 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
 
 TEST_CASE("simulate upgrades", "[herder][upgrades]")
 {
-    auto epoch = VirtualClock::from_time_t(0);
     // no upgrade is done
     auto noUpgrade =
         LedgerUpgradeableData(LedgerManager::GENESIS_LEDGER_VERSION,
