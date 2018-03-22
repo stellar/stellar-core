@@ -62,7 +62,7 @@ struct HistoryArchiveState
 
     HistoryArchiveState();
 
-    HistoryArchiveState(uint32_t ledgerSeq, BucketList& buckets);
+    HistoryArchiveState(uint32_t ledgerSeq, BucketList const& buckets);
 
     static std::string baseName();
     static std::string wellKnownRemoteDir();

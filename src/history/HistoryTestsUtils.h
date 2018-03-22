@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "bucket/BucketList.h"
 #include "herder/LedgerCloseData.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -110,6 +111,7 @@ class CatchupSimulation
     std::vector<Config> mCfgs;
     Application::pointer mAppPtr;
     Application& mApp;
+    BucketList mBucketListAtLastPublish;
 
     std::default_random_engine mGenerator;
     std::bernoulli_distribution mFlip{0.5};
@@ -154,6 +156,12 @@ class CatchupSimulation
     getHistoryConfigurator() const
     {
         return *mHistoryConfigurator.get();
+    }
+
+    BucketList
+    getBucketListAtLastPublish() const
+    {
+        return mBucketListAtLastPublish;
     }
 
     void crankTillDone();
