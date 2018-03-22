@@ -348,8 +348,7 @@ LedgerState::create(LedgerEntry const& entry)
 
     if (entry.data.type() == OFFER)
     {
-        OfferEntry const& offer = entry.data.offer();
-        invalidateLoadBestOfferContext(offer.selling, offer.buying);
+        mLoadBestOfferContext.reset();
     }
 
     return ler;
@@ -418,8 +417,7 @@ LedgerState::load(LedgerKey const& key)
 
     if (ler->entry()->data.type() == OFFER)
     {
-        OfferEntry const& offer = ler->entry()->data.offer();
-        invalidateLoadBestOfferContext(offer.selling, offer.buying);
+        mLoadBestOfferContext.reset();
     }
 
     return ler;
@@ -879,7 +877,11 @@ LedgerState::LoadBestOfferContext::loadBestOffer()
         }
         if (mTop->ignoreInvalid().entry())
         {
-            mInMemory.push(mTop);
+            auto const& offer = mTop->ignoreInvalid().entry()->data.offer();
+            if (offer.buying == mBuying && offer.selling == mSelling)
+            {
+                mInMemory.push(mTop);
+            }
         }
         mTop.reset();
     }
@@ -953,6 +955,10 @@ LedgerState::LoadBestOfferContext::compareOffers(StateEntry const& lhsState,
 {
     auto const& lhs = lhsState->ignoreInvalid().entry()->data.offer();
     auto const& rhs = rhsState->ignoreInvalid().entry()->data.offer();
+
+    assert(lhs.buying == rhs.buying);
+    assert(lhs.selling == rhs.selling);
+
     // TODO(jonjove): Should this use the raw price rather than the double price?
     double lhsPrice = double(lhs.price.n) / double(lhs.price.d);
     double rhsPrice = double(rhs.price.n) / double(rhs.price.d);
