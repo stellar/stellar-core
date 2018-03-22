@@ -57,12 +57,12 @@ TEST_CASE("HistoryManager::compress", "[history]")
     }
     std::string compressed = fname + ".gz";
     auto& wm = catchupSimulation.getApp().getWorkManager();
-    auto g = wm.executeWork<GzipFileWork>(true, fname);
+    auto g = wm.executeWork<GzipFileWork>(fname);
     REQUIRE(g->getState() == Work::WORK_SUCCESS);
     REQUIRE(!fs::exists(fname));
     REQUIRE(fs::exists(compressed));
 
-    auto u = wm.executeWork<GunzipFileWork>(true, compressed);
+    auto u = wm.executeWork<GunzipFileWork>(compressed);
     REQUIRE(u->getState() == Work::WORK_SUCCESS);
     REQUIRE(fs::exists(fname));
     REQUIRE(!fs::exists(compressed));
@@ -82,13 +82,12 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     has.resolveAllFutures();
 
     auto& wm = catchupSimulation.getApp().getWorkManager();
-    auto put = wm.executeWork<PutHistoryArchiveStateWork>(true, has, archive);
+    auto put = wm.executeWork<PutHistoryArchiveStateWork>(has, archive);
     REQUIRE(put->getState() == Work::WORK_SUCCESS);
 
     HistoryArchiveState has2;
     auto get = wm.executeWork<GetHistoryArchiveStateWork>(
-        true, "get-history-archive-state", has2, 0, std::chrono::seconds(0),
-        archive);
+        "get-history-archive-state", has2, 0, std::chrono::seconds(0), archive);
     REQUIRE(get->getState() == Work::WORK_SUCCESS);
     REQUIRE(has2.currentLedger == 0x1234);
 }

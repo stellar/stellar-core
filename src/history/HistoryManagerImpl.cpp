@@ -76,8 +76,8 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     CLOG(INFO, "History") << "Probing history archive '" << arch
                           << "' for existing state";
     auto getHas = wm.executeWork<GetHistoryArchiveStateWork>(
-        false, "get-history-archive-state", existing, 0,
-        std::chrono::seconds(0), i->second, 0);
+        "get-history-archive-state", existing, 0, std::chrono::seconds(0),
+        i->second, 0);
     if (getHas->getState() == Work::WORK_SUCCESS)
     {
         CLOG(ERROR, "History")
@@ -91,8 +91,7 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
     has.resolveAllFutures();
 
-    auto putHas =
-        wm.executeWork<PutHistoryArchiveStateWork>(false, has, i->second);
+    auto putHas = wm.executeWork<PutHistoryArchiveStateWork>(has, i->second);
     if (putHas->getState() == Work::WORK_SUCCESS)
     {
         CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
@@ -347,15 +346,8 @@ InferredQuorum
 HistoryManagerImpl::inferQuorum()
 {
     InferredQuorum iq;
-    bool done = false;
-    auto handler = [&done](asio::error_code const& ec) { done = true; };
     CLOG(INFO, "History") << "Starting FetchRecentQsetsWork";
-    mApp.getWorkManager().addWork<FetchRecentQsetsWork>(iq, handler);
-    mApp.getWorkManager().advanceChildren();
-    while (!done)
-    {
-        mApp.getClock().crank(false);
-    }
+    mApp.getWorkManager().executeWork<FetchRecentQsetsWork>(iq);
     return iq;
 }
 

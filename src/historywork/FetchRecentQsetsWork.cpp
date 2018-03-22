@@ -16,11 +16,8 @@ namespace stellar
 {
 
 FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app, WorkParent& parent,
-                                           InferredQuorum& inferredQuorum,
-                                           handler endHandler)
-    : Work(app, parent, "fetch-recent-qsets")
-    , mEndHandler(endHandler)
-    , mInferredQuorum(inferredQuorum)
+                                           InferredQuorum& inferredQuorum)
+    : Work(app, parent, "fetch-recent-qsets"), mInferredQuorum(inferredQuorum)
 {
 }
 
@@ -36,13 +33,6 @@ FetchRecentQsetsWork::onReset()
     mDownloadSCPMessagesWork.reset();
     mDownloadDir =
         make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
-}
-
-void
-FetchRecentQsetsWork::onFailureRaise()
-{
-    asio::error_code ec = std::make_error_code(std::errc::timed_out);
-    mEndHandler(ec);
 }
 
 Work::State
@@ -90,8 +80,6 @@ FetchRecentQsetsWork::onSuccess()
         }
     }
 
-    asio::error_code ec;
-    mEndHandler(ec);
     return WORK_SUCCESS;
 }
 }
