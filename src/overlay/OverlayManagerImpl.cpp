@@ -248,7 +248,7 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum)
                                     {
                                         peers.emplace_back(pr);
                                     }
-                                    return peers.size() < maxNum;
+                                    return peers.size() < static_cast<size_t>(maxNum);
                                 });
     return peers;
 }
