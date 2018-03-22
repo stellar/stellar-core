@@ -34,7 +34,7 @@ class LoadGenerator
     void clear();
     bool maybeAdjustRate(double target, double actual, uint32_t& rate,
                          bool increaseOk);
-    void inspectRate(uint32_t ledgerNum, uint32_t &txRate);
+    void inspectRate(uint32_t ledgerNum, uint32_t& txRate);
 
     struct TxInfo;
     using TestAccountPtr = std::shared_ptr<TestAccount>;
@@ -77,8 +77,7 @@ class LoadGenerator
                                 TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);
-    bool checkAccountSynced(std::vector<TestAccountPtr>& result,
-                            Database& database);
+    std::vector<TestAccountPtr> checkAccountSynced(Database& database);
     void logProgress(std::chrono::nanoseconds submitTimer, bool isCreate,
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
                      uint32_t txRate);

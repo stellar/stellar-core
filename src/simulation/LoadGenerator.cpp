@@ -315,7 +315,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
 }
 
 void
-LoadGenerator::inspectRate(uint32_t ledgerNum, uint32_t &txRate)
+LoadGenerator::inspectRate(uint32_t ledgerNum, uint32_t& txRate)
 {
     // Automatic tx rate calculation involves taking the temperature
     // of the program and deciding if there's "room" to increase the
@@ -557,11 +557,10 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
     }
 }
 
-bool
-LoadGenerator::checkAccountSynced(std::vector<TestAccountPtr>& result,
-                                  Database& database)
+std::vector<LoadGenerator::TestAccountPtr>
+LoadGenerator::checkAccountSynced(Database& database)
 {
-    bool synced = true;
+    std::vector<TestAccountPtr> result;
     for (auto const& acc : mAccounts)
     {
         TestAccountPtr account = acc.second;
@@ -570,7 +569,6 @@ LoadGenerator::checkAccountSynced(std::vector<TestAccountPtr>& result,
         // reload the account
         if (!reloadRes || currentSeqNum != account->getLastSequenceNumber())
         {
-            synced = false;
             CLOG(DEBUG, "LoadGen")
                 << "Account " << account->getAccountId()
                 << " is at sequence num " << currentSeqNum
@@ -578,7 +576,7 @@ LoadGenerator::checkAccountSynced(std::vector<TestAccountPtr>& result,
             result.push_back(account);
         }
     }
-    return synced;
+    return result;
 }
 
 void
@@ -589,8 +587,9 @@ LoadGenerator::waitTillComplete()
         mLoadTimer = make_unique<VirtualTimer>(mApp.getClock());
     }
     vector<TestAccountPtr> inconsistencies;
-    bool isSynced = checkAccountSynced(inconsistencies, mApp.getDatabase());
-    if (isSynced)
+    inconsistencies = checkAccountSynced(mApp.getDatabase());
+
+    if (inconsistencies.empty())
     {
         CLOG(INFO, "LoadGen") << "Load generation complete.";
         mApp.getMetrics()

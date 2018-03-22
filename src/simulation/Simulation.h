@@ -26,7 +26,7 @@ namespace stellar
 using xdr::operator<;
 using xdr::operator==;
 
-class Simulation : public LoadGenerator
+class Simulation
 {
   public:
     enum Mode
@@ -64,22 +64,13 @@ class Simulation : public LoadGenerator
     size_t crankAllNodes(int nbTicks = 1);
     void crankForAtMost(VirtualClock::duration seconds, bool finalCrank);
     void crankForAtLeast(VirtualClock::duration seconds, bool finalCrank);
-    void crankUntilSync(VirtualClock::duration timeout, bool finalCrank);
+    void crankUntilSync(Application& app, VirtualClock::duration timeout,
+                        bool finalCrank);
     void crankUntil(std::function<bool()> const& fn,
                     VirtualClock::duration timeout, bool finalCrank);
     void crankUntil(VirtualClock::time_point timePoint, bool finalCrank);
-
-    //////////
-
-    void execute(TxInfo transaction);
-    void executeAll(std::vector<TxInfo> const& transaction);
-    std::chrono::seconds
-    executeStressTest(size_t nTransactions, int injectionRatePerSec,
-                      std::function<TxInfo(size_t)> generatorFn);
-
-    std::vector<AccountInfoPtr>
-    accountsOutOfSyncWithDb(); // returns the accounts that don't match
-    bool loadAccount(AccountInfo& account);
+    std::vector<LoadGenerator::TestAccountPtr> accountsOutOfSyncWithDb(
+        Application& mainApp); // returns the accounts that don't match
     std::string metricsSummary(std::string domain = "");
 
     void addConnection(NodeID initiator, NodeID acceptor);
