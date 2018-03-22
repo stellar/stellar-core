@@ -40,6 +40,7 @@ class LoadGenerator
     using TestAccountPtr = std::shared_ptr<TestAccount>;
 
     static const uint32_t STEP_MSECS;
+    static const uint32_t TX_SUBMIT_MAX_TRIES;
 
     std::unique_ptr<VirtualTimer> mLoadTimer;
     int64 mMinBalance;
@@ -82,7 +83,8 @@ class LoadGenerator
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
                      uint32_t txRate);
 
-    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize, uint32_t ledgerNum);
+    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
+                              uint32_t ledgerNum);
     uint32_t submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
                              uint32_t batchSize, uint32_t ledgerNum);
 

@@ -44,6 +44,8 @@ using namespace txtest;
 
 // Units of load are is scheduled at 100ms intervals.
 const uint32_t LoadGenerator::STEP_MSECS = 100;
+//
+const uint32_t LoadGenerator::TX_SUBMIT_MAX_TRIES = 1000;
 
 LoadGenerator::LoadGenerator(Application& app)
     : mMinBalance(0), mLastSecond(0), mApp(app)
@@ -265,13 +267,15 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
 }
 
 uint32_t
-LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize, uint32_t ledgerNum)
+LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
+                                uint32_t ledgerNum)
 {
     uint32_t numToProcess = nAccounts < batchSize ? nAccounts : batchSize;
     TxInfo tx = creationTransaction(mAccounts.size(), numToProcess, ledgerNum);
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
     bool createDuplicate = false;
+    int numTries = 0;
 
     while ((status = tx.execute(mApp, true, code, batchSize)) !=
            Herder::TX_STATUS_PENDING)
@@ -281,6 +285,12 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize, uint32_t
         {
             createDuplicate = true;
             break;
+        }
+        if (++numTries >= TX_SUBMIT_MAX_TRIES)
+        {
+            CLOG(ERROR, "LoadGen") << "Error creating account!";
+            clear();
+            return 0;
         }
     }
 
@@ -301,6 +311,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
 
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
+    int numTries = 0;
 
     while ((status = tx.execute(mApp, false, code, batchSize)) !=
            Herder::TX_STATUS_PENDING)
@@ -308,6 +319,13 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
         tx = paymentTransaction(nAccounts, ledgerNum,
                                 sourceAccountId); // re-generate the tx
+        if (++numTries >= TX_SUBMIT_MAX_TRIES)
+        {
+            CLOG(ERROR, "LoadGen") << "Error submitting tx: did you specify "
+                                      "correct number of accounts?";
+            clear();
+            return 0;
+        }
     }
 
     nTxs -= 1;
