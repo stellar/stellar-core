@@ -360,8 +360,8 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
 
 template <typename T>
 optional<T>
-maybeParseParam(std::map<std::string, std::string> const &map,
-                std::string const &key, T &defaultVal)
+maybeParseParam(std::map<std::string, std::string> const& map,
+                std::string const& key, T& defaultVal)
 {
     auto i = map.find(key);
     if (i != map.end())
@@ -384,8 +384,8 @@ maybeParseParam(std::map<std::string, std::string> const &map,
 
 template <typename T>
 T
-parseParam(std::map<std::string, std::string> const &map,
-           std::string const &key)
+parseParam(std::map<std::string, std::string> const& map,
+           std::string const& key)
 {
     T val;
     auto res = maybeParseParam(map, key, val);
@@ -733,7 +733,7 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         p.mBaseReserve = maybeParseParam(retMap, "basereserve", baseReserve);
         p.mMaxTxSize = maybeParseParam(retMap, "maxtxsize", maxTxSize);
         p.mProtocolVersion =
-                maybeParseParam(retMap, "protocolversion", protocolVersion);
+            maybeParseParam(retMap, "protocolversion", protocolVersion);
 
         mApp.getHerder().setUpgrades(p);
     }
