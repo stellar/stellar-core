@@ -644,3 +644,99 @@ TEST_CASE("LedgerState::forget and LedgerEntryReference::forgetFromLedgerState",
         }
     }
 }
+
+TEST_CASE("LedgerState::loadBestOffer and change asset 1",
+          "[ledger][ledgerstate][loadbestoffer]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto generateOffer = []() {
+        auto le = generateLedgerEntry(OFFER);
+        le.data.offer().selling.alphaNum4().issuer = PublicKey();
+        le.data.offer().buying.alphaNum4().issuer = PublicKey();
+        return le;
+    };
+
+    auto le = generateOffer();
+    Asset const& selling = le.data.offer().selling;
+    Asset const& buying = le.data.offer().buying;
+
+    auto leSwitch = le;
+    leSwitch.data.offer().selling = buying;
+    leSwitch.data.offer().buying = selling;
+
+    LedgerStateRoot& root(app->getLedgerStateRoot());
+    {
+        LedgerState ls(root);
+        ls.create(le);
+        ls.commit();
+    }
+    {
+        LedgerState ls(root);
+        auto lerBestOffer = ls.loadBestOffer(selling, buying);
+        REQUIRE(*lerBestOffer->entry() == le);
+        *lerBestOffer->entry() = leSwitch;
+        lerBestOffer->invalidate();
+
+        REQUIRE(!ls.loadBestOffer(selling, buying));
+    }
+}
+
+TEST_CASE("LedgerState::loadBestOffer and change asset 2",
+          "[ledger][ledgerstate][loadbestoffer]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    auto generateOffer = []() {
+        auto le = generateLedgerEntry(OFFER);
+        le.data.offer().selling.alphaNum4().issuer = PublicKey();
+        le.data.offer().buying.alphaNum4().issuer = PublicKey();
+        return le;
+    };
+
+    auto le1 = generateOffer();
+    Asset const& selling = le1.data.offer().selling;
+    Asset const& buying = le1.data.offer().buying;
+    auto le2 = generateOffer();
+    REQUIRE(selling == le2.data.offer().selling);
+    REQUIRE(buying == le2.data.offer().buying);
+    auto le3 = generateOffer();
+    REQUIRE(selling == le3.data.offer().selling);
+    REQUIRE(buying == le3.data.offer().buying);
+
+    auto leSwitch = le3;
+    leSwitch.data.offer().selling = buying;
+    leSwitch.data.offer().buying = selling;
+
+    LedgerStateRoot& root(app->getLedgerStateRoot());
+    {
+        LedgerState ls(root);
+        ls.create(le1);
+        ls.create(le2);
+        ls.create(leSwitch);
+        ls.commit();
+    }
+    {
+        LedgerState ls(root);
+        auto lerBestOffer = ls.loadBestOffer(selling, buying);
+        lerBestOffer->invalidate();
+
+        auto lerSwitch = ls.load(LedgerEntryKey(leSwitch));
+        *lerSwitch->entry() = le3;
+        lerSwitch->invalidate();
+
+        auto ler1 = ls.loadBestOffer(selling, buying);
+        ler1->erase();
+        ler1->invalidate();
+        auto ler2 = ls.loadBestOffer(selling, buying);
+        ler2->erase();
+        ler2->invalidate();
+        REQUIRE(ls.loadBestOffer(selling, buying));
+    }
+}
