@@ -668,12 +668,10 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
     }
     txm.mTxnAttempted.Mark();
 
-    {
-        StellarMessage msg;
-        msg.type(TRANSACTION);
-        msg.transaction() = txf->getEnvelope();
-        txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
-    }
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    msg.transaction() = txf->getEnvelope();
+    txm.mTxnBytes.Mark(xdr::xdr_argpack_size(msg));
 
     auto status = app.getHerder().recvTransaction(txf);
     if (status != Herder::TX_STATUS_PENDING)
@@ -687,6 +685,10 @@ LoadGenerator::TxInfo::execute(Application& app, bool isCreate,
             code = txf->getResultCode();
         }
         txm.mTxnRejected.Mark();
+    }
+    else
+    {
+        app.getOverlayManager().broadcastMessage(msg);
     }
 
     return status;
