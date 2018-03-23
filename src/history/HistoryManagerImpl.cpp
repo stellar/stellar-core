@@ -121,22 +121,6 @@ HistoryManagerImpl::nextCheckpointLedger(uint32_t ledger) const
     return (((ledger + freq - 1) / freq) * freq);
 }
 
-uint64_t
-HistoryManagerImpl::nextCheckpointCatchupProbe(uint32_t ledger) const
-{
-    uint32_t next = this->nextCheckpointLedger(ledger);
-
-    auto ledger_duration =
-        Herder::EXP_LEDGER_TIMESPAN_SECONDS + std::chrono::seconds(1);
-
-    if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-    {
-        ledger_duration = std::chrono::seconds(1);
-    }
-
-    return (((next - ledger) + 5) * ledger_duration.count());
-}
-
 void
 HistoryManagerImpl::logAndUpdatePublishStatus()
 {

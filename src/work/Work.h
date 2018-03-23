@@ -64,7 +64,6 @@ class Work : public WorkParent
 
     virtual std::string getUniqueName() const;
     virtual std::string getStatus() const;
-    virtual VirtualClock::duration getRetryDelay() const;
     virtual size_t getMaxRetries() const;
     uint64_t getRetryETA() const;
 
@@ -134,5 +133,8 @@ class Work : public WorkParent
 
     void notifyParent();
     virtual void notify(std::string const& childChanged) override;
+
+  private:
+    VirtualClock::duration getRetryDelay() const;
 };
 }

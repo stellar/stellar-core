@@ -118,15 +118,9 @@ CatchupWork::onReset()
     mDownloadTransactionsWork.reset();
     mApplyTransactionsWork.reset();
 
-    uint64_t sleepSeconds =
-        mManualCatchup || (toCheckpoint == CatchupConfiguration::CURRENT)
-            ? 0
-            : mApp.getHistoryManager().nextCheckpointCatchupProbe(toCheckpoint);
-
     mLastClosedLedgerAtReset = mApp.getLedgerManager().getLastClosedLedgerNum();
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-        "get-history-archive-state", mRemoteState, toCheckpoint,
-        std::chrono::seconds(sleepSeconds));
+        "get-history-archive-state", mRemoteState, toCheckpoint);
 }
 
 bool
@@ -205,7 +199,7 @@ CatchupWork::downloadBucketsHistoryArchiveState(uint32_t atCheckpoint)
 
     mGetBucketsHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
         "get-buckets-history-archive-state", mApplyBucketsRemoteState,
-        atCheckpoint, std::chrono::seconds(0));
+        atCheckpoint);
 
     return true;
 }
