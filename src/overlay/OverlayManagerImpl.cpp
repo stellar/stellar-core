@@ -239,17 +239,17 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum)
 
     std::vector<PeerRecord> peers;
 
-    PeerRecord::loadPeerRecords(mApp.getDatabase(), batchSize,
-                                mApp.getClock().now(),
-                                [&](PeerRecord const& pr) {
-                                    // skip peers that we're already
-                                    // connected/connecting to
-                                    if (!getConnectedPeer(pr.getAddress()))
-                                    {
-                                        peers.emplace_back(pr);
-                                    }
-                                    return peers.size() < maxNum;
-                                });
+    PeerRecord::loadPeerRecords(
+        mApp.getDatabase(), batchSize, mApp.getClock().now(),
+        [&](PeerRecord const& pr) {
+            // skip peers that we're already
+            // connected/connecting to
+            if (!getConnectedPeer(pr.getAddress()))
+            {
+                peers.emplace_back(pr);
+            }
+            return peers.size() < static_cast<size_t>(maxNum);
+        });
     return peers;
 }
 

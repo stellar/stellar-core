@@ -85,7 +85,7 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
     }
 
     result.result.results().resize(static_cast<uint32_t>(ops.size()));
-    for (auto i = 0; i < ops.size(); i++)
+    for (size_t i = 0; i < ops.size(); i++)
     {
         auto& r = result.result.results()[i];
         auto& o = ops[i];
@@ -276,7 +276,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
             if (ledgerVersion != 7)
             {
-                for (auto i = 1; i < opSigned.size(); i++)
+                for (size_t i = 1; i < opSigned.size(); i++)
                 {
                     switch (opSigned[i])
                     {
@@ -328,7 +328,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto opResults = std::vector<ExpectedOpResult>{};
         auto firstUnderfunded = true;
 
-        for (auto i = 0; i < opPayment.size(); i++)
+        for (size_t i = 0; i < opPayment.size(); i++)
         {
             if (ledgerVersion != 7)
             {
@@ -600,14 +600,14 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     auto signSectionName = [](std::vector<Signed> const& signs) {
         auto result = std::string{"tx and op1 " + signedNames[signs[0]]};
-        for (auto i = 1; i < signs.size(); i++)
+        for (size_t i = 1; i < signs.size(); i++)
             result +=
                 ", op" + std::to_string(i + 1) + " " + signedNames[signs[i]];
         return result;
     };
     auto opSectionName = [](std::vector<PaymentValidity> const& ops) {
         auto result = std::string{"op1 " + paymentValidityNames[ops[0]]};
-        for (auto i = 1; i < ops.size(); i++)
+        for (size_t i = 1; i < ops.size(); i++)
             result += ", op" + std::to_string(i + 1) + " " +
                       paymentValidityNames[ops[i]];
         return result;
@@ -617,7 +617,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto makeTx = [&](std::vector<Signed> const& signs,
                       std::vector<PaymentValidity> const& ops) {
         auto operations = std::vector<Operation>{};
-        for (auto i = 0; i < ops.size(); i++)
+        for (size_t i = 0; i < ops.size(); i++)
         {
             auto destination = accounts[(i + 1) % ops.size()];
             auto op = payment(*destination, amount(ops[i]));
@@ -629,7 +629,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto tx = a.tx(operations);
         tx->getEnvelope().signatures.clear();
 
-        for (auto i = 0; i < signs.size(); i++)
+        for (size_t i = 0; i < signs.size(); i++)
         {
             sign(tx, *accounts[i], signs[i]);
         }
