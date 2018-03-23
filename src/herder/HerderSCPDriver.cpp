@@ -17,6 +17,7 @@
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <medida/metrics_registry.h>
+#include <util/format.h>
 #include <xdrpp/marshal.h>
 
 namespace stellar
@@ -53,6 +54,10 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewCounter({"herder", "state", "current"}))
     , mHerderStateChanges(
           app.getMetrics().NewTimer({"herder", "state", "changes"}))
+    , mNominateToPrepare(
+          app.getMetrics().NewTimer({"scp", "timing", "nominated"}))
+    , mPrepareToExternalize(
+          app.getMetrics().NewTimer({"scp", "timing", "externalized"}))
 {
 }
 
@@ -701,6 +706,7 @@ void
 HerderSCPDriver::startedBallotProtocol(uint64_t slotIndex,
                                        SCPBallot const& ballot)
 {
+    recordSCPEvent(slotIndex, false);
     mSCPMetrics.mStartBallotProtocol.Mark();
 }
 void
@@ -721,5 +727,79 @@ void
 HerderSCPDriver::acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot)
 {
     mSCPMetrics.mAcceptedCommit.Mark();
+}
+
+void
+HerderSCPDriver::recordSCPEvent(uint64_t slotIndex, bool isNomination)
+{
+
+    auto& timing = mSCPExecutionTimes[slotIndex];
+    VirtualClock::time_point start = mApp.getClock().now();
+
+    if (isNomination)
+    {
+        timing.mNominationStart =
+            make_optional<VirtualClock::time_point>(start);
+    }
+    else
+    {
+        timing.mPrepareStart = make_optional<VirtualClock::time_point>(start);
+    }
+}
+
+void
+HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
+{
+    auto externalizeStart = mApp.getClock().now();
+
+    // Use threshold of 0 in case of a single node
+    auto& qset = mApp.getConfig().QUORUM_SET;
+    auto isSingleNode = qset.innerSets.size() == 0 &&
+                        qset.validators.size() == 1 &&
+                        qset.validators[0] == getSCP().getLocalNodeID();
+    auto threshold = isSingleNode ? std::chrono::nanoseconds::zero()
+                                  : Herder::TIMERS_THRESHOLD_NANOSEC;
+
+    auto SCPTimingIt = mSCPExecutionTimes.find(slotIndex);
+    if (SCPTimingIt == mSCPExecutionTimes.end())
+    {
+        return;
+    }
+
+    auto& SCPTiming = SCPTimingIt->second;
+
+    auto recordTiming = [&](VirtualClock::time_point start,
+                            VirtualClock::time_point end, medida::Timer& timer,
+                            std::string const& logStr) {
+        auto delta =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+        CLOG(DEBUG, "Herder") << fmt::format("{} delta for slot {} is {} ns.",
+                                             logStr, slotIndex, delta.count());
+        if (delta >= threshold)
+        {
+            timer.Update(delta);
+        }
+    };
+
+    // Compute nomination time
+    if (SCPTiming.mNominationStart && SCPTiming.mPrepareStart)
+    {
+        recordTiming(*SCPTiming.mNominationStart, *SCPTiming.mPrepareStart,
+                     mSCPMetrics.mNominateToPrepare, "Nominate");
+    }
+
+    // Compute prepare time
+    if (SCPTiming.mPrepareStart)
+    {
+        recordTiming(*SCPTiming.mPrepareStart, externalizeStart,
+                     mSCPMetrics.mPrepareToExternalize, "Prepare");
+    }
+
+    // Clean up timings map
+    auto it = mSCPExecutionTimes.begin();
+    while (it != mSCPExecutionTimes.end() && it->first <= slotIndex)
+    {
+        it = mSCPExecutionTimes.erase(it);
+    }
 }
 }
