@@ -87,6 +87,9 @@ class HerderSCPDriver : public SCPDriver
         return mSCP;
     }
 
+    void recordSCPExecutionMetrics(uint64_t slotIndex);
+    void recordSCPEvent(uint64_t slotIndex, bool isNomination);
+
     // envelope handling
     void signEnvelope(SCPEnvelope& envelope) override;
     bool verifyEnvelope(SCPEnvelope const& envelope) override;
@@ -164,10 +167,25 @@ class HerderSCPDriver : public SCPDriver
         medida::Counter& mHerderStateCurrent;
         medida::Timer& mHerderStateChanges;
 
+        // Timers for nomination and ballot protocols
+        medida::Timer& mNominateToPrepare;
+        medida::Timer& mPrepareToExternalize;
+
         SCPMetrics(Application& app);
     };
 
     SCPMetrics mSCPMetrics;
+
+    struct SCPTiming
+    {
+        optional<VirtualClock::time_point> mNominationStart;
+        optional<VirtualClock::time_point> mPrepareStart;
+    };
+
+    // Map of time points for each slot to measure key protocol metrics:
+    // * nomination to first prepare
+    // * first prepare to externalize
+    std::map<uint64_t, SCPTiming> mSCPExecutionTimes;
 
     uint32_t mLedgerSeqNominating;
     Value mCurrentValue;

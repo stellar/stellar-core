@@ -16,4 +16,5 @@ uint32 const Herder::LEDGER_VALIDITY_BRACKET = 100;
 uint32 const Herder::MAX_SLOTS_TO_REMEMBER = 12;
 const char* Herder::TX_STATUS_STRING[TX_STATUS_COUNT] = {"PENDING", "DUPLICATE",
                                                          "ERROR"};
+std::chrono::nanoseconds const Herder::TIMERS_THRESHOLD_NANOSEC(5000000);
 }
