@@ -131,7 +131,7 @@ fi
 PKG_CHECK_MODULES(sqlite3, [sqlite3 >= 3.8.0], :, sqlite3_INTERNAL=yes)
 AM_CONDITIONAL(SQLITE3_INTERNAL, [test yes = "$sqlite3_INTERNAL"])
 if test yes = "$sqlite3_INTERNAL"; then
-   sqlite3_CFLAGS=-isystem '$(top_srcdir)/lib/sqlite'
+   sqlite3_CFLAGS='-isystem $(top_srcdir)/lib/sqlite'
    sqlite3_LIBS=
 fi
 AC_SUBST(sqlite3_CFLAGS)
