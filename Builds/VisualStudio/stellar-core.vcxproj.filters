@@ -201,6 +201,9 @@
     <ClCompile Include="..\..\src\util\types.cpp">
       <Filter>util</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\MetricResetter.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\util\Logging.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -1008,6 +1011,9 @@
       <Filter>lib\util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\Logging.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\MetricResetter.h">
       <Filter>util</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\make_unique.h">
