@@ -1039,7 +1039,8 @@ TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
 
     std::vector<stellar::LedgerKey> emptySet;
 
-    app->generateLoad(1000, 1000, 1000, false);
+    // Create accounts
+    app->generateLoad(true, 1000, 0, 1000, 100, false);
     auto& m = app->getMetrics();
     while (m.NewMeter({"loadgen", "run", "complete"}, "run").count() == 0)
     {

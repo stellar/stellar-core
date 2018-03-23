@@ -117,6 +117,12 @@ class TestAccount
     }
     SequenceNumber loadSequenceNumber();
 
+    std::string
+    getAccountId()
+    {
+        return mAccountID;
+    }
+
     int64_t getBalance() const;
 
     bool exists() const;

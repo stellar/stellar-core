@@ -258,7 +258,8 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "/droppeer?node=NODE_ID[&ban=D]</h1>"
         "drops peer identified by PEER_ID, when D is 1 the peer is also banned"
         "</p><p><h1> "
-        "/generateload[?accounts=N&txs=M&txrate=(R|auto)]</h1>"
+        "/generateload[?mode=(create|pay)&accounts=N&txs=M&txrate=(R|auto)&"
+        "batchsize=L]</h1>"
         "artificially generate load for testing; must be used with "
         "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING set to true"
         "</p><p><h1> /help</h1>"
@@ -359,8 +360,8 @@ CommandHandler::manualClose(std::string const& params, std::string& retStr)
 
 template <typename T>
 optional<T>
-maybeParseNumParam(std::map<std::string, std::string> const& map,
-                   std::string const& key, T& defaultVal)
+maybeParseParam(std::map<std::string, std::string> const& map,
+                std::string const& key, T& defaultVal)
 {
     auto i = map.find(key);
     if (i != map.end())
@@ -383,11 +384,11 @@ maybeParseNumParam(std::map<std::string, std::string> const& map,
 
 template <typename T>
 T
-parseNumParam(std::map<std::string, std::string> const& map,
-              std::string const& key)
+parseParam(std::map<std::string, std::string> const& map,
+           std::string const& key)
 {
     T val;
-    auto res = maybeParseNumParam(map, key, val);
+    auto res = maybeParseParam(map, key, val);
     if (!res)
     {
         std::string errorMsg = fmt::format("'{}' argument is required!", key);
@@ -401,20 +402,34 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
 {
     if (mApp.getConfig().ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING)
     {
-        // Defaults are 200k accounts, 200k txs, 10 tx/s. This load-test will
-        // therefore take 40k secs or about 12 hours.
-
-        uint32_t nAccounts = 200000;
-        uint32_t nTxs = 200000;
+        uint32_t nAccounts = 1000;
+        uint32_t nTxs = 0;
         uint32_t txRate = 10;
+        uint32_t batchSize = 100; // Only for account creations
         bool autoRate = false;
+        std::string mode = "create";
 
         std::map<std::string, std::string> map;
         http::server::server::parseParams(params, map);
 
-        maybeParseNumParam(map, "accounts", nAccounts);
-        maybeParseNumParam(map, "txs", nTxs);
+        bool isCreate;
+        maybeParseParam<std::string>(map, "mode", mode);
+        if (mode == std::string("create"))
+        {
+            isCreate = true;
+        }
+        else if (mode == std::string("pay"))
+        {
+            isCreate = false;
+        }
+        else
+        {
+            throw std::runtime_error("Unknown mode.");
+        }
 
+        maybeParseParam(map, "accounts", nAccounts);
+        maybeParseParam(map, "txs", nTxs);
+        maybeParseParam(map, "batchsize", batchSize);
         {
             auto i = map.find("txrate");
             if (i != map.end() && i->second == std::string("auto"))
@@ -423,15 +438,24 @@ CommandHandler::generateLoad(std::string const& params, std::string& retStr)
             }
             else
             {
-                maybeParseNumParam(map, "txrate", txRate);
+                maybeParseParam(map, "txrate", txRate);
             }
         }
 
-        double hours = ((nAccounts + nTxs) / txRate) / 3600.0;
-        mApp.generateLoad(nAccounts, nTxs, txRate, autoRate);
-        retStr = fmt::format(
-            "Generating load: {:d} accounts, {:d} txs, {:d} tx/s = {:f} hours",
-            nAccounts, nTxs, txRate, hours);
+        uint32_t numItems = isCreate ? nAccounts : nTxs;
+        std::string itemType = isCreate ? "accounts" : "txs";
+        double hours = (numItems / txRate) / 3600.0;
+
+        if (batchSize > 100)
+        {
+            batchSize = 100;
+            retStr = "Setting batch size to its limit of 100.";
+        }
+        mApp.generateLoad(isCreate, nAccounts, nTxs, txRate, batchSize,
+                          autoRate);
+        retStr +=
+            fmt::format(" Generating load: {:d} {:s}, {:d} tx/s = {:f} hours",
+                        numItems, itemType, txRate, hours);
     }
     else
     {
@@ -514,7 +538,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
-    uint32_t ledger = parseNumParam<uint32_t>(retMap, "ledger");
+    uint32_t ledger = parseParam<uint32_t>(retMap, "ledger");
 
     auto modeP = retMap.find("mode");
     if (modeP != retMap.end())
@@ -705,11 +729,11 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
         uint32 maxTxSize;
         uint32 protocolVersion;
 
-        p.mBaseFee = maybeParseNumParam(retMap, "basefee", baseFee);
-        p.mBaseReserve = maybeParseNumParam(retMap, "basereserve", baseReserve);
-        p.mMaxTxSize = maybeParseNumParam(retMap, "maxtxsize", maxTxSize);
+        p.mBaseFee = maybeParseParam(retMap, "basefee", baseFee);
+        p.mBaseReserve = maybeParseParam(retMap, "basereserve", baseReserve);
+        p.mMaxTxSize = maybeParseParam(retMap, "maxtxsize", maxTxSize);
         p.mProtocolVersion =
-            maybeParseNumParam(retMap, "protocolversion", protocolVersion);
+            maybeParseParam(retMap, "protocolversion", protocolVersion);
 
         mApp.getHerder().setUpgrades(p);
     }
@@ -761,7 +785,7 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, retMap);
 
     size_t lim = 2;
-    maybeParseNumParam(retMap, "limit", lim);
+    maybeParseParam(retMap, "limit", lim);
 
     mApp.getHerder().dumpInfo(root, lim);
 
@@ -817,9 +841,6 @@ CommandHandler::ll(std::string const& params, std::string& retStr)
     retStr = root.toStyledString();
 }
 
-static const char* TX_STATUS_STRING[Herder::TX_STATUS_COUNT] = {
-    "PENDING", "DUPLICATE", "ERROR"};
-
 void
 CommandHandler::tx(std::string const& params, std::string& retStr)
 {
@@ -854,7 +875,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
 
             output << "{"
                    << "\"status\": "
-                   << "\"" << TX_STATUS_STRING[status] << "\"";
+                   << "\"" << Herder::TX_STATUS_STRING[status] << "\"";
             if (status == Herder::TX_STATUS_ERROR)
             {
                 std::string resultBase64;
@@ -902,7 +923,7 @@ CommandHandler::setcursor(std::string const& params, std::string& retStr)
     http::server::server::parseParams(params, map);
     std::string const& id = map["id"];
 
-    uint32 cursor = parseNumParam<uint32>(map, "cursor");
+    uint32 cursor = parseParam<uint32>(map, "cursor");
 
     if (!ExternalQueue::validateResourceID(id))
     {
@@ -952,7 +973,7 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     if (map["queue"] == "true")
     {
         uint32_t count = 50000;
-        maybeParseNumParam(map, "count", count);
+        maybeParseParam(map, "count", count);
 
         mApp.getMaintainer().performMaintenance(count);
         retStr = "Done";

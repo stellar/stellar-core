@@ -472,11 +472,14 @@ ApplicationImpl::manualClose()
 }
 
 void
-ApplicationImpl::generateLoad(uint32_t nAccounts, uint32_t nTxs,
-                              uint32_t txRate, bool autoRate)
+ApplicationImpl::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
+                              uint32_t txRate, uint32_t batchSize,
+                              bool autoRate)
 {
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
-    getLoadGenerator().generateLoad(*this, nAccounts, nTxs, txRate, autoRate);
+    getLoadGenerator().clear();
+    getLoadGenerator().generateLoad(isCreate, nAccounts, nTxs, txRate,
+                                    batchSize, autoRate);
 }
 
 LoadGenerator&
@@ -484,7 +487,7 @@ ApplicationImpl::getLoadGenerator()
 {
     if (!mLoadGenerator)
     {
-        mLoadGenerator = make_unique<LoadGenerator>(getNetworkID());
+        mLoadGenerator = make_unique<LoadGenerator>(*this);
     }
     return *mLoadGenerator;
 }
