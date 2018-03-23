@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "medida/timer_context.h"
+#include "util/MetricResetter.h"
 #include "util/Timer.h"
 #include <thread>
 
@@ -50,6 +51,7 @@ class ApplicationImpl : public Application
     virtual medida::MetricsRegistry& getMetrics() override;
     virtual void syncOwnMetrics() override;
     virtual void syncAllMetrics() override;
+    virtual void clearMetrics(std::string const& domain) override;
     virtual TmpDirManager& getTmpDirManager() override;
     virtual LedgerManager& getLedgerManager() override;
     virtual BucketManager& getBucketManager() override;
