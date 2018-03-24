@@ -19,7 +19,6 @@
 #include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
-#include "util/SociNoWarnings.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -27,6 +26,7 @@
 
 #include "xdrpp/marshal.h"
 
+#include <soci.h>
 #include <time.h>
 
 // LATER: need to add some way of docking peers that are misbehaving by sending

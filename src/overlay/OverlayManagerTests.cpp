@@ -15,9 +15,10 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
-#include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
+
+#include <soci.h>
 
 using namespace stellar;
 using namespace std;
