@@ -8,10 +8,10 @@
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/XDROperators.h"
 
 namespace stellar
 {
-using xdr::operator==;
 
 static const uint32 allAccountFlags =
     (AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG | AUTH_IMMUTABLE_FLAG);

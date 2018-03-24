@@ -11,6 +11,7 @@
 #include "medida/medida.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
@@ -183,7 +184,6 @@ Tracker::listen(const SCPEnvelope& env)
 void
 Tracker::discard(const SCPEnvelope& env)
 {
-    using xdr::operator==;
     auto matchEnvelope = [&env](std::pair<Hash, SCPEnvelope> const& x) {
         return x.second == env;
     };

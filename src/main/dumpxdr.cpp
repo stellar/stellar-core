@@ -2,6 +2,7 @@
 #include "crypto/SecretKey.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Fs.h"
+#include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "util/basen.h"
 #include <iostream>

@@ -12,6 +12,7 @@
 #include "overlay/PeerRecord.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/make_unique.h"
 
 #include "medida/counter.h"
@@ -49,8 +50,6 @@ namespace stellar
 
 using namespace soci;
 using namespace std;
-
-using xdr::operator<;
 
 std::unique_ptr<OverlayManager>
 OverlayManager::create(Application& app)

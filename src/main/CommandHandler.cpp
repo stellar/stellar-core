@@ -20,6 +20,7 @@
 #include "util/make_unique.h"
 
 #include "medida/reporting/json_reporter.h"
+#include "util/XDROperators.h"
 #include "util/basen.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -37,8 +38,6 @@ using std::placeholders::_2;
 
 namespace stellar
 {
-using xdr::operator<;
-
 CommandHandler::CommandHandler(Application& app) : mApp(app)
 {
     if (mApp.getConfig().HTTP_PORT)

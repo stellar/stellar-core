@@ -11,15 +11,13 @@
 #include "scp/Slot.h"
 #include "simulation/Simulation.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
-
-using xdr::operator<;
-using xdr::operator==;
 
 #define CREATE_VALUE(X) \
     static const Hash X##ValueHash = sha256("SEED_VALUE_HASH_" #X); \

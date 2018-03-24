@@ -10,12 +10,12 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 
 using namespace soci;
 
 namespace stellar
 {
-using xdr::operator==;
 
 MergeOpFrame::MergeOpFrame(Operation const& op, OperationResult& res,
                            TransactionFrame& parentTx)

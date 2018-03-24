@@ -12,6 +12,7 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/types.h"
 
 // convert from sheep to wheat
@@ -22,7 +23,6 @@ namespace stellar
 {
 
 using namespace std;
-using xdr::operator==;
 
 ManageOfferOpFrame::ManageOfferOpFrame(Operation const& op,
                                        OperationResult& res,

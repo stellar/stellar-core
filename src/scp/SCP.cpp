@@ -9,6 +9,7 @@
 #include "scp/Slot.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 
 #include <algorithm>
@@ -16,7 +17,6 @@
 
 namespace stellar
 {
-using xdr::operator==;
 
 SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
          SCPQuorumSet const& qSetLocal)

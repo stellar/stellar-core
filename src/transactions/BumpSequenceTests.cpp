@@ -15,6 +15,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/XDROperators.h"
 #include "util/make_unique.h"
 
 using namespace stellar;
@@ -22,8 +23,6 @@ using namespace stellar::txtest;
 
 TEST_CASE("bump sequence", "[tx][bumpsequence]")
 {
-    using xdr::operator==;
-
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;

@@ -11,13 +11,13 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/types.h"
 
 namespace stellar
 {
 
 using namespace std;
-using xdr::operator==;
 
 ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
                                      TransactionFrame& parentTx)

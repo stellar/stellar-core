@@ -26,6 +26,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/format.h"
 #include "util/make_unique.h"
 
@@ -70,8 +71,6 @@ const uint32_t LedgerManager::GENESIS_LEDGER_BASE_FEE = 100;
 const uint32_t LedgerManager::GENESIS_LEDGER_BASE_RESERVE = 100000000;
 const uint32_t LedgerManager::GENESIS_LEDGER_MAX_TX_SIZE = 100;
 const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
-
-using xdr::operator==;
 
 std::unique_ptr<LedgerManager>
 LedgerManager::create(Application& app)

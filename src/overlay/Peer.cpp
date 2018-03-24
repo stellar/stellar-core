@@ -19,7 +19,7 @@
 #include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
-
+#include "util/XDROperators.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "medida/timer.h"
@@ -37,8 +37,6 @@ namespace stellar
 
 using namespace std;
 using namespace soci;
-
-using xdr::operator<;
 
 medida::Meter&
 Peer::getByteReadMeter(Application& app)
@@ -898,8 +896,6 @@ Peer::noteHandshakeSuccessInPeerRecord()
 void
 Peer::recvHello(Hello const& elo)
 {
-    using xdr::operator==;
-
     if (mState >= GOT_HELLO)
     {
         CLOG(ERROR, "Overlay") << "received unexpected HELLO";

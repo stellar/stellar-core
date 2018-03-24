@@ -14,6 +14,7 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/XDROperators.h"
 #include "util/make_unique.h"
 
 using namespace stellar;
@@ -28,8 +29,6 @@ typedef std::unique_ptr<Application> appPtr;
 // minbalance
 TEST_CASE("set options", "[tx][setoptions]")
 {
-    using xdr::operator==;
-
     Config const& cfg = getTestConfig();
 
     VirtualClock clock;

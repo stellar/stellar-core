@@ -16,6 +16,7 @@
 #include "transactions/InflationOpFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/XDROperators.h"
 #include <functional>
 
 using namespace stellar;
@@ -164,8 +165,6 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
             std::function<int64(int)> getBalance,
             std::function<int(int)> getVote, int expectedWinnerCount)
 {
-    using xdr::operator==;
-
     // simulate the expected inflation based off the current ledger state
     std::map<int, int64> balances;
 

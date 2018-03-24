@@ -7,13 +7,12 @@
 #include "main/Config.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/XDROperators.h"
 #include "xdr/Stellar-ledger.h"
 #include "xdrpp/printer.h"
 
 namespace stellar
 {
-using xdr::operator==;
-
 LedgerDelta::LedgerDelta(LedgerDelta& outerDelta)
     : mOuterDelta(&outerDelta)
     , mHeader(&outerDelta.getHeader())

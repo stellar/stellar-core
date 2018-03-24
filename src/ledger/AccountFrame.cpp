@@ -12,6 +12,7 @@
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "lib/util/format.h"
+#include "util/XDROperators.h"
 #include "util/basen.h"
 #include "util/types.h"
 #include <algorithm>
@@ -21,8 +22,6 @@ using namespace std;
 
 namespace stellar
 {
-using xdr::operator<;
-
 const char* AccountFrame::kSQLCreateStatement1 =
     "CREATE TABLE accounts"
     "("

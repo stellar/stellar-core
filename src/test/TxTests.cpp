@@ -27,6 +27,7 @@
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/make_unique.h"
 #include "util/types.h"
 
@@ -36,8 +37,6 @@ using namespace stellar::txtest;
 typedef std::unique_ptr<Application> appPtr;
 namespace stellar
 {
-using xdr::operator==;
-
 namespace txtest
 {
 
