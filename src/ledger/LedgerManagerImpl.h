@@ -53,6 +53,13 @@ class LedgerManagerImpl : public LedgerManager
     medida::Counter& mSyncingLedgersSize;
 
     SyncingLedgerChain mSyncingLedgers;
+    uint32_t mCatchupTriggerLedger{0};
+    bool mWaitingForCatchupTriggerLedger{false};
+
+    void initializeCatchup(LedgerCloseData const& ledgerData);
+    void continueCatchup(LedgerCloseData const& ledgerData);
+    void addToSyncingLedgers(LedgerCloseData const& ledgerData);
+    void startCatchupIf(uint32_t lastReceivedLedgerSeq);
 
     void historyCaughtup(asio::error_code const& ec,
                          CatchupWork::ProgressState progressState,

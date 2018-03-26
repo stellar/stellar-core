@@ -422,56 +422,115 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
                 << mLastClosedLedger.header.ledgerSeq
                 << ", network closed ledger " << ledgerData.getLedgerSeq();
 
-            assert(mSyncingLedgers.size() == 0);
-            auto addResult = mSyncingLedgers.add(ledgerData);
-            assert(addResult == SyncingLedgerChainAddResult::CONTIGUOUS);
-            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-            CLOG(INFO, "Ledger")
-                << "Close of ledger " << ledgerData.getLedgerSeq()
-                << " buffered, starting catchup";
-
-            // catchup just before first buffered ledger
-            // that way we will have a way to verify history consistency -
-            // compare previousLedgerHash of buffered ledger with last one
-            // downloaded from history
-            startCatchup({ledgerData.getLedgerSeq() - 1, getCatchupCount(mApp)},
-                         false);
+            initializeCatchup(ledgerData);
         }
         break;
 
     case LedgerManager::LM_CATCHING_UP_STATE:
     {
-        switch (mSyncingLedgers.add(ledgerData))
-        {
-        case SyncingLedgerChainAddResult::CONTIGUOUS:
-            // Normal close while catching up
-            mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-            mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-            break;
-        case SyncingLedgerChainAddResult::TOO_OLD:
-            CLOG(INFO, "Ledger")
-                << "Skipping close ledger: latest known is "
-                << mSyncingLedgers.back().getLedgerSeq()
-                << ", more recent than " << ledgerData.getLedgerSeq();
-            break;
-        case SyncingLedgerChainAddResult::TOO_NEW:
-            // Out-of-order close while catching up; timeout / network failure?
-            CLOG(WARNING, "Ledger")
-                << "Out-of-order close during catchup, buffered to "
-                << mSyncingLedgers.back().getLedgerSeq()
-                << " but network closed " << ledgerData.getLedgerSeq();
-
-            CLOG(WARNING, "Ledger")
-                << "this round of catchup will fail and restart.";
-
-            mApp.getCatchupManager().logAndUpdateCatchupStatus(false);
-            break;
-        }
+        continueCatchup(ledgerData);
     }
     break;
 
     default:
         assert(false);
+    }
+}
+
+void
+LedgerManagerImpl::initializeCatchup(LedgerCloseData const& ledgerData)
+{
+    assert(mState != LM_CATCHING_UP_STATE);
+    assert(!mWaitingForCatchupTriggerLedger);
+    assert(mSyncingLedgers.empty());
+
+    setState(LM_CATCHING_UP_STATE);
+    mCatchupTriggerLedger = mApp.getHistoryManager().nextCheckpointLedger(
+                                ledgerData.getLedgerSeq()) +
+                            1;
+    mWaitingForCatchupTriggerLedger = true;
+    addToSyncingLedgers(ledgerData);
+    startCatchupIf(ledgerData.getLedgerSeq());
+}
+
+void
+LedgerManagerImpl::continueCatchup(LedgerCloseData const& ledgerData)
+{
+    assert(mState == LM_CATCHING_UP_STATE);
+
+    addToSyncingLedgers(ledgerData);
+    startCatchupIf(ledgerData.getLedgerSeq());
+}
+
+void
+LedgerManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
+{
+    switch (mSyncingLedgers.add(ledgerData))
+    {
+    case SyncingLedgerChainAddResult::CONTIGUOUS:
+        // Normal close while catching up
+        CLOG(INFO, "Ledger")
+            << "Close of ledger " << ledgerData.getLedgerSeq() << " buffered";
+        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+        return;
+    case SyncingLedgerChainAddResult::TOO_OLD:
+        CLOG(INFO, "Ledger")
+            << "Skipping close ledger: latest known is "
+            << mSyncingLedgers.back().getLedgerSeq() << ", more recent than "
+            << ledgerData.getLedgerSeq();
+        return;
+    case SyncingLedgerChainAddResult::TOO_NEW:
+        // Out-of-order close while catching up; timeout / network failure?
+        CLOG(WARNING, "Ledger")
+            << "Out-of-order close during catchup, buffered to "
+            << mSyncingLedgers.back().getLedgerSeq() << " but network closed "
+            << ledgerData.getLedgerSeq();
+
+        CLOG(WARNING, "Ledger")
+            << "this round of catchup will fail and restart.";
+        return;
+    default:
+        assert(false);
+    }
+}
+
+void
+LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
+{
+    assert(mSyncingLedgers.size() > 0);
+
+    auto contiguous =
+        lastReceivedLedgerSeq == mSyncingLedgers.back().getLedgerSeq();
+    if (!mWaitingForCatchupTriggerLedger)
+    {
+        mApp.getCatchupManager().logAndUpdateCatchupStatus(contiguous);
+        return;
+    }
+
+    if (lastReceivedLedgerSeq >= mCatchupTriggerLedger)
+    {
+        mWaitingForCatchupTriggerLedger = false;
+
+        auto message = fmt::format("Starting catchup after ensuring checkpoint "
+                                   "ledger {} was closed on network",
+                                   mCatchupTriggerLedger);
+        mApp.getCatchupManager().logAndUpdateCatchupStatus(contiguous, message);
+
+        // catchup just before first buffered ledger that way we will have a way
+        // to verify history consistency - compare previousLedgerHash of
+        // buffered ledger with last one downloaded from history
+        auto firstBufferedLedgerSeq = mSyncingLedgers.front().getLedgerSeq();
+        startCatchup({firstBufferedLedgerSeq - 1, getCatchupCount(mApp)},
+                     false);
+    }
+    else
+    {
+        auto eta = (mCatchupTriggerLedger - lastReceivedLedgerSeq) *
+                   Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+        auto message = fmt::format(
+            "Waiting for trigger ledger: {}/{}, ETA: {}s",
+            lastReceivedLedgerSeq, mCatchupTriggerLedger, eta.count());
+        mApp.getCatchupManager().logAndUpdateCatchupStatus(contiguous, message);
     }
 }
 
