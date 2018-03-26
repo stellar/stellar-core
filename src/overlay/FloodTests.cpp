@@ -6,6 +6,7 @@
 #include "herder/Herder.h"
 #include "herder/HerderImpl.h"
 #include "ledger/LedgerDelta.h"
+#include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"

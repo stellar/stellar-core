@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/AccountFrame.h"
-#include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
 
