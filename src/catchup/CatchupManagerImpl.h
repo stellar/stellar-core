@@ -43,6 +43,8 @@ class CatchupManagerImpl : public CatchupManager
     uint64_t getCatchupSuccessCount() const override;
     uint64_t getCatchupFailureCount() const override;
 
+    void logAndUpdateCatchupStatus(bool contiguous,
+                                   std::string const& message) override;
     void logAndUpdateCatchupStatus(bool contiguous) override;
 };
 }

@@ -48,7 +48,16 @@ class CatchupManager
     // Emit a log message and set StatusManager HISTORY_CATCHUP status to
     // describe current catchup state. The `contiguous` argument is passed in
     // to describe whether the ledger-manager's view of current catchup tasks
-    // is currently contiguous or discontiguous.
+    // is currently contiguous or discontiguous. Message is passed as second
+    // argument.
+    virtual void logAndUpdateCatchupStatus(bool contiguous,
+                                           std::string const& message) = 0;
+
+    // Emit a log message and set StatusManager HISTORY_CATCHUP status to
+    // describe current catchup state. The `contiguous` argument is passed in
+    // to describe whether the ledger-manager's view of current catchup tasks
+    // is currently contiguous or discontiguous. Message is taken from current
+    // work item.
     virtual void logAndUpdateCatchupStatus(bool contiguous) = 0;
 
     virtual ~CatchupManager(){};
