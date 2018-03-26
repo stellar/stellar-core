@@ -606,7 +606,7 @@ TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
             numNodes, 1.0, Simulation::OVER_LOOPBACK,
             sha256(fmt::format("nodes-{:d}", numNodes)),
             [](int cfgCount) -> Config {
-                Config res = getTestConfig();
+                Config res = getTestConfig(cfgCount);
                 res.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING = true;
                 res.MAX_PEER_CONNECTIONS = 1000;
                 return res;
