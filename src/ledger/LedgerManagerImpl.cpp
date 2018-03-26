@@ -569,11 +569,14 @@ LedgerManagerImpl::verifyCatchupCandidate(
            candidate.header.ledgerSeq + 1);
 
     // asserts dont work in release builds
-    if (!mSyncingLedgers.empty() &&
-        mSyncingLedgers.front().getLedgerSeq() ==
-            candidate.header.ledgerSeq + 1 &&
-        mSyncingLedgers.front().getTxSet()->previousLedgerHash() ==
-            candidate.hash)
+    if (mSyncingLedgers.empty())
+    {
+        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
+    }
+
+    auto& firstSyncing = mSyncingLedgers.front();
+    if (firstSyncing.getLedgerSeq() == candidate.header.ledgerSeq + 1 &&
+        firstSyncing.getTxSet()->previousLedgerHash() == candidate.hash)
     {
         return HistoryManager::VERIFY_STATUS_OK;
     }
@@ -634,66 +637,15 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         // Now replay remaining txs from buffered local network history.
         for (auto const& lcd : mSyncingLedgers)
         {
-            if (lcd.getLedgerSeq() < mLastClosedLedger.header.ledgerSeq + 1)
-            {
-                // We may have buffered lots of stuff between the consensus
-                // ledger when we started catchup and the final ledger applied
-                // during catchup replay. We can just drop these, they're
-                // redundant with what catchup did.
-
-                if (lcd.getLedgerSeq() == mLastClosedLedger.header.ledgerSeq)
-                {
-                    // At the knit-up point between history-replay and
-                    // buffer-replay, we should have identity between the
-                    // contents of the consensus LCD and the last ledger catchup
-                    // closed (which was proposed as a candidate, and we
-                    // approved in verifyCatchupCandidate).
-                    assert(lcd.getTxSet()->getContentsHash() ==
-                           lcd.getValue().txSetHash);
-                    assert(lcd.getValue() == mLastClosedLedger.header.scpValue);
-                }
-
-                continue;
-            }
-            else if (lcd.getLedgerSeq() ==
-                     mLastClosedLedger.header.ledgerSeq + 1)
-            {
-                CLOG(INFO, "Ledger")
-                    << "Replaying buffered ledger-close: "
-                    << "[seq=" << lcd.getLedgerSeq() << ", prev="
-                    << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                    << ", tx_count=" << lcd.getTxSet()->size()
-                    << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
-                closeLedger(lcd);
-            }
-            else
-            {
-                // We should never _overshoot_ the last ledger. The whole point
-                // of rounding the initLedger value up to the next history
-                // boundary is that there should always be some overlap between
-                // the buffered LedgerCloseDatas and the history block we catch
-                // up with.
-                //
-                // So if we ever get here, something was seriously wrong --
-                // possibly SCP timed out / fell behind _during_ catchup -- and
-                // we should flush everything we did during catchup and restart
-                // the process anew.
-
-                assert(lcd.getLedgerSeq() >
-                       mLastClosedLedger.header.ledgerSeq + 1);
-                CLOG(ERROR, "Ledger")
-                    << "Catchup failed to buffer contiguous ledger chain";
-                CLOG(ERROR, "Ledger")
-                    << "LCL is " << ledgerAbbrev(mLastClosedLedger)
-                    << ", trying to apply buffered close " << lcd.getLedgerSeq()
-                    << " with txhash "
-                    << hexAbbrev(lcd.getTxSet()->getContentsHash());
-                mSyncingLedgers = {};
-                mSyncingLedgersSize.set_count(mSyncingLedgers.size());
-                CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
-                setState(LM_BOOTING_STATE);
-                return;
-            }
+            assert(lcd.getLedgerSeq() ==
+                   mLastClosedLedger.header.ledgerSeq + 1);
+            CLOG(INFO, "Ledger")
+                << "Replaying buffered ledger-close: "
+                << "[seq=" << lcd.getLedgerSeq()
+                << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
+                << ", tx_count=" << lcd.getTxSet()->size()
+                << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
+            closeLedger(lcd);
         }
 
         CLOG(INFO, "Ledger")
