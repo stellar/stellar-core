@@ -489,30 +489,6 @@ class ScaleReporter
     }
 };
 
-static void
-closeLedger(Application& app)
-{
-    auto& clock = app.getClock();
-    bool advanced = false;
-    VirtualTimer t(clock);
-    auto nsecs = std::chrono::seconds(Herder::EXP_LEDGER_TIMESPAN_SECONDS);
-    if (app.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-    {
-        nsecs = std::chrono::seconds(1);
-    }
-    t.expires_from_now(nsecs);
-    t.async_wait([&](asio::error_code ec) { advanced = true; });
-
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
-    auto& lm = app.getLedgerManager();
-    auto start = lm.getLastClosedLedgerNum();
-    while ((!io.stopped() && lm.getLastClosedLedgerNum() == start) || !advanced)
-    {
-        clock.crank();
-    }
-}
-
 TEST_CASE("Accounts vs. latency", "[scalability][hide]")
 {
     ScaleReporter r({"accounts", "txcount", "latencymin", "latencymax",
@@ -567,23 +543,24 @@ netTopologyTest(std::string const& name,
     {
         auto sim = mkSim(numNodes);
         sim->startAllNodes();
+        sim->crankUntil([&]() { return sim->haveAllExternalized(5, 4); },
+                        2 * 5 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
+        REQUIRE(sim->haveAllExternalized(5, 4));
+
         auto nodes = sim->getNodes();
         assert(!nodes.empty());
         auto& app = *nodes[0];
-        closeLedger(app);
-        VirtualClock clock;
 
-        app.getLoadGenerator().generateLoad(true, 50, 0, 10, 100, true);
+        app.getLoadGenerator().generateLoad(true, 50, 0, 10, 100, false);
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
-        auto& io = clock.getIOService();
-        asio::io_service::work mainWork(io);
-        while (!io.stopped() && complete.count() == 0)
-        {
-            clock.crank();
-        }
-        closeLedger(app);
+        sim->crankUntil(
+            [&]() {
+                return sim->haveAllExternalized(8, 2) &&
+                       sim->accountsOutOfSyncWithDb(app).empty();
+            },
+            2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
         app.reportCfgMetrics();
 
