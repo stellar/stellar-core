@@ -310,6 +310,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\WriteSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\history\FileTransferInfo.cpp" />
     <ClCompile Include="..\..\src\history\HistoryArchive.cpp" />
+    <ClCompile Include="..\..\src\history\HistoryArchiveManager.cpp" />
     <ClCompile Include="..\..\src\history\HistoryManagerImpl.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTests.cpp" />
     <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp" />
@@ -584,6 +585,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\WriteSnapshotWork.h" />
     <ClInclude Include="..\..\src\history\FileTransferInfo.h" />
     <ClInclude Include="..\..\src\history\HistoryArchive.h" />
+    <ClInclude Include="..\..\src\history\HistoryArchiveManager.h" />
     <ClInclude Include="..\..\src\history\HistoryManager.h" />
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
     <ClInclude Include="..\..\src\history\HistoryTestsUtils.h" />

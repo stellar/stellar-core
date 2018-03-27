@@ -4,6 +4,7 @@
 
 #include "historywork/GetRemoteFileWork.h"
 #include "history/HistoryArchive.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "main/Application.h"
 
@@ -33,7 +34,8 @@ GetRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
     auto archive = mArchive;
     if (!archive)
     {
-        archive = mApp.getHistoryManager().selectRandomReadableHistoryArchive();
+        archive = mApp.getHistoryArchiveManager()
+                      .selectRandomReadableHistoryArchive();
     }
     assert(archive);
     assert(archive->hasGetCmd());

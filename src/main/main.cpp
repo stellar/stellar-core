@@ -12,6 +12,7 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
@@ -606,7 +607,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 
     for (auto const& arch : newHistories)
     {
-        if (!app->getHistoryManager().initializeHistoryArchive(arch))
+        if (!app->getHistoryArchiveManager().initializeHistoryArchive(arch))
             return 1;
     }
     return 0;
@@ -629,7 +630,7 @@ startApp(string cfgFile, Config& cfg)
         }
         else
         {
-            if (!HistoryManager::checkSensibleConfig(cfg))
+            if (!HistoryArchiveManager::checkSensibleConfig(cfg))
             {
                 return 1;
             }

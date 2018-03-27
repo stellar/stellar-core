@@ -41,11 +41,6 @@ class HistoryManagerImpl : public HistoryManager
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
-    bool initializeHistoryArchive(std::string const& arch) override;
-
-    std::shared_ptr<HistoryArchive>
-    selectRandomReadableHistoryArchive() override;
-
     uint32_t getCheckpointFrequency() const override;
     uint32_t checkpointContainingLedger(uint32_t ledger) const override;
     uint32_t prevCheckpointLedger(uint32_t ledger) const override;
@@ -61,8 +56,6 @@ class HistoryManagerImpl : public HistoryManager
     void queueCurrentHistory() override;
 
     void takeSnapshotAndPublish(HistoryArchiveState const& has);
-
-    bool hasAnyWritableHistoryArchive() override;
 
     uint32_t getMinLedgerQueuedToPublish() override;
 

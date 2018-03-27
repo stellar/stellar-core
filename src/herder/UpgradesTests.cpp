@@ -5,6 +5,7 @@
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
@@ -103,7 +104,7 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
     }
 
     simulation->getNode(keys[0].getPublicKey())
-        ->getHistoryManager()
+        ->getHistoryArchiveManager()
         .initializeHistoryArchive("test");
 
     for (size_t i = 0; i < nodes.size(); i++)

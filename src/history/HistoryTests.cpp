@@ -4,6 +4,7 @@
 
 #include "bucket/BucketManager.h"
 #include "catchup/CatchupWorkTests.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryTestsUtils.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
@@ -439,7 +440,7 @@ TEST_CASE("persist publish queue", "[history]")
     {
         VirtualClock clock;
         Application::pointer app1 = Application::create(clock, cfg, false);
-        app1->getHistoryManager().initializeHistoryArchive("test");
+        app1->getHistoryArchiveManager().initializeHistoryArchive("test");
         for (size_t i = 0; i < 100; ++i)
             clock.crank(false);
         app1->start();
@@ -625,12 +626,14 @@ TEST_CASE("initialize existing history store fails", "[history]")
     {
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        REQUIRE(app->getHistoryManager().initializeHistoryArchive("test"));
+        REQUIRE(
+            app->getHistoryArchiveManager().initializeHistoryArchive("test"));
     }
 
     {
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
-        REQUIRE(!app->getHistoryManager().initializeHistoryArchive("test"));
+        REQUIRE(
+            !app->getHistoryArchiveManager().initializeHistoryArchive("test"));
     }
 }

@@ -6,6 +6,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "herder/TxSetFrame.h"
+#include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -207,7 +208,7 @@ CatchupSimulation::CatchupSimulation(std::shared_ptr<HistoryConfigurator> cg)
           mClock, mHistoryConfigurator->configure(mCfg, true)))
     , mApp(*mAppPtr)
 {
-    CHECK(mApp.getHistoryManager().initializeHistoryArchive("test"));
+    CHECK(mApp.getHistoryArchiveManager().initializeHistoryArchive("test"));
 }
 
 CatchupSimulation::~CatchupSimulation()

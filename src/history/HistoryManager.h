@@ -195,15 +195,6 @@ class HistoryManager
         VERIFY_STATUS_ERR_MISSING_ENTRIES
     };
 
-    // Select any readable history archive. If there are more than one,
-    // select one at random.
-    virtual std::shared_ptr<HistoryArchive>
-    selectRandomReadableHistoryArchive() = 0;
-
-    // Initialize a named history archive by writing
-    // .well-known/stellar-history.json to it.
-    virtual bool initializeHistoryArchive(std::string const& arch) = 0;
-
     // Check that config settings are at least somewhat reasonable.
     static bool checkSensibleConfig(Config const& cfg);
 
@@ -260,10 +251,6 @@ class HistoryManager
     // publication-queue in the database. This should be followed shortly
     // (typically after commit) with a call to publishQueuedHistory.
     virtual void queueCurrentHistory() = 0;
-
-    // Returns whether or not the HistoryManager has any writable history
-    // archives (those configured with both a `get` and `put` command).
-    virtual bool hasAnyWritableHistoryArchive() = 0;
 
     // Return the youngest ledger still in the outgoing publish queue;
     // returns 0 if the publish queue has nothing in it.
