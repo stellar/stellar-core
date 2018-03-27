@@ -21,9 +21,8 @@ namespace stellar
 HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
 {
     for (auto const& archiveConfiguration : mApp.getConfig().HISTORY)
-        mArchives.insert(std::make_pair(
-            archiveConfiguration.first,
-            std::make_shared<HistoryArchive>(archiveConfiguration.second)));
+        mArchives.push_back(
+            std::make_shared<HistoryArchive>(archiveConfiguration.second));
 }
 
 bool
@@ -35,28 +34,28 @@ HistoryArchiveManager::checkSensibleConfig() const
     std::vector<std::string> writeOnlyArchives;
     std::vector<std::string> inertArchives;
 
-    for (auto const& pair : mArchives)
+    for (auto const& archive : mArchives)
     {
-        if (pair.second->hasGetCmd())
+        if (archive->hasGetCmd())
         {
-            if (pair.second->hasPutCmd())
+            if (archive->hasPutCmd())
             {
-                readWriteArchives.push_back(pair.first);
+                readWriteArchives.push_back(archive->getName());
             }
             else
             {
-                readOnlyArchives.push_back(pair.first);
+                readOnlyArchives.push_back(archive->getName());
             }
         }
         else
         {
-            if (pair.second->hasPutCmd())
+            if (archive->hasPutCmd())
             {
-                writeOnlyArchives.push_back(pair.first);
+                writeOnlyArchives.push_back(archive->getName());
             }
             else
             {
-                inertArchives.push_back(pair.first);
+                inertArchives.push_back(archive->getName());
             }
         }
     }
@@ -117,27 +116,26 @@ HistoryArchiveManager::checkSensibleConfig() const
 std::shared_ptr<HistoryArchive>
 HistoryArchiveManager::selectRandomReadableHistoryArchive() const
 {
-    std::vector<std::pair<std::string, std::shared_ptr<HistoryArchive>>>
-        archives;
+    std::vector<std::shared_ptr<HistoryArchive>> archives;
 
     // First try for archives that _only_ have a get command; they're
     // archives we're explicitly not publishing to, so likely ones we want.
-    for (auto const& pair : mArchives)
+    for (auto const& archive : mArchives)
     {
-        if (pair.second->hasGetCmd() && !pair.second->hasPutCmd())
+        if (archive->hasGetCmd() && !archive->hasPutCmd())
         {
-            archives.push_back(pair);
+            archives.push_back(archive);
         }
     }
 
     // If we have none of those, accept those with get+put
     if (archives.size() == 0)
     {
-        for (auto const& pair : mArchives)
+        for (auto const& archive : mArchives)
         {
-            if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
+            if (archive->hasGetCmd() && archive->hasPutCmd())
             {
-                archives.push_back(pair);
+                archives.push_back(archive);
             }
         }
     }
@@ -150,24 +148,24 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
     {
         CLOG(DEBUG, "History")
             << "Fetching from sole readable history archive '"
-            << archives[0].first << "'";
-        return archives[0].second;
+            << archives[0]->getName() << "'";
+        return archives[0];
     }
     else
     {
         std::uniform_int_distribution<size_t> dist(0, archives.size() - 1);
         size_t i = dist(gRandomEngine);
         CLOG(DEBUG, "History") << "Fetching from readable history archive #"
-                               << i << ", '" << archives[i].first << "'";
-        return archives[i].second;
+                               << i << ", '" << archives[i]->getName() << "'";
+        return archives[i];
     }
 }
 
 bool
 HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
 {
-    auto i = mArchives.find(arch);
-    if (i == mArchives.end())
+    auto archive = getHistoryArchive(arch);
+    if (!archive)
     {
         CLOG(FATAL, "History")
             << "Can't initialize unknown history archive '" << arch << "'";
@@ -182,7 +180,7 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
                           << "' for existing state";
     auto getHas = wm.executeWork<GetHistoryArchiveStateWork>(
         "get-history-archive-state", existing, 0, std::chrono::seconds(0),
-        i->second, 0);
+        archive, 0);
     if (getHas->getState() == Work::WORK_SUCCESS)
     {
         CLOG(ERROR, "History")
@@ -196,7 +194,7 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
     CLOG(INFO, "History") << "Initializing history archive '" << arch << "'";
     has.resolveAllFutures();
 
-    auto putHas = wm.executeWork<PutHistoryArchiveStateWork>(has, i->second);
+    auto putHas = wm.executeWork<PutHistoryArchiveStateWork>(has, archive);
     if (putHas->getState() == Work::WORK_SUCCESS)
     {
         CLOG(INFO, "History") << "Initialized history archive '" << arch << "'";
@@ -213,9 +211,9 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
 bool
 HistoryArchiveManager::hasAnyWritableHistoryArchive() const
 {
-    for (auto const& pair : mArchives)
+    for (auto const& archive : mArchives)
     {
-        if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
+        if (archive->hasGetCmd() && archive->hasPutCmd())
             return true;
     }
     return false;
@@ -224,18 +222,21 @@ HistoryArchiveManager::hasAnyWritableHistoryArchive() const
 std::shared_ptr<HistoryArchive>
 HistoryArchiveManager::getHistoryArchive(std::string const& name) const
 {
-    auto it = mArchives.find(name);
-    return it == std::end(mArchives) ? nullptr : it->second;
+    auto it = std::find_if(std::begin(mArchives), std::end(mArchives),
+                           [&name](std::shared_ptr<HistoryArchive> const& x) {
+                               return x->getName() == name;
+                           });
+    return it == std::end(mArchives) ? nullptr : *it;
 }
 
 std::vector<std::shared_ptr<HistoryArchive>>
 HistoryArchiveManager::getWritableHistoryArchives() const
 {
     auto result = std::vector<std::shared_ptr<HistoryArchive>>{};
-    for (auto const& pair : mArchives)
+    for (auto const& archive : mArchives)
     {
-        if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
-            result.push_back(pair.second);
+        if (archive->hasGetCmd() && archive->hasPutCmd())
+            result.push_back(archive);
     }
     return result;
 }
@@ -245,9 +246,9 @@ HistoryArchiveManager::getJsonInfo() const
 {
     auto info = Json::Value{};
 
-    for (auto i : mArchives)
+    for (auto archive : mArchives)
     {
-        info[i.first] = i.second->getJsonInfo();
+        info[archive->getName()] = archive->getJsonInfo();
     }
 
     return info;
