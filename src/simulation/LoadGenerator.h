@@ -47,7 +47,7 @@ class LoadGenerator
     uint64_t mLastSecond;
 
     void createRootAccount();
-    uint32_t getTxPerStep(uint32_t txRate);
+    uint32_t getTxPerStep(uint32_t txRate, bool isCreate);
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,

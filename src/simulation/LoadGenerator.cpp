@@ -74,7 +74,7 @@ LoadGenerator::createRootAccount()
 }
 
 uint32_t
-LoadGenerator::getTxPerStep(uint32_t txRate)
+LoadGenerator::getTxPerStep(uint32_t txRate, bool isCreate)
 {
     // txRate is "per second"; we're running one "step" worth which is a
     // fraction of txRate determined by STEP_MSECS. For example if txRate
@@ -88,13 +88,16 @@ LoadGenerator::getTxPerStep(uint32_t txRate)
     // calculation based _just_ on target rate and STEP_MSECS, we also adjust
     // based on how often we seem to be waking up and taking loadgen steps in
     // reality.
-    auto& stepMeter =
-        mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
-    stepMeter.Mark();
-    auto stepsPerSecond = stepMeter.one_minute_rate();
-    if (stepMeter.count() > 10 && stepsPerSecond != 0)
+    if (!isCreate)
     {
-        txPerStep = static_cast<uint32_t>(txRate / stepsPerSecond);
+        auto& stepMeter =
+            mApp.getMetrics().NewMeter({"loadgen", "step", "count"}, "step");
+        stepMeter.Mark();
+        auto stepsPerSecond = stepMeter.one_minute_rate();
+        if (stepMeter.count() > 10 && stepsPerSecond != 0)
+        {
+            txPerStep = static_cast<uint32_t>(txRate / stepsPerSecond);
+        }
     }
 
     // If we have a very low tx rate (eg. 2/sec) then the previous division will
@@ -219,7 +222,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         batchSize = 1;
     }
 
-    uint32_t txPerStep = getTxPerStep(txRate);
+    uint32_t txPerStep = getTxPerStep(txRate, isCreate);
     auto& submitTimer =
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
