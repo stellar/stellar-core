@@ -19,10 +19,14 @@ namespace stellar
 
 HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
 {
+    for (auto const& archiveConfiguration : mApp.getConfig().HISTORY)
+        mArchives.insert(std::make_pair(
+            archiveConfiguration.first,
+            std::make_shared<HistoryArchive>(archiveConfiguration.second)));
 }
 
 bool
-HistoryArchiveManager::checkSensibleConfig()
+HistoryArchiveManager::checkSensibleConfig() const
 {
     // Check reasonable-ness of history archive definitions
     std::vector<std::string> readOnlyArchives;
@@ -30,7 +34,7 @@ HistoryArchiveManager::checkSensibleConfig()
     std::vector<std::string> writeOnlyArchives;
     std::vector<std::string> inertArchives;
 
-    for (auto const& pair : mApp.getConfig().HISTORY)
+    for (auto const& pair : mArchives)
     {
         if (pair.second->hasGetCmd())
         {
@@ -110,14 +114,14 @@ HistoryArchiveManager::checkSensibleConfig()
 }
 
 std::shared_ptr<HistoryArchive>
-HistoryArchiveManager::selectRandomReadableHistoryArchive()
+HistoryArchiveManager::selectRandomReadableHistoryArchive() const
 {
     std::vector<std::pair<std::string, std::shared_ptr<HistoryArchive>>>
         archives;
 
     // First try for archives that _only_ have a get command; they're
     // archives we're explicitly not publishing to, so likely ones we want.
-    for (auto const& pair : mApp.getConfig().HISTORY)
+    for (auto const& pair : mArchives)
     {
         if (pair.second->hasGetCmd() && !pair.second->hasPutCmd())
         {
@@ -128,7 +132,7 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive()
     // If we have none of those, accept those with get+put
     if (archives.size() == 0)
     {
-        for (auto const& pair : mApp.getConfig().HISTORY)
+        for (auto const& pair : mArchives)
         {
             if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
             {
@@ -159,11 +163,10 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive()
 }
 
 bool
-HistoryArchiveManager::initializeHistoryArchive(std::string const& arch)
+HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
 {
-    auto const& cfg = mApp.getConfig();
-    auto i = cfg.HISTORY.find(arch);
-    if (i == cfg.HISTORY.end())
+    auto i = mArchives.find(arch);
+    if (i == mArchives.end())
     {
         CLOG(FATAL, "History")
             << "Can't initialize unknown history archive '" << arch << "'";
@@ -207,14 +210,32 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch)
 }
 
 bool
-HistoryArchiveManager::hasAnyWritableHistoryArchive()
+HistoryArchiveManager::hasAnyWritableHistoryArchive() const
 {
-    auto const& hist = mApp.getConfig().HISTORY;
-    for (auto const& pair : hist)
+    for (auto const& pair : mArchives)
     {
         if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
             return true;
     }
     return false;
+}
+
+std::shared_ptr<HistoryArchive>
+HistoryArchiveManager::getHistoryArchive(std::string const& name) const
+{
+    auto it = mArchives.find(name);
+    return it == std::end(mArchives) ? nullptr : it->second;
+}
+
+std::vector<std::shared_ptr<HistoryArchive>>
+HistoryArchiveManager::getWritableHistoryArchives() const
+{
+    auto result = std::vector<std::shared_ptr<HistoryArchive>>{};
+    for (auto const& pair : mArchives)
+    {
+        if (pair.second->hasGetCmd() && pair.second->hasPutCmd())
+            result.push_back(pair.second);
+    }
+    return result;
 }
 }

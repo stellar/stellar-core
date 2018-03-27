@@ -455,9 +455,8 @@ Config::load(std::string const& filename)
                                 throw std::invalid_argument(err);
                             }
                         }
-                        HISTORY[archive.first] =
-                            std::make_shared<HistoryArchive>(archive.first, get,
-                                                             put, mkdir);
+                        HISTORY[archive.first] = HistoryArchiveConfiguration{
+                            archive.first, get, put, mkdir};
                     }
                 }
                 else

@@ -58,7 +58,7 @@ TmpDirHistoryConfigurator::configure(Config& mCfg, bool writable) const
     }
 
     mCfg.HISTORY["test"] =
-        std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
+        HistoryArchiveConfiguration{"test", getCmd, putCmd, mkdirCmd};
     return mCfg;
 }
 
@@ -83,7 +83,7 @@ S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
         putCmd = "aws s3 cp {0} " + s3b + "/{1}";
     }
     mCfg.HISTORY["test"] =
-        std::make_shared<HistoryArchive>("test", getCmd, putCmd, mkdirCmd);
+        HistoryArchiveConfiguration{"test", getCmd, putCmd, mkdirCmd};
     return mCfg;
 }
 

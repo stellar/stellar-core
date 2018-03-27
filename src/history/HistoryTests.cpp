@@ -76,9 +76,10 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
     HistoryArchiveState has;
     has.currentLedger = 0x1234;
 
-    auto i = catchupSimulation.getApp().getConfig().HISTORY.find("test");
-    REQUIRE(i != catchupSimulation.getApp().getConfig().HISTORY.end());
-    auto archive = i->second;
+    auto archive =
+        catchupSimulation.getApp().getHistoryArchiveManager().getHistoryArchive(
+            "test");
+    REQUIRE(archive);
 
     has.resolveAllFutures();
 

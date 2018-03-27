@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "historywork/PublishWork.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "history/StateSnapshot.h"
 #include "historywork/PutSnapshotFilesWork.h"
@@ -81,14 +82,11 @@ PublishWork::onSuccess()
     if (!mUpdateArchivesWork)
     {
         mUpdateArchivesWork = addWork<Work>("update-archives");
-        for (auto& aPair : mApp.getConfig().HISTORY)
+        for (auto& writableArchive :
+             mApp.getHistoryArchiveManager().getWritableHistoryArchives())
         {
-            auto arch = aPair.second;
-            if (!arch->hasPutCmd())
-            {
-                continue;
-            }
-            mUpdateArchivesWork->addWork<PutSnapshotFilesWork>(arch, mSnapshot);
+            mUpdateArchivesWork->addWork<PutSnapshotFilesWork>(writableArchive,
+                                                               mSnapshot);
         }
         return WORK_PENDING;
     }

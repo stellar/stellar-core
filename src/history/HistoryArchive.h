@@ -5,7 +5,9 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/FutureBucket.h"
+#include "main/Config.h"
 #include "xdr/Stellar-types.h"
+
 #include <cereal/cereal.hpp>
 #include <memory>
 #include <string>
@@ -128,14 +130,10 @@ struct HistoryArchiveState
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
-    std::string mName;
-    std::string mGetCmd;
-    std::string mPutCmd;
-    std::string mMkdirCmd;
+    HistoryArchiveConfiguration mConfig;
 
   public:
-    HistoryArchive(std::string const& name, std::string const& getCmd,
-                   std::string const& putCmd, std::string const& mkdirCmd);
+    explicit HistoryArchive(HistoryArchiveConfiguration const& config);
     ~HistoryArchive();
     bool hasGetCmd() const;
     bool hasPutCmd() const;
