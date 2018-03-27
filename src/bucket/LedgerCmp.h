@@ -12,7 +12,7 @@ namespace stellar
 /**
  * Compare two LedgerEntries or LedgerKeys for 'identity', not content.
  *
- * LedgerEntries are identified iff they have:
+ * LedgerEntries are identified if they have:
  *
  *   - The same type
  *     - If accounts, then with same accountID
