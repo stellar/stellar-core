@@ -35,6 +35,22 @@ namespace stellar
 
 unsigned const HistoryArchiveState::HISTORY_ARCHIVE_STATE_VERSION = 1;
 
+template <typename... Tokens>
+std::string
+formatString(std::string const& templateString, Tokens const&... tokens)
+{
+    try
+    {
+        return fmt::format(templateString, tokens...);
+    }
+    catch (fmt::FormatError const& ex)
+    {
+        CLOG(ERROR, "History") << "failed to format string \"" << templateString
+                               << "\":" << ex.what();
+        throw std::runtime_error("failed to format command string");
+    }
+}
+
 bool
 HistoryArchiveState::futuresAllReady() const
 {
@@ -320,7 +336,7 @@ HistoryArchive::getFileCmd(std::string const& remote,
 {
     if (mGetCmd.empty())
         return "";
-    return fmt::format(mGetCmd, remote, local);
+    return formatString(mGetCmd, remote, local);
 }
 
 std::string
@@ -329,7 +345,7 @@ HistoryArchive::putFileCmd(std::string const& local,
 {
     if (mPutCmd.empty())
         return "";
-    return fmt::format(mPutCmd, local, remote);
+    return formatString(mPutCmd, local, remote);
 }
 
 std::string
@@ -337,6 +353,6 @@ HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
     if (mMkdirCmd.empty())
         return "";
-    return fmt::format(mMkdirCmd, remoteDir);
+    return formatString(mMkdirCmd, remoteDir);
 }
 }
