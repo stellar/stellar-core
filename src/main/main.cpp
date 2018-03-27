@@ -606,7 +606,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 
     for (auto const& arch : newHistories)
     {
-        if (!HistoryManager::initializeHistoryArchive(*app, arch))
+        if (!app->getHistoryManager().initializeHistoryArchive(arch))
             return 1;
     }
     return 0;

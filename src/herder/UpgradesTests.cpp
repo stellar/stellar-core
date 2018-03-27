@@ -102,8 +102,9 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         }
     }
 
-    HistoryManager::initializeHistoryArchive(
-        *simulation->getNode(keys[0].getPublicKey()), "test");
+    simulation->getNode(keys[0].getPublicKey())
+        ->getHistoryManager()
+        .initializeHistoryArchive("test");
 
     for (size_t i = 0; i < nodes.size(); i++)
     {

@@ -41,6 +41,8 @@ class HistoryManagerImpl : public HistoryManager
     HistoryManagerImpl(Application& app);
     ~HistoryManagerImpl() override;
 
+    bool initializeHistoryArchive(std::string const& arch) override;
+
     std::shared_ptr<HistoryArchive>
     selectRandomReadableHistoryArchive() override;
 

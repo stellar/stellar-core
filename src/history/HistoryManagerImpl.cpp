@@ -58,9 +58,9 @@ HistoryManager::dropAll(Database& db)
 }
 
 bool
-HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
+HistoryManagerImpl::initializeHistoryArchive(std::string const& arch)
 {
-    auto const& cfg = app.getConfig();
+    auto const& cfg = mApp.getConfig();
     auto i = cfg.HISTORY.find(arch);
     if (i == cfg.HISTORY.end())
     {
@@ -69,7 +69,7 @@ HistoryManager::initializeHistoryArchive(Application& app, std::string arch)
         return false;
     }
 
-    auto& wm = app.getWorkManager();
+    auto& wm = mApp.getWorkManager();
 
     // First check that there's no existing HAS in the archive
     HistoryArchiveState existing;

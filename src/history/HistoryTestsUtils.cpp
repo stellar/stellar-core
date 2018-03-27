@@ -207,7 +207,7 @@ CatchupSimulation::CatchupSimulation(std::shared_ptr<HistoryConfigurator> cg)
           mClock, mHistoryConfigurator->configure(mCfg, true)))
     , mApp(*mAppPtr)
 {
-    CHECK(HistoryManager::initializeHistoryArchive(mApp, "test"));
+    CHECK(mApp.getHistoryManager().initializeHistoryArchive("test"));
 }
 
 CatchupSimulation::~CatchupSimulation()
