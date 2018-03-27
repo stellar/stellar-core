@@ -58,7 +58,16 @@ forcescp doesn't change the requirements for quorum so although this node will e
   network to sign for.  For example, the production stellar network is
   "`Public Global Stellar Network ; September 2015`" while the test
   network is "`Test SDF Network ; September 2015`".
-* **--test**: Run all the unit tests. For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md) on possible options for test. For example this will run just the "Herder" tests and stop after the first failure: `stellar-core --test -a [Herder]` 
+* **--test**: Run all the unit tests.
+  * Suboptions specific to stellar-core:
+      * `--all-versions` : run with all possible protocol versions
+      * `--version <N>` : run tests for protocol version N, can be specified
+      multiple times (default latest)
+  * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md) on
+  possible options for test.
+  * For example this will run just the tests tagged with `[tx]` using protocol
+  versions 9 and 10 and stop after the first failure:
+  `stellar-core --test -a --version 9 --version 10 "[tx]"`
 * **--version**: Print version info and then exit.
 
 
