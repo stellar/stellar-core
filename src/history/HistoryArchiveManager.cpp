@@ -120,24 +120,20 @@ HistoryArchiveManager::selectRandomReadableHistoryArchive() const
 
     // First try for archives that _only_ have a get command; they're
     // archives we're explicitly not publishing to, so likely ones we want.
-    for (auto const& archive : mArchives)
-    {
-        if (archive->hasGetCmd() && !archive->hasPutCmd())
-        {
-            archives.push_back(archive);
-        }
-    }
+    std::copy_if(std::begin(mArchives), std::end(mArchives),
+                 std::back_inserter(archives),
+                 [](std::shared_ptr<HistoryArchive> const& x) {
+                     return x->hasGetCmd() && !x->hasPutCmd();
+                 });
 
     // If we have none of those, accept those with get+put
     if (archives.size() == 0)
     {
-        for (auto const& archive : mArchives)
-        {
-            if (archive->hasGetCmd() && archive->hasPutCmd())
-            {
-                archives.push_back(archive);
-            }
-        }
+        std::copy_if(std::begin(mArchives), std::end(mArchives),
+                     std::back_inserter(archives),
+                     [](std::shared_ptr<HistoryArchive> const& x) {
+                         return x->hasGetCmd();
+                     });
     }
 
     if (archives.size() == 0)
@@ -211,12 +207,10 @@ HistoryArchiveManager::initializeHistoryArchive(std::string const& arch) const
 bool
 HistoryArchiveManager::hasAnyWritableHistoryArchive() const
 {
-    for (auto const& archive : mArchives)
-    {
-        if (archive->hasGetCmd() && archive->hasPutCmd())
-            return true;
-    }
-    return false;
+    return std::any_of(std::begin(mArchives), std::end(mArchives),
+                       [](std::shared_ptr<HistoryArchive> const& x) {
+                           return x->hasGetCmd() && x->hasPutCmd();
+                       });
 }
 
 std::shared_ptr<HistoryArchive>
@@ -233,11 +227,11 @@ std::vector<std::shared_ptr<HistoryArchive>>
 HistoryArchiveManager::getWritableHistoryArchives() const
 {
     auto result = std::vector<std::shared_ptr<HistoryArchive>>{};
-    for (auto const& archive : mArchives)
-    {
-        if (archive->hasGetCmd() && archive->hasPutCmd())
-            result.push_back(archive);
-    }
+    std::copy_if(std::begin(mArchives), std::end(mArchives),
+                 std::back_inserter(result),
+                 [](std::shared_ptr<HistoryArchive> const& x) {
+                     return x->hasGetCmd() && x->hasPutCmd();
+                 });
     return result;
 }
 
