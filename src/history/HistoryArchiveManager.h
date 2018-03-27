@@ -15,10 +15,11 @@ class HistoryArchive;
 class HistoryArchiveManager
 {
   public:
-    // Check that config settings are at least somewhat reasonable.
-    static bool checkSensibleConfig(Config const& cfg);
-
     explicit HistoryArchiveManager(Application& app);
+
+    // Check that config settings are at least somewhat reasonable.
+    bool checkSensibleConfig();
+
     // Select any readable history archive. If there are more than one,
     // select one at random.
     std::shared_ptr<HistoryArchive> selectRandomReadableHistoryArchive();

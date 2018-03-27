@@ -22,7 +22,7 @@ HistoryArchiveManager::HistoryArchiveManager(Application& app) : mApp{app}
 }
 
 bool
-HistoryArchiveManager::checkSensibleConfig(Config const& cfg)
+HistoryArchiveManager::checkSensibleConfig()
 {
     // Check reasonable-ness of history archive definitions
     std::vector<std::string> readOnlyArchives;
@@ -30,7 +30,7 @@ HistoryArchiveManager::checkSensibleConfig(Config const& cfg)
     std::vector<std::string> writeOnlyArchives;
     std::vector<std::string> inertArchives;
 
-    for (auto const& pair : cfg.HISTORY)
+    for (auto const& pair : mApp.getConfig().HISTORY)
     {
         if (pair.second->hasGetCmd())
         {

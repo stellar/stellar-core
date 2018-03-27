@@ -630,7 +630,7 @@ startApp(string cfgFile, Config& cfg)
         }
         else
         {
-            if (!HistoryArchiveManager::checkSensibleConfig(cfg))
+            if (!app->getHistoryArchiveManager().checkSensibleConfig())
             {
                 return 1;
             }
