@@ -399,9 +399,6 @@
     <ClCompile Include="..\..\src\util\Fs.cpp">
       <Filter>util</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\ledger\LedgerPerformanceTests.cpp">
-      <Filter>ledger\tests</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\util\GlobalChecks.cpp">
       <Filter>util</Filter>
     </ClCompile>
@@ -863,6 +860,12 @@
     </ClCompile>
     <ClCompile Include="..\..\src\transactions\BumpSequenceOpFrame.cpp">
       <Filter>transactions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\PeerSharedKeyId.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\LoadManagerTests.cpp">
+      <Filter>overlay\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1485,6 +1488,9 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerBareAddress.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
       <Filter>overlay</Filter>
     </ClInclude>
   </ItemGroup>
