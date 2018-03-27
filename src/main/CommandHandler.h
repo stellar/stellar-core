@@ -48,6 +48,7 @@ class CommandHandler
     void maintenance(std::string const& params, std::string& retStr);
     void manualClose(std::string const& params, std::string& retStr);
     void metrics(std::string const& params, std::string& retStr);
+    void clearMetrics(std::string const& params, std::string& retStr);
     void peers(std::string const& params, std::string& retStr);
     void quorum(std::string const& params, std::string& retStr);
     void setcursor(std::string const& params, std::string& retStr);

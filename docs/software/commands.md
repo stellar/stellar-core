@@ -107,6 +107,10 @@ command line option (see above). Most commands return their results in JSON form
  Returns a snapshot of the metrics registry (for monitoring and
 debugging purpose).
 
+* **clearmetrics**
+ `/clearmetrics?[domain=DOMAIN]`<br>
+  Clear metrics for a specified domain. If no domain specified, clear all metrics (for testing purposes).
+
 * **peers**
   Returns the list of known peers in JSON format.
 

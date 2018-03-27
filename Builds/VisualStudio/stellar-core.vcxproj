@@ -500,6 +500,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\Timer.cpp" />
     <ClCompile Include="..\..\src\util\TimerTests.cpp" />
     <ClCompile Include="..\..\src\util\types.cpp" />
+    <ClCompile Include="..\..\src\util\MetricResetter.cpp" />
     <ClCompile Include="..\..\src\main\CommandHandler.cpp" />
     <ClCompile Include="..\..\src\main\Config.cpp" />
     <ClCompile Include="..\..\src\main\main.cpp" />
@@ -718,6 +719,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\TmpDir.h" />
     <ClInclude Include="..\..\src\util\Timer.h" />
     <ClInclude Include="..\..\src\util\types.h" />
+    <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
     <ClInclude Include="..\..\src\work\Work.h" />
     <ClInclude Include="..\..\src\work\WorkManager.h" />

@@ -83,6 +83,7 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
     addRoute("maintenance", &CommandHandler::maintenance);
     addRoute("manualclose", &CommandHandler::manualClose);
     addRoute("metrics", &CommandHandler::metrics);
+    addRoute("clearmetrics", &CommandHandler::clearMetrics);
     addRoute("peers", &CommandHandler::peers);
     addRoute("quorum", &CommandHandler::quorum);
     addRoute("setcursor", &CommandHandler::setcursor);
@@ -278,6 +279,9 @@ CommandHandler::fileNotFound(std::string const& params, std::string& retStr)
         "</p><p><h1> /metrics</h1>"
         "returns a snapshot of the metrics registry (for monitoring and "
         "debugging purpose)"
+        "</p><p><h1> /clearmetrics?[domain=DOMAIN]</h1>"
+        "clear metrics for a specified domain. If no domain specified, "
+        "clear all metrics (for testing purposes)"
         "</p><p><h1> /peers</h1>"
         "returns the list of known peers in JSON format"
         "</p><p><h1> /quorum?[node=NODE_ID][&compact=true]</h1>"
@@ -982,5 +986,19 @@ CommandHandler::maintenance(std::string const& params, std::string& retStr)
     {
         retStr = "No work performed";
     }
+}
+
+void
+CommandHandler::clearMetrics(std::string const& params, std::string& retStr)
+{
+    std::map<std::string, std::string> map;
+    http::server::server::parseParams(params, map);
+
+    std::string domain;
+    maybeParseParam(map, "domain", domain);
+
+    mApp.clearMetrics(domain);
+
+    retStr = fmt::format("Cleared {} metrics!", domain);
 }
 }

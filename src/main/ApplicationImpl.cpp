@@ -612,6 +612,20 @@ ApplicationImpl::syncAllMetrics()
     syncOwnMetrics();
 }
 
+void
+ApplicationImpl::clearMetrics(std::string const& domain)
+{
+    MetricResetter resetter;
+    auto const& metrics = mMetrics->GetAllMetrics();
+    for (auto const& kv : metrics)
+    {
+        if (domain.empty() || kv.first.domain() == domain)
+        {
+            kv.second->Process(resetter);
+        }
+    }
+}
+
 TmpDirManager&
 ApplicationImpl::getTmpDirManager()
 {
