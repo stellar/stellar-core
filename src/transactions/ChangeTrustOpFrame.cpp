@@ -160,6 +160,19 @@ ChangeTrustOpFrame::doCheckValid(Application& app)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
+    if (app.getLedgerManager().getCurrentLedgerVersion() > 9)
+    {
+        if (mChangeTrust.line.type() == ASSET_TYPE_NATIVE)
+        {
+            app.getMetrics()
+                .NewMeter(
+                    {"op-change-trust", "invalid", "malformed-native-asset"},
+                    "operation")
+                .Mark();
+            innerResult().code(CHANGE_TRUST_MALFORMED);
+            return false;
+        }
+    }
     return true;
 }
 }
