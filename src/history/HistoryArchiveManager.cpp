@@ -12,6 +12,7 @@
 #include "util/Math.h"
 #include "work/WorkManager.h"
 
+#include <lib/json/json.h>
 #include <vector>
 
 namespace stellar
@@ -237,5 +238,18 @@ HistoryArchiveManager::getWritableHistoryArchives() const
             result.push_back(pair.second);
     }
     return result;
+}
+
+Json::Value
+HistoryArchiveManager::getJsonInfo() const
+{
+    auto info = Json::Value{};
+
+    for (auto i : mArchives)
+    {
+        info[i.first] = i.second->getJsonInfo();
+    }
+
+    return info;
 }
 }

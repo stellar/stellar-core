@@ -352,4 +352,25 @@ HistoryArchive::mkdirCmd(std::string const& remoteDir) const
         return "";
     return formatString(mConfig.mMkdirCmd, remoteDir);
 }
+
+void
+HistoryArchive::markSuccess()
+{
+    mSuccess++;
+}
+
+void
+HistoryArchive::markFailure()
+{
+    mFailure++;
+}
+
+Json::Value
+HistoryArchive::getJsonInfo() const
+{
+    Json::Value result;
+    result["success"] = mSuccess;
+    result["failure"] = mFailure;
+    return result;
+}
 }

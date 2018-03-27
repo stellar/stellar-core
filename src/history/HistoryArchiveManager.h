@@ -8,6 +8,11 @@
 #include <memory>
 #include <vector>
 
+namespace Json
+{
+class Value;
+}
+
 namespace stellar
 {
 class Application;
@@ -42,6 +47,8 @@ class HistoryArchiveManager
     // and `put` command).
     std::vector<std::shared_ptr<HistoryArchive>>
     getWritableHistoryArchives() const;
+
+    Json::Value getJsonInfo() const;
 
   private:
     Application& mApp;

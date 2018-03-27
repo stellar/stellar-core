@@ -19,7 +19,7 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
     Application& app, WorkParent& parent, std::string uniqueName,
     HistoryArchiveState& state, uint32_t seq,
     VirtualClock::duration const& initialDelay,
-    std::shared_ptr<HistoryArchive const> archive, size_t maxRetries)
+    std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
     : Work(app, parent, std::move(uniqueName), maxRetries)
     , mState(state)
     , mSeq(seq)

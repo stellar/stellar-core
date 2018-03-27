@@ -9,6 +9,7 @@
 #include "xdr/Stellar-types.h"
 
 #include <cereal/cereal.hpp>
+#include <lib/json/json.h>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -17,6 +18,11 @@ namespace asio
 {
 typedef std::error_code error_code;
 };
+
+namespace Json
+{
+class Value;
+}
 
 namespace stellar
 {
@@ -130,8 +136,6 @@ struct HistoryArchiveState
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
-    HistoryArchiveConfiguration mConfig;
-
   public:
     explicit HistoryArchive(HistoryArchiveConfiguration const& config);
     ~HistoryArchive();
@@ -145,5 +149,15 @@ class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
     std::string putFileCmd(std::string const& local,
                            std::string const& remote) const;
     std::string mkdirCmd(std::string const& remoteDir) const;
+
+    void markSuccess();
+    void markFailure();
+
+    Json::Value getJsonInfo() const;
+
+  private:
+    HistoryArchiveConfiguration mConfig;
+    uint32_t mSuccess{0};
+    uint32_t mFailure{0};
 };
 }

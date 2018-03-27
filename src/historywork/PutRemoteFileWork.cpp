@@ -4,13 +4,15 @@
 
 #include "historywork/PutRemoteFileWork.h"
 #include "history/HistoryArchive.h"
+#include "main/Application.h"
 
 namespace stellar
 {
 
-PutRemoteFileWork::PutRemoteFileWork(
-    Application& app, WorkParent& parent, std::string const& local,
-    std::string const& remote, std::shared_ptr<HistoryArchive const> archive)
+PutRemoteFileWork::PutRemoteFileWork(Application& app, WorkParent& parent,
+                                     std::string const& local,
+                                     std::string const& remote,
+                                     std::shared_ptr<HistoryArchive> archive)
     : RunCommandWork(app, parent, std::string("put-remote-file ") + remote)
     , mRemote(remote)
     , mLocal(local)
@@ -29,5 +31,19 @@ void
 PutRemoteFileWork::getCommand(std::string& cmdLine, std::string& outFile)
 {
     cmdLine = mArchive->putFileCmd(mLocal, mRemote);
+}
+
+Work::State
+PutRemoteFileWork::onSuccess()
+{
+    mArchive->markSuccess();
+    return RunCommandWork::onSuccess();
+}
+
+void
+PutRemoteFileWork::onFailureRaise()
+{
+    mArchive->markFailure();
+    RunCommandWork::onFailureRaise();
 }
 }
