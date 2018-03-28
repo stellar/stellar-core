@@ -558,7 +558,8 @@ netTopologyTest(std::string const& name,
         sim->crankUntil(
             [&]() {
                 return sim->haveAllExternalized(8, 2) &&
-                       sim->accountsOutOfSyncWithDb(app).empty();
+                       sim->accountsOutOfSyncWithDb(app).empty() &&
+                       complete.count() == 1;
             },
             2 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, true);
 
