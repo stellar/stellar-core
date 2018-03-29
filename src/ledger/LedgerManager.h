@@ -62,8 +62,17 @@ class LedgerManager
         LM_NUM_STATE
     };
 
-    virtual void setState(State s) = 0;
+    enum class CatchupState
+    {
+        NONE,
+        WAITING_FOR_TRIGGER_LEDGER,
+        APPLYING_HISTORY,
+        WAITING_FOR_CLOSING_LEDGER
+    };
+
+    virtual void bootstrap() = 0;
     virtual State getState() const = 0;
+    virtual CatchupState getCatchupState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
     bool

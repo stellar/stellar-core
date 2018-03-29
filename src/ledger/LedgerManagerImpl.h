@@ -54,10 +54,13 @@ class LedgerManagerImpl : public LedgerManager
 
     SyncingLedgerChain mSyncingLedgers;
     uint32_t mCatchupTriggerLedger{0};
-    bool mWaitingForCatchupTriggerLedger{false};
+
+    CatchupState mCatchupState{CatchupState::NONE};
 
     void initializeCatchup(LedgerCloseData const& ledgerData);
     void continueCatchup(LedgerCloseData const& ledgerData);
+    void finalizeCatchup(LedgerCloseData const& ledgerData);
+
     void addToSyncingLedgers(LedgerCloseData const& ledgerData);
     void startCatchupIf(uint32_t lastReceivedLedgerSeq);
 
@@ -75,13 +78,24 @@ class LedgerManagerImpl : public LedgerManager
     void storeCurrentLedger();
     void advanceLedgerPointers();
 
+    enum class CloseLedgerIfResult
+    {
+        CLOSED,
+        TOO_OLD,
+        TOO_NEW
+    };
+    CloseLedgerIfResult closeLedgerIf(LedgerCloseData const& ledgerData);
+
     State mState;
+    void setState(State s);
+    void setCatchupState(CatchupState s);
 
   public:
     LedgerManagerImpl(Application& app);
 
-    void setState(State s) override;
+    void bootstrap() override;
     State getState() const override;
+    CatchupState getCatchupState() const override;
     std::string getStateHuman() const override;
 
     void valueExternalized(LedgerCloseData const& ledgerData) override;

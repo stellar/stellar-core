@@ -123,7 +123,7 @@ HerderImpl::bootstrap()
     assert(getSCP().isValidator());
     assert(mApp.getConfig().FORCE_SCP);
 
-    mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
+    mLedgerManager.bootstrap();
     mHerderSCPDriver.bootstrap();
 
     ledgerClosed();

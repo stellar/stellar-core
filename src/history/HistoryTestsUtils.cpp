@@ -335,6 +335,9 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
         // to just-before-LCL
         generateRandomLedger();
         ++ledgerSeq;
+        // One more for trigger ledger
+        generateRandomLedger();
+        ++ledgerSeq;
         REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
 
         // Advance until we've published (or failed to!)
@@ -349,7 +352,7 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
     REQUIRE(lm.getLedgerNum() ==
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()) +
-                1);
+                2);
 }
 
 Application::pointer
@@ -449,9 +452,9 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     // externalize anything we haven't yet published, of course.
     if (!manual)
     {
-        uint32_t nextBlockStart =
-            mApp.getHistoryManager().nextCheckpointLedger(initLedger);
-        for (uint32_t n = initLedger + 1; n <= nextBlockStart; ++n)
+        uint32_t triggerLedger =
+            mApp.getHistoryManager().nextCheckpointLedger(initLedger) + 1;
+        for (uint32_t n = initLedger + 1; n <= triggerLedger; ++n)
         {
             // Remember the vectors count from 2, not 0.
             if (n - 2 >= mLedgerCloseDatas.size())
@@ -494,7 +497,10 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
                           << "[" << mLedgerSeqs.front() << ", "
                           << mLedgerSeqs.back() << "]";
 
-    if (app2->getLedgerManager().getState() != LedgerManager::LM_SYNCED_STATE)
+    if (app2->getLedgerManager().getState() !=
+            LedgerManager::LM_CATCHING_UP_STATE ||
+        app2->getLedgerManager().getCatchupState() !=
+            LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER)
     {
         CLOG(INFO, "History") << "Catching up failed: state = "
                               << app2->getLedgerManager().getState();
