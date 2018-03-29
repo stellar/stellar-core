@@ -526,7 +526,7 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
     else
     {
         auto eta = (mCatchupTriggerLedger - lastReceivedLedgerSeq) *
-                   Herder::EXP_LEDGER_TIMESPAN_SECONDS;
+                   mApp.getConfig().getExpectedLedgerCloseTime();
         auto message = fmt::format(
             "Waiting for trigger ledger: {}/{}, ETA: {}s",
             lastReceivedLedgerSeq, mCatchupTriggerLedger, eta.count());

@@ -563,16 +563,7 @@ HerderImpl::ledgerClosed()
         return;
     }
 
-    auto seconds = Herder::EXP_LEDGER_TIMESPAN_SECONDS;
-    if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-    {
-        seconds = std::chrono::seconds(1);
-    }
-    if (mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
-    {
-        seconds = std::chrono::seconds(
-            mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING);
-    }
+    auto seconds = mApp.getConfig().getExpectedLedgerCloseTime();
 
     // bootstrap with a pessimistic estimate of when
     // the ballot protocol started last

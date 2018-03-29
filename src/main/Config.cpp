@@ -6,6 +6,7 @@
 #include "main/Config.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
+#include "herder/Herder.h"
 #include "history/HistoryArchive.h"
 #include "ledger/LedgerManager.h"
 #include "main/ExternalQueue.h"
@@ -781,5 +782,19 @@ Config::expandNodeID(const std::string& s) const
     {
         return {};
     }
+}
+
+std::chrono::seconds
+Config::getExpectedLedgerCloseTime() const
+{
+    if (ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING)
+    {
+        return std::chrono::seconds{ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING};
+    }
+    if (ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
+    {
+        return std::chrono::seconds{1};
+    }
+    return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
 }

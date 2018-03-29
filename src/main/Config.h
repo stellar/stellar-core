@@ -213,5 +213,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::string toStrKey(PublicKey const& pk, bool& isAlias) const;
     std::string toStrKey(PublicKey const& pk) const;
     bool resolveNodeID(std::string const& s, PublicKey& retKey) const;
+
+    std::chrono::seconds getExpectedLedgerCloseTime() const;
 };
 }

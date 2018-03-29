@@ -370,7 +370,8 @@ LoadGenerator::inspectRate(uint32_t ledgerNum, uint32_t& txRate)
         // enough, independent of database close-speed.
 
         double targetAge =
-            (double)Herder::EXP_LEDGER_TIMESPAN_SECONDS.count() * 1000.0;
+            (double)mApp.getConfig().getExpectedLedgerCloseTime().count() *
+            1000.0;
         double actualAge = ledgerAgeClosedTimer.mean();
 
         if (mApp.getConfig().ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
@@ -627,7 +628,8 @@ LoadGenerator::waitTillComplete()
     }
     else
     {
-        mLoadTimer->expires_from_now(Herder::EXP_LEDGER_TIMESPAN_SECONDS);
+        mLoadTimer->expires_from_now(
+            mApp.getConfig().getExpectedLedgerCloseTime());
         mLoadTimer->async_wait([this](asio::error_code const& error) {
             if (!error)
             {
