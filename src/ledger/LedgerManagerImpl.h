@@ -100,7 +100,7 @@ class LedgerManagerImpl : public LedgerManager
 
     Database& getDatabase() override;
 
-    void startCatchUp(CatchupConfiguration configuration,
+    void startCatchup(CatchupConfiguration configuration,
                       bool manualCatchup) override;
 
     HistoryManager::LedgerVerificationStatus

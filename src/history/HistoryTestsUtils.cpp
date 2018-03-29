@@ -427,7 +427,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
         CLOG(INFO, "History")
             << "force-starting catchup at initLedger=" << initLedger;
 
-        lm.startCatchUp({initLedger, count}, manual);
+        lm.startCatchup({initLedger, count}, manual);
     }
 
     // Push publishing side forward one-ledger into a history block if it's

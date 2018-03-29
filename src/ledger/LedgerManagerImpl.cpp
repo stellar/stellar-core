@@ -437,7 +437,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
             // that way we will have a way to verify history consistency -
             // compare previousLedgerHash of buffered ledger with last one
             // downloaded from history
-            startCatchUp({ledgerData.getLedgerSeq() - 1, getCatchupCount(mApp)},
+            startCatchup({ledgerData.getLedgerSeq() - 1, getCatchupCount(mApp)},
                          false);
         }
         break;
@@ -479,7 +479,7 @@ LedgerManagerImpl::valueExternalized(LedgerCloseData const& ledgerData)
 }
 
 void
-LedgerManagerImpl::startCatchUp(CatchupConfiguration configuration,
+LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
                                 bool manualCatchup)
 {
     auto lastClosedLedger = getLastClosedLedgerNum();

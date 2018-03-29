@@ -150,7 +150,7 @@ class LedgerManager
     // LedgerManager detects it is desynchronized from SCP's consensus ledger.
     // This method is present in the public interface to permit testing and
     // command line catchups.
-    virtual void startCatchUp(CatchupConfiguration configuration,
+    virtual void startCatchup(CatchupConfiguration configuration,
                               bool manualCatchup) = 0;
 
     // Called by the history subsystem during catchup: this method asks the
