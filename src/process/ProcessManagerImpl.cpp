@@ -132,6 +132,14 @@ ProcessManagerImpl::shutdown()
             pair.second->cancel(ec);
 #ifdef _WIN32
             pair.second->mProcessHandle.cancel(ec);
+#else
+            const int pid = pair.second->getProcessId();
+            int result = kill(pid, SIGINT);
+            if (result != 0)
+            {
+                CLOG(WARNING, "Process")
+                    << "kill failed for pid " << pid << ": " << result;
+            }
 #endif
         }
         mImpls.clear();
