@@ -99,15 +99,15 @@ ProcessManagerImpl::getNumRunningProcesses()
 ProcessManagerImpl::~ProcessManagerImpl()
 {
     const auto killProcess = [&](ProcessExitEvent::Impl& impl) {
-		const int pid = impl.getProcessId();
+        const int pid = impl.getProcessId();
         auto ec = asio::error_code(1, asio::system_category());
         impl.cancel(ec);
 #ifdef _WIN32
-		if (!TerminateProcess(impl.mProcessHandle.native_handle(), 1))
-		{
-			CLOG(WARNING, "Process")
-				<< "failed to terminate process with pid " << pid;
-		}
+        if (!TerminateProcess(impl.mProcessHandle.native_handle(), 1))
+        {
+            CLOG(WARNING, "Process")
+                << "failed to terminate process with pid " << pid;
+        }
         impl.mProcessHandle.cancel(ec);
 #else
         int result = kill(pid, SIGKILL);

@@ -178,7 +178,7 @@ TEST_CASE("shutdown while process running", "[process]")
             CLOG(DEBUG, "Process") << "error code: " << ec.message();
         }
         failed = !!ec;
-        exited = true; 
+        exited = true;
         errorCode = ec;
     });
 
