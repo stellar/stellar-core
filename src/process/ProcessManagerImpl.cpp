@@ -315,11 +315,11 @@ ProcessExitEvent::Impl::run()
     mRunning = true;
 }
 
-bool
+void
 ProcessManagerImpl::handleProcessTermination(int pid, int /*status*/)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-    return mImpls.erase(pid) > 0;
+    mImpls.erase(pid);
 }
 
 #else
@@ -361,11 +361,7 @@ ProcessManagerImpl::handleSignalWait()
             std::lock_guard<std::recursive_mutex> guard(gManagersMutex);
             for (ProcessManagerImpl* manager : gManagers)
             {
-                // Stop when we hit the manager this pid belongs to
-                if (manager->handleProcessTermination(pid, status))
-                {
-                    break;
-                }
+                manager->handleProcessTermination(pid, status);
             }
         }
         else
@@ -376,7 +372,7 @@ ProcessManagerImpl::handleSignalWait()
     startSignalWait();
 }
 
-bool
+void
 ProcessManagerImpl::handleProcessTermination(int pid, int status)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
@@ -384,7 +380,7 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
     if (pair == mImpls.end())
     {
         // Possible this pid belonged to another ProcessManager
-        return false;
+        return;
     }
     auto impl = pair->second;
 
@@ -448,7 +444,6 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
     maybeRunPendingProcesses();
 
     impl->cancel(ec);
-    return true;
 }
 
 static std::vector<std::string>

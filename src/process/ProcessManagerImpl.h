@@ -49,7 +49,7 @@ class ProcessManagerImpl : public ProcessManager
     asio::signal_set mSigChild;
     void startSignalWait();
     void handleSignalWait();
-    bool handleProcessTermination(int pid, int status);
+    void handleProcessTermination(int pid, int status);
 
     friend class ProcessExitEvent::Impl;
 
