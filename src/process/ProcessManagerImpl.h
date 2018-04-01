@@ -41,6 +41,7 @@ class ProcessManagerImpl : public ProcessManager
     asio::io_service& mIOService;
 
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mPendingImpls;
+    std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mKillableImpls;
     void maybeRunPendingProcesses();
     void registerManager();
 

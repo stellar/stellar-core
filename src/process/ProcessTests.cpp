@@ -156,3 +156,39 @@ TEST_CASE("subprocess storm", "[process]")
         REQUIRE(fs::exists(dst));
     }
 }
+
+TEST_CASE("shutdown while process running", "[process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer app = createTestApplication(clock, cfg);
+#ifdef _WIN32
+    std::string command = "timeout 10";
+#else
+    std::string command = "sleep 10";
+#endif
+    auto evt = app->getProcessManager().runProcess(command);
+    bool exited = false;
+    bool failed = false;
+    asio::error_code errorCode;
+    evt.async_wait([&](asio::error_code ec) {
+        CLOG(DEBUG, "Process") << "process exited: " << ec;
+        if (ec)
+        {
+            CLOG(DEBUG, "Process") << "error code: " << ec.message();
+        }
+        failed = !!ec;
+        exited = true;
+        errorCode = ec;
+    });
+
+    // Shutdown so we force the command execution to fail
+    app->getProcessManager().shutdown();
+
+    while (!exited && !clock.getIOService().stopped())
+    {
+        clock.crank(true);
+    }
+    REQUIRE(failed);
+    REQUIRE(errorCode == asio::error::operation_aborted);
+}
