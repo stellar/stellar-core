@@ -99,12 +99,17 @@ ProcessManagerImpl::getNumRunningProcesses()
 ProcessManagerImpl::~ProcessManagerImpl()
 {
     const auto killProcess = [&](ProcessExitEvent::Impl& impl) {
+		const int pid = impl.getProcessId();
         auto ec = asio::error_code(1, asio::system_category());
         impl.cancel(ec);
 #ifdef _WIN32
+		if (!TerminateProcess(impl.mProcessHandle.native_handle(), 1))
+		{
+			CLOG(WARNING, "Process")
+				<< "failed to terminate process with pid " << pid;
+		}
         impl.mProcessHandle.cancel(ec);
 #else
-        const int pid = impl.getProcessId();
         int result = kill(pid, SIGKILL);
         if (result != 0)
         {
@@ -304,7 +309,7 @@ ProcessExitEvent::Impl::run()
             }
             ec = asio::error_code(exitCode, asio::system_category());
         }
-        manager->handleProcessTermination(mProcessId, ec.value());
+        manager->handleProcessTermination(sf->mProcessId, ec.value());
         sf->cancel(ec);
     });
     mRunning = true;
@@ -314,7 +319,7 @@ bool
 ProcessManagerImpl::handleProcessTermination(int pid, int /*status*/)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-    mImpls.erase(pid);
+    return mImpls.erase(pid) > 0;
 }
 
 #else

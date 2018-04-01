@@ -163,7 +163,7 @@ TEST_CASE("shutdown while process running", "[process]")
     Config const& cfg = getTestConfig();
     Application::pointer app = createTestApplication(clock, cfg);
 #ifdef _WIN32
-    std::string command = "timeout 10";
+    std::string command = "waitfor /T 10 pause";
 #else
     std::string command = "sleep 10";
 #endif
@@ -178,7 +178,7 @@ TEST_CASE("shutdown while process running", "[process]")
             CLOG(DEBUG, "Process") << "error code: " << ec.message();
         }
         failed = !!ec;
-        exited = true;
+        exited = true; 
         errorCode = ec;
     });
 
