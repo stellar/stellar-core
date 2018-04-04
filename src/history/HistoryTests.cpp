@@ -556,8 +556,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent]")
     }
 
     // Now push network along a _lot_ futher along see that they can all
-    // still
-    // catch up properly.
+    // still catch up properly.
     catchupSimulation.generateAndPublishHistory(25);
     initLedger =
         catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
@@ -577,13 +576,19 @@ TEST_CASE("Catchup manual", "[history][catchupmanual]")
     CatchupSimulation catchupSimulation{};
 
     auto dbMode = Config::TESTDB_IN_MEMORY_SQLITE;
-    std::vector<Application::pointer> apps;
 
     catchupSimulation.generateAndPublishInitialHistory(6);
-    auto initLedger =
+    auto initLedger1 =
         catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
         1;
-    REQUIRE(initLedger == 383);
+    REQUIRE(initLedger1 == 383);
+
+    // Now push network along a little bit and see that they can all still
+    // catch up properly.
+    catchupSimulation.generateAndPublishHistory(2);
+    auto initLedger2 =
+        catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
+        1;
 
     for (auto const& test : stellar::gCatchupRangeCases)
     {
@@ -592,26 +597,19 @@ TEST_CASE("Catchup manual", "[history][catchupmanual]")
         auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
                                 lastClosedLedger, configuration.toLedger(),
                                 configuration.count());
-        // manual catchup-recent
-        auto a = catchupSimulation.catchupNewApplication(
-            configuration.toLedger(), configuration.count(), true, dbMode,
-            name);
-        // manual catchup-complete
-        catchupSimulation.catchupApplication(
-            initLedger, std::numeric_limits<uint32_t>::max(), true, a);
-        apps.push_back(a);
-    }
 
-    // Now push network along a little bit and see that they can all still
-    // catch up properly.
-    catchupSimulation.generateAndPublishHistory(2);
-    initLedger =
-        catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum() -
-        1;
-
-    for (auto a : apps)
-    {
-        catchupSimulation.catchupApplication(initLedger, 80, false, a);
+        SECTION(name)
+        {
+            // manual catchup-recent
+            auto a = catchupSimulation.catchupNewApplication(
+                configuration.toLedger(), configuration.count(), true, dbMode,
+                name);
+            // manual catchup-complete to first checkpoint
+            catchupSimulation.catchupApplication(
+                initLedger1, std::numeric_limits<uint32_t>::max(), true, a);
+            // manual catchup-complete to second checkpoint
+            catchupSimulation.catchupApplication(initLedger2, 80, false, a);
+        }
     }
 }
 
