@@ -54,7 +54,7 @@ class HistoryManagerImpl : public HistoryManager
 
     size_t publishQueueLength() const override;
 
-    bool maybeQueueHistoryCheckpoint() override;
+    bool maybeQueueHistoryCheckpoint(LedgerState& ls) override;
 
     void queueCurrentHistory() override;
 

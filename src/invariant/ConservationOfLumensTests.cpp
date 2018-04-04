@@ -6,10 +6,13 @@
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include <numeric>
 #include <random>
 #include <xdrpp/autocheck.h>
@@ -33,10 +36,10 @@ getCoinsAboveReserve(std::vector<LedgerEntry> const& entries, Application& app)
     return std::accumulate(entries.begin(), entries.end(),
                            static_cast<int64_t>(0),
                            [&app](int64_t lhs, LedgerEntry const& rhs) {
-                               auto& lm = app.getLedgerManager();
                                auto& account = rhs.data.account();
                                return lhs + account.balance -
-                                      lm.getMinBalance(account.numSubEntries);
+                                   getCurrentMinBalance(app.getLedgerStateRoot(),
+                                                        account.numSubEntries);
                            });
 }
 
@@ -50,8 +53,8 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
     for (auto iter = entries.begin(); iter != entries.end(); ++iter)
     {
         auto& account = iter->data.account();
-        auto minBalance =
-            app.getLedgerManager().getMinBalance(account.numSubEntries);
+        auto minBalance = getCurrentMinBalance(app.getLedgerStateRoot(),
+                                               account.numSubEntries);
         pool -= account.balance - minBalance;
 
         int64_t delta = 0;
@@ -79,8 +82,9 @@ updateBalances(std::vector<LedgerEntry> entries, Application& app,
     auto finalCoins = getTotalBalance(entries);
     REQUIRE(initialCoins + netChange == finalCoins);
 
-    auto& lh = app.getLedgerManager().getCurrentLedgerHeader();
-    lh.totalCoins += netChange;
+    LedgerState ls(app.getLedgerStateRoot());
+    ls.loadHeader()->header().totalCoins += netChange;
+    ls.commit();
     return entries;
 }
 
@@ -89,34 +93,56 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app,
                std::default_random_engine& gen)
 {
     int64_t coinsAboveReserve = getCoinsAboveReserve(entries, app);
-    auto& lh = app.getLedgerManager().getCurrentLedgerHeader();
+    LedgerState ls(app.getLedgerStateRoot());
+    auto header = ls.loadHeader();
     std::uniform_int_distribution<int64_t> dist(
-        lh.totalCoins - coinsAboveReserve, INT64_MAX);
-    int64_t newTotalCoins = dist(gen);
-    return updateBalances(entries, app, gen, newTotalCoins - lh.totalCoins);
-}
-
-std::vector<EntryFrame::pointer>
-generateEntryFrames(std::vector<LedgerEntry> const& entries)
-{
-    std::vector<EntryFrame::pointer> result;
-    std::transform(
-        entries.begin(), entries.end(), std::back_inserter(result),
-        [](LedgerEntry const& le) { return EntryFrame::FromXDR(le); });
-    return result;
+        header->header().totalCoins - coinsAboveReserve, INT64_MAX);
+    int64_t netChange = dist(gen) - header->header().totalCoins;
+    ls.rollback();
+    return updateBalances(entries, app, gen, netChange);
 }
 
 UpdateList
-generateUpdateList(std::vector<EntryFrame::pointer> const& current,
-                   std::vector<EntryFrame::pointer> const& previous)
+generateUpdateList(std::vector<LedgerEntry> const& current,
+                   std::vector<std::nullptr_t> const& previous)
 {
     assert(current.size() == previous.size());
     UpdateList updates;
     std::transform(
         current.begin(), current.end(), previous.begin(),
         std::back_inserter(updates),
-        [](EntryFrame::pointer const& curr, EntryFrame::pointer const& prev) {
-            return UpdateList::value_type{curr, prev};
+        [](LedgerEntry const& curr, LedgerEntry const* prev) {
+            return UpdateList::value_type{&curr, prev};
+        });
+    return updates;
+}
+
+UpdateList
+generateUpdateList(std::vector<LedgerEntry> const& current,
+                   std::vector<LedgerEntry> const& previous)
+{
+    assert(current.size() == previous.size());
+    UpdateList updates;
+    std::transform(
+        current.begin(), current.end(), previous.begin(),
+        std::back_inserter(updates),
+        [](LedgerEntry const& curr, LedgerEntry const& prev) {
+            return UpdateList::value_type{&curr, &prev};
+        });
+    return updates;
+}
+
+UpdateList
+generateUpdateList(std::vector<std::nullptr_t> const& current,
+                   std::vector<LedgerEntry> const& previous)
+{
+    assert(current.size() == previous.size());
+    UpdateList updates;
+    std::transform(
+        current.begin(), current.end(), previous.begin(),
+        std::back_inserter(updates),
+        [](LedgerEntry const* curr, LedgerEntry const& prev) {
+            return UpdateList::value_type{curr, &prev};
         });
     return updates;
 }
@@ -133,13 +159,14 @@ TEST_CASE("Total coins change without inflation",
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    LedgerHeader lh(app->getLedgerManager().getCurrentLedgerHeader());
-    LedgerDelta ld(lh, app->getDatabase(), false);
-    ld.getHeader().totalCoins = dist(gen);
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    header->header().totalCoins = dist(gen);
     OperationResult res;
     REQUIRE_THROWS_AS(
-        app->getInvariantManager().checkOnOperationApply({}, res, ld),
+        app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
         InvariantDoesNotHold);
+    header->invalidate();
 }
 
 TEST_CASE("Fee pool change without inflation",
@@ -154,13 +181,14 @@ TEST_CASE("Fee pool change without inflation",
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
 
-    LedgerHeader lh(app->getLedgerManager().getCurrentLedgerHeader());
-    LedgerDelta ld(lh, app->getDatabase(), false);
-    ld.getHeader().feePool = dist(gen);
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    header->header().feePool = dist(gen);
     OperationResult res;
     REQUIRE_THROWS_AS(
-        app->getInvariantManager().checkOnOperationApply({}, res, ld),
+        app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
         InvariantDoesNotHold);
+    header->invalidate();
 }
 
 TEST_CASE("Account balances changed without inflation",
@@ -176,28 +204,29 @@ TEST_CASE("Account balances changed without inflation",
         VirtualClock clock;
         Application::pointer app = createTestApplication(clock, cfg);
 
+        CLOG(INFO, "Invariant") << "HERE1";
         std::vector<LedgerEntry> entries1;
         std::generate_n(std::back_inserter(entries1), N,
                         std::bind(generateRandomAccount, 2));
+        CLOG(INFO, "Invariant") << "HERE2";
         entries1 = updateBalances(entries1, *app, gen);
+        CLOG(INFO, "Invariant") << "HERE3";
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries1),
-                std::vector<EntryFrame::pointer>(entries1.size()));
+            auto updates = generateUpdateList(entries1,
+                std::vector<std::nullptr_t>(entries1.size()));
             REQUIRE(!store(*app, updates));
         }
 
         auto entries2 = updateBalances(entries1, *app, gen);
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries2), generateEntryFrames(entries1));
+            auto updates = generateUpdateList(entries2, entries1);
             REQUIRE(!store(*app, updates));
         }
 
         {
-            UpdateList updates = generateUpdateList(
-                std::vector<EntryFrame::pointer>(entries1.size()),
-                generateEntryFrames(entries1));
+            auto updates = generateUpdateList(
+                std::vector<std::nullptr_t>(entries1.size()),
+                entries1);
             REQUIRE(!store(*app, updates));
         }
     }
@@ -221,16 +250,14 @@ TEST_CASE("Account balances unchanged without inflation",
                         std::bind(generateRandomAccount, 2));
         entries1 = updateBalances(entries1, *app, gen);
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries1),
-                std::vector<EntryFrame::pointer>(entries1.size()));
+            auto updates = generateUpdateList(entries1,
+                std::vector<std::nullptr_t>(entries1.size()));
             REQUIRE(!store(*app, updates));
         }
 
         auto entries2 = updateBalances(entries1, *app, gen, 0);
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries2), generateEntryFrames(entries1));
+            auto updates = generateUpdateList(entries2, entries1);
             REQUIRE(store(*app, updates));
         }
 
@@ -238,13 +265,13 @@ TEST_CASE("Account balances unchanged without inflation",
         std::vector<LedgerEntry> entries3(entries2.begin(), keepEnd);
         std::vector<LedgerEntry> toDelete(keepEnd, entries2.end());
         int64_t balanceToDelete = getTotalBalance(toDelete);
-        entries3 = updateBalances(entries3, *app, gen, balanceToDelete);
+        auto entries4 = updateBalances(entries3, *app, gen, balanceToDelete);
         {
-            auto entryFrames3 = generateEntryFrames(entries3);
-            std::fill_n(std::back_inserter(entryFrames3), toDelete.size(),
-                        nullptr);
-            UpdateList updates =
-                generateUpdateList(entryFrames3, generateEntryFrames(entries2));
+            auto updates = generateUpdateList(entries4, entries3);
+            auto updates2 = generateUpdateList(
+                std::vector<std::nullptr_t>(toDelete.size()),
+                toDelete);
+            updates.insert(updates.end(), updates2.begin(), updates2.end());
             REQUIRE(store(*app, updates));
         }
     }
@@ -270,9 +297,8 @@ TEST_CASE("Inflation changes are consistent",
                         std::bind(generateRandomAccount, 2));
         entries1 = updateBalances(entries1, *app, gen);
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries1),
-                std::vector<EntryFrame::pointer>(entries1.size()));
+            auto updates = generateUpdateList(entries1,
+                std::vector<std::nullptr_t>(entries1.size()));
             REQUIRE(!store(*app, updates));
         }
 
@@ -293,23 +319,30 @@ TEST_CASE("Inflation changes are consistent",
             0, 2 * inflationAmount);
         auto deltaFeePool = deltaFeePoolDist(gen);
 
-        LedgerHeader lh(app->getLedgerManager().getCurrentLedgerHeader());
-        LedgerDelta ld(lh, app->getDatabase(), false);
-        ld.getHeader().feePool += deltaFeePool;
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnOperationApply({}, opRes, ld),
-            InvariantDoesNotHold);
+        {
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            header->header().feePool += deltaFeePool;
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().checkOnOperationApply({}, opRes, ls, header),
+                InvariantDoesNotHold);
 
-        ld.getHeader().totalCoins += deltaFeePool + inflationAmount;
-        REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnOperationApply({}, opRes, ld),
-            InvariantDoesNotHold);
+            header->header().totalCoins += deltaFeePool + inflationAmount;
+            REQUIRE_THROWS_AS(
+                app->getInvariantManager().checkOnOperationApply({}, opRes, ls, header),
+                InvariantDoesNotHold);
+            header->invalidate();
+        }
 
         auto entries2 = updateBalances(entries1, *app, gen, inflationAmount);
+        LedgerState ls(app->getLedgerStateRoot());
+        auto header = ls.loadHeader();
+        header->header().feePool += deltaFeePool;
+        header->header().totalCoins += deltaFeePool + inflationAmount;
+        header->invalidate();
         {
-            UpdateList updates = generateUpdateList(
-                generateEntryFrames(entries2), generateEntryFrames(entries1));
-            REQUIRE(store(*app, updates, &ld, &opRes));
+            auto updates = generateUpdateList(entries2, entries1);
+            REQUIRE(store(*app, updates, &ls, &opRes));
         }
     }
 }

@@ -46,6 +46,7 @@ If any verify step fails, the peer disconnects immediately.
 
 namespace stellar
 {
+using xdr::operator<;
 
 using namespace soci;
 using namespace std;

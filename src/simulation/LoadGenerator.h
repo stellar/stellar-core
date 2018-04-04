@@ -63,8 +63,8 @@ class LoadGenerator
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
-    bool loadAccount(TestAccount& account, Database& database);
-    bool loadAccount(TestAccountPtr account, Database& database);
+    bool loadAccount(TestAccount& account);
+    bool loadAccount(TestAccountPtr account);
 
     std::pair<TestAccountPtr, TestAccountPtr>
     pickAccountPair(uint32_t numAccounts, uint32_t ledgerNum,

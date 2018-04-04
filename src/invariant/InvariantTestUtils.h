@@ -4,26 +4,28 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/EntryFrame.h"
+#include "xdr/Stellar-ledger-entries.h"
+#include "xdr/Stellar-transaction.h"
 #include <vector>
 
 namespace stellar
 {
 
 class Application;
+class LedgerState;
 
 namespace InvariantTestUtils
 {
 
 LedgerEntry generateRandomAccount(uint32_t ledgerSeq);
 
-typedef std::vector<std::tuple<EntryFrame::pointer, EntryFrame::pointer>>
+typedef std::vector<std::tuple<LedgerEntry const*, LedgerEntry const*>>
     UpdateList;
 
 bool store(Application& app, UpdateList const& apply,
-           LedgerDelta* ldPtr = nullptr,
+           LedgerState* lsPtr = nullptr,
            OperationResult const* resPtr = nullptr);
 
-UpdateList makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right);
+UpdateList makeUpdateList(LedgerEntry const* left, LedgerEntry const* right);
 }
 }

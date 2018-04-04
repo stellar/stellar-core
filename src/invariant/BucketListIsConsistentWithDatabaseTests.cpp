@@ -14,13 +14,8 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/EntryFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
@@ -40,14 +35,15 @@ using xdr::operator<;
 namespace BucketListIsConsistentWithDatabaseTests
 {
 
-std::vector<EntryFrame::pointer>
-generateValidEntryFrames(uint32_t n)
+std::vector<LedgerEntry>
+generateValidLedgerEntries(uint32_t n, uint32_t ledgerSeq)
 {
-    auto entries = LedgerTestUtils::generateValidLedgerEntries(n);
-    std::vector<EntryFrame::pointer> frames;
-    std::transform(entries.begin(), entries.end(), std::back_inserter(frames),
-                   EntryFrame::FromXDR);
-    return frames;
+    auto entries = stellar::LedgerTestUtils::generateValidLedgerEntries(n);
+    for (auto& le : entries)
+    {
+        le.lastModifiedLedgerSeq = ledgerSeq;
+    }
+    return entries;
 }
 
 std::vector<LedgerKey>
@@ -72,17 +68,14 @@ uint32_t
 generateLedgers(
     Application::pointer app, uint32_t ledgerSeq, uint32_t nLedgers,
     uint32_t nLive,
-    std::function<std::vector<EntryFrame::pointer>(uint32_t)> genLive =
-        generateValidEntryFrames,
+    std::function<std::vector<LedgerEntry>(uint32_t, uint32_t)> genLive =
+        generateValidLedgerEntries,
     uint32_t nDead = 0,
     std::function<std::vector<LedgerKey>(uint32_t, std::set<LedgerKey> const&)>
         genDead = {},
     std::function<uint32_t(uint32_t)> lastModified = {})
 {
     assert(nDead == 0 || genDead);
-
-    LedgerHeader lh;
-    LedgerDelta ld(lh, app->getDatabase(), false);
 
     std::default_random_engine gen;
     std::set<LedgerKey> allLive;
@@ -95,38 +88,44 @@ generateLedgers(
             dead = genDead(nDead, allLive);
             assert(dead.size() <=
                    (nDead < allLive.size() ? nDead : allLive.size()));
+            LedgerState lsDead(app->getLedgerStateRoot());
             for (auto const& key : dead)
             {
                 auto iter = allLive.find(key);
                 assert(iter != allLive.end());
-                EntryFrame::storeDelete(ld, app->getDatabase(), key);
+                auto ler = lsDead.load(key);
+                ler->erase();
+                ler->invalidate();
                 allLive.erase(iter);
             }
+            lsDead.commit();
         }
 
-        auto frames = genLive(nLive);
-        assert(frames.size() == nLive);
-        for (auto& ef : frames)
+        uint32_t lastModifiedLedgerSeq =
+            !lastModified ? ledgerSeq : lastModified(ledgerSeq);
+        auto live = genLive(nLive, lastModifiedLedgerSeq);
+        assert(live.size() == nLive);
+        LedgerState lsLive(app->getLedgerStateRoot());
+        for (auto& le : live)
         {
-            if (!lastModified)
+            auto ler = lsLive.load(LedgerEntryKey(le));
+            if (ler)
             {
-                ef->getLastModified() = ledgerSeq;
+                *ler->entry() = le;
+                ler->invalidate();
             }
             else
             {
-                ef->getLastModified() = lastModified(ledgerSeq);
+                lsLive.create(le)->invalidate();
             }
-            ef->storeAddOrChange(ld, app->getDatabase());
-            allLive.insert(LedgerEntryKey(ef->mEntry));
+            allLive.insert(LedgerEntryKey(le));
         }
-        std::vector<LedgerEntry> live;
-        std::transform(
-            frames.begin(), frames.end(), std::back_inserter(live),
-            [](const EntryFrame::pointer& ef) { return ef->mEntry; });
+        lsLive.commit();
 
         auto& bl = app->getBucketManager().getBucketList();
         bl.addBatch(*app, ledgerSeq, live, dead);
     }
+
     return stopLedgerSeq;
 }
 
@@ -176,27 +175,27 @@ applyBucketsAndCrankUntilDone(Application::pointer appGenerate,
     wm.executeWork<T>(buckets, has, std::forward<Args>(args)...);
 }
 
-std::vector<EntryFrame::pointer>
-generateValidEntryFramesAndSelectByType(
-    uint32_t n, LedgerEntryType let,
-    std::map<LedgerKey, EntryFrame::pointer>& selected)
+std::vector<LedgerEntry>
+generateValidLedgerEntriesAndSelectByType(
+    uint32_t n, uint32_t ledgerSeq, LedgerEntryType let,
+    std::map<LedgerKey, LedgerEntry>& selected)
 {
-    auto frames = generateValidEntryFrames(n);
-    for (auto& ef : frames)
+    auto entries = generateValidLedgerEntries(n, ledgerSeq);
+    for (auto const& le : entries)
     {
-        if (ef->mEntry.data.type() == let)
+        if (le.data.type() == let)
         {
-            selected[LedgerEntryKey(ef->mEntry)] = ef;
+            selected[LedgerEntryKey(le)] = le;
         }
     }
-    return frames;
+    return entries;
 }
 
 std::vector<LedgerKey>
 generateDeadEntriesAndSelectByType(
     uint32_t n, std::set<LedgerKey> const& allLive,
     std::default_random_engine& gen,
-    std::map<LedgerKey, EntryFrame::pointer>& selected)
+    std::map<LedgerKey, LedgerEntry>& selected)
 {
     auto keys = deleteRandomLedgerEntries(n, allLive, gen);
     for (auto const& key : keys)
@@ -209,9 +208,8 @@ generateDeadEntriesAndSelectByType(
 template <typename ABW, typename T>
 void
 checkBucketListIsConsistentWithDatabase(
-    std::function<std::vector<EntryFrame::pointer>(uint32_t, LedgerEntryType,
-                                                   T&)>
-        genLive = generateValidEntryFrames,
+    std::function<std::vector<LedgerEntry>(uint32_t, uint32_t, LedgerEntryType, T&)>
+        genLive = generateValidLedgerEntries,
     std::function<std::vector<LedgerKey>(uint32_t, std::set<LedgerKey> const&,
                                          std::default_random_engine&, T&)>
         genDead = {})
@@ -233,7 +231,7 @@ checkBucketListIsConsistentWithDatabase(
             T selected;
             uint32_t ledgerSeq = generateLedgers(
                 appGenerate, 2, 100, 5,
-                std::bind(genLive, _1, let, std::ref(selected)), 2,
+                std::bind(genLive, _1, _2, let, std::ref(selected)), 2,
                 std::bind(genDead, _1, _2, std::ref(gen), std::ref(selected)));
 
             // NOTE: We only advance nTests if selected is not empty so that
@@ -273,7 +271,6 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
         , mType{addType}
         , mAdded{false}
     {
-        CLOG(INFO, "Invariant") << "Try to add @ " << mFromLedgerSeq;
     }
 
     Work::State
@@ -281,15 +278,13 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
     {
         if (!mAdded)
         {
-            auto& db = mApp.getDatabase();
-            auto& sess = db.getSession();
             uint32_t minLedger = mFromLedgerSeq == 1 ? 2 : mFromLedgerSeq;
             uint32_t maxLedger = std::numeric_limits<int32_t>::max();
-            size_t count =
-                AccountFrame::countObjects(sess, {minLedger, maxLedger}) +
-                TrustFrame::countObjects(sess, {minLedger, maxLedger}) +
-                OfferFrame::countObjects(sess, {minLedger, maxLedger}) +
-                DataFrame::countObjects(sess, {minLedger, maxLedger});
+            uint64_t count =
+                mApp.countAccounts({minLedger, maxLedger}) +
+                mApp.countTrustLines({minLedger, maxLedger}) +
+                mApp.countOffers({minLedger, maxLedger}) +
+                mApp.countData({minLedger, maxLedger});
 
             if (count > 0)
             {
@@ -299,26 +294,18 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 switch (mType)
                 {
                 case ACCOUNT:
-                    CLOG(INFO, "Invariant")
-                        << "Added account @ " << mFromLedgerSeq;
                     entry.data.account() =
                         LedgerTestUtils::generateValidAccountEntry(5);
                     break;
                 case TRUSTLINE:
-                    CLOG(INFO, "Invariant")
-                        << "Added trustLine @ " << mFromLedgerSeq;
                     entry.data.trustLine() =
                         LedgerTestUtils::generateValidTrustLineEntry(5);
                     break;
                 case OFFER:
-                    CLOG(INFO, "Invariant")
-                        << "Added offer @ " << mFromLedgerSeq;
                     entry.data.offer() =
                         LedgerTestUtils::generateValidOfferEntry(5);
                     break;
                 case DATA:
-                    CLOG(INFO, "Invariant")
-                        << "Added data @ " << mFromLedgerSeq;
                     entry.data.data() =
                         LedgerTestUtils::generateValidDataEntry(5);
                     break;
@@ -326,10 +313,9 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                     REQUIRE(false);
                 }
 
-                LedgerHeader lh;
-                LedgerDelta ld(lh, db, false);
-                auto ef = EntryFrame::FromXDR(entry);
-                ef->storeAdd(ld, db);
+                LedgerState ls(mApp.getLedgerStateRoot());
+                ls.create(entry);
+                ls.commit();
                 mAdded = true;
             }
         }
@@ -346,7 +332,7 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 {
   private:
     LedgerKey mKey;
-    EntryFrame::pointer mFrame;
+    LedgerEntry mEntry;
     bool mDeleted;
 
   public:
@@ -354,11 +340,11 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState,
-        std::pair<LedgerKey, EntryFrame::pointer> const& target,
+        std::pair<LedgerKey, LedgerEntry> const& target,
         LedgerEntryType)
         : ApplyBucketsWork(app, parent, buckets, applyState)
         , mKey(target.first)
-        , mFrame(target.second)
+        , mEntry(target.second)
         , mDeleted{false}
     {
     }
@@ -368,14 +354,16 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
     {
         if (!mDeleted)
         {
-            auto& db = mApp.getDatabase();
-            auto ef = EntryFrame::storeLoad(mKey, db);
-            if (ef && ef->mEntry == mFrame->mEntry)
+            LedgerState ls(mApp.getLedgerStateRoot());
+            auto ler = ls.load(mKey);
+            if (ler)
             {
-                LedgerHeader lh;
-                LedgerDelta ld(lh, db, false);
-                mFrame->storeDelete(ld, db);
-                mDeleted = true;
+                if (*ler->entry() == mEntry)
+                {
+                    ler->erase();
+                    ls.commit();
+                    mDeleted = true;
+                }
             }
         }
         auto r = ApplyBucketsWork::onSuccess();
@@ -391,15 +379,15 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 {
   private:
     LedgerKey mKey;
-    EntryFrame::pointer mFrame;
+    LedgerEntry mEntry;
     bool mModified;
 
     void
     modifyAccountEntry()
     {
-        AccountEntry account = mFrame->mEntry.data.account();
-        LedgerEntry& entry = mFrame->mEntry;
-        entry.lastModifiedLedgerSeq = mFrame->mEntry.lastModifiedLedgerSeq;
+        AccountEntry account = mEntry.data.account();
+        LedgerEntry& entry = mEntry;
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
         entry.data.account() = LedgerTestUtils::generateValidAccountEntry(5);
         entry.data.account().accountID = account.accountID;
     }
@@ -407,9 +395,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     void
     modifyTrustLineEntry()
     {
-        TrustLineEntry trustLine = mFrame->mEntry.data.trustLine();
-        LedgerEntry& entry = mFrame->mEntry;
-        entry.lastModifiedLedgerSeq = mFrame->mEntry.lastModifiedLedgerSeq;
+        TrustLineEntry trustLine = mEntry.data.trustLine();
+        LedgerEntry& entry = mEntry;
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
         entry.data.trustLine() =
             LedgerTestUtils::generateValidTrustLineEntry(5);
         entry.data.trustLine().accountID = trustLine.accountID;
@@ -419,9 +407,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     void
     modifyOfferEntry()
     {
-        OfferEntry offer = mFrame->mEntry.data.offer();
-        LedgerEntry& entry = mFrame->mEntry;
-        entry.lastModifiedLedgerSeq = mFrame->mEntry.lastModifiedLedgerSeq;
+        OfferEntry offer = mEntry.data.offer();
+        LedgerEntry& entry = mEntry;
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
         entry.data.offer() = LedgerTestUtils::generateValidOfferEntry(5);
         entry.data.offer().sellerID = offer.sellerID;
         entry.data.offer().offerID = offer.offerID;
@@ -430,9 +418,9 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     void
     modifyDataEntry()
     {
-        DataEntry data = mFrame->mEntry.data.data();
-        LedgerEntry& entry = mFrame->mEntry;
-        entry.lastModifiedLedgerSeq = mFrame->mEntry.lastModifiedLedgerSeq;
+        DataEntry data = mEntry.data.data();
+        LedgerEntry& entry = mEntry;
+        entry.lastModifiedLedgerSeq = mEntry.lastModifiedLedgerSeq;
         do
         {
             entry.data.data() = LedgerTestUtils::generateValidDataEntry(5);
@@ -446,11 +434,11 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
         Application& app, WorkParent& parent,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState,
-        std::pair<LedgerKey, EntryFrame::pointer> const& target,
+        std::pair<LedgerKey, LedgerEntry> const& target,
         LedgerEntryType)
         : ApplyBucketsWork(app, parent, buckets, applyState)
         , mKey(target.first)
-        , mFrame(target.second)
+        , mEntry(target.second)
         , mModified{false}
     {
     }
@@ -460,34 +448,34 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
     {
         if (!mModified)
         {
-            auto& db = mApp.getDatabase();
-            LedgerKey key = LedgerEntryKey(mFrame->mEntry);
-            auto ef = EntryFrame::storeLoad(key, db);
-            if (ef && ef->mEntry == mFrame->mEntry)
+            LedgerState ls(mApp.getLedgerStateRoot());
+            auto ler = ls.load(mKey);
+            if (ler)
             {
-                CLOG(INFO, "Invariant") << "Start modify";
-                switch (mFrame->mEntry.data.type())
+                if (*ler->entry() == mEntry)
                 {
-                case ACCOUNT:
-                    modifyAccountEntry();
-                    break;
-                case TRUSTLINE:
-                    modifyTrustLineEntry();
-                    break;
-                case OFFER:
-                    modifyOfferEntry();
-                    break;
-                case DATA:
-                    modifyDataEntry();
-                    break;
-                default:
-                    REQUIRE(false);
+                    switch (mEntry.data.type())
+                    {
+                    case ACCOUNT:
+                        modifyAccountEntry();
+                        break;
+                    case TRUSTLINE:
+                        modifyTrustLineEntry();
+                        break;
+                    case OFFER:
+                        modifyOfferEntry();
+                        break;
+                    case DATA:
+                        modifyDataEntry();
+                        break;
+                    default:
+                        REQUIRE(false);
+                    }
+
+                    *ler->entry() = mEntry;
+                    ls.commit();
+                    mModified = true;
                 }
-                LedgerHeader lh;
-                LedgerDelta ld(lh, db, false);
-                mFrame->storeChange(ld, db);
-                mModified = true;
-                CLOG(INFO, "Invariant") << "End modify";
             }
         }
         auto r = ApplyBucketsWork::onSuccess();
@@ -542,7 +530,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase succeed",
     Application::pointer appApply =
         createTestApplication(clock, getTestConfig(1));
     uint32_t ledgerSeq = generateLedgers(
-        appGenerate, 2, 100, 5, generateValidEntryFrames, 2,
+        appGenerate, 2, 100, 5, generateValidLedgerEntries, 2,
         std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)));
     REQUIRE_NOTHROW(
         applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
@@ -570,21 +558,15 @@ TEST_CASE("BucketListIsConsistentWithDatabase multiple applies",
         createTestApplication(clock, getTestConfig(0));
     Application::pointer appApply =
         createTestApplication(clock, getTestConfig(1));
-    uint32_t ledgerSeq = generateLedgers(
-        appGenerate, 2, 100, 5, generateValidEntryFrames, 2,
-        std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)));
-    REQUIRE_NOTHROW(
-        applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
-    ledgerSeq = generateLedgers(
-        appGenerate, ++ledgerSeq, 100, 5, generateValidEntryFrames, 2,
-        std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)));
-    REQUIRE_NOTHROW(
-        applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
-    ledgerSeq = generateLedgers(
-        appGenerate, ++ledgerSeq, 100, 5, generateValidEntryFrames, 2,
-        std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)));
-    REQUIRE_NOTHROW(
-        applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
+    uint32_t ledgerSeq = 1;
+    for (int i = 0; i < 3; ++i)
+    {
+        ledgerSeq = generateLedgers(
+            appGenerate, ++ledgerSeq, 100, 5, generateValidLedgerEntries, 2,
+            std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)));
+        REQUIRE_NOTHROW(
+            applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
+    }
 }
 
 TEST_CASE("BucketListIsConsistentWithDatabase test non-root account",
@@ -595,27 +577,30 @@ TEST_CASE("BucketListIsConsistentWithDatabase test non-root account",
         createTestApplication(clock, getTestConfig(0));
     Application::pointer appApply =
         createTestApplication(clock, getTestConfig(1));
-    AccountID account;
+    LedgerKey account;
     uint32_t ledgerSeq =
         generateLedgers(appGenerate, 2, 1, 1,
-                        [appGenerate, &account](
-                            uint32_t n) -> std::vector<EntryFrame::pointer> {
-                            LedgerEntry entry;
-                            entry.data.type(ACCOUNT);
-                            entry.data.account() =
-                                LedgerTestUtils::generateValidAccountEntry(5);
-                            account = entry.data.account().accountID;
-                            return {EntryFrame::FromXDR(entry)};
-                        });
+            [appGenerate, &account](uint32_t n, uint32_t ledgerSeq)
+                    -> std::vector<LedgerEntry> {
+                LedgerEntry entry;
+                entry.lastModifiedLedgerSeq = ledgerSeq;
+                entry.data.type(ACCOUNT);
+                entry.data.account() =
+                    LedgerTestUtils::generateValidAccountEntry(5);
+                account = LedgerEntryKey(entry);
+                return {entry};
+            });
     REQUIRE_NOTHROW(
         applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
 
     ledgerSeq = generateLedgers(
         appGenerate, ++ledgerSeq, 100, 1,
-        [appGenerate, account](uint32_t n) -> std::vector<EntryFrame::pointer> {
-            auto& db = appGenerate->getDatabase();
-            auto af = AccountFrame::loadAccount(account, db);
-            return {af};
+        [appGenerate, account](uint32_t n, uint32_t ledgerSeq)
+                -> std::vector<LedgerEntry> {
+            LedgerState ls(appGenerate->getLedgerStateRoot());
+            auto ler = ls.load(account);
+            ler->entry()->lastModifiedLedgerSeq = ledgerSeq;
+            return {*ler->entry()};
         });
     REQUIRE_NOTHROW(
         applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
@@ -632,12 +617,15 @@ TEST_CASE("BucketListIsConsistentWithDatabase test root account",
     uint32_t ledgerSeq = generateLedgers(appGenerate, 2, 1, 1);
     ledgerSeq = generateLedgers(
         appGenerate, ++ledgerSeq, 100, 1,
-        [appGenerate](uint32_t n) -> std::vector<EntryFrame::pointer> {
+        [appGenerate](uint32_t n, uint32_t ledgerSeq)
+                -> std::vector<LedgerEntry> {
             auto skey = SecretKey::fromSeed(appGenerate->getNetworkID());
-            auto root = skey.getPublicKey();
-            auto& db = appGenerate->getDatabase();
-            auto af = AccountFrame::loadAccount(root, db);
-            return {af};
+            LedgerKey rootKey(ACCOUNT);
+            rootKey.account().accountID = skey.getPublicKey();
+            LedgerState ls(appGenerate->getLedgerStateRoot());
+            auto ler = ls.load(rootKey);
+            ler->entry()->lastModifiedLedgerSeq = ledgerSeq;
+            return {*ler->entry()};
         });
     REQUIRE_NOTHROW(
         applyBucketsAndCrankUntilDone(appGenerate, appApply, ledgerSeq));
@@ -648,12 +636,11 @@ TEST_CASE("BucketListIsConsistentWithDatabase added entries",
 {
     checkBucketListIsConsistentWithDatabase<ApplyBucketsWorkAddEntry,
                                             std::vector<uint32_t>>(
-        [](uint32_t n, LedgerEntryType let, std::vector<uint32_t>& selected) {
-            // add an element that corresponds to the ledger sequence number
-            // these frames are generated for
-            selected.push_back(static_cast<uint32_t>(1 + selected.size()));
-            auto frames = generateValidEntryFrames(n);
-            return frames;
+        [](uint32_t n, uint32_t ledgerSeq,
+           LedgerEntryType let, std::vector<uint32_t>& selected) {
+            selected.push_back(static_cast<uint32_t>(ledgerSeq));
+            auto entries = generateValidLedgerEntries(n, ledgerSeq);
+            return entries;
         },
         std::bind(deleteRandomLedgerEntries, _1, _2, _3));
 }
@@ -662,8 +649,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase deleted entries",
           "[invariant][bucketlistconsistent]")
 {
     checkBucketListIsConsistentWithDatabase<
-        ApplyBucketsWorkDeleteEntry, std::map<LedgerKey, EntryFrame::pointer>>(
-        generateValidEntryFramesAndSelectByType,
+        ApplyBucketsWorkDeleteEntry, std::map<LedgerKey, LedgerEntry>>(
+        generateValidLedgerEntriesAndSelectByType,
         generateDeadEntriesAndSelectByType);
 }
 
@@ -671,8 +658,8 @@ TEST_CASE("BucketListIsConsistentWithDatabase modified entries",
           "[invariant][bucketlistconsistent]")
 {
     checkBucketListIsConsistentWithDatabase<
-        ApplyBucketsWorkModifyEntry, std::map<LedgerKey, EntryFrame::pointer>>(
-        generateValidEntryFramesAndSelectByType,
+        ApplyBucketsWorkModifyEntry, std::map<LedgerKey, LedgerEntry>>(
+        generateValidLedgerEntriesAndSelectByType,
         generateDeadEntriesAndSelectByType);
 }
 
@@ -727,7 +714,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase bucket bounds",
                 Application::pointer appApply =
                     createTestApplication(clock, getTestConfig(1));
                 uint32_t ledgerSeq = generateLedgers(
-                    appGenerate, 2, 100, 5, generateValidEntryFrames, 2,
+                    appGenerate, 2, 100, 5, generateValidLedgerEntries, 2,
                     std::bind(deleteRandomLedgerEntries, _1, _2, std::ref(gen)),
                     [ledgerToModify, target](uint32_t ledger) {
                         return (ledger != ledgerToModify) ? ledger : target;
@@ -761,10 +748,10 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             auto& blGenerate = appGenerate->getBucketManager().getBucketList();
 
             // Generate initial entries and select one to delete
-            std::map<LedgerKey, EntryFrame::pointer> selected;
+            std::map<LedgerKey, LedgerEntry> selected;
             uint32_t ledgerSeq = generateLedgers(
                 appGenerate, 2, 10, 5,
-                std::bind(generateValidEntryFramesAndSelectByType, _1, let,
+                std::bind(generateValidLedgerEntriesAndSelectByType, _1, _2, let,
                           std::ref(selected)),
                 2,
                 std::bind(generateDeadEntriesAndSelectByType, _1, _2,
@@ -780,7 +767,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
                     0, selected.size() - 1);
                 auto iter = selected.cbegin();
                 std::advance(iter, dist(gen));
-                entry = iter->second->mEntry;
+                entry = iter->second;
                 key = LedgerEntryKey(entry);
             }
 
@@ -789,7 +776,7 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             std::uniform_int_distribution<uint32_t> dist(1, 32);
             ledgerSeq = generateLedgers(
                 appGenerate, ++ledgerSeq, dist(gen), 5,
-                generateValidEntryFrames, 2,
+                generateValidLedgerEntries, 2,
                 [&key, &gen](uint32_t n, const std::set<LedgerKey>& allLive) {
                     auto keys = deleteRandomLedgerEntries(n, allLive, gen);
                     std::remove(keys.begin(), keys.end(), key);
@@ -799,12 +786,15 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             // Catch up to a point where the selected entry exists
             REQUIRE_NOTHROW(applyBucketsAndCrankUntilDone(appGenerate, appApply,
                                                           ledgerSeq));
-            REQUIRE(EntryFrame::exists(appApply->getDatabase(), key));
+            {
+                LedgerState ls(appApply->getLedgerStateRoot());
+                REQUIRE(ls.load(key));
+            }
 
             // Generate entries to push the selected entry into the lowest
             // level of the BucketList
             ledgerSeq = generateLedgers(
-                appGenerate, ++ledgerSeq, 100, 5, generateValidEntryFrames, 2,
+                appGenerate, ++ledgerSeq, 100, 5, generateValidLedgerEntries, 2,
                 [&key, &gen](uint32_t n, const std::set<LedgerKey>& allLive) {
                     auto keys = deleteRandomLedgerEntries(n, allLive, gen);
                     std::remove(keys.begin(), keys.end(), key);
@@ -813,9 +803,9 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
 
             // Delete the selected entry
             {
-                LedgerHeader lh;
-                LedgerDelta ld(lh, appGenerate->getDatabase(), false);
-                EntryFrame::storeDelete(ld, appGenerate->getDatabase(), key);
+                LedgerState ls(appGenerate->getLedgerStateRoot());
+                ls.load(key)->erase();
+                ls.commit();
                 blGenerate.addBatch(*appGenerate, ++ledgerSeq, {}, {key});
             }
 
@@ -833,14 +823,17 @@ TEST_CASE("BucketListIsConsistentWithDatabase merged LIVEENTRY and DEADENTRY",
             while (doesBucketListContain(blGenerate, dead))
             {
                 ledgerSeq = generateLedgers(appGenerate, ++ledgerSeq, 1, 5,
-                                            generateValidEntryFrames);
+                                            generateValidLedgerEntries);
             }
 
             REQUIRE(!doesBucketListContain(blGenerate, dead));
             REQUIRE(!doesBucketListContain(blGenerate, live));
             REQUIRE_NOTHROW(applyBucketsAndCrankUntilDone(appGenerate, appApply,
                                                           ledgerSeq));
-            REQUIRE(!EntryFrame::exists(appApply->getDatabase(), key));
+            {
+                LedgerState ls(appApply->getLedgerStateRoot());
+                REQUIRE(!ls.load(key));
+            }
             ++nTests;
         }
     }

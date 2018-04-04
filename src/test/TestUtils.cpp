@@ -3,19 +3,24 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "TestUtils.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "overlay/LoopbackPeer.h"
 #include "util/make_unique.h"
+
+#include "util/Logging.h"
 
 namespace stellar
 {
 
 namespace testutil
 {
-
 void
-setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion)
+setCurrentLedgerVersion(Application& app, uint32_t currentLedgerVersion)
 {
-    lm.getCurrentLedgerHeader().ledgerVersion = currentLedgerVersion;
+    LedgerState ls(app.getLedgerStateRoot());
+    ls.loadHeader()->header().ledgerVersion = currentLedgerVersion;
+    ls.commit();
 }
 
 void
@@ -68,6 +73,7 @@ void
 TestInvariantManager::handleInvariantFailure(
     std::shared_ptr<Invariant> invariant, std::string const& message) const
 {
+    CLOG(INFO, "Invariant") << message;
     throw InvariantDoesNotHold{message};
 }
 

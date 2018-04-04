@@ -5,13 +5,17 @@
 #include "util/asio.h"
 #include "transactions/ManageDataOpFrame.h"
 #include "database/Database.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/types.h"
+
+#include "ledger/AccountReference.h"
 
 namespace stellar
 {
@@ -27,26 +31,24 @@ ManageDataOpFrame::ManageDataOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+ManageDataOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() == 3)
+    auto header = ls.loadHeader();
+    if (getCurrentLedgerVersion(header) == 3)
     {
         throw std::runtime_error(
             "MANAGE_DATA not supported on ledger version 3");
     }
+    header->invalidate();
 
-    Database& db = ledgerManager.getDatabase();
-
-    auto dataFrame =
-        DataFrame::loadData(mSourceAccount->getID(), mManageData.dataName, db);
-
+    auto dataRef = loadData(ls, getSourceID(), mManageData.dataName);
     if (mManageData.dataValue)
     {
-        if (!dataFrame)
+        if (!dataRef)
         { // create a new data entry
-
-            if (!mSourceAccount->addNumEntries(1, ledgerManager))
+            auto sourceAccount = loadSourceAccount(ls);
+            auto header = ls.loadHeader();
+            if (!sourceAccount.addNumEntries(header, 1))
             {
                 app.getMetrics()
                     .NewMeter({"op-manage-data", "invalid", "low reserve"},
@@ -55,26 +57,23 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().code(MANAGE_DATA_LOW_RESERVE);
                 return false;
             }
+            header->invalidate();
 
-            dataFrame = std::make_shared<DataFrame>();
-            dataFrame->getData().accountID = mSourceAccount->getID();
-            dataFrame->getData().dataName = mManageData.dataName;
-            dataFrame->getData().dataValue = *mManageData.dataValue;
-
-            dataFrame->storeAdd(delta, db);
-            mSourceAccount->storeChange(delta, db);
+            LedgerEntry newData;
+            newData.data.type(DATA);
+            newData.data.data().accountID = getSourceID();
+            newData.data.data().dataName = mManageData.dataName;
+            newData.data.data().dataValue = *mManageData.dataValue;
+            dataRef = ls.create(newData);
         }
         else
         { // modify an existing entry
-            delta.recordEntry(*dataFrame);
-            dataFrame->getData().dataValue = *mManageData.dataValue;
-            dataFrame->storeChange(delta, db);
+            dataRef->entry()->data.data().dataValue = *mManageData.dataValue;
         }
     }
     else
     { // delete an existing piece of data
-
-        if (!dataFrame)
+        if (!dataRef)
         {
             app.getMetrics()
                 .NewMeter({"op-manage-data", "invalid", "not-found"},
@@ -83,10 +82,11 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(MANAGE_DATA_NAME_NOT_FOUND);
             return false;
         }
-        delta.recordEntry(*dataFrame);
-        mSourceAccount->addNumEntries(-1, ledgerManager);
-        mSourceAccount->storeChange(delta, db);
-        dataFrame->storeDelete(delta, db);
+        dataRef->erase();
+        auto sourceAccount = loadSourceAccount(ls);
+        auto header = ls.loadHeader();
+        sourceAccount.addNumEntries(header, -1);
+        header->invalidate();
     }
 
     innerResult().code(MANAGE_DATA_SUCCESS);
@@ -98,9 +98,9 @@ ManageDataOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-ManageDataOpFrame::doCheckValid(Application& app)
+ManageDataOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
-    if (app.getLedgerManager().getCurrentLedgerVersion() < 2)
+    if (ledgerVersion < 2)
     {
         app.getMetrics()
             .NewMeter(

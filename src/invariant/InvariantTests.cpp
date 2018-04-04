@@ -10,7 +10,8 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -45,7 +46,8 @@ class TestInvariant : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta) override
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header) override
     {
         return mShouldFail ? "fail" : "";
     }
@@ -142,15 +144,15 @@ TEST_CASE("onOperationApply fail/succeed", "[invariant]")
     Application::pointer app = createTestApplication(clock, cfg);
 
     OperationResult res;
-    LedgerHeader lh(app->getLedgerManager().getCurrentLedgerHeader());
-    LedgerDelta ld(lh, app->getDatabase());
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
 
     SECTION("Fail")
     {
         app->getInvariantManager().registerInvariant<TestInvariant>(true);
         app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
         REQUIRE_THROWS_AS(
-            app->getInvariantManager().checkOnOperationApply({}, res, ld),
+            app->getInvariantManager().checkOnOperationApply({}, res, ls, header),
             InvariantDoesNotHold);
     }
     SECTION("Succeed")
@@ -158,6 +160,8 @@ TEST_CASE("onOperationApply fail/succeed", "[invariant]")
         app->getInvariantManager().registerInvariant<TestInvariant>(false);
         app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
         REQUIRE_NOTHROW(
-            app->getInvariantManager().checkOnOperationApply({}, res, ld));
+            app->getInvariantManager().checkOnOperationApply({}, res, ls, header));
     }
+
+    header->invalidate();
 }

@@ -4,11 +4,13 @@
 
 #include "TestAccount.h"
 
-#include "ledger/DataFrame.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -27,10 +29,11 @@ TestAccount::updateSequenceNumber()
 {
     if (mSn == 0)
     {
-        auto a = loadAccount(getPublicKey(), mApp, false);
-        if (a)
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto account = stellar::loadAccount(ls, getPublicKey());
+        if (account)
         {
-            mSn = a->getSeqNum();
+            mSn = account.getSeqNum();
         }
     }
 }
@@ -38,13 +41,17 @@ TestAccount::updateSequenceNumber()
 int64_t
 TestAccount::getBalance() const
 {
-    return loadAccount(getPublicKey(), mApp)->getBalance();
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto account = stellar::loadAccount(ls, getPublicKey());
+    REQUIRE(account);
+    return account.getBalance();
 }
 
 bool
 TestAccount::exists() const
 {
-    return loadAccount(getPublicKey(), mApp, false) != nullptr;
+    LedgerState ls(mApp.getLedgerStateRoot());
+    return stellar::loadAccount(ls, getPublicKey());
 }
 
 TransactionFramePtr
@@ -72,11 +79,30 @@ TestAccount::createRoot(Application& app)
     return TestAccount{app, secretKey};
 }
 
+std::shared_ptr<AccountEntry>
+static loadAccountEntry(Application& app, AccountID const& key)
+{
+    LedgerState ls(app.getLedgerStateRoot());
+    auto ler = stellar::loadAccount(ls, key);
+    if (ler)
+    {
+        return std::make_shared<AccountEntry>(ler.account());
+    }
+    return nullptr;
+}
+
+std::shared_ptr<AccountEntry>
+static loadAccountEntry(Application& app, SecretKey const& key)
+{
+    return loadAccountEntry(app, key.getPublicKey());
+}
+
 TestAccount
 TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
 {
-    auto toCreate = loadAccount(secretKey.getPublicKey(), mApp, false);
-    auto self = loadAccount(getSecretKey().getPublicKey(), mApp);
+    auto toCreate = loadAccountEntry(mApp, secretKey);
+    auto self = loadAccountEntry(mApp, getSecretKey());
+    REQUIRE(self);
 
     try
     {
@@ -85,17 +111,17 @@ TestAccount::create(SecretKey const& secretKey, uint64_t initialBalance)
     }
     catch (...)
     {
-        auto toCreateAfter = loadAccount(secretKey.getPublicKey(), mApp, false);
+        auto toCreateAfter = loadAccountEntry(mApp, secretKey);
         // check that the target account didn't change
         REQUIRE(!!toCreate == !!toCreateAfter);
         if (toCreate && toCreateAfter)
         {
-            REQUIRE(toCreate->getAccount() == toCreateAfter->getAccount());
+            REQUIRE(*toCreate == *toCreateAfter);
         }
         throw;
     }
 
-    REQUIRE(loadAccount(secretKey.getPublicKey(), mApp));
+    REQUIRE(loadAccountEntry(mApp, secretKey));
     return TestAccount{mApp, secretKey};
 }
 
@@ -110,8 +136,9 @@ TestAccount::merge(PublicKey const& into)
 {
     applyTx(tx({accountMerge(into)}), mApp);
 
-    REQUIRE(loadAccount(into, mApp));
-    REQUIRE(!loadAccount(getPublicKey(), mApp, false));
+    LedgerState ls(mApp.getLedgerStateRoot());
+    REQUIRE(stellar::loadAccount(ls, into));
+    REQUIRE(!stellar::loadAccount(ls, getPublicKey()));
 }
 
 void
@@ -144,19 +171,6 @@ TestAccount::denyTrust(Asset const& asset, PublicKey const& trustor)
     applyTx(tx({txtest::allowTrust(trustor, asset, false)}), mApp);
 }
 
-TrustLineEntry
-TestAccount::loadTrustLine(Asset const& asset) const
-{
-    return txtest::loadTrustLine(getSecretKey(), asset, mApp, true)
-        ->getTrustLine();
-}
-
-bool
-TestAccount::hasTrustLine(Asset const& asset) const
-{
-    return !!txtest::loadTrustLine(getSecretKey(), asset, mApp, false);
-}
-
 void
 TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
                         uint32_t* clearFlags, ThresholdSetter* thrs,
@@ -172,16 +186,16 @@ TestAccount::manageData(std::string const& name, DataValue* value)
 {
     applyTx(tx({txtest::manageData(name, value)}), mApp);
 
-    auto dataFrame =
-        DataFrame::loadData(getPublicKey(), name, mApp.getDatabase());
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto data = loadData(ls, getPublicKey(), name);
     if (value)
     {
-        REQUIRE(dataFrame != nullptr);
-        REQUIRE(dataFrame->getData().dataValue == *value);
+        REQUIRE(data != nullptr);
+        REQUIRE(data->entry()->data.data().dataValue == *value);
     }
     else
     {
-        REQUIRE(dataFrame == nullptr);
+        REQUIRE(data == nullptr);
     }
 }
 
@@ -189,18 +203,6 @@ void
 TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
-}
-
-OfferEntry
-TestAccount::loadOffer(uint64_t offerID) const
-{
-    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->getOffer();
-}
-
-bool
-TestAccount::hasOffer(uint64_t offerID) const
-{
-    return !!txtest::loadOffer(getPublicKey(), offerID, mApp, false);
 }
 
 uint64_t
@@ -226,8 +228,8 @@ TestAccount::createPassiveOffer(Asset const& selling, Asset const& buying,
 void
 TestAccount::pay(PublicKey const& destination, int64_t amount)
 {
-    auto toAccount = loadAccount(destination, mApp, false);
-    auto fromAccount = loadAccount(getPublicKey(), mApp);
+    auto toAccount = loadAccountEntry(mApp, destination);
+    auto fromAccount = loadAccountEntry(mApp, getPublicKey());
     auto transaction = tx({payment(destination, amount)});
 
     try
@@ -236,18 +238,18 @@ TestAccount::pay(PublicKey const& destination, int64_t amount)
     }
     catch (...)
     {
-        auto toAccountAfter = loadAccount(destination, mApp, false);
+        auto toAccountAfter = loadAccountEntry(mApp, destination);
         // check that the target account didn't change
         REQUIRE(!!toAccount == !!toAccountAfter);
         if (toAccount && toAccountAfter &&
-            !(fromAccount->getID() == toAccount->getID()))
+            !(fromAccount->accountID == toAccount->accountID))
         {
-            REQUIRE(toAccount->getAccount() == toAccountAfter->getAccount());
+            REQUIRE(*toAccount == *toAccountAfter);
         }
         throw;
     }
 
-    auto toAccountAfter = loadAccount(destination, mApp, false);
+    auto toAccountAfter = loadAccountEntry(mApp, destination);
     REQUIRE(toAccount);
     REQUIRE(toAccountAfter);
 }

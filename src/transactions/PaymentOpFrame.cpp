@@ -6,13 +6,13 @@
 #include "transactions/PaymentOpFrame.h"
 #include "OfferExchange.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "transactions/PathPaymentOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include <algorithm>
 
@@ -29,13 +29,16 @@ PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
-                        LedgerManager& ledgerManager)
+PaymentOpFrame::doApply(Application& app, LedgerState& ls)
 {
     // if sending to self XLM directly, just mark as success, else we need at
     // least to check trustlines
     // in ledger version 2 it would work for any asset type
-    auto instantSuccess = app.getLedgerManager().getCurrentLedgerVersion() > 2
+    auto header = ls.loadHeader();
+    auto ledgerVersion = getCurrentLedgerVersion(header);
+    header->invalidate();
+
+    auto instantSuccess = ledgerVersion > 2
                               ? mPayment.destination == getSourceID() &&
                                     mPayment.asset.type() == ASSET_TYPE_NATIVE
                               : mPayment.destination == getSourceID();
@@ -65,10 +68,10 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     opRes.code(opINNER);
     opRes.tr().type(PATH_PAYMENT);
     PathPaymentOpFrame ppayment(op, opRes, mParentTx);
-    ppayment.setSourceAccountPtr(mSourceAccount);
+    // TODO(jonjove): Used to set source account pointer here, why?
 
-    if (!ppayment.doCheckValid(app) ||
-        !ppayment.doApply(app, delta, ledgerManager))
+    if (!ppayment.doCheckValid(app, ledgerVersion) ||
+        !ppayment.doApply(app, ls))
     {
         if (ppayment.getResultCode() != opINNER)
         {
@@ -149,7 +152,7 @@ PaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-PaymentOpFrame::doCheckValid(Application& app)
+PaymentOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mPayment.amount <= 0)
     {

@@ -10,6 +10,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "xdrpp/marshal.h"
@@ -34,7 +35,7 @@ TEST_CASE("manage data", "[tx][managedata]")
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    const int64_t minBalance = app->getLedgerManager().getMinBalance(3) - 100;
+    const int64_t minBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 3) - 100;
 
     auto gateway = root.create("gw", minBalance);
 

@@ -5,15 +5,17 @@
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/Bucket.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerEntryReference.h"
+#include "ledger/LedgerState.h"
+#include "main/Application.h"
 #include "util/Logging.h"
 
 namespace stellar
 {
 
-BucketApplicator::BucketApplicator(Database& db,
+BucketApplicator::BucketApplicator(Application& app,
                                    std::shared_ptr<const Bucket> bucket)
-    : mDb(db), mBucketIter(bucket)
+    : mApp(app), mBucketIter(bucket)
 {
 }
 
@@ -25,31 +27,38 @@ BucketApplicator::operator bool() const
 void
 BucketApplicator::advance()
 {
-    soci::transaction sqlTx(mDb.getSession());
+    LedgerState ls(mApp.getLedgerStateRoot());
     for (; mBucketIter; ++mBucketIter)
     {
-        LedgerHeader lh;
-        LedgerDelta delta(lh, mDb, false);
-
         auto const& entry = *mBucketIter;
         if (entry.type() == LIVEENTRY)
         {
-            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-            ep->storeAddOrChange(delta, mDb);
+            auto key = LedgerEntryKey(entry.liveEntry());
+            auto ler = ls.load(key);
+            if (ler)
+            {
+                *ler->entry() = entry.liveEntry();
+            }
+            else
+            {
+                ls.create(entry.liveEntry());
+            }
         }
         else
         {
-            EntryFrame::storeDelete(delta, mDb, entry.deadEntry());
+            auto ler = ls.load(entry.deadEntry());
+            if (ler)
+            {
+                ler->erase();
+            }
         }
-        // No-op, just to avoid needless rollback.
-        delta.commit();
         if ((++mSize & 0xff) == 0xff)
         {
             break;
         }
     }
-    sqlTx.commit();
-    mDb.clearPreparedStatementCache();
+    ls.commit();
+    mApp.getDatabase().clearPreparedStatementCache();
 
     if (!mBucketIter || (mSize & 0xfff) == 0xfff)
     {

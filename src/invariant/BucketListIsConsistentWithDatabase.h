@@ -11,7 +11,6 @@ namespace stellar
 
 class Application;
 class Database;
-class LedgerDelta;
 
 // This Invariant is used to validate that the BucketList and Database are
 // in a consistent state after a bucket apply, such as during catchup-minimal.
@@ -31,7 +30,7 @@ class BucketListIsConsistentWithDatabase : public Invariant
   public:
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
-    explicit BucketListIsConsistentWithDatabase(Database& db);
+    explicit BucketListIsConsistentWithDatabase(Application& app);
 
     virtual std::string getName() const override;
 
@@ -40,6 +39,6 @@ class BucketListIsConsistentWithDatabase : public Invariant
                                            uint32_t newestLedger) override;
 
   private:
-    Database& mDb;
+    Application& mApp;
 };
 }

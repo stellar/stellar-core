@@ -4,10 +4,10 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/AccountFrame.h"
-#include "ledger/LedgerManager.h"
 #include "overlay/StellarXDR.h"
 #include "util/types.h"
+
+#include "ledger/AccountReference.h"
 
 #include <memory>
 #include <set>
@@ -24,8 +24,10 @@ We can get it in from the DB or from the wire
 namespace stellar
 {
 class Application;
+class Database;
+class LedgerHeaderReference;
+class LedgerStateRoot;
 class OperationFrame;
-class LedgerDelta;
 class SecretKey;
 class SignatureChecker;
 class XDROutputFileStream;
@@ -36,11 +38,11 @@ using TransactionFramePtr = std::shared_ptr<TransactionFrame>;
 
 class TransactionFrame
 {
+    std::shared_ptr<LedgerEntry const> mCachedAccount;
+
   protected:
     TransactionEnvelope mEnvelope;
     TransactionResult mResult;
-
-    AccountFrame::pointer mSigningAccount;
 
     void clearCached();
     Hash const& mNetworkID;     // used to change the way we compute signatures
@@ -48,9 +50,6 @@ class TransactionFrame
     mutable Hash mFullHash;     // the hash of the contents and the sig.
 
     std::vector<std::shared_ptr<OperationFrame>> mOperations;
-
-    bool loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
-                     Database& app);
 
     enum ValidationType
     {
@@ -60,29 +59,25 @@ class TransactionFrame
         kFullyValid
     };
 
-    bool commonValidPreSeqNum(Application& app, LedgerDelta* delta);
-    ValidationType commonValid(SignatureChecker& signatureChecker,
-                               Application& app, LedgerDelta* delta,
-                               SequenceNumber current);
+    bool commonValidPreSeqNum(Application& app, LedgerState& ls);
+    ValidationType commonValid(SignatureChecker& signatureChecker, Application& app,
+                               LedgerState& ls, SequenceNumber current, bool applying);
 
-    void resetSigningAccount();
     void resetResults();
     void removeUsedOneTimeSignerKeys(SignatureChecker& signatureChecker,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager);
+                                     LedgerState& ls);
     void removeUsedOneTimeSignerKeys(const AccountID& accountId,
                                      const std::set<SignerKey>& keys,
-                                     LedgerDelta& delta,
-                                     LedgerManager& ledgerManager) const;
-    bool removeAccountSigner(const AccountFrame::pointer& account,
-                             const SignerKey& signerKey,
-                             LedgerManager& ledgerManager) const;
+                                     LedgerState& ls) const;
+    bool removeAccountSigner(AccountReference account,
+                             std::shared_ptr<LedgerHeaderReference> header,
+                             const SignerKey& signerKey) const;
     void markResultFailed();
 
-    bool applyOperations(SignatureChecker& checker, LedgerDelta& delta,
+    bool applyOperations(SignatureChecker& checker, LedgerState& ls,
                          TransactionMetaV1& meta, Application& app);
 
-    void processSeqNum(LedgerManager& lm, LedgerDelta& delta);
+    void processSeqNum(LedgerState& ls);
 
   public:
     TransactionFrame(Hash const& networkID,
@@ -131,13 +126,6 @@ class TransactionFrame
         return mEnvelope.tx.seqNum;
     }
 
-    AccountFrame const&
-    getSourceAccount() const
-    {
-        assert(mSigningAccount);
-        return *mSigningAccount;
-    }
-
     AccountID const&
     getSourceID() const
     {
@@ -146,40 +134,39 @@ class TransactionFrame
 
     uint32_t getFee() const;
 
-    int64_t getMinFee(LedgerManager const& lm) const;
+    int64_t getMinFee(LedgerStateRoot& lsr) const;
+    int64_t getMinFee(std::shared_ptr<LedgerHeaderReference> header) const;
 
-    double getFeeRatio(LedgerManager const& lm) const;
+    double getFeeRatio(LedgerStateRoot& lsr) const;
 
     void addSignature(SecretKey const& secretKey);
     void addSignature(DecoratedSignature const& signature);
 
     bool checkSignature(SignatureChecker& signatureChecker,
-                        AccountFrame& account, int32_t neededWeight);
+                        AccountReference account, int32_t neededWeight);
+    bool checkSignature(SignatureChecker& signatureChecker,
+                        AccountID const& accountID);
 
-    bool checkValid(Application& app, SequenceNumber current);
+    bool checkValid(Application& app, LedgerState& ls, SequenceNumber current);
 
     // collect fee, consume sequence number
-    void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager);
+    void processFeeSeqNum(LedgerState& ls);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied
-    bool apply(LedgerDelta& delta, TransactionMetaV1& meta, Application& app);
+    bool apply(LedgerState& ls, TransactionMetaV1& meta, Application& app);
 
     // version without meta
-    bool apply(LedgerDelta& delta, Application& app);
+    bool apply(LedgerState& ls, Application& app);
 
     StellarMessage toStellarMessage() const;
 
-    AccountFrame::pointer loadAccount(int ledgerProtocolVersion,
-                                      LedgerDelta* delta, Database& app,
-                                      AccountID const& accountID);
-
     // transaction history
-    void storeTransaction(LedgerManager& ledgerManager, TransactionMeta& tm,
+    void storeTransaction(Database& db, uint32_t ledgerSeq, TransactionMeta& tm,
                           int txindex, TransactionResultSet& resultSet) const;
 
     // fee history
-    void storeTransactionFee(LedgerManager& ledgerManager,
+    void storeTransactionFee(Database& db, uint32_t ledgerSeq,
                              LedgerEntryChanges const& changes,
                              int txindex) const;
 
@@ -203,5 +190,7 @@ class TransactionFrame
 
     static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
                                  uint32_t count);
+
+    std::shared_ptr<LedgerEntry const>& getCachedAccount();
 };
 }

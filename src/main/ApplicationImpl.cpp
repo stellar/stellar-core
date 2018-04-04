@@ -19,12 +19,12 @@
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
-#include "invariant/CacheIsConsistentWithDatabase.h"
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/MinimumAccountBalance.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
@@ -120,10 +120,11 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+    mLedgerStateRoot =
+        std::unique_ptr<LedgerStateRoot>(new LedgerStateRoot(getDatabase()));
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
-    CacheIsConsistentWithDatabase::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
     MinimumAccountBalance::registerInvariant(*this);
@@ -228,8 +229,8 @@ ApplicationImpl::getJsonInfo()
     info["protocol_version"] = getConfig().LEDGER_PROTOCOL_VERSION;
     info["state"] = getStateHuman();
     info["startedOn"] = VirtualClock::pointToISOString(mStartedOn);
-    info["ledger"]["num"] = (int)lm.getLedgerNum();
     auto const& lcl = lm.getLastClosedLedgerHeader();
+    info["ledger"]["num"] = (int)lcl.header.ledgerSeq;
     info["ledger"]["hash"] = binToHex(lcl.hash);
     info["ledger"]["closeTime"] = (Json::UInt64)lcl.header.scpValue.closeTime;
     info["ledger"]["version"] = lcl.header.ledgerVersion;
@@ -494,16 +495,6 @@ ApplicationImpl::getLoadGenerator()
 }
 
 void
-ApplicationImpl::checkDB()
-{
-    getClock().getIOService().post([this] {
-        checkDBAgainstBuckets(this->getMetrics(), this->getBucketManager(),
-                              this->getDatabase(),
-                              this->getBucketManager().getBucketList());
-    });
-}
-
-void
 ApplicationImpl::applyCfgCommands()
 {
     for (auto cmd : mConfig.COMMANDS)
@@ -729,6 +720,12 @@ ApplicationImpl::getStatusManager()
     return *mStatusManager;
 }
 
+LedgerStateRoot&
+ApplicationImpl::getLedgerStateRoot()
+{
+    return *mLedgerStateRoot;
+}
+
 asio::io_service&
 ApplicationImpl::getWorkerIOService()
 {
@@ -760,5 +757,233 @@ std::unique_ptr<OverlayManager>
 ApplicationImpl::createOverlayManager()
 {
     return OverlayManager::create(*this);
+}
+
+uint64_t
+ApplicationImpl::countAccounts(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM accounts"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countTrustLines(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM trustlines"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countOffers(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM offers"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+uint64_t
+ApplicationImpl::countData(LedgerRange const& ledgers)
+{
+    assert(!mLedgerStateRoot->hasChild());
+    uint64_t count = 0;
+    mDatabase->getSession() << "SELECT COUNT(*) FROM accountdata"
+            " WHERE lastmodified >= :v1 AND lastmodified <= :v2;",
+        soci::into(count), soci::use(ledgers.first()),
+        soci::use(ledgers.last());
+    return count;
+}
+
+void
+ApplicationImpl::deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger)
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    // Have to clear the cache since we are modifying outside of LedgerState
+    mLedgerStateRoot->getCache().clear();
+
+    // Delete accounts and signers
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM signers WHERE accountid IN"
+            " (SELECT accountid FROM accounts WHERE lastmodified >= :v1)");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM accounts WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete data
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM accountdata WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete offers
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM offers WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+
+    // Delete trustlines
+    {
+        auto prep = mDatabase->getPreparedStatement(
+            "DELETE FROM trustlines WHERE lastmodified >= :v1");
+        auto& st = prep.statement();
+        st.exchange(soci::use(oldestLedger));
+        st.define_and_bind();
+        st.execute(true);
+    }
+}
+
+void
+ApplicationImpl::dropAccountsTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS accounts;";
+    mDatabase->getSession() << "DROP TABLE IF EXISTS signers;";
+    mDatabase->getSession() <<
+        "CREATE TABLE accounts"
+        "("
+        "accountid       VARCHAR(56)  PRIMARY KEY,"
+        "balance         BIGINT       NOT NULL CHECK (balance >= 0),"
+        "seqnum          BIGINT       NOT NULL,"
+        "numsubentries   INT          NOT NULL CHECK (numsubentries >= 0),"
+        "inflationdest   VARCHAR(56),"
+        "homedomain      VARCHAR(32)  NOT NULL,"
+        "thresholds      TEXT         NOT NULL,"
+        "flags           INT          NOT NULL,"
+        "lastmodified    INT          NOT NULL"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE TABLE signers"
+        "("
+        "accountid       VARCHAR(56) NOT NULL,"
+        "publickey       VARCHAR(56) NOT NULL,"
+        "weight          INT         NOT NULL,"
+        "PRIMARY KEY (accountid, publickey)"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE INDEX signersaccount ON signers (accountid)";
+    mDatabase->getSession() <<
+        "CREATE INDEX accountbalances "
+        "ON accounts (balance) WHERE "
+        "balance >= 1000000000";
+}
+
+void
+ApplicationImpl::dropTrustLinesTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS trustlines;";
+    mDatabase->getSession() <<
+        "CREATE TABLE trustlines"
+        "("
+        "accountid    VARCHAR(56)     NOT NULL,"
+        "assettype    INT             NOT NULL,"
+        "issuer       VARCHAR(56)     NOT NULL,"
+        "assetcode    VARCHAR(12)     NOT NULL,"
+        "tlimit       BIGINT          NOT NULL CHECK (tlimit > 0),"
+        "balance      BIGINT          NOT NULL CHECK (balance >= 0),"
+        "flags        INT             NOT NULL,"
+        "lastmodified INT             NOT NULL,"
+        "PRIMARY KEY  (accountid, issuer, assetcode)"
+        ");";
+}
+
+void
+ApplicationImpl::dropOffersTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS offers;";
+    mDatabase->getSession() <<
+        "CREATE TABLE offers"
+        "("
+        "sellerid         VARCHAR(56)  NOT NULL,"
+        "offerid          BIGINT       NOT NULL CHECK (offerid >= 0),"
+        "sellingassettype INT          NOT NULL,"
+        "sellingassetcode VARCHAR(12),"
+        "sellingissuer    VARCHAR(56),"
+        "buyingassettype  INT          NOT NULL,"
+        "buyingassetcode  VARCHAR(12),"
+        "buyingissuer     VARCHAR(56),"
+        "amount           BIGINT           NOT NULL CHECK (amount >= 0),"
+        "pricen           INT              NOT NULL,"
+        "priced           INT              NOT NULL,"
+        "price            DOUBLE PRECISION NOT NULL,"
+        "flags            INT              NOT NULL,"
+        "lastmodified     INT              NOT NULL,"
+        "PRIMARY KEY      (offerid)"
+        ");";
+    mDatabase->getSession() <<
+        "CREATE INDEX sellingissuerindex ON offers (sellingissuer);";
+    mDatabase->getSession() <<
+        "CREATE INDEX buyingissuerindex ON offers (buyingissuer);";
+    mDatabase->getSession() <<
+        "CREATE INDEX priceindex ON offers (price);";
+}
+
+void
+ApplicationImpl::dropDataTable()
+{
+    assert(!mLedgerStateRoot->hasChild());
+
+    mDatabase->getSession() << "DROP TABLE IF EXISTS accountdata;";
+    mDatabase->getSession() <<
+        "CREATE TABLE accountdata"
+        "("
+        "accountid    VARCHAR(56)  NOT NULL,"
+        "dataname     VARCHAR(64)  NOT NULL,"
+        "datavalue    VARCHAR(112) NOT NULL,"
+        "PRIMARY KEY  (accountid, dataname)"
+        ");";
+}
+
+void
+ApplicationImpl::dropLedgerHeadersTable()
+{
+    mDatabase->getSession() << "DROP TABLE IF EXISTS ledgerheaders;";
+    mDatabase->getSession() << "CREATE TABLE ledgerheaders ("
+                       "ledgerhash      CHARACTER(64) PRIMARY KEY,"
+                       "prevhash        CHARACTER(64) NOT NULL,"
+                       "bucketlisthash  CHARACTER(64) NOT NULL,"
+                       "ledgerseq       INT UNIQUE CHECK (ledgerseq >= 0),"
+                       "closetime       BIGINT NOT NULL CHECK (closetime >= 0),"
+                       "data            TEXT NOT NULL"
+                       ");";
+    mDatabase->getSession()
+        << "CREATE INDEX ledgersbyseq ON ledgerheaders ( ledgerseq );";
 }
 }

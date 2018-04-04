@@ -36,16 +36,15 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
-                             LedgerManager& ledgerManager)
+BumpSequenceOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    SequenceNumber current = mSourceAccount->getSeqNum();
+    auto sourceAccount = loadSourceAccount(ls);
+    SequenceNumber current = sourceAccount.getSeqNum();
 
     // Apply the bump (bump succeeds silently if bumpTo <= current)
     if (mBumpSequenceOp.bumpTo > current)
     {
-        mSourceAccount->setSeqNum(mBumpSequenceOp.bumpTo);
-        mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
+        sourceAccount.setSeqNum(mBumpSequenceOp.bumpTo);
     }
 
     // Return successful results
@@ -57,7 +56,7 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-BumpSequenceOpFrame::doCheckValid(Application& app)
+BumpSequenceOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {

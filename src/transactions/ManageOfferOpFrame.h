@@ -4,21 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "transactions/OperationFrame.h"
 
 namespace stellar
 {
+class LedgerState;
+
 class ManageOfferOpFrame : public OperationFrame
 {
-    TrustFrame::pointer mSheepLineA;
-    TrustFrame::pointer mWheatLineA;
-
-    OfferFrame::pointer mSellSheepOffer;
-
-    bool checkOfferValid(medida::MetricsRegistry& metrics, Database& db,
-                         LedgerDelta& delta);
+    bool checkOfferValid(medida::MetricsRegistry& metrics,
+                         LedgerState& ls);
 
     ManageOfferResult&
     innerResult()
@@ -38,9 +33,8 @@ class ManageOfferOpFrame : public OperationFrame
     ManageOfferOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
-                 LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    bool doApply(Application& app, LedgerState& lsOuter) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static ManageOfferResultCode
     getInnerCode(OperationResult const& res)

@@ -5,6 +5,8 @@
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "lib/json/json.h"
@@ -20,6 +22,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/SignatureUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -48,7 +51,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     auto root = TestAccount::createRoot(*app);
 
     const uint64_t paymentAmount =
-        app->getLedgerManager().getCurrentLedgerHeader().baseReserve * 10;
+        app->getLedgerManager().getLastClosedLedgerHeader().header.baseReserve * 10;
 
     SECTION("outer envelope")
     {
@@ -278,6 +281,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         }
     }
 
+    auto checkValid = [] (TransactionFramePtr tx, Application& app, SequenceNumber current)
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        return tx->checkValid(app, ls, current);
+    };
+
     SECTION("alternative signatures")
     {
         auto a1 = root.create("A", paymentAmount);
@@ -343,7 +352,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         alternative.sign(*tx);
 
                         for_versions(3, 9, *app, [&] {
-                            REQUIRE(!tx->checkValid(*app, 0));
+                            REQUIRE(!checkValid(tx, *app, 0));
                             REQUIRE(tx->getResultCode() == txBAD_SEQ);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         });
@@ -466,7 +475,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(MergeOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == ACCOUNT_MERGE_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 0);
-                            REQUIRE(!loadAccount(b1, *app, false));
+
+                            LedgerState ls(app->getLedgerStateRoot());
+                            REQUIRE(!stellar::loadAccount(ls, b1));
                         });
                     }
 
@@ -729,7 +740,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 TransactionFramePtr tx =
                     std::make_shared<TransactionFrame>(app->getNetworkID(), te);
                 tx->addSignature(root);
-                REQUIRE(!tx->checkValid(*app, 0));
+                REQUIRE(!checkValid(tx, *app, 0));
 
                 applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txMISSING_OPERATION);
@@ -755,14 +766,14 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 SECTION("missing signature")
                 {
                     for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
-                        REQUIRE(!tx->checkValid(*app, 0));
+                        REQUIRE(!checkValid(tx, *app, 0));
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txFAILED);
                         REQUIRE(tx->getOperations()[0]->getResultCode() ==
                                 opBAD_AUTH);
                     });
                     for_versions({7}, *app, [&] {
-                        REQUIRE(tx->checkValid(*app, 0));
+                        REQUIRE(checkValid(tx, *app, 0));
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                     });
@@ -773,7 +784,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     for_all_versions(*app, [&] {
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(*app, 0));
+                        REQUIRE(checkValid(tx, *app, 0));
                         applyCheck(tx, *app);
                         REQUIRE(tx->getResultCode() == txSUCCESS);
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -807,12 +818,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(!tx->checkValid(*app, 0));
+                        REQUIRE(!checkValid(tx, *app, 0));
 
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -841,12 +852,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(*app, 0));
+                        REQUIRE(checkValid(tx, *app, 0));
 
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txFAILED);
                         // first operation was success
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -874,12 +885,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         tx->addSignature(a1);
                         tx->addSignature(b1);
 
-                        REQUIRE(tx->checkValid(*app, 0));
+                        REQUIRE(checkValid(tx, *app, 0));
 
                         applyCheck(tx, *app);
 
                         REQUIRE(tx->getResult().feeCharged ==
-                                2 * app->getLedgerManager().getTxFee());
+                                2 * getCurrentTxFee(app->getLedgerStateRoot()));
                         REQUIRE(tx->getResultCode() == txSUCCESS);
 
                         REQUIRE(PaymentOpFrame::getInnerCode(
@@ -916,12 +927,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     tx->addSignature(b1);
                     tx->addSignature(c1);
 
-                    REQUIRE(tx->checkValid(*app, 0));
+                    REQUIRE(checkValid(tx, *app, 0));
 
                     applyCheck(tx, *app);
 
                     REQUIRE(tx->getResult().feeCharged ==
-                            2 * app->getLedgerManager().getTxFee());
+                            2 * getCurrentTxFee(app->getLedgerStateRoot()));
                     REQUIRE(tx->getResultCode() == txSUCCESS);
 
                     REQUIRE(CreateAccountOpFrame::getInnerCode(
@@ -951,7 +962,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         LedgerCloseData ledgerData(1, txSet, sv);
         app->getLedgerManager().closeLedger(ledgerData);
 
-        REQUIRE(app->getLedgerManager().getLedgerNum() == 3);
+        {
+            LedgerState ls(app->getLedgerStateRoot());
+            REQUIRE(ls.loadHeader()->header().ledgerSeq == 3);
+        }
 
         {
             SECTION("Insufficient fee")
@@ -960,7 +974,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.fee = static_cast<uint32_t>(
-                        app->getLedgerManager().getTxFee() - 1);
+                        getCurrentTxFee(app->getLedgerStateRoot()) - 1);
 
                     applyCheck(txFrame, *app);
 
@@ -971,7 +985,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             SECTION("duplicate payment")
             {
                 for_versions_to(9, *app, [&] {
-                    REQUIRE(!txFrame->checkValid(*app, 0));
+                    REQUIRE(!checkValid(txFrame, *app, 0));
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
                 for_versions_from(10, *app, [&] {
@@ -1038,7 +1052,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     txFrame =
                         root.tx({payment(a1.getPublicKey(), paymentAmount)});
                     txFrame->getEnvelope().tx.seqNum--;
-                    REQUIRE(!txFrame->checkValid(*app, 0));
+                    REQUIRE(!checkValid(txFrame, *app, 0));
 
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });

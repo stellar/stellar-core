@@ -12,11 +12,7 @@
 #include "history/HistoryArchive.h"
 #include "historywork/Progress.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
 #include "ledger/LedgerManager.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -92,21 +88,14 @@ ApplyBucketsWork::onStart()
                                           mApplyState.currentLedger, mLevel)
                                     : BucketList::oldestLedgerInCurr(
                                           mApplyState.currentLedger, mLevel);
-        AccountFrame::deleteAccountsModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                            oldestLedger);
-        TrustFrame::deleteTrustLinesModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                            oldestLedger);
-        OfferFrame::deleteOffersModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                        oldestLedger);
-        DataFrame::deleteDataModifiedOnOrAfterLedger(mApp.getDatabase(),
-                                                     oldestLedger);
+        mApp.deleteEntriesModifiedOnOrAfterLedger(oldestLedger);
     }
 
     if (mApplying || applySnap)
     {
         mSnapBucket = getBucket(i.snap);
         mSnapApplicator =
-            make_unique<BucketApplicator>(mApp.getDatabase(), mSnapBucket);
+            make_unique<BucketApplicator>(mApp, mSnapBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
@@ -116,7 +105,7 @@ ApplyBucketsWork::onStart()
     {
         mCurrBucket = getBucket(i.curr);
         mCurrApplicator =
-            make_unique<BucketApplicator>(mApp.getDatabase(), mCurrBucket);
+            make_unique<BucketApplicator>(mApp, mCurrBucket);
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;

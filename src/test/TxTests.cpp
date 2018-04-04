@@ -5,10 +5,11 @@
 #include "TxTests.h"
 
 #include "crypto/ByteSlice.h"
+#include "crypto/SHA.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
@@ -26,6 +27,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
 #include "util/types.h"
@@ -46,15 +48,15 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
 {
     app.getDatabase().clearPreparedStatementCache();
 
-    LedgerDelta delta(app.getLedgerManager().getCurrentLedgerHeader(),
-                      app.getDatabase());
+    LedgerState lsCheck(app.getLedgerStateRoot());
+    bool check = tx->checkValid(app, lsCheck, 0);
+    TransactionResult checkResult = tx->getResult();
+    REQUIRE((!check || checkResult.result.code() == txSUCCESS));
+    lsCheck.rollback();
+
+    LedgerState ls(app.getLedgerStateRoot());
 
     AccountEntry srcAccountBefore;
-
-    bool check = tx->checkValid(app, 0);
-    TransactionResult checkResult = tx->getResult();
-
-    REQUIRE((!check || checkResult.result.code() == txSUCCESS));
 
     // now, check what happens when simulating what happens during a ledger
     // close and reconcile it with the return value of "apply" with the one from
@@ -65,49 +67,49 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
     auto code = checkResult.result.code();
     if (code != txNO_ACCOUNT)
     {
-        auto acnt = loadAccount(tx->getSourceID(), app, true);
-        srcAccountBefore = acnt->getAccount();
+        auto acnt = stellar::loadAccount(ls, tx->getSourceID());
+        REQUIRE(acnt);
+        srcAccountBefore = acnt.account();
+        acnt.invalidate();
 
         // no account -> can't process the fee
-        tx->processFeeSeqNum(delta, app.getLedgerManager());
+        tx->processFeeSeqNum(ls);
 
         // verify that the fee got processed
-        auto added = delta.added();
-        REQUIRE(added.begin() == added.end());
-        auto deleted = delta.deleted();
-        REQUIRE(deleted.begin() == deleted.end());
-        auto modified = delta.modified();
-        REQUIRE(modified.begin() != modified.end());
-        int modifiedCount = 0;
-        for (auto m : modified)
+        REQUIRE(++ls.begin() == ls.end());
         {
-            modifiedCount++;
-            REQUIRE(modifiedCount == 1);
-            REQUIRE(m.key.account().accountID == tx->getSourceID());
-            auto& prevAccount = m.previous->mEntry.data.account();
+            auto const& val = *ls.begin();
+
+            REQUIRE(val.previousEntry());
+            auto const& prevAccount = val.previousEntry()->data.account();
             REQUIRE(prevAccount == srcAccountBefore);
-            auto curAccount = m.current->mEntry.data.account();
+
+            REQUIRE(val.entry());
+            auto curAccount = val.entry()->data.account();
+
             // the balance should have changed
             REQUIRE(curAccount.balance < prevAccount.balance);
             curAccount.balance = prevAccount.balance;
-            if (app.getLedgerManager().getCurrentLedgerVersion() <= 9)
+            
+            auto header = ls.loadHeader();
+            if (getCurrentLedgerVersion(header) <= 9)
             {
                 // v9 and below, we also need to verify that the sequence number
                 // also got processed at this time
                 REQUIRE(curAccount.seqNum == (prevAccount.seqNum + 1));
                 curAccount.seqNum = prevAccount.seqNum;
             }
+            header->invalidate();
             REQUIRE(curAccount == prevAccount);
         }
     }
 
     bool res = false;
-
     {
-        LedgerDelta applyDelta(delta);
+        LedgerState lsApply(ls);
         try
         {
-            res = tx->apply(applyDelta, app);
+            res = tx->apply(lsApply, app);
         }
         catch (...)
         {
@@ -125,7 +127,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         if (code != txNO_ACCOUNT)
         {
             auto srcAccountAfter =
-                txtest::loadAccount(srcAccountBefore.accountID, app, false);
+                stellar::loadAccount(lsApply, srcAccountBefore.accountID);
             if (srcAccountAfter)
             {
                 bool earlyFailure =
@@ -135,47 +137,41 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 // verify that the sequence number changed (v10+)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
+                auto header = lsApply.loadHeader();
                 if (checkSeqNum &&
-                    app.getLedgerManager().getCurrentLedgerVersion() >= 10 &&
+                    getCurrentLedgerVersion(header) >= 10 &&
                     !earlyFailure)
                 {
-                    REQUIRE(srcAccountAfter->getSeqNum() ==
+                    REQUIRE(srcAccountAfter.getSeqNum() ==
                             (srcAccountBefore.seqNum + 1));
                 }
                 // on failure, no other changes should have been made
                 if (!res)
                 {
-                    auto added = applyDelta.added();
-                    REQUIRE(added.begin() == added.end());
-                    auto deleted = applyDelta.deleted();
-                    REQUIRE(deleted.begin() == deleted.end());
-                    auto modified = applyDelta.modified();
-                    if (earlyFailure ||
-                        app.getLedgerManager().getCurrentLedgerVersion() <= 9)
+                    if (earlyFailure || getCurrentLedgerVersion(header) <= 9)
                     {
                         // no changes during an early failure
-                        REQUIRE(modified.begin() == modified.end());
+                        REQUIRE(lsApply.begin() == lsApply.end());
                     }
                     else
                     {
-                        REQUIRE(modified.begin() != modified.end());
-                        for (auto m : modified)
+                        REQUIRE(++lsApply.begin() == lsApply.end());
                         {
-                            REQUIRE(m.key.account().accountID ==
-                                    srcAccountBefore.accountID);
+                            auto const& val = *lsApply.begin();
+                            REQUIRE(val.previousEntry());
+                            auto const& prevAccount = val.previousEntry()->data.account();
+                            REQUIRE(prevAccount == srcAccountBefore);
                             // could check more here if needed
                         }
                     }
                 }
             }
         }
-        applyDelta.commit();
+        lsApply.commit();
     }
 
     // validates db state
-    app.getLedgerManager().checkDbState();
-    delta.commit();
-
+    ls.commit();
     return res;
 }
 
@@ -183,7 +179,7 @@ void
 checkTransaction(TransactionFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
-            app.getLedgerManager().getTxFee());
+            getCurrentTxFee(app.getLedgerStateRoot()));
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -222,7 +218,7 @@ closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
     auto z2 =
         TransactionFrame::getTransactionFeeMeta(app.getDatabase(), ledgerSeq);
 
-    REQUIRE(app.getLedgerManager().getLedgerNum() == (ledgerSeq + 1));
+    REQUIRE(getCurrentLedgerNum(app.getLedgerStateRoot()) == (ledgerSeq + 1));
 
     TxSetResultMeta res;
     std::transform(
@@ -251,55 +247,20 @@ getAccount(const char* n)
     return SecretKey::fromSeed(seed);
 }
 
-AccountFrame::pointer
-loadAccount(PublicKey const& k, Application& app, bool mustExist)
+bool
+hasAccount(Application& app, PublicKey const& k)
 {
-    auto res = AccountFrame::loadAccount(k, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
-void
-requireNoAccount(PublicKey const& k, Application& app)
-{
-    AccountFrame::pointer res = loadAccount(k, app, false);
-    REQUIRE(!res);
-}
-
-OfferFrame::pointer
-loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
-{
-    OfferFrame::pointer res =
-        OfferFrame::loadOffer(k, offerID, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
-TrustFrame::pointer
-loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
-              bool mustExist)
-{
-    TrustFrame::pointer res =
-        TrustFrame::loadTrustLine(k.getPublicKey(), asset, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
+    LedgerState ls(app.getLedgerStateRoot());
+    return !!stellar::loadAccount(ls, k);
 }
 
 xdr::xvector<Signer, 20>
 getAccountSigners(PublicKey const& k, Application& app)
 {
-    AccountFrame::pointer account;
-    account = loadAccount(k, app);
-    return account->getAccount().signers;
+    LedgerState ls(app.getLedgerStateRoot());
+    auto account = stellar::loadAccount(ls, k);
+    REQUIRE(account);
+    return account.account().signers;
 }
 
 TransactionFramePtr
@@ -309,7 +270,7 @@ transactionFromOperations(Application& app, SecretKey const& from,
     auto e = TransactionEnvelope{};
     e.tx.sourceAccount = from.getPublicKey();
     e.tx.fee = static_cast<uint32_t>(
-        (ops.size() * app.getLedgerManager().getTxFee()) & UINT32_MAX);
+        (ops.size() * getCurrentTxFee(app.getLedgerStateRoot())) & UINT32_MAX);
     e.tx.seqNum = seq;
     std::copy(std::begin(ops), std::end(ops),
               std::back_inserter(e.tx.operations));
@@ -472,8 +433,10 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
                        Asset const& buying, Price const& price, int64_t amount,
                        SequenceNumber seq)
 {
-    auto lastGeneratedID =
-        app.getLedgerManager().getCurrentLedgerHeader().idPool;
+    LedgerState ls(app.getLedgerStateRoot());
+    auto lastGeneratedID = ls.loadHeader()->header().idPool;
+    ls.rollback();
+
     auto expectedOfferID = lastGeneratedID + 1;
     if (offerId != 0)
     {
@@ -489,8 +452,9 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     }
     catch (...)
     {
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
-                lastGeneratedID);
+        LedgerState ls(app.getLedgerStateRoot());
+        REQUIRE(ls.loadHeader()->header().idPool == lastGeneratedID);
+        ls.rollback();
         throw;
     }
 
@@ -500,8 +464,6 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
 
     auto& manageOfferResult = results[0].tr().manageOfferResult();
 
-    OfferFrame::pointer offer;
-
     auto& offerResult = manageOfferResult.success().offer;
 
     switch (offerResult.effect())
@@ -509,8 +471,10 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     case MANAGE_OFFER_CREATED:
     case MANAGE_OFFER_UPDATED:
     {
-        offer = loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-        auto& offerEntry = offer->getOffer();
+        LedgerState ls(app.getLedgerStateRoot());
+        auto offer = loadOffer(ls, source.getPublicKey(), expectedOfferID);
+        REQUIRE(offer);
+        auto const& offerEntry = offer->entry()->data.offer();
         REQUIRE(offerEntry == offerResult.offer());
         REQUIRE(offerEntry.price == price);
         REQUIRE(offerEntry.selling == selling);
@@ -518,8 +482,11 @@ applyCreateOfferHelper(Application& app, uint64 offerId,
     }
     break;
     case MANAGE_OFFER_DELETED:
-        REQUIRE(!loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+    {
+        LedgerState ls(app.getLedgerStateRoot());
+        REQUIRE(!loadOffer(ls, source.getPublicKey(), expectedOfferID));
         break;
+    }
     default:
         abort();
     }
@@ -548,8 +515,10 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                         Price const& price, int64_t amount, SequenceNumber seq,
                         ManageOfferEffect expectedEffect)
 {
-    auto lastGeneratedID =
-        app.getLedgerManager().getCurrentLedgerHeader().idPool;
+    LedgerState ls(app.getLedgerStateRoot());
+    auto lastGeneratedID = ls.loadHeader()->header().idPool;
+    ls.rollback();
+
     auto expectedOfferID = lastGeneratedID + 1;
 
     auto op = createPassiveOffer(selling, buying, price, amount);
@@ -561,8 +530,9 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
     }
     catch (...)
     {
-        REQUIRE(app.getLedgerManager().getCurrentLedgerHeader().idPool ==
-                lastGeneratedID);
+        LedgerState ls(app.getLedgerStateRoot());
+        REQUIRE(ls.loadHeader()->header().idPool == lastGeneratedID);
+        ls.rollback();
         throw;
     }
 
@@ -574,8 +544,6 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
 
     if (createPassiveOfferResult.code() == MANAGE_OFFER_SUCCESS)
     {
-        OfferFrame::pointer offer;
-
         auto& offerResult = createPassiveOfferResult.success().offer;
 
         switch (offerResult.effect())
@@ -583,9 +551,10 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         case MANAGE_OFFER_CREATED:
         case MANAGE_OFFER_UPDATED:
         {
-            offer =
-                loadOffer(source.getPublicKey(), expectedOfferID, app, true);
-            auto& offerEntry = offer->getOffer();
+            LedgerState ls(app.getLedgerStateRoot());
+            auto offer = loadOffer(ls, source.getPublicKey(), expectedOfferID);
+            REQUIRE(offer);
+            auto const& offerEntry = offer->entry()->data.offer();
             REQUIRE(offerEntry == offerResult.offer());
             REQUIRE(offerEntry.price == price);
             REQUIRE(offerEntry.selling == selling);
@@ -594,9 +563,11 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
         }
         break;
         case MANAGE_OFFER_DELETED:
-            REQUIRE(
-                !loadOffer(source.getPublicKey(), expectedOfferID, app, false));
+        {
+            LedgerState ls(app.getLedgerStateRoot());
+            REQUIRE(!loadOffer(ls, source.getPublicKey(), expectedOfferID));
             break;
+        }
         default:
             abort();
         }

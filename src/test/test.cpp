@@ -10,6 +10,7 @@
 #include "main/StellarCoreVersion.h"
 #include "test.h"
 #include "test/TestUtils.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/make_unique.h"
@@ -83,7 +84,6 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
 
         thisConfig.INVARIANT_CHECKS = {"AccountSubEntriesCountIsValid",
                                        "BucketListIsConsistentWithDatabase",
-                                       "CacheIsConsistentWithDatabase",
                                        "ConservationOfLumens",
                                        "LedgerEntryIsValid",
                                        "MinimumAccountBalance"};
@@ -234,7 +234,7 @@ void
 for_versions(std::vector<uint32> const& versions, Application& app,
              std::function<void(void)> const& f)
 {
-    auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
+    auto previousVersion = getCurrentLedgerVersion(app.getLedgerStateRoot());
     for (auto v : versions)
     {
         if (!gTestAllVersions && v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
@@ -243,11 +243,11 @@ for_versions(std::vector<uint32> const& versions, Application& app,
         }
         SECTION("protocol version " + std::to_string(v))
         {
-            testutil::setCurrentLedgerVersion(app.getLedgerManager(), v);
+            testutil::setCurrentLedgerVersion(app, v);
             f();
         }
     }
-    testutil::setCurrentLedgerVersion(app.getLedgerManager(), previousVersion);
+    testutil::setCurrentLedgerVersion(app, previousVersion);
 }
 
 void

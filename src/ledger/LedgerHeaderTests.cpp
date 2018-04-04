@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -107,9 +108,9 @@ TEST_CASE("base reserve", "[ledger]")
     int64 expectedReserve = 2000200000000ll;
 
     for_versions_to(8, *app, [&]() {
-        REQUIRE(app->getLedgerManager().getMinBalance(n) < expectedReserve);
+        REQUIRE(getCurrentMinBalance(app->getLedgerStateRoot(), n) < expectedReserve);
     });
     for_versions_from(9, *app, [&]() {
-        REQUIRE(app->getLedgerManager().getMinBalance(n) == expectedReserve);
+        REQUIRE(getCurrentMinBalance(app->getLedgerStateRoot(), n) == expectedReserve);
     });
 }

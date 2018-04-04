@@ -10,10 +10,13 @@
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerHeaderUtils.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
 #include "main/CommandHandler.h"
@@ -51,8 +54,8 @@ TEST_CASE("standalone", "[herder]")
     auto b1 = TestAccount{*app, getAccount("B")};
     auto c1 = TestAccount{*app, getAccount("C")};
 
-    auto txfee = app->getLedgerManager().getTxFee();
-    const int64_t minBalance = app->getLedgerManager().getMinBalance(0);
+    auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
+    const int64_t minBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
     const int64_t paymentAmount = 100;
     const int64_t startingBalance = minBalance + (paymentAmount + txfee) * 3;
 
@@ -133,7 +136,7 @@ TEST_CASE("standalone", "[herder]")
                 }
 
                 bool hasC =
-                    app->getLedgerManager().getCurrentLedgerVersion() >= 10;
+                    getCurrentLedgerVersion(app->getLedgerStateRoot()) >= 10;
                 if (hasC)
                 {
                     for (auto c : txCs)
@@ -177,19 +180,18 @@ TEST_CASE("standalone", "[herder]")
             app->getCommandHandler().manualCmd("maintenance?queue=true");
             auto& db = app->getDatabase();
             auto& sess = db.getSession();
-            LedgerHeaderFrame::pointer lh;
 
             app->getCommandHandler().manualCmd("setcursor?id=A2&cursor=3");
             app->getCommandHandler().manualCmd("maintenance?queue=true");
-            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            auto lh = loadLedgerHeaderBySequence(db, sess, 2);
             REQUIRE(!!lh);
 
             app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=2");
             // this should delete items older than sequence 2
             app->getCommandHandler().manualCmd("maintenance?queue=true");
-            lh = LedgerHeaderFrame::loadBySequence(2, db, sess);
+            lh = loadLedgerHeaderBySequence(db, sess, 2);
             REQUIRE(!lh);
-            lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+            lh = loadLedgerHeaderBySequence(db, sess, 3);
             REQUIRE(!!lh);
 
             // this should delete items older than sequence 3
@@ -197,14 +199,14 @@ TEST_CASE("standalone", "[herder]")
             {
                 app->getCommandHandler().manualCmd("setcursor?id=A1&cursor=3");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                lh = loadLedgerHeaderBySequence(db, sess, 3);
                 REQUIRE(!lh);
             }
             SECTION("set min to 3 by deletion")
             {
                 app->getCommandHandler().manualCmd("dropcursor?id=A1");
                 app->getCommandHandler().manualCmd("maintenance?queue=true");
-                lh = LedgerHeaderFrame::loadBySequence(3, db, sess);
+                lh = loadLedgerHeaderBySequence(db, sess, 3);
                 REQUIRE(!lh);
             }
         }
@@ -239,10 +241,10 @@ TEST_CASE("txset", "[herder]")
 
     auto accounts = std::vector<TestAccount>{};
 
-    const int64_t paymentAmount = app->getLedgerManager().getMinBalance(0);
+    const int64_t paymentAmount = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
 
     int64_t amountPop =
-        nbAccounts * nbTransactions * app->getLedgerManager().getTxFee() +
+        nbAccounts * nbTransactions * getCurrentTxFee(app->getLedgerStateRoot()) +
         paymentAmount;
 
     auto sourceAccount = root.create("source", amountPop);
@@ -380,10 +382,12 @@ TEST_CASE("surge", "[herder]")
 
     app->start();
 
-    auto& lm = app->getLedgerManager();
-
-    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        ls.loadHeader()->header().maxTxSetSize =
+            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        ls.commit();
+    }
 
     // set up world
     auto root = TestAccount::createRoot(*app);
@@ -403,7 +407,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(root.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -418,7 +422,7 @@ TEST_CASE("surge", "[herder]")
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -434,7 +438,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -458,7 +462,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -477,7 +481,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(accountC.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(*app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -493,8 +497,12 @@ TEST_CASE("SCP Driver", "[herder]")
 
     app->start();
 
-    app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
-        cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    {
+        LedgerState ls(app->getLedgerStateRoot());
+        ls.loadHeader()->header().maxTxSetSize =
+            cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+        ls.commit();
+    }
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
 

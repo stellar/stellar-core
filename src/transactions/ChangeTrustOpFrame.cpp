@@ -4,11 +4,15 @@
 
 #include "ChangeTrustOpFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerManager.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
+
+#include "ledger/AccountReference.h"
+#include "ledger/TrustLineReference.h"
 
 namespace stellar
 {
@@ -20,21 +24,15 @@ ChangeTrustOpFrame::ChangeTrustOpFrame(Operation const& op,
     , mChangeTrust(mOperation.body.changeTrustOp())
 {
 }
+
 bool
-ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
-                            LedgerManager& ledgerManager)
+ChangeTrustOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    Database& db = ledgerManager.getDatabase();
-
-    auto tlI = TrustFrame::loadTrustLineIssuer(getSourceID(), mChangeTrust.line,
-                                               db, delta);
-
-    auto& trustLine = tlI.first;
-    auto& issuer = tlI.second;
-
-    if (app.getLedgerManager().getCurrentLedgerVersion() > 2)
+    auto issuer = stellar::loadAccount(ls, getIssuer(mChangeTrust.line));
+    auto header = ls.loadHeader();
+    if (getCurrentLedgerVersion(header) > 2)
     {
-        if (issuer && (issuer->getID() == getSourceID()))
+        if (issuer && (issuer.getID() == getSourceID()))
         { // since version 3 it is
             // not allowed to use
             // CHANGE_TRUST on self
@@ -46,10 +44,12 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
     }
+    header->invalidate();
 
+    auto trustLine =
+        loadTrustLine(ls, getSourceID(), mChangeTrust.line);
     if (trustLine)
     { // we are modifying an old trustline
-
         if (mChangeTrust.limit < trustLine->getBalance())
         { // Can't drop the limit
             // below the balance you
@@ -65,9 +65,15 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         if (mChangeTrust.limit == 0)
         {
             // line gets deleted
-            trustLine->storeDelete(delta, db);
-            mSourceAccount->addNumEntries(-1, ledgerManager);
-            mSourceAccount->storeChange(delta, db);
+            trustLine->erase();
+            auto sourceAccount = loadSourceAccount(ls);
+            auto header = ls.loadHeader();
+            sourceAccount.addNumEntries(header, -1);
+            header->invalidate();
+            if (issuer)
+            {
+                issuer.forget(ls);
+            }
         }
         else
         {
@@ -80,9 +86,10 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
                 innerResult().code(CHANGE_TRUST_NO_ISSUER);
                 return false;
             }
-            trustLine->getTrustLine().limit = mChangeTrust.limit;
-            trustLine->storeChange(delta, db);
+            trustLine->setLimit(mChangeTrust.limit);
+            issuer.forget(ls);
         }
+
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")
             .Mark();
@@ -109,15 +116,10 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(CHANGE_TRUST_NO_ISSUER);
             return false;
         }
-        trustLine = std::make_shared<TrustFrame>();
-        auto& tl = trustLine->getTrustLine();
-        tl.accountID = getSourceID();
-        tl.asset = mChangeTrust.line;
-        tl.limit = mChangeTrust.limit;
-        tl.balance = 0;
-        trustLine->setAuthorized(!issuer->isAuthRequired());
 
-        if (!mSourceAccount->addNumEntries(1, ledgerManager))
+        auto sourceAccount = loadSourceAccount(ls);
+        auto header = ls.loadHeader();
+        if (!sourceAccount.addNumEntries(header, 1))
         {
             app.getMetrics()
                 .NewMeter({"op-change-trust", "failure", "low-reserve"},
@@ -126,9 +128,18 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(CHANGE_TRUST_LOW_RESERVE);
             return false;
         }
+        header->invalidate();
 
-        mSourceAccount->storeChange(delta, db);
-        trustLine->storeAdd(delta, db);
+        // Moved this after LOW_RESERVE check to reproduce old behavior
+        LedgerEntry newTrustLine;
+        newTrustLine.data.type(TRUSTLINE);
+        newTrustLine.data.trustLine().accountID = getSourceID();
+        newTrustLine.data.trustLine().asset = mChangeTrust.line;
+        newTrustLine.data.trustLine().limit = mChangeTrust.limit;
+        newTrustLine.data.trustLine().balance = 0;
+        trustLine = std::make_shared<ExplicitTrustLineReference>(ls.create(newTrustLine));
+        trustLine->setAuthorized(!issuer.isAuthRequired());
+        issuer.forget(ls);
 
         app.getMetrics()
             .NewMeter({"op-change-trust", "success", "apply"}, "operation")
@@ -139,7 +150,7 @@ ChangeTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
-ChangeTrustOpFrame::doCheckValid(Application& app)
+ChangeTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mChangeTrust.limit < 0)
     {
@@ -160,7 +171,7 @@ ChangeTrustOpFrame::doCheckValid(Application& app)
         innerResult().code(CHANGE_TRUST_MALFORMED);
         return false;
     }
-    if (app.getLedgerManager().getCurrentLedgerVersion() > 9)
+    if (ledgerVersion > 9)
     {
         if (mChangeTrust.line.type() == ASSET_TYPE_NATIVE)
         {

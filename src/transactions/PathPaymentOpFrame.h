@@ -5,9 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "transactions/OperationFrame.h"
+#include <memory>
 
 namespace stellar
 {
+class LedgerState;
 
 class PathPaymentOpFrame : public OperationFrame
 {
@@ -22,9 +24,8 @@ class PathPaymentOpFrame : public OperationFrame
     PathPaymentOpFrame(Operation const& op, OperationResult& res,
                        TransactionFrame& parentTx);
 
-    bool doApply(Application& app, LedgerDelta& delta,
-                 LedgerManager& ledgerManager) override;
-    bool doCheckValid(Application& app) override;
+    bool doApply(Application& app, LedgerState& ls) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static PathPaymentResultCode
     getInnerCode(OperationResult const& res)

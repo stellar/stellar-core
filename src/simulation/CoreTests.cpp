@@ -10,6 +10,8 @@
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
 #include "herder/LedgerCloseData.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -20,6 +22,7 @@
 #include "simulation/Topologies.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/format.h"
@@ -399,8 +402,10 @@ newLoadTestApp(VirtualClock& clock)
     appPtr->start();
     // force maxTxSetSize to avoid throwing txSets on the floor during the first
     // ledger close
-    appPtr->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize =
+    LedgerState ls(appPtr->getLedgerStateRoot());
+    ls.loadHeader()->header().maxTxSetSize =
         cfg.TESTING_UPGRADE_MAX_TX_PER_LEDGER;
+    ls.commit();
     return appPtr;
 }
 

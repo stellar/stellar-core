@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/LedgerCloseData.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/LedgerManager.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -14,6 +14,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/InflationOpFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <functional>
@@ -39,10 +40,6 @@ createTestAccounts(Application& app, int nbAccounts,
     // set up world
     auto root = TestAccount::createRoot(app);
 
-    auto& lm = app.getLedgerManager();
-    auto& db = app.getDatabase();
-
-    LedgerDelta delta(lm.getCurrentLedgerHeader(), app.getDatabase());
     for (int i = 0; i < nbAccounts; i++)
     {
         int64 bal = getBalance(i);
@@ -51,11 +48,11 @@ createTestAccounts(Application& app, int nbAccounts,
             SecretKey to = getTestAccount(i);
             root.create(to, bal);
 
-            AccountFrame::pointer act;
-            act = loadAccount(to.getPublicKey(), app);
-            act->getAccount().inflationDest.activate() =
+            LedgerState ls(app.getLedgerStateRoot());
+            auto account = stellar::loadAccount(ls, to.getPublicKey());
+            account.account().inflationDest.activate() =
                 getTestAccount(getVote(i)).getPublicKey();
-            act->storeChange(delta, db);
+            ls.commit();
         }
     }
 }
@@ -175,18 +172,19 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         if (getBalance(i) < 0)
         {
             balances[i] = -1;
-            requireNoAccount(getTestAccount(i).getPublicKey(), app);
+            REQUIRE(!hasAccount(app, getTestAccount(i).getPublicKey()));
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(getTestAccount(i).getPublicKey(), app);
-            balances[i] = act->getBalance();
+            LedgerState ls(app.getLedgerStateRoot());
+            auto act = stellar::loadAccount(ls, getTestAccount(i).getPublicKey());
+            REQUIRE(act);
+            balances[i] = act.getBalance();
             // double check that inflationDest is setup properly
-            if (act->getAccount().inflationDest)
+            if (act.account().inflationDest)
             {
                 REQUIRE(getTestAccount(getVote(i)).getPublicKey() ==
-                        *act->getAccount().inflationDest);
+                        *act.account().inflationDest);
             }
             else
             {
@@ -194,12 +192,13 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
             }
         }
     }
-    LedgerManager& lm = app.getLedgerManager();
-    LedgerHeader& cur = lm.getCurrentLedgerHeader();
-    REQUIRE(cur.feePool > 0);
 
-    int64 expectedTotcoins = cur.totalCoins;
-    int64 expectedFees = cur.feePool;
+    LedgerState ls1(app.getLedgerStateRoot());
+    auto header = ls1.loadHeader();
+    REQUIRE(header->header().feePool > 0);
+    int64 expectedTotcoins = header->header().totalCoins;
+    int64 expectedFees = header->header().feePool;
+    ls1.rollback();
 
     std::vector<int64> expectedBalances;
 
@@ -215,10 +214,11 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     applyTx(txFrame, app);
 
     // verify ledger state
-    LedgerHeader& cur2 = lm.getCurrentLedgerHeader();
-
-    REQUIRE(cur2.totalCoins == expectedTotcoins);
-    REQUIRE(cur2.feePool == expectedFees);
+    LedgerState ls2(app.getLedgerStateRoot());
+    header = ls2.loadHeader();
+    REQUIRE(header->header().totalCoins == expectedTotcoins);
+    REQUIRE(header->header().feePool == expectedFees);
+    ls2.rollback();
 
     // verify balances
     InflationResult const& infResult =
@@ -231,14 +231,15 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
         auto const& k = getTestAccount(i);
         if (expectedBalances[i] < 0)
         {
-            requireNoAccount(k.getPublicKey(), app);
+            REQUIRE(!hasAccount(app, k.getPublicKey()));
             REQUIRE(balances[i] < 0); // account didn't get deleted
         }
         else
         {
-            AccountFrame::pointer act;
-            act = loadAccount(k.getPublicKey(), app);
-            REQUIRE(expectedBalances[i] == act->getBalance());
+            LedgerState ls(app.getLedgerStateRoot());
+            auto act = stellar::loadAccount(ls, k.getPublicKey());
+            REQUIRE(act);
+            REQUIRE(expectedBalances[i] == act.getBalance());
 
             if (expectedBalances[i] != balances[i])
             {
@@ -281,68 +282,85 @@ TEST_CASE("inflation", "[tx][inflation]")
 
     app->start();
 
+    auto getInflationSeq = [&app] () {
+        LedgerState ls(app->getLedgerStateRoot());
+        return ls.loadHeader()->header().inflationSeq;
+    };
+    auto getFeePool = [&app] () {
+        LedgerState ls(app->getLedgerStateRoot());
+        return ls.loadHeader()->header().feePool;
+    };
+    auto getTotalCoins = [&app] () {
+        LedgerState ls(app->getLedgerStateRoot());
+        return ls.loadHeader()->header().totalCoins;
+    };
+
     SECTION("not time")
     {
         for_all_versions(*app, [&] {
             closeLedgerOn(*app, 2, 30, 6, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
 
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                0);
+            REQUIRE(getInflationSeq() == 0);
 
             closeLedgerOn(*app, 3, 1, 7, 2014);
 
             auto txFrame = root.tx({inflation()});
-
             closeLedgerOn(*app, 4, 7, 7, 2014, {txFrame});
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                1);
+            REQUIRE(getInflationSeq() == 1);
 
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                1);
+            REQUIRE(getInflationSeq() == 1);
 
             closeLedgerOn(*app, 5, 8, 7, 2014);
             root.inflation();
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                2);
+            REQUIRE(getInflationSeq() == 2);
 
             closeLedgerOn(*app, 6, 14, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                2);
+            REQUIRE(getInflationSeq() == 2);
 
             closeLedgerOn(*app, 7, 15, 7, 2014);
             root.inflation();
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                3);
+            REQUIRE(getInflationSeq() == 3);
 
             closeLedgerOn(*app, 8, 21, 7, 2014);
             REQUIRE_THROWS_AS(root.inflation(), ex_INFLATION_NOT_TIME);
-            REQUIRE(
-                app->getLedgerManager().getCurrentLedgerHeader().inflationSeq ==
-                3);
+            REQUIRE(getInflationSeq() == 3);
+
+            {
+                auto txFrameInflationTwice = root.tx({inflation(), inflation()});
+                closeLedgerOn(*app, 9, 28, 7, 2014);
+                applyCheck(txFrameInflationTwice, *app);
+                auto const& opResults = txFrameInflationTwice->getResult().result.results();
+                REQUIRE(opResults[0].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(opResults[1].tr().inflationResult().code() == INFLATION_NOT_TIME);
+                REQUIRE(getInflationSeq() == 3);
+            }
+
+            {
+                auto txFrameInflationTwice = root.tx({inflation(), inflation()});
+                closeLedgerOn(*app, 10, 29, 7, 2014);
+                applyCheck(txFrameInflationTwice, *app);
+                auto const& opResults = txFrameInflationTwice->getResult().result.results();
+                REQUIRE(opResults[0].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(opResults[1].tr().inflationResult().code() == INFLATION_SUCCESS);
+                REQUIRE(getInflationSeq() == 5);
+            }
         });
     }
 
     SECTION("total coins")
     {
-        auto clh = app->getLedgerManager().getCurrentLedgerHeader();
-        REQUIRE(clh.feePool == 0);
-        REQUIRE(clh.totalCoins == 1000000000000000000);
+        REQUIRE(getFeePool() == 0);
+        REQUIRE(getTotalCoins() == 1000000000000000000);
 
         auto voter1 = TestAccount{*app, getAccount("voter1"), 0};
         auto voter2 = TestAccount{*app, getAccount("voter2"), 0};
         auto target1 = TestAccount{*app, getAccount("target1"), 0};
         auto target2 = TestAccount{*app, getAccount("target2"), 0};
 
-        auto minBalance = app->getLedgerManager().getMinBalance(0);
+        auto minBalance = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
         auto rootBalance = root.getBalance();
 
         auto voter1tx = root.tx({createAccount(voter1, rootBalance / 6)});
@@ -354,9 +372,8 @@ TEST_CASE("inflation", "[tx][inflation]")
         closeLedgerOn(*app, 2, 21, 7, 2014,
                       {voter1tx, voter2tx, target1tx, target2tx});
 
-        clh = app->getLedgerManager().getCurrentLedgerHeader();
-        REQUIRE(clh.feePool == 1000000299);
-        REQUIRE(clh.totalCoins == 1000000000000000000);
+        REQUIRE(getFeePool() == 1000000299);
+        REQUIRE(getTotalCoins() == 1000000000000000000);
 
         auto t1Public = target1.getPublicKey();
         auto t2Public = target2.getPublicKey();
@@ -368,9 +385,8 @@ TEST_CASE("inflation", "[tx][inflation]")
         closeLedgerOn(*app, 3, 21, 7, 2014,
                       {setInflationDestination1, setInflationDestination2});
 
-        clh = app->getLedgerManager().getCurrentLedgerHeader();
-        REQUIRE(clh.feePool == 1000000499);
-        REQUIRE(clh.totalCoins == 1000000000000000000);
+        REQUIRE(getFeePool() == 1000000499);
+        REQUIRE(getTotalCoins() == 1000000000000000000);
 
         auto beforeInflationRoot = root.getBalance();
         auto beforeInflationVoter1 = voter1.getBalance();
@@ -380,17 +396,16 @@ TEST_CASE("inflation", "[tx][inflation]")
 
         REQUIRE(beforeInflationRoot + beforeInflationVoter1 +
                     beforeInflationVoter2 + beforeInflationTarget1 +
-                    beforeInflationTarget2 + clh.feePool ==
-                clh.totalCoins);
+                    beforeInflationTarget2 + getFeePool() ==
+                getTotalCoins());
 
         auto inflationTx = root.tx({inflation()});
 
         for_versions_to(7, *app, [&] {
             closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
 
-            clh = app->getLedgerManager().getCurrentLedgerHeader();
-            REQUIRE(clh.feePool == 95361000000301);
-            REQUIRE(clh.totalCoins == 1000095361000000298);
+            REQUIRE(getFeePool() == 95361000000301);
+            REQUIRE(getTotalCoins() == 1000095361000000298);
 
             auto afterInflationRoot = root.getBalance();
             auto afterInflationVoter1 = voter1.getBalance();
@@ -409,16 +424,15 @@ TEST_CASE("inflation", "[tx][inflation]")
 
             REQUIRE(afterInflationRoot + afterInflationVoter1 +
                         afterInflationVoter2 + afterInflationTarget1 +
-                        afterInflationTarget2 + clh.feePool ==
-                    clh.totalCoins + inflationError);
+                        afterInflationTarget2 + getFeePool() ==
+                    getTotalCoins() + inflationError);
         });
 
         for_versions_from(8, *app, [&] {
             closeLedgerOn(*app, 4, 21, 7, 2014, {inflationTx});
 
-            clh = app->getLedgerManager().getCurrentLedgerHeader();
-            REQUIRE(clh.feePool == 95361000000301);
-            REQUIRE(clh.totalCoins == 1000190721000000000);
+            REQUIRE(getFeePool() == 95361000000301);
+            REQUIRE(getTotalCoins() == 1000190721000000000);
 
             auto afterInflationRoot = root.getBalance();
             auto afterInflationVoter1 = voter1.getBalance();
@@ -436,17 +450,19 @@ TEST_CASE("inflation", "[tx][inflation]")
 
             REQUIRE(afterInflationRoot + afterInflationVoter1 +
                         afterInflationVoter2 + afterInflationTarget1 +
-                        afterInflationTarget2 + clh.feePool ==
-                    clh.totalCoins);
+                        afterInflationTarget2 + getFeePool() ==
+                    getTotalCoins());
         });
     }
 
     // minVote to participate in inflation
     const int64 minVote = 1000000000LL;
     // .05% of all coins
-    const int64 winnerVote =
-        bigDivide(app->getLedgerManager().getCurrentLedgerHeader().totalCoins,
-                  5, 10000, ROUND_DOWN);
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    const int64 winnerVote = bigDivide(header->header().totalCoins,
+                                       5, 10000, ROUND_DOWN);
+    ls.rollback();
 
     SECTION("inflation scenarios")
     {
@@ -463,7 +479,7 @@ TEST_CASE("inflation", "[tx][inflation]")
                     closeLedgerOn(*app, 2, 21, 7, 2014);
 
                     doInflation(
-                        *app, app->getLedgerManager().getCurrentLedgerVersion(),
+                        *app, getCurrentLedgerVersion(app->getLedgerStateRoot()),
                         nbAccounts, balanceFunc, voteFunc, expectedWinners);
                 }
             };

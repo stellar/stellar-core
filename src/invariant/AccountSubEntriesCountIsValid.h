@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
-#include "ledger/LedgerDelta.h"
+#include "xdr/Stellar-ledger-entries.h"
 #include <memory>
 #include <unordered_map>
 
@@ -29,7 +29,8 @@ class AccountSubEntriesCountIsValid : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta) override;
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header) override;
 
   private:
     struct SubEntriesChange
@@ -44,24 +45,16 @@ class AccountSubEntriesCountIsValid : public Invariant
         }
     };
 
-    int32_t calculateDelta(LedgerEntry const* current,
-                           LedgerEntry const* previous) const;
+    int32_t calculateDelta(std::shared_ptr<LedgerEntry const> const& current,
+                           std::shared_ptr<LedgerEntry const> const& previous) const;
 
     void updateChangedSubEntriesCount(
         std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-        LedgerEntry const* current, LedgerEntry const* previous) const;
+        std::shared_ptr<LedgerEntry const> const& current,
+        std::shared_ptr<LedgerEntry const> const& previous) const;
 
     void countChangedSubEntries(
         std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-        LedgerDelta::AddedIterator iter,
-        LedgerDelta::AddedIterator const& end) const;
-    void countChangedSubEntries(
-        std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-        LedgerDelta::ModifiedIterator iter,
-        LedgerDelta::ModifiedIterator const& end) const;
-    void countChangedSubEntries(
-        std::unordered_map<AccountID, SubEntriesChange>& subEntriesChange,
-        LedgerDelta::DeletedIterator iter,
-        LedgerDelta::DeletedIterator const& end) const;
+        LedgerState const& ls) const;
 };
 }

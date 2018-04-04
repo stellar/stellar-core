@@ -529,7 +529,7 @@ loadXdr(Config const& cfg, std::string const& bucketFile)
     {
         uint256 zero;
         Bucket bucket(bucketFile, zero);
-        bucket.apply(app->getDatabase());
+        bucket.apply(*app);
     }
     else
     {

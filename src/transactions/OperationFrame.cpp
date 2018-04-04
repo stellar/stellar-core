@@ -5,7 +5,8 @@
 #include "util/asio.h"
 #include "OperationFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "transactions/AllowTrustOpFrame.h"
 #include "transactions/BumpSequenceOpFrame.h"
@@ -20,6 +21,7 @@
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/SetOptionsOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <string>
@@ -27,8 +29,11 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 
+#include "ledger/AccountReference.h"
+
 namespace stellar
 {
+using xdr::operator==;
 
 using namespace std;
 
@@ -36,7 +41,7 @@ namespace
 {
 
 int32_t
-getNeededThreshold(AccountFrame const& account, ThresholdLevel const level)
+getNeededThreshold(AccountReference account, ThresholdLevel const level)
 {
     switch (level)
     {
@@ -96,16 +101,14 @@ OperationFrame::OperationFrame(Operation const& op, OperationResult& res,
 }
 
 bool
-OperationFrame::apply(SignatureChecker& signatureChecker, LedgerDelta& delta,
-                      Application& app)
+OperationFrame::apply(SignatureChecker& signatureChecker,
+                      LedgerState& ls, Application& app)
 {
-    bool res;
-    res = checkValid(signatureChecker, app, &delta);
+    bool res = checkValid(signatureChecker, app, ls, true);
     if (res)
     {
-        res = doApply(app, delta, app.getLedgerManager());
+        res = doApply(app, ls);
     }
-
     return res;
 }
 
@@ -121,12 +124,21 @@ bool OperationFrame::isVersionSupported(uint32_t) const
 }
 
 bool
-OperationFrame::checkSignature(SignatureChecker& signatureChecker) const
+OperationFrame::checkSignature(SignatureChecker& signatureChecker,
+                               AccountReference account) const
 {
-    auto neededThreshold =
-        getNeededThreshold(*mSourceAccount, getThresholdLevel());
-    return mParentTx.checkSignature(signatureChecker, *mSourceAccount,
-                                    neededThreshold);
+    if (account)
+    {
+        auto neededThreshold =
+            getNeededThreshold(account, getThresholdLevel());
+        return mParentTx.checkSignature(signatureChecker, account,
+                                        neededThreshold);
+    }
+    else
+    {
+        return mParentTx.checkSignature(signatureChecker,
+                                        *mOperation.sourceAccount);
+    }
 }
 
 AccountID const&
@@ -134,15 +146,6 @@ OperationFrame::getSourceID() const
 {
     return mOperation.sourceAccount ? *mOperation.sourceAccount
                                     : mParentTx.getEnvelope().tx.sourceAccount;
-}
-
-bool
-OperationFrame::loadAccount(int ledgerProtocolVersion, LedgerDelta* delta,
-                            Database& db)
-{
-    mSourceAccount =
-        mParentTx.loadAccount(ledgerProtocolVersion, delta, db, getSourceID());
-    return !!mSourceAccount;
 }
 
 OperationResultCode
@@ -157,10 +160,15 @@ OperationFrame::getResultCode() const
 // verifies that the operation is well formed (operation specific)
 bool
 OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
-                           LedgerDelta* delta)
+                           LedgerState& lsOuter, bool forApply)
 {
-    bool forApply = (delta != nullptr);
-    if (!isVersionSupported(app.getLedgerManager().getCurrentLedgerVersion()))
+    // No need to commit ls
+    LedgerState ls(lsOuter);
+    auto header = ls.loadHeader();
+    auto ledgerVersion = getCurrentLedgerVersion(header);
+    header->invalidate();
+
+    if (!isVersionSupported(ledgerVersion))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "not-supported"}, "operation")
@@ -169,8 +177,8 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         return false;
     }
 
-    if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(), delta,
-                     app.getDatabase()))
+    auto sourceAccount = loadSourceAccount(ls);
+    if (!sourceAccount)
     {
         if (forApply || !mOperation.sourceAccount)
         {
@@ -180,14 +188,9 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
             mResult.code(opNO_ACCOUNT);
             return false;
         }
-        else
-        {
-            mSourceAccount =
-                AccountFrame::makeAuthOnlyAccount(*mOperation.sourceAccount);
-        }
     }
 
-    if (!checkSignature(signatureChecker))
+    if (!checkSignature(signatureChecker, sourceAccount))
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")
@@ -196,16 +199,42 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         return false;
     }
 
-    if (!forApply)
-    {
-        // safety: operations should not rely on ledger state as
-        // previous operations may change it (can even create the account)
-        mSourceAccount.reset();
-    }
-
     mResult.code(opINNER);
     mResult.tr().type(mOperation.body.type());
+    return doCheckValid(app, ledgerVersion);
+}
 
-    return doCheckValid(app);
+AccountReference
+OperationFrame::loadSourceAccount(
+        LedgerState& ls, std::shared_ptr<LedgerHeaderReference> header)
+{
+    if (header->header().ledgerVersion >= 8 ||
+        !(getSourceID() == mParentTx.getSourceID()))
+    {
+        return stellar::loadAccountRaw(ls, getSourceID());
+    }
+    else
+    {
+        auto account = stellar::loadAccountRaw(ls, getSourceID());
+        if (account)
+        {
+            *account->entry() = *mParentTx.getCachedAccount();
+        }
+        else
+        {
+            account = ls.create(*mParentTx.getCachedAccount());
+        }
+        mParentTx.getCachedAccount() = account->entry();
+        return account;
+    }
+}
+
+AccountReference
+OperationFrame::loadSourceAccount(LedgerState& ls)
+{
+    auto header = ls.loadHeader();
+    auto account = loadSourceAccount(ls, header);
+    header->invalidate();
+    return account;
 }
 }

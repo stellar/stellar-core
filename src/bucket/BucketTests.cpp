@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/LedgerCloseData.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
@@ -24,6 +25,7 @@
 #include "medida/timer.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
@@ -767,13 +769,13 @@ closeLedger(Application& app)
     auto& lm = app.getLedgerManager();
     auto lclHash = lm.getLastClosedLedgerHeader().hash;
     CLOG(INFO, "Bucket")
-        << "Artificially closing ledger " << lm.getLedgerNum()
+        << "Artificially closing ledger " << getCurrentLedgerNum(app.getLedgerStateRoot())
         << " with lcl=" << hexAbbrev(lclHash) << ", buckets="
         << hexAbbrev(app.getBucketManager().getBucketList().getHash());
     auto txSet = std::make_shared<TxSetFrame>(lclHash);
-    StellarValue sv(txSet->getContentsHash(), lm.getCloseTime(),
+    StellarValue sv(txSet->getContentsHash(), getCurrentCloseTime(app.getLedgerStateRoot()),
                     emptyUpgradeSteps, 0);
-    LedgerCloseData lcd(lm.getLedgerNum(), txSet, sv);
+    LedgerCloseData lcd(getCurrentLedgerNum(app.getLedgerStateRoot()), txSet, sv);
     lm.valueExternalized(lcd);
     return lm.getLastClosedLedgerHeader().hash;
 }
@@ -1029,46 +1031,6 @@ TEST_CASE("BucketList check bucket sizes", "[bucket][count]")
     }
 }
 
-TEST_CASE("checkdb succeeding", "[bucket][checkdb]")
-{
-    VirtualClock clock;
-    Config cfg(getTestConfig());
-    cfg.ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING = true;
-    Application::pointer app = createTestApplication(clock, cfg);
-    app->start();
-
-    std::vector<stellar::LedgerKey> emptySet;
-
-    // Create accounts
-    app->generateLoad(true, 1000, 0, 1000, 100, false);
-    auto& m = app->getMetrics();
-    while (m.NewMeter({"loadgen", "run", "complete"}, "run").count() == 0)
-    {
-        clock.crank(false);
-    }
-
-    SECTION("successful checkdb")
-    {
-        app->checkDB();
-        while (m.NewTimer({"bucket", "checkdb", "execute"}).count() == 0)
-        {
-            clock.crank(false);
-        }
-        REQUIRE(
-            m.NewMeter({"bucket", "checkdb", "object-compare"}, "comparison")
-                .count() >= 10);
-    }
-
-    SECTION("failing checkdb")
-    {
-        app->checkDB();
-        app->getDatabase().getSession()
-            << ("UPDATE accounts SET balance = balance * 2"
-                " WHERE accountid = (SELECT accountid FROM accounts LIMIT 1);");
-        REQUIRE_THROWS(clock.crank(false));
-    }
-}
-
 TEST_CASE("bucket apply", "[bucket]")
 {
     VirtualClock clock;
@@ -1081,6 +1043,7 @@ TEST_CASE("bucket apply", "[bucket]")
 
     for (auto& e : live)
     {
+        e.lastModifiedLedgerSeq = 2;
         e.data.type(ACCOUNT);
         auto& a = e.data.account();
         a = LedgerTestUtils::generateValidAccountEntry(5);
@@ -1099,14 +1062,14 @@ TEST_CASE("bucket apply", "[bucket]")
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
-    birth->apply(db);
-    auto count = AccountFrame::countObjects(sess);
+    birth->apply(*app);
+    auto count = app->countAccounts({1, INT32_MAX});
     REQUIRE(count == live.size() + 1 /* root account */);
 
     CLOG(INFO, "Bucket") << "Applying bucket with " << dead.size()
                          << " dead entries";
-    death->apply(db);
-    count = AccountFrame::countObjects(sess);
+    death->apply(*app);
+    count = app->countAccounts({1, INT32_MAX});
     REQUIRE(count == 1);
 }
 
@@ -1139,7 +1102,7 @@ TEST_CASE("bucket apply bench", "[bucketbench][hide]")
     {
         TIMED_SCOPE(timerObj, "apply");
         soci::transaction sqltx(sess);
-        birth->apply(db);
+        birth->apply(*app);
         sqltx.commit();
     }
 }

@@ -4,7 +4,7 @@
 
 #include "simulation/LoadGenerator.h"
 #include "herder/Herder.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include "ledger/LedgerManager.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
@@ -25,6 +25,7 @@
 #include "transactions/PathPaymentOpFrame.h"
 #include "transactions/PaymentOpFrame.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -65,7 +66,7 @@ LoadGenerator::createRootAccount()
     {
         auto rootTestAccount = TestAccount::createRoot(mApp);
         mRoot = make_shared<TestAccount>(rootTestAccount);
-        auto res = loadAccount(mRoot, mApp.getDatabase());
+        auto res = loadAccount(mRoot);
         if (!res)
         {
             CLOG(ERROR, "LoadGen") << "Could not retrieve root account!";
@@ -197,8 +198,6 @@ void
 LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
                             uint32_t txRate, uint32_t batchSize, bool autoRate)
 {
-    soci::transaction sqltx(mApp.getDatabase().getSession());
-    mApp.getDatabase().setCurrentTransactionReadOnly();
     createRootAccount();
 
     // Finish if no more txs need to be created.
@@ -224,7 +223,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         mApp.getMetrics().NewTimer({"loadgen", "step", "submit"});
     auto submitScope = submitTimer.TimeScope();
 
-    uint32_t ledgerNum = mApp.getLedgerManager().getLedgerNum();
+    uint32_t ledgerNum = getCurrentLedgerNum(mApp.getLedgerStateRoot());
 
     for (uint32_t i = 0; i < txPerStep; ++i)
     {
@@ -445,7 +444,7 @@ LoadGenerator::creationTransaction(uint64_t startAccount, uint64_t numItems,
 void
 LoadGenerator::updateMinBalance()
 {
-    auto b = mApp.getLedgerManager().getMinBalance(0);
+    auto b = getCurrentMinBalance(mApp.getLedgerStateRoot(), 0);
     if (b > mMinBalance)
     {
         mMinBalance = b;
@@ -473,25 +472,25 @@ LoadGenerator::createAccounts(uint64_t start, uint64_t count,
 }
 
 bool
-LoadGenerator::loadAccount(TestAccount& account, Database& database)
+LoadGenerator::loadAccount(TestAccount& account)
 {
-    AccountFrame::pointer ret;
-    ret = AccountFrame::loadAccount(account.getPublicKey(), database);
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto ret = stellar::loadAccount(ls, account.getPublicKey());
     if (!ret)
     {
         return false;
     }
-    account.setSequenceNumber(ret->getSeqNum());
+    account.setSequenceNumber(ret.getSeqNum());
 
     return true;
 }
 
 bool
-LoadGenerator::loadAccount(TestAccountPtr acc, Database& database)
+LoadGenerator::loadAccount(TestAccountPtr acc)
 {
     if (acc)
     {
-        return loadAccount(*acc, database);
+        return loadAccount(*acc);
     }
     return false;
 }
@@ -528,7 +527,7 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
         auto account = TestAccount{mApp, txtest::getAccount(name.c_str()), sn};
         newAccountPtr = make_shared<TestAccount>(account);
 
-        if (!loadAccount(newAccountPtr, mApp.getDatabase()))
+        if (!loadAccount(newAccountPtr))
         {
             std::runtime_error(
                 fmt::format("Account {0} must exist in the DB.", accountId));
@@ -567,7 +566,7 @@ LoadGenerator::handleFailedSubmission(TestAccountPtr sourceAccount,
     // incremented on the next call to execute.
     if (status == Herder::TX_STATUS_ERROR && code == txBAD_SEQ)
     {
-        if (!loadAccount(sourceAccount, mApp.getDatabase()))
+        if (!loadAccount(sourceAccount))
         {
             CLOG(ERROR, "LoadGen")
                 << "Unable to reload account " << sourceAccount->getAccountId();
@@ -583,7 +582,7 @@ LoadGenerator::checkAccountSynced(Database& database)
     {
         TestAccountPtr account = acc.second;
         auto currentSeqNum = account->getLastSequenceNumber();
-        auto reloadRes = loadAccount(account, database);
+        auto reloadRes = loadAccount(account);
         // reload the account
         if (!reloadRes || currentSeqNum != account->getLastSequenceNumber())
         {

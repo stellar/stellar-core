@@ -179,6 +179,7 @@ class BucketList;
 class Config;
 class Database;
 class HistoryArchive;
+class LedgerState;
 struct StateSnapshot;
 
 class HistoryManager
@@ -253,7 +254,7 @@ class HistoryManager
     // getCheckpointFrequency() -- equivalently, the LCL is one _less_ than
     // a multiple of getCheckpointFrequency(). Returns true if checkpoint
     // publication of the LCL was queued, otherwise false.
-    virtual bool maybeQueueHistoryCheckpoint() = 0;
+    virtual bool maybeQueueHistoryCheckpoint(LedgerState& ls) = 0;
 
     // Checkpoint the LCL -- both the log of history from the previous
     // checkpoint to it, as well as the bucketlist of its state -- to a

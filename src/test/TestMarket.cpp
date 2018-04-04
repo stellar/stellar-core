@@ -2,9 +2,12 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/TrustLineReference.h"
 #include "test/TestMarket.h"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
+#include "transactions/TransactionUtils.h"
 #include "xdr/Stellar-ledger-entries.h"
 
 namespace stellar
@@ -222,13 +225,15 @@ TestMarket::requireBalances(std::vector<TestMarketBalances> const& balances)
             }
             else
             {
-                auto hasTrustLine = account.hasTrustLine(assetBalance.asset);
+                LedgerState ls(mApp.getLedgerStateRoot());
+                auto trustLine = loadTrustLine(ls, account.getPublicKey(),
+                                               assetBalance.asset);
+                auto hasTrustLine = !!trustLine;
                 auto trustLineOk = hasTrustLine || assetBalance.balance == 0;
                 REQUIRE(trustLineOk);
                 if (hasTrustLine)
                 {
-                    REQUIRE(account.loadTrustLine(assetBalance.asset).balance ==
-                            assetBalance.balance);
+                    REQUIRE(trustLine->getBalance() == assetBalance.balance);
                 }
             }
         }
@@ -247,13 +252,15 @@ TestMarket::checkState(std::map<OfferKey, OfferState> const& offers,
 {
     for (auto const& o : offers)
     {
-        REQUIRE(OfferState{txtest::loadOffer(o.first.sellerID, o.first.offerID,
-                                             mApp, true)
-                               ->getOffer()} == o.second);
+        LedgerState ls(mApp.getLedgerStateRoot());
+        auto offer = loadOffer(ls, o.first.sellerID, o.first.offerID);
+        REQUIRE(offer);
+        REQUIRE(OfferState{offer->entry()->data.offer()} == o.second);
     }
     for (auto const& o : deletedOffers)
     {
-        REQUIRE(!txtest::loadOffer(o.sellerID, o.offerID, mApp, false));
+        LedgerState ls(mApp.getLedgerStateRoot());
+        REQUIRE(!loadOffer(ls, o.sellerID, o.offerID));
     }
 }
 }

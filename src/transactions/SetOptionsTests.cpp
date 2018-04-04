@@ -3,6 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SignerKey.h"
+#include "ledger/AccountReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -12,6 +14,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
@@ -38,7 +41,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     // set up world
     auto root = TestAccount::createRoot(*app);
-    auto a1 = root.create("A", app->getLedgerManager().getMinBalance(0) + 1000);
+    auto a1 = root.create("A", getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 1000);
 
     SECTION("Signers")
     {
@@ -72,19 +75,27 @@ TEST_CASE("set options", "[tx][setoptions]")
             });
         }
 
+        auto loadAndCountSigners =
+            [app] (AccountID const& id, uint32_t signers)
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto account = stellar::loadAccount(ls, id);
+                REQUIRE(account);
+                REQUIRE(account.account().numSubEntries == signers);
+                REQUIRE(account.account().signers.size() == signers);
+            };
+
         for_versions_to(2, *app, [&] {
             // add some funds
-            root.pay(a1, app->getLedgerManager().getMinBalance(2));
+            root.pay(a1, getCurrentMinBalance(app->getLedgerStateRoot(), 2));
 
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
-            AccountFrame::pointer a1Account;
-
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 1);
-            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            loadAndCountSigners(a1, 1);
             {
-                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                LedgerState ls(app->getLedgerStateRoot());
+                auto acc = stellar::loadAccount(ls, a1.getPublicKey());
+                Signer& a_sk1 = acc.account().signers[0];
                 REQUIRE(a_sk1.key == sk1.key);
                 REQUIRE(a_sk1.weight == sk1.weight);
             }
@@ -94,9 +105,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 2);
-            REQUIRE(a1Account->getAccount().signers.size() == 2);
+            loadAndCountSigners(a1, 2);
 
             // add signer 3 - non account, will fail for old ledger
             SignerKey s3;
@@ -106,9 +115,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 2);
-            REQUIRE(a1Account->getAccount().signers.size() == 2);
+            loadAndCountSigners(a1, 2);
 
             // update signer 2
             sk2.weight = 11;
@@ -122,12 +129,14 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk1.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 1);
-            REQUIRE(a1Account->getAccount().signers.size() == 1);
-            Signer& a_sk2 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk2.key == sk2.key);
-            REQUIRE(a_sk2.weight == sk2.weight);
+            loadAndCountSigners(a1, 1);
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto acc = stellar::loadAccount(ls, a1.getPublicKey());
+                Signer& a_sk2 = acc.account().signers[0];
+                REQUIRE(a_sk2.key == sk2.key);
+                REQUIRE(a_sk2.weight == sk2.weight);
+            }
 
             // remove signer 3 - non account, not added, because of old ledger
             sk3.weight = 0;
@@ -135,31 +144,25 @@ TEST_CASE("set options", "[tx][setoptions]")
                                             &sk3, nullptr),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 1);
-            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            loadAndCountSigners(a1, 1);
 
             // remove signer 2
             sk2.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 0);
-            REQUIRE(a1Account->getAccount().signers.size() == 0);
+            loadAndCountSigners(a1, 0);
         });
 
         for_versions_from(3, *app, [&] {
             // add some funds
-            root.pay(a1, app->getLedgerManager().getMinBalance(2));
+            root.pay(a1, getCurrentMinBalance(app->getLedgerStateRoot(), 2));
             a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
 
-            AccountFrame::pointer a1Account;
-
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 1);
-            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            loadAndCountSigners(a1, 1);
             {
-                Signer& a_sk1 = a1Account->getAccount().signers[0];
+                LedgerState ls(app->getLedgerStateRoot());
+                auto acc = stellar::loadAccount(ls, a1.getPublicKey());
+                Signer& a_sk1 = acc.account().signers[0];
                 REQUIRE(a_sk1.key == sk1.key);
                 REQUIRE(a_sk1.weight == sk1.weight);
             }
@@ -169,9 +172,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 2);
-            REQUIRE(a1Account->getAccount().signers.size() == 2);
+            loadAndCountSigners(a1, 2);
 
             // add signer 3 - non account
             SignerKey s3;
@@ -179,9 +180,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             Signer sk3(s3, 100);
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 3);
-            REQUIRE(a1Account->getAccount().signers.size() == 3);
+            loadAndCountSigners(a1, 3);
 
             // update signer 2
             sk2.weight = 11;
@@ -195,28 +194,26 @@ TEST_CASE("set options", "[tx][setoptions]")
             sk1.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 2);
-            REQUIRE(a1Account->getAccount().signers.size() == 2);
-            Signer& a_sk2 = a1Account->getAccount().signers[0];
-            REQUIRE(a_sk2.key == sk2.key);
-            REQUIRE(a_sk2.weight == sk2.weight);
+            loadAndCountSigners(a1, 2);
+            {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto acc = stellar::loadAccount(ls, a1.getPublicKey());
+                Signer& a_sk2 = acc.account().signers[0];
+                REQUIRE(a_sk2.key == sk2.key);
+                REQUIRE(a_sk2.weight == sk2.weight);
+            }
 
             // remove signer 3 - non account
             sk3.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 1);
-            REQUIRE(a1Account->getAccount().signers.size() == 1);
+            loadAndCountSigners(a1, 1);
 
             // remove signer 2
             sk2.weight = 0;
             a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
 
-            a1Account = loadAccount(a1, *app);
-            REQUIRE(a1Account->getAccount().numSubEntries == 0);
-            REQUIRE(a1Account->getAccount().signers.size() == 0);
+            loadAndCountSigners(a1, 0);
         });
     }
 

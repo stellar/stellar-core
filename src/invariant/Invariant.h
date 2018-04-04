@@ -11,7 +11,8 @@ namespace stellar
 {
 
 class Bucket;
-class LedgerDelta;
+class LedgerHeaderReference;
+class LedgerState;
 struct Operation;
 struct OperationResult;
 
@@ -49,7 +50,8 @@ class Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta)
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header)
     {
         return std::string{};
     }

@@ -11,6 +11,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/LoadManager.h"
@@ -34,6 +35,7 @@
 
 namespace stellar
 {
+using xdr::operator<;
 
 using namespace std;
 using namespace soci;

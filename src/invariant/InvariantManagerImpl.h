@@ -16,6 +16,7 @@ class MetricsRegistry;
 
 namespace stellar
 {
+class LedgerState;
 
 class InvariantManagerImpl : public InvariantManager
 {
@@ -35,13 +36,14 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual Json::Value getInformation() override;
 
-    virtual void checkOnOperationApply(Operation const& operation,
-                                       OperationResult const& opres,
-                                       LedgerDelta const& delta) override;
+    void checkOnOperationApply(
+        Operation const& operation, OperationResult const& opres,
+        LedgerState const& ls,
+        std::shared_ptr<LedgerHeaderReference const> header) override;
 
-    virtual void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
-                                    uint32_t ledger, uint32_t level,
-                                    bool isCurr) override;
+    void checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
+                            uint32_t ledger, uint32_t level,
+                            bool isCurr) override;
 
     virtual void
     registerInvariant(std::shared_ptr<Invariant> invariant) override;

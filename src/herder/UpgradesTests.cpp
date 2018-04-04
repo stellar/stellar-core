@@ -6,6 +6,8 @@
 #include "herder/LedgerCloseData.h"
 #include "herder/Upgrades.h"
 #include "history/HistoryTestsUtils.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
@@ -120,17 +122,12 @@ simulateUpgrade(std::vector<LedgerUpgradeNode> const& nodes,
         for (size_t i = 0; i < nodes.size(); i++)
         {
             auto const& node = simulation->getNode(keys[i].getPublicKey());
-            REQUIRE(node->getLedgerManager()
-                        .getCurrentLedgerHeader()
-                        .ledgerVersion == state[i].ledgerVersion);
-            REQUIRE(node->getLedgerManager().getCurrentLedgerHeader().baseFee ==
-                    state[i].baseFee);
-            REQUIRE(node->getLedgerManager()
-                        .getCurrentLedgerHeader()
-                        .maxTxSetSize == state[i].maxTxSetSize);
-            REQUIRE(
-                node->getLedgerManager().getCurrentLedgerHeader().baseReserve ==
-                state[i].baseReserve);
+            LedgerState ls(node->getLedgerStateRoot());
+            auto const& header = ls.loadHeader()->header();
+            REQUIRE(header.ledgerVersion == state[i].ledgerVersion);
+            REQUIRE(header.baseFee == state[i].baseFee);
+            REQUIRE(header.maxTxSetSize == state[i].maxTxSetSize);
+            REQUIRE(header.baseReserve == state[i].baseReserve);
         }
     };
 

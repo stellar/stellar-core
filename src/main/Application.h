@@ -40,6 +40,8 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class LedgerRange;
+class LedgerStateRoot;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -205,6 +207,7 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+    virtual LedgerStateRoot& getLedgerStateRoot() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use
@@ -239,9 +242,6 @@ class Application
 
     // Access the load generator for manual operation.
     virtual LoadGenerator& getLoadGenerator() = 0;
-
-    // Run a consistency check between the database and the bucketlist.
-    virtual void checkDB() = 0;
 
     // Execute any administrative commands written in the Config.COMMANDS
     // variable of the config file. This permits scripting certain actions to
@@ -280,6 +280,19 @@ class Application
 
         return ret;
     }
+
+    virtual uint64_t countAccounts(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countTrustLines(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countOffers(LedgerRange const& ledgers) = 0;
+    virtual uint64_t countData(LedgerRange const& ledgers) = 0;
+
+    virtual void deleteEntriesModifiedOnOrAfterLedger(uint32_t oldestLedger) = 0;
+
+    virtual void dropAccountsTable() = 0;
+    virtual void dropTrustLinesTable() = 0;
+    virtual void dropOffersTable() = 0;
+    virtual void dropDataTable() = 0;
+    virtual void dropLedgerHeadersTable() = 0;
 
   protected:
     Application()

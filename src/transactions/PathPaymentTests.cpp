@@ -2,6 +2,8 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerState.h"
+#include "ledger/TrustLineReference.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
@@ -9,6 +11,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 #include <deque>
@@ -89,22 +92,22 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
     // set up world
     auto root = TestAccount::createRoot(*app);
     auto xlm = makeNativeAsset();
-    auto txfee = app->getLedgerManager().getTxFee();
+    auto txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
-    auto const minBalanceNoTx = app->getLedgerManager().getMinBalance(0);
+    auto const minBalanceNoTx = getCurrentMinBalance(app->getLedgerStateRoot(), 0);
     auto const minBalance =
-        app->getLedgerManager().getMinBalance(0) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 0) + 10 * txfee;
 
     auto const minBalance1 =
-        app->getLedgerManager().getMinBalance(1) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 1) + 10 * txfee;
     auto const minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 2) + 10 * txfee;
     auto const minBalance3 =
-        app->getLedgerManager().getMinBalance(3) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 3) + 10 * txfee;
     auto const minBalance4 =
-        app->getLedgerManager().getMinBalance(4) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 4) + 10 * txfee;
     auto const minBalance5 =
-        app->getLedgerManager().getMinBalance(5) + 10 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 5) + 10 * txfee;
 
     auto const paymentAmount = minBalance3;
     auto const morePayment = paymentAmount / 2;
@@ -3547,7 +3550,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto paymentToReceive = 240000000;
         auto offerSize = paymentToReceive / 2;
         auto initialBalance =
-            app->getLedgerManager().getMinBalance(10) + txfee * 10 + 1000000000;
+            getCurrentMinBalance(app->getLedgerStateRoot(), 10) + txfee * 10 + 1000000000;
         auto mm = root.create("mm", initialBalance);
         auto source = root.create("source", initialBalance);
         auto destination = root.create("destination", initialBalance);
@@ -3643,7 +3646,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                  // as in the
             // offer because of Price{2, 1} that is
             // used in one case
-            auto txFee = app->getLedgerManager().getTxFee();
+            auto txFee = getCurrentTxFee(app->getLedgerStateRoot());
 
             auto assets = std::deque<Asset>{xlm, usd, idr};
             int pathSize = (int)assets.size();
@@ -3673,8 +3676,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 }
                 else
                 {
-                    REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
-                                ->getBalance() == initialBalance + difference);
+                    LedgerState ls(app->getLedgerStateRoot());
+                    auto line = loadTrustLine(ls, account.getPublicKey(),
+                                              assets[assetIndex]);
+                    REQUIRE(line);
+                    REQUIRE(line->getBalance() == initialBalance + difference);
+                    //REQUIRE(loadTrustLine(account, assets[assetIndex], *app)
+                    //            ->getBalance() == initialBalance + difference);
                 }
             };
             auto validateAccountAssets = [&](const TestAccount& account,
@@ -3687,11 +3695,13 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                                          feeCount);
                 }
             };
-            auto validateOffer = [offerAmount](const TestAccount& account,
-                                               uint64_t offerId,
-                                               int64_t difference) {
-                auto offer = account.loadOffer(offerId);
-                REQUIRE(offer.amount == offerAmount + difference);
+            auto validateOffer = [offerAmount, app](const TestAccount& account,
+                                                    uint64_t offerId,
+                                                    int64_t difference) {
+                LedgerState ls(app->getLedgerStateRoot());
+                auto offer = loadOffer(ls, account.getPublicKey(), offerId);
+                REQUIRE(offer);
+                REQUIRE(offer->entry()->data.offer().amount == offerAmount + difference);
             };
 
             auto source = setupAccount("S");

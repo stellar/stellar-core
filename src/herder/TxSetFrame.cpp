@@ -7,13 +7,18 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
 
 #include "xdrpp/printer.h"
+
+#include "ledger/AccountReference.h"
 
 namespace stellar
 {
@@ -154,9 +159,9 @@ struct SurgeSorter
 };
 
 void
-TxSetFrame::surgePricingFilter(LedgerManager const& lm)
+TxSetFrame::surgePricingFilter(Application& app)
 {
-    size_t max = lm.getMaxTxSetSize();
+    size_t max = getCurrentMaxTxSetSize(app.getLedgerStateRoot());
     if (mTransactions.size() > max)
     { // surge pricing in effect!
         CLOG(WARNING, "Herder")
@@ -166,7 +171,7 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm)
         map<AccountID, double> accountFeeMap;
         for (auto& tx : mTransactions)
         {
-            double r = tx->getFeeRatio(lm);
+            double r = tx->getFeeRatio(app.getLedgerStateRoot());
             double now = accountFeeMap[tx->getSourceID()];
             if (now == 0)
                 accountFeeMap[tx->getSourceID()] = r;
@@ -194,10 +199,13 @@ TxSetFrame::checkOrTrim(
     std::function<bool(std::vector<TransactionFramePtr> const&)>
         processInsufficientBalance)
 {
-    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
+    // Establish read-only transaction for duration of checkOrTrim
+    LedgerState lsOuter(app.getLedgerStateRoot());
+    app.getDatabase().setCurrentTransactionReadOnly();
 
+    map<AccountID, vector<TransactionFramePtr>> accountTxMap;
     Hash lastHash;
-    for (auto& tx : mTransactions)
+    for (auto tx : mTransactions)
     {
         if (tx->getFullHash() < lastHash)
         {
@@ -220,7 +228,8 @@ TxSetFrame::checkOrTrim(
         int64_t totFee = 0;
         for (auto& tx : item.second)
         {
-            if (!tx->checkValid(app, lastSeq))
+            LedgerState ls(lsOuter);
+            if (!tx->checkValid(app, ls, lastSeq))
             {
                 if (processInvalidTxLambda(tx, lastSeq))
                     continue;
@@ -235,10 +244,11 @@ TxSetFrame::checkOrTrim(
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
+            LedgerState ls(lsOuter);
+            auto sourceAccount = stellar::loadAccount(ls, lastTx->getSourceID());
+            int64_t newBalance = sourceAccount.getBalance() - totFee;
+            if (newBalance < sourceAccount.getMinimumBalance(
+                                 ls.loadHeader()))
             {
                 if (!processInsufficientBalance(item.second))
                     return false;
@@ -253,10 +263,6 @@ void
 TxSetFrame::trimInvalid(Application& app,
                         std::vector<TransactionFramePtr>& trimmed)
 {
-    // Establish read-only transaction for duration of trimInvalid
-    soci::transaction sqltx(app.getDatabase().getSession());
-    app.getDatabase().setCurrentTransactionReadOnly();
-
     sortForHash();
 
     auto processInvalidTxLambda = [&](TransactionFramePtr tx,
@@ -284,10 +290,6 @@ TxSetFrame::trimInvalid(Application& app,
 bool
 TxSetFrame::checkValid(Application& app)
 {
-    // Establish read-only transaction for duration of checkValid
-    soci::transaction sqltx(app.getDatabase().getSession());
-    app.getDatabase().setCurrentTransactionReadOnly();
-
     auto& lcl = app.getLedgerManager().getLastClosedLedgerHeader();
     // Start by checking previousLedgerHash
     if (lcl.hash != mPreviousLedgerHash)
@@ -295,8 +297,7 @@ TxSetFrame::checkValid(Application& app)
         CLOG(DEBUG, "Herder")
             << "Got bad txSet: " << hexAbbrev(mPreviousLedgerHash)
             << " ; expected: "
-            << hexAbbrev(
-                   app.getLedgerManager().getLastClosedLedgerHeader().hash);
+            << hexAbbrev( lcl.hash);
         return false;
     }
 

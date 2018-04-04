@@ -5,14 +5,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
 #include <memory>
 
 namespace stellar
 {
-
 class Application;
-class LedgerManager;
 
 // This Invariant is used to validate that accounts have the minimum balance.
 // It is important to note that accounts can be below the minimum balance if
@@ -26,22 +24,15 @@ class MinimumAccountBalance : public Invariant
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
-    explicit MinimumAccountBalance(LedgerManager const& lm);
-
     virtual std::string getName() const override;
 
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta) override;
+                          LedgerState const& ls,
+                          std::shared_ptr<LedgerHeaderReference const> header) override;
 
   private:
-    bool shouldCheckBalance(LedgerDelta::AddedLedgerEntry const& ale) const;
-    bool shouldCheckBalance(LedgerDelta::ModifiedLedgerEntry const& mle) const;
-
-    template <typename IterType>
-    std::string checkAccountBalance(IterType iter, IterType const& end) const;
-
-    LedgerManager const& mLedgerManager;
+    bool shouldCheckBalance(LedgerState::IteratorValueType const& val) const;
 };
 }

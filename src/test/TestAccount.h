@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "ledger/OfferFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
@@ -45,9 +44,6 @@ class TestAccount
     void allowTrust(Asset const& asset, PublicKey const& trustor);
     void denyTrust(Asset const& asset, PublicKey const& trustor);
 
-    TrustLineEntry loadTrustLine(Asset const& asset) const;
-    bool hasTrustLine(Asset const& asset) const;
-
     void setOptions(AccountID* inflationDest, uint32_t* setFlags,
                     uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
                     Signer* signer, std::string* homeDomain);
@@ -55,9 +51,6 @@ class TestAccount
     void manageData(std::string const& name, DataValue* value);
 
     void bumpSequence(SequenceNumber to);
-
-    OfferEntry loadOffer(uint64_t offerID) const;
-    bool hasOffer(uint64_t offerID) const;
 
     uint64_t
     manageOffer(uint64_t offerID, Asset const& selling, Asset const& buying,

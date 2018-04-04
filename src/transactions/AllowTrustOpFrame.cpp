@@ -4,11 +4,15 @@
 
 #include "transactions/AllowTrustOpFrame.h"
 #include "database/Database.h"
-#include "ledger/LedgerManager.h"
-#include "ledger/TrustFrame.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "transactions/TransactionUtils.h"
+
+#include "ledger/AccountReference.h"
+#include "ledger/TrustLineReference.h"
 
 namespace stellar
 {
@@ -26,10 +30,10 @@ AllowTrustOpFrame::getThresholdLevel() const
 }
 
 bool
-AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
-                           LedgerManager& ledgerManager)
+AllowTrustOpFrame::doApply(Application& app, LedgerState& ls)
 {
-    if (ledgerManager.getCurrentLedgerVersion() > 2)
+    auto header = ls.loadHeader();
+    if (getCurrentLedgerVersion(header) > 2)
     {
         if (mAllowTrust.trustor == getSourceID())
         { // since version 3 it is not
@@ -43,8 +47,10 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
     }
+    header->invalidate();
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REQUIRED_FLAG))
+    auto sourceAccount = loadSourceAccount(ls);
+    if (!(sourceAccount.account().flags & AUTH_REQUIRED_FLAG))
     { // this account doesn't require authorization to
         // hold credit
         app.getMetrics()
@@ -55,7 +61,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
-    if (!(mSourceAccount->getAccount().flags & AUTH_REVOCABLE_FLAG) &&
+    if (!(sourceAccount.account().flags & AUTH_REVOCABLE_FLAG) &&
         !mAllowTrust.authorize)
     {
         app.getMetrics()
@@ -63,6 +69,17 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
             .Mark();
         innerResult().code(ALLOW_TRUST_CANT_REVOKE);
         return false;
+    }
+    sourceAccount.forget(ls);
+
+    // Only possible in ledger version 1 and 2
+    if (mAllowTrust.trustor == getSourceID())
+    {
+        app.getMetrics()
+            .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
+            .Mark();
+        innerResult().code(ALLOW_TRUST_SUCCESS);
+        return true;
     }
 
     Asset ci;
@@ -78,10 +95,7 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         ci.alphaNum12().issuer = getSourceID();
     }
 
-    Database& db = ledgerManager.getDatabase();
-    TrustFrame::pointer trustLine;
-    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
-
+    auto trustLine = loadExplicitTrustLine(ls, mAllowTrust.trustor, ci);
     if (!trustLine)
     {
         app.getMetrics()
@@ -99,13 +113,11 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     trustLine->setAuthorized(mAllowTrust.authorize);
 
-    trustLine->storeChange(delta, db);
-
     return true;
 }
 
 bool
-AllowTrustOpFrame::doCheckValid(Application& app)
+AllowTrustOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mAllowTrust.asset.type() == ASSET_TYPE_NATIVE)
     {

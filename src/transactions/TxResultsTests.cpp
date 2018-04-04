@@ -4,12 +4,14 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerState.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 #include "xdrpp/printer.h"
 #include <algorithm>
@@ -185,11 +187,11 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
-        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
-                          app->getDatabase());
-
         auto shouldValidateOk = validationResult.code == txSUCCESS;
-        REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
+        {
+            LedgerState lsCheck(app->getLedgerStateRoot());
+            REQUIRE(tx->checkValid(*app, lsCheck, 0) == shouldValidateOk);
+        }
         REQUIRE(tx->getResult().result.code() == validationResult.code);
         REQUIRE(tx->getResult().feeCharged == validationResult.fee);
 
@@ -211,18 +213,21 @@ TEST_CASE("txresults", "[tx][txresults]")
         }
 
         auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-        auto applyOk = tx->apply(delta, *app);
+        LedgerState ls(app->getLedgerStateRoot());
+        auto applyOk = tx->apply(ls, *app);
+        ls.commit();
         REQUIRE(tx->getResult() == applyResult);
         REQUIRE(applyOk == shouldApplyOk);
     };
 
-    auto& lm = app->getLedgerManager();
-    auto& clh = lm.getCurrentLedgerHeader();
-    clh.scpValue.closeTime = 10;
-    const int64_t baseReserve = clh.baseReserve;
-    const int64_t baseFee = clh.baseFee;
+    LedgerState ls(app->getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    header->header().scpValue.closeTime = 10;
+    const int64_t baseReserve = header->header().baseReserve;
+    const int64_t baseFee = header->header().baseFee;
     const int64_t startAmount = baseReserve * 100;
     const int64_t paymentAmount = baseReserve * 10;
+    ls.commit();
 
     auto amount = [&](PaymentValidity t) {
         switch (t)
@@ -375,7 +380,7 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto d = root.create("d", startAmount);
     auto e = root.create("e", startAmount);
     auto f = TestAccount{*app, getAccount("f")};
-    auto g = root.create("g", lm.getMinBalance(0));
+    auto g = root.create("g", getCurrentMinBalance(app->getLedgerStateRoot(), 0));
 
     SECTION("transaction errors")
     {
@@ -393,7 +398,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -403,7 +408,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             {
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -460,7 +465,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -471,7 +476,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->getEnvelope().signatures.clear();
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -538,7 +543,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().minTime =
-                    clh.scpValue.closeTime + 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) + 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_EARLY});
                 });
@@ -549,7 +554,7 @@ TEST_CASE("txresults", "[tx][txresults]")
                 auto tx = a.tx({payment(root, 1)});
                 tx->addSignature(a);
                 tx->getEnvelope().tx.timeBounds.activate().maxTime =
-                    clh.scpValue.closeTime - 1;
+                    getCurrentCloseTime(app->getLedgerStateRoot()) - 1;
                 for_all_versions(*app, [&] {
                     validate(tx, {baseFee, txTOO_LATE});
                 });
@@ -642,9 +647,9 @@ TEST_CASE("txresults", "[tx][txresults]")
         auto tx = makeTx(signs, ops);
         for_all_versions(*app, [&] {
             auto validationResult = makeValidationResult(
-                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, getCurrentLedgerVersion(app->getLedgerStateRoot()));
             auto applyResult = makeApplyResult(
-                signs, ops, app->getLedgerManager().getCurrentLedgerVersion());
+                signs, ops, getCurrentLedgerVersion(app->getLedgerStateRoot()));
             validate(tx, validationResult, applyResult);
         });
     };

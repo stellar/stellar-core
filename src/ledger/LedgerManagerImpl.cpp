@@ -3,9 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/LedgerManagerImpl.h"
-#include "DataFrame.h"
-#include "OfferFrame.h"
-#include "TrustFrame.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/KeyUtils.h"
@@ -20,11 +17,13 @@
 #include "history/HistoryManager.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerHeaderReference.h"
+#include "ledger/LedgerHeaderUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/format.h"
 #include "util/make_unique.h"
@@ -35,6 +34,7 @@
 #include "medida/timer.h"
 #include "xdrpp/printer.h"
 #include "xdrpp/types.h"
+#include <util/basen.h>
 
 #include <chrono>
 #include <sstream>
@@ -91,16 +91,6 @@ std::string
 LedgerManager::ledgerAbbrev(LedgerHeader const& header, uint256 const& hash)
 {
     return ledgerAbbrev(header.ledgerSeq, hash);
-}
-
-std::string
-LedgerManager::ledgerAbbrev(LedgerHeaderFrame::pointer p)
-{
-    if (!p)
-    {
-        return "[empty]";
-    }
-    return ledgerAbbrev(p->mHeader, p->getHash());
 }
 
 std::string
@@ -187,16 +177,23 @@ LedgerManagerImpl::startNewLedger(LedgerHeader genesisLedger)
     auto ledgerTime = mLedgerClose.TimeScope();
     SecretKey skey = SecretKey::fromSeed(mApp.getNetworkID());
 
-    AccountFrame masterAccount(skey.getPublicKey());
-    masterAccount.getAccount().balance = genesisLedger.totalCoins;
-    LedgerDelta delta(genesisLedger, getDatabase());
-    masterAccount.storeAdd(delta, this->getDatabase());
-    delta.commit();
+    LedgerState ls(mApp.getLedgerStateRoot());
+    auto header = ls.loadHeader();
+    header->header() = genesisLedger;
+    header->invalidate();
 
-    mCurrentLedger = make_shared<LedgerHeaderFrame>(genesisLedger);
+    LedgerEntry le;
+    le.lastModifiedLedgerSeq = 1;
+    le.data.type(ACCOUNT);
+    le.data.account().accountID = skey.getPublicKey();
+    le.data.account().thresholds[0] = 1;
+    le.data.account().balance = genesisLedger.totalCoins;
+    ls.create(le);
+
     CLOG(INFO, "Ledger") << "Established genesis ledger, closing";
     CLOG(INFO, "Ledger") << "Root account seed: " << skey.getStrKeySeed().value;
-    ledgerClosed(delta);
+    ledgerClosed(ls);
+    ls.commit();
 }
 
 void
@@ -234,12 +231,15 @@ LedgerManagerImpl::loadLastKnownLedger(
         LOG(INFO) << "Loading last known ledger";
         Hash lastLedgerHash = hexToBin256(lastLedger);
 
-        mCurrentLedger =
-            LedgerHeaderFrame::loadByHash(lastLedgerHash, getDatabase());
-        if (!mCurrentLedger)
+        auto currentLedger =
+            loadLedgerHeaderByHash(getDatabase(), lastLedgerHash);
+        if (!currentLedger)
         {
             throw std::runtime_error("Could not load ledger from database");
         }
+        LedgerState ls(mApp.getLedgerStateRoot());
+        ls.loadHeader()->header() = *currentLedger;
+        ls.commit();
 
         if (handler)
         {
@@ -258,10 +258,12 @@ LedgerManagerImpl::loadLastKnownLedger(
                 {
                     mApp.getBucketManager().assumeState(has);
 
+                    LedgerState ls(mApp.getLedgerStateRoot());
+                    auto header = ls.loadHeader();
                     CLOG(INFO, "Ledger") << "Loaded last known ledger: "
-                                         << ledgerAbbrev(mCurrentLedger);
-
-                    advanceLedgerPointers();
+                                         << stellar::ledgerAbbrev(header->header());
+                    advanceLedgerPointers(header);
+                    ls.commit();
                     handler(ec);
                 }
             };
@@ -288,7 +290,9 @@ LedgerManagerImpl::loadLastKnownLedger(
         }
         else
         {
-            advanceLedgerPointers();
+            LedgerState ls(mApp.getLedgerStateRoot());
+            advanceLedgerPointers(ls.loadHeader());
+            ls.commit();
         }
     }
 }
@@ -297,58 +301,6 @@ Database&
 LedgerManagerImpl::getDatabase()
 {
     return mApp.getDatabase();
-}
-
-uint32_t
-LedgerManagerImpl::getTxFee() const
-{
-    return mCurrentLedger->mHeader.baseFee;
-}
-
-uint32_t
-LedgerManagerImpl::getMaxTxSetSize() const
-{
-    return mCurrentLedger->mHeader.maxTxSetSize;
-}
-
-int64_t
-LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
-{
-    auto& lh = mCurrentLedger->mHeader;
-    if (lh.ledgerVersion <= 8)
-        return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
-    else
-        return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
-}
-
-uint32_t
-LedgerManagerImpl::getLedgerNum() const
-{
-    return mCurrentLedger->mHeader.ledgerSeq;
-}
-
-uint64_t
-LedgerManagerImpl::getCloseTime() const
-{
-    return mCurrentLedger->mHeader.scpValue.closeTime;
-}
-
-LedgerHeader const&
-LedgerManagerImpl::getCurrentLedgerHeader() const
-{
-    return mCurrentLedger->mHeader;
-}
-
-LedgerHeader&
-LedgerManagerImpl::getCurrentLedgerHeader()
-{
-    return mCurrentLedger->mHeader;
-}
-
-uint32_t
-LedgerManagerImpl::getCurrentLedgerVersion() const
-{
-    return getCurrentLedgerHeader().ledgerVersion;
 }
 
 LedgerHeaderHistoryEntry const&
@@ -544,11 +496,17 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         {
         case CatchupWork::ProgressState::APPLIED_BUCKETS:
         {
-            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed.header);
-            storeCurrentLedger();
+            LedgerState ls(mApp.getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto ledgerHash = sha256(xdr::xdr_to_opaque(lastClosed.header));
+            header->header() = lastClosed.header;
+            storeCurrentLedger(header);
+
+            ++header->header().ledgerSeq;
+            header->header().previousLedgerHash = ledgerHash;
+            ls.commit();
 
             mLastClosedLedger = lastClosed;
-            mCurrentLedger = make_shared<LedgerHeaderFrame>(lastClosed);
             return;
         }
         case CatchupWork::ProgressState::APPLIED_TRANSACTIONS:
@@ -684,23 +642,29 @@ void
 LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 {
     DBTimeExcluder qtExclude(mApp);
-    CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
-                          << mCurrentLedger->mHeader.ledgerSeq;
-
-    auto now = mApp.getClock().now();
-    mLedgerAgeClosed.Update(now - mLastClose);
-    mLastClose = now;
-    mLedgerAge.set_count(0);
-
-    // If we do not support ledger version, we can't apply that ledger, fail!
-    if (mCurrentLedger->mHeader.ledgerVersion >
-        Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+    LedgerState ls(mApp.getLedgerStateRoot());
     {
-        CLOG(ERROR, "Ledger") << "Unknown ledger version: "
-                              << mCurrentLedger->mHeader.ledgerVersion;
-        throw std::runtime_error(
-            fmt::format("cannot apply ledger with not supported version: {}",
-                        mCurrentLedger->mHeader.ledgerVersion));
+        auto header = ls.loadHeader();
+        CLOG(DEBUG, "Ledger") << "starting closeLedger() on ledgerSeq="
+                              << getCurrentLedgerNum(header);
+
+        auto now = mApp.getClock().now();
+        mLedgerAgeClosed.Update(now - mLastClose);
+        mLastClose = now;
+        mLedgerAge.set_count(0);
+
+        // If we do not support ledger version, we can't apply that ledger, fail!
+        if (getCurrentLedgerVersion(header) >
+            Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        {
+            CLOG(ERROR, "Ledger") << "Unknown ledger version: "
+                                  << getCurrentLedgerVersion(header);
+            throw std::runtime_error(
+                fmt::format("cannot apply ledger with not supported version: {}",
+                            getCurrentLedgerVersion(header)));
+        }
+
+        header->invalidate();
     }
 
     if (ledgerData.getTxSet()->previousLedgerHash() !=
@@ -724,14 +688,13 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
         throw std::runtime_error("corrupt transaction set");
     }
 
-    soci::transaction txscope(getDatabase().getSession());
-
     auto ledgerTime = mLedgerClose.TimeScope();
 
-    auto const& sv = ledgerData.getValue();
-    mCurrentLedger->mHeader.scpValue = sv;
-
-    LedgerDelta ledgerDelta(mCurrentLedger->mHeader, getDatabase());
+    {
+        auto header = ls.loadHeader();
+        header->header().scpValue = ledgerData.getValue();
+        header->invalidate();
+    }
 
     // the transaction set that was agreed upon by consensus
     // was sorted by hash; we reorder it so that transactions are
@@ -739,36 +702,39 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     vector<TransactionFramePtr> txs = ledgerData.getTxSet()->sortForApply();
 
     // first, charge fees
-    processFeesSeqNums(txs, ledgerDelta);
+    processFeesSeqNums(txs, ls);
 
     TransactionResultSet txResultSet;
     txResultSet.results.reserve(txs.size());
+    applyTransactions(txs, ls, txResultSet);
 
-    applyTransactions(txs, ledgerDelta, txResultSet);
-
-    ledgerDelta.getHeader().txSetResultHash =
-        sha256(xdr::xdr_to_opaque(txResultSet));
-
-    // apply any upgrades that were decided during consensus
-    // this must be done after applying transactions as the txset
-    // was validated before upgrades
-    for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
-        LedgerUpgrade lupgrade;
-        try
+        auto header = ls.loadHeader();
+        header->header().txSetResultHash =
+            sha256(xdr::xdr_to_opaque(txResultSet));
+
+        // apply any upgrades that were decided during consensus
+        // this must be done after applying transactions as the txset
+        // was validated before upgrades
+        auto const& sv = ledgerData.getValue();
+        for (size_t i = 0; i < sv.upgrades.size(); i++)
         {
-            xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
-            Upgrades::applyTo(lupgrade, ledgerDelta.getHeader());
+            LedgerUpgrade lupgrade;
+            try
+            {
+                xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
+                Upgrades::applyTo(lupgrade, header->header());
+            }
+            catch (xdr::xdr_runtime_error)
+            {
+                CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
+                throw;
+            }
         }
-        catch (xdr::xdr_runtime_error)
-        {
-            CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
-            throw;
-        }
+        header->invalidate();
     }
 
-    ledgerDelta.commit();
-    ledgerClosed(ledgerDelta);
+    ledgerClosed(ls);
 
     // The next 4 steps happen in a relatively non-obvious, subtle order.
     // This is unfortunate and it would be nice if we could make it not
@@ -789,11 +755,11 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
 
     // step 1
     auto& hm = mApp.getHistoryManager();
-    hm.maybeQueueHistoryCheckpoint();
+    hm.maybeQueueHistoryCheckpoint(ls);
 
     // step 2
     mApp.getDatabase().clearPreparedStatementCache();
-    txscope.commit();
+    ls.commit();
 
     // step 3
     hm.publishQueuedHistory();
@@ -809,7 +775,7 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
 {
     soci::transaction txscope(db.getSession());
     db.clearPreparedStatementCache();
-    LedgerHeaderFrame::deleteOldEntries(db, ledgerSeq, count);
+    deleteOldLedgerHeaders(db, ledgerSeq, count);
     TransactionFrame::deleteOldEntries(db, ledgerSeq, count);
     HerderPersistence::deleteOldEntries(db, ledgerSeq, count);
     db.clearPreparedStatementCache();
@@ -817,101 +783,43 @@ LedgerManagerImpl::deleteOldEntries(Database& db, uint32_t ledgerSeq,
 }
 
 void
-LedgerManagerImpl::checkDbState()
+LedgerManagerImpl::advanceLedgerPointers(std::shared_ptr<LedgerHeaderReference> header)
 {
-    std::unordered_map<AccountID, AccountFrame::pointer> aData =
-        AccountFrame::checkDB(getDatabase());
-    std::unordered_map<AccountID, std::vector<TrustFrame::pointer>> trustLines;
-    trustLines = TrustFrame::loadAllLines(getDatabase());
-    std::unordered_map<AccountID, std::vector<OfferFrame::pointer>> offers;
-    offers = OfferFrame::loadAllOffers(getDatabase());
-    std::unordered_map<AccountID, std::vector<DataFrame::pointer>> datas;
-    datas = DataFrame::loadAllData(getDatabase());
-
-    for (auto& i : aData)
-    {
-        auto const& a = i.second->getAccount();
-
-        // checks the number of sub entries found in the database
-        size_t actualSubEntries = a.signers.size();
-        auto itTL = trustLines.find(i.first);
-        if (itTL != trustLines.end())
-        {
-            actualSubEntries += itTL->second.size();
-        }
-        auto itOffers = offers.find(i.first);
-        if (itOffers != offers.end())
-        {
-            actualSubEntries += itOffers->second.size();
-        }
-
-        auto itDatas = datas.find(i.first);
-        if (itDatas != datas.end())
-        {
-            actualSubEntries += itDatas->second.size();
-        }
-
-        if (a.numSubEntries != (uint32)actualSubEntries)
-        {
-            throw std::runtime_error(
-                fmt::format("Mismatch in number of subentries for account {}: "
-                            "account says {} but found {}",
-                            KeyUtils::toStrKey(i.first), a.numSubEntries,
-                            actualSubEntries));
-        }
-    }
-    for (auto& tl : trustLines)
-    {
-        if (aData.find(tl.first) == aData.end())
-        {
-            throw std::runtime_error(
-                fmt::format("Unexpected trust line found for account {}",
-                            KeyUtils::toStrKey(tl.first)));
-        }
-    }
-    for (auto& of : offers)
-    {
-        if (aData.find(of.first) == aData.end())
-        {
-            throw std::runtime_error(
-                fmt::format("Unexpected offer found for account {}",
-                            KeyUtils::toStrKey(of.first)));
-        }
-    }
-}
-
-void
-LedgerManagerImpl::advanceLedgerPointers()
-{
+    auto ledgerHash = sha256(xdr::xdr_to_opaque(header->header()));
     CLOG(DEBUG, "Ledger") << "Advancing LCL: "
                           << ledgerAbbrev(mLastClosedLedger) << " -> "
-                          << ledgerAbbrev(mCurrentLedger);
+                          << ledgerAbbrev(header->header(), ledgerHash);
 
-    mLastClosedLedger.hash = mCurrentLedger->getHash();
-    mLastClosedLedger.header = mCurrentLedger->mHeader;
+    mLastClosedLedger.hash = ledgerHash;
+    mLastClosedLedger.header = header->header();
 
-    mCurrentLedger = make_shared<LedgerHeaderFrame>(mLastClosedLedger);
+    ++header->header().ledgerSeq;
+    header->header().previousLedgerHash = ledgerHash;
     CLOG(DEBUG, "Ledger") << "New current ledger: seq="
-                          << mCurrentLedger->mHeader.ledgerSeq;
+                          << header->header().ledgerSeq;
 }
 
 void
 LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                                      LedgerDelta& delta)
+                                      LedgerState& ls)
 {
     CLOG(DEBUG, "Ledger") << "processing fees and sequence numbers";
     int index = 0;
     try
     {
-        soci::transaction sqlTx(mApp.getDatabase().getSession());
+        // TODO(jonjove): Need a LedgerState here?
         for (auto tx : txs)
         {
-            LedgerDelta thisTxDelta(delta);
-            tx->processFeeSeqNum(thisTxDelta, *this);
-            tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
-            thisTxDelta.commit();
+            LedgerState lsInner(ls);
+            auto header = lsInner.loadHeader();
+            uint32_t ledgerSeq = header->header().ledgerSeq;
+            header->invalidate();
+
+            tx->processFeeSeqNum(lsInner);
+            tx->storeTransactionFee(mApp.getDatabase(), ledgerSeq, lsInner.getChanges(), ++index);
+            lsInner.updateLastModified();
+            lsInner.commit();
         }
-        sqlTx.commit();
     }
     catch (std::exception& e)
     {
@@ -923,15 +831,23 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
 
 void
 LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
-                                     LedgerDelta& ledgerDelta,
+                                     LedgerState& ls,
                                      TransactionResultSet& txResultSet)
 {
+    auto lh = ls.loadHeader();
     CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
-                      << mCurrentLedger->mHeader.ledgerSeq;
+                      << getCurrentLedgerNum(lh);
+    lh->invalidate();
+
     int index = 0;
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
+        LedgerState lsTx(ls);
+        auto header = lsTx.loadHeader();
+        uint32_t ledgerSeq = header->header().ledgerSeq;
+        header->invalidate();
+
         TransactionMeta tm(1);
         try
         {
@@ -939,7 +855,7 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
                 << " tx#" << index << " = " << hexAbbrev(tx->getFullHash())
                 << " txseq=" << tx->getSeqNum() << " (@ "
                 << mApp.getConfig().toShortString(tx->getSourceID()) << ")";
-            tx->apply(ledgerDelta, tm.v1(), mApp);
+            tx->apply(lsTx, tm.v1(), mApp);
         }
         catch (InvariantDoesNotHold& e)
         {
@@ -955,21 +871,23 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
             CLOG(ERROR, "Ledger") << "Unknown exception during tx->apply";
             tx->getResult().result.code(txINTERNAL_ERROR);
         }
-        tx->storeTransaction(*this, tm, ++index, txResultSet);
+        lsTx.commit();
+        tx->storeTransaction(mApp.getDatabase(), ledgerSeq, tm, ++index, txResultSet);
     }
 }
 
 void
-LedgerManagerImpl::storeCurrentLedger()
+LedgerManagerImpl::storeCurrentLedger(std::shared_ptr<LedgerHeaderReference> header)
 {
-    mCurrentLedger->storeInsert(*this);
+    storeHeaderInDatabase(header->header());
 
+    auto ledgerHash = sha256(xdr::xdr_to_opaque(header->header()));
     mApp.getPersistentState().setState(PersistentState::kLastClosedLedger,
-                                       binToHex(mCurrentLedger->getHash()));
+                                       binToHex(ledgerHash));
 
     // Store the current HAS in the database; this is really just to checkpoint
     // the bucketlist so we can survive a restart and re-attach to the buckets.
-    HistoryArchiveState has(mCurrentLedger->mHeader.ledgerSeq,
+    HistoryArchiveState has(header->header().ledgerSeq,
                             mApp.getBucketManager().getBucketList());
 
     // We almost always want to try to resolve completed merges to single
@@ -987,15 +905,55 @@ LedgerManagerImpl::storeCurrentLedger()
 }
 
 void
-LedgerManagerImpl::ledgerClosed(LedgerDelta const& delta)
+LedgerManagerImpl::ledgerClosed(LedgerState& ls)
 {
-    delta.markMeters(mApp);
-    mApp.getBucketManager().addBatch(mApp, mCurrentLedger->mHeader.ledgerSeq,
-                                     delta.getLiveEntries(),
-                                     delta.getDeadEntries());
+    auto header = ls.loadHeader();
 
-    mApp.getBucketManager().snapshotLedger(mCurrentLedger->mHeader);
-    storeCurrentLedger();
-    advanceLedgerPointers();
+    mApp.getBucketManager().addBatch(mApp, header->header().ledgerSeq,
+                                     ls.getLiveEntries(),
+                                     ls.getDeadEntries());
+
+    mApp.getBucketManager().snapshotLedger(header->header());
+    storeCurrentLedger(header);
+    advanceLedgerPointers(header);
+
+    header->invalidate();
+}
+
+void
+LedgerManagerImpl::storeHeaderInDatabase(LedgerHeader const& header)
+{
+    auto headerBytes(xdr::xdr_to_opaque(header));
+    std::string hash(binToHex(sha256(headerBytes))),
+        prevHash(binToHex(header.previousLedgerHash)),
+        bucketListHash(binToHex(header.bucketListHash));
+
+    std::string headerEncoded;
+    headerEncoded = bn::encode_b64(headerBytes);
+
+    auto& db = mApp.getDatabase();
+
+    // note: columns other than "data" are there to faciliate lookup/processing
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO ledgerheaders "
+        "(ledgerhash, prevhash, bucketlisthash, ledgerseq, closetime, data) "
+        "VALUES "
+        "(:h,        :ph,      :blh,            :seq,     :ct,       :data)");
+    auto& st = prep.statement();
+    st.exchange(soci::use(hash));
+    st.exchange(soci::use(prevHash));
+    st.exchange(soci::use(bucketListHash));
+    st.exchange(soci::use(header.ledgerSeq));
+    st.exchange(soci::use(header.scpValue.closeTime));
+    st.exchange(soci::use(headerEncoded));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("ledger-header");
+        st.execute(true);
+    }
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
 }
 }

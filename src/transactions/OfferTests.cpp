@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "database/Database.h"
-#include "ledger/LedgerManager.h"
 #include "lib/util/uint128_t.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -14,6 +13,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/OfferExchange.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/format.h"
@@ -44,11 +44,11 @@ TEST_CASE("create offer", "[tx][offers]")
     int64_t trustLineBalance = 100000;
     int64_t trustLineLimit = trustLineBalance * 10;
 
-    int64_t txfee = app->getLedgerManager().getTxFee();
+    int64_t txfee = getCurrentTxFee(app->getLedgerStateRoot());
 
     // minimum balance necessary to hold 2 trust lines
     const int64_t minBalance2 =
-        app->getLedgerManager().getMinBalance(2) + 20 * txfee;
+        getCurrentMinBalance(app->getLedgerStateRoot(), 2) + 20 * txfee;
 
     // sets up issuer account
     auto issuer = root.create("issuer", minBalance2 * 10);
@@ -321,7 +321,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
     SECTION("update offer")
     {
-        auto const minBalanceA = app->getLedgerManager().getMinBalance(3);
+        auto const minBalanceA = getCurrentMinBalance(app->getLedgerStateRoot(), 3);
         auto a1 = root.create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
@@ -442,8 +442,8 @@ TEST_CASE("create offer", "[tx][offers]")
     {
         auto const nbOffers = 22;
         auto const minBalanceA =
-            app->getLedgerManager().getMinBalance(3 + nbOffers);
-        auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
+            getCurrentMinBalance(app->getLedgerStateRoot(), 3 + nbOffers);
+        auto const minBalance3 = getCurrentMinBalance(app->getLedgerStateRoot(), 3);
         auto a1 = root.create("A", minBalanceA + 10000);
         a1.changeTrust(usd, trustLineLimit);
         a1.changeTrust(idr, trustLineLimit);
@@ -497,7 +497,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 };
                 SECTION("small offer amount - cross only")
                 {
-                    auto base0 = app->getLedgerManager().getMinBalance(1);
+                    auto base0 = getCurrentMinBalance(app->getLedgerStateRoot(), 1);
 
                     auto offerAmount = 1000;
 
@@ -528,7 +528,7 @@ TEST_CASE("create offer", "[tx][offers]")
                 }
                 SECTION("large amount (oversell) - cross & create")
                 {
-                    auto const base2 = app->getLedgerManager().getMinBalance(2);
+                    auto const base2 = getCurrentMinBalance(app->getLedgerStateRoot(), 2);
 
                     const int64 delta = 100;
                     const int64 payment = 1000;
