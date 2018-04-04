@@ -50,6 +50,8 @@ class ProcessManagerImpl : public ProcessManager
     void startSignalWait();
     void handleSignalWait();
     void handleProcessTermination(int pid, int status);
+    void cleanShutdown(ProcessExitEvent::Impl& impl);
+    void forceShutdown(ProcessExitEvent::Impl& impl);
 
     friend class ProcessExitEvent::Impl;
 

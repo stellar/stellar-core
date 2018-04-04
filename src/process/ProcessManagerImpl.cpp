@@ -27,12 +27,19 @@
 #include <regex>
 #include <string>
 
+#ifndef _WIN32
+#include <errno.h>
+#endif
+
 #ifdef __APPLE__
 extern char** environ;
 #endif
 
 namespace stellar
 {
+
+static const asio::error_code ABORT_ERROR_CODE(asio::error::operation_aborted,
+                                               asio::system_category());
 
 std::shared_ptr<ProcessManager>
 ProcessManager::create(Application& app)
@@ -99,24 +106,8 @@ ProcessManagerImpl::getNumRunningProcesses()
 ProcessManagerImpl::~ProcessManagerImpl()
 {
     const auto killProcess = [&](ProcessExitEvent::Impl& impl) {
-        const int pid = impl.getProcessId();
-        auto ec = asio::error_code(1, asio::system_category());
-        impl.cancel(ec);
-#ifdef _WIN32
-        if (!TerminateProcess(impl.mProcessHandle.native_handle(), 1))
-        {
-            CLOG(WARNING, "Process")
-                << "failed to terminate process with pid " << pid;
-        }
-        impl.mProcessHandle.cancel(ec);
-#else
-        int result = kill(pid, SIGKILL);
-        if (result != 0)
-        {
-            CLOG(WARNING, "Process")
-                << "kill (SIGKILL) failed for pid " << pid << ": " << result;
-        }
-#endif
+        impl.cancel(ABORT_ERROR_CODE);
+        forceShutdown(impl);
     };
     // Use SIGKILL on any processes we already used SIGINT on
     while (!mKillableImpls.empty())
@@ -149,8 +140,7 @@ ProcessManagerImpl::shutdown()
     if (!mIsShutdown)
     {
         mIsShutdown = true;
-        auto ec = asio::error_code(asio::error::operation_aborted,
-                                   asio::system_category());
+        auto ec = ABORT_ERROR_CODE;
 
         // Cancel all pending.
         std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
@@ -165,18 +155,9 @@ ProcessManagerImpl::shutdown()
         {
             // Mark it as "ready to be killed"
             mKillableImpls.push_back(pair.second);
+            // Cancel any pending events and shut down the process cleanly
             pair.second->cancel(ec);
-#ifdef _WIN32
-            pair.second->mProcessHandle.cancel(ec);
-#else
-            const int pid = pair.second->getProcessId();
-            int result = kill(pid, SIGINT);
-            if (result != 0)
-            {
-                CLOG(WARNING, "Process")
-                    << "kill (SIGINT) failed for pid " << pid << ": " << result;
-            }
-#endif
+            cleanShutdown(*pair.second);
         }
         mImpls.clear();
         gNumProcessesActive = 0;
@@ -257,7 +238,7 @@ ProcessExitEvent::Impl::run()
                        nullptr, // Process handle not inheritable
                        nullptr, // Thread handle not inheritable
                        TRUE,    // Inherit file handles
-                       0,       // No creation flags
+                       CREATE_NEW_PROCESS_GROUP, // Create a new process group
                        nullptr, // Use parent's environment block
                        nullptr, // Use parent's starting directory
                        &si,     // Pointer to STARTUPINFO structure
@@ -320,6 +301,31 @@ ProcessManagerImpl::handleProcessTermination(int pid, int /*status*/)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
     mImpls.erase(pid);
+}
+
+void
+ProcessManagerImpl::cleanShutdown(ProcessExitEvent::Impl& impl)
+{
+    if (!GenerateConsoleCtrlEvent(CTRL_C_EVENT, impl.getProcessId()))
+    {
+        CLOG(WARNING, "Process")
+            << "failed to cleanly shutdown process with pid "
+            << impl.getProcessId() << ", error code " << GetLastError();
+    }
+}
+
+void
+ProcessManagerImpl::forceShutdown(ProcessExitEvent::Impl& impl)
+{
+    if (!TerminateProcess(impl.mProcessHandle.native_handle(), 1))
+    {
+        CLOG(WARNING, "Process")
+            << "failed to force shutdown of process with pid "
+            << impl.getProcessId() << ", error code " << GetLastError();
+    }
+    // Cancel any pending events on the handle. Ignore error code
+    asio::error_code dummy;
+    impl.mProcessHandle.cancel(dummy);
 }
 
 #else
@@ -444,6 +450,28 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
     maybeRunPendingProcesses();
 
     impl->cancel(ec);
+}
+
+void
+ProcessManagerImpl::cleanShutdown(ProcessExitEvent::Impl& impl)
+{
+    const int pid = impl.getProcessId();
+    if (kill(pid, SIGINT) != 0)
+    {
+        CLOG(WARNING, "Process")
+            << "kill (SIGINT) failed for pid " << pid << ", errno " << errno;
+    }
+}
+
+void
+ProcessManagerImpl::forceShutdown(ProcessExitEvent::Impl& impl)
+{
+    const int pid = impl.getProcessId();
+    if (kill(pid, SIGKILL) != 0)
+    {
+        CLOG(WARNING, "Process")
+            << "kill (SIGKILL) failed for pid " << pid << ", errno " << errno;
+    }
 }
 
 static std::vector<std::string>
