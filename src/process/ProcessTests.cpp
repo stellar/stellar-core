@@ -160,35 +160,44 @@ TEST_CASE("subprocess storm", "[process]")
 TEST_CASE("shutdown while process running", "[process]")
 {
     VirtualClock clock;
-    Config const& cfg = getTestConfig();
-    Application::pointer app = createTestApplication(clock, cfg);
+    auto const& cfg1 = getTestConfig(0);
+    auto const& cfg2 = getTestConfig(1);
+    auto app1 = createTestApplication(clock, cfg1);
+    auto app2 = createTestApplication(clock, cfg2);
 #ifdef _WIN32
     std::string command = "waitfor /T 10 pause";
 #else
     std::string command = "sleep 10";
 #endif
-    auto evt = app->getProcessManager().runProcess(command);
-    bool exited = false;
-    bool failed = false;
-    asio::error_code errorCode;
-    evt.async_wait([&](asio::error_code ec) {
-        CLOG(DEBUG, "Process") << "process exited: " << ec;
-        if (ec)
-        {
-            CLOG(DEBUG, "Process") << "error code: " << ec.message();
-        }
-        failed = !!ec;
-        exited = true;
-        errorCode = ec;
-    });
+    std::vector<ProcessExitEvent> events = {
+        app1->getProcessManager().runProcess(command),
+        app2->getProcessManager().runProcess(command)};
+    std::vector<asio::error_code> errorCodes;
+    size_t exitedCount = 0;
+    for (auto& event : events)
+    {
+        event.async_wait([&](asio::error_code ec) {
+            CLOG(DEBUG, "Process") << "process exited: " << ec;
+            if (ec)
+            {
+                CLOG(DEBUG, "Process") << "error code: " << ec.message();
+            }
+            exitedCount++;
+            errorCodes.push_back(ec);
+        });
+    }
 
     // Shutdown so we force the command execution to fail
-    app->getProcessManager().shutdown();
+    app1->getProcessManager().shutdown();
+    app2->getProcessManager().shutdown();
 
-    while (!exited && !clock.getIOService().stopped())
+    while (exitedCount < events.size() && !clock.getIOService().stopped())
     {
         clock.crank(true);
     }
-    REQUIRE(failed);
-    REQUIRE(errorCode == asio::error::operation_aborted);
+    REQUIRE(exitedCount == events.size());
+    for (auto const& errorCode : errorCodes)
+    {
+        REQUIRE(errorCode == asio::error::operation_aborted);
+    }
 }
