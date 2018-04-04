@@ -592,23 +592,27 @@ TEST_CASE("Catchup manual", "[history][catchupmanual]")
 
     for (auto const& test : stellar::gCatchupRangeCases)
     {
-        auto lastClosedLedger = test.first;
-        auto configuration = test.second;
-        auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
-                                lastClosedLedger, configuration.toLedger(),
-                                configuration.count());
-
-        SECTION(name)
+        // test only 5% of those configurations
+        if (std::rand() % 20 == 0)
         {
-            // manual catchup-recent
-            auto a = catchupSimulation.catchupNewApplication(
-                configuration.toLedger(), configuration.count(), true, dbMode,
-                name);
-            // manual catchup-complete to first checkpoint
-            catchupSimulation.catchupApplication(
-                initLedger1, std::numeric_limits<uint32_t>::max(), true, a);
-            // manual catchup-complete to second checkpoint
-            catchupSimulation.catchupApplication(initLedger2, 80, false, a);
+            auto lastClosedLedger = test.first;
+            auto configuration = test.second;
+            auto name = fmt::format("lcl = {}, to ledger = {}, count = {}",
+                                    lastClosedLedger, configuration.toLedger(),
+                                    configuration.count());
+
+            SECTION(name)
+            {
+                // manual catchup-recent
+                auto a = catchupSimulation.catchupNewApplication(
+                    configuration.toLedger(), configuration.count(), true,
+                    dbMode, name);
+                // manual catchup-complete to first checkpoint
+                catchupSimulation.catchupApplication(
+                    initLedger1, std::numeric_limits<uint32_t>::max(), true, a);
+                // manual catchup-complete to second checkpoint
+                catchupSimulation.catchupApplication(initLedger2, 80, false, a);
+            }
         }
     }
 }
