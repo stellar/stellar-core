@@ -19,6 +19,7 @@
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/TxSetCache.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -735,7 +736,8 @@ void
 Peer::recvGetTxSet(StellarMessage const& msg)
 {
     auto self = shared_from_this();
-    if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
+    if (auto txSet =
+            mApp.getOverlayManager().getTxSetCache().get(msg.txSetHash()))
     {
         StellarMessage newMsg;
         newMsg.type(TX_SET);

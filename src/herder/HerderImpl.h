@@ -76,7 +76,6 @@ class HerderImpl : public Herder
     bool recvTxSet(TxSetFramePtr txset) override;
     void peerDoesntHave(MessageType type, uint256 const& itemID,
                         PeerPtr peer) override;
-    TxSetFramePtr getTxSet(Hash const& hash) override;
     SCPQuorumSetPtr getQSet(Hash const& qSetHash) override;
 
     void processSCPQueue();

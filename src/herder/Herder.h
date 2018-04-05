@@ -109,7 +109,6 @@ class Herder
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
                                 uint256 const& itemID, PeerPtr peer) = 0;
-    virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     // We are learning about a new envelope.

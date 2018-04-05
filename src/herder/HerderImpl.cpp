@@ -649,12 +649,6 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-TxSetFramePtr
-HerderImpl::getTxSet(Hash const& hash)
-{
-    return mApp.getOverlayManager().getTxSetCache().get(hash);
-}
-
 SCPQuorumSetPtr
 HerderImpl::getQSet(Hash const& qSetHash)
 {
