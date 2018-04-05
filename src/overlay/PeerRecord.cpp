@@ -7,11 +7,11 @@
 #include "main/Application.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
-#include "util/SociNoWarnings.h"
 #include "util/must_use.h"
 #include <algorithm>
 #include <cmath>
 #include <regex>
+#include <soci.h>
 #include <vector>
 
 #define SECONDS_PER_BACKOFF 10

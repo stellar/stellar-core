@@ -9,10 +9,10 @@
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "scp/Slot.h"
-#include "util/SociNoWarnings.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
 #include <lib/util/basen.h>
+#include <soci.h>
 #include <xdrpp/marshal.h>
 
 namespace stellar

@@ -10,7 +10,7 @@
 #include "overlay/StellarXDR.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
-#include "util/SociNoWarnings.h"
+#include <soci.h>
 
 namespace stellar
 {

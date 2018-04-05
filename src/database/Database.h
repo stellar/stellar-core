@@ -7,10 +7,10 @@
 #include "medida/timer_context.h"
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
-#include "util/SociNoWarnings.h"
 #include "util/Timer.h"
 #include "util/lrucache.hpp"
 #include <set>
+#include <soci.h>
 #include <string>
 
 namespace medida
