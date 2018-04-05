@@ -7,8 +7,6 @@
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 
-using namespace std;
-
 #define QSET_CACHE_SIZE 10000
 
 namespace stellar

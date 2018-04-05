@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
+#include "overlay/TxSetCache.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include <scp/Slot.h>
@@ -15,8 +16,6 @@
 
 using namespace std;
 
-#define QSET_CACHE_SIZE 10000
-#define TXSET_CACHE_SIZE 10000
 #define NODES_QUORUM_CACHE_SIZE 1000
 
 namespace stellar
@@ -29,7 +28,6 @@ PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
           app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); })
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
-    , mTxSetCache(TXSET_CACHE_SIZE)
     , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
     , mReadyEnvelopesSize(
           app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
@@ -112,7 +110,8 @@ PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex,
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
-    mTxSetCache.put(hash, std::make_pair(lastSeenSlotIndex, txset));
+    mApp.getOverlayManager().getTxSetCache().add(hash, lastSeenSlotIndex,
+                                                 txset);
     mTxSetFetcher.recv(hash);
 }
 
@@ -294,10 +293,11 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
         return false;
 
     auto txSetHashes = getTxSetHashes(envelope);
-    return std::all_of(std::begin(txSetHashes), std::end(txSetHashes),
-                       [this](Hash const& txSetHash) {
-                           return mTxSetCache.exists(txSetHash);
-                       });
+    return std::all_of(
+        std::begin(txSetHashes), std::end(txSetHashes),
+        [this](Hash const& txSetHash) {
+            return mApp.getOverlayManager().getTxSetCache().contains(txSetHash);
+        });
 }
 
 void
@@ -311,7 +311,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 
     for (auto const& h2 : getTxSetHashes(envelope))
     {
-        if (!mTxSetCache.exists(h2))
+        if (!mApp.getOverlayManager().getTxSetCache().contains(h2))
         {
             mTxSetFetcher.fetch(h2, envelope);
         }
@@ -345,11 +345,8 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 
     for (auto const& h : getTxSetHashes(envelope))
     {
-        if (mTxSetCache.exists(h))
-        {
-            auto& item = mTxSetCache.get(h);
-            item.first = std::max(item.first, envelope.statement.slotIndex);
-        }
+        mApp.getOverlayManager().getTxSetCache().touch(
+            h, envelope.statement.slotIndex);
     }
 }
 
@@ -397,11 +394,7 @@ PendingEnvelopes::eraseBelow(uint64 slotIndex)
             break;
     }
 
-    // 0 is special mark for data that we do not know the slot index
-    // it is used for state loaded from database
-    mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex;
-    });
+    mApp.getOverlayManager().getTxSetCache().eraseBelow(slotIndex);
 }
 
 void
@@ -421,20 +414,8 @@ PendingEnvelopes::slotClosed(uint64 slotIndex)
         mTxSetFetcher.stopFetchingBelow(slotIndex + 1);
         mQuorumSetFetcher.stopFetchingBelow(slotIndex + 1);
 
-        mTxSetCache.erase_if(
-            [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
+        mApp.getOverlayManager().getTxSetCache().eraseAt(slotIndex);
     }
-}
-
-TxSetFramePtr
-PendingEnvelopes::getTxSet(Hash const& hash)
-{
-    if (mTxSetCache.exists(hash))
-    {
-        return mTxSetCache.get(hash).second;
-    }
-
-    return TxSetFramePtr();
 }
 
 Json::Value

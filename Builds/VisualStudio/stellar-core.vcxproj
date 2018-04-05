@@ -514,6 +514,7 @@ exit /b 0
     <ClCompile Include="..\..\src\overlay\PeerDoor.cpp" />
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp" />
     <ClCompile Include="..\..\src\overlay\QSetCache.cpp" />
+    <ClCompile Include="..\..\src\overlay\TxSetCache.cpp" />
     <ClCompile Include="..\..\src\overlay\TCPPeer.cpp" />
     <ClCompile Include="..\..\src\process\ProcessManagerImpl.cpp" />
     <ClCompile Include="..\..\src\process\ProcessTests.cpp" />
@@ -660,6 +661,7 @@ exit /b 0
     <ClInclude Include="..\..\src\overlay\LoopbackPeer.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManager.h" />
     <ClInclude Include="..\..\src\overlay\QSetCache.h" />
+    <ClInclude Include="..\..\src\overlay\TxSetCache.h" />
     <ClInclude Include="..\..\src\overlay\Peer.h" />
     <ClInclude Include="..\..\src\overlay\PeerDoor.h" />
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h" />

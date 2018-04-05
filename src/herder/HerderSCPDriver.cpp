@@ -13,6 +13,7 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
+#include "overlay/TxSetCache.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -248,7 +249,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 
     // we are fully synced up
 
-    TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    TxSetFramePtr txSet =
+        mApp.getOverlayManager().getTxSetCache().get(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -518,7 +520,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         TxSetFramePtr highestTxSet;
         for (auto const& sv : candidateValues)
         {
-            TxSetFramePtr cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
+            TxSetFramePtr cTxSet =
+                mApp.getOverlayManager().getTxSetCache().get(sv.txSetHash);
 
             if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {

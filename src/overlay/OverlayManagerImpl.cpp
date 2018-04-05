@@ -430,6 +430,12 @@ OverlayManagerImpl::getQSetCache()
     return mQSetCache;
 }
 
+TxSetCache&
+OverlayManagerImpl::getTxSetCache()
+{
+    return mTxSetCache;
+}
+
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {

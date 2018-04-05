@@ -17,6 +17,7 @@
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
+#include "overlay/TxSetCache.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
@@ -180,7 +181,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         CLOG(DEBUG, "Herder") << "HerderSCPDriver::valueExternalized"
                               << " txSet: " << hexAbbrev(value.txSetHash);
 
-    TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
+    TxSetFramePtr externalizedSet =
+        mApp.getOverlayManager().getTxSetCache().get(value.txSetHash);
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -650,7 +652,7 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
 TxSetFramePtr
 HerderImpl::getTxSet(Hash const& hash)
 {
-    return mPendingEnvelopes.getTxSet(hash);
+    return mApp.getOverlayManager().getTxSetCache().get(hash);
 }
 
 SCPQuorumSetPtr
@@ -897,7 +899,7 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getTxSetHashes(e))
         {
-            auto txSet = mPendingEnvelopes.getTxSet(h);
+            auto txSet = mApp.getOverlayManager().getTxSetCache().get(h);
             if (txSet)
             {
                 txSets.insert(std::make_pair(h, txSet));

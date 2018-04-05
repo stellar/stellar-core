@@ -44,10 +44,6 @@ class PendingEnvelopes
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
-    using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
-    // all the txsets we have learned about per ledger#
-    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
-
     // NodeIDs that are in quorum
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
@@ -124,7 +120,5 @@ class PendingEnvelopes
     std::vector<uint64> readySlots();
 
     Json::Value getJsonInfo(size_t limit);
-
-    TxSetFramePtr getTxSet(Hash const& hash);
 };
 }

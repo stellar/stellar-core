@@ -15,6 +15,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
+#include "overlay/TxSetCache.h"
 #include "util/Timer.h"
 
 #include <set>
@@ -46,6 +47,7 @@ class OverlayManagerImpl : public OverlayManager
     PeerAuth mAuth;
     LoadManager mLoad;
     QSetCache mQSetCache;
+    TxSetCache mTxSetCache;
     bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
@@ -102,6 +104,7 @@ class OverlayManagerImpl : public OverlayManager
 
     LoadManager& getLoadManager() override;
     QSetCache& getQSetCache() override;
+    TxSetCache& getTxSetCache() override;
 
     void start() override;
     void shutdown() override;
