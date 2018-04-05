@@ -424,6 +424,12 @@ OverlayManagerImpl::moveToAuthenticated(Peer::pointer peer)
     return true;
 }
 
+QSetCache&
+OverlayManagerImpl::getQSetCache()
+{
+    return mQSetCache;
+}
+
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {

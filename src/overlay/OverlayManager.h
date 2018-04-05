@@ -50,6 +50,7 @@ class PeerAuth;
 class PeerBareAddress;
 class PeerRecord;
 class LoadManager;
+class QSetCache;
 
 class OverlayManager
 {
@@ -133,6 +134,9 @@ class OverlayManager
 
     // Return the persistent peer-load-accounting cache.
     virtual LoadManager& getLoadManager() = 0;
+
+    // return the persisten query set cache
+    virtual QSetCache& getQSetCache() = 0;
 
     // start up all background tasks for overlay
     virtual void start() = 0;

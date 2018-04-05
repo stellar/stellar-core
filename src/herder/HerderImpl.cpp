@@ -16,6 +16,7 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/QSetCache.h"
 #include "scp/LocalNode.h"
 #include "scp/Slot.h"
 #include "util/Logging.h"
@@ -902,8 +903,9 @@ HerderImpl::persistSCPState(uint64 slot)
                 txSets.insert(std::make_pair(h, txSet));
             }
         }
+
         auto qsHash = getQuorumSetHash(e);
-        SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
+        auto qSet = mApp.getOverlayManager().getQSetCache().get(qsHash);
         if (qSet)
         {
             quorumSets.insert(std::make_pair(qsHash, qSet));

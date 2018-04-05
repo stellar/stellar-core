@@ -159,6 +159,9 @@
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\overlay\QSetCache.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\bucket\BucketList.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
@@ -897,6 +900,9 @@
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayManagerImpl.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\QSetCache.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\Config.h">

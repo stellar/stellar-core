@@ -13,8 +13,10 @@
 #include "overlay/Floodgate.h"
 #include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
 #include "util/Timer.h"
+
 #include <set>
 #include <vector>
 
@@ -43,6 +45,7 @@ class OverlayManagerImpl : public OverlayManager
     PeerDoor mDoor;
     PeerAuth mAuth;
     LoadManager mLoad;
+    QSetCache mQSetCache;
     bool mShuttingDown;
 
     medida::Meter& mMessagesReceived;
@@ -98,6 +101,7 @@ class OverlayManagerImpl : public OverlayManager
     PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
+    QSetCache& getQSetCache() override;
 
     void start() override;
     void shutdown() override;

@@ -41,9 +41,6 @@ class PendingEnvelopes
     // ledger# and list of envelopes in various states
     std::map<uint64, SlotEnvelopes> mEnvelopes;
 
-    // all the quorum sets we have learned about
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
-
     ItemFetcher mTxSetFetcher;
     ItemFetcher mQuorumSetFetcher;
 
@@ -129,6 +126,5 @@ class PendingEnvelopes
     Json::Value getJsonInfo(size_t limit);
 
     TxSetFramePtr getTxSet(Hash const& hash);
-    SCPQuorumSetPtr getQSet(Hash const& hash);
 };
 }

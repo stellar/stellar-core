@@ -11,6 +11,8 @@
 #include "herder/PendingEnvelopes.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/QSetCache.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -677,7 +679,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
 SCPQuorumSetPtr
 HerderSCPDriver::getQSet(Hash const& qSetHash)
 {
-    return mPendingEnvelopes.getQSet(qSetHash);
+    return mApp.getOverlayManager().getQSetCache().get(qSetHash);
 }
 
 void

@@ -6,9 +6,10 @@
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/QSetCache.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
-#include <overlay/OverlayManager.h>
 #include <scp/Slot.h>
 #include <xdrpp/marshal.h>
 
@@ -24,7 +25,6 @@ namespace stellar
 PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
     : mApp(app)
     , mHerder(herder)
-    , mQsetCache(QSET_CACHE_SIZE)
     , mTxSetFetcher(
           app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); })
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
@@ -61,13 +61,12 @@ PendingEnvelopes::peerDoesntHave(MessageType type, Hash const& itemID,
 void
 PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 {
-    assert(isQuorumSetSane(q, false));
-
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
-    SCPQuorumSetPtr qset(new SCPQuorumSet(q));
+    assert(isQuorumSetSane(q, false));
+    // force recomputation of transitive quorum information
     mNodesInQuorum.clear();
-    mQsetCache.put(hash, qset);
+    mApp.getOverlayManager().getQSetCache().add(hash, q);
 
     mQuorumSetFetcher.recv(hash);
 }
@@ -290,7 +289,8 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(getQuorumSetHash(envelope)))
+    if (!mApp.getOverlayManager().getQSetCache().contains(
+            getQuorumSetHash(envelope)))
         return false;
 
     auto txSetHashes = getTxSetHashes(envelope);
@@ -304,7 +304,7 @@ void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     auto h = getQuorumSetHash(envelope);
-    if (!mQsetCache.exists(h))
+    if (!mApp.getOverlayManager().getQSetCache().contains(h))
     {
         mQuorumSetFetcher.fetch(h, envelope);
     }
@@ -341,11 +341,7 @@ PendingEnvelopes::touchFetchCache(SCPEnvelope const& envelope)
 {
     auto qsetHash =
         Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
-    if (mQsetCache.exists(qsetHash))
-    {
-        // touch LRU
-        mQsetCache.get(qsetHash);
-    }
+    mApp.getOverlayManager().getQSetCache().touch(qsetHash);
 
     for (auto const& h : getTxSetHashes(envelope))
     {
@@ -439,17 +435,6 @@ PendingEnvelopes::getTxSet(Hash const& hash)
     }
 
     return TxSetFramePtr();
-}
-
-SCPQuorumSetPtr
-PendingEnvelopes::getQSet(Hash const& hash)
-{
-    if (mQsetCache.exists(hash))
-    {
-        return mQsetCache.get(hash);
-    }
-
-    return SCPQuorumSetPtr();
 }
 
 Json::Value
