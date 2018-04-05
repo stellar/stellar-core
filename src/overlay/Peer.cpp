@@ -18,6 +18,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
+#include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxSetCache.h"
 #include "util/Logging.h"
@@ -787,8 +788,7 @@ Peer::recvTransaction(StellarMessage const& msg)
 void
 Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 {
-    SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
-
+    auto qset = mApp.getOverlayManager().getQSetCache().get(msg.qSetHash());
     if (qset)
     {
         sendSCPQuorumSet(qset);

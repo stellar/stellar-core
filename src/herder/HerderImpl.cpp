@@ -649,12 +649,6 @@ HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
     mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
 }
 
-SCPQuorumSetPtr
-HerderImpl::getQSet(Hash const& qSetHash)
-{
-    return mHerderSCPDriver.getQSet(qSetHash);
-}
-
 uint32_t
 HerderImpl::getCurrentLedgerSeq() const
 {

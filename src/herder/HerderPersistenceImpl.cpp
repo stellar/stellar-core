@@ -9,6 +9,8 @@
 #include "herder/Herder.h"
 #include "herder/HerderUtils.h"
 #include "main/Application.h"
+#include "overlay/OverlayManager.h"
+#include "overlay/QSetCache.h"
 #include "scp/Slot.h"
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
@@ -63,8 +65,8 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     for (auto const& e : envs)
     {
         auto const& qHash = getQuorumSetHash(e);
-        usedQSets.insert(
-            std::make_pair(qHash, mApp.getHerder().getQSet(qHash)));
+        usedQSets.insert(std::make_pair(
+            qHash, mApp.getOverlayManager().getQSetCache().get(qHash)));
 
         std::string nodeIDStrKey = KeyUtils::toStrKey(e.statement.nodeID);
 
