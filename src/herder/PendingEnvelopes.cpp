@@ -118,8 +118,9 @@ PendingEnvelopes::addTxSet(Hash hash, uint64 lastSeenSlotIndex,
 }
 
 bool
-PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
+PendingEnvelopes::recvTxSet(TxSetFramePtr txset)
 {
+    auto hash = txset->getContentsHash();
     CLOG(TRACE, "Herder") << "Got TxSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mTxSetFetcher.getLastSeenSlotIndex(hash);

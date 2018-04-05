@@ -752,8 +752,8 @@ Peer::recvGetTxSet(StellarMessage const& msg)
 void
 Peer::recvTxSet(StellarMessage const& msg)
 {
-    TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
-    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
+    mApp.getHerder().recvTxSet(
+        std::make_shared<TxSetFrame>(mApp.getNetworkID(), msg.txSet()));
 }
 
 void

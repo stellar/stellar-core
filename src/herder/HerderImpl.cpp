@@ -634,10 +634,9 @@ HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
 }
 
 bool
-HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
+HerderImpl::recvTxSet(TxSetFramePtr txset)
 {
-    TxSetFramePtr txset(new TxSetFrame(t));
-    return mPendingEnvelopes.recvTxSet(hash, txset);
+    return mPendingEnvelopes.recvTxSet(txset);
 }
 
 void

@@ -99,13 +99,12 @@ class PendingEnvelopes
     void addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr txset);
 
     /**
-     * Check if @p txset identified by @p hash was requested before from peers.
-     * If not, ignores that @p txset. If it was requested, calls
-     * @see addTxSet.
+     * Check if @p txset identified was requested before from peers. If not,
+     * ignores that @p txset. If it was requested, calls @see addTxSet.
      *
      * Return true if TxSet useful (was asked for).
      */
-    bool recvTxSet(Hash hash, TxSetFramePtr txset);
+    bool recvTxSet(TxSetFramePtr txset);
     void discardSCPEnvelope(SCPEnvelope const& envelope);
 
     void peerDoesntHave(MessageType type, Hash const& itemID,

@@ -546,7 +546,7 @@ TEST_CASE("SCP Driver", "[herder]")
             auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
             REQUIRE(herder.recvSCPEnvelope(envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p.second->getContentsHash(), *p.second));
+            REQUIRE(herder.recvTxSet(p.second));
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0);
@@ -636,7 +636,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPQuorumSet(saneQSet1));
-            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(herder.recvTxSet(p1.second));
             // will not return ENVELOPE_STATUS_READY as the recvSCPEnvelope() is
             // called internally
             // when QSet and TxSet are both received
@@ -670,22 +670,20 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(herder.recvTxSet(p1.second));
 
             SECTION("when re-receiving the same envelope")
             {
                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
-                                          *p1.second));
+                REQUIRE(!herder.recvTxSet(p1.second));
             }
 
             SECTION("when receiving different envelope with the same txset")
             {
                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ2T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(!herder.recvTxSet(p1.second->getContentsHash(),
-                                          *p1.second));
+                REQUIRE(!herder.recvTxSet(p1.second));
             }
         }
 
@@ -698,10 +696,8 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("do not accept unasked txset")
         {
-            REQUIRE(
-                !herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
-            REQUIRE(
-                !herder.recvTxSet(p2.second->getContentsHash(), *p2.second));
+            REQUIRE(!herder.recvTxSet(p1.second));
+            REQUIRE(!herder.recvTxSet(p2.second));
         }
 
         SECTION("do not accept not sane qset")
@@ -717,8 +713,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
-            REQUIRE(
-                !herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(!herder.recvTxSet(p1.second));
         }
 
         SECTION(
@@ -726,7 +721,7 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(herder.recvTxSet(p1.second));
             REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
         }
 
@@ -738,7 +733,7 @@ TEST_CASE("SCP Driver", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPQuorumSet(saneQSet1));
             REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
-            REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
+            REQUIRE(herder.recvTxSet(p1.second));
         }
     }
 }

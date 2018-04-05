@@ -104,7 +104,7 @@ class Herder
     virtual void restoreState() = 0;
 
     virtual bool recvSCPQuorumSet(SCPQuorumSet const& qset) = 0;
-    virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
+    virtual bool recvTxSet(TxSetFramePtr txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
