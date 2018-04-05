@@ -134,6 +134,9 @@ class CatchupSimulation
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
 
+    void crankForAtMost(Application::pointer app,
+                        VirtualClock::duration duration);
+
   public:
     explicit CatchupSimulation(
         std::shared_ptr<HistoryConfigurator> cg =
@@ -164,7 +167,6 @@ class CatchupSimulation
         return mBucketListAtLastPublish;
     }
 
-    void crankTillDone();
     void generateRandomLedger();
     void generateAndPublishHistory(size_t nPublishes);
     void generateAndPublishInitialHistory(size_t nPublishes);

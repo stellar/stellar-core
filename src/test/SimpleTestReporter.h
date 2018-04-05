@@ -75,7 +75,7 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     printDot()
     {
-        stream << '.';
+        stream << '.' << std::flush;
         mDots++;
         if (mDots == 40)
         {
