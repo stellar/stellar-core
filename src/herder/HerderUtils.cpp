@@ -11,6 +11,12 @@
 namespace stellar
 {
 
+Hash
+getQuorumSetHash(SCPEnvelope const& envelope)
+{
+    return Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
+}
+
 std::vector<Hash>
 getTxSetHashes(SCPEnvelope const& envelope)
 {

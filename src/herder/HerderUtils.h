@@ -14,6 +14,7 @@ struct SCPEnvelope;
 struct SCPStatement;
 struct StellarValue;
 
+Hash getQuorumSetHash(SCPEnvelope const& envelope);
 std::vector<Hash> getTxSetHashes(SCPEnvelope const& envelope);
 std::vector<StellarValue> getStellarValues(SCPStatement const& envelope);
 }

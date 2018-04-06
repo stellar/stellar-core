@@ -901,8 +901,8 @@ HerderImpl::persistSCPState(uint64 slot)
                 txSets.insert(std::make_pair(h, txSet));
             }
         }
-        Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
-        SCPQuorumSetPtr qSet = mApp.getPendingEnvelopes().getQSet(qsHash);
+        auto qsHash = getQuorumSetHash(e);
+        auto qSet = mApp.getPendingEnvelopes().getQSet(qsHash);
         if (qSet)
         {
             quorumSets.insert(std::make_pair(qsHash, qSet));
