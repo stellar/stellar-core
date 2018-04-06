@@ -288,8 +288,7 @@ PendingEnvelopes::envelopeReady(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 {
-    if (!mQsetCache.exists(
-            Slot::getCompanionQuorumSetHashFromStatement(envelope.statement)))
+    if (!mQsetCache.exists(getQuorumSetHash(envelope)))
         return false;
 
     auto txSetHashes = getTxSetHashes(envelope);
@@ -302,7 +301,7 @@ PendingEnvelopes::isFullyFetched(SCPEnvelope const& envelope)
 void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
-    Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
+    auto h = getQuorumSetHash(envelope);
 
     if (!mQsetCache.exists(h))
     {
@@ -324,7 +323,7 @@ PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 void
 PendingEnvelopes::stopFetch(SCPEnvelope const& envelope)
 {
-    Hash h = Slot::getCompanionQuorumSetHashFromStatement(envelope.statement);
+    auto h = getQuorumSetHash(envelope);
     mQuorumSetFetcher.stopFetch(h, envelope);
 
     for (auto const& h2 : getTxSetHashes(envelope))

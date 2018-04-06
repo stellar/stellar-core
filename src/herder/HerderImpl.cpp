@@ -903,7 +903,7 @@ HerderImpl::persistSCPState(uint64 slot)
                 txSets.insert(std::make_pair(h, txSet));
             }
         }
-        Hash qsHash = Slot::getCompanionQuorumSetHashFromStatement(e.statement);
+        auto qsHash = getQuorumSetHash(e);
         SCPQuorumSetPtr qSet = mPendingEnvelopes.getQSet(qsHash);
         if (qSet)
         {

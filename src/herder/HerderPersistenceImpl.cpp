@@ -7,6 +7,7 @@
 #include "database/Database.h"
 #include "database/DatabaseUtils.h"
 #include "herder/Herder.h"
+#include "herder/HerderUtils.h"
 #include "main/Application.h"
 #include "scp/Slot.h"
 #include "util/Decoder.h"
@@ -61,8 +62,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
     }
     for (auto const& e : envs)
     {
-        auto const& qHash =
-            Slot::getCompanionQuorumSetHashFromStatement(e.statement);
+        auto const& qHash = getQuorumSetHash(e);
         usedQSets.insert(
             std::make_pair(qHash, mApp.getHerder().getQSet(qHash)));
 
@@ -191,8 +191,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
                 xdr_argpack_archive(g1, env);
 
                 // record new quorum sets encountered
-                Hash const& qSetHash =
-                    Slot::getCompanionQuorumSetHashFromStatement(env.statement);
+                auto const& qSetHash = getQuorumSetHash(env);
                 if (qSets.find(qSetHash) == qSets.end())
                 {
                     missingQSets.insert(qSetHash);
