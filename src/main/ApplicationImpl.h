@@ -63,6 +63,7 @@ class ApplicationImpl : public Application
     virtual Herder& getHerder() override;
     virtual HerderPersistence& getHerderPersistence() override;
     virtual InvariantManager& getInvariantManager() override;
+    virtual ItemFetcher& getItemFetcher() override;
     virtual OverlayManager& getOverlayManager() override;
     virtual Database& getDatabase() const override;
     virtual PersistentState& getPersistentState() override;
@@ -139,6 +140,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<HistoryArchiveManager> mHistoryArchiveManager;
     std::unique_ptr<HistoryManager> mHistoryManager;
     std::unique_ptr<InvariantManager> mInvariantManager;
+    std::unique_ptr<ItemFetcher> mItemFetcher;
     std::unique_ptr<Maintainer> mMaintainer;
     std::shared_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;

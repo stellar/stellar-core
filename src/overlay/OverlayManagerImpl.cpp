@@ -558,12 +558,6 @@ OverlayManager::dropAll(Database& db)
     PeerRecord::dropAll(db);
 }
 
-std::set<Peer::pointer>
-OverlayManagerImpl::getPeersKnows(Hash const& h)
-{
-    return mFloodGate.getPeersKnows(h);
-}
-
 PeerAuth&
 OverlayManagerImpl::getPeerAuth()
 {

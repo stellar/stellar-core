@@ -21,7 +21,6 @@ namespace stellar
 class Application;
 class HerderImpl;
 class LedgerManager;
-class PendingEnvelopes;
 class SCP;
 class Upgrades;
 class VirtualTimer;
@@ -43,7 +42,7 @@ class HerderSCPDriver : public SCPDriver
 
     HerderSCPDriver(Application& app, HerderImpl& herder,
                     Upgrades const& upgrades,
-                    PendingEnvelopes& pendingEnvelopes);
+                    std::function<void(TxSetFramePtr)> txSetCreated);
     ~HerderSCPDriver();
 
     void bootstrap();
@@ -142,7 +141,7 @@ class HerderSCPDriver : public SCPDriver
     HerderImpl& mHerder;
     LedgerManager& mLedgerManager;
     Upgrades const& mUpgrades;
-    PendingEnvelopes& mPendingEnvelopes;
+    std::function<void(TxSetFramePtr)> mTxSetCreated;
     SCP mSCP;
 
     struct SCPMetrics

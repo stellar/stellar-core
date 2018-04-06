@@ -25,17 +25,13 @@ class TxSetCache
     /**
      * Add @p txset identified by @p hash to local cache.
      */
-    void add(Hash hash, uint64_t lastSeenSlotIndex, TxSetFramePtr txset);
-    void touch(Hash hash, uint64_t lastSeenSlotIndex);
+    void add(Hash hash, TxSetFramePtr txset);
+    void touch(Hash hash);
 
     bool contains(Hash hash) const;
     TxSetFramePtr get(Hash const& hash);
 
-    void eraseBelow(uint64_t slotIndex);
-    void eraseAt(uint64_t slotIndex);
-
   private:
-    using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
-    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
+    cache::lru_cache<Hash, TxSetFramePtr> mTxSetCache;
 };
 }

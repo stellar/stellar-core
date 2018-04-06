@@ -11,6 +11,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
+#include "item/ItemFetcher.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -729,8 +730,27 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
-    mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
-                                    shared_from_this());
+    ItemType itemType;
+    switch (msg.dontHave().type)
+    {
+    case TX_SET:
+    {
+        itemType = ItemType::TX_SET;
+        break;
+    }
+    case SCP_QUORUMSET:
+    {
+        itemType = ItemType::QUORUM_SET;
+        break;
+    }
+    default:
+    {
+        assert(false);
+    }
+    }
+
+    mApp.getItemFetcher().doesntHave(shared_from_this(),
+                                     ItemKey{itemType, msg.dontHave().reqHash});
 }
 
 void
@@ -828,7 +848,7 @@ Peer::recvSCPMessage(StellarMessage const& msg)
                                 ? mRecvSCPExternalizeTimer.TimeScope()
                                 : (mRecvSCPNominateTimer.TimeScope()))));
 
-    mApp.getHerder().recvSCPEnvelope(envelope);
+    mApp.getHerder().recvSCPEnvelope(shared_from_this(), envelope);
 }
 
 void

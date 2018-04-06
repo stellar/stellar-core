@@ -3,8 +3,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/HerderUtils.h"
+#include "herder/Herder.h"
+#include "main/Application.h"
 #include "scp/Slot.h"
+#include "util/Logging.h"
 #include "xdr/Stellar-ledger.h"
+
 #include <algorithm>
 #include <xdrpp/marshal.h>
 
@@ -45,5 +49,14 @@ getStellarValues(SCPStatement const& statement)
                    });
 
     return result;
+}
+
+void
+traceEnvelope(Application& app, std::string const& message,
+              SCPEnvelope const& envelope)
+{
+    if (Logging::logTrace("Herder"))
+        CLOG(TRACE, "Herder")
+            << message << ": " << app.getHerder().getSCP().envToStr(envelope);
 }
 }

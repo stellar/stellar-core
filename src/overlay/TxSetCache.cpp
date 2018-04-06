@@ -16,20 +16,19 @@ TxSetCache::TxSetCache() : mTxSetCache(TXSET_CACHE_SIZE)
 }
 
 void
-TxSetCache::add(Hash hash, uint64_t lastSeenSlotIndex, TxSetFramePtr txset)
+TxSetCache::add(Hash hash, TxSetFramePtr txset)
 {
     CLOG(TRACE, "Herder") << "Add TxSet " << hexAbbrev(hash);
 
-    mTxSetCache.put(hash, std::make_pair(lastSeenSlotIndex, txset));
+    mTxSetCache.put(hash, txset);
 }
 
 void
-TxSetCache::touch(Hash hash, uint64_t lastSeenSlotIndex)
+TxSetCache::touch(Hash hash)
 {
     if (mTxSetCache.exists(hash))
     {
-        auto& item = mTxSetCache.get(hash);
-        item.first = std::max(item.first, lastSeenSlotIndex);
+        mTxSetCache.get(hash);
     }
 }
 
@@ -44,26 +43,9 @@ TxSetCache::get(Hash const& hash)
 {
     if (mTxSetCache.exists(hash))
     {
-        return mTxSetCache.get(hash).second;
+        return mTxSetCache.get(hash);
     }
 
     return TxSetFramePtr();
-}
-
-void
-TxSetCache::eraseBelow(uint64_t slotIndex)
-{
-    // 0 is special mark for data that we do not know the slot index
-    // it is used for state loaded from database
-    mTxSetCache.erase_if([&](TxSetFramCacheItem const& i) {
-        return i.first != 0 && i.first < slotIndex;
-    });
-}
-
-void
-TxSetCache::eraseAt(uint64_t slotIndex)
-{
-    mTxSetCache.erase_if(
-        [&](TxSetFramCacheItem const& i) { return i.first == slotIndex; });
 }
 }

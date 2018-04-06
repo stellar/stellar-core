@@ -10,6 +10,7 @@
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
 #include "herder/TxSetFrame.h"
+#include "item/ItemKey.h"
 #include "ledger/LedgerManager.h"
 #include "lib/json/json.h"
 #include "main/Application.h"
@@ -73,19 +74,19 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
 
 HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
-    , mPendingEnvelopes(app, *this)
-    , mHerderSCPDriver(app, *this, mUpgrades, mPendingEnvelopes)
+    , mHerderSCPDriver(app, *this, mUpgrades,
+                       [this](TxSetFramePtr txSet) {
+                           mPendingEnvelopes.handleTxSet(txSet, true);
+                       })
+    , mPendingEnvelopes(app)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
     , mTriggerTimer(app)
     , mRebroadcastTimer(app)
     , mApp(app)
-    , mLedgerManager(app.getLedgerManager())
-    , mSCPMetrics(app)
+    , mLedgerManager(mApp.getLedgerManager())
+    , mSCPMetrics(mApp)
 {
-    Hash hash = getSCP().getLocalNode()->getQuorumSetHash();
-    mPendingEnvelopes.addSCPQuorumSet(hash,
-                                      getSCP().getLocalNode()->getQuorumSet());
 }
 
 HerderImpl::~HerderImpl()
@@ -362,7 +363,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 }
 
 Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
+HerderImpl::recvSCPEnvelope(Peer::pointer peer, SCPEnvelope const& envelope)
 {
     if (mApp.getConfig().MANUAL_CLOSE)
     {
@@ -417,9 +418,14 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    auto status = mPendingEnvelopes.recvSCPEnvelope(envelope);
+    auto status = mPendingEnvelopes.handleEnvelope(peer, envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
+        StellarMessage msg;
+        msg.type(SCP_MESSAGE);
+        msg.envelope() = envelope;
+        mApp.getOverlayManager().broadcastMessage(msg);
+
         processSCPQueue();
     }
     return status;
@@ -429,11 +435,9 @@ Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset, TxSetFrame txset)
 {
-    mPendingEnvelopes.addTxSet(txset.getContentsHash(),
-                               envelope.statement.slotIndex,
-                               std::make_shared<TxSetFrame>(txset));
-    mPendingEnvelopes.addSCPQuorumSet(sha256(xdr::xdr_to_opaque(qset)), qset);
-    return recvSCPEnvelope(envelope);
+    mPendingEnvelopes.handleTxSet(std::make_shared<TxSetFrame>(txset), true);
+    mPendingEnvelopes.handleQuorumSet(qset, true);
+    return recvSCPEnvelope(nullptr, envelope);
 }
 
 void
@@ -479,14 +483,6 @@ HerderImpl::processSCPQueue()
 {
     if (mHerderSCPDriver.trackingSCP())
     {
-        // drop obsolete slots
-        if (mHerderSCPDriver.nextConsensusLedgerIndex() > MAX_SLOTS_TO_REMEMBER)
-        {
-            mPendingEnvelopes.eraseBelow(
-                mHerderSCPDriver.nextConsensusLedgerIndex() -
-                MAX_SLOTS_TO_REMEMBER);
-        }
-
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else
@@ -533,8 +529,15 @@ HerderImpl::ledgerClosed()
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-
-    mPendingEnvelopes.slotClosed(lastIndex);
+    if (lastIndex > MAX_SLOTS_TO_REMEMBER)
+    {
+        mPendingEnvelopes.setMinimumSlotIndex(lastIndex -
+                                              MAX_SLOTS_TO_REMEMBER);
+    }
+    else
+    {
+        mPendingEnvelopes.setMinimumSlotIndex(0);
+    }
 
     mApp.getOverlayManager().ledgerClosed(lastIndex);
 
@@ -630,23 +633,26 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
     }
 }
 
-bool
+std::set<SCPEnvelope>
 HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
 {
-    return mPendingEnvelopes.recvSCPQuorumSet(qset);
+    auto envelopes = mPendingEnvelopes.handleQuorumSet(qset);
+    for (auto& e : envelopes)
+    {
+        recvSCPEnvelope(nullptr, e);
+    }
+    return envelopes;
 }
 
-bool
+std::set<SCPEnvelope>
 HerderImpl::recvTxSet(TxSetFramePtr txset)
 {
-    return mPendingEnvelopes.recvTxSet(txset);
-}
-
-void
-HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
-                           PeerPtr peer)
-{
-    mPendingEnvelopes.peerDoesntHave(type, itemID, peer);
+    auto envelopes = mPendingEnvelopes.handleTxSet(txset);
+    for (auto& e : envelopes)
+    {
+        recvSCPEnvelope(nullptr, e);
+    }
+    return envelopes;
 }
 
 uint32_t
@@ -725,8 +731,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         throw std::runtime_error("wanting to emit an invalid txSet");
     }
 
-    auto txSetHash = proposedSet->getContentsHash();
-
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint32_t slotIndex = lcl.header.ledgerSeq + 1;
@@ -734,7 +738,10 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
-    mPendingEnvelopes.addTxSet(txSetHash, slotIndex, proposedSet);
+    for (auto& e : mPendingEnvelopes.handleTxSet(proposedSet, true))
+    {
+        recvSCPEnvelope(nullptr, e);
+    }
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
@@ -752,6 +759,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
     }
 
+    auto txSetHash = proposedSet->getContentsHash();
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
                                   0);
 
@@ -956,13 +964,11 @@ HerderImpl::restoreSCPState()
         {
             TxSetFramePtr cur =
                 make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
-            Hash h = cur->getContentsHash();
-            mPendingEnvelopes.addTxSet(h, 0, cur);
+            mPendingEnvelopes.handleTxSet(cur, true);
         }
         for (auto const& qset : latestQSets)
         {
-            Hash hash = sha256(xdr::xdr_to_opaque(qset));
-            mPendingEnvelopes.addSCPQuorumSet(hash, qset);
+            mPendingEnvelopes.handleQuorumSet(qset, true);
         }
         for (auto const& e : latestEnvs)
         {

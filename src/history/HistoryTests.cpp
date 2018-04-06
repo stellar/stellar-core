@@ -424,6 +424,7 @@ TEST_CASE("persist publish queue", "[history]")
         // checkpoint still queued.
         CHECK(hm0.getPublishSuccessCount() == 0);
         CHECK(hm0.getMinLedgerQueuedToPublish() == 7);
+        clock.cancelAllEvents();
         while (clock.cancelAllEvents() ||
                app0->getProcessManager().getNumRunningProcesses() > 0)
         {

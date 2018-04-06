@@ -8,7 +8,6 @@
 #include "crypto/SecretKey.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
-#include "herder/PendingEnvelopes.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
@@ -64,14 +63,14 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
 {
 }
 
-HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
-                                 Upgrades const& upgrades,
-                                 PendingEnvelopes& pendingEnvelopes)
+HerderSCPDriver::HerderSCPDriver(
+    Application& app, HerderImpl& herder, Upgrades const& upgrades,
+    std::function<void(TxSetFramePtr)> txSetCreated)
     : mApp{app}
     , mHerder{herder}
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
-    , mPendingEnvelopes{pendingEnvelopes}
+    , mTxSetCreated{txSetCreated}
     , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
@@ -561,7 +560,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
         // post to avoid triggering SCP handling code recursively
         mApp.getClock().getIOService().post(
-            [this, bestTxSet]() { mPendingEnvelopes.recvTxSet(bestTxSet); });
+            [this, bestTxSet]() { mTxSetCreated(bestTxSet); });
     }
 
     return xdr::xdr_to_opaque(comp);

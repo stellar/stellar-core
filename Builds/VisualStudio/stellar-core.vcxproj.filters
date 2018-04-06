@@ -147,7 +147,16 @@
     <ClCompile Include="..\..\src\overlay\Floodgate.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\ItemFetcher.cpp">
+    <ClCompile Include="..\..\src\item\ItemFetcher.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\item\ItemKey.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\item\ItemPeerQueue.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\item\ItemPeerQueueTests.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\Peer.cpp">
@@ -157,6 +166,9 @@
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayManagerImpl.cpp">
+      <Filter>overlay</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\overlay\FetchQueue.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\QSetCache.cpp">
@@ -342,6 +354,9 @@
     <ClCompile Include="..\..\src\herder\HerderImpl.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\NodesInQuorum.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\TxSetFrame.cpp">
       <Filter>herder</Filter>
     </ClCompile>
@@ -373,6 +388,9 @@
       <Filter>simulation</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\HerderTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\HerderTestUtils.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\PeerRecord.cpp">
@@ -414,10 +432,22 @@
     <ClCompile Include="..\..\src\herder\Herder.cpp">
       <Filter>herder</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\EnvelopeItemMap.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\EnvelopeItemMapTests.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\bucket\FutureBucket.cpp">
       <Filter>bucket</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\herder\PendingEnvelopes.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\FetchingEnvelopes.cpp">
+      <Filter>herder</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\ReadyEnvelopes.cpp">
       <Filter>herder</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\util\HashOfHash.cpp">
@@ -486,7 +516,7 @@
     <ClCompile Include="..\..\src\overlay\LoadManager.cpp">
       <Filter>overlay</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\overlay\ItemFetcherTests.cpp">
+    <ClCompile Include="..\..\src\item\ItemFetcherTests.cpp">
       <Filter>overlay\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\OverlayManagerTests.cpp">
@@ -569,9 +599,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\scp\SCPUnitTests.cpp">
       <Filter>scp\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\Tracker.cpp">
-      <Filter>overlay</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\test.cpp">
       <Filter>test</Filter>
@@ -768,6 +795,12 @@
     <ClCompile Include="..\..\src\herder\PendingEnvelopesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\herder\FetchingEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\herder\ReadyEnvelopesTests.cpp">
+      <Filter>herder\tests</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\herder\UpgradesTests.cpp">
       <Filter>herder\tests</Filter>
     </ClCompile>
@@ -785,9 +818,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\main\LruCacheTests.cpp">
       <Filter>main\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\overlay\TrackerTests.cpp">
-      <Filter>overlay\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\process\ProcessTests.cpp">
       <Filter>process\tests</Filter>
@@ -890,10 +920,19 @@
     <ClInclude Include="..\..\src\overlay\Floodgate.h">
       <Filter>overlay</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\overlay\ItemFetcher.h">
+    <ClInclude Include="..\..\src\item\ItemFetcher.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\item\ItemKey.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\item\ItemPeerQueue.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\OverlayManager.h">
+      <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\overlay\FetchQueue.h">
       <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\Peer.h">
@@ -1052,7 +1091,13 @@
     <ClInclude Include="..\..\src\herder\HerderImpl.h">
       <Filter>herder</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\herder\NodesInQuorum.h">
+      <Filter>herder</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\herder\Herder.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\EnvelopeItemMap.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\TxSetFrame.h">
@@ -1140,6 +1185,12 @@
       <Filter>bucket</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\FetchingEnvelopes.h">
+      <Filter>herder</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\herder\ReadyEnvelopes.h">
       <Filter>herder</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\util\HashOfHash.h">
@@ -1279,9 +1330,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\scp\QuorumSetUtils.h">
       <Filter>scp</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\overlay\Tracker.h">
-      <Filter>overlay</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\test.h">
       <Filter>test</Filter>

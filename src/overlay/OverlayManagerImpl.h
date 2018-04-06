@@ -11,7 +11,6 @@
 #include "PeerRecord.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/Floodgate.h"
-#include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
@@ -97,8 +96,6 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
-
-    std::set<Peer::pointer> getPeersKnows(Hash const& h) override;
 
     PeerAuth& getPeerAuth() override;
 

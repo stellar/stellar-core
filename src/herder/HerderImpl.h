@@ -4,12 +4,14 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "PendingEnvelopes.h"
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
+#include "herder/PendingEnvelopes.h"
 #include "herder/Upgrades.h"
+#include "util/HashOfHash.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
+
 #include <deque>
 #include <memory>
 #include <unordered_map>
@@ -47,7 +49,8 @@ class HerderImpl : public Herder
 
     void restoreState() override;
 
-    SCP& getSCP();
+    SCP& getSCP() override;
+
     HerderSCPDriver&
     getHerderSCPDriver()
     {
@@ -65,17 +68,16 @@ class HerderImpl : public Herder
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
+    EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
+                                   SCPEnvelope const& envelope) override;
     EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
-    bool recvSCPQuorumSet(const SCPQuorumSet& qset) override;
-    bool recvTxSet(TxSetFramePtr txset) override;
-    void peerDoesntHave(MessageType type, uint256 const& itemID,
-                        PeerPtr peer) override;
+    std::set<SCPEnvelope> recvSCPQuorumSet(const SCPQuorumSet& qset) override;
+    std::set<SCPEnvelope> recvTxSet(TxSetFramePtr txset) override;
 
     void processSCPQueue();
 
@@ -93,6 +95,9 @@ class HerderImpl : public Herder
     Json::Value getJsonInfo(size_t limit) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
                                   uint64 index) override;
+
+    std::string envToStr(SCPEnvelope const& envelope) const;
+    std::string envToStr(SCPStatement const& st) const;
 
     struct TxMap
     {
@@ -125,9 +130,9 @@ class HerderImpl : public Herder
     void
     updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
 
-    PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
+    PendingEnvelopes mPendingEnvelopes;
 
     void herderOutOfSync();
 

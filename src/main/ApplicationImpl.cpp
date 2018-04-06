@@ -14,7 +14,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
@@ -25,6 +25,7 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/MinimumAccountBalance.h"
+#include "item/ItemFetcher.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -116,6 +117,7 @@ ApplicationImpl::initialize()
     mHistoryArchiveManager = make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
+    mItemFetcher = make_unique<ItemFetcher>(*this);
     mMaintainer = make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = make_unique<CommandHandler>(*this);
@@ -137,6 +139,10 @@ ApplicationImpl::initialize()
             std::make_shared<NtpSynchronizationChecker>(*this,
                                                         mConfig.NTP_SERVER);
     }
+
+    auto& herder = static_cast<HerderImpl&>(getHerder());
+    herder.getPendingEnvelopes().handleQuorumSet(
+        herder.getSCP().getLocalNode()->getQuorumSet(), true);
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -698,6 +704,12 @@ InvariantManager&
 ApplicationImpl::getInvariantManager()
 {
     return *mInvariantManager;
+}
+
+ItemFetcher&
+ApplicationImpl::getItemFetcher()
+{
+    return *mItemFetcher;
 }
 
 OverlayManager&

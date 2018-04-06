@@ -127,9 +127,6 @@ class OverlayManager
     // off value of pr and save it do database.
     virtual void connectTo(PeerRecord& pr) = 0;
 
-    // returns the list of peers that sent us the item with hash `h`
-    virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
-
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
 

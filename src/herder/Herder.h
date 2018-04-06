@@ -7,6 +7,7 @@
 #include "TxSetFrame.h"
 #include "Upgrades.h"
 #include "lib/json/json-forwards.h"
+#include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
@@ -17,6 +18,7 @@
 namespace stellar
 {
 class Application;
+class ItemKey;
 class Peer;
 class XDROutputFileStream;
 
@@ -103,15 +105,16 @@ class Herder
     // restores Herder's state from disk
     virtual void restoreState() = 0;
 
-    virtual bool recvSCPQuorumSet(SCPQuorumSet const& qset) = 0;
-    virtual bool recvTxSet(TxSetFramePtr txset) = 0;
+    virtual std::set<SCPEnvelope>
+    recvSCPQuorumSet(SCPQuorumSet const& qset) = 0;
+    virtual std::set<SCPEnvelope> recvTxSet(TxSetFramePtr txset) = 0;
+
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
-    virtual void peerDoesntHave(stellar::MessageType type,
-                                uint256 const& itemID, PeerPtr peer) = 0;
 
     // We are learning about a new envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
+    virtual EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
+                                           SCPEnvelope const& envelope) = 0;
 
     // We are learning about a new fully-fetched envelope.
     virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
@@ -138,6 +141,8 @@ class Herder
     virtual void setUpgrades(Upgrades::UpgradeParameters const& upgrades) = 0;
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
+
+    virtual SCP& getSCP() = 0;
 
     virtual ~Herder()
     {

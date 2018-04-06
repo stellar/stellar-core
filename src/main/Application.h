@@ -33,6 +33,7 @@ class ProcessManager;
 class Herder;
 class HerderPersistence;
 class InvariantManager;
+class ItemFetcher;
 class OverlayManager;
 class Database;
 class PersistentState;
@@ -200,6 +201,7 @@ class Application
     virtual Herder& getHerder() = 0;
     virtual HerderPersistence& getHerderPersistence() = 0;
     virtual InvariantManager& getInvariantManager() = 0;
+    virtual ItemFetcher& getItemFetcher() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;
