@@ -47,10 +47,6 @@ ProcessManager::create(Application& app)
     return std::make_shared<ProcessManagerImpl>(app);
 }
 
-std::recursive_mutex ProcessManagerImpl::gManagersMutex;
-
-std::vector<ProcessManagerImpl*> ProcessManagerImpl::gManagers;
-
 std::atomic<size_t> ProcessManagerImpl::gNumProcessesActive{0};
 
 class ProcessExitEvent::Impl
@@ -121,11 +117,6 @@ ProcessManagerImpl::~ProcessManagerImpl()
     {
         killProcess(*pair.second);
     }
-
-    std::lock_guard<std::recursive_mutex> guard(gManagersMutex);
-    // Unregister this manager globally
-    gManagers.erase(std::remove(gManagers.begin(), gManagers.end(), this),
-                    gManagers.end());
 }
 
 bool
@@ -176,7 +167,6 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
     , mIOService(app.getClock().getIOService())
     , mSigChild(mIOService)
 {
-    registerManager();
 }
 
 void
@@ -340,7 +330,6 @@ ProcessManagerImpl::ProcessManagerImpl(Application& app)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
     startSignalWait();
-    registerManager();
 }
 
 void
@@ -358,21 +347,31 @@ ProcessManagerImpl::handleSignalWait()
     {
         return;
     }
-    for (;;)
+    // Store tuples (pid, status)
+    std::vector<std::tuple<int, int>> signaledChildren;
+    std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
+    for (auto const& implPair : mImpls)
     {
+        const int pid = implPair.first;
         int status = 0;
-        int pid = waitpid(-1, &status, WNOHANG);
-        if (pid > 0)
+        // If we find the child for which we received this SIGCHLD signal,
+        // store the pid and status
+        if (waitpid(pid, &status, WNOHANG) > 0)
         {
-            std::lock_guard<std::recursive_mutex> guard(gManagersMutex);
-            for (ProcessManagerImpl* manager : gManagers)
-            {
-                manager->handleProcessTermination(pid, status);
-            }
+            signaledChildren.push_back(std::make_tuple(pid, status));
         }
-        else
+    }
+
+    if (!signaledChildren.empty())
+    {
+        CLOG(DEBUG, "Process") << "found " << signaledChildren.size()
+                               << " child processes that terminated";
+        // Now go all over all (pid, status) and handle them
+        for (auto const& pidStatus : signaledChildren)
         {
-            break;
+            const int pid = std::get<0>(pidStatus);
+            const int status = std::get<1>(pidStatus);
+            handleProcessTermination(pid, status);
         }
     }
     startSignalWait();
@@ -385,7 +384,7 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
     auto pair = mImpls.find(pid);
     if (pair == mImpls.end())
     {
-        // Possible this pid belonged to another ProcessManager
+        CLOG(DEBUG, "Process") << "failed to find process with pid " << pid;
         return;
     }
     auto impl = pair->second;
@@ -565,15 +564,6 @@ ProcessManagerImpl::maybeRunPendingProcesses()
             CLOG(ERROR, "Process") << "When running: " << i->mCmdLine;
         }
     }
-}
-
-void
-ProcessManagerImpl::registerManager()
-{
-    // Register this manager globally
-    std::lock_guard<std::recursive_mutex> guard(
-        ProcessManagerImpl::gManagersMutex);
-    gManagers.emplace_back(this);
 }
 
 ProcessExitEvent::ProcessExitEvent(asio::io_service& io_service)

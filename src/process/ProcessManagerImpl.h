@@ -20,13 +20,6 @@ namespace stellar
 
 class ProcessManagerImpl : public ProcessManager
 {
-    // Subprocess callbacks are process-wide, owing to the process-wide
-    // receipt of SIGCHLD, at least on POSIX. The list of all active
-    // process mangers is kept globally so as to dispatch the child
-    // process stop signal accordingly
-    static std::recursive_mutex gManagersMutex;
-    static std::vector<ProcessManagerImpl*> gManagers;
-
     // On windows we use a simple global counter to throttle the
     // number of processes we run at once.
     static std::atomic<size_t> gNumProcessesActive;
@@ -43,7 +36,6 @@ class ProcessManagerImpl : public ProcessManager
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mPendingImpls;
     std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mKillableImpls;
     void maybeRunPendingProcesses();
-    void registerManager();
 
     // These are only used on POSIX, but they're harmless here.
     asio::signal_set mSigChild;
