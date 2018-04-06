@@ -83,13 +83,12 @@ class PendingEnvelopes
     void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
 
     /**
-     * Check if @p qset identified by @p hash was requested before from peers.
-     * If not, ignores that @p qset. If it was requested, calls
-     * @see addSCPQuorumSet.
+     * Check if @p qset identified was requested before from peers. If not,
+     * ignores that @p qset. If it was requested, calls @see addSCPQuorumSet.
      *
      * Return true if SCPQuorumSet is sane and useful (was asked for).
      */
-    bool recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    bool recvSCPQuorumSet(SCPQuorumSet const& qset);
 
     /**
      * Add @p txset identified by @p hash to local cache. Notifies

@@ -803,8 +803,7 @@ Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
 void
 Peer::recvSCPQuorumSet(StellarMessage const& msg)
 {
-    Hash hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
-    mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
+    mApp.getHerder().recvSCPQuorumSet(msg.qSet());
 }
 
 void

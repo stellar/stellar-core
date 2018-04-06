@@ -73,8 +73,9 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
 }
 
 bool
-PendingEnvelopes::recvSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
+PendingEnvelopes::recvSCPQuorumSet(SCPQuorumSet const& q)
 {
+    auto hash = sha256(xdr::xdr_to_opaque(q));
     CLOG(TRACE, "Herder") << "Got SCPQSet " << hexAbbrev(hash);
 
     auto lastSeenSlotIndex = mQuorumSetFetcher.getLastSeenSlotIndex(hash);
@@ -302,7 +303,6 @@ void
 PendingEnvelopes::startFetch(SCPEnvelope const& envelope)
 {
     auto h = getQuorumSetHash(envelope);
-
     if (!mQsetCache.exists(h))
     {
         mQuorumSetFetcher.fetch(h, envelope);

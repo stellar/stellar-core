@@ -103,8 +103,7 @@ class Herder
     // restores Herder's state from disk
     virtual void restoreState() = 0;
 
-    virtual bool recvSCPQuorumSet(Hash const& hash,
-                                  SCPQuorumSet const& qset) = 0;
+    virtual bool recvSCPQuorumSet(SCPQuorumSet const& qset) = 0;
     virtual bool recvTxSet(Hash const& hash, TxSetFrame const& txset) = 0;
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;

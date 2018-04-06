@@ -628,9 +628,9 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 }
 
 bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
+HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
 {
-    return mPendingEnvelopes.recvSCPQuorumSet(hash, qset);
+    return mPendingEnvelopes.recvSCPQuorumSet(qset);
 }
 
 bool

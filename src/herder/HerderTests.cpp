@@ -635,7 +635,7 @@ TEST_CASE("SCP Driver", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            REQUIRE(herder.recvSCPQuorumSet(saneQSet1));
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
             // will not return ENVELOPE_STATUS_READY as the recvSCPEnvelope() is
             // called internally
@@ -648,21 +648,21 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
-            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+            REQUIRE(herder.recvSCPQuorumSet(saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1));
 
             SECTION("when re-receiving the same envelope")
             {
                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1));
             }
 
             SECTION("when receiving different envelope with the same qset")
             {
                 REQUIRE(herder.recvSCPEnvelope(saneEnvelopeQ1T2) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
+                REQUIRE(!herder.recvSCPQuorumSet(saneQSet1));
             }
         }
 
@@ -691,9 +691,9 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("do not accept unasked qset")
         {
-            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
-            REQUIRE(!herder.recvSCPQuorumSet(saneQSet2Hash, saneQSet2));
-            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(saneQSet2));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
         }
 
         SECTION("do not accept unasked txset")
@@ -708,7 +708,7 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
         }
 
         SECTION("do not accept txset from envelope discarded because of unsane "
@@ -716,7 +716,7 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
             REQUIRE(
                 !herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
         }
@@ -727,7 +727,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
-            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
         }
 
         SECTION("accept txset from envelopes with both valid and unsane qset")
@@ -736,8 +736,8 @@ TEST_CASE("SCP Driver", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPEnvelope(bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1Hash, saneQSet1));
-            REQUIRE(!herder.recvSCPQuorumSet(bigQSetHash, bigQSet));
+            REQUIRE(herder.recvSCPQuorumSet(saneQSet1));
+            REQUIRE(!herder.recvSCPQuorumSet(bigQSet));
             REQUIRE(herder.recvTxSet(p1.second->getContentsHash(), *p1.second));
         }
     }
