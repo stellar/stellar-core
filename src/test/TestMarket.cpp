@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestMarket.h"
+#include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "xdr/Stellar-ledger-entries.h"

@@ -161,26 +161,11 @@ test(int argc, char* const* argv, el::Level ll,
 
     using namespace Catch;
     Session session{};
-    auto r =
-        session.applyCommandLine(argc, argv, Session::OnUnusedOptions::Ignore);
+    session.cli(session.cli() | clara::Opt(gTestAllVersions)["--all-versions"](
+                                    "Test all versions"));
+    auto r = session.applyCommandLine(argc, argv);
     if (r != 0)
         return r;
-
-    auto unusedTokens = session.unusedTokens();
-    using namespace Clara;
-
-    for (auto const& token : unusedTokens)
-    {
-        if (token.type == Parser::Token::LongOpt &&
-            token.data == "all-versions")
-        {
-            gTestAllVersions = true;
-            continue;
-        }
-
-        session.showHelp(session.configData().processName);
-        return -1;
-    }
 
     r = session.run();
     gTestRoots.clear();

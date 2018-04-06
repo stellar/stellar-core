@@ -8,6 +8,7 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
+#include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"

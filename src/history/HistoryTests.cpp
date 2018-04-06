@@ -388,7 +388,7 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     }
 }
 
-TEST_CASE("Publish/catchup via s3", "[hide][s3]")
+TEST_CASE("Publish/catchup via s3", "[!hide][s3]")
 {
     CatchupSimulation catchupSimulation{
         std::make_shared<S3HistoryConfigurator>()};

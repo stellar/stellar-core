@@ -33,7 +33,7 @@ using namespace stellar;
 typedef std::unique_ptr<Application> appPtr;
 
 // Simulation tests. Some of the tests in this suite are long.
-// They are marked with [long][hide]. Run the day-to-day tests with
+// They are marked with [long][!hide]. Run the day-to-day tests with
 //
 //     --test
 // or
@@ -202,7 +202,7 @@ resilienceTest(Simulation::pointer sim)
         }
     }
 }
-TEST_CASE("resilience tests", "[resilience][simulation][long][hide]")
+TEST_CASE("resilience tests", "[resilience][simulation][long][!hide]")
 {
     Simulation::Mode mode = Simulation::OVER_LOOPBACK;
 
@@ -341,7 +341,7 @@ TEST_CASE("cycle4 topology", "[simulation]")
 }
 
 TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
-          "[stress100][simulation][stress][long][hide]")
+          "[stress100][simulation][stress][long][!hide]")
 {
     Hash networkID = sha256(getTestConfig().NETWORK_PASSPHRASE);
     Simulation::pointer simulation =
@@ -404,7 +404,7 @@ newLoadTestApp(VirtualClock& clock)
     return appPtr;
 }
 
-TEST_CASE("Auto-calibrated single node load test", "[autoload][hide]")
+TEST_CASE("Auto-calibrated single node load test", "[autoload][!hide]")
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto appPtr = newLoadTestApp(clock);
@@ -489,7 +489,7 @@ class ScaleReporter
     }
 };
 
-TEST_CASE("Accounts vs. latency", "[scalability][hide]")
+TEST_CASE("Accounts vs. latency", "[scalability][!hide]")
 {
     ScaleReporter r({"accounts", "txcount", "latencymin", "latencymax",
                      "latency50", "latency95", "latency99"});
@@ -585,7 +585,7 @@ netTopologyTest(std::string const& name,
     }
 }
 
-TEST_CASE("Mesh nodes vs. network traffic", "[scalability][hide]")
+TEST_CASE("Mesh nodes vs. network traffic", "[scalability][!hide]")
 {
     netTopologyTest("mesh", [&](int numNodes) -> Simulation::pointer {
         return Topologies::core(
@@ -600,7 +600,7 @@ TEST_CASE("Mesh nodes vs. network traffic", "[scalability][hide]")
     });
 }
 
-TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
+TEST_CASE("Cycle nodes vs. network traffic", "[scalability][!hide]")
 {
     netTopologyTest("cycle", [&](int numNodes) -> Simulation::pointer {
         return Topologies::cycle(
@@ -615,7 +615,7 @@ TEST_CASE("Cycle nodes vs. network traffic", "[scalability][hide]")
     });
 }
 
-TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
+TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][!hide]")
 {
     netTopologyTest("branchedcycle", [&](int numNodes) -> Simulation::pointer {
         return Topologies::branchedcycle(
@@ -630,7 +630,7 @@ TEST_CASE("Branched-cycle nodes vs. network traffic", "[scalability][hide]")
     });
 }
 
-TEST_CASE("Bucket-list entries vs. write throughput", "[scalability][hide]")
+TEST_CASE("Bucket-list entries vs. write throughput", "[scalability][!hide]")
 {
     VirtualClock clock;
     Config const& cfg = getTestConfig();

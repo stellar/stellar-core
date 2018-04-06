@@ -7,30 +7,39 @@
 #include "catchup/CatchupWork.h"
 #include "history/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
-#include "xdr/Stellar-transaction.h"
 #include "xdrpp/printer.h"
+#include "xdrpp/types.h"
 
 namespace stellar
 {
-
 struct OfferState;
 }
 
 namespace Catch
 {
+template <typename T>
+struct StringMaker<T, typename std::enable_if<xdr::xdr_traits<T>::valid>::type>
+{
+    static std::string
+    convert(T const& val)
+    {
+        return xdr::xdr_to_string(val);
+    }
+};
 
-template <> std::string toString(stellar::ClaimOfferAtom const& coa);
+template <> struct StringMaker<stellar::OfferState>
+{
+    static std::string convert(stellar::OfferState const& os);
+};
 
-template <> std::string toString(stellar::Hash const& tr);
+template <> struct StringMaker<stellar::CatchupRange>
+{
+    static std::string convert(stellar::CatchupRange const& cr);
+};
 
-template <> std::string toString(stellar::OfferEntry const& oe);
-
-template <> std::string toString(stellar::OfferState const& os);
-
-template <> std::string toString(stellar::TransactionResult const& tr);
-
-template <> std::string toString(stellar::CatchupRange const& cr);
-
-template <>
-std::string toString(stellar::historytestutils::CatchupPerformedWork const& cm);
+template <> struct StringMaker<stellar::historytestutils::CatchupPerformedWork>
+{
+    static std::string
+    convert(stellar::historytestutils::CatchupPerformedWork const& cr);
+};
 }
