@@ -54,6 +54,12 @@ class HerderImpl : public Herder
         return mHerderSCPDriver;
     }
 
+    PendingEnvelopes&
+    getPendingEnvelopes()
+    {
+        return mPendingEnvelopes;
+    }
+
     void valueExternalized(uint64 slotIndex, StellarValue const& value);
     void emitEnvelope(SCPEnvelope const& envelope);
 

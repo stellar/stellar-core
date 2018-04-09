@@ -99,8 +99,8 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
     auto saneEnvelope = makeEnvelope(p, saneQSetHash, lcl.header.ledgerSeq + 1);
     auto bigEnvelope = makeEnvelope(p, bigQSetHash, lcl.header.ledgerSeq + 1);
 
-    PendingEnvelopes pendingEnvelopes{
-        *app, static_cast<HerderImpl&>(app->getHerder())};
+    auto& pendingEnvelopes =
+        static_cast<HerderImpl&>(app->getHerder()).getPendingEnvelopes();
 
     SECTION("return FETCHING when first receiving envelope")
     {
@@ -111,7 +111,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                 Herder::ENVELOPE_STATUS_FETCHING);
 
-        SECTION("and then READY when all data came (quorum set first)")
+        SECTION("and then PROCESSED when all data came (quorum set first)")
         {
             REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
@@ -124,14 +124,16 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
                                                p.second));
             REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                 p.second));
+            // fist recvTxSet goes throught pendingEnvelopes.recvSCPEnvelope
+            // again which then returns ENVELOPE_STATUS_READY
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_READY);
+                    Herder::ENVELOPE_STATUS_PROCESSED);
 
             REQUIRE(!pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                 p.second));
 
-            SECTION("and then PROCESSED")
+            SECTION("and then PROCESSED again")
             {
                 REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                         Herder::ENVELOPE_STATUS_PROCESSED);
@@ -140,7 +142,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
             }
         }
 
-        SECTION("and then READY when all data came (tx set first)")
+        SECTION("and then PROCESSED when all data came (tx set first)")
         {
             REQUIRE(pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                p.second));
@@ -153,14 +155,17 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
 
             REQUIRE(pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(!pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
+            // fist recvSCPQuorumSet goes throught
+            // pendingEnvelopes.recvSCPEnvelope again which then returns
+            // ENVELOPE_STATUS_READY
             REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_READY);
+                    Herder::ENVELOPE_STATUS_PROCESSED);
 
             REQUIRE(!pendingEnvelopes.recvSCPQuorumSet(saneQSetHash, saneQSet));
             REQUIRE(!pendingEnvelopes.recvTxSet(p.second->getContentsHash(),
                                                 p.second));
 
-            SECTION("and then PROCESSED")
+            SECTION("and then PROCESSED again")
             {
                 REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
                         Herder::ENVELOPE_STATUS_PROCESSED);
@@ -170,8 +175,8 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         }
     }
 
-    SECTION("return READY when receiving envelope with quorum set and tx set "
-            "that were manually added before")
+    SECTION("return PROCESSED when receiving envelope with quorum set and tx "
+            "set that were manually added before")
     {
         SECTION("as not-removable")
         {
@@ -237,7 +242,7 @@ TEST_CASE("PendingEnvelopes::recvSCPEnvelope", "[herder]")
         REQUIRE(
             pendingEnvelopes.recvTxSet(p.second->getContentsHash(), p.second));
         REQUIRE(pendingEnvelopes.recvSCPEnvelope(saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_READY);
+                Herder::ENVELOPE_STATUS_PROCESSED);
 
         SECTION("with slotIndex difference less or equal than "
                 "MAX_SLOTS_TO_REMEMBER")
