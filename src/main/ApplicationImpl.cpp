@@ -38,6 +38,7 @@
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PendingEnvelopes.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -121,6 +122,7 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
+    mPendingEnvelopes = std::make_unique<PendingEnvelopes>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -136,6 +138,10 @@ ApplicationImpl::initialize()
             std::make_shared<NtpSynchronizationChecker>(*this,
                                                         mConfig.NTP_SERVER);
     }
+
+    auto localNode = getHerder().getSCP().getLocalNode();
+    Hash hash = localNode->getQuorumSetHash();
+    getPendingEnvelopes().addSCPQuorumSet(hash, localNode->getQuorumSet());
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -739,6 +745,12 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
+}
+
+PendingEnvelopes&
+ApplicationImpl::getPendingEnvelopes()
+{
+    return *mPendingEnvelopes;
 }
 
 asio::io_service&

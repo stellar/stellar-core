@@ -1,7 +1,6 @@
 ﻿#include "PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "herder/HerderImpl.h"
 #include "herder/HerderUtils.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
@@ -21,9 +20,8 @@ using namespace std;
 namespace stellar
 {
 
-PendingEnvelopes::PendingEnvelopes(Application& app, HerderImpl& herder)
+PendingEnvelopes::PendingEnvelopes(Application& app)
     : mApp(app)
-    , mHerder(herder)
     , mQsetCache(QSET_CACHE_SIZE)
     , mTxSetFetcher(
           app, [](Peer::pointer peer, Hash hash) { peer->sendGetTxSet(hash); })
@@ -144,7 +142,7 @@ PendingEnvelopes::isNodeInQuorum(NodeID const& node)
     else
     {
         // search through the known slots
-        SCP::TriBool r = mHerder.getSCP().isNodeInQuorum(node);
+        SCP::TriBool r = mApp.getHerder().getSCP().isNodeInQuorum(node);
 
         // consider a node in quorum if it's either in quorum
         // or we don't know if it is (until we get further evidence)
@@ -467,7 +465,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["fetching"];
                 for (auto const& e : it->second.mFetchingEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(e));
+                    slot.append(mApp.getHerder().getSCP().envToStr(e));
                 }
             }
             if (it->second.mReadyEnvelopes.size() != 0)
@@ -475,7 +473,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
                 Json::Value& slot = ret[std::to_string(it->first)]["pending"];
                 for (auto const& e : it->second.mReadyEnvelopes)
                 {
-                    slot.append(mHerder.getSCP().envToStr(e));
+                    slot.append(mApp.getHerder().getSCP().envToStr(e));
                 }
             }
             it++;

@@ -19,8 +19,6 @@ before feeding into SCP
 namespace stellar
 {
 
-class HerderImpl;
-
 struct SlotEnvelopes
 {
     // list of envelopes we have processed already
@@ -36,7 +34,6 @@ struct SlotEnvelopes
 class PendingEnvelopes
 {
     Application& mApp;
-    HerderImpl& mHerder;
 
     // ledger# and list of envelopes in various states
     std::map<uint64, SlotEnvelopes> mEnvelopes;
@@ -64,7 +61,7 @@ class PendingEnvelopes
     void discardSCPEnvelopesWithQSet(Hash hash);
 
   public:
-    PendingEnvelopes(Application& app, HerderImpl& herder);
+    PendingEnvelopes(Application& app);
     ~PendingEnvelopes();
 
     /**

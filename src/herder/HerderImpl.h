@@ -4,12 +4,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "PendingEnvelopes.h"
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
 #include "herder/Upgrades.h"
+#include "util/HashOfHash.h"
 #include "util/Timer.h"
 #include "util/XDROperators.h"
+
 #include <deque>
 #include <memory>
 #include <unordered_map>
@@ -47,7 +48,7 @@ class HerderImpl : public Herder
 
     void restoreState() override;
 
-    SCP& getSCP();
+    SCP& getSCP() override;
     HerderSCPDriver&
     getHerderSCPDriver()
     {
@@ -121,7 +122,6 @@ class HerderImpl : public Herder
     void
     updatePendingTransactions(std::vector<TransactionFramePtr> const& applied);
 
-    PendingEnvelopes mPendingEnvelopes;
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
 

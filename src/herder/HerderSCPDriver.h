@@ -21,7 +21,6 @@ namespace stellar
 class Application;
 class HerderImpl;
 class LedgerManager;
-class PendingEnvelopes;
 class SCP;
 class Upgrades;
 class VirtualTimer;
@@ -42,8 +41,7 @@ class HerderSCPDriver : public SCPDriver
     };
 
     HerderSCPDriver(Application& app, HerderImpl& herder,
-                    Upgrades const& upgrades,
-                    PendingEnvelopes& pendingEnvelopes);
+                    Upgrades const& upgrades);
     ~HerderSCPDriver();
 
     void bootstrap();
@@ -142,7 +140,6 @@ class HerderSCPDriver : public SCPDriver
     HerderImpl& mHerder;
     LedgerManager& mLedgerManager;
     Upgrades const& mUpgrades;
-    PendingEnvelopes& mPendingEnvelopes;
     SCP mSCP;
 
     struct SCPMetrics

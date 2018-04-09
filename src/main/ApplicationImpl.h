@@ -70,6 +70,7 @@ class ApplicationImpl : public Application
     virtual WorkManager& getWorkManager() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
+    virtual PendingEnvelopes& getPendingEnvelopes() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 
@@ -148,6 +149,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<BanManager> mBanManager;
     std::shared_ptr<NtpSynchronizationChecker> mNtpSynchronizationChecker;
     std::unique_ptr<StatusManager> mStatusManager;
+    std::unique_ptr<PendingEnvelopes> mPendingEnvelopes;
 
     std::vector<std::thread> mWorkerThreads;
 

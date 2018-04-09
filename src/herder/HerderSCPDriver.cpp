@@ -8,9 +8,9 @@
 #include "crypto/SecretKey.h"
 #include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
-#include "herder/PendingEnvelopes.h"
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "overlay/PendingEnvelopes.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
 #include "xdr/Stellar-SCP.h"
@@ -61,13 +61,11 @@ HerderSCPDriver::SCPMetrics::SCPMetrics(Application& app)
 }
 
 HerderSCPDriver::HerderSCPDriver(Application& app, HerderImpl& herder,
-                                 Upgrades const& upgrades,
-                                 PendingEnvelopes& pendingEnvelopes)
+                                 Upgrades const& upgrades)
     : mApp{app}
     , mHerder{herder}
     , mLedgerManager{mApp.getLedgerManager()}
     , mUpgrades{upgrades}
-    , mPendingEnvelopes{pendingEnvelopes}
     , mSCP(*this, mApp.getConfig().NODE_SEED.getPublicKey(),
            mApp.getConfig().NODE_IS_VALIDATOR, mApp.getConfig().QUORUM_SET)
     , mSCPMetrics{mApp}
@@ -245,7 +243,7 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 
     // we are fully synced up
 
-    TxSetFramePtr txSet = mPendingEnvelopes.getTxSet(txSetHash);
+    TxSetFramePtr txSet = mApp.getPendingEnvelopes().getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -516,7 +514,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         TxSetFramePtr highestTxSet;
         for (auto const& sv : candidateValues)
         {
-            TxSetFramePtr cTxSet = mPendingEnvelopes.getTxSet(sv.txSetHash);
+            TxSetFramePtr cTxSet =
+                mApp.getPendingEnvelopes().getTxSet(sv.txSetHash);
 
             if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
@@ -556,8 +555,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
 
         // post to avoid triggering SCP handling code recursively
         mApp.getClock().getIOService().post([this, bestTxSet]() {
-            mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
-                                        bestTxSet);
+            mApp.getPendingEnvelopes().recvTxSet(bestTxSet->getContentsHash(),
+                                                 bestTxSet);
         });
     }
 
@@ -679,7 +678,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
 SCPQuorumSetPtr
 HerderSCPDriver::getQSet(Hash const& qSetHash)
 {
-    return mPendingEnvelopes.getQSet(qSetHash);
+    return mApp.getPendingEnvelopes().getQSet(qSetHash);
 }
 
 void

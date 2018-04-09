@@ -11,6 +11,7 @@
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "database/Database.h"
 #include "herder/HerderImpl.h"
 #include "history/HistoryArchive.h"
 #include "history/HistoryArchiveManager.h"
