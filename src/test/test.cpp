@@ -153,10 +153,15 @@ test(int argc, char* const* argv, el::Level ll,
      std::vector<std::string> const& metrics)
 {
     gTestMetrics = metrics;
-    Config const& cfg = getTestConfig();
+
+    // Note: Have to setLogLevel twice here to ensure --list-test-names-only is
+    // not mixed with stellar-core logging.
     Logging::setFmt("<test>");
+    Logging::setLogLevel(ll, nullptr);
+    Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(ll, nullptr);
+
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
