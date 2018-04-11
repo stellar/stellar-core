@@ -113,6 +113,8 @@ LedgerManagerImpl::LedgerManagerImpl(Application& app)
     : mApp(app)
     , mTransactionApply(
           app.getMetrics().NewTimer({"ledger", "transaction", "apply"}))
+    , mTransactionCount(
+          app.getMetrics().NewHistogram({"ledger", "transaction", "count"}))
     , mLedgerClose(app.getMetrics().NewTimer({"ledger", "ledger", "close"}))
     , mLedgerAgeClosed(app.getMetrics().NewTimer({"ledger", "age", "closed"}))
     , mLedgerAge(
@@ -929,6 +931,14 @@ LedgerManagerImpl::applyTransactions(std::vector<TransactionFramePtr>& txs,
     CLOG(DEBUG, "Tx") << "applyTransactions: ledger = "
                       << mCurrentLedger->mHeader.ledgerSeq;
     int index = 0;
+
+    // Record tx count
+    auto numTxs = txs.size();
+    if (numTxs > 0)
+    {
+        mTransactionCount.Update(static_cast<int64_t>(numTxs));
+    }
+
     for (auto tx : txs)
     {
         auto txTime = mTransactionApply.TimeScope();
