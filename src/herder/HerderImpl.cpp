@@ -871,24 +871,25 @@ HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
     return r;
 }
 
-void
-HerderImpl::dumpInfo(Json::Value& ret, size_t limit)
+Json::Value
+HerderImpl::getJsonInfo(size_t limit)
 {
+    Json::Value ret;
     ret["you"] =
         mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
 
-    getSCP().dumpInfo(ret, limit);
-
-    mPendingEnvelopes.dumpInfo(ret, limit);
+    ret["scp"] = getSCP().getJsonInfo(limit);
+    ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
+    return ret;
 }
 
-void
-HerderImpl::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary,
-                           uint64 index)
+Json::Value
+HerderImpl::getJsonQuorumInfo(NodeID const& id, bool summary, uint64 index)
 {
+    Json::Value ret;
     ret["node"] = mApp.getConfig().toStrKey(id);
-
-    getSCP().dumpQuorumInfo(ret["slots"], id, summary, index);
+    ret["slots"] = getSCP().getJsonQuorumInfo(id, summary, index);
+    return ret;
 }
 
 void
@@ -1107,9 +1108,7 @@ HerderImpl::herderOutOfSync()
 {
     CLOG(WARNING, "Herder") << "Lost track of consensus";
 
-    Json::Value v;
-    dumpInfo(v, 20);
-    std::string s = v.toStyledString();
+    auto s = getJsonInfo(20).toStyledString();
     CLOG(WARNING, "Herder") << "Out of sync context: " << s;
 
     mSCPMetrics.mLostSync.Mark();

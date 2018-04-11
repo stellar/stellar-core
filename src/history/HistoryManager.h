@@ -195,15 +195,6 @@ class HistoryManager
         VERIFY_STATUS_ERR_MISSING_ENTRIES
     };
 
-    // Select any readable history archive. If there are more than one,
-    // select one at random.
-    virtual std::shared_ptr<HistoryArchive>
-    selectRandomReadableHistoryArchive() = 0;
-
-    // Initialize a named history archive by writing
-    // .well-known/stellar-history.json to it.
-    static bool initializeHistoryArchive(Application& app, std::string arch);
-
     // Check that config settings are at least somewhat reasonable.
     static bool checkSensibleConfig(Config const& cfg);
 
@@ -261,10 +252,6 @@ class HistoryManager
     // (typically after commit) with a call to publishQueuedHistory.
     virtual void queueCurrentHistory() = 0;
 
-    // Returns whether or not the HistoryManager has any writable history
-    // archives (those configured with both a `get` and `put` command).
-    virtual bool hasAnyWritableHistoryArchive() = 0;
-
     // Return the youngest ledger still in the outgoing publish queue;
     // returns 0 if the publish queue has nothing in it.
     virtual uint32_t getMinLedgerQueuedToPublish() = 0;
@@ -315,10 +302,6 @@ class HistoryManager
     // tmpdir.
     virtual std::string localFilename(std::string const& basename) = 0;
 
-    // Return the number of checkpoints that have been skipped due to
-    // unavailability of any publish targets.
-    virtual uint64_t getPublishSkipCount() = 0;
-
     // Return the number of checkpoints that have been enqueued for
     // publication. This may be less than the number "started", but every
     // enqueued checkpoint should eventually start.
@@ -328,11 +311,6 @@ class HistoryManager
     // the publish system being busy with a previous checkpoint. This indicates
     // a degree of overloading in the publish system.
     virtual uint64_t getPublishDelayCount() = 0;
-
-    // Return the number of enqueued checkpoints that have "started", meaning
-    // that their history logs have been written to disk and the publish system
-    // has commenced running the external put commands for them.
-    virtual uint64_t getPublishStartCount() = 0;
 
     // Return the number of checkpoints that completed publication successfully.
     virtual uint64_t getPublishSuccessCount() = 0;

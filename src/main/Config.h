@@ -9,6 +9,7 @@
 #include "util/SecretValue.h"
 #include "util/Timer.h"
 #include "util/optional.h"
+
 #include <map>
 #include <memory>
 #include <string>
@@ -17,7 +18,13 @@
 
 namespace stellar
 {
-class HistoryArchive;
+struct HistoryArchiveConfiguration
+{
+    std::string mName;
+    std::string mGetCmd;
+    std::string mPutCmd;
+    std::string mMkdirCmd;
+};
 
 class Config : public std::enable_shared_from_this<Config>
 {
@@ -188,7 +195,7 @@ class Config : public std::enable_shared_from_this<Config>
     std::map<std::string, std::string> VALIDATOR_NAMES;
 
     // History config
-    std::map<std::string, std::shared_ptr<HistoryArchive>> HISTORY;
+    std::map<std::string, HistoryArchiveConfiguration> HISTORY;
 
     // Database config
     SecretValue DATABASE;

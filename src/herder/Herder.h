@@ -146,8 +146,8 @@ class Herder
     {
     }
 
-    virtual void dumpInfo(Json::Value& ret, size_t limit) = 0;
-    virtual void dumpQuorumInfo(Json::Value& ret, NodeID const& id,
-                                bool summary, uint64 index = 0) = 0;
+    virtual Json::Value getJsonInfo(size_t limit) = 0;
+    virtual Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
+                                          uint64 index = 0) = 0;
 };
 }

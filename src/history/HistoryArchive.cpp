@@ -294,11 +294,8 @@ HistoryArchiveState::HistoryArchiveState(uint32_t ledgerSeq,
     }
 }
 
-HistoryArchive::HistoryArchive(std::string const& name,
-                               std::string const& getCmd,
-                               std::string const& putCmd,
-                               std::string const& mkdirCmd)
-    : mName(name), mGetCmd(getCmd), mPutCmd(putCmd), mMkdirCmd(mkdirCmd)
+HistoryArchive::HistoryArchive(HistoryArchiveConfiguration const& config)
+    : mConfig(config)
 {
 }
 
@@ -309,50 +306,71 @@ HistoryArchive::~HistoryArchive()
 bool
 HistoryArchive::hasGetCmd() const
 {
-    return !mGetCmd.empty();
+    return !mConfig.mGetCmd.empty();
 }
 
 bool
 HistoryArchive::hasPutCmd() const
 {
-    return !mPutCmd.empty();
+    return !mConfig.mPutCmd.empty();
 }
 
 bool
 HistoryArchive::hasMkdirCmd() const
 {
-    return !mMkdirCmd.empty();
+    return !mConfig.mMkdirCmd.empty();
 }
 
 std::string const&
 HistoryArchive::getName() const
 {
-    return mName;
+    return mConfig.mName;
 }
 
 std::string
 HistoryArchive::getFileCmd(std::string const& remote,
                            std::string const& local) const
 {
-    if (mGetCmd.empty())
+    if (mConfig.mGetCmd.empty())
         return "";
-    return formatString(mGetCmd, remote, local);
+    return formatString(mConfig.mGetCmd, remote, local);
 }
 
 std::string
 HistoryArchive::putFileCmd(std::string const& local,
                            std::string const& remote) const
 {
-    if (mPutCmd.empty())
+    if (mConfig.mPutCmd.empty())
         return "";
-    return formatString(mPutCmd, local, remote);
+    return formatString(mConfig.mPutCmd, local, remote);
 }
 
 std::string
 HistoryArchive::mkdirCmd(std::string const& remoteDir) const
 {
-    if (mMkdirCmd.empty())
+    if (mConfig.mMkdirCmd.empty())
         return "";
-    return formatString(mMkdirCmd, remoteDir);
+    return formatString(mConfig.mMkdirCmd, remoteDir);
+}
+
+void
+HistoryArchive::markSuccess()
+{
+    mSuccess++;
+}
+
+void
+HistoryArchive::markFailure()
+{
+    mFailure++;
+}
+
+Json::Value
+HistoryArchive::getJsonInfo() const
+{
+    Json::Value result;
+    result["success"] = mSuccess;
+    result["failure"] = mFailure;
+    return result;
 }
 }

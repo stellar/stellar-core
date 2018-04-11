@@ -19,16 +19,16 @@ class GetAndUnzipRemoteFileWork : public Work
     std::shared_ptr<Work> mGunzipFileWork;
 
     FileTransferInfo mFt;
-    std::shared_ptr<HistoryArchive const> mArchive;
+    std::shared_ptr<HistoryArchive> mArchive;
 
   public:
     // Passing `nullptr` for the archive argument will cause the work to
     // select a new readable history archive at random each time it runs /
     // retries.
-    GetAndUnzipRemoteFileWork(
-        Application& app, WorkParent& parent, FileTransferInfo ft,
-        std::shared_ptr<HistoryArchive const> archive = nullptr,
-        size_t maxRetries = Work::RETRY_A_LOT);
+    GetAndUnzipRemoteFileWork(Application& app, WorkParent& parent,
+                              FileTransferInfo ft,
+                              std::shared_ptr<HistoryArchive> archive = nullptr,
+                              size_t maxRetries = Work::RETRY_A_LOT);
     ~GetAndUnzipRemoteFileWork();
     std::string getStatus() const override;
     void onReset() override;

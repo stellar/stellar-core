@@ -522,33 +522,35 @@ NominationProtocol::stopNomination()
     mNominationStarted = false;
 }
 
-void
-NominationProtocol::dumpInfo(Json::Value& ret)
+Json::Value
+NominationProtocol::getJsonInfo()
 {
-    Json::Value& nomState = ret["nomination"];
-    nomState["roundnumber"] = mRoundNumber;
-    nomState["started"] = mNominationStarted;
+    Json::Value ret;
+    ret["roundnumber"] = mRoundNumber;
+    ret["started"] = mNominationStarted;
 
     int counter = 0;
     for (auto const& v : mVotes)
     {
-        nomState["X"][counter] = mSlot.getSCP().getValueString(v);
+        ret["X"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
 
     counter = 0;
     for (auto const& v : mAccepted)
     {
-        nomState["Y"][counter] = mSlot.getSCP().getValueString(v);
+        ret["Y"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
 
     counter = 0;
     for (auto const& v : mCandidates)
     {
-        nomState["Z"][counter] = mSlot.getSCP().getValueString(v);
+        ret["Z"][counter] = mSlot.getSCP().getValueString(v);
         counter++;
     }
+
+    return ret;
 }
 
 void

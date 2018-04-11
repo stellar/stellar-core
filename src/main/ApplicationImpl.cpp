@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
+#include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
 #include "invariant/BucketListIsConsistentWithDatabase.h"
@@ -112,6 +113,7 @@ ApplicationImpl::initialize()
     mHerderPersistence = HerderPersistence::create(*this);
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
+    mHistoryArchiveManager = make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
     mMaintainer = make_unique<Maintainer>(*this);
@@ -250,18 +252,23 @@ ApplicationImpl::getJsonInfo()
     }
 
     auto& herder = getHerder();
-    Json::Value q;
-    herder.dumpQuorumInfo(q, getConfig().NODE_SEED.getPublicKey(), true,
-                          herder.getCurrentLedgerSeq());
+    auto q = herder.getJsonQuorumInfo(getConfig().NODE_SEED.getPublicKey(),
+                                      true, herder.getCurrentLedgerSeq());
     if (q["slots"].size() != 0)
     {
         info["quorum"] = q["slots"];
     }
 
-    Json::Value invariantFailures = getInvariantManager().getInformation();
+    auto invariantFailures = getInvariantManager().getJsonInfo();
     if (!invariantFailures.empty())
     {
         info["invariant_failures"] = invariantFailures;
+    }
+
+    auto historyArchiveInfo = getHistoryArchiveManager().getJsonInfo();
+    if (!historyArchiveInfo.empty())
+    {
+        info["history"] = historyArchiveInfo;
     }
 
     return root;
@@ -649,6 +656,12 @@ CatchupManager&
 ApplicationImpl::getCatchupManager()
 {
     return *mCatchupManager;
+}
+
+HistoryArchiveManager&
+ApplicationImpl::getHistoryArchiveManager()
+{
+    return *mHistoryArchiveManager;
 }
 
 HistoryManager&

@@ -755,7 +755,6 @@ CommandHandler::upgrades(std::string const& params, std::string& retStr)
 void
 CommandHandler::quorum(std::string const& params, std::string& retStr)
 {
-    Json::Value root;
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
@@ -775,24 +774,21 @@ CommandHandler::quorum(std::string const& params, std::string& retStr)
         }
     }
 
-    mApp.getHerder().dumpQuorumInfo(root, n, retMap["compact"] == "true");
-
+    auto root =
+        mApp.getHerder().getJsonQuorumInfo(n, retMap["compact"] == "true");
     retStr = root.toStyledString();
 }
 
 void
 CommandHandler::scpInfo(std::string const& params, std::string& retStr)
 {
-    Json::Value root;
-
     std::map<std::string, std::string> retMap;
     http::server::server::parseParams(params, retMap);
 
     size_t lim = 2;
     maybeParseParam(retMap, "limit", lim);
 
-    mApp.getHerder().dumpInfo(root, lim);
-
+    auto root = mApp.getHerder().getJsonInfo(lim);
     retStr = root.toStyledString();
 }
 

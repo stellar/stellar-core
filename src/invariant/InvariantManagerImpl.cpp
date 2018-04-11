@@ -36,7 +36,7 @@ InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)
 }
 
 Json::Value
-InvariantManagerImpl::getInformation()
+InvariantManagerImpl::getJsonInfo()
 {
     Json::Value failures;
     for (auto const& invariant : mInvariants)

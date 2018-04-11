@@ -13,7 +13,7 @@ namespace stellar
 
 GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
     Application& app, WorkParent& parent, FileTransferInfo ft,
-    std::shared_ptr<HistoryArchive const> archive, size_t maxRetries)
+    std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
     : Work(app, parent,
            std::string("get-and-unzip-remote-file ") + ft.remoteName(),
            maxRetries)

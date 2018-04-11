@@ -102,7 +102,7 @@ class NominationProtocol
         return mLatestCompositeCandidate;
     }
 
-    void dumpInfo(Json::Value& ret);
+    Json::Value getJsonInfo();
 
     SCPEnvelope*
     getLastMessageSend() const

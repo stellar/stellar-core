@@ -5,8 +5,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/FutureBucket.h"
+#include "main/Config.h"
 #include "xdr/Stellar-types.h"
+
 #include <cereal/cereal.hpp>
+#include <lib/json/json.h>
 #include <memory>
 #include <string>
 #include <system_error>
@@ -15,6 +18,11 @@ namespace asio
 {
 typedef std::error_code error_code;
 };
+
+namespace Json
+{
+class Value;
+}
 
 namespace stellar
 {
@@ -128,14 +136,8 @@ struct HistoryArchiveState
 
 class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
 {
-    std::string mName;
-    std::string mGetCmd;
-    std::string mPutCmd;
-    std::string mMkdirCmd;
-
   public:
-    HistoryArchive(std::string const& name, std::string const& getCmd,
-                   std::string const& putCmd, std::string const& mkdirCmd);
+    explicit HistoryArchive(HistoryArchiveConfiguration const& config);
     ~HistoryArchive();
     bool hasGetCmd() const;
     bool hasPutCmd() const;
@@ -147,5 +149,15 @@ class HistoryArchive : public std::enable_shared_from_this<HistoryArchive>
     std::string putFileCmd(std::string const& local,
                            std::string const& remote) const;
     std::string mkdirCmd(std::string const& remoteDir) const;
+
+    void markSuccess();
+    void markFailure();
+
+    Json::Value getJsonInfo() const;
+
+  private:
+    HistoryArchiveConfiguration mConfig;
+    uint32_t mSuccess{0};
+    uint32_t mFailure{0};
 };
 }

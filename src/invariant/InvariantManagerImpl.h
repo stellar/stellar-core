@@ -33,7 +33,7 @@ class InvariantManagerImpl : public InvariantManager
   public:
     InvariantManagerImpl(medida::MetricsRegistry& registry);
 
-    virtual Json::Value getInformation() override;
+    virtual Json::Value getJsonInfo() override;
 
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,

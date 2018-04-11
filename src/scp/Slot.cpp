@@ -132,10 +132,7 @@ Slot::processEnvelope(SCPEnvelope const& envelope, bool self)
     }
     catch (...)
     {
-        Json::Value info;
-
-        dumpInfo(info);
-
+        auto info = getJsonInfo();
         CLOG(ERROR, "SCP") << "Exception in processEnvelope "
                            << "state: " << info.toStyledString()
                            << " processing envelope: "
@@ -294,19 +291,16 @@ Slot::getQuorumSetFromStatement(SCPStatement const& st)
     return res;
 }
 
-void
-Slot::dumpInfo(Json::Value& ret)
+Json::Value
+Slot::getJsonInfo()
 {
-    auto& slots = ret["slots"];
-
-    Json::Value& slotValue = slots[std::to_string(mSlotIndex)];
-
+    Json::Value ret;
     std::map<Hash, SCPQuorumSetPtr> qSetsUsed;
 
     int count = 0;
     for (auto const& item : mStatementsHistory)
     {
-        Json::Value& v = slotValue["statements"][count++];
+        Json::Value& v = ret["statements"][count++];
         v.append((Json::UInt64)item.mWhen);
         v.append(mSCP.envToStr(item.mStatement));
         v.append(item.mValidated);
@@ -320,23 +314,23 @@ Slot::dumpInfo(Json::Value& ret)
         }
     }
 
-    auto& qSets = slotValue["quorum_sets"];
+    auto& qSets = ret["quorum_sets"];
     for (auto const& q : qSetsUsed)
     {
-        auto& qs = qSets[hexAbbrev(q.first)];
-        getLocalNode()->toJson(*q.second, qs);
+        qSets[hexAbbrev(q.first)] = getLocalNode()->toJson(*q.second);
     }
 
-    slotValue["validated"] = mFullyValidated;
-    mNominationProtocol.dumpInfo(slotValue);
-    mBallotProtocol.dumpInfo(slotValue);
+    ret["validated"] = mFullyValidated;
+    ret["nomination"] = mNominationProtocol.getJsonInfo();
+    ret["ballotProtocol"] = mBallotProtocol.getJsonInfo();
+
+    return ret;
 }
 
-void
-Slot::dumpQuorumInfo(Json::Value& ret, NodeID const& id, bool summary)
+Json::Value
+Slot::getJsonQuorumInfo(NodeID const& id, bool summary)
 {
-    std::string i = std::to_string(static_cast<uint32>(mSlotIndex));
-    mBallotProtocol.dumpQuorumInfo(ret[i], id, summary);
+    return mBallotProtocol.getJsonQuorumInfo(id, summary);
 }
 
 bool
