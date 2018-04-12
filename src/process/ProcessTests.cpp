@@ -14,7 +14,9 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "xdrpp/autocheck.h"
+#include <chrono>
 #include <future>
+#include <thread>
 
 using namespace stellar;
 
@@ -186,6 +188,9 @@ TEST_CASE("shutdown while process running", "[process]")
             errorCodes.push_back(ec);
         });
     }
+
+    // Wait, just in case the processes haven't started yet
+    std::this_thread::sleep_for(std::chrono::seconds(1));
 
     // Shutdown so we force the command execution to fail
     app1->getProcessManager().shutdown();
