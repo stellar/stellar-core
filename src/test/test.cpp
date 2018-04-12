@@ -45,12 +45,14 @@ static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 static bool gTestAllVersions{false};
 static std::vector<uint32> gVersionsToTest;
+static int gBaseInstance{0};
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
+    instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
     {
         // by default, tests should be run with in memory SQLITE as it's faster
@@ -168,14 +170,17 @@ test(int argc, char* const* argv, el::Level ll,
     using namespace Catch;
     Session session{};
 
-    session.cli(
-        session.cli() |
-        clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions") |
-        clara::Opt(gVersionsToTest,
-                   "version")["--version"]("Test specific version(s)"));
+    auto cli = session.cli();
+    cli |= clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions");
+    cli |= clara::Opt(gVersionsToTest,
+                      "version")["--version"]("Test specific version(s)");
+    cli |= clara::Opt([](int x) { gBaseInstance = x; },
+                      "offset")["--base-instance"](
+        "Instance number offset so multiple instances of "
+        "stellar-core can run tests concurrently");
+    session.cli(cli);
 
     auto r = session.applyCommandLine(argc, argv);
-
     if (r != 0)
         return r;
 
