@@ -4,6 +4,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "lib/catch.hpp"
+#include "util/make_unique.h"
+
 namespace Catch
 {
 
@@ -46,18 +49,20 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     assertionStarting(AssertionInfo const& ai) override
     {
-        mLastAssertInfo = ai;
+        mLastAssertInfo = stellar::make_unique<AssertionInfo>(ai);
     }
 
     bool
     assertionEnded(AssertionStats const& _assertionStats) override
     {
-        AssertionResult const& result = _assertionStats.assertionResult;
-
-        if (result.isOk())
-            return true;
-        ConsoleReporter::assertionStarting(mLastAssertInfo);
-        return ConsoleReporter::assertionEnded(_assertionStats);
+        bool res = _assertionStats.assertionResult.isOk();
+        if (!res)
+        {
+            ConsoleReporter::assertionStarting(*mLastAssertInfo);
+            res = ConsoleReporter::assertionEnded(_assertionStats);
+        }
+        mLastAssertInfo.reset();
+        return res;
     }
 
     void
@@ -70,7 +75,7 @@ struct SimpleTestReporter : public ConsoleReporter
   private:
     int mDots{0};
 
-    AssertionInfo mLastAssertInfo;
+    std::unique_ptr<AssertionInfo> mLastAssertInfo;
 
     void
     printDot()
@@ -91,5 +96,5 @@ struct SimpleTestReporter : public ConsoleReporter
     }
 };
 
-INTERNAL_CATCH_REGISTER_REPORTER("simple", SimpleTestReporter)
+CATCH_REGISTER_REPORTER("simple", SimpleTestReporter)
 }

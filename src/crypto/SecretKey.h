@@ -73,7 +73,7 @@ class SecretKey
     static SecretKey fromSeed(ByteSlice const& seed);
 
     bool
-    operator==(SecretKey const& rh)
+    operator==(SecretKey const& rh) const
     {
         return (mKeyType == rh.mKeyType) && (mSecretKey == rh.mSecretKey);
     }

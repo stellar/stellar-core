@@ -1111,7 +1111,7 @@ TEST_CASE("bucket apply", "[bucket]")
 }
 
 #ifdef USE_POSTGRES
-TEST_CASE("bucket apply bench", "[bucketbench][hide]")
+TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
 {
     VirtualClock clock;
     Config cfg(getTestConfig(0, Config::TESTDB_POSTGRESQL));

@@ -4,6 +4,7 @@
 
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
+#include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
 #include "main/Application.h"
 #include "main/Config.h"

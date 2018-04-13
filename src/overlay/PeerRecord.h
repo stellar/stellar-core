@@ -36,7 +36,7 @@ class PeerRecord
                int fails = 0);
 
     bool
-    operator==(PeerRecord& other)
+    operator==(PeerRecord const& other) const
     {
         return mAddress == other.mAddress &&
                mNextAttempt == other.mNextAttempt &&
