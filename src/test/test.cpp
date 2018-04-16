@@ -44,6 +44,7 @@ static std::vector<std::string> gTestMetrics;
 static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 static bool gTestAllVersions{false};
+static std::vector<uint32> gVersionsToTest;
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
@@ -161,12 +162,22 @@ test(int argc, char* const* argv, el::Level ll,
 
     using namespace Catch;
     Session session{};
-    session.cli(session.cli() | clara::Opt(gTestAllVersions)["--all-versions"](
-                                    "Test all versions"));
+
+    session.cli(
+        session.cli() |
+        clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions") |
+        clara::Opt(gVersionsToTest,
+                   "version")["--version"]("Test specific version(s)"));
+
     auto r = session.applyCommandLine(argc, argv);
+
     if (r != 0)
         return r;
 
+    if (gVersionsToTest.empty())
+    {
+        gVersionsToTest.emplace_back(Config::CURRENT_LEDGER_PROTOCOL_VERSION);
+    }
     r = session.run();
     gTestRoots.clear();
     gTestCfg->clear();
@@ -222,7 +233,9 @@ for_versions(std::vector<uint32> const& versions, Application& app,
     auto previousVersion = app.getLedgerManager().getCurrentLedgerVersion();
     for (auto v : versions)
     {
-        if (!gTestAllVersions && v != Config::CURRENT_LEDGER_PROTOCOL_VERSION)
+        if (!gTestAllVersions &&
+            std::find(gVersionsToTest.begin(), gVersionsToTest.end(), v) ==
+                gVersionsToTest.end())
         {
             continue;
         }
