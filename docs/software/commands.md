@@ -63,6 +63,8 @@ forcescp doesn't change the requirements for quorum so although this node will e
       * `--all-versions` : run with all possible protocol versions
       * `--version <N>` : run tests for protocol version N, can be specified
       multiple times (default latest)
+      * `--base-instance <N>` : run tests with instance numbers offset by N,
+      used to run tests in parallel
   * For [further info](https://github.com/philsquared/Catch/blob/master/docs/command-line.md) on
   possible options for test.
   * For example this will run just the tests tagged with `[tx]` using protocol
