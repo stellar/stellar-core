@@ -211,9 +211,13 @@ NominationProtocol::applyAll(SCPNomination const& nom,
 void
 NominationProtocol::updateRoundLeaders()
 {
-    mRoundLeaders.clear();
-    uint64 topPriority = 0;
     SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
+
+    // initialize priority with value derived from self
+    mRoundLeaders.clear();
+    auto localID = mSlot.getLocalNode()->getNodeID();
+    mRoundLeaders.insert(localID);
+    uint64 topPriority = getNodePriority(localID, myQSet);
 
     LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
         uint64 w = getNodePriority(cur, myQSet);
