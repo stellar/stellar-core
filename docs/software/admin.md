@@ -256,7 +256,7 @@ Divide the validators into two categories:
 
 One of the goals is to ensure that there will always be some full validators in any given quorum (from your node's point of view).
 
-As the way quorum sets are specified is done using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
+As the way quorum sets are specified using a threshold, i.e. require T out of N entities (groups or individual validators) to agree, the desired property is achieved by simply picking a threshold at least equal to the number of basic entities at the top level + 1.
 
 ```toml
 [QUORUM_SET]
@@ -384,9 +384,7 @@ If you need to regenerate the meta data, the simplest way is to replay ledgers f
 Stellar-core stores a duplicate copy of the ledger in the form of flat XDR files 
 called "buckets." These files are placed in a directory specified in the config 
 file as `BUCKET_DIR_PATH`, which defaults to `buckets`. The bucket files are used
- for hashing and transmission of ledger differences to history archives. This 
- directory must be on the same file system as the configured temporary 
- directory `TMP_DIR_PATH`.
+ for hashing and transmission of ledger differences to history archives. 
 
 Buckets should be stored on a fast local disk with sufficient space to store several times the size of the current ledger. 
  
@@ -802,11 +800,8 @@ Stellar-core can be gracefully exited at any time by delivering `SIGINT` or
    Otherwise, all components are designed to recover from abrupt termination.
 
 Stellar-core can also be packaged in a container system such as Docker, so long 
-as `BUCKET_DIR_PATH`, `TMP_DIR_PATH`, and the database are stored on persistent 
-volumes. For an example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core-horizon).
-
-Note: `BUCKET_DIR_PATH` and `TMP_DIR_PATH` *must* reside on the same volume
-as stellar-core needs to rename files between the two.
+as `BUCKET_DIR_PATH` and the database are stored on persistent volumes. For an
+example, see [docker-stellar-core](https://github.com/stellar/docker-stellar-core-horizon).
 
 ### In depth architecture
 
