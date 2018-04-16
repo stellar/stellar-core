@@ -69,7 +69,7 @@ class Upgrades
     // in which case it also sets upgradeType
     bool isValid(uint64_t closeTime, UpgradeType const& upgrade,
                  LedgerUpgradeType& upgradeType, bool nomination,
-                 Config const& cfg) const;
+                 Config const& cfg, LedgerHeader const& header) const;
 
     // constructs a human readable string that represents
     // the pending upgrades
