@@ -150,8 +150,9 @@ LoadGenerator::clear()
 // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
 void
 LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
-                                      uint32_t nTxs, uint32_t txRate,
-                                      uint32_t batchSize, bool autoRate)
+                                      uint32_t offset, uint32_t nTxs,
+                                      uint32_t txRate, uint32_t batchSize,
+                                      bool autoRate)
 {
     if (!mLoadTimer)
     {
@@ -161,13 +162,13 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
     if (mApp.getState() == Application::APP_SYNCED_STATE)
     {
         mLoadTimer->expires_from_now(std::chrono::milliseconds(STEP_MSECS));
-        mLoadTimer->async_wait([this, nAccounts, nTxs, txRate, batchSize,
-                                isCreate,
+        mLoadTimer->async_wait([this, nAccounts, offset, nTxs, txRate,
+                                batchSize, isCreate,
                                 autoRate](asio::error_code const& error) {
             if (!error)
             {
-                this->generateLoad(isCreate, nAccounts, nTxs, txRate, batchSize,
-                                   autoRate);
+                this->generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
+                                   batchSize, autoRate);
             }
         });
     }
@@ -177,13 +178,13 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
             << "Application is not in sync, load generation inhibited. State "
             << mApp.getState();
         mLoadTimer->expires_from_now(std::chrono::seconds(10));
-        mLoadTimer->async_wait([this, nAccounts, nTxs, txRate, batchSize,
-                                isCreate,
+        mLoadTimer->async_wait([this, nAccounts, offset, nTxs, txRate,
+                                batchSize, isCreate,
                                 autoRate](asio::error_code const& error) {
             if (!error)
             {
-                this->scheduleLoadGeneration(isCreate, nAccounts, nTxs, txRate,
-                                             batchSize, autoRate);
+                this->scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs,
+                                             txRate, batchSize, autoRate);
             }
         });
     }
@@ -194,8 +195,9 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
 // If work remains after the current step, call scheduleLoadGeneration()
 // with the remainder.
 void
-LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
-                            uint32_t txRate, uint32_t batchSize, bool autoRate)
+LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
+                            uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
+                            bool autoRate)
 {
     soci::transaction sqltx(mApp.getDatabase().getSession());
     mApp.getDatabase().setCurrentTransactionReadOnly();
@@ -234,7 +236,8 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         }
         else
         {
-            nTxs = submitPaymentTx(nAccounts, nTxs, batchSize, ledgerNum);
+            nTxs =
+                submitPaymentTx(nAccounts, offset, batchSize, ledgerNum, nTxs);
         }
 
         if (nAccounts == 0 || (!isCreate && nTxs == 0))
@@ -262,7 +265,7 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
         logProgress(submit, isCreate, nAccounts, nTxs, batchSize, txRate);
     }
 
-    scheduleLoadGeneration(isCreate, nAccounts, nTxs, txRate, batchSize,
+    scheduleLoadGeneration(isCreate, nAccounts, offset, nTxs, txRate, batchSize,
                            autoRate);
 }
 
@@ -303,10 +306,11 @@ LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
 }
 
 uint32_t
-LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
-                               uint32_t batchSize, uint32_t ledgerNum)
+LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
+                               uint32_t batchSize, uint32_t ledgerNum,
+                               uint32_t nTxs)
 {
-    auto sourceAccountId = rand_uniform<uint64_t>(0, nAccounts - 1);
+    auto sourceAccountId = rand_uniform<uint64_t>(0, nAccounts - 1) + offset;
     TxInfo tx = paymentTransaction(nAccounts, ledgerNum, sourceAccountId);
 
     TransactionResultCode code;
@@ -322,7 +326,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
         if (++numTries >= TX_SUBMIT_MAX_TRIES)
         {
             CLOG(ERROR, "LoadGen") << "Error submitting tx: did you specify "
-                                      "correct number of accounts?";
+                                      "correct number of accounts and offset?";
             clear();
             return 0;
         }

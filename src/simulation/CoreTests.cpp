@@ -355,7 +355,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
     auto nodes = simulation->getNodes();
     auto& app = *nodes[0]; // pick a node to generate load
 
-    app.getLoadGenerator().generateLoad(true, 3, 0, 10, 100, false);
+    app.getLoadGenerator().generateLoad(true, 3, 0, 0, 10, 100, false);
     try
     {
         simulation->crankUntil(
@@ -368,7 +368,7 @@ TEST_CASE("Stress test on 2 nodes 3 accounts 10 random transactions 10tx/sec",
             },
             3 * Herder::EXP_LEDGER_TIMESPAN_SECONDS, false);
 
-        app.getLoadGenerator().generateLoad(false, 3, 10, 10, 100, false);
+        app.getLoadGenerator().generateLoad(false, 3, 0, 10, 10, 100, false);
         simulation->crankUntil(
             [&]() {
                 return simulation->haveAllExternalized(8, 2) &&
@@ -409,7 +409,7 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][!hide]")
     VirtualClock clock(VirtualClock::REAL_TIME);
     auto appPtr = newLoadTestApp(clock);
     // Create accounts
-    appPtr->generateLoad(true, 100000, 0, 10, 3, true);
+    appPtr->generateLoad(true, 100000, 0, 0, 10, 3, true);
     auto& io = clock.getIOService();
     asio::io_service::work mainWork(io);
     auto& complete =
@@ -419,7 +419,7 @@ TEST_CASE("Auto-calibrated single node load test", "[autoload][!hide]")
         clock.crank();
     }
     // Generate payments
-    appPtr->generateLoad(false, 100000, 100000, 10, 100, true);
+    appPtr->generateLoad(false, 100000, 0, 100000, 10, 100, true);
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();
@@ -503,7 +503,7 @@ TEST_CASE("Accounts vs. latency", "[scalability][!hide]")
     uint32_t numItems = 500000;
 
     // Create accounts
-    lg.generateLoad(true, numItems, 0, 10, 100, true);
+    lg.generateLoad(true, numItems, 0, 0, 10, 100, true);
 
     auto& complete =
         appPtr->getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
@@ -518,7 +518,7 @@ TEST_CASE("Accounts vs. latency", "[scalability][!hide]")
     txtime.Clear();
 
     // Generate payment txs
-    lg.generateLoad(false, numItems, numItems / 10, 10, 100, true);
+    lg.generateLoad(false, numItems, 0, numItems / 10, 10, 100, true);
     while (!io.stopped() && complete.count() == 1)
     {
         clock.crank();
@@ -551,7 +551,7 @@ netTopologyTest(std::string const& name,
         assert(!nodes.empty());
         auto& app = *nodes[0];
 
-        app.getLoadGenerator().generateLoad(true, 50, 0, 10, 100, false);
+        app.getLoadGenerator().generateLoad(true, 50, 0, 0, 10, 100, false);
         auto& complete =
             app.getMetrics().NewMeter({"loadgen", "run", "complete"}, "run");
 
