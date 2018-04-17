@@ -577,22 +577,25 @@ HerderImpl::ledgerClosed()
 
     auto now = mApp.getClock().now();
     auto lastScheduledTrigger = mTriggerTimer.expiry_time();
-    if (now <= lastScheduledTrigger)
+    if ((now - lastScheduledTrigger) < seconds)
     {
-        // we externalized before triggering
-        mTriggerTimer.expires_from_now(seconds);
-    }
-    else if ((now - lastScheduledTrigger) < seconds)
-    {
-        // we closed faster than the target round time, so schedule a trigger
-        // such that we stay on course
-        auto timeout = seconds - (now - lastScheduledTrigger);
-        mTriggerTimer.expires_from_now(timeout);
+        auto nowMS =
+            std::chrono::time_point_cast<std::chrono::milliseconds>(now);
+        auto periodMS =
+            std::chrono::duration_cast<std::chrono::milliseconds>(seconds);
+
+        // computes next trigger, aligning it with the period
+        // (assumption is that it was triggered last on a boundary)
+        auto offsetMS = periodMS.count() -
+                        (nowMS.time_since_epoch().count() % periodMS.count());
+        auto nextTrigger = now;
+        nextTrigger += std::chrono::milliseconds(offsetMS);
+        mTriggerTimer.expires_at(nextTrigger);
     }
     else
     {
         // round took a long time to close
-        mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
+        mTriggerTimer.expires_from_now(std::chrono::seconds(1));
     }
 
     if (!mApp.getConfig().MANUAL_CLOSE)
