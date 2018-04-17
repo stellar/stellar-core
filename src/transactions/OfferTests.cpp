@@ -1082,4 +1082,22 @@ TEST_CASE("create offer", "[tx][offers]")
             });
         }
     }
+
+    SECTION("updated offers respect reserve")
+    {
+        auto market = TestMarket{*app};
+        auto a1 = root.create("A", app->getLedgerManager().getMinBalance(2) +
+                                       4 * txfee + 10);
+        a1.changeTrust(usd, trustLineLimit);
+        for_all_versions(*app, [&] {
+            auto offer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(a1, {xlm, usd, oneone, 9});
+            });
+            market.requireChangesWithOffer({}, [&] {
+                return market.updateOffer(a1, offer.key.offerID,
+                                          {xlm, usd, oneone, 111},
+                                          {xlm, usd, oneone, 110});
+            });
+        });
+    }
 }
