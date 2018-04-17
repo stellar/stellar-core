@@ -232,7 +232,8 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
     {
         if (isCreate)
         {
-            nAccounts = submitCreationTx(nAccounts, batchSize, ledgerNum);
+            nAccounts =
+                submitCreationTx(nAccounts, offset, batchSize, ledgerNum);
         }
         else
         {
@@ -270,11 +271,12 @@ LoadGenerator::generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
 }
 
 uint32_t
-LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
-                                uint32_t ledgerNum)
+LoadGenerator::submitCreationTx(uint32_t nAccounts, uint32_t offset,
+                                uint32_t batchSize, uint32_t ledgerNum)
 {
     uint32_t numToProcess = nAccounts < batchSize ? nAccounts : batchSize;
-    TxInfo tx = creationTransaction(mAccounts.size(), numToProcess, ledgerNum);
+    TxInfo tx =
+        creationTransaction(mAccounts.size() + offset, numToProcess, ledgerNum);
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
     bool createDuplicate = false;
@@ -311,7 +313,8 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
                                uint32_t nTxs)
 {
     auto sourceAccountId = rand_uniform<uint64_t>(0, nAccounts - 1) + offset;
-    TxInfo tx = paymentTransaction(nAccounts, ledgerNum, sourceAccountId);
+    TxInfo tx =
+        paymentTransaction(nAccounts, offset, ledgerNum, sourceAccountId);
 
     TransactionResultCode code;
     Herder::TransactionSubmitStatus status;
@@ -321,7 +324,7 @@ LoadGenerator::submitPaymentTx(uint32_t nAccounts, uint32_t offset,
            Herder::TX_STATUS_PENDING)
     {
         handleFailedSubmission(tx.mFrom, status, code); // Update seq num
-        tx = paymentTransaction(nAccounts, ledgerNum,
+        tx = paymentTransaction(nAccounts, offset, ledgerNum,
                                 sourceAccountId); // re-generate the tx
         if (++numTries >= TX_SUBMIT_MAX_TRIES)
         {
@@ -501,15 +504,17 @@ LoadGenerator::loadAccount(TestAccountPtr acc, Database& database)
 }
 
 std::pair<LoadGenerator::TestAccountPtr, LoadGenerator::TestAccountPtr>
-LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t ledgerNum,
-                               uint64_t sourceAccountId)
+LoadGenerator::pickAccountPair(uint32_t numAccounts, uint32_t offset,
+                               uint32_t ledgerNum, uint64_t sourceAccountId)
 {
     auto sourceAccount = findAccount(sourceAccountId, ledgerNum);
 
     // Mod with total number of accounts to ensure account exists
     uint64_t destAccountId =
         (sourceAccountId + sourceAccount->getLastSequenceNumber()) %
-        numAccounts;
+            numAccounts +
+        offset;
+
     auto destAccount = findAccount(destAccountId, ledgerNum);
 
     CLOG(DEBUG, "LoadGen") << "Generated pair for payment tx - "
@@ -549,12 +554,13 @@ LoadGenerator::findAccount(uint64_t accountId, uint32_t ledgerNum)
 }
 
 LoadGenerator::TxInfo
-LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t ledgerNum,
-                                  uint64_t sourceAccount)
+LoadGenerator::paymentTransaction(uint32_t numAccounts, uint32_t offset,
+                                  uint32_t ledgerNum, uint64_t sourceAccount)
 {
     TestAccountPtr to, from;
     uint64_t amount = 1;
-    std::tie(from, to) = pickAccountPair(numAccounts, ledgerNum, sourceAccount);
+    std::tie(from, to) =
+        pickAccountPair(numAccounts, offset, ledgerNum, sourceAccount);
     vector<Operation> paymentOps = {
         txtest::payment(to->getPublicKey(), amount)};
     TxInfo tx = TxInfo{from, paymentOps};

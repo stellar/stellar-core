@@ -68,10 +68,11 @@ class LoadGenerator
     bool loadAccount(TestAccountPtr account, Database& database);
 
     std::pair<TestAccountPtr, TestAccountPtr>
-    pickAccountPair(uint32_t numAccounts, uint32_t ledgerNum,
+    pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
     LoadGenerator::TxInfo paymentTransaction(uint32_t numAccounts,
+                                             uint32_t offset,
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void handleFailedSubmission(TestAccountPtr sourceAccount,
@@ -84,8 +85,8 @@ class LoadGenerator
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
                      uint32_t txRate);
 
-    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
-                              uint32_t ledgerNum);
+    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
+                              uint32_t batchSize, uint32_t ledgerNum);
     uint32_t submitPaymentTx(uint32_t nAccounts, uint32_t offset,
                              uint32_t batchSize, uint32_t ledgerNum,
                              uint32_t nTxs);
