@@ -201,7 +201,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (creatingNewOffer &&
+            if (!creatingNewOffer ||
                 app.getLedgerManager().getCurrentLedgerVersion() > 8)
             {
                 // we need to compute maxAmountOfSheepCanSell based on the
