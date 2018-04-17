@@ -51,15 +51,16 @@ class LoadGenerator
 
     // Schedule a callback to generateLoad() STEP_MSECS miliseconds from now.
     void scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
-                                uint32_t nTxs, uint32_t txRate,
+                                uint32_t offset, uint32_t nTxs, uint32_t txRate,
                                 uint32_t batchSize, bool autoRate);
 
     // Generate one "step" worth of load (assuming 1 step per STEP_MSECS) at a
     // given target number of accounts and txs, and a given target tx/s rate.
     // If work remains after the current step, call scheduleLoadGeneration()
     // with the remainder.
-    void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t nTxs,
-                      uint32_t txRate, uint32_t batchSize, bool autoRate);
+    void generateLoad(bool isCreate, uint32_t nAccounts, uint32_t offset,
+                      uint32_t nTxs, uint32_t txRate, uint32_t batchSize,
+                      bool autoRate);
 
     std::vector<Operation> createAccounts(uint64_t i, uint64_t batchSize,
                                           uint32_t ledgerNum);
@@ -67,10 +68,11 @@ class LoadGenerator
     bool loadAccount(TestAccountPtr account, Database& database);
 
     std::pair<TestAccountPtr, TestAccountPtr>
-    pickAccountPair(uint32_t numAccounts, uint32_t ledgerNum,
+    pickAccountPair(uint32_t numAccounts, uint32_t offset, uint32_t ledgerNum,
                     uint64_t sourceAccountId);
     TestAccountPtr findAccount(uint64_t accountId, uint32_t ledgerNum);
     LoadGenerator::TxInfo paymentTransaction(uint32_t numAccounts,
+                                             uint32_t offset,
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void handleFailedSubmission(TestAccountPtr sourceAccount,
@@ -83,10 +85,11 @@ class LoadGenerator
                      uint32_t nAccounts, uint32_t nTxs, uint32_t batchSize,
                      uint32_t txRate);
 
-    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t batchSize,
-                              uint32_t ledgerNum);
-    uint32_t submitPaymentTx(uint32_t nAccounts, uint32_t nTxs,
-                             uint32_t batchSize, uint32_t ledgerNum);
+    uint32_t submitCreationTx(uint32_t nAccounts, uint32_t offset,
+                              uint32_t batchSize, uint32_t ledgerNum);
+    uint32_t submitPaymentTx(uint32_t nAccounts, uint32_t offset,
+                             uint32_t batchSize, uint32_t ledgerNum,
+                             uint32_t nTxs);
 
     void updateMinBalance();
     void waitTillComplete();
