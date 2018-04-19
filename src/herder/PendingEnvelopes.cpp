@@ -66,10 +66,17 @@ PendingEnvelopes::addSCPQuorumSet(Hash hash, const SCPQuorumSet& q)
     CLOG(TRACE, "Herder") << "Add SCPQSet " << hexAbbrev(hash);
 
     SCPQuorumSetPtr qset(new SCPQuorumSet(q));
+    if (mQsetCache.exists(hash))
+    {
+        // force recomputation of transitive quorum information as it may change
+        // "not in quorum" into "in quorum".
+        // the "quorum -> not in quorum" is similar to the case of a new quorum
+        // set, where the only thing it can do is turn
+        // a "maybe" (true) into "no" (false) which doesn't matter within
+        // a round (clear will happens regardless when the slot is externalized)
+        mNodesInQuorum.clear();
+    }
     mQsetCache.put(hash, qset);
-
-    // force recomputation of transitive quorum information
-    mNodesInQuorum.clear();
 
     mQuorumSetFetcher.recv(hash);
 }
