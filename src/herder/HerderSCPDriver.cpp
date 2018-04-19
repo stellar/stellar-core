@@ -94,6 +94,7 @@ void
 HerderSCPDriver::bootstrap()
 {
     stateChanged();
+    clearSCPExecutionEvents();
 }
 
 void
@@ -809,9 +810,15 @@ HerderSCPDriver::recordSCPExecutionMetrics(uint64_t slotIndex)
 
     // Clean up timings map
     auto it = mSCPExecutionTimes.begin();
-    while (it != mSCPExecutionTimes.end() && it->first <= slotIndex)
+    while (it != mSCPExecutionTimes.end() && it->first < slotIndex)
     {
         it = mSCPExecutionTimes.erase(it);
     }
+}
+
+void
+HerderSCPDriver::clearSCPExecutionEvents()
+{
+    mSCPExecutionTimes.clear();
 }
 }

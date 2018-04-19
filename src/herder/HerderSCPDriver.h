@@ -219,5 +219,7 @@ class HerderSCPDriver : public SCPDriver
     bool isSlotCompatibleWithCurrentState(uint64_t slotIndex) const;
 
     void logQuorumInformation(uint64_t index);
+
+    void clearSCPExecutionEvents();
 };
 }
