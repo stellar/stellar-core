@@ -10,6 +10,7 @@
 #include "lib/json/json.h"
 #include "main/Config.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -211,11 +212,13 @@ NominationProtocol::applyAll(SCPNomination const& nom,
 void
 NominationProtocol::updateRoundLeaders()
 {
-    SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
+    SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
 
     // initialize priority with value derived from self
     mRoundLeaders.clear();
     auto localID = mSlot.getLocalNode()->getNodeID();
+    normalizeQSet(myQSet, &localID);
+
     mRoundLeaders.insert(localID);
     uint64 topPriority = getNodePriority(localID, myQSet);
 
