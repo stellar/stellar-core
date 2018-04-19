@@ -25,6 +25,7 @@ class SecretKey
     using uint512 = xdr::opaque_array<64>;
     PublicKeyType mKeyType;
     uint512 mSecretKey;
+    PublicKey mPublicKey;
 
     struct Seed
     {
@@ -41,7 +42,7 @@ class SecretKey
     ~SecretKey();
 
     // Get the public key portion of this secret key.
-    PublicKey getPublicKey() const;
+    PublicKey const& getPublicKey() const;
 
     // Get the seed portion of this secret key as a StrKey string.
     SecretValue getStrKeySeed() const;
