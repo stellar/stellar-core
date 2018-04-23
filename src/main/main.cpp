@@ -71,11 +71,12 @@ enum opttag
     OPT_METRIC,
     OPT_NEWDB,
     OPT_NEWHIST,
-    OPT_PRINTTXN,
+    OPT_PRINTXDR,
     OPT_SEC2PUB,
     OPT_SIGNTXN,
     OPT_NETID,
     OPT_TEST,
+    OPT_FILETYPE,
     OPT_VERSION
 };
 
@@ -90,7 +91,8 @@ static const struct option stellar_core_options[] = {
     {"checkquorum", optional_argument, nullptr, OPT_CHECKQUORUM},
     {"base64", no_argument, nullptr, OPT_BASE64},
     {"dumpxdr", required_argument, nullptr, OPT_DUMPXDR},
-    {"printtxn", required_argument, nullptr, OPT_PRINTTXN},
+    {"printxdr", required_argument, nullptr, OPT_PRINTXDR},
+    {"filetype", required_argument, nullptr, OPT_FILETYPE},
     {"signtxn", required_argument, nullptr, OPT_SIGNTXN},
     {"netid", required_argument, nullptr, OPT_NETID},
     {"loadxdr", required_argument, nullptr, OPT_LOADXDR},
@@ -131,16 +133,14 @@ usage(int err = 1)
           "                           Use current as SEQ to catchup to "
           "'current' history checkpoint\n"
           "      --c                  Send a command to local stellar-core. "
-          "try "
-          "'--c help' for more information\n"
+          "try '--c help' for more information\n"
           "      --conf FILE          Specify a config file ('-' for STDIN, "
           "default 'stellar-core.cfg')\n"
           "      --convertid ID       Displays ID in all known forms\n"
           "      --dumpxdr FILE       Dump an XDR file, for debugging\n"
           "      --loadxdr FILE       Load an XDR bucket file, for testing\n"
           "      --forcescp           Next time stellar-core is run, SCP will "
-          "start "
-          "with the local ledger rather than waiting to hear from the "
+          "start with the local ledger rather than waiting to hear from the "
           "network.\n"
           "      --fuzz FILE          Run a single fuzz input and exit\n"
           "      --genfuzz FILE       Generate a random fuzzer input file\n"
@@ -155,19 +155,19 @@ usage(int err = 1)
           "      --offlineinfo        Return information for an offline "
           "instance\n"
           "      --ll LEVEL           Set the log level. (redundant with --c "
-          "ll "
-          "but "
-          "you need this form for the tests.)\n"
+          "ll but you need this form for the tests.)\n"
           "                           LEVEL can be: trace, debug, info, error, "
           "fatal\n"
           "      --metric METRIC      Report metric METRIC on exit\n"
           "      --newdb              Creates or restores the DB to the "
-          "genesis "
-          "ledger\n"
+          "genesis ledger\n"
           "      --newhist ARCH       Initialize the named history archive "
           "ARCH\n"
-          "      --printtxn FILE      Pretty-print one transaction envelope,"
-          " then quit\n"
+          "      --printxdr FILE      Pretty print XDR content from FILE, "
+          "then quit\n"
+          "      --filetype "
+          "[auto|ledgerheader|meta|result|resultpair|tx|txfee] toggle for type "
+          "used for printxdr\n"
           "      --report-last-history-checkpoint\n"
           "                           Report information about last checkpoint "
           "available in history archives\n"
@@ -718,6 +718,7 @@ main(int argc, char* const* argv)
     std::string loadXdrBucket;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
+    string filetype = "auto";
 
     int opt;
     while ((opt = getopt_long_only(argc, argv, "c:", stellar_core_options,
@@ -756,11 +757,14 @@ main(int argc, char* const* argv)
             StrKeyUtils::logKey(std::cout, std::string(optarg));
             return 0;
         case OPT_DUMPXDR:
-            dumpxdr(std::string(optarg));
+            dumpXdrStream(std::string(optarg));
             return 0;
-        case OPT_PRINTTXN:
-            printtxn(std::string(optarg), base64);
+        case OPT_PRINTXDR:
+            printXdr(std::string(optarg), filetype, base64);
             return 0;
+        case OPT_FILETYPE:
+            filetype = std::string(optarg);
+            break;
         case OPT_SIGNTXN:
             signtxn(std::string(optarg), base64);
             return 0;
