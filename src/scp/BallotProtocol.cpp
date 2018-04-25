@@ -827,7 +827,7 @@ BallotProtocol::attemptPreparedAccept(SCPStatement const& hint)
 
         bool accepted = federatedAccept(
             // checks if any node is voting for this ballot
-            [&ballot, this](SCPStatement const& st) {
+            [&ballot](SCPStatement const& st) {
                 bool res;
 
                 switch (st.pledges.type())

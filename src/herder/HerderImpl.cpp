@@ -126,8 +126,6 @@ HerderImpl::bootstrap()
     mLedgerManager.setState(LedgerManager::LM_SYNCED_STATE);
     mHerderSCPDriver.bootstrap();
 
-    mTriggerTimer.expires_at(mApp.getClock().now() -
-                             Herder::EXP_LEDGER_TIMESPAN_SECONDS);
     ledgerClosed();
 }
 
@@ -531,10 +529,11 @@ HerderImpl::ledgerClosed()
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
-    mPendingEnvelopes.slotClosed(mHerderSCPDriver.lastConsensusLedgerIndex());
+    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
 
-    mApp.getOverlayManager().ledgerClosed(
-        mHerderSCPDriver.lastConsensusLedgerIndex());
+    mPendingEnvelopes.slotClosed(lastIndex);
+
+    mApp.getOverlayManager().ledgerClosed(lastIndex);
 
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
 
@@ -575,25 +574,18 @@ HerderImpl::ledgerClosed()
             mApp.getConfig().ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING);
     }
 
-    auto now = mApp.getClock().now();
-    auto lastScheduledTrigger = mTriggerTimer.expiry_time();
-    if (now <= lastScheduledTrigger)
+    // bootstrap with a pessimistic estimate of when
+    // the ballot protocol started last
+    auto lastBallotStart = mApp.getClock().now() - seconds;
+    auto lastStart = mHerderSCPDriver.getPrepareStart(lastIndex);
+    if (lastStart)
     {
-        // we externalized before triggering
-        mTriggerTimer.expires_from_now(seconds);
+        lastBallotStart = *lastStart;
     }
-    else if ((now - lastScheduledTrigger) < seconds)
-    {
-        // we closed faster than the target round time, so schedule a trigger
-        // such that we stay on course
-        auto timeout = seconds - (now - lastScheduledTrigger);
-        mTriggerTimer.expires_from_now(timeout);
-    }
-    else
-    {
-        // round took a long time to close
-        mTriggerTimer.expires_from_now(std::chrono::nanoseconds(0));
-    }
+    // even if ballot protocol started before triggering, we just use that time
+    // as reference point for triggering again (this may trigger right away if
+    // externalizing took a long time)
+    mTriggerTimer.expires_at(lastBallotStart + seconds);
 
     if (!mApp.getConfig().MANUAL_CLOSE)
         mTriggerTimer.async_wait(std::bind(&HerderImpl::triggerNextLedger, this,

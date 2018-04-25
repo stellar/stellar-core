@@ -9,10 +9,12 @@
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
+#include "scp/LocalNode.h"
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
+
 #include <util/format.h>
 
 #include "medida/medida.h"
@@ -25,13 +27,15 @@ namespace stellar
 
 using namespace std;
 
-Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen)
+Simulation::Simulation(Mode mode, Hash const& networkID, ConfigGen confGen,
+                       QuorumSetAdjuster qSetAdjust)
     : mVirtualClockMode(mode != OVER_TCP)
     , mClock(mVirtualClockMode ? VirtualClock::VIRTUAL_TIME
                                : VirtualClock::REAL_TIME)
     , mMode(mode)
     , mConfigCount(0)
     , mConfigGen(confGen)
+    , mQuorumSetAdjuster(qSetAdjust)
 {
     mIdleApp = Application::create(mClock, newConfig());
 }
@@ -67,7 +71,16 @@ Simulation::addNode(SecretKey nodeKey, SCPQuorumSet qSet, Config const* cfg2,
     auto cfg = cfg2 ? std::make_shared<Config>(*cfg2)
                     : std::make_shared<Config>(newConfig());
     cfg->NODE_SEED = nodeKey;
-    cfg->QUORUM_SET = qSet;
+
+    if (mQuorumSetAdjuster)
+    {
+        cfg->QUORUM_SET = mQuorumSetAdjuster(qSet);
+    }
+    else
+    {
+        cfg->QUORUM_SET = qSet;
+    }
+
     cfg->RUN_STANDALONE = (mMode == OVER_LOOPBACK);
 
     auto clock =

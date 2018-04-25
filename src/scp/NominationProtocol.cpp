@@ -10,6 +10,7 @@
 #include "lib/json/json.h"
 #include "main/Config.h"
 #include "scp/LocalNode.h"
+#include "scp/QuorumSetUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/make_unique.h"
@@ -211,9 +212,15 @@ NominationProtocol::applyAll(SCPNomination const& nom,
 void
 NominationProtocol::updateRoundLeaders()
 {
+    SCPQuorumSet myQSet = mSlot.getLocalNode()->getQuorumSet();
+
+    // initialize priority with value derived from self
     mRoundLeaders.clear();
-    uint64 topPriority = 0;
-    SCPQuorumSet const& myQSet = mSlot.getLocalNode()->getQuorumSet();
+    auto localID = mSlot.getLocalNode()->getNodeID();
+    normalizeQSet(myQSet, &localID);
+
+    mRoundLeaders.insert(localID);
+    uint64 topPriority = getNodePriority(localID, myQSet);
 
     LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
         uint64 w = getNodePriority(cur, myQSet);
@@ -257,7 +264,17 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
                                     SCPQuorumSet const& qset)
 {
     uint64 res;
-    uint64 w = LocalNode::getNodeWeight(nodeID, qset);
+    uint64 w;
+
+    if (nodeID == mSlot.getLocalNode()->getNodeID())
+    {
+        // local node is in all quorum sets
+        w = UINT64_MAX;
+    }
+    else
+    {
+        w = LocalNode::getNodeWeight(nodeID, qset);
+    }
 
     if (hashNode(false, nodeID) < w)
     {

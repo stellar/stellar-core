@@ -135,6 +135,8 @@ class HerderSCPDriver : public SCPDriver
                                  SCPBallot const& ballot) override;
     void acceptedCommit(uint64_t slotIndex, SCPBallot const& ballot) override;
 
+    optional<VirtualClock::time_point> getPrepareStart(uint64_t slotIndex);
+
   private:
     Application& mApp;
     HerderImpl& mHerder;
@@ -217,5 +219,7 @@ class HerderSCPDriver : public SCPDriver
     bool isSlotCompatibleWithCurrentState(uint64_t slotIndex) const;
 
     void logQuorumInformation(uint64_t index);
+
+    void clearSCPExecutionEvents();
 };
 }

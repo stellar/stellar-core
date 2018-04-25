@@ -37,8 +37,10 @@ class Simulation
 
     using pointer = std::shared_ptr<Simulation>;
     using ConfigGen = std::function<Config(int i)>;
+    using QuorumSetAdjuster = std::function<SCPQuorumSet(SCPQuorumSet const&)>;
 
-    Simulation(Mode mode, Hash const& networkID, ConfigGen = nullptr);
+    Simulation(Mode mode, Hash const& networkID, ConfigGen = nullptr,
+               QuorumSetAdjuster = nullptr);
     ~Simulation();
 
     // updates all clocks in the simulation to the same time_point
@@ -105,6 +107,8 @@ class Simulation
     std::vector<std::shared_ptr<LoopbackPeerConnection>> mLoopbackConnections;
 
     ConfigGen mConfigGen; // config generator
+
+    QuorumSetAdjuster mQuorumSetAdjuster;
 
     std::chrono::milliseconds const quantum = std::chrono::milliseconds(100);
 };
