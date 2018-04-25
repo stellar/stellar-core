@@ -13,6 +13,7 @@
 #include "scp/LocalNode.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/types.h"
 
 #include <functional>
@@ -21,8 +22,6 @@
 
 namespace stellar
 {
-using xdr::operator<;
-
 const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 10;
 
 Config::Config() : NODE_SEED(SecretKey::random())

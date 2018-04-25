@@ -13,6 +13,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/XDROperators.h"
 #include "work/WorkManager.h"
 
 #include <medida/metrics_registry.h>
@@ -22,8 +23,6 @@ using namespace txtest;
 
 namespace stellar
 {
-using xdr::operator==;
-
 namespace historytestutils
 {
 

@@ -18,6 +18,7 @@
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/XDRStream.h"
 #include "util/basen.h"
 #include "xdrpp/marshal.h"
@@ -33,7 +34,6 @@ namespace stellar
 {
 
 using namespace std;
-using xdr::operator==;
 
 TransactionFramePtr
 TransactionFrame::makeTransactionFromWire(Hash const& networkID,

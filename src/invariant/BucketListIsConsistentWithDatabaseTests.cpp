@@ -25,17 +25,13 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/XDROperators.h"
 #include "work/WorkManager.h"
 #include <random>
 #include <util/basen.h>
 
 using namespace stellar;
 using namespace std::placeholders;
-
-namespace stellar
-{
-using xdr::operator<;
-}
 
 namespace BucketListIsConsistentWithDatabaseTests
 {

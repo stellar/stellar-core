@@ -4,14 +4,13 @@
 
 #include "util/types.h"
 #include "lib/util/uint128_t.h"
+#include "util/XDROperators.h"
 #include <algorithm>
 #include <locale>
 
 namespace stellar
 {
 static std::locale cLocale("C");
-
-using xdr::operator==;
 
 bool
 isZero(uint256 const& b)

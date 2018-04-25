@@ -4,6 +4,7 @@
 
 #include "QuorumSetUtils.h"
 
+#include "util/XDROperators.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-types.h"
 
@@ -12,8 +13,6 @@
 
 namespace stellar
 {
-
-using xdr::operator<;
 
 namespace
 {

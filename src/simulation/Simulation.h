@@ -14,6 +14,7 @@
 #include "simulation/LoadGenerator.h"
 #include "test/TxTests.h"
 #include "util/Timer.h"
+#include "util/XDROperators.h"
 #include "xdr/Stellar-types.h"
 
 #define SIMULATION_CREATE_NODE(N) \
@@ -23,9 +24,6 @@
 
 namespace stellar
 {
-using xdr::operator<;
-using xdr::operator==;
-
 class Simulation
 {
   public:

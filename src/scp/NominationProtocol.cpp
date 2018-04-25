@@ -13,6 +13,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/make_unique.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
@@ -20,8 +21,6 @@
 
 namespace stellar
 {
-using xdr::operator==;
-using xdr::operator<;
 using namespace std::placeholders;
 
 NominationProtocol::NominationProtocol(Slot& slot)

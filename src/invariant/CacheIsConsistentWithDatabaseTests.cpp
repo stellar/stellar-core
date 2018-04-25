@@ -12,14 +12,10 @@
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "util/XDROperators.h"
 #include <random>
 
 using namespace stellar;
-
-namespace stellar
-{
-using xdr::operator<;
-}
 
 static LedgerEntry
 generateRandomLedgerEntry(std::map<LedgerKey, LedgerEntry>& liveEntries,

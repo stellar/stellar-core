@@ -9,6 +9,7 @@
 #include "herder/HerderSCPDriver.h"
 #include "herder/Upgrades.h"
 #include "util/Timer.h"
+#include "util/XDROperators.h"
 #include <deque>
 #include <memory>
 #include <unordered_map>
@@ -26,9 +27,6 @@ namespace stellar
 class Application;
 class LedgerManager;
 class HerderSCPDriver;
-
-using xdr::operator<;
-using xdr::operator==;
 
 /*
  * Is in charge of receiving transactions from the network.

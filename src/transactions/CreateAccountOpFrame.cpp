@@ -10,6 +10,7 @@
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include <algorithm>
 
 #include "main/Application.h"
@@ -20,7 +21,6 @@ namespace stellar
 {
 
 using namespace std;
-using xdr::operator==;
 
 CreateAccountOpFrame::CreateAccountOpFrame(Operation const& op,
                                            OperationResult& res,

@@ -9,11 +9,10 @@
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
 #include "transactions/TransactionFrame.h"
+#include "util/XDROperators.h"
 
 namespace stellar
 {
-using xdr::operator==;
-
 BumpSequenceOpFrame::BumpSequenceOpFrame(Operation const& op,
                                          OperationResult& res,
                                          TransactionFrame& parentTx)

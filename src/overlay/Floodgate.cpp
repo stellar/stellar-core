@@ -11,13 +11,11 @@
 #include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 
 namespace stellar
 {
-
-using xdr::operator<;
-
 Floodgate::FloodRecord::FloodRecord(StellarMessage const& msg, uint32_t ledger,
                                     Peer::pointer peer)
     : mLedgerSeq(ledger), mMessage(msg)

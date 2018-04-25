@@ -14,13 +14,13 @@
 #include "medida/metrics_registry.h"
 #include "transactions/PathPaymentOpFrame.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include <algorithm>
 
 namespace stellar
 {
 
 using namespace std;
-using xdr::operator==;
 
 PaymentOpFrame::PaymentOpFrame(Operation const& op, OperationResult& res,
                                TransactionFrame& parentTx)

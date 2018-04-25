@@ -10,6 +10,7 @@
 #include "lib/json/json.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
@@ -17,9 +18,6 @@
 
 namespace stellar
 {
-using xdr::operator==;
-using xdr::operator<;
-
 LocalNode::LocalNode(NodeID const& nodeID, bool isValidator,
                      SCPQuorumSet const& qSet, SCP* scp)
     : mNodeID(nodeID), mIsValidator(isValidator), mQSet(qSet), mSCP(scp)

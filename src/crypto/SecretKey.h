@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/KeyUtils.h"
+#include "util/XDROperators.h"
 #include "xdr/Stellar-types.h"
 
 #include <array>
@@ -13,8 +14,6 @@
 
 namespace stellar
 {
-
-using xdr::operator==;
 
 class ByteSlice;
 struct SecretValue;

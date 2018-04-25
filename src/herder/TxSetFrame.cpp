@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Logging.h"
+#include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
 
@@ -19,9 +20,6 @@ namespace stellar
 {
 
 using namespace std;
-
-using xdr::operator==;
-using xdr::operator<;
 
 TxSetFrame::TxSetFrame(Hash const& previousLedgerHash)
     : mHashIsValid(false), mPreviousLedgerHash(previousLedgerHash)
