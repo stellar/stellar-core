@@ -484,7 +484,6 @@ TEST_CASE("file-backed buckets", "[bucket][bucketbench]")
         for (auto& e : dead)
             e = deadGen(3);
         {
-            TIMED_SCOPE(timerObj2, "merge");
             b1 = Bucket::merge(
                 app->getBucketManager(), b1,
                 Bucket::fresh(app->getBucketManager(), live, dead));
@@ -1137,7 +1136,6 @@ TEST_CASE("bucket apply bench", "[bucketbench][!hide]")
     CLOG(INFO, "Bucket") << "Applying bucket with " << live.size()
                          << " live entries";
     {
-        TIMED_SCOPE(timerObj, "apply");
         soci::transaction sqltx(sess);
         birth->apply(db);
         sqltx.commit();

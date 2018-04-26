@@ -34,6 +34,10 @@ TEST_CASE("random", "[crypto]")
     LOG(DEBUG) << "k1: " << k1.getStrKeySeed().value;
     LOG(DEBUG) << "k2: " << k2.getStrKeySeed().value;
     CHECK(k1.getStrKeySeed() != k2.getStrKeySeed());
+
+    SecretKey k1b = SecretKey::fromStrKeySeed(k1.getStrKeySeed().value);
+    REQUIRE(k1 == k1b);
+    REQUIRE(k1.getPublicKey() == k1b.getPublicKey());
 }
 
 TEST_CASE("hex tests", "[crypto]")
@@ -191,7 +195,6 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
 
     LOG(INFO) << "Benchmarking " << n << " signatures and verifications";
     {
-        TIMED_SCOPE(timerBlkObj, "signing");
         for (auto& c : cases)
         {
             c.sign();
@@ -199,7 +202,6 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
     }
 
     {
-        TIMED_SCOPE(timerBlkObj, "verifying");
         for (auto& c : cases)
         {
             c.verify();
