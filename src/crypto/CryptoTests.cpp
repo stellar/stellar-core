@@ -195,7 +195,6 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
 
     LOG(INFO) << "Benchmarking " << n << " signatures and verifications";
     {
-        TIMED_SCOPE(timerBlkObj, "signing");
         for (auto& c : cases)
         {
             c.sign();
@@ -203,7 +202,6 @@ TEST_CASE("sign and verify benchmarking", "[crypto-bench][bench][!hide]")
     }
 
     {
-        TIMED_SCOPE(timerBlkObj, "verifying");
         for (auto& c : cases)
         {
             c.verify();
