@@ -175,11 +175,10 @@ SecretKey::fromStrKeySeed(std::string const& strKeySeed)
         throw std::runtime_error("invalid seed");
     }
 
-    PublicKey pk;
     SecretKey sk;
     assert(sk.mKeyType == PUBLIC_KEY_TYPE_ED25519);
-    if (crypto_sign_seed_keypair(pk.ed25519().data(), sk.mSecretKey.data(),
-                                 seed.data()) != 0)
+    if (crypto_sign_seed_keypair(sk.mPublicKey.ed25519().data(),
+                                 sk.mSecretKey.data(), seed.data()) != 0)
     {
         throw std::runtime_error("error generating secret key from seed");
     }
