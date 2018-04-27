@@ -236,11 +236,11 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 }
 
 bool
-Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                  LedgerUpgradeType& upgradeType, bool nomination,
-                  Config const& cfg, LedgerHeader const& header) const
+Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
+                  bool nomination, Config const& cfg,
+                  LedgerHeader const& header) const
 {
-    if (nomination && !timeForUpgrade(closeTime))
+    if (nomination && !timeForUpgrade(header.scpValue.closeTime))
     {
         return false;
     }
