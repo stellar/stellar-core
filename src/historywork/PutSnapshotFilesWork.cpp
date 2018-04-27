@@ -48,8 +48,7 @@ PutSnapshotFilesWork::onSuccess()
     if (!mGetHistoryArchiveStateWork)
     {
         mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state", mRemoteState, 0,
-            std::chrono::seconds(0), mArchive);
+            "get-history-archive-state", mRemoteState, 0, mArchive);
         return WORK_PENDING;
     }
 

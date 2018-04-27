@@ -144,6 +144,8 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         }
         thisConfig.DATABASE = SecretValue{dbname.str()};
         thisConfig.REPORT_METRICS = gTestMetrics;
+        // disable maintenance
+        thisConfig.AUTOMATIC_MAINTENANCE_COUNT = 0;
     }
     return *cfgs[instanceNumber];
 }

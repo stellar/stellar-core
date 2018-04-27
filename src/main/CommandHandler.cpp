@@ -567,7 +567,7 @@ CommandHandler::catchup(std::string const& params, std::string& retStr)
         }
     }
 
-    mApp.getLedgerManager().startCatchUp({ledger, count}, true);
+    mApp.getLedgerManager().startCatchup({ledger, count}, true);
     retStr = (std::string("Started catchup to ledger ") +
               std::to_string(ledger) + std::string(" in mode ") +
               std::string(

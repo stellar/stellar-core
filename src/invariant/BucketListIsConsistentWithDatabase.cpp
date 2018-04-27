@@ -10,6 +10,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
+#include "ledger/LedgerRange.h"
 #include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "lib/util/format.h"

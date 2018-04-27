@@ -229,10 +229,6 @@ class HistoryManager
     // ledger of the catchup operation.
     virtual uint32_t nextCheckpointLedger(uint32_t ledger) const = 0;
 
-    // Given a ledger, tell the number of seconds to sleep until the next
-    // catchup probe.
-    virtual uint64_t nextCheckpointCatchupProbe(uint32_t ledger) const = 0;
-
     // Emit a log message and set StatusManager HISTORY_PUBLISH status to
     // describe current publish state.
     virtual void logAndUpdatePublishStatus() = 0;

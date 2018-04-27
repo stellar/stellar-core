@@ -12,6 +12,7 @@ namespace stellar
 {
 
 class Application;
+class Bucket;
 class Invariant;
 class LedgerDelta;
 struct Operation;

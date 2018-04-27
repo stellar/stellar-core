@@ -45,7 +45,6 @@ class HistoryManagerImpl : public HistoryManager
     uint32_t checkpointContainingLedger(uint32_t ledger) const override;
     uint32_t prevCheckpointLedger(uint32_t ledger) const override;
     uint32_t nextCheckpointLedger(uint32_t ledger) const override;
-    uint64_t nextCheckpointCatchupProbe(uint32_t ledger) const override;
 
     void logAndUpdatePublishStatus() override;
 
