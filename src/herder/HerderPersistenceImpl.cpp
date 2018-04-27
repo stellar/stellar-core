@@ -9,9 +9,10 @@
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "scp/Slot.h"
+#include "util/Decoder.h"
 #include "util/XDRStream.h"
 #include "util/make_unique.h"
-#include <lib/util/basen.h>
+
 #include <soci.h>
 #include <xdrpp/marshal.h>
 
@@ -70,7 +71,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
         auto envelopeBytes(xdr::xdr_to_opaque(e));
 
         std::string envelopeEncoded;
-        envelopeEncoded = bn::encode_b64(envelopeBytes);
+        envelopeEncoded = decoder::encode_b64(envelopeBytes);
 
         auto prepEnv =
             db.getPreparedStatement("INSERT INTO scphistory "
@@ -113,7 +114,7 @@ HerderPersistenceImpl::saveSCPHistory(uint32_t seq,
             auto qSetBytes(xdr::xdr_to_opaque(*p.second));
 
             std::string qSetEncoded;
-            qSetEncoded = bn::encode_b64(qSetBytes);
+            qSetEncoded = decoder::encode_b64(qSetBytes);
 
             auto prepInsQSet = db.getPreparedStatement(
                 "INSERT INTO scpquorums "
@@ -184,7 +185,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
                 auto& env = curEnvs.back();
 
                 std::vector<uint8_t> envBytes;
-                bn::decode_b64(envB64, envBytes);
+                decoder::decode_b64(envB64, envBytes);
 
                 xdr::xdr_get g1(&envBytes.front(), &envBytes.back() + 1);
                 xdr_argpack_archive(g1, env);
@@ -228,7 +229,7 @@ HerderPersistence::copySCPHistoryToStream(Database& db, soci::session& sess,
             }
 
             std::vector<uint8_t> qSetBytes;
-            bn::decode_b64(qset64, qSetBytes);
+            decoder::decode_b64(qset64, qSetBytes);
 
             xdr::xdr_get g1(&qSetBytes.front(), &qSetBytes.back() + 1);
             xdr_argpack_archive(g1, qset);

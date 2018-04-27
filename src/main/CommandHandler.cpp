@@ -20,8 +20,8 @@
 #include "util/make_unique.h"
 
 #include "medida/reporting/json_reporter.h"
+#include "util/Decoder.h"
 #include "util/XDROperators.h"
-#include "util/basen.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
 
@@ -853,7 +853,7 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         TransactionEnvelope envelope;
         std::string blob = params.substr(prefix.size());
         std::vector<uint8_t> binBlob;
-        bn::decode_b64(blob, binBlob);
+        decoder::decode_b64(blob, binBlob);
 
         xdr::xdr_from_opaque(binBlob, envelope);
         TransactionFramePtr transaction =
@@ -881,8 +881,9 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
             {
                 std::string resultBase64;
                 auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
-                resultBase64.reserve(bn::encoded_size64(resultBin.size()) + 1);
-                resultBase64 = bn::encode_b64(resultBin);
+                resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
+                                     1);
+                resultBase64 = decoder::encode_b64(resultBin);
 
                 output << " , \"error\": \"" << resultBase64 << "\"";
             }

@@ -26,8 +26,8 @@
 #include "medida/counter.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
+#include "util/Decoder.h"
 #include "util/XDRStream.h"
-#include "util/basen.h"
 #include "xdrpp/marshal.h"
 
 #include <ctime>
@@ -936,7 +936,7 @@ HerderImpl::persistSCPState(uint64 slot)
     auto latestSCPData =
         xdr::xdr_to_opaque(latestEnvs, latestTxSets, latestQSets);
     std::string scpState;
-    scpState = bn::encode_b64(latestSCPData);
+    scpState = decoder::encode_b64(latestSCPData);
 
     mApp.getPersistentState().setState(PersistentState::kLastSCPData, scpState);
 }
@@ -960,7 +960,7 @@ HerderImpl::restoreSCPState()
     }
 
     std::vector<uint8_t> buffer;
-    bn::decode_b64(latest64, buffer);
+    decoder::decode_b64(latest64, buffer);
 
     xdr::xvector<SCPEnvelope> latestEnvs;
     xdr::xvector<TransactionSet> latestTxSets;

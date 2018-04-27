@@ -10,7 +10,7 @@
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"
 #include "transactions/ManageDataOpFrame.h"
-#include "util/basen.h"
+#include "util/Decoder.h"
 #include "util/types.h"
 
 using namespace std;
@@ -127,7 +127,7 @@ DataFrame::loadData(StatementContext& prep,
             throw std::runtime_error("bad database state");
         }
         oe.dataName = dataName;
-        bn::decode_b64(dataValue, oe.dataValue);
+        decoder::decode_b64(dataValue, oe.dataValue);
 
         dataProcessor(le);
         st.fetch();
@@ -248,7 +248,7 @@ DataFrame::storeUpdateHelper(LedgerDelta& delta, Database& db, bool insert)
 
     std::string actIDStrKey = KeyUtils::toStrKey(mData.accountID);
     std::string dataName = mData.dataName;
-    std::string dataValue = bn::encode_b64(mData.dataValue);
+    std::string dataValue = decoder::encode_b64(mData.dataValue);
 
     string sql;
 

@@ -17,10 +17,10 @@
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/XDRStream.h"
-#include "util/basen.h"
 #include "xdrpp/marshal.h"
 #include <string>
 
@@ -633,15 +633,15 @@ TransactionFrame::storeTransaction(LedgerManager& ledgerManager,
     auto txResultBytes(xdr::xdr_to_opaque(resultSet.results.back()));
 
     std::string txBody;
-    txBody = bn::encode_b64(txBytes);
+    txBody = decoder::encode_b64(txBytes);
 
     std::string txResult;
-    txResult = bn::encode_b64(txResultBytes);
+    txResult = decoder::encode_b64(txResultBytes);
 
     xdr::opaque_vec<> txMeta(xdr::xdr_to_opaque(tm));
 
     std::string meta;
-    meta = bn::encode_b64(txMeta);
+    meta = decoder::encode_b64(txMeta);
 
     string txIDString(binToHex(getContentsHash()));
 
@@ -678,7 +678,7 @@ TransactionFrame::storeTransactionFee(LedgerManager& ledgerManager,
     xdr::opaque_vec<> txChanges(xdr::xdr_to_opaque(changes));
 
     std::string txChanges64;
-    txChanges64 = bn::encode_b64(txChanges);
+    txChanges64 = decoder::encode_b64(txChanges);
 
     string txIDString(binToHex(getContentsHash()));
 
@@ -745,7 +745,7 @@ TransactionFrame::getTransactionHistoryResults(Database& db, uint32 ledgerSeq)
     while (st.got_data())
     {
         std::vector<uint8_t> result;
-        bn::decode_b64(txresult64, result);
+        decoder::decode_b64(txresult64, result);
 
         res.results.emplace_back();
         TransactionResultPair& p = res.results.back();
@@ -775,7 +775,7 @@ TransactionFrame::getTransactionFeeMeta(Database& db, uint32 ledgerSeq)
     while (st.got_data())
     {
         std::vector<uint8_t> changesRaw;
-        bn::decode_b64(changes64, changesRaw);
+        decoder::decode_b64(changes64, changesRaw);
 
         xdr::xdr_get g1(&changesRaw.front(), &changesRaw.back() + 1);
         res.emplace_back();
@@ -833,10 +833,10 @@ TransactionFrame::copyTransactionsToStream(Hash const& networkID, Database& db,
         }
 
         std::vector<uint8_t> body;
-        bn::decode_b64(txBody, body);
+        decoder::decode_b64(txBody, body);
 
         std::vector<uint8_t> result;
-        bn::decode_b64(txResult, result);
+        decoder::decode_b64(txResult, result);
 
         xdr::xdr_get g1(&body.front(), &body.back() + 1);
         xdr_argpack_archive(g1, tx);
