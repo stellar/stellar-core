@@ -1,12 +1,12 @@
-#!/bin/sh
+#!/bin/bash
 
 # Copyright 2018 Stellar Development Foundation and contributors. Licensed
 # under the Apache License, Version 2.0. See the COPYING file at the root
 # of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-BASE_INSTANCE=$1
-TEST_SPEC_PATH=$2
-if test "$TEMP_POSTGRES" = ''; then
+BASE_INSTANCE="$1"
+TEST_SPEC_PATH="$2"
+if [[ -z "$TEMP_POSTGRES" ]]; then
     TEMP_POSTGRES=1
 fi
 
@@ -16,7 +16,7 @@ findpg() {
     local cmd="$1"
     command -v "$cmd" > /dev/null && return
     for dir in /usr/bin /usr/local/bin $PGDIRS; do
-        if text -x "$dir/$cmd"; then
+        if [[ -x "$dir/$cmd" ]]; then
            PATH="${PATH}:$dir"
            return
         fi

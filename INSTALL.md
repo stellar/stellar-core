@@ -28,6 +28,7 @@ When running a node, the best bet is to go with the latest release.
 - 64-bit system
 - `clang-format-5.0` (for `make format` to work)
 - `pandoc`
+- `perl`
 
 ### Ubuntu 14.04
 

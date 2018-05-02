@@ -174,8 +174,7 @@ test(int argc, char* const* argv, el::Level ll,
     cli |= clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions");
     cli |= clara::Opt(gVersionsToTest,
                       "version")["--version"]("Test specific version(s)");
-    cli |= clara::Opt([](int x) { gBaseInstance = x; },
-                      "offset")["--base-instance"](
+    cli |= clara::Opt(gBaseInstance, "offset")["--base-instance"](
         "Instance number offset so multiple instances of "
         "stellar-core can run tests concurrently");
     session.cli(cli);
