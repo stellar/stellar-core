@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Copyright 2018 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+COMMAND="$1"
+if [[ -z "$NUM_PARTITIONS" ]]; then
+    NUM_PARTITIONS=1
+fi
+if [[ -z "$RUN_PARTITIONS" ]]; then
+    RUN_PARTITIONS=$(seq 0 $((NUM_PARTITIONS-1)));
+fi
+if [[ -z "$TEST_SPEC" ]]; then
+    TEST_SPEC="~[.]" # All non-hidden tests by default
+fi
+
+cleanup() {
+    rm -rf $TEST_PARTITIONS_DIR
+}
+cleanup_and_kill() {
+    cleanup
+    kill -INT -$$
+    sleep 1
+    kill -KILL -$$
+}
+TEST_PARTITIONS_DIR=$(mktemp -d ./test-partitions.XXXXXXXX)
+trap cleanup 0 15
+trap cleanup_and_kill 2
+
+perl -e 'my $num_partitions = $ARGV[0];
+         my $test_spec = $ARGV[1];
+         my $test_partitions_dir = $ARGV[2];
+         my @all_tests = `./stellar-core --ll FATAL --test --list-test-names-only $test_spec`;
+         for (my $p = 0; $p < $num_partitions; $p++) {
+             open(my $out, ">", "$test_partitions_dir/test-partition-$p.txt");
+             for (my $i = $p; $i < @all_tests; $i+=$num_partitions) {
+                 print $out $all_tests[$i];
+             }
+             close $out;
+         }' -- "$NUM_PARTITIONS" "$TEST_SPEC" "$TEST_PARTITIONS_DIR"
+
+declare -a TEST_JOBS
+for i in $RUN_PARTITIONS; do
+    "$COMMAND" $((50*i)) $TEST_PARTITIONS_DIR/test-partition-$i.txt &
+    TEST_JOBS[i]=$!
+done
+
+EXIT_CODE=0
+for p in "${TEST_JOBS[@]}"; do
+    wait $p
+    if [[ $? -ne 0 ]]; then
+        EXIT_CODE=1
+    fi
+done
+
+exit $EXIT_CODE

@@ -65,20 +65,33 @@ There are two options.  The easiest is to have the test suite just
 create a temporary postgreSQL database cluster in /tmp and delete it
 after the test.  That will happen by default if you run `make check`.
 
-You can also create a temporary database cluster manually, by running
-`./src/test/selftest-pg bash` to get a shell, then running tests
-manually.  The advantage of this is that you can examine the database
-log in `$PGDATA/pg_log/` after running tests, as well as manually
-inspect the database with `psql`.
-
-Finally, you can use an existing database cluster so long as it has
-databases named `test0`, `test1`, ..., `test9`, and `test`.  Do set
+You can also use an existing database cluster so long as it has
+databases named `test0`, `test1`, ..., `test9`, and `test`.  To set
 this up, make sure your `PGHOST` and `PGUSER` environment variables
 are appropriately set, then run the following from bash:
 
     for i in $(seq 0 9) ''; do
         psql -c "create database test$i;"
     done
+
+You will need to set the `TEMP_POSTGRES` environment variable to 0
+in order to use an existing database cluster.
+
+# Running tests in parallel
+
+The `make check` command also supports parallelization. This functionality is
+enabled with the following environment variables:
+* `TEST_SPEC`: Used to run just a subset of the tests (default: "~[.]")
+* `NUM_PARTITIONS`: Partitions the test suite (after applying `TEST_SPEC`) into
+`$NUM_PARTITIONS` disjoint sets (default: 1)
+* `RUN_PARTITIONS`: Run only a subset of the partitions, indexed from 0
+(default: "$(seq 0 $((NUM_PARTITIONS-1)))")
+* `TEMP_POSTGRES`: Automatically generates temporary database clusters instead
+of using an existing cluster (default: 1)
+
+For example,
+`env TEST_SPEC="[history]" NUM_PARTITIONS=4 RUN_PARTITIONS="0 1 3" make check`
+will partition the history tests into 4 parts then run parts 0, 1, and 3.
 
 # Running stress tests
 We adopt the convention of tagging a stress-test for subsystem foo as [foo-stress][stress][hide].

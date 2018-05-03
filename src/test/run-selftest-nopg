@@ -1,0 +1,14 @@
+#!/bin/bash
+
+# Copyright 2018 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+BASE_INSTANCE="$1"
+TEST_SPEC_PATH="$2"
+
+if [[ "$ALL_VERSIONS" != "" ]]; then
+    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE --all-versions -a -r simple 2> /dev/null
+else
+    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE -a -r simple 2> /dev/null
+fi

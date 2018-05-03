@@ -1,0 +1,91 @@
+#!/bin/bash
+
+# Copyright 2018 Stellar Development Foundation and contributors. Licensed
+# under the Apache License, Version 2.0. See the COPYING file at the root
+# of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+BASE_INSTANCE="$1"
+TEST_SPEC_PATH="$2"
+if [[ -z "$TEMP_POSTGRES" ]]; then
+    TEMP_POSTGRES=1
+fi
+
+PGDIRS=$(exec 2>/dev/null; cd /usr/lib/postgresql && ls -1d */bin | sort -rn)
+
+findpg() {
+    local cmd="$1"
+    command -v "$cmd" > /dev/null && return
+    for dir in /usr/bin /usr/local/bin $PGDIRS; do
+        if [[ -x "$dir/$cmd" ]]; then
+           PATH="${PATH}:$dir"
+           return
+        fi
+    done
+    return 1
+}
+
+findpg psql
+PSQL=psql
+
+findpg pg_ctl
+PGCTL=pg_ctl
+
+cleanup() {
+    $PGCTL stop -D $PGDATA -m immediate
+    rm -rf "$PGDATA"
+    exit
+}
+
+# Creates a temporary postgres database cluster, runs a command (or a
+# shell), then deletes the database cluster.  If PGDATA is already
+# set, then simply executes a command without running another postgres
+# instance.
+runpg() {
+    export PGDATA=$(mktemp -d ${TMPDIR-/tmp}/pgtmp.XXXXXXXX)
+    export PGHOST="$PGDATA"
+    export PGUSER=postgres
+
+    trap cleanup 0 2 15
+
+    echo Creating temporary PostgreSQL database cluster in "$PGDATA"
+
+    $PGCTL init -s -o "--no-locale -U ${PGUSER-postgres} -A trust" \
+        || return 1
+    conf="$PGDATA/postgresql.conf"
+    usd=$(sed -ne '/#\(unix_socket_director[^ ]*\) =.*/{
+                    s//\1/p
+                    q
+                   }' "$conf")
+    cat >> "$conf" <<EOF
+$usd = '$PGDATA'
+listen_addresses = ''
+logging_collector = yes
+fsync = no
+synchronous_commit = off
+full_page_writes = off
+EOF
+    $PGCTL start -w -s &> /dev/null
+}
+
+setup_test() {
+    runpg || return 1
+    for i in $(seq $BASE_INSTANCE $((BASE_INSTANCE+14))) ''; do
+        $PSQL -c "create database test$i;" &> /dev/null
+    done
+}
+
+if test "$TEMP_POSTGRES" != 0; then
+    if setup_test; then
+        echo "PostgreSQL enabled for tests using temporary database cluster"
+    else
+        echo "Could not enable PostgreSQL"
+        exit 1
+    fi
+else
+    echo "PostgreSQL enabled for tests using existing database cluster"
+fi
+if [ "$ALL_VERSIONS" != "" ]; then
+    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE --all-versions -a -r simple 2> /dev/null
+else
+    ./stellar-core -ll fatal --test -f $TEST_SPEC_PATH --base-instance $BASE_INSTANCE -a -r simple 2> /dev/null
+fi

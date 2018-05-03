@@ -5,6 +5,7 @@
 #include "history/HistoryTestsUtils.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
+#include "crypto/Random.h"
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
@@ -33,7 +34,8 @@ HistoryConfigurator::getArchiveDirName() const
 }
 
 TmpDirHistoryConfigurator::TmpDirHistoryConfigurator()
-    : mArchtmp("archtmp"), mDir(mArchtmp.tmpDir("archive"))
+    : mArchtmp("archtmp-" + binToHex(randomBytes(8)))
+    , mDir(mArchtmp.tmpDir("archive"))
 {
 }
 

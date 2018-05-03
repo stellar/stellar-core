@@ -45,12 +45,14 @@ static std::vector<std::unique_ptr<Config>> gTestCfg[Config::TESTDB_MODES];
 static std::vector<TmpDir> gTestRoots;
 static bool gTestAllVersions{false};
 static std::vector<uint32> gVersionsToTest;
+static int gBaseInstance{0};
 
 bool force_sqlite = (std::getenv("STELLAR_FORCE_SQLITE") != nullptr);
 
 Config const&
 getTestConfig(int instanceNumber, Config::TestDbMode mode)
 {
+    instanceNumber += gBaseInstance;
     if (mode == Config::TESTDB_DEFAULT)
     {
         // by default, tests should be run with in memory SQLITE as it's faster
@@ -155,24 +157,31 @@ test(int argc, char* const* argv, el::Level ll,
      std::vector<std::string> const& metrics)
 {
     gTestMetrics = metrics;
-    Config const& cfg = getTestConfig();
+
+    // Note: Have to setLogLevel twice here to ensure --list-test-names-only is
+    // not mixed with stellar-core logging.
     Logging::setFmt("<test>");
+    Logging::setLogLevel(ll, nullptr);
+    Config const& cfg = getTestConfig();
     Logging::setLoggingToFile(cfg.LOG_FILE_PATH);
     Logging::setLogLevel(ll, nullptr);
+
     LOG(INFO) << "Testing stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Logging to " << cfg.LOG_FILE_PATH;
 
     using namespace Catch;
     Session session{};
 
-    session.cli(
-        session.cli() |
-        clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions") |
-        clara::Opt(gVersionsToTest,
-                   "version")["--version"]("Test specific version(s)"));
+    auto cli = session.cli();
+    cli |= clara::Opt(gTestAllVersions)["--all-versions"]("Test all versions");
+    cli |= clara::Opt(gVersionsToTest,
+                      "version")["--version"]("Test specific version(s)");
+    cli |= clara::Opt(gBaseInstance, "offset")["--base-instance"](
+        "Instance number offset so multiple instances of "
+        "stellar-core can run tests concurrently");
+    session.cli(cli);
 
     auto r = session.applyCommandLine(argc, argv);
-
     if (r != 0)
         return r;
 
