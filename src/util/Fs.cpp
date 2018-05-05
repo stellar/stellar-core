@@ -5,6 +5,7 @@
 #include "util/Fs.h"
 #include "crypto/Hex.h"
 #include "lib/util/format.h"
+#include "util/Fd.h"
 #include "util/Logging.h"
 #include <map>
 #include <regex>
@@ -194,7 +195,7 @@ lockFile(std::string const& path)
         errmsg << "file is already locked by this process: " << path;
         throw std::runtime_error(errmsg.str());
     }
-    int fd = open(path.c_str(), O_RDWR | O_CREAT, S_IRWXU);
+    int fd = open(path.c_str(), O_RDWR | O_CREAT | O_CLOEXEC, S_IRWXU);
 
     if (fd == -1)
     {
