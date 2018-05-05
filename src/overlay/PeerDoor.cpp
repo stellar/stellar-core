@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
+#include "util/Fd.h"
 #include "util/Logging.h"
 #include <memory>
 
@@ -31,6 +32,7 @@ PeerDoor::start()
         CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+        fd::disableProcessInheritance(mAcceptor);
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
         acceptNextPeer();
