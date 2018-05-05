@@ -43,6 +43,7 @@ public:
 
     void addRoute(const std::string& routeName, routeHandler callback);
     void add404(routeHandler callback);
+    asio::ip::tcp::acceptor& getAcceptor();
 
     void handle_request(const request& req, reply& rep);
 
