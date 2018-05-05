@@ -65,8 +65,8 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         // by subprocesses when forking
         if (!fd::disableProcessInheritance(mServer->getAcceptor()))
         {
-            LOG(WARNING) << "Failed to disable process inheritance for "
-                         << "http endpoint file descriptor";
+            LOG(DEBUG) << "Failed to disable process inheritance for "
+                       << "HTTP endpoint's file descriptor";
         }
     }
     else

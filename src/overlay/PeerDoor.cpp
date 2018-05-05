@@ -32,7 +32,12 @@ PeerDoor::start()
         CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
-        fd::disableProcessInheritance(mAcceptor);
+        if (!fd::disableProcessInheritance(mAcceptor))
+        {
+            CLOG(DEBUG, "Overlay")
+                << "Failed to disable process inheritance for "
+                << "listening socket";
+        }
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
         acceptNextPeer();

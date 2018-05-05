@@ -58,7 +58,7 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
                 if (!fd::disableProcessInheritance(
                         result->mSocket->next_layer()))
                 {
-                    CLOG(WARNING, "Overlay")
+                    CLOG(DEBUG, "Overlay")
                         << "TCPPeer::initiate "
                         << "failed to disable process inheritance "
                         << "for socket";
@@ -86,9 +86,8 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
 
     if (!fd::disableProcessInheritance(socket->next_layer()))
     {
-        CLOG(WARNING, "Overlay")
-            << "Failed to disable process inheritance for "
-            << "newly accepted connection's file descriptor";
+        CLOG(DEBUG, "Overlay") << "Failed to disable process inheritance for "
+                               << "newly accepted connection's file descriptor";
     }
 
     if (!ec)
