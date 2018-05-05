@@ -19,6 +19,12 @@ disableProcessInheritance(asio::ip::tcp::acceptor& /*acceptor*/)
 }
 
 bool
+disableProcessInheritance(asio::ip::tcp::socket& /*socket*/)
+{
+    return true;
+}
+
+bool
 disableProcessInheritance(int /*fileDescriptor*/)
 {
     return true;
@@ -30,6 +36,12 @@ bool
 disableProcessInheritance(asio::ip::tcp::acceptor& acceptor)
 {
     return disableProcessInheritance(acceptor.native_handle());
+}
+
+bool
+disableProcessInheritance(asio::ip::tcp::socket& socket)
+{
+    return disableProcessInheritance(socket.native_handle());
 }
 
 bool

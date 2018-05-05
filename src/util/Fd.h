@@ -12,6 +12,7 @@ namespace fd
 {
 
 bool disableProcessInheritance(asio::ip::tcp::acceptor& acceptor);
+bool disableProcessInheritance(asio::ip::tcp::socket& socket);
 bool disableProcessInheritance(int fileDescriptor);
 }
 }

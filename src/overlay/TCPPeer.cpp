@@ -84,6 +84,13 @@ TCPPeer::accept(Application& app, shared_ptr<TCPPeer::SocketType> socket)
     asio::ip::tcp::no_delay nodelay(true);
     socket->next_layer().set_option(nodelay, ec);
 
+    if (!fd::disableProcessInheritance(socket->next_layer()))
+    {
+        CLOG(WARNING, "Overlay")
+            << "Failed to disable process inheritance for "
+            << "newly accepted connection's file descriptor";
+    }
+
     if (!ec)
     {
         CLOG(DEBUG, "Overlay") << "TCPPeer:accept"
