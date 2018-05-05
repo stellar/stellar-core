@@ -12,6 +12,7 @@
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
+#include "util/Fd.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
@@ -54,6 +55,14 @@ TCPPeer::initiate(Application& app, PeerBareAddress const& address)
             {
                 asio::ip::tcp::no_delay nodelay(true);
                 result->mSocket->next_layer().set_option(nodelay, ec);
+                if (!fd::disableProcessInheritance(
+                        result->mSocket->next_layer()))
+                {
+                    CLOG(WARNING, "Overlay")
+                        << "TCPPeer::initiate "
+                        << "failed to disable process inheritance "
+                        << "for socket";
+                }
             }
             else
             {
