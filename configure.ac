@@ -41,9 +41,9 @@ LT_INIT([disable-shared])
 AC_SUBST(LIBTOOL_DEPS)
 
 AC_LANG(C++)
-AX_CXX_COMPILE_STDCXX_11(noext,mandatory)
+AX_CXX_COMPILE_STDCXX_14(noext,mandatory)
 AX_FRESH_COMPILER
-# -pthread seems to be required by -std=c++11 on some hosts
+# -pthread seems to be required by -std=c++14 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
 AC_ARG_ENABLE([sdfprefs],
