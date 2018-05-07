@@ -178,8 +178,9 @@ debugging purpose).
         transactions are ordered by transaction fee(lower fee transactions
          are held for later).<br>
     * protocolversion (uint32) defines the protocol version to upgrade to.
-         When specified it must match the protocol version supported by the
-        node<br>
+         When specified it must match one of the protocol versions supported
+         by the node and should be greater than ledgerVersion from the
+         current ledger<br>
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**

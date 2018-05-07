@@ -69,11 +69,11 @@ void
 Upgrades::setParameters(UpgradeParameters const& params, Config const& cfg)
 {
     if (params.mProtocolVersion &&
-        *params.mProtocolVersion != cfg.LEDGER_PROTOCOL_VERSION)
+        *params.mProtocolVersion > cfg.LEDGER_PROTOCOL_VERSION)
     {
-        throw std::invalid_argument(
-            fmt::format("Protocol version error: supported is {}, passed is {}",
-                        cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
+        throw std::invalid_argument(fmt::format(
+            "Protocol version error: supported is up to {}, passed is {}",
+            cfg.LEDGER_PROTOCOL_VERSION, *params.mProtocolVersion));
     }
     mParams = params;
 }
@@ -236,11 +236,11 @@ Upgrades::removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
 }
 
 bool
-Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
-                  LedgerUpgradeType& upgradeType, bool nomination,
-                  Config const& cfg) const
+Upgrades::isValid(UpgradeType const& upgrade, LedgerUpgradeType& upgradeType,
+                  bool nomination, Config const& cfg,
+                  LedgerHeader const& header) const
 {
-    if (nomination && !timeForUpgrade(closeTime))
+    if (nomination && !timeForUpgrade(header.scpValue.closeTime))
     {
         return false;
     }
@@ -267,9 +267,10 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
             res = mParams.mProtocolVersion &&
                   (newVersion == *mParams.mProtocolVersion);
         }
-        // only upgrade to the latest supported version of the protocol
-        // is allowed
-        res = res && (newVersion == cfg.LEDGER_PROTOCOL_VERSION);
+        // only allow upgrades to a supported version of the protocol
+        res = res && (newVersion <= cfg.LEDGER_PROTOCOL_VERSION);
+        // and enforce versions to be strictly monotonic
+        res = res && (newVersion > header.ledgerVersion);
     }
     break;
     case LEDGER_UPGRADE_BASE_FEE:

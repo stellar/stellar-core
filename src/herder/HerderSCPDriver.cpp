@@ -295,13 +295,15 @@ HerderSCPDriver::validateValue(uint64_t slotIndex, Value const& value,
     SCPDriver::ValidationLevel res = validateValueHelper(slotIndex, b);
     if (res != SCPDriver::kInvalidValue)
     {
+        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
         LedgerUpgradeType lastUpgradeType = LEDGER_UPGRADE_VERSION;
         // check upgrades
         for (size_t i = 0; i < b.upgrades.size(); i++)
         {
             LedgerUpgradeType thisUpgradeType;
-            if (!mUpgrades.isValid(b.closeTime, b.upgrades[i], thisUpgradeType,
-                                   nomination, mApp.getConfig()))
+            if (!mUpgrades.isValid(b.upgrades[i], thisUpgradeType, nomination,
+                                   mApp.getConfig(), lcl.header))
             {
                 CLOG(TRACE, "Herder")
                     << "HerderSCPDriver::validateValue invalid step at index "
@@ -347,12 +349,14 @@ HerderSCPDriver::extractValidValue(uint64_t slotIndex, Value const& value)
     Value res;
     if (validateValueHelper(slotIndex, b) == SCPDriver::kFullyValidatedValue)
     {
+        auto const& lcl = mLedgerManager.getLastClosedLedgerHeader();
+
         // remove the upgrade steps we don't like
         LedgerUpgradeType thisUpgradeType;
         for (auto it = b.upgrades.begin(); it != b.upgrades.end();)
         {
-            if (!mUpgrades.isValid(b.closeTime, *it, thisUpgradeType, true,
-                                   mApp.getConfig()))
+            if (!mUpgrades.isValid(*it, thisUpgradeType, true, mApp.getConfig(),
+                                   lcl.header))
             {
                 it = b.upgrades.erase(it);
             }
