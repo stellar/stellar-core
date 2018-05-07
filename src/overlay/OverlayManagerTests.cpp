@@ -16,7 +16,6 @@
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 
 #include <soci.h>
 
@@ -100,7 +99,7 @@ class OverlayManagerTests
         virtual std::unique_ptr<OverlayManager>
         createOverlayManager() override
         {
-            return make_unique<OverlayManagerStub>(*this);
+            return std::make_unique<OverlayManagerStub>(*this);
         }
     };
 

@@ -47,7 +47,6 @@
 
 #include "util/Logging.h"
 #include "util/TmpDir.h"
-#include "util/make_unique.h"
 
 #include <set>
 #include <string>
@@ -61,12 +60,12 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
     : mVirtualClock(clock)
     , mConfig(cfg)
     , mWorkerIOService(std::thread::hardware_concurrency())
-    , mWork(make_unique<asio::io_service::work>(mWorkerIOService))
+    , mWork(std::make_unique<asio::io_service::work>(mWorkerIOService))
     , mWorkerThreads()
     , mStopSignals(clock.getIOService(), SIGINT)
     , mStopping(false)
     , mStoppingTimer(*this)
-    , mMetrics(make_unique<medida::MetricsRegistry>())
+    , mMetrics(std::make_unique<medida::MetricsRegistry>())
     , mAppStateCurrent(mMetrics->NewCounter({"app", "state", "current"}))
     , mAppStateChanges(mMetrics->NewTimer({"app", "state", "changes"}))
     , mLastStateChange(clock.now())
@@ -103,25 +102,25 @@ ApplicationImpl::ApplicationImpl(VirtualClock& clock, Config const& cfg)
 void
 ApplicationImpl::initialize()
 {
-    mDatabase = make_unique<Database>(*this);
-    mPersistentState = make_unique<PersistentState>(*this);
+    mDatabase = std::make_unique<Database>(*this);
+    mPersistentState = std::make_unique<PersistentState>(*this);
     mTmpDirManager =
-        make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
+        std::make_unique<TmpDirManager>(mConfig.BUCKET_DIR_PATH + "/tmp");
     mOverlayManager = createOverlayManager();
     mLedgerManager = LedgerManager::create(*this);
     mHerder = createHerder();
     mHerderPersistence = HerderPersistence::create(*this);
     mBucketManager = BucketManager::create(*this);
     mCatchupManager = CatchupManager::create(*this);
-    mHistoryArchiveManager = make_unique<HistoryArchiveManager>(*this);
+    mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
-    mMaintainer = make_unique<Maintainer>(*this);
+    mMaintainer = std::make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
-    mCommandHandler = make_unique<CommandHandler>(*this);
+    mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
-    mStatusManager = make_unique<StatusManager>();
+    mStatusManager = std::make_unique<StatusManager>();
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -495,7 +494,7 @@ ApplicationImpl::getLoadGenerator()
 {
     if (!mLoadGenerator)
     {
-        mLoadGenerator = make_unique<LoadGenerator>(*this);
+        mLoadGenerator = std::make_unique<LoadGenerator>(*this);
     }
     return *mLoadGenerator;
 }

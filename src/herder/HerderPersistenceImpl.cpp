@@ -11,7 +11,6 @@
 #include "scp/Slot.h"
 #include "util/Decoder.h"
 #include "util/XDRStream.h"
-#include "util/make_unique.h"
 
 #include <soci.h>
 #include <xdrpp/marshal.h>
@@ -22,7 +21,7 @@ namespace stellar
 std::unique_ptr<HerderPersistence>
 HerderPersistence::create(Application& app)
 {
-    return make_unique<HerderPersistenceImpl>(app);
+    return std::make_unique<HerderPersistenceImpl>(app);
 }
 
 HerderPersistenceImpl::HerderPersistenceImpl(Application& app) : mApp(app)

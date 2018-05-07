@@ -12,7 +12,6 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 #include "xdrpp/marshal.h"
 
 #include "main/Config.h"

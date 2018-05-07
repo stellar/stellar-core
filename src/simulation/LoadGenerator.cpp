@@ -13,7 +13,6 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 
 #include "database/Database.h"
@@ -156,7 +155,7 @@ LoadGenerator::scheduleLoadGeneration(bool isCreate, uint32_t nAccounts,
 {
     if (!mLoadTimer)
     {
-        mLoadTimer = make_unique<VirtualTimer>(mApp.getClock());
+        mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
 
     if (mApp.getState() == Application::APP_SYNCED_STATE)
@@ -613,7 +612,7 @@ LoadGenerator::waitTillComplete()
 {
     if (!mLoadTimer)
     {
-        mLoadTimer = make_unique<VirtualTimer>(mApp.getClock());
+        mLoadTimer = std::make_unique<VirtualTimer>(mApp.getClock());
     }
     vector<TestAccountPtr> inconsistencies;
     inconsistencies = checkAccountSynced(mApp.getDatabase());

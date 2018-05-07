@@ -21,7 +21,6 @@
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -41,7 +40,7 @@ namespace stellar
 std::unique_ptr<Herder>
 Herder::create(Application& app)
 {
-    return make_unique<HerderImpl>(app);
+    return std::make_unique<HerderImpl>(app);
 }
 
 HerderImpl::SCPMetrics::SCPMetrics(Application& app)

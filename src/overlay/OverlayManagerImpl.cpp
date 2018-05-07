@@ -13,7 +13,6 @@
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/make_unique.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -54,7 +53,7 @@ using namespace std;
 std::unique_ptr<OverlayManager>
 OverlayManager::create(Application& app)
 {
-    return make_unique<OverlayManagerImpl>(app);
+    return std::make_unique<OverlayManagerImpl>(app);
 }
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)

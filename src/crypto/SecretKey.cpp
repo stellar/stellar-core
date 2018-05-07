@@ -11,7 +11,6 @@
 #include "transactions/SignatureUtils.h"
 #include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
-#include "util/make_unique.h"
 #include <memory>
 #include <mutex>
 #include <sodium.h>

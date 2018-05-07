@@ -23,7 +23,6 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/format.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 #include "xdrpp/autocheck.h"
 #include <sstream>

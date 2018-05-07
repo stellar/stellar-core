@@ -5,7 +5,6 @@
 #include "crypto/SHA.h"
 #include "crypto/ByteSlice.h"
 #include "util/NonCopyable.h"
-#include "util/make_unique.h"
 #include <sodium.h>
 
 namespace stellar
@@ -38,7 +37,7 @@ class SHA256Impl : public SHA256, NonCopyable
 std::unique_ptr<SHA256>
 SHA256::create()
 {
-    return make_unique<SHA256Impl>();
+    return std::make_unique<SHA256Impl>();
 }
 
 SHA256Impl::SHA256Impl() : mFinished(false)

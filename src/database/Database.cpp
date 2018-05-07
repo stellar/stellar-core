@@ -11,7 +11,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 
 #include "bucket/BucketManager.h"
@@ -328,7 +327,7 @@ Database::getPool()
         size_t n = std::thread::hardware_concurrency();
         LOG(INFO) << "Establishing " << n << "-entry connection pool to: "
                   << removePasswordFromConnectionString(c.value);
-        mPool = make_unique<soci::connection_pool>(n);
+        mPool = std::make_unique<soci::connection_pool>(n);
         for (size_t i = 0; i < n; ++i)
         {
             LOG(DEBUG) << "Opening pool entry " << i;

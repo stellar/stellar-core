@@ -28,7 +28,6 @@
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 #include "util/format.h"
-#include "util/make_unique.h"
 
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -75,7 +74,7 @@ const int64_t LedgerManager::GENESIS_LEDGER_TOTAL_COINS = 1000000000000000000;
 std::unique_ptr<LedgerManager>
 LedgerManager::create(Application& app)
 {
-    return make_unique<LedgerManagerImpl>(app);
+    return std::make_unique<LedgerManagerImpl>(app);
 }
 
 std::string

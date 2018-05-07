@@ -28,7 +28,6 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 
 using namespace stellar;

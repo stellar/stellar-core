@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "lib/catch.hpp"
-#include "util/make_unique.h"
 
 namespace Catch
 {
@@ -49,7 +48,7 @@ struct SimpleTestReporter : public ConsoleReporter
     void
     assertionStarting(AssertionInfo const& ai) override
     {
-        mLastAssertInfo = stellar::make_unique<AssertionInfo>(ai);
+        mLastAssertInfo = std::make_unique<AssertionInfo>(ai);
     }
 
     bool

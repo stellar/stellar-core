@@ -10,7 +10,6 @@
 #include "main/Application.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
-#include "util/make_unique.h"
 
 namespace stellar
 {
@@ -31,8 +30,8 @@ FetchRecentQsetsWork::onReset()
 {
     clearChildren();
     mDownloadSCPMessagesWork.reset();
-    mDownloadDir =
-        make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getUniqueName()));
+    mDownloadDir = std::make_unique<TmpDir>(
+        mApp.getTmpDirManager().tmpDir(getUniqueName()));
 }
 
 Work::State
