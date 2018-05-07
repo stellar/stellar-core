@@ -20,11 +20,11 @@ fi
 
 # Try to ensure we're using the real g++ and clang++ versions we want
 mkdir bin
-ln -s `which gcc-4.9` bin/gcc
-ln -s `which g++-4.9` bin/g++
-ln -s `which clang-3.5` bin/clang
-ln -s `which clang++-3.5` bin/clang++
-ln -s `which llvm-symbolizer-3.5` bin/llvm-symbolizer
+ln -s `which gcc-5` bin/gcc
+ln -s `which g++-5` bin/g++
+ln -s `which clang-5.0` bin/clang
+ln -s `which clang++-5.0` bin/clang++
+ln -s `which llvm-symbolizer-5.0` bin/llvm-symbolizer
 
 export PATH=`pwd`/bin:$PATH
 hash -r
