@@ -26,7 +26,7 @@ void
 BucketApplicator::advance()
 {
     soci::transaction sqlTx(mDb.getSession());
-    for (; mBucketIter; ++mBucketIter)
+    while (mBucketIter)
     {
         LedgerHeader lh;
         LedgerDelta delta(lh, mDb, false);
@@ -41,6 +41,7 @@ BucketApplicator::advance()
         {
             EntryFrame::storeDelete(delta, mDb, entry.deadEntry());
         }
+        ++mBucketIter;
         // No-op, just to avoid needless rollback.
         delta.commit();
         if ((++mSize & 0xff) == 0xff)
