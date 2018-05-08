@@ -21,7 +21,6 @@ findpg() {
            return
         fi
     done
-    return 1
 }
 
 findpg psql
@@ -29,6 +28,16 @@ PSQL=psql
 
 findpg pg_ctl
 PGCTL=pg_ctl
+
+if [ "$(which $PGCTL)" == "" ]; then
+    findpg pg_ctlcluster
+    PGCTL=pg_ctlcluster
+
+    if [ "$(which $PGCTL)" == "" ]; then
+        echo "Could not find pg_ctl or pg_ctlcluster"
+        exit 1
+    fi
+fi
 
 cleanup() {
     $PGCTL stop -D $PGDATA -m immediate
