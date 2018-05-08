@@ -574,6 +574,9 @@ Config::validateConfig()
         auto topLevelCount =
             QUORUM_SET.validators.size() + QUORUM_SET.innerSets.size();
         FAILURE_SAFETY = (static_cast<uint32>(topLevelCount) - 1) / 3;
+
+        LOG(INFO) << "Assigning calculated value of " << FAILURE_SAFETY
+                  << " to FAILURE_SAFETY";
     }
 
     try
