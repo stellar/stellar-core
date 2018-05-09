@@ -80,7 +80,7 @@ class Work : public WorkParent
     virtual void onFailureRaise();
 
     // onSuccess is a little different than the others: it's called on
-    // WORK_SUCCESS, but it also returns the next sate desired: if you want
+    // WORK_SUCCESS, but it also returns the next state desired: if you want
     // to restart or keep going, return WORK_PENDING or WORK_RUNNING
     // (respectively) from onSuccess and you'll be rescheduled to run more.
     // If you want to force failure (and reset / retry) you can return

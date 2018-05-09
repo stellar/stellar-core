@@ -31,11 +31,11 @@ class HistoryManager;
 //
 // For old CATCHUP_RECENT value of second depends on value of last closed
 // ledger - if CATCHUP_RECENT would go before it, it behaves exactly as
-// CATCHUP_COMPLETE. If not, second is true and miminal catchup will be done
+// CATCHUP_COMPLETE. If not, second is true and minimal catchup will be done
 // first.
 using CatchupRange = std::pair<LedgerRange, bool>;
 
-// CatchupWork does all the neccessary work to perform any type of catchup.
+// CatchupWork does all the necessary work to perform any type of catchup.
 // It accepts CatchupConfiguration structure to know from which ledger to which
 // one do the catchup and if it involves only applying ledgers or ledgers and
 // buckets.

@@ -83,6 +83,12 @@ GetHistoryArchiveStateWork::onRun()
 Work::State
 GetHistoryArchiveStateWork::onSuccess()
 {
+    if (!fs::exists(mLocalFilename))
+    {
+        CLOG(ERROR, "History")
+            << "Downloading state " << mLocalFilename << ": file not found";
+        return WORK_FAILURE_RETRY;
+    }
     mGetHistoryArchiveStateSuccess.Mark();
     return Work::onSuccess();
 }

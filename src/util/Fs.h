@@ -33,6 +33,9 @@ void unlockFile(std::string const& path);
 // Whether a path exists
 bool exists(std::string const& path);
 
+// Check if file has contents
+bool empty(std::string const& path);
+
 // Delete a path and everything inside it (if a dir)
 void deltree(std::string const& path);
 

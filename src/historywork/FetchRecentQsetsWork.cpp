@@ -71,7 +71,15 @@ FetchRecentQsetsWork::onSuccess()
         CLOG(INFO, "History") << "Scanning for QSets in checkpoint: " << i;
         XDRInputFileStream in;
         FileTransferInfo fi(*mDownloadDir, HISTORY_FILE_TYPE_SCP, i);
-        in.open(fi.localPath_nogz());
+        try
+        {
+            in.open(fi.localPath_nogz());
+        }
+        catch (std::runtime_error& e)
+        {
+            CLOG(ERROR, "History") << "QSet scan failed: " << e.what();
+            return WORK_FAILURE_RETRY;
+        }
         SCPHistoryEntry tmp;
         while (in && in.readOne(tmp))
         {

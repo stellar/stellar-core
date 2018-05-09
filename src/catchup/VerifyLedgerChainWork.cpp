@@ -125,7 +125,16 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_LEDGER,
                         mCurrCheckpoint);
     XDRInputFileStream hdrIn;
-    hdrIn.open(ft.localPath_nogz());
+
+    try
+    {
+        hdrIn.open(ft.localPath_nogz());
+    }
+    catch (std::runtime_error& e)
+    {
+        CLOG(DEBUG, "History") << "Got " << e.what();
+        return HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES;
+    }
 
     LedgerHeaderHistoryEntry prev = mLastVerified;
     LedgerHeaderHistoryEntry curr;
