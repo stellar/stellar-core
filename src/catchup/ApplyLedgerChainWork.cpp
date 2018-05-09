@@ -249,7 +249,16 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
 void
 ApplyLedgerChainWork::onStart()
 {
-    openCurrentInputFiles();
+    try
+    {
+        openCurrentInputFiles();
+    }
+    catch (std::runtime_error& e)
+    {
+        CLOG(ERROR, "History")
+            << "Could not start; replay failed: " << e.what();
+        scheduleFailure();
+    }
 }
 
 void

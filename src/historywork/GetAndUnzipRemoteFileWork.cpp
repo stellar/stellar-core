@@ -68,6 +68,12 @@ GetAndUnzipRemoteFileWork::onSuccess()
                                    << mFt.remoteName() << ": .xdr not found";
             return WORK_FAILURE_RETRY;
         }
+        else if (fs::empty(mFt.localPath_nogz()))
+        {
+            CLOG(ERROR, "History") << "Downloading and unzipping "
+                                   << mFt.remoteName() << ": .xdr is empty";
+            return WORK_FAILURE_RETRY;
+        }
         else
         {
             return WORK_SUCCESS;

@@ -251,6 +251,19 @@ exists(std::string const& name)
 }
 
 bool
+empty(std::string const& name)
+{
+    if (!exists(name))
+    {
+        std::string msg("File does not exist: ");
+        throw std::runtime_error(msg + name);
+    }
+
+    std::ifstream fname(name);
+    return fname.peek() == std::fstream::traits_type::eof();
+}
+
+bool
 mkdir(std::string const& name)
 {
     bool b = ::mkdir(name.c_str(), 0700) == 0;

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "util/Fs.h"
 #include "work/Work.h"
 
 namespace medida
