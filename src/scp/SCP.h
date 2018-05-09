@@ -56,7 +56,7 @@ class SCP
     // this is the main entry point of the SCP library
     // it processes the envelope, updates the internal state and
     // invokes the appropriate methods
-    EnvelopeState receiveEnvelope(SCPEnvelope const& envelope);
+    EnvelopeState processEnvelope(SCPEnvelope const& envelope);
 
     // Submit a value to consider for slotIndex
     // previousValue is the value from slotIndex-1

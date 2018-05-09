@@ -27,12 +27,12 @@ SCP::SCP(SCPDriver& driver, NodeID const& nodeID, bool isValidator,
 }
 
 SCP::EnvelopeState
-SCP::receiveEnvelope(SCPEnvelope const& envelope)
+SCP::processEnvelope(SCPEnvelope const& envelope)
 {
     // If the envelope is not correctly signed, we ignore it.
     if (!mDriver.verifyEnvelope(envelope))
     {
-        CLOG(DEBUG, "SCP") << "SCP::receiveEnvelope invalid";
+        CLOG(DEBUG, "SCP") << "SCP::processEnvelope invalid";
         return SCP::EnvelopeState::INVALID;
     }
 

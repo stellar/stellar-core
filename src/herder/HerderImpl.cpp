@@ -511,7 +511,7 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
         SCPEnvelope env;
         if (mPendingEnvelopes.pop(slotIndex, env))
         {
-            getSCP().receiveEnvelope(env);
+            getSCP().processEnvelope(env);
         }
         else
         {
