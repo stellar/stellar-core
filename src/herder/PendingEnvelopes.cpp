@@ -3,12 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/PendingEnvelopes.h"
-#include "crypto/SHA.h"
-#include "herder/HerderUtils.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/TxSetCache.h"
+#include "scp/SCPUtils.h"
 #include "util/Logging.h"
 
 #include <xdrpp/marshal.h>

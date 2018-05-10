@@ -24,17 +24,17 @@ std::vector<StellarValue> getStellarValues(SCPStatement const& envelope);
 
 template <typename T>
 void
-dumpEnvelopes(SCP const& scp, Json::Value& ret, T const& container)
+dumpEnvelopes(Application& app, Json::Value& ret, T const& container)
 {
     for (auto const& e : container)
     {
-        ret.append(scp.envToStr(e));
+        ret.append(app.getHerder().getSCP().envToStr(e));
     }
 }
 
 template <typename T>
 void
-dumpEnvelopes(SCP const& scp, Json::Value& ret, T const& container,
+dumpEnvelopes(Application& app, Json::Value& ret, T const& container,
               std::string const& name)
 {
     if (container.empty())
@@ -45,7 +45,7 @@ dumpEnvelopes(SCP const& scp, Json::Value& ret, T const& container,
     auto& i = ret[name];
     for (auto const& e : container)
     {
-        i.append(scp.envToStr(e));
+        i.append(app.getHerder().getSCP().envToStr(e));
     }
 }
 

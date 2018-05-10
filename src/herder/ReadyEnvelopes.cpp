@@ -4,9 +4,9 @@
 
 #include "herder/ReadyEnvelopes.h"
 #include "herder/Herder.h"
-#include "herder/HerderUtils.h"
 #include "main/Application.h"
 #include "scp/SCP.h"
+#include "scp/SCPUtils.h"
 #include "util/Logging.h"
 
 #include <medida/counter.h>
@@ -132,10 +132,8 @@ ReadyEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
             !it->second.mSeenEnvelopes.empty())
         {
             auto& i = q[std::to_string(it->first)];
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mReadyEnvelopes, "ready");
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mSeenEnvelopes, "seen");
+            dumpEnvelopes(mApp, i, it->second.mReadyEnvelopes, "ready");
+            dumpEnvelopes(mApp, i, it->second.mSeenEnvelopes, "seen");
         }
         it++;
     }

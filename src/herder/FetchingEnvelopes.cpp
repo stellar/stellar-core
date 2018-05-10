@@ -6,13 +6,13 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"
-#include "herder/HerderUtils.h"
 #include "item/ItemFetcher.h"
 #include "main/Application.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/TxSetCache.h"
 #include "scp/QuorumSetUtils.h"
+#include "scp/SCPUtils.h"
 #include "util/Logging.h"
 
 #include <xdrpp/marshal.h>
@@ -226,10 +226,8 @@ FetchingEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
             !it->second.mDiscardedEnvelopes.empty())
         {
             auto& i = q[std::to_string(it->first)];
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mFetchingEnvelopes, "fetching");
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mDiscardedEnvelopes, "discarded");
+            dumpEnvelopes(mApp, i, it->second.mFetchingEnvelopes, "fetching");
+            dumpEnvelopes(mApp, i, it->second.mDiscardedEnvelopes, "discarded");
         }
         it++;
     }
