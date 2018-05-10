@@ -4,16 +4,15 @@
 
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "herder/HerderTestUtils.h"
 #include "herder/PendingEnvelopes.h"
 #include "main/ApplicationImpl.h"
+#include "test/TestUtils.h"
 #include "test/test.h"
 
 #include <lib/catch.hpp>
 #include <xdrpp/marshal.h>
 
 using namespace stellar;
-using namespace stellar::HerderTestUtils;
 
 namespace stellar
 {

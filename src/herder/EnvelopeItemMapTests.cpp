@@ -3,12 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/EnvelopeItemMap.h"
-#include "herder/HerderTestUtils.h"
+#include "test/TestUtils.h"
 
 #include <lib/catch.hpp>
 
 using namespace stellar;
-using namespace stellar::HerderTestUtils;
 
 namespace stellar
 {
