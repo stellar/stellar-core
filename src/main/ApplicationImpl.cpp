@@ -45,6 +45,7 @@
 #include "simulation/LoadGenerator.h"
 #include "transport/BanManager.h"
 #include "transport/PeerAuth.h"
+#include "transport/PreferredPeers.h"
 #include "util/StatusManager.h"
 #include "work/WorkManager.h"
 
@@ -127,6 +128,7 @@ ApplicationImpl::initialize()
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
     mPeerAuth = make_unique<PeerAuth>(*this);
+    mPreferredPeers = make_unique<PreferredPeers>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
@@ -755,6 +757,12 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
+}
+
+PreferredPeers&
+ApplicationImpl::getPreferredPeers()
+{
+    return *mPreferredPeers;
 }
 
 PeerAuth&

@@ -71,6 +71,7 @@ class ApplicationImpl : public Application
     virtual WorkManager& getWorkManager() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
+    virtual PreferredPeers& getPreferredPeers() override;
     virtual PeerAuth& getPeerAuth() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
 
@@ -135,6 +136,7 @@ class ApplicationImpl : public Application
 
     std::unique_ptr<Database> mDatabase;
     std::unique_ptr<TmpDirManager> mTmpDirManager;
+    std::unique_ptr<PreferredPeers> mPreferredPeers;
     std::unique_ptr<PeerAuth> mPeerAuth;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;

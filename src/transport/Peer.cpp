@@ -22,6 +22,7 @@
 #include "transport/LoadManager.h"
 #include "transport/PeerAuth.h"
 #include "transport/PeerRecord.h"
+#include "transport/PreferredPeers.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
@@ -903,7 +904,7 @@ Peer::noteHandshakeSuccessInPeerRecord()
     auto pr = PeerRecord::loadPeerRecord(mApp.getDatabase(), getAddress());
     if (pr)
     {
-        pr->setPreferred(mApp.getOverlayManager().isPreferred(this));
+        pr->setPreferred(mApp.getPreferredPeers().isPreferred(this));
         pr->resetBackOff(mApp.getClock());
     }
     else

@@ -15,6 +15,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "transactions/TransactionFrame.h"
+#include "transport/PreferredPeers.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"
 
@@ -125,9 +126,7 @@ class OverlayManagerTests
     void
     test_addPeerList()
     {
-        OverlayManagerStub& pm = app->getOverlayManager();
-
-        pm.storePeerList(fourPeers, false, false);
+        app->getPreferredPeers().storePeerList(fourPeers, false, false);
 
         rowset<row> rs = app->getDatabase().getSession().prepare
                          << "SELECT ip,port FROM peers ORDER BY nextattempt";
@@ -151,10 +150,10 @@ class OverlayManagerTests
     void
     test_broadcast()
     {
-        OverlayManagerStub& pm = app->getOverlayManager();
+        auto& pm = static_cast<OverlayManagerImpl&>(app->getOverlayManager());
 
-        pm.storePeerList(fourPeers, false, false);
-        pm.storePeerList(threePeers, false, false);
+        app->getPreferredPeers().storePeerList(fourPeers, false, false);
+        app->getPreferredPeers().storePeerList(threePeers, false, false);
         // connect to peers, respecting TARGET_PEER_CONNECTIONS
         pm.tick();
         REQUIRE(pm.mAuthenticatedPeers.size() == 5);

@@ -35,7 +35,6 @@ class OverlayManagerImpl : public OverlayManager
 {
   protected:
     Application& mApp;
-    std::set<std::string> mPreferredPeers;
 
     // pending peers - connected, but not authenticated
     std::vector<Peer::pointer> mPendingPeers;
@@ -59,10 +58,6 @@ class OverlayManagerImpl : public OverlayManager
     void tick();
     VirtualTimer mTimer;
 
-    void storePeerList(std::vector<std::string> const& list, bool resetBackOff,
-                       bool preferred);
-    void storeConfigPeers();
-
     friend class OverlayManagerTests;
 
     Floodgate mFloodGate;
@@ -82,7 +77,6 @@ class OverlayManagerImpl : public OverlayManager
     void addPendingPeer(Peer::pointer peer) override;
     void dropPeer(Peer* peer) override;
     bool acceptAuthenticatedPeer(Peer::pointer peer) override;
-    bool isPreferred(Peer* peer) override;
     std::vector<Peer::pointer> const& getPendingPeers() const override;
     int getPendingPeersCount() const override;
     std::map<NodeID, Peer::pointer> const&
@@ -108,7 +102,6 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<PeerRecord> getPreferredPeersFromConfig();
     std::vector<PeerRecord> getPeersToConnectTo(int maxNum);
 
-    void orderByPreferredPeers(vector<PeerRecord>& peers);
     bool moveToAuthenticated(Peer::pointer peer);
     void updateSizeCounters();
 };

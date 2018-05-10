@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "transport/PeerBareAddress.h"
 #include "transport/PeerRecord.h"
+#include "transport/PreferredPeers.h"
 #include "transport/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -96,8 +97,8 @@ OverlayManagerImpl::start()
     {
         mTimer.async_wait(
             [this]() {
-                storeConfigPeers();
-                this->tick();
+                mApp.getPreferredPeers().storeConfigPeers();
+                tick();
             },
             VirtualTimer::onFailureNoop);
     }
@@ -152,66 +153,11 @@ OverlayManagerImpl::connectTo(PeerRecord& pr)
     }
 }
 
-void
-OverlayManagerImpl::storePeerList(std::vector<std::string> const& list,
-                                  bool resetBackOff, bool preferred)
-{
-    for (auto const& peerStr : list)
-    {
-        try
-        {
-            auto address = PeerBareAddress::resolve(peerStr, mApp);
-            auto pr = PeerRecord{address, mApp.getClock().now(), 0};
-            pr.setPreferred(preferred);
-            if (resetBackOff)
-            {
-                pr.resetBackOff(mApp.getClock());
-                pr.storePeerRecord(mApp.getDatabase());
-            }
-            else
-            {
-                pr.insertIfNew(mApp.getDatabase());
-            }
-        }
-        catch (std::runtime_error&)
-        {
-            CLOG(ERROR, "Overlay") << "Unable to add peer '" << peerStr << "'";
-        }
-    }
-}
-
-void
-OverlayManagerImpl::storeConfigPeers()
-{
-    // compute normalized mPreferredPeers
-    std::vector<std::string> ppeers;
-    for (auto const& s : mApp.getConfig().PREFERRED_PEERS)
-    {
-        try
-        {
-            auto pr = PeerBareAddress::resolve(s, mApp);
-            auto r = mPreferredPeers.insert(pr.toString());
-            if (r.second)
-            {
-                ppeers.push_back(*r.first);
-            }
-        }
-        catch (std::runtime_error&)
-        {
-            CLOG(ERROR, "Overlay")
-                << "Unable to add preferred peer '" << s << "'";
-        }
-    }
-
-    storePeerList(mApp.getConfig().KNOWN_PEERS, true, false);
-    storePeerList(ppeers, true, true);
-}
-
 std::vector<PeerRecord>
 OverlayManagerImpl::getPreferredPeersFromConfig()
 {
     std::vector<PeerRecord> peers;
-    for (auto& pp : mPreferredPeers)
+    for (auto& pp : mApp.getPreferredPeers().getAll())
     {
         auto address = PeerBareAddress::resolve(pp, mApp);
         if (!getConnectedPeer(address))
@@ -254,7 +200,7 @@ OverlayManagerImpl::getPeersToConnectTo(int maxNum)
 void
 OverlayManagerImpl::connectToMorePeers(vector<PeerRecord>& peers)
 {
-    orderByPreferredPeers(peers);
+    mApp.getPreferredPeers().orderByPreferredPeers(peers);
 
     for (auto& pr : peers)
     {
@@ -270,15 +216,6 @@ OverlayManagerImpl::connectToMorePeers(vector<PeerRecord>& peers)
         }
         connectTo(pr);
     }
-}
-
-void
-OverlayManagerImpl::orderByPreferredPeers(vector<PeerRecord>& peers)
-{
-    auto isPreferredPredicate = [this](PeerRecord& record) -> bool {
-        return mPreferredPeers.find(record.toString()) != mPreferredPeers.end();
-    };
-    std::stable_partition(peers.begin(), peers.end(), isPreferredPredicate);
 }
 
 // called every 2 seconds
@@ -438,7 +375,7 @@ OverlayManagerImpl::getTxSetCache()
 bool
 OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 {
-    if (isPreferred(peer.get()))
+    if (mApp.getPreferredPeers().isPreferred(peer.get()))
     {
         if (getAuthenticatedPeersCount() <
             mApp.getConfig().MAX_PEER_CONNECTIONS)
@@ -448,7 +385,7 @@ OverlayManagerImpl::acceptAuthenticatedPeer(Peer::pointer peer)
 
         for (auto victim : mAuthenticatedPeers)
         {
-            if (!isPreferred(victim.second.get()))
+            if (!mApp.getPreferredPeers().isPreferred(victim.second.get()))
             {
                 CLOG(INFO, "Overlay")
                     << "Evicting non-preferred peer "
@@ -492,35 +429,6 @@ int
 OverlayManagerImpl::getAuthenticatedPeersCount() const
 {
     return static_cast<int>(mAuthenticatedPeers.size());
-}
-
-bool
-OverlayManagerImpl::isPreferred(Peer* peer)
-{
-    std::string pstr = peer->toString();
-
-    if (mPreferredPeers.find(pstr) != mPreferredPeers.end())
-    {
-        CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is preferred";
-        return true;
-    }
-
-    if (peer->isAuthenticated())
-    {
-        std::string kstr = KeyUtils::toStrKey(peer->getPeerID());
-        std::vector<std::string> const& pk =
-            mApp.getConfig().PREFERRED_PEER_KEYS;
-        if (std::find(pk.begin(), pk.end(), kstr) != pk.end())
-        {
-            CLOG(DEBUG, "Overlay")
-                << "Peer key " << mApp.getConfig().toStrKey(peer->getPeerID())
-                << " is preferred";
-            return true;
-        }
-    }
-
-    CLOG(DEBUG, "Overlay") << "Peer " << pstr << " is not preferred";
-    return false;
 }
 
 std::vector<Peer::pointer>
