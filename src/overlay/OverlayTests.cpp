@@ -2,19 +2,19 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "BanManager.h"
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/LoopbackPeer.h"
 #include "overlay/OverlayManagerImpl.h"
-#include "overlay/PeerRecord.h"
-#include "overlay/TCPPeer.h"
 #include "simulation/Simulation.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transport/BanManager.h"
+#include "transport/LoopbackPeer.h"
+#include "transport/PeerRecord.h"
+#include "transport/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/make_unique.h"

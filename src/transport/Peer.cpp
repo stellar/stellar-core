@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/Peer.h"
+#include "transport/Peer.h"
 
 #include "BanManager.h"
 #include "crypto/Hex.h"
@@ -15,13 +15,13 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerAuth.h"
-#include "overlay/PeerRecord.h"
 #include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxSetCache.h"
+#include "transport/LoadManager.h"
+#include "transport/PeerAuth.h"
+#include "transport/PeerRecord.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 

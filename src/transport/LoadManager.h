@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "overlay/Peer.h"
+#include "transport/Peer.h"
 #include "util/HashOfHash.h"
 #include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"

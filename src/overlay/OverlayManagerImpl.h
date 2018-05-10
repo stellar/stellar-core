@@ -4,16 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "LoadManager.h"
-#include "Peer.h"
-#include "PeerDoor.h"
-#include "PeerRecord.h"
 #include "herder/TxSetFrame.h"
 #include "overlay/Floodgate.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxSetCache.h"
+#include "transport/LoadManager.h"
+#include "transport/Peer.h"
+#include "transport/PeerDoor.h"
+#include "transport/PeerRecord.h"
 #include "util/Timer.h"
 
 #include <set>

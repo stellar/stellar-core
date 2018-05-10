@@ -7,9 +7,9 @@
 #include "TxSetFrame.h"
 #include "Upgrades.h"
 #include "lib/json/json-forwards.h"
-#include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
+#include "transport/Peer.h"
 #include "util/Timer.h"
 #include <functional>
 #include <memory>

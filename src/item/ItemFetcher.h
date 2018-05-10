@@ -7,7 +7,7 @@
 #include "item/ItemKey.h"
 #include "item/ItemPeerQueue.h"
 #include "overlay/FetchQueue.h"
-#include "overlay/Peer.h"
+#include "transport/Peer.h"
 #include "util/Timer.h"
 
 #include <map>

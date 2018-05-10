@@ -113,7 +113,7 @@ class Database : NonMovableOrCopyable
     Database(Application& app);
 
     // Return a crude meter of total queries to the db, for use in
-    // overlay/LoadManager.
+    // transport/LoadManager.
     medida::Meter& getQueryMeter();
 
     // Number of nanoseconds spent processing queries since app startup,

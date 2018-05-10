@@ -6,7 +6,7 @@
 
 #include "database/Database.h"
 #include "main/Config.h"
-#include "overlay/PeerBareAddress.h"
+#include "transport/PeerBareAddress.h"
 #include "util/Timer.h"
 #include "util/optional.h"
 #include <string>

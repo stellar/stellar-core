@@ -5,7 +5,7 @@
 #include "TestUtils.h"
 #include "crypto/SHA.h"
 #include "herder/LedgerCloseData.h"
-#include "overlay/LoopbackPeer.h"
+#include "transport/LoopbackPeer.h"
 #include "util/make_unique.h"
 
 #include <xdrpp/marshal.h>

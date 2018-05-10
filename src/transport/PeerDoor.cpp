@@ -7,7 +7,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/TCPPeer.h"
+#include "transport/TCPPeer.h"
 #include "util/Logging.h"
 #include <memory>
 

@@ -5,7 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/ECDH.h"
-#include "overlay/Peer.h"
+#include "transport/Peer.h"
 
 namespace stellar
 {

@@ -6,8 +6,8 @@
 
 #include "util/asio.h"
 #include "database/Database.h"
-#include "overlay/PeerBareAddress.h"
 #include "overlay/StellarXDR.h"
+#include "transport/PeerBareAddress.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"

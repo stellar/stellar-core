@@ -7,10 +7,10 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerBareAddress.h"
-#include "overlay/PeerDoor.h"
 #include "simulation/Simulation.h"
 #include "test/test.h"
+#include "transport/PeerBareAddress.h"
+#include "transport/PeerDoor.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 

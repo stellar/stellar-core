@@ -3,7 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/asio.h"
-#include "overlay/PeerBareAddress.h"
+#include "transport/PeerBareAddress.h"
 #include "main/Application.h"
 #include "util/Logging.h"
 

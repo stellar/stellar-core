@@ -1,8 +1,8 @@
 #pragma once
 
 #include "crypto/ECDH.h"
-#include "overlay/Peer.h"
-#include "overlay/PeerSharedKeyId.h"
+#include "transport/Peer.h"
+#include "transport/PeerSharedKeyId.h"
 #include "util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
 

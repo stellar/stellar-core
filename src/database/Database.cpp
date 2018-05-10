@@ -24,9 +24,9 @@
 #include "ledger/TrustFrame.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
-#include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
 #include "transactions/TransactionFrame.h"
+#include "transport/BanManager.h"
 
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"

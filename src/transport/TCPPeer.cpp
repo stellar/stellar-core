@@ -2,16 +2,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "overlay/TCPPeer.h"
+#include "transport/TCPPeer.h"
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
-#include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
-#include "overlay/PeerRecord.h"
 #include "overlay/StellarXDR.h"
+#include "transport/LoadManager.h"
+#include "transport/PeerRecord.h"
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
