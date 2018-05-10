@@ -7,8 +7,8 @@
 #include "lib/util/lrucache.hpp"
 #include "xdr/Stellar-types.h"
 
-#include "herder/EnvelopeItemMap.h"
 #include "herder/Herder.h"
+#include "overlay/EnvelopeItemMap.h"
 #include "xdr/Stellar-types.h"
 
 #include <map>

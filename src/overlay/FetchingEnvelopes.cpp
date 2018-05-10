@@ -2,7 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "herder/FetchingEnvelopes.h"
+#include "overlay/FetchingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/Herder.h"

@@ -4,8 +4,8 @@
 
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
-#include "herder/PendingEnvelopes.h"
 #include "main/ApplicationImpl.h"
+#include "overlay/PendingEnvelopes.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 

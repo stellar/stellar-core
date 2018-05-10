@@ -3,8 +3,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SHA.h"
-#include "herder/FetchingEnvelopes.h"
 #include "main/ApplicationImpl.h"
+#include "overlay/FetchingEnvelopes.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 
