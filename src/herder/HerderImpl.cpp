@@ -9,6 +9,7 @@
 #include "herder/HerderPersistence.h"
 #include "herder/HerderUtils.h"
 #include "herder/LedgerCloseData.h"
+#include "herder/PendingEnvelopes.h"
 #include "herder/TxSetFrame.h"
 #include "item/ItemKey.h"
 #include "ledger/LedgerManager.h"
@@ -76,9 +77,8 @@ HerderImpl::HerderImpl(Application& app)
     : mPendingTransactions(4)
     , mHerderSCPDriver(app, *this, mUpgrades,
                        [this](TxSetFramePtr txSet) {
-                           mPendingEnvelopes.handleTxSet(txSet, true);
+                           mApp.getPendingEnvelopes().handleTxSet(txSet, true);
                        })
-    , mPendingEnvelopes(app)
     , mLastSlotSaved(0)
     , mTrackingTimer(app)
     , mTriggerTimer(app)
@@ -418,7 +418,7 @@ HerderImpl::recvSCPEnvelope(Peer::pointer peer, SCPEnvelope const& envelope)
         return Herder::ENVELOPE_STATUS_DISCARDED;
     }
 
-    auto status = mPendingEnvelopes.handleEnvelope(peer, envelope);
+    auto status = mApp.getPendingEnvelopes().handleEnvelope(peer, envelope);
     if (status == Herder::ENVELOPE_STATUS_READY)
     {
         StellarMessage msg;
@@ -435,8 +435,9 @@ Herder::EnvelopeStatus
 HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
                             const SCPQuorumSet& qset, TxSetFrame txset)
 {
-    mPendingEnvelopes.handleTxSet(std::make_shared<TxSetFrame>(txset), true);
-    mPendingEnvelopes.handleQuorumSet(qset, true);
+    mApp.getPendingEnvelopes().handleTxSet(std::make_shared<TxSetFrame>(txset),
+                                           true);
+    mApp.getPendingEnvelopes().handleQuorumSet(qset, true);
     return recvSCPEnvelope(nullptr, envelope);
 }
 
@@ -490,7 +491,7 @@ HerderImpl::processSCPQueue()
         // we don't know which ledger we're in
         // try to consume the messages from the queue
         // starting from the smallest slot
-        for (auto& slot : mPendingEnvelopes.readySlots())
+        for (auto& slot : mApp.getPendingEnvelopes().readySlots())
         {
             processSCPQueueUpToIndex(slot);
             if (mHerderSCPDriver.trackingSCP())
@@ -509,7 +510,7 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
     while (true)
     {
         SCPEnvelope env;
-        if (mPendingEnvelopes.pop(slotIndex, env))
+        if (mApp.getPendingEnvelopes().pop(slotIndex, env))
         {
             getSCP().processEnvelope(env);
         }
@@ -531,12 +532,12 @@ HerderImpl::ledgerClosed()
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
     if (lastIndex > MAX_SLOTS_TO_REMEMBER)
     {
-        mPendingEnvelopes.setMinimumSlotIndex(lastIndex -
-                                              MAX_SLOTS_TO_REMEMBER);
+        mApp.getPendingEnvelopes().setMinimumSlotIndex(lastIndex -
+                                                       MAX_SLOTS_TO_REMEMBER);
     }
     else
     {
-        mPendingEnvelopes.setMinimumSlotIndex(0);
+        mApp.getPendingEnvelopes().setMinimumSlotIndex(0);
     }
 
     mApp.getOverlayManager().ledgerClosed(lastIndex);
@@ -636,7 +637,7 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
 std::set<SCPEnvelope>
 HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
 {
-    auto envelopes = mPendingEnvelopes.handleQuorumSet(qset);
+    auto envelopes = mApp.getPendingEnvelopes().handleQuorumSet(qset);
     for (auto& e : envelopes)
     {
         recvSCPEnvelope(nullptr, e);
@@ -647,7 +648,7 @@ HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
 std::set<SCPEnvelope>
 HerderImpl::recvTxSet(TxSetFramePtr txset)
 {
-    auto envelopes = mPendingEnvelopes.handleTxSet(txset);
+    auto envelopes = mApp.getPendingEnvelopes().handleTxSet(txset);
     for (auto& e : envelopes)
     {
         recvSCPEnvelope(nullptr, e);
@@ -738,7 +739,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
-    for (auto& e : mPendingEnvelopes.handleTxSet(proposedSet, true))
+    for (auto& e : mApp.getPendingEnvelopes().handleTxSet(proposedSet, true))
     {
         recvSCPEnvelope(nullptr, e);
     }
@@ -860,7 +861,7 @@ HerderImpl::getJsonInfo(size_t limit)
         mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
 
     ret["scp"] = getSCP().getJsonInfo(limit);
-    ret["queue"] = mPendingEnvelopes.getJsonInfo(limit);
+    ret["queue"] = mApp.getPendingEnvelopes().getJsonInfo(limit);
     return ret;
 }
 
@@ -964,11 +965,11 @@ HerderImpl::restoreSCPState()
         {
             TxSetFramePtr cur =
                 make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
-            mPendingEnvelopes.handleTxSet(cur, true);
+            mApp.getPendingEnvelopes().handleTxSet(cur, true);
         }
         for (auto const& qset : latestQSets)
         {
-            mPendingEnvelopes.handleQuorumSet(qset, true);
+            mApp.getPendingEnvelopes().handleQuorumSet(qset, true);
         }
         for (auto const& e : latestEnvs)
         {

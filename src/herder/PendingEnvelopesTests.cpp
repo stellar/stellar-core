@@ -37,8 +37,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
     auto saneEnvelope = makeEnvelope(txSetHash, saneQSetHash, 4);
     auto bigEnvelope = makeEnvelope(txSetHash, bigQSetHash, 4);
 
-    auto& pendingEnvelopes =
-        static_cast<HerderImpl&>(app.getHerder()).getPendingEnvelopes();
+    auto& pendingEnvelopes = app.getPendingEnvelopes();
 
     SECTION("return FETCHING when first receiving envelope")
     {

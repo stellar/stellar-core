@@ -6,7 +6,6 @@
 
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
-#include "herder/PendingEnvelopes.h"
 #include "herder/Upgrades.h"
 #include "util/HashOfHash.h"
 #include "util/Timer.h"
@@ -55,12 +54,6 @@ class HerderImpl : public Herder
     getHerderSCPDriver()
     {
         return mHerderSCPDriver;
-    }
-
-    PendingEnvelopes&
-    getPendingEnvelopes()
-    {
-        return mPendingEnvelopes;
     }
 
     void valueExternalized(uint64 slotIndex, StellarValue const& value);
@@ -132,7 +125,6 @@ class HerderImpl : public Herder
 
     Upgrades mUpgrades;
     HerderSCPDriver mHerderSCPDriver;
-    PendingEnvelopes mPendingEnvelopes;
 
     void herderOutOfSync();
 

@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
+#include "herder/PendingEnvelopes.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
@@ -124,6 +125,7 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+    mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -140,9 +142,8 @@ ApplicationImpl::initialize()
                                                         mConfig.NTP_SERVER);
     }
 
-    auto& herder = static_cast<HerderImpl&>(getHerder());
-    herder.getPendingEnvelopes().handleQuorumSet(
-        herder.getSCP().getLocalNode()->getQuorumSet(), true);
+    getPendingEnvelopes().handleQuorumSet(
+        getHerder().getSCP().getLocalNode()->getQuorumSet(), true);
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -752,6 +753,12 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
+}
+
+PendingEnvelopes&
+ApplicationImpl::getPendingEnvelopes()
+{
+    return *mPendingEnvelopes;
 }
 
 asio::io_service&
