@@ -22,8 +22,6 @@ class ItemKey;
 class Peer;
 class XDROutputFileStream;
 
-typedef std::shared_ptr<Peer> PeerPtr;
-
 /*
  * Public Interface to the Herder module
  *
@@ -122,7 +120,7 @@ class Herder
                                            TxSetFrame txset) = 0;
 
     // a peer needs our SCP state
-    virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
+    virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state

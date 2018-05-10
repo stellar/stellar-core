@@ -67,7 +67,7 @@ class HerderImpl : public Herder
                                    const SCPQuorumSet& qset,
                                    TxSetFrame txset) override;
 
-    void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
+    void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
 
     std::set<SCPEnvelope> recvSCPQuorumSet(const SCPQuorumSet& qset) override;
     std::set<SCPEnvelope> recvTxSet(TxSetFramePtr txset) override;

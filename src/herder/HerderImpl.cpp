@@ -442,7 +442,7 @@ HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
 }
 
 void
-HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer)
+HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
     if (getSCP().empty())
     {
