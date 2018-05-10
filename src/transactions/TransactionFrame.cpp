@@ -322,8 +322,6 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
     // ensure that we have enough rights to update the sequence number of the tx
     // source account
-    res = ValidationType::kInvalidUpdateSeqNum;
-
     if (!checkSignature(signatureChecker, *mSigningAccount,
                         mSigningAccount->getLowThreshold()))
     {
@@ -333,6 +331,10 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         getResult().result.code(txBAD_AUTH);
         return res;
     }
+
+    // from now on, the transaction will consume the sequence number regardless
+    // of success or failure
+    res = ValidationType::kInvalidUpdateSeqNum;
 
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account

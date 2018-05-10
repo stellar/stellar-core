@@ -133,6 +133,47 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 REQUIRE(txFrame->getResultCode() == txSUCCESS);
             });
         }
+        SECTION("source account transaction needs low threshold")
+        {
+            auto b1 = root.create("B", paymentAmount);
+
+            SecretKey s1 = getAccount("S1");
+            auto paytest = [&](SecretKey const& txSig) {
+                Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()),
+                           5); // below low rights
+
+                ThresholdSetter th;
+
+                th.masterWeight = make_optional<int>(100);
+                th.lowThreshold = make_optional<int>(10);
+                th.medThreshold = make_optional<int>(50);
+                th.highThreshold = make_optional<int>(100);
+                b1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+
+                auto op = root.op(payment(b1, 100));
+                auto tx = transactionFromOperations(
+                    *app, b1, b1.getLastSequenceNumber() + 1, {op});
+                tx->getEnvelope().signatures.clear();
+                tx->addSignature(root);
+                tx->addSignature(txSig);
+                return tx;
+            };
+
+            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+                SECTION("success")
+                {
+                    auto tx = paytest(b1.getSecretKey());
+                    applyCheck(tx, *app);
+                    REQUIRE(tx->getResultCode() == txSUCCESS);
+                }
+                SECTION("failure")
+                {
+                    auto tx = paytest(s1);
+                    applyCheck(tx, *app);
+                    REQUIRE(tx->getResultCode() == txBAD_AUTH);
+                }
+            });
+        }
     }
 
     SECTION("multisig")

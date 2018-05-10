@@ -130,7 +130,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
                 bool earlyFailure =
                     (code == txMISSING_OPERATION || code == txTOO_EARLY ||
                      code == txTOO_LATE || code == txINSUFFICIENT_FEE ||
-                     code == txBAD_SEQ);
+                     code == txBAD_SEQ || code == txBAD_AUTH);
                 // verify that the sequence number changed (v10+)
                 // do not perform the check if there was a failure before
                 // or during the sequence number processing
