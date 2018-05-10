@@ -42,6 +42,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class PeerAuth;
 class PendingEnvelopes;
 
 class Application;
@@ -210,6 +211,7 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
+    virtual PeerAuth& getPeerAuth() = 0;
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to

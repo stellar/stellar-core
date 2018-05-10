@@ -195,7 +195,7 @@ Peer::sendHello()
 AuthCert
 Peer::getAuthCert()
 {
-    return mApp.getOverlayManager().getPeerAuth().getAuthCert();
+    return mApp.getPeerAuth().getAuthCert();
 }
 
 size_t
@@ -927,7 +927,7 @@ Peer::recvHello(Hello const& elo)
         return;
     }
 
-    auto& peerAuth = mApp.getOverlayManager().getPeerAuth();
+    auto& peerAuth = mApp.getPeerAuth();
     if (!peerAuth.verifyRemoteAuthCert(elo.peerID, elo.cert))
     {
         CLOG(ERROR, "Overlay") << "failed to verify remote peer auth cert";

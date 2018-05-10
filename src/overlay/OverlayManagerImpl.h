@@ -6,7 +6,6 @@
 
 #include "LoadManager.h"
 #include "Peer.h"
-#include "PeerAuth.h"
 #include "PeerDoor.h"
 #include "PeerRecord.h"
 #include "herder/TxSetFrame.h"
@@ -43,7 +42,6 @@ class OverlayManagerImpl : public OverlayManager
     // authenticated and connected peers
     std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
     PeerDoor mDoor;
-    PeerAuth mAuth;
     LoadManager mLoad;
     QSetCache mQSetCache;
     TxSetCache mTxSetCache;
@@ -96,8 +94,6 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
-
-    PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
     QSetCache& getQSetCache() override;

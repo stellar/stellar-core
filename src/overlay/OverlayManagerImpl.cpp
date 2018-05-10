@@ -60,7 +60,6 @@ OverlayManager::create(Application& app)
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
     , mDoor(mApp)
-    , mAuth(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
           {"overlay", "message", "flood-receive"}, "message"))
@@ -556,12 +555,6 @@ void
 OverlayManager::dropAll(Database& db)
 {
     PeerRecord::dropAll(db);
-}
-
-PeerAuth&
-OverlayManagerImpl::getPeerAuth()
-{
-    return mAuth;
 }
 
 LoadManager&

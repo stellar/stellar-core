@@ -40,6 +40,7 @@
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PeerAuth.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
@@ -125,6 +126,7 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
+    mPeerAuth = make_unique<PeerAuth>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
@@ -753,6 +755,12 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
+}
+
+PeerAuth&
+ApplicationImpl::getPeerAuth()
+{
+    return *mPeerAuth;
 }
 
 PendingEnvelopes&
