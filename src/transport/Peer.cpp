@@ -12,13 +12,13 @@
 #include "herder/Herder.h"
 #include "herder/TxSetFrame.h"
 #include "item/ItemFetcher.h"
-#include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/QSetCache.h"
 #include "overlay/StellarXDR.h"
 #include "overlay/TxSetCache.h"
+#include "transport/ConnectionHandler.h"
 #include "transport/LoadManager.h"
 #include "transport/PeerAuth.h"
 #include "transport/PeerRecord.h"
@@ -1093,11 +1093,7 @@ Peer::recvAuth(StellarMessage const& msg)
 
     noteHandshakeSuccessInPeerRecord();
 
-    // send SCP State
-    // remove when all known peers implements the next line
-    mApp.getHerder().sendSCPStateToPeer(0, self);
-    // ask for SCP state if not synced
-    sendGetScpState(mApp.getLedgerManager().getLastClosedLedgerNum() + 1);
+    mApp.getConnectionHandler().peerAuthenticated(self);
 }
 
 void

@@ -29,6 +29,7 @@ class CatchupManager;
 class HistoryArchiveManager;
 class HistoryManager;
 class Maintainer;
+class ConnectionHandler;
 class ProcessManager;
 class Herder;
 class HerderPersistence;
@@ -214,6 +215,7 @@ class Application
     virtual StatusManager& getStatusManager() = 0;
     virtual PreferredPeers& getPreferredPeers() = 0;
     virtual PeerAuth& getPeerAuth() = 0;
+    virtual ConnectionHandler& getConnectionHandler() = 0;
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to

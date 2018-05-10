@@ -73,6 +73,7 @@ class ApplicationImpl : public Application
     virtual StatusManager& getStatusManager() override;
     virtual PreferredPeers& getPreferredPeers() override;
     virtual PeerAuth& getPeerAuth() override;
+    virtual ConnectionHandler& getConnectionHandler() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
 
     virtual asio::io_service& getWorkerIOService() override;
@@ -138,6 +139,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<TmpDirManager> mTmpDirManager;
     std::unique_ptr<PreferredPeers> mPreferredPeers;
     std::unique_ptr<PeerAuth> mPeerAuth;
+    std::unique_ptr<ConnectionHandler> mConnectionHandler;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<CatchupManager> mCatchupManager;

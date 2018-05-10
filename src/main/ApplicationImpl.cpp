@@ -14,6 +14,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "herder/HerderConnectionHandler.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
 #include "history/HistoryArchiveManager.h"
@@ -128,6 +129,7 @@ ApplicationImpl::initialize()
     mBanManager = BanManager::create(*this);
     mStatusManager = make_unique<StatusManager>();
     mPeerAuth = make_unique<PeerAuth>(*this);
+    mConnectionHandler = make_unique<HerderConnectionHandler>(*this);
     mPreferredPeers = make_unique<PreferredPeers>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
@@ -769,6 +771,12 @@ PeerAuth&
 ApplicationImpl::getPeerAuth()
 {
     return *mPeerAuth;
+}
+
+ConnectionHandler&
+ApplicationImpl::getConnectionHandler()
+{
+    return *mConnectionHandler;
 }
 
 PendingEnvelopes&
