@@ -740,7 +740,8 @@ enum TransactionResultCode
     txMISSING_OPERATION = -4, // no operation was specified
     txBAD_SEQ = -5,           // sequence number does not match source account
 
-    txBAD_AUTH = -6,             // too few valid signatures / wrong network
+    txBAD_AUTH =
+        -6, // too few signatures to change source account / wrong network
     txINSUFFICIENT_BALANCE = -7, // fee would bring account below reserve
     txNO_ACCOUNT = -8,           // source account not found
     txINSUFFICIENT_FEE = -9,     // fee is too small

@@ -320,6 +320,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
+    // ensure that we have enough rights to update the sequence number of the tx
+    // source account
     res = ValidationType::kInvalidUpdateSeqNum;
 
     if (!checkSignature(signatureChecker, *mSigningAccount,
