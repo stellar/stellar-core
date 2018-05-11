@@ -39,6 +39,7 @@
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/OverlayMessageHandler.h"
 #include "overlay/PendingEnvelopes.h"
 #include "process/ProcessManager.h"
 #include "scp/LocalNode.h"
@@ -130,6 +131,7 @@ ApplicationImpl::initialize()
     mStatusManager = make_unique<StatusManager>();
     mPeerAuth = make_unique<PeerAuth>(*this);
     mConnectionHandler = make_unique<HerderConnectionHandler>(*this);
+    mMessageHandler = make_unique<OverlayMessageHandler>(*this);
     mPreferredPeers = make_unique<PreferredPeers>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
@@ -777,6 +779,12 @@ ConnectionHandler&
 ApplicationImpl::getConnectionHandler()
 {
     return *mConnectionHandler;
+}
+
+MessageHandler&
+ApplicationImpl::getMessageHandler()
+{
+    return *mMessageHandler;
 }
 
 PendingEnvelopes&

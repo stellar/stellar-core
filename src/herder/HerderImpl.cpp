@@ -22,6 +22,7 @@
 #include "scp/LocalNode.h"
 #include "scp/SCPUtils.h"
 #include "scp/Slot.h"
+#include "transport/MessageHandler.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/Timer.h"
@@ -431,16 +432,6 @@ HerderImpl::recvSCPEnvelope(Peer::pointer peer, SCPEnvelope const& envelope)
     return status;
 }
 
-Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(SCPEnvelope const& envelope,
-                            const SCPQuorumSet& qset, TxSetFrame txset)
-{
-    mApp.getPendingEnvelopes().handleTxSet(std::make_shared<TxSetFrame>(txset),
-                                           true);
-    mApp.getPendingEnvelopes().handleQuorumSet(qset, true);
-    return recvSCPEnvelope(nullptr, envelope);
-}
-
 void
 HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 {
@@ -634,28 +625,6 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
     }
 }
 
-std::set<SCPEnvelope>
-HerderImpl::recvSCPQuorumSet(const SCPQuorumSet& qset)
-{
-    auto envelopes = mApp.getPendingEnvelopes().handleQuorumSet(qset);
-    for (auto& e : envelopes)
-    {
-        recvSCPEnvelope(nullptr, e);
-    }
-    return envelopes;
-}
-
-std::set<SCPEnvelope>
-HerderImpl::recvTxSet(TxSetFramePtr txset)
-{
-    auto envelopes = mApp.getPendingEnvelopes().handleTxSet(txset);
-    for (auto& e : envelopes)
-    {
-        recvSCPEnvelope(nullptr, e);
-    }
-    return envelopes;
-}
-
 uint32_t
 HerderImpl::getCurrentLedgerSeq() const
 {
@@ -739,10 +708,9 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
-    for (auto& e : mApp.getPendingEnvelopes().handleTxSet(proposedSet, true))
-    {
-        recvSCPEnvelope(nullptr, e);
-    }
+    TransactionSet txSet;
+    proposedSet->toXDR(txSet);
+    mApp.getMessageHandler().txSet(nullptr, txSet, true);
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger

@@ -2,31 +2,29 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/SHA.h"
+#include "database/Database.h"
 #include "herder/HerderImpl.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "ledger/LedgerManager.h"
 #include "main/Application.h"
+#include "main/CommandHandler.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
 #include "scp/SCP.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
-#include "test/test.h"
-
-#include "crypto/SHA.h"
-#include "database/Database.h"
-#include "ledger/LedgerHeaderFrame.h"
-#include "ledger/LedgerManager.h"
-#include "lib/catch.hpp"
-#include "main/CommandHandler.h"
-#include "overlay/OverlayManager.h"
 #include "test/TxTests.h"
+#include "test/test.h"
+#include "transport/MessageHandler.h"
 
-#include "xdrpp/marshal.h"
+#include <lib/catch.hpp>
+#include <xdrpp/marshal.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
-
-typedef std::unique_ptr<Application> appPtr;
 
 TEST_CASE("standalone", "[herder]")
 {
@@ -501,14 +499,16 @@ TEST_CASE("SCP Driver", "[herder]")
     auto root = TestAccount::createRoot(*app);
     auto a1 = TestAccount{*app, getAccount("A")};
 
-    using TxPair = std::pair<Value, TxSetFramePtr>;
+    using TxPair = std::pair<Value, TransactionSet>;
     auto makeTxPair = [](TxSetFramePtr txSet, uint64_t closeTime) {
         txSet->sortForHash();
         auto sv = StellarValue{txSet->getContentsHash(), closeTime,
                                emptyUpgradeSteps, 0};
         auto v = xdr::xdr_to_opaque(sv);
 
-        return TxPair{v, txSet};
+        TransactionSet set;
+        txSet->toXDR(set);
+        return TxPair{v, set};
     };
     auto makeEnvelope = [&root](TxPair const& p, Hash qSetHash,
                                 uint64_t slotIndex) {
@@ -538,6 +538,7 @@ TEST_CASE("SCP Driver", "[herder]")
     SECTION("combineCandidates")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& messageHandler = app->getMessageHandler();
 
         std::set<Value> candidates;
 
@@ -546,7 +547,8 @@ TEST_CASE("SCP Driver", "[herder]")
             auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
             REQUIRE(herder.recvSCPEnvelope(nullptr, envelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p.second) == std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.txSet(nullptr, p.second) ==
+                    std::set<SCPEnvelope>{});
         };
 
         TxSetFramePtr txSet0 = makeTransactions(lcl.hash, 0);
@@ -616,6 +618,8 @@ TEST_CASE("SCP Driver", "[herder]")
         auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& messageHandler = app->getMessageHandler();
+
         auto transactions1 = makeTransactions(lcl.hash, 50);
         auto transactions2 = makeTransactions(lcl.hash, 40);
         auto p1 = makeTxPair(transactions1, 10);
@@ -635,9 +639,9 @@ TEST_CASE("SCP Driver", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvTxSet(p1.second) ==
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{saneEnvelopeQ1T1});
             REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_PROCESSED);
@@ -647,16 +651,16 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
 
             SECTION("when re-receiving the same envelope")
             {
                 REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+                REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
 
@@ -664,7 +668,7 @@ TEST_CASE("SCP Driver", "[herder]")
             {
                 REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T2) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+                REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
         }
@@ -673,44 +677,49 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                    std::set<SCPEnvelope>{});
 
             SECTION("when re-receiving the same envelope")
             {
                 REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
+                REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                        std::set<SCPEnvelope>{});
             }
 
             SECTION("when receiving different envelope with the same txset")
             {
                 REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ2T1) ==
                         Herder::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
+                REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                        std::set<SCPEnvelope>{});
             }
         }
 
         SECTION("do not accept unasked qset")
         {
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet2) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet2) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvSCPQuorumSet(bigQSet) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION("do not accept unasked txset")
         {
-            REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvTxSet(p2.second) == std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                    std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.txSet(nullptr, p2.second) ==
+                    std::set<SCPEnvelope>{});
         }
 
         SECTION("do not accept not sane qset")
         {
             REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(bigQSet) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
@@ -719,9 +728,10 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(bigQSet) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                    std::set<SCPEnvelope>{});
         }
 
         SECTION(
@@ -729,8 +739,9 @@ TEST_CASE("SCP Driver", "[herder]")
         {
             REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvTxSet(p1.second) == std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvSCPQuorumSet(bigQSet) ==
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
+                    std::set<SCPEnvelope>{});
+            REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
@@ -740,11 +751,11 @@ TEST_CASE("SCP Driver", "[herder]")
                     Herder::ENVELOPE_STATUS_FETCHING);
             REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
                     Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPQuorumSet(saneQSet1) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvSCPQuorumSet(bigQSet) ==
+            REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(herder.recvTxSet(p1.second) ==
+            REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{saneEnvelopeQ1T1});
         }
     }

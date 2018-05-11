@@ -10,6 +10,7 @@
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PendingEnvelopes.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
@@ -230,6 +231,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             txSet.add(tx1);
             txSet.sortForHash();
             auto& herder = inApp->getHerder();
+            auto& pendingEnvelopes = inApp->getPendingEnvelopes();
 
             // build the quorum set used by this message
             // use sources as validators
@@ -261,7 +263,10 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
 
             // inject the message
-            REQUIRE(herder.recvSCPEnvelope(envelope, qset, txSet) ==
+            pendingEnvelopes.handleTxSet(std::make_shared<TxSetFrame>(txSet),
+                                         true);
+            pendingEnvelopes.handleQuorumSet(qset, true);
+            REQUIRE(herder.recvSCPEnvelope(nullptr, envelope) ==
                     Herder::ENVELOPE_STATUS_READY);
 
         };

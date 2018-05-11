@@ -103,21 +103,12 @@ class Herder
     // restores Herder's state from disk
     virtual void restoreState() = 0;
 
-    virtual std::set<SCPEnvelope>
-    recvSCPQuorumSet(SCPQuorumSet const& qset) = 0;
-    virtual std::set<SCPEnvelope> recvTxSet(TxSetFramePtr txset) = 0;
-
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
 
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
                                            SCPEnvelope const& envelope) = 0;
-
-    // We are learning about a new fully-fetched envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
-                                           TxSetFrame txset) = 0;
 
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;

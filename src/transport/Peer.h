@@ -8,6 +8,7 @@
 #include "database/Database.h"
 #include "overlay/StellarXDR.h"
 #include "transport/PeerBareAddress.h"
+#include "transport/PeerRecord.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
 #include "xdrpp/message.h"
@@ -35,6 +36,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
 
   public:
     typedef std::shared_ptr<Peer> pointer;
+    typedef std::shared_ptr<Peer const> const_pointer;
 
     enum PeerState
     {
@@ -125,11 +127,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Meter& mDropInRecvMessageUnauthMeter;
     medida::Meter& mDropInRecvHelloUnexpectedMeter;
     medida::Meter& mDropInRecvHelloVersionMeter;
-    medida::Meter& mDropInRecvHelloSelfMeter;
-    medida::Meter& mDropInRecvHelloPeerIDMeter;
-    medida::Meter& mDropInRecvHelloCertMeter;
-    medida::Meter& mDropInRecvHelloBanMeter;
-    medida::Meter& mDropInRecvHelloNetMeter;
     medida::Meter& mDropInRecvHelloAddressMeter;
     medida::Meter& mDropInRecvAuthUnexpectedMeter;
     medida::Meter& mDropInRecvAuthRejectMeter;
@@ -141,28 +138,16 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-    virtual void recvError(StellarMessage const& msg);
-    // returns false if we should drop this peer
-    void noteHandshakeSuccessInPeerRecord();
+    void recvError(StellarMessage const& msg);
     void recvAuth(StellarMessage const& msg);
-    void recvDontHave(StellarMessage const& msg);
-    void recvGetPeers(StellarMessage const& msg);
     void recvHello(Hello const& elo);
-    void recvPeers(StellarMessage const& msg);
+    void recvDontHave(StellarMessage const& msg);
 
-    void recvGetTxSet(StellarMessage const& msg);
-    void recvTxSet(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
-    void recvGetSCPQuorumSet(StellarMessage const& msg);
-    void recvSCPQuorumSet(StellarMessage const& msg);
     void recvSCPMessage(StellarMessage const& msg);
-    void recvGetSCPState(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();
-    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
-    void sendDontHave(MessageType type, uint256 const& itemID);
-    void sendPeers();
 
     // NB: This is a move-argument because the write-buffer has to travel
     // with the write-request through the async IO system, and we might have
@@ -202,6 +187,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetScpState(uint32 ledgerSeq);
 
     void sendMessage(StellarMessage const& msg);
+    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
+    void sendDontHave(MessageType type, uint256 const& itemID);
+    void sendPeers(std::vector<PeerRecord> const& peers);
 
     PeerRole
     getRole() const
@@ -242,7 +230,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
         return mAddress;
     }
 
-    NodeID
+    NodeID const&
     getPeerID()
     {
         return mPeerID;
@@ -254,21 +242,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     // shared_ptr<Peer> as a captured shared_from_this().
     virtual void connectHandler(asio::error_code const& ec);
 
-    virtual void
-    writeHandler(asio::error_code const& error, size_t bytes_transferred)
-    {
-    }
-
-    virtual void
-    readHeaderHandler(asio::error_code const& error, size_t bytes_transferred)
-    {
-    }
-
-    virtual void
-    readBodyHandler(asio::error_code const& error, size_t bytes_transferred)
-    {
-    }
-
     void drop(ErrorCode err, std::string const& msg);
 
     // If force is true, it will drop immediately without waiting for all
@@ -277,7 +250,5 @@ class Peer : public std::enable_shared_from_this<Peer>,
     virtual ~Peer()
     {
     }
-
-    friend class LoopbackPeer;
 };
 }

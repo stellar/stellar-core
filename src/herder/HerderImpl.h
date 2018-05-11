@@ -63,14 +63,8 @@ class HerderImpl : public Herder
 
     EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
                                    SCPEnvelope const& envelope) override;
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                   const SCPQuorumSet& qset,
-                                   TxSetFrame txset) override;
 
     void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
-
-    std::set<SCPEnvelope> recvSCPQuorumSet(const SCPQuorumSet& qset) override;
-    std::set<SCPEnvelope> recvTxSet(TxSetFramePtr txset) override;
 
     void processSCPQueue();
 
