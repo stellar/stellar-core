@@ -12,10 +12,10 @@ See the TransactionFrame class for the implementation.
 *********************
 ## Fees
 The network charges a fee for each transaction - right now the fee is just 
-proportional to the number of operations inside it. See `TransactionFrame::getMinFee` for the actual implementation.
+proportional to the number of operations inside it. See `TransactionFrame::getMinFee`
+ for the actual implementation.
 
-The base fee (multiplier) is decided during consensus; the desired base fee for 
-each instance is defined in their configuration file.
+The base fee (multiplier) is decided during consensus.
 
 ## Sequence Number
 Transactions follow a strict ordering rule when it comes to processing of 
@@ -42,7 +42,7 @@ A transaction is considered valid if and only if:
  * the Source Account exists
  * the transaction is signed for the source account (see Signatures below)
  * the signatures together meet the "low" threshold
- * fee is less than maxFee
+ * fee is more than minFee
  * the sequence number follows the rules defined in the "Sequence Number" section
  * the current ledger sequence number is within the [minLedger, maxLedger]  range
 and
@@ -62,7 +62,7 @@ transaction; therefore this is really a best effort implementation specific.
 ## Applying a transaction
 
 When SCP externalizes the transaction set to apply to the last closed ledger:
-1. the Source accounts for all transactions are charged a fee
+1. the source accounts for all transactions are charged a fee
 2. transactions are applied one by one, checking and updating the account's
    sequence number.
 
@@ -72,12 +72,12 @@ note that in earlier versions of the protocol (9 and below), the sequence
 To apply a transaction, it first checks for part __A__ of the validity check.
 
 If any operation fails, the transaction is rolled back entirely but marked as 
-such: the sequence number in the account is consumed, the fee is collected and 
-the result set to "Failed".
+such: the fee is collected, the sequence number in the account is consumed (if
+ the transaction has enough signatures) and the result is set to "Failed".
 
 ## Result
 When transactions are applied (success or not), the result is saved in the 
-"txhistory" and "txfeehistory" tables in the database.
+`txhistory` and `txfeehistory` tables in the database.
 
 # Operations
 
@@ -96,13 +96,17 @@ Thresholds define the level of priviledge an operation needs in order to succeed
 
 * Low Security:
   * AllowTrustTx
-  * Used to allowing other signers to allow people to hold credit from this 
+    * Used to allowing other signers to allow people to hold credit from this 
    account but not issue it.
+  * Transaction processing
+    * Charging a fee or updating the sequence number for the source account
 * Medium Secruity:
   * All else
 * High Security:
   * SetOptions for Signer and threshold
-  * Used to change the Set of signers and the thresholds.
+    * Used to change the Set of signers and the thresholds.
+
+For most cases, it is recommended to set thresholds such that `low <= medium <= high`.
 
 See the section on signatures below for more details.
 
@@ -134,17 +138,19 @@ transactions and LedgerDelta objects, this makes rolling back changes simpler.
 For each Operation, there is a matching Result type that gathers information on the key side effects 
 of the operation or in the case of failure records why in structured form.
 
-Results are queued in the txhistory table for other components to derive data:
+Results are queued in the `txhistory` table for other components to derive data:
 historical module for uploading it for long term storage, but also for API 
 servers to consume externally.
-The txfeehistory table is additional meta data that tracks changes to the ledger
+
+The `txfeehistory` table is additional meta data that tracks changes to the ledger
 done before transactions are applied.
 
 ## List of operations
 See `src/xdr/Stellar-transaction.x` for a detailed list of all operations and results.
 
 ## Implementation
-For each operation type, there is a matching Frame class: for example, the Payment Operation has a PaymentFrame class associated with it.
+For each operation type, there is a matching Frame class: for example, the Payment
+ Operation has a PaymentFrame class associated with it.
 
 The OperationFrame class defines the base contract that an operation frame must follow.
 
