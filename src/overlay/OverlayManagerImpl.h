@@ -67,6 +67,10 @@ class OverlayManagerImpl : public OverlayManager
     ~OverlayManagerImpl();
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
+    void
+    transactionProcessed(Peer::pointer peer,
+                         TransactionEnvelope const& transaction,
+                         TransactionHandler::TransactionStatus status) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;

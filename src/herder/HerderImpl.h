@@ -59,7 +59,8 @@ class HerderImpl : public Herder
     void valueExternalized(uint64 slotIndex, StellarValue const& value);
     void emitEnvelope(SCPEnvelope const& envelope);
 
-    TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
+    TransactionHandler::TransactionStatus
+    recvTransaction(Peer::pointer peer, TransactionFramePtr tx) override;
 
     EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
                                    SCPEnvelope const& envelope) override;
@@ -121,6 +122,9 @@ class HerderImpl : public Herder
     HerderSCPDriver mHerderSCPDriver;
 
     void herderOutOfSync();
+
+    TransactionHandler::TransactionStatus
+    processTransaction(TransactionFramePtr tx);
 
     // last slot that was persisted into the database
     // only keep track of the most recent slot

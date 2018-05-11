@@ -212,15 +212,15 @@ CommandHandler::testTx(std::string const& params, std::string& retStr)
             txFrame = fromAccount.tx({payment(toAccount, paymentAmount)});
         }
 
-        switch (mApp.getHerder().recvTransaction(txFrame))
+        switch (mApp.getTransactionHandler().transaction(nullptr, txFrame))
         {
-        case Herder::TX_STATUS_PENDING:
+        case TransactionHandler::TX_STATUS_PENDING:
             root["status"] = "pending";
             break;
-        case Herder::TX_STATUS_DUPLICATE:
+        case TransactionHandler::TX_STATUS_DUPLICATE:
             root["status"] = "duplicate";
             break;
-        case Herder::TX_STATUS_ERROR:
+        case TransactionHandler::TX_STATUS_ERROR:
             root["status"] = "error";
             root["detail"] =
                 xdr::xdr_to_string(txFrame->getResult().result.code());
@@ -860,36 +860,25 @@ CommandHandler::tx(std::string const& params, std::string& retStr)
         TransactionFramePtr transaction =
             TransactionFrame::makeTransactionFromWire(mApp.getNetworkID(),
                                                       envelope);
-        if (transaction)
+
+        // add it to our current set
+        // and make sure it is valid
+        auto status =
+            mApp.getTransactionHandler().transaction(nullptr, transaction);
+
+        output << "{"
+               << "\"status\": "
+               << "\"" << TransactionHandler::TX_STATUS_STRING[status] << "\"";
+        if (status == TransactionHandler::TX_STATUS_ERROR)
         {
-            // add it to our current set
-            // and make sure it is valid
-            Herder::TransactionSubmitStatus status =
-                mApp.getHerder().recvTransaction(transaction);
+            std::string resultBase64;
+            auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
+            resultBase64.reserve(decoder::encoded_size64(resultBin.size()) + 1);
+            resultBase64 = decoder::encode_b64(resultBin);
 
-            if (status == Herder::TX_STATUS_PENDING)
-            {
-                StellarMessage msg;
-                msg.type(TRANSACTION);
-                msg.transaction() = envelope;
-                mApp.getOverlayManager().broadcastMessage(msg);
-            }
-
-            output << "{"
-                   << "\"status\": "
-                   << "\"" << Herder::TX_STATUS_STRING[status] << "\"";
-            if (status == Herder::TX_STATUS_ERROR)
-            {
-                std::string resultBase64;
-                auto resultBin = xdr::xdr_to_opaque(transaction->getResult());
-                resultBase64.reserve(decoder::encoded_size64(resultBin.size()) +
-                                     1);
-                resultBase64 = decoder::encode_b64(resultBin);
-
-                output << " , \"error\": \"" << resultBase64 << "\"";
-            }
-            output << "}";
+            output << " , \"error\": \"" << resultBase64 << "\"";
         }
+        output << "}";
     }
     else
     {

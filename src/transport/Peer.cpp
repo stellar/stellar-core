@@ -655,7 +655,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case TRANSACTION:
     {
         auto t = mRecvTransactionTimer.TimeScope();
-        recvTransaction(stellarMsg);
+        mApp.getTransactionHandler().transaction(self,
+                                                 stellarMsg.transaction());
     }
     break;
 
@@ -715,32 +716,6 @@ Peer::recvDontHave(StellarMessage const& msg)
 
     mApp.getMessageHandler().doesNotHave(
         shared_from_this(), ItemKey{itemType, msg.dontHave().reqHash});
-}
-
-void
-Peer::recvTransaction(StellarMessage const& msg)
-{
-    TransactionFramePtr transaction = TransactionFrame::makeTransactionFromWire(
-        mApp.getNetworkID(), msg.transaction());
-    if (transaction)
-    {
-        // add it to our current set
-        // and make sure it is valid
-        auto recvRes = mApp.getHerder().recvTransaction(transaction);
-
-        if (recvRes == Herder::TX_STATUS_PENDING ||
-            recvRes == Herder::TX_STATUS_DUPLICATE)
-        {
-            // record that this peer sent us this transaction
-            mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
-
-            if (recvRes == Herder::TX_STATUS_PENDING)
-            {
-                // if it's a new transaction, broadcast it
-                mApp.getOverlayManager().broadcastMessage(msg);
-            }
-        }
-    }
 }
 
 void

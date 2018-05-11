@@ -6,6 +6,7 @@
 
 #include "overlay/StellarXDR.h"
 #include "transport/Peer.h"
+#include "transport/TransactionHandler.h"
 
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
@@ -64,6 +65,13 @@ class OverlayManager
     // `ledger`.
     // This is called by LedgerManager when a ledger closes.
     virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
+
+    // Transaction has been processed. Overlay can now broadcast it if
+    // neccessary.
+    virtual void
+    transactionProcessed(Peer::pointer peer,
+                         TransactionEnvelope const& transaction,
+                         TransactionHandler::TransactionStatus status) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.

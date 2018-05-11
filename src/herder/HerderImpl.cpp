@@ -312,9 +312,20 @@ HerderImpl::TxMap::recalculate()
     }
 }
 
-Herder::TransactionSubmitStatus
-HerderImpl::recvTransaction(TransactionFramePtr tx)
+TransactionHandler::TransactionStatus
+HerderImpl::recvTransaction(Peer::pointer peer, TransactionFramePtr tx)
 {
+    auto status = processTransaction(tx);
+    mApp.getOverlayManager().transactionProcessed(peer, tx->getEnvelope(),
+                                                  status);
+    return status;
+}
+
+TransactionHandler::TransactionStatus
+HerderImpl::processTransaction(TransactionFramePtr tx)
+{
+    assert(tx);
+
     soci::transaction sqltx(mApp.getDatabase().getSession());
     mApp.getDatabase().setCurrentTransactionReadOnly();
 
@@ -335,7 +346,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
             auto j = txmap->mTransactions.find(txID);
             if (j != txmap->mTransactions.end())
             {
-                return TX_STATUS_DUPLICATE;
+                return TransactionHandler::TX_STATUS_DUPLICATE;
             }
             totFee += txmap->mTotalFees;
             highSeq = std::max(highSeq, txmap->mMaxSeq);
@@ -344,13 +355,13 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
 
     if (!tx->checkValid(mApp, highSeq))
     {
-        return TX_STATUS_ERROR;
+        return TransactionHandler::TX_STATUS_ERROR;
     }
 
     if (tx->getSourceAccount().getBalanceAboveReserve(mLedgerManager) < totFee)
     {
         tx->getResult().result.code(txINSUFFICIENT_BALANCE);
-        return TX_STATUS_ERROR;
+        return TransactionHandler::TX_STATUS_ERROR;
     }
 
     if (Logging::logTrace("Herder"))
@@ -360,7 +371,7 @@ HerderImpl::recvTransaction(TransactionFramePtr tx)
     auto txmap = findOrAdd(mPendingTransactions[0], acc);
     txmap->addTx(tx);
 
-    return TX_STATUS_PENDING;
+    return TransactionHandler::TX_STATUS_PENDING;
 }
 
 Herder::EnvelopeStatus

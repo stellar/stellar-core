@@ -74,6 +74,7 @@ class ApplicationImpl : public Application
     virtual PreferredPeers& getPreferredPeers() override;
     virtual PeerAuth& getPeerAuth() override;
     virtual ConnectionHandler& getConnectionHandler() override;
+    virtual TransactionHandler& getTransactionHandler() override;
     virtual MessageHandler& getMessageHandler() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
 
@@ -141,6 +142,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<PreferredPeers> mPreferredPeers;
     std::unique_ptr<PeerAuth> mPeerAuth;
     std::unique_ptr<ConnectionHandler> mConnectionHandler;
+    std::unique_ptr<TransactionHandler> mTransactionHandler;
     std::unique_ptr<MessageHandler> mMessageHandler;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;

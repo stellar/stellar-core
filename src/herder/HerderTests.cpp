@@ -59,8 +59,8 @@ TEST_CASE("standalone", "[herder]")
         VirtualTimer setupTimer(*app);
 
         auto feedTx = [&](TransactionFramePtr& tx) {
-            REQUIRE(app->getHerder().recvTransaction(tx) ==
-                    Herder::TX_STATUS_PENDING);
+            REQUIRE(app->getHerder().recvTransaction(nullptr, tx) ==
+                    TransactionHandler::TX_STATUS_PENDING);
         };
 
         auto waitForExternalize = [&]() {

@@ -17,6 +17,7 @@
 #include "herder/HerderConnectionHandler.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
+#include "herder/HerderTransactionHandler.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
@@ -132,6 +133,7 @@ ApplicationImpl::initialize()
     mPeerAuth = make_unique<PeerAuth>(*this);
     mConnectionHandler = make_unique<HerderConnectionHandler>(*this);
     mMessageHandler = make_unique<OverlayMessageHandler>(*this);
+    mTransactionHandler = make_unique<HerderTransactionHandler>(*this);
     mPreferredPeers = make_unique<PreferredPeers>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
 
@@ -773,6 +775,12 @@ PeerAuth&
 ApplicationImpl::getPeerAuth()
 {
     return *mPeerAuth;
+}
+
+TransactionHandler&
+ApplicationImpl::getTransactionHandler()
+{
+    return *mTransactionHandler;
 }
 
 ConnectionHandler&

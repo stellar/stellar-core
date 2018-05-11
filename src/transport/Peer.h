@@ -143,7 +143,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvHello(Hello const& elo);
     void recvDontHave(StellarMessage const& msg);
 
-    void recvTransaction(StellarMessage const& msg);
     void recvSCPMessage(StellarMessage const& msg);
 
     void sendHello();

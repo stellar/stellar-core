@@ -4,14 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TxSetFrame.h"
-#include "Upgrades.h"
-#include "lib/json/json-forwards.h"
+#include "herder/TxSetFrame.h"
+#include "herder/Upgrades.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
 #include "transport/Peer.h"
+#include "transport/TransactionHandler.h"
 #include "util/Timer.h"
+
 #include <functional>
+#include <lib/json/json-forwards.h>
 #include <memory>
 #include <string>
 
@@ -67,16 +69,6 @@ class Herder
         HERDER_NUM_STATE
     };
 
-    enum TransactionSubmitStatus
-    {
-        TX_STATUS_PENDING = 0,
-        TX_STATUS_DUPLICATE,
-        TX_STATUS_ERROR,
-        TX_STATUS_COUNT
-    };
-
-    static const char* TX_STATUS_STRING[TX_STATUS_COUNT];
-
     enum EnvelopeStatus
     {
         // for some reason this envelope was discarded - either is was invalid,
@@ -104,7 +96,8 @@ class Herder
     virtual void restoreState() = 0;
 
     // We are learning about a new transaction.
-    virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
+    virtual TransactionHandler::TransactionStatus
+    recvTransaction(Peer::pointer peer, TransactionFramePtr tx) = 0;
 
     // We are learning about a new envelope.
     virtual EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,

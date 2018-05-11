@@ -141,12 +141,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto tx1 = account.tx(
                 {createAccount(dest.getPublicKey(), txAmount)}, expectedSeq);
 
-            // this is basically a modified version of Peer::recvTransaction
-            auto msg = tx1->toStellarMessage();
-            auto res = inApp->getHerder().recvTransaction(tx1);
-            REQUIRE(res == Herder::TX_STATUS_PENDING);
-            inApp->getOverlayManager().broadcastMessage(msg);
-
+            auto res = inApp->getTransactionHandler().transaction(nullptr, tx1);
+            REQUIRE(res == TransactionHandler::TX_STATUS_PENDING);
         };
 
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {

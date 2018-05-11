@@ -76,7 +76,7 @@ class LoadGenerator
                                              uint32_t ledgerNum,
                                              uint64_t sourceAccount);
     void handleFailedSubmission(TestAccountPtr sourceAccount,
-                                Herder::TransactionSubmitStatus status,
+                                TransactionHandler::TransactionStatus status,
                                 TransactionResultCode code);
     TxInfo creationTransaction(uint64_t startAccount, uint64_t numItems,
                                uint32_t ledgerNum);
@@ -111,9 +111,9 @@ class LoadGenerator
     {
         TestAccountPtr mFrom;
         std::vector<Operation> mOps;
-        Herder::TransactionSubmitStatus execute(Application& app, bool isCreate,
-                                                TransactionResultCode& code,
-                                                int32_t batchSize);
+        TransactionHandler::TransactionStatus
+        execute(Application& app, bool isCreate, TransactionResultCode& code,
+                int32_t batchSize);
     };
 
   protected:

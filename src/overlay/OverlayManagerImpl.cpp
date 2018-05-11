@@ -453,6 +453,30 @@ OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
 }
 
 void
+OverlayManagerImpl::transactionProcessed(
+    Peer::pointer peer, TransactionEnvelope const& transaction,
+    TransactionHandler::TransactionStatus status)
+{
+    if (status != TransactionHandler::TX_STATUS_PENDING &&
+        status != TransactionHandler::TX_STATUS_DUPLICATE)
+    {
+        return;
+    }
+
+    StellarMessage msg;
+    msg.type(TRANSACTION);
+    msg.transaction() = transaction;
+
+    recvFloodedMsg(msg, peer);
+
+    if (status == TransactionHandler::TX_STATUS_PENDING)
+    {
+        // if it's a new transaction, broadcast it
+        broadcastMessage(msg);
+    }
+}
+
+void
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
     mMessagesBroadcast.Mark();

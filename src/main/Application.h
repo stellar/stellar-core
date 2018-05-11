@@ -32,6 +32,7 @@ class Maintainer;
 class ConnectionHandler;
 class MessageHandler;
 class ProcessManager;
+class TransactionHandler;
 class Herder;
 class HerderPersistence;
 class InvariantManager;
@@ -218,6 +219,7 @@ class Application
     virtual PeerAuth& getPeerAuth() = 0;
     virtual ConnectionHandler& getConnectionHandler() = 0;
     virtual MessageHandler& getMessageHandler() = 0;
+    virtual TransactionHandler& getTransactionHandler() = 0;
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
