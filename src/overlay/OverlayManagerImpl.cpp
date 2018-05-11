@@ -477,6 +477,23 @@ OverlayManagerImpl::transactionProcessed(
 }
 
 void
+OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer,
+                                         SCPEnvelope const& envelope,
+                                         EnvelopeHandler::EnvelopeStatus status)
+{
+    StellarMessage msg;
+    msg.type(SCP_MESSAGE);
+    msg.envelope() = envelope;
+
+    recvFloodedMsg(msg, peer);
+
+    if (status == EnvelopeHandler::ENVELOPE_STATUS_READY)
+    {
+        broadcastMessage(msg);
+    }
+}
+
+void
 OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
 {
     mMessagesBroadcast.Mark();

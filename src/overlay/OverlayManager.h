@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "overlay/StellarXDR.h"
+#include "transport/EnvelopeHandler.h"
 #include "transport/Peer.h"
 #include "transport/TransactionHandler.h"
 
@@ -72,6 +73,12 @@ class OverlayManager
     transactionProcessed(Peer::pointer peer,
                          TransactionEnvelope const& transaction,
                          TransactionHandler::TransactionStatus status) = 0;
+
+    // SCP envelope has been processed. Overlay can now broadcast it if
+    // neccessary.
+    virtual void
+    scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
+                         EnvelopeHandler::EnvelopeStatus status) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.

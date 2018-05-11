@@ -30,8 +30,8 @@ class PendingEnvelopes
      * was discarded or processed already, it will be ignored. Otherwise it is
      * either put into FETCHING or READY state.
      */
-    Herder::EnvelopeStatus handleEnvelope(Peer::pointer peer,
-                                          SCPEnvelope const& envelope);
+    EnvelopeHandler::EnvelopeStatus handleEnvelope(Peer::pointer peer,
+                                                   SCPEnvelope const& envelope);
 
     /**
      * After clearing internal quorum node cache it passes the call to

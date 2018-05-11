@@ -21,6 +21,7 @@ class MetricsRegistry;
 namespace stellar
 {
 
+class EnvelopeHandler;
 class VirtualClock;
 class TmpDirManager;
 class LedgerManager;
@@ -218,6 +219,7 @@ class Application
     virtual PreferredPeers& getPreferredPeers() = 0;
     virtual PeerAuth& getPeerAuth() = 0;
     virtual ConnectionHandler& getConnectionHandler() = 0;
+    virtual EnvelopeHandler& getEnvelopeHandler() = 0;
     virtual MessageHandler& getMessageHandler() = 0;
     virtual TransactionHandler& getTransactionHandler() = 0;
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;

@@ -18,6 +18,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "transport/EnvelopeHandler.h"
 #include "transport/MessageHandler.h"
 
 #include <lib/catch.hpp>
@@ -538,6 +539,7 @@ TEST_CASE("SCP Driver", "[herder]")
     SECTION("combineCandidates")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& envelopeHandler = app->getEnvelopeHandler();
         auto& messageHandler = app->getMessageHandler();
 
         std::set<Value> candidates;
@@ -545,8 +547,8 @@ TEST_CASE("SCP Driver", "[herder]")
         auto addToCandidates = [&](TxPair const& p) {
             candidates.emplace(p.first);
             auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
-            REQUIRE(herder.recvSCPEnvelope(nullptr, envelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, envelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.txSet(nullptr, p.second) ==
                     std::set<SCPEnvelope>{});
         };
@@ -618,6 +620,7 @@ TEST_CASE("SCP Driver", "[herder]")
         auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
+        auto& envelopeHandler = app->getEnvelopeHandler();
         auto& messageHandler = app->getMessageHandler();
 
         auto transactions1 = makeTransactions(lcl.hash, 50);
@@ -635,22 +638,22 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("return FETCHING until fetched")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{saneEnvelopeQ1T1});
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_PROCESSED);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
         }
 
         SECTION("only accepts qset once")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
@@ -658,16 +661,16 @@ TEST_CASE("SCP Driver", "[herder]")
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
 
             SECTION("when receiving different envelope with the same qset")
             {
-                REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T2) ==
-                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T2) ==
+                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
@@ -675,23 +678,23 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("only accepts txset once")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                         std::set<SCPEnvelope>{});
             }
 
             SECTION("when receiving different envelope with the same txset")
             {
-                REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ2T1) ==
-                        Herder::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ2T1) ==
+                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
                 REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                         std::set<SCPEnvelope>{});
             }
@@ -717,8 +720,8 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("do not accept not sane qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
@@ -726,8 +729,8 @@ TEST_CASE("SCP Driver", "[herder]")
         SECTION("do not accept txset from envelope discarded because of unsane "
                 "qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
@@ -737,8 +740,8 @@ TEST_CASE("SCP Driver", "[herder]")
         SECTION(
             "accept txset from envelope with unsane qset before receiving qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.txSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==
@@ -747,10 +750,10 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("accept txset from envelopes with both valid and unsane qset")
         {
-            REQUIRE(herder.recvSCPEnvelope(nullptr, saneEnvelopeQ1T1) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(herder.recvSCPEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(messageHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(messageHandler.quorumSet(nullptr, bigQSet) ==

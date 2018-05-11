@@ -101,11 +101,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     medida::Timer& mRecvSCPMessageTimer;
     medida::Timer& mRecvGetSCPStateTimer;
 
-    medida::Timer& mRecvSCPPrepareTimer;
-    medida::Timer& mRecvSCPConfirmTimer;
-    medida::Timer& mRecvSCPNominateTimer;
-    medida::Timer& mRecvSCPExternalizeTimer;
-
     medida::Meter& mSendErrorMeter;
     medida::Meter& mSendHelloMeter;
     medida::Meter& mSendAuthMeter;
@@ -142,8 +137,6 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvAuth(StellarMessage const& msg);
     void recvHello(Hello const& elo);
     void recvDontHave(StellarMessage const& msg);
-
-    void recvSCPMessage(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();

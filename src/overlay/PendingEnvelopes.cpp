@@ -24,7 +24,7 @@ PendingEnvelopes::~PendingEnvelopes()
 {
 }
 
-Herder::EnvelopeStatus
+EnvelopeHandler::EnvelopeStatus
 PendingEnvelopes::handleEnvelope(Peer::pointer peer,
                                  SCPEnvelope const& envelope)
 {
@@ -34,7 +34,7 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
         CLOG(DEBUG, "Herder")
             << "Dropping envelope from "
             << mApp.getConfig().toShortString(nodeID) << " (too old)";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
     // did we discard this envelope?
@@ -44,22 +44,22 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
 
     if (mFetchingEnvelopes.isDiscarded(envelope))
     {
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
     touchItemCache(envelope);
 
     if (mReadyEnvelopes.seen(envelope))
     {
-        return Herder::ENVELOPE_STATUS_PROCESSED;
+        return EnvelopeHandler::ENVELOPE_STATUS_PROCESSED;
     }
 
     if (mFetchingEnvelopes.handleEnvelope(peer, envelope))
     {
         mReadyEnvelopes.push(envelope);
-        return Herder::ENVELOPE_STATUS_READY;
+        return EnvelopeHandler::ENVELOPE_STATUS_READY;
     }
-    return Herder::ENVELOPE_STATUS_FETCHING;
+    return EnvelopeHandler::ENVELOPE_STATUS_FETCHING;
 }
 
 std::set<SCPEnvelope>

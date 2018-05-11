@@ -43,27 +43,27 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         // check if the return value change only when it was READY on previous
         // call
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
+                EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
+                EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
         SECTION("and then READY when all data came (quorum set first)")
         {
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{saneEnvelope});
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_READY);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{});
@@ -74,10 +74,10 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             {
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
             }
         }
 
@@ -86,18 +86,18 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_FETCHING);
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{saneEnvelope});
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_READY);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                     std::set<SCPEnvelope>{});
@@ -108,10 +108,10 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             {
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    Herder::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
             }
         }
     }
@@ -125,15 +125,15 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
                 std::set<SCPEnvelope>{});
 
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_READY);
+                EnvelopeHandler::ENVELOPE_STATUS_READY);
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_PROCESSED);
+                EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
     }
 
     SECTION("return DISCARDED when receiving envelope with too big quorum set")
     {
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
+                EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
         SECTION("quorum set first")
         {
@@ -142,9 +142,9 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_DISCARDED);
+                    EnvelopeHandler::ENVELOPE_STATUS_DISCARDED);
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_DISCARDED);
+                    EnvelopeHandler::ENVELOPE_STATUS_DISCARDED);
         }
 
         SECTION("tx set first")
@@ -154,9 +154,9 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleQuorumSet(bigQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_DISCARDED);
+                    EnvelopeHandler::ENVELOPE_STATUS_DISCARDED);
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
-                    Herder::ENVELOPE_STATUS_DISCARDED);
+                    EnvelopeHandler::ENVELOPE_STATUS_DISCARDED);
         }
     }
 
@@ -167,16 +167,16 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         auto saneEnvelope3 = makeEnvelope(txSetHash, saneQSetHash, 6);
 
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_FETCHING);
+                EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
                 std::set<SCPEnvelope>{});
         REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                 std::set<SCPEnvelope>{saneEnvelope});
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                Herder::ENVELOPE_STATUS_READY);
+                EnvelopeHandler::ENVELOPE_STATUS_READY);
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope2) ==
-                Herder::ENVELOPE_STATUS_READY);
+                EnvelopeHandler::ENVELOPE_STATUS_READY);
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope3) ==
-                Herder::ENVELOPE_STATUS_READY);
+                EnvelopeHandler::ENVELOPE_STATUS_READY);
     }
 }

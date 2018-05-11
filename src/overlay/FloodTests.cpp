@@ -226,7 +226,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             TxSetFrame txSet(lcl.hash);
             txSet.add(tx1);
             txSet.sortForHash();
-            auto& herder = inApp->getHerder();
+            auto& envelopeHandler = inApp->getEnvelopeHandler();
             auto& pendingEnvelopes = inApp->getPendingEnvelopes();
 
             // build the quorum set used by this message
@@ -262,8 +262,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             pendingEnvelopes.handleTxSet(std::make_shared<TxSetFrame>(txSet),
                                          true);
             pendingEnvelopes.handleQuorumSet(qset, true);
-            REQUIRE(herder.recvSCPEnvelope(nullptr, envelope) ==
-                    Herder::ENVELOPE_STATUS_READY);
+            REQUIRE(envelopeHandler.envelope(nullptr, envelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
 
         };
 

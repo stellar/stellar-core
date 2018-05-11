@@ -61,13 +61,11 @@ class HerderImpl : public Herder
 
     TransactionHandler::TransactionStatus
     recvTransaction(Peer::pointer peer, TransactionFramePtr tx) override;
+    bool isValidEnvelope(SCPEnvelope const& envelope) override;
 
-    EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
-                                   SCPEnvelope const& envelope) override;
+    std::vector<SCPEnvelope> getSCPState(uint32 ledgerSeq) override;
 
-    void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) override;
-
-    void processSCPQueue();
+    void processSCPQueue() override;
 
     uint32_t getCurrentLedgerSeq() const override;
 
@@ -161,7 +159,6 @@ class HerderImpl : public Herder
         medida::Meter& mBallotExpire;
 
         medida::Meter& mEnvelopeEmit;
-        medida::Meter& mEnvelopeReceive;
 
         // Counters for stuff in parent class (SCP)
         // that we monitor on a best-effort basis from

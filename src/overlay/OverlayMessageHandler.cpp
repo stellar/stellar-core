@@ -133,7 +133,18 @@ OverlayMessageHandler::acceptAuthenticated(Peer::pointer peer)
 void
 OverlayMessageHandler::getSCPState(Peer::pointer peer, uint32_t seq)
 {
-    mApp.getHerder().sendSCPStateToPeer(seq, peer);
+    CLOG(TRACE, "Overlay") << "get SCP State " << seq;
+    auto const& envelopes = mApp.getEnvelopeHandler().getSCPState(seq);
+    CLOG(DEBUG, "Overlay") << "Send state " << envelopes.size()
+                           << " from ledger " << seq;
+
+    for (auto const& e : envelopes)
+    {
+        StellarMessage m;
+        m.type(SCP_MESSAGE);
+        m.envelope() = e;
+        peer->sendMessage(m);
+    }
 }
 
 void
@@ -265,7 +276,7 @@ OverlayMessageHandler::txSet(Peer::pointer peer, TransactionSet const& txSet,
     auto envelopes = mApp.getPendingEnvelopes().handleTxSet(txSetFrame, force);
     for (auto& e : envelopes)
     {
-        mApp.getHerder().recvSCPEnvelope(peer, e);
+        mApp.getEnvelopeHandler().envelope(peer, e);
     }
     return envelopes;
 }
@@ -276,7 +287,7 @@ OverlayMessageHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet)
     auto envelopes = mApp.getPendingEnvelopes().handleQuorumSet(qSet);
     for (auto& e : envelopes)
     {
-        mApp.getHerder().recvSCPEnvelope(peer, e);
+        mApp.getEnvelopeHandler().envelope(peer, e);
     }
     return envelopes;
 }

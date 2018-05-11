@@ -8,6 +8,7 @@
 #include "herder/Upgrades.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
+#include "transport/EnvelopeHandler.h"
 #include "transport/Peer.h"
 #include "transport/TransactionHandler.h"
 #include "util/Timer.h"
@@ -69,20 +70,6 @@ class Herder
         HERDER_NUM_STATE
     };
 
-    enum EnvelopeStatus
-    {
-        // for some reason this envelope was discarded - either is was invalid,
-        // used unsane qset or was coming from node that is not in quorum
-        ENVELOPE_STATUS_DISCARDED,
-        // envelope data is currently being fetched
-        ENVELOPE_STATUS_FETCHING,
-        // current call to recvSCPEnvelope() was the first when the envelope
-        // was fully fetched so it is ready for processing
-        ENVELOPE_STATUS_READY,
-        // envelope was already processed
-        ENVELOPE_STATUS_PROCESSED,
-    };
-
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
@@ -99,12 +86,13 @@ class Herder
     virtual TransactionHandler::TransactionStatus
     recvTransaction(Peer::pointer peer, TransactionFramePtr tx) = 0;
 
-    // We are learning about a new envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(Peer::pointer peer,
-                                           SCPEnvelope const& envelope) = 0;
+    virtual bool isValidEnvelope(SCPEnvelope const& envelope) = 0;
 
-    // a peer needs our SCP state
-    virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
+    // return current SCP state
+    virtual std::vector<SCPEnvelope> getSCPState(uint32 ledgerSeq) = 0;
+
+    // new envelopes are ready for processing
+    virtual void processSCPQueue() = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state

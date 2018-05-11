@@ -15,6 +15,7 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "herder/HerderConnectionHandler.h"
+#include "herder/HerderEnvelopeHandler.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderTransactionHandler.h"
@@ -133,6 +134,7 @@ ApplicationImpl::initialize()
     mPeerAuth = make_unique<PeerAuth>(*this);
     mConnectionHandler = make_unique<HerderConnectionHandler>(*this);
     mMessageHandler = make_unique<OverlayMessageHandler>(*this);
+    mEnvelopeHandler = make_unique<HerderEnvelopeHandler>(*this);
     mTransactionHandler = make_unique<HerderTransactionHandler>(*this);
     mPreferredPeers = make_unique<PreferredPeers>(*this);
     mPendingEnvelopes = make_unique<PendingEnvelopes>(*this);
@@ -793,6 +795,12 @@ MessageHandler&
 ApplicationImpl::getMessageHandler()
 {
     return *mMessageHandler;
+}
+
+EnvelopeHandler&
+ApplicationImpl::getEnvelopeHandler()
+{
+    return *mEnvelopeHandler;
 }
 
 PendingEnvelopes&

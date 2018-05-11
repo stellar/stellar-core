@@ -55,8 +55,6 @@ HerderImpl::SCPMetrics::SCPMetrics(Application& app)
           app.getMetrics().NewMeter({"scp", "ballot", "expire"}, "ballot"))
     , mEnvelopeEmit(
           app.getMetrics().NewMeter({"scp", "envelope", "emit"}, "envelope"))
-    , mEnvelopeReceive(
-          app.getMetrics().NewMeter({"scp", "envelope", "receive"}, "envelope"))
 
     , mKnownSlotsSize(
           app.getMetrics().NewCounter({"scp", "memory", "known-slots"}))
@@ -374,30 +372,14 @@ HerderImpl::processTransaction(TransactionFramePtr tx)
     return TransactionHandler::TX_STATUS_PENDING;
 }
 
-Herder::EnvelopeStatus
-HerderImpl::recvSCPEnvelope(Peer::pointer peer, SCPEnvelope const& envelope)
+bool
+HerderImpl::isValidEnvelope(SCPEnvelope const& envelope)
 {
-    if (mApp.getConfig().MANUAL_CLOSE)
-    {
-        return Herder::ENVELOPE_STATUS_DISCARDED;
-    }
-
-    if (Logging::logDebug("Herder"))
-        CLOG(DEBUG, "Herder")
-            << "recvSCPEnvelope"
-            << " from: "
-            << mApp.getConfig().toShortString(envelope.statement.nodeID)
-            << " s:" << envelope.statement.pledges.type()
-            << " i:" << envelope.statement.slotIndex
-            << " a:" << mApp.getStateHuman();
-
     if (envelope.statement.nodeID == getSCP().getLocalNode()->getNodeID())
     {
         CLOG(DEBUG, "Herder") << "recvSCPEnvelope: skipping own message";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return false;
     }
-
-    mSCPMetrics.mEnvelopeReceive.Mark();
 
     uint32_t minLedgerSeq = getCurrentLedgerSeq();
     if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
@@ -427,34 +409,25 @@ HerderImpl::recvSCPEnvelope(Peer::pointer peer, SCPEnvelope const& envelope)
         CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
                               << envelope.statement.slotIndex << "( "
                               << minLedgerSeq << "," << maxLedgerSeq << ")";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return false;
     }
 
-    auto status = mApp.getPendingEnvelopes().handleEnvelope(peer, envelope);
-    if (status == Herder::ENVELOPE_STATUS_READY)
-    {
-        StellarMessage msg;
-        msg.type(SCP_MESSAGE);
-        msg.envelope() = envelope;
-        mApp.getOverlayManager().broadcastMessage(msg);
-
-        processSCPQueue();
-    }
-    return status;
+    return true;
 }
 
-void
-HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
+std::vector<SCPEnvelope>
+HerderImpl::getSCPState(uint32 ledgerSeq)
 {
+    auto result = std::vector<SCPEnvelope>{};
     if (getSCP().empty())
     {
-        return;
+        return result;
     }
 
     if (getSCP().getLowSlotIndex() > std::numeric_limits<uint32_t>::max() ||
         getSCP().getHighSlotIndex() >= std::numeric_limits<uint32_t>::max())
     {
-        return;
+        return result;
     }
 
     auto minSeq =
@@ -463,22 +436,12 @@ HerderImpl::sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer)
 
     for (uint32_t seq = minSeq; seq <= maxSeq; seq++)
     {
-        auto const& envelopes = getSCP().getCurrentState(seq);
-
-        if (envelopes.size() != 0)
-        {
-            CLOG(DEBUG, "Herder")
-                << "Send state " << envelopes.size() << " for ledger " << seq;
-
-            for (auto const& e : envelopes)
-            {
-                StellarMessage m;
-                m.type(SCP_MESSAGE);
-                m.envelope() = e;
-                peer->sendMessage(m);
-            }
-        }
+        auto envelopes = getSCP().getCurrentState(seq);
+        result.insert(std::end(result), std::begin(envelopes),
+                      std::end(envelopes));
     }
+
+    return result;
 }
 
 void

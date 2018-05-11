@@ -76,6 +76,7 @@ class ApplicationImpl : public Application
     virtual ConnectionHandler& getConnectionHandler() override;
     virtual TransactionHandler& getTransactionHandler() override;
     virtual MessageHandler& getMessageHandler() override;
+    virtual EnvelopeHandler& getEnvelopeHandler() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
 
     virtual asio::io_service& getWorkerIOService() override;
@@ -144,6 +145,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<ConnectionHandler> mConnectionHandler;
     std::unique_ptr<TransactionHandler> mTransactionHandler;
     std::unique_ptr<MessageHandler> mMessageHandler;
+    std::unique_ptr<EnvelopeHandler> mEnvelopeHandler;
     std::unique_ptr<OverlayManager> mOverlayManager;
     std::unique_ptr<BucketManager> mBucketManager;
     std::unique_ptr<CatchupManager> mCatchupManager;
