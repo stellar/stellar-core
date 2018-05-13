@@ -4,6 +4,12 @@
 
 #include "Fd.h"
 
+#ifndef _WIN32
+
+#include <fcntl.h>
+
+#endif
+
 namespace stellar
 {
 namespace fd
