@@ -70,27 +70,21 @@ class OverlayManager
     // Transaction has been processed. Overlay can now broadcast it if
     // neccessary.
     virtual void
-    transactionProcessed(Peer::pointer peer,
+    transactionProcessed(Peer::pointer peer, uint32_t ledgerSeq,
                          TransactionEnvelope const& transaction,
                          TransactionHandler::TransactionStatus status) = 0;
 
     // SCP envelope has been processed. Overlay can now broadcast it if
     // neccessary.
     virtual void
-    scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
+    scpEnvelopeProcessed(Peer::pointer peer, uint32_t ledgerSeq,
+                         SCPEnvelope const& envelope,
                          EnvelopeHandler::EnvelopeStatus status) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.
-    virtual void broadcastMessage(StellarMessage const& msg,
+    virtual void broadcastMessage(StellarMessage const& msg, uint32_t ledgerSeq,
                                   bool force = false) = 0;
-
-    // Make a note in the FloodGate that a given peer has provided us with a
-    // given broadcast message, so that it is inhibited from being resent to
-    // that peer. This does _not_ cause the message to be broadcast anew; to do
-    // that, call broadcastMessage, above.
-    virtual void recvFloodedMsg(StellarMessage const& msg,
-                                Peer::pointer peer) = 0;
 
     // Return a list of random peers from the set of authenticated peers.
     virtual std::vector<Peer::pointer> getRandomAuthenticatedPeers() = 0;

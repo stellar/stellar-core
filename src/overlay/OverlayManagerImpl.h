@@ -68,13 +68,13 @@ class OverlayManagerImpl : public OverlayManager
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
     void
-    transactionProcessed(Peer::pointer peer,
+    transactionProcessed(Peer::pointer peer, uint32_t ledgerSeq,
                          TransactionEnvelope const& transaction,
                          TransactionHandler::TransactionStatus status) override;
-    void scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
+    void scpEnvelopeProcessed(Peer::pointer peer, uint32_t ledgerSeq,
+                              SCPEnvelope const& envelope,
                               EnvelopeHandler::EnvelopeStatus status) override;
-    void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
-    void broadcastMessage(StellarMessage const& msg,
+    void broadcastMessage(StellarMessage const& msg, uint32_t ledgerSeq,
                           bool force = false) override;
     void connectTo(std::string const& addr) override;
     void connectTo(PeerRecord& pr) override;
@@ -107,6 +107,9 @@ class OverlayManagerImpl : public OverlayManager
   private:
     std::vector<PeerRecord> getPreferredPeersFromConfig();
     std::vector<PeerRecord> getPeersToConnectTo(int maxNum);
+
+    void recvFloodedMsg(StellarMessage const& msg, uint32_t ledgerSeq,
+                        Peer::pointer peer);
 
     bool moveToAuthenticated(Peer::pointer peer);
     void updateSizeCounters();

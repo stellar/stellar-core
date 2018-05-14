@@ -446,15 +446,16 @@ OverlayManagerImpl::getRandomAuthenticatedPeers()
 
 void
 OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
-                                   Peer::pointer peer)
+                                   uint32_t ledgerSeq, Peer::pointer peer)
 {
     mMessagesReceived.Mark();
-    mFloodGate.addRecord(msg, peer);
+    mFloodGate.addRecord(msg, ledgerSeq, peer);
 }
 
 void
 OverlayManagerImpl::transactionProcessed(
-    Peer::pointer peer, TransactionEnvelope const& transaction,
+    Peer::pointer peer, uint32_t ledgerSeq,
+    TransactionEnvelope const& transaction,
     TransactionHandler::TransactionStatus status)
 {
     if (status != TransactionHandler::TX_STATUS_PENDING &&
@@ -467,17 +468,17 @@ OverlayManagerImpl::transactionProcessed(
     msg.type(TRANSACTION);
     msg.transaction() = transaction;
 
-    recvFloodedMsg(msg, peer);
+    recvFloodedMsg(msg, ledgerSeq, peer);
 
     if (status == TransactionHandler::TX_STATUS_PENDING)
     {
         // if it's a new transaction, broadcast it
-        broadcastMessage(msg);
+        broadcastMessage(msg, ledgerSeq);
     }
 }
 
 void
-OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer,
+OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer, uint32_t ledgerSeq,
                                          SCPEnvelope const& envelope,
                                          EnvelopeHandler::EnvelopeStatus status)
 {
@@ -485,19 +486,20 @@ OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer,
     msg.type(SCP_MESSAGE);
     msg.envelope() = envelope;
 
-    recvFloodedMsg(msg, peer);
+    recvFloodedMsg(msg, ledgerSeq, peer);
 
     if (status == EnvelopeHandler::ENVELOPE_STATUS_READY)
     {
-        broadcastMessage(msg);
+        broadcastMessage(msg, ledgerSeq);
     }
 }
 
 void
-OverlayManagerImpl::broadcastMessage(StellarMessage const& msg, bool force)
+OverlayManagerImpl::broadcastMessage(StellarMessage const& msg,
+                                     uint32_t ledgerSeq, bool force)
 {
     mMessagesBroadcast.Mark();
-    mFloodGate.broadcast(msg, force);
+    mFloodGate.broadcast(msg, ledgerSeq, force);
 }
 
 void

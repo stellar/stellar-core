@@ -166,14 +166,14 @@ class OverlayManagerTests
         auto i = 0;
         for (auto p : pm.mAuthenticatedPeers)
             if (i++ == 2)
-                pm.recvFloodedMsg(AtoC, p.second);
-        pm.broadcastMessage(AtoC);
+                pm.recvFloodedMsg(AtoC, 1, p.second);
+        pm.broadcastMessage(AtoC, 1);
         vector<int> expected{1, 1, 0, 1, 1};
         REQUIRE(sentCounts(pm) == expected);
-        pm.broadcastMessage(AtoC);
+        pm.broadcastMessage(AtoC, 1);
         REQUIRE(sentCounts(pm) == expected);
         StellarMessage CtoD = c.tx({payment(d, 10)})->toStellarMessage();
-        pm.broadcastMessage(CtoD);
+        pm.broadcastMessage(CtoD, 1);
         vector<int> expectedFinal{2, 2, 1, 2, 2};
         REQUIRE(sentCounts(pm) == expectedFinal);
     }

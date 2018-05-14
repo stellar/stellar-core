@@ -51,7 +51,8 @@ HerderEnvelopeHandler::envelope(Peer::pointer peer, SCPEnvelope const& envelope)
                                 : (mRecvSCPNominateTimer.TimeScope()))));
 
     auto status = processEnvelope(peer, envelope);
-    mApp.getOverlayManager().scpEnvelopeProcessed(peer, envelope, status);
+    mApp.getOverlayManager().scpEnvelopeProcessed(
+        peer, mApp.getHerder().getCurrentLedgerSeq(), envelope, status);
     return status;
 }
 

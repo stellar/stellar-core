@@ -5,14 +5,14 @@
 #include "overlay/Floodgate.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
-#include "herder/Herder.h"
 #include "main/Application.h"
-#include "medida/counter.h"
-#include "medida/metrics_registry.h"
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "xdrpp/marshal.h"
+
+#include <medida/counter.h>
+#include <medida/metrics_registry.h>
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -36,12 +36,12 @@ Floodgate::Floodgate(Application& app)
 
 // remove old flood records
 void
-Floodgate::clearBelow(uint32_t currentLedger)
+Floodgate::clearBelow(uint32_t ledgerSeq)
 {
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
         // give one ledger of leeway
-        if (it->second->mLedgerSeq + 10 < currentLedger)
+        if (it->second->mLedgerSeq + 10 < ledgerSeq)
         {
             mFloodMap.erase(it++);
         }
@@ -54,7 +54,8 @@ Floodgate::clearBelow(uint32_t currentLedger)
 }
 
 bool
-Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
+Floodgate::addRecord(StellarMessage const& msg, uint32_t ledgerSeq,
+                     Peer::pointer peer)
 {
     if (mShuttingDown)
     {
@@ -64,8 +65,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end())
     { // we have never seen this message
-        mFloodMap[index] = std::make_shared<FloodRecord>(
-            msg, mApp.getHerder().getCurrentLedgerSeq(), peer);
+        mFloodMap[index] = std::make_shared<FloodRecord>(msg, ledgerSeq, peer);
         mFloodMapSize.set_count(mFloodMap.size());
         return true;
     }
@@ -78,7 +78,7 @@ Floodgate::addRecord(StellarMessage const& msg, Peer::pointer peer)
 
 // send message to anyone you haven't gotten it from
 void
-Floodgate::broadcast(StellarMessage const& msg, bool force)
+Floodgate::broadcast(StellarMessage const& msg, uint32_t ledgerSeq, bool force)
 {
     if (mShuttingDown)
     {
@@ -90,8 +90,8 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
     auto result = mFloodMap.find(index);
     if (result == mFloodMap.end() || force)
     { // no one has sent us this message
-        FloodRecord::pointer record = std::make_shared<FloodRecord>(
-            msg, mApp.getHerder().getCurrentLedgerSeq(), Peer::pointer());
+        FloodRecord::pointer record =
+            std::make_shared<FloodRecord>(msg, ledgerSeq, Peer::pointer());
         result = mFloodMap.insert(std::make_pair(index, record)).first;
         mFloodMapSize.set_count(mFloodMap.size());
     }

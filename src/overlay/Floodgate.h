@@ -53,11 +53,12 @@ class Floodgate
   public:
     Floodgate(Application& app);
     // Floodgate will be cleared after every ledger close
-    void clearBelow(uint32_t currentLedger);
+    void clearBelow(uint32_t ledgerSeq);
     // returns true if this is a new record
-    bool addRecord(StellarMessage const& msg, Peer::pointer fromPeer);
+    bool addRecord(StellarMessage const& msg, uint32_t ledgerSeq,
+                   Peer::pointer fromPeer);
 
-    void broadcast(StellarMessage const& msg, bool force);
+    void broadcast(StellarMessage const& msg, uint32_t ledgerSeq, bool force);
 
     void shutdown();
 };

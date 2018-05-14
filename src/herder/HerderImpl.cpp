@@ -314,8 +314,8 @@ TransactionHandler::TransactionStatus
 HerderImpl::recvTransaction(Peer::pointer peer, TransactionFramePtr tx)
 {
     auto status = processTransaction(tx);
-    mApp.getOverlayManager().transactionProcessed(peer, tx->getEnvelope(),
-                                                  status);
+    mApp.getOverlayManager().transactionProcessed(peer, getCurrentLedgerSeq(),
+                                                  tx->getEnvelope(), status);
     return status;
 }
 
@@ -1016,7 +1016,8 @@ HerderImpl::updatePendingTransactions(
         for (auto tx : toBroadcast.sortForApply())
         {
             auto msg = tx->toStellarMessage();
-            mApp.getOverlayManager().broadcastMessage(msg);
+            mApp.getOverlayManager().broadcastMessage(msg,
+                                                      getCurrentLedgerSeq());
         }
     }
 
