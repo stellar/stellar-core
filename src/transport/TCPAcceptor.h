@@ -6,7 +6,6 @@
 
 #include "util/asio.h"
 #include "TCPPeer.h"
-#include <memory>
 
 /*
 listens for peer connections.
@@ -16,25 +15,24 @@ When found passes them to the OverlayManagerImpl
 namespace stellar
 {
 class Application;
-class PeerDoorStub;
 
-class PeerDoor
+class TCPAcceptor
 {
-  protected:
-    Application& mApp;
-    asio::ip::tcp::acceptor mAcceptor;
-
-    virtual void acceptNextPeer();
-    virtual void handleKnock(std::shared_ptr<TCPPeer::SocketType> pSocket);
-
-    friend PeerDoorStub;
-
   public:
-    typedef std::shared_ptr<PeerDoor> pointer;
+    using newPeerCallback = std::function<void(Peer::pointer)>;
 
-    PeerDoor(Application&);
+    explicit TCPAcceptor(Application& app, newPeerCallback peerCallback);
 
     void start();
     void close();
+
+  private:
+    Application& mApp;
+    newPeerCallback mPeerCallback;
+    asio::ip::tcp::acceptor mAcceptor;
+    bool mShuttingDown{false};
+
+    virtual void acceptNextPeer();
+    virtual void handleKnock(std::shared_ptr<TCPPeer::SocketType> pSocket);
 };
 }

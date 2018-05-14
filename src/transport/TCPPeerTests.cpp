@@ -10,7 +10,7 @@
 #include "simulation/Simulation.h"
 #include "test/test.h"
 #include "transport/PeerBareAddress.h"
-#include "transport/PeerDoor.h"
+#include "transport/TCPAcceptor.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 

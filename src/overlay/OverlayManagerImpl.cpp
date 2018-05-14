@@ -60,7 +60,7 @@ OverlayManager::create(Application& app)
 
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
-    , mDoor(mApp)
+    , mTCPAcceptor(mApp, [&](Peer::pointer peer) { addPendingPeer(peer); })
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
           {"overlay", "message", "flood-receive"}, "message"))
@@ -90,7 +90,6 @@ OverlayManagerImpl::~OverlayManagerImpl()
 void
 OverlayManagerImpl::start()
 {
-    mDoor.start();
     mTimer.expires_from_now(std::chrono::seconds(2));
 
     if (!mApp.getConfig().RUN_STANDALONE)
@@ -101,6 +100,7 @@ OverlayManagerImpl::start()
                 tick();
             },
             VirtualTimer::onFailureNoop);
+        mTCPAcceptor.start();
     }
 }
 
@@ -522,7 +522,7 @@ OverlayManagerImpl::shutdown()
         return;
     }
     mShuttingDown = true;
-    mDoor.close();
+    mTCPAcceptor.close();
     mFloodGate.shutdown();
     auto pendingPeersToStop = mPendingPeers;
     for (auto& p : pendingPeersToStop)

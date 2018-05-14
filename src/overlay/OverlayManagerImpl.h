@@ -12,8 +12,8 @@
 #include "overlay/TxSetCache.h"
 #include "transport/LoadManager.h"
 #include "transport/Peer.h"
-#include "transport/PeerDoor.h"
 #include "transport/PeerRecord.h"
+#include "transport/TCPAcceptor.h"
 #include "util/Timer.h"
 
 #include <set>
@@ -40,7 +40,7 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<Peer::pointer> mPendingPeers;
     // authenticated and connected peers
     std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
-    PeerDoor mDoor;
+    TCPAcceptor mTCPAcceptor;
     LoadManager mLoad;
     QSetCache mQSetCache;
     TxSetCache mTxSetCache;

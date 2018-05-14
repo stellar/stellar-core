@@ -16,7 +16,7 @@
 #include "test/TestAccount.h"
 #include "test/TxTests.h"
 #include "test/test.h"
-#include "transport/PeerDoor.h"
+#include "transport/TCPAcceptor.h"
 #include "transport/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
