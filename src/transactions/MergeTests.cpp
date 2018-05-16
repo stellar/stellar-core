@@ -15,7 +15,6 @@
 #include "transactions/MergeOpFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

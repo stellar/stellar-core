@@ -18,7 +18,6 @@
 #include "transactions/TransactionFrame.h"
 #include "util/Logging.h"
 #include "util/XDRStream.h"
-#include "util/make_unique.h"
 
 #include "medida/counter.h"
 #include "medida/metrics_registry.h"
@@ -67,7 +66,7 @@ StateSnapshot::writeHistoryBlocks() const
 {
     std::unique_ptr<soci::session> snapSess(
         mApp.getDatabase().canUsePool()
-            ? make_unique<soci::session>(mApp.getDatabase().getPool())
+            ? std::make_unique<soci::session>(mApp.getDatabase().getPool())
             : nullptr);
     soci::session& sess(snapSess ? *snapSess : mApp.getDatabase().getSession());
     soci::transaction tx(sess);

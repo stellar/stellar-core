@@ -14,7 +14,6 @@
 #include "util/GlobalChecks.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 #include "xdrpp/marshal.h"
 #include <functional>
@@ -169,7 +168,7 @@ NominationProtocol::emitNomination()
             isNewerStatement(mLastEnvelope->statement.pledges.nominate(),
                              st.pledges.nominate()))
         {
-            mLastEnvelope = make_unique<SCPEnvelope>(envelope);
+            mLastEnvelope = std::make_unique<SCPEnvelope>(envelope);
             if (mSlot.isFullyValidated())
             {
                 mSlot.getSCPDriver().emitEnvelope(envelope);
@@ -588,7 +587,7 @@ NominationProtocol::setStateFromEnvelope(SCPEnvelope const& e)
         mVotes.emplace(v);
     }
 
-    mLastEnvelope = make_unique<SCPEnvelope>(e);
+    mLastEnvelope = std::make_unique<SCPEnvelope>(e);
 }
 
 std::vector<SCPEnvelope>

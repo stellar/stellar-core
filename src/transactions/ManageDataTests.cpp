@@ -11,7 +11,6 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "xdrpp/marshal.h"
 
 using namespace stellar;

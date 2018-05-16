@@ -17,7 +17,6 @@
 #include "test/test.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"

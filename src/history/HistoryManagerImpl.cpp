@@ -31,7 +31,6 @@
 #include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
-#include "util/make_unique.h"
 #include "work/WorkManager.h"
 #include "xdrpp/marshal.h"
 
@@ -59,7 +58,7 @@ HistoryManager::dropAll(Database& db)
 std::unique_ptr<HistoryManager>
 HistoryManager::create(Application& app)
 {
-    return make_unique<HistoryManagerImpl>(app);
+    return std::make_unique<HistoryManagerImpl>(app);
 }
 
 HistoryManagerImpl::HistoryManagerImpl(Application& app)
@@ -169,7 +168,7 @@ HistoryManagerImpl::getTmpDir()
     if (!mWorkDir)
     {
         TmpDir t = mApp.getTmpDirManager().tmpDir("history");
-        mWorkDir = make_unique<TmpDir>(std::move(t));
+        mWorkDir = std::make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();
 }

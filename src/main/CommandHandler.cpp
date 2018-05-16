@@ -17,7 +17,6 @@
 #include "overlay/OverlayManager.h"
 #include "util/Logging.h"
 #include "util/StatusManager.h"
-#include "util/make_unique.h"
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
@@ -56,13 +55,13 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
 
         int httpMaxClient = mApp.getConfig().HTTP_MAX_CLIENT;
 
-        mServer = stellar::make_unique<http::server::server>(
+        mServer = std::make_unique<http::server::server>(
             app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
     }
     else
     {
-        mServer = stellar::make_unique<http::server::server>(
+        mServer = std::make_unique<http::server::server>(
             app.getClock().getIOService());
     }
 

@@ -12,7 +12,6 @@
 #include "util/Fs.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
-#include "util/make_unique.h"
 #include "util/types.h"
 #include <fstream>
 #include <map>
@@ -30,7 +29,7 @@ namespace stellar
 std::unique_ptr<BucketManager>
 BucketManager::create(Application& app)
 {
-    return make_unique<BucketManagerImpl>(app);
+    return std::make_unique<BucketManagerImpl>(app);
 }
 
 void
@@ -113,7 +112,7 @@ BucketManagerImpl::getTmpDir()
     if (!mWorkDir)
     {
         TmpDir t = mApp.getTmpDirManager().tmpDir("bucket");
-        mWorkDir = make_unique<TmpDir>(std::move(t));
+        mWorkDir = std::make_unique<TmpDir>(std::move(t));
     }
     return mWorkDir->getName();
 }
@@ -132,7 +131,7 @@ BucketManagerImpl::getBucketDir()
         // a runtime exception anyway
         fs::lockFile(lock);
 
-        mLockedBucketDir = make_unique<std::string>(d);
+        mLockedBucketDir = std::make_unique<std::string>(d);
     }
     return *(mLockedBucketDir);
 }

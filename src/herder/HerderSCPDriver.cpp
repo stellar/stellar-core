@@ -13,7 +13,6 @@
 #include "main/Application.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include "xdr/Stellar-SCP.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include <medida/metrics_registry.h>
@@ -127,7 +126,7 @@ HerderSCPDriver::syncMetrics()
 void
 HerderSCPDriver::restoreSCPState(uint64_t index, StellarValue const& value)
 {
-    mTrackingSCP = make_unique<ConsensusData>(index, value);
+    mTrackingSCP = std::make_unique<ConsensusData>(index, value);
 }
 
 // envelope handling
@@ -420,7 +419,8 @@ HerderSCPDriver::setupTimer(uint64_t slotIndex, int timerID,
     auto it = slotTimers.find(timerID);
     if (it == slotTimers.end())
     {
-        it = slotTimers.emplace(timerID, make_unique<VirtualTimer>(mApp)).first;
+        it = slotTimers.emplace(timerID, std::make_unique<VirtualTimer>(mApp))
+                 .first;
     }
     auto& timer = *it->second;
     timer.cancel();
@@ -625,11 +625,11 @@ HerderSCPDriver::valueExternalized(uint64_t slotIndex, Value const& value)
         stateChanged();
     }
 
-    mTrackingSCP = make_unique<ConsensusData>(slotIndex, b);
+    mTrackingSCP = std::make_unique<ConsensusData>(slotIndex, b);
 
     if (!mLastTrackingSCP)
     {
-        mLastTrackingSCP = make_unique<ConsensusData>(*mTrackingSCP);
+        mLastTrackingSCP = std::make_unique<ConsensusData>(*mTrackingSCP);
     }
 
     mHerder.valueExternalized(slotIndex, b);

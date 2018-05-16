@@ -18,7 +18,6 @@
 #include "process/ProcessManager.h"
 #include "util/Fs.h"
 #include "util/Logging.h"
-#include "util/make_unique.h"
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <cereal/types/vector.hpp>

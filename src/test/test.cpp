@@ -12,7 +12,6 @@
 #include "test/TestUtils.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
-#include "util/make_unique.h"
 #include <cstdlib>
 #include <numeric>
 #include <time.h>
@@ -74,7 +73,7 @@ getTestConfig(int instanceNumber, Config::TestDbMode mode)
         std::string rootDir = gTestRoots.back().getName();
         rootDir += "/";
 
-        cfgs[instanceNumber] = stellar::make_unique<Config>();
+        cfgs[instanceNumber] = std::make_unique<Config>();
         Config& thisConfig = *cfgs[instanceNumber];
         thisConfig.USE_CONFIG_FOR_GENESIS = true;
 

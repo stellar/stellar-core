@@ -27,7 +27,7 @@ namespace stellar
 std::unique_ptr<InvariantManager>
 InvariantManager::create(Application& app)
 {
-    return make_unique<InvariantManagerImpl>(app.getMetrics());
+    return std::make_unique<InvariantManagerImpl>(app.getMetrics());
 }
 
 InvariantManagerImpl::InvariantManagerImpl(medida::MetricsRegistry& registry)

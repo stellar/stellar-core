@@ -18,7 +18,6 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/format.h"
-#include "util/make_unique.h"
 
 using namespace stellar;
 using namespace stellar::txtest;

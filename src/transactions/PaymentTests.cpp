@@ -1,6 +1,7 @@
 // Copyright 2014 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
 #include "database/Database.h"
 #include "ledger/LedgerManager.h"
 #include "lib/catch.hpp"
@@ -17,7 +18,6 @@
 #include "transactions/PaymentOpFrame.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
-#include "util/make_unique.h"
 
 using namespace stellar;
 using namespace stellar::txtest;
