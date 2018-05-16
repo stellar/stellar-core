@@ -57,6 +57,12 @@ server::addRoute(const std::string& routeName, routeHandler callback)
     mRoutes[routeName] = callback;
 }
 
+asio::ip::tcp::acceptor&
+server::getAcceptor()
+{
+    return acceptor_;
+}
+
 void
 server::do_accept()
 {

@@ -20,6 +20,7 @@
 
 #include "medida/reporting/json_reporter.h"
 #include "util/Decoder.h"
+#include "util/Fd.h"
 #include "util/XDROperators.h"
 #include "xdrpp/marshal.h"
 #include "xdrpp/printer.h"
@@ -58,6 +59,14 @@ CommandHandler::CommandHandler(Application& app) : mApp(app)
         mServer = std::make_unique<http::server::server>(
             app.getClock().getIOService(), ipStr, mApp.getConfig().HTTP_PORT,
             httpMaxClient);
+
+        // Set FD_CLOEXEC on Linux/BSD so the file descriptor isn't inherited
+        // by subprocesses when forking
+        if (!fd::disableProcessInheritance(mServer->getAcceptor()))
+        {
+            LOG(DEBUG) << "Failed to disable process inheritance for "
+                       << "HTTP endpoint's file descriptor";
+        }
     }
     else
     {

@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/TCPPeer.h"
+#include "util/Fd.h"
 #include "util/Logging.h"
 #include <memory>
 
@@ -31,6 +32,12 @@ PeerDoor::start()
         CLOG(DEBUG, "Overlay") << "PeerDoor binding to endpoint " << endpoint;
         mAcceptor.open(endpoint.protocol());
         mAcceptor.set_option(asio::ip::tcp::acceptor::reuse_address(true));
+        if (!fd::disableProcessInheritance(mAcceptor))
+        {
+            CLOG(DEBUG, "Overlay")
+                << "Failed to disable process inheritance for "
+                << "listening socket";
+        }
         mAcceptor.bind(endpoint);
         mAcceptor.listen();
         acceptNextPeer();
@@ -73,6 +80,7 @@ PeerDoor::handleKnock(shared_ptr<TCPPeer::SocketType> socket)
 {
     CLOG(DEBUG, "Overlay") << "PeerDoor handleKnock() @"
                            << mApp.getConfig().PEER_PORT;
+
     Peer::pointer peer = TCPPeer::accept(mApp, socket);
     if (peer)
     {
