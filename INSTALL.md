@@ -21,7 +21,7 @@ When running a node, the best bet is to go with the latest release.
 
 ## Build Dependencies
 
-- `clang` >= 3.5 or `g++` >= 4.9
+- `clang` >= 5.0 or `g++` >= 5.0
 - `pkg-config`
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
@@ -34,12 +34,14 @@ When running a node, the best bet is to go with the latest release.
 
     # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev clang++-3.5 gcc-4.9 g++-4.9 cpp-4.9
+    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
 
-In order to make changes, you'll need to install the proper version of clang-format (you may have to follow instructions on https://apt.llvm.org/ )
+In order to make changes, you'll need to install the proper version of clang-format.
+
+In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
     # sudo apt-get install clang-format-5.0
 
-See [installing gcc 4.9 on ubuntu 14.04](http://askubuntu.com/questions/428198/getting-installing-gcc-g-4-9-on-ubuntu)
+See [installing gcc 5 on ubuntu 14.04](https://askubuntu.com/questions/618474/how-to-install-the-latest-gcurrently-5-1-in-ubuntucurrently-14-04)
 
 Additional, for proper documentation generation (man page), pandoc is needed:
     # sudo apt-get install pandoc
@@ -65,7 +67,7 @@ See [INSTALL-Windows.md](INSTALL-Windows.md)
 - `git submodule init`
 - `git submodule update`
 - Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-3.5 ./configure` or `CXX=g++-4.9 ./configure` or similar, depending on your compiler.)*
+- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-5 ./configure` or similar, depending on your compiler.)*
 - Type `make` or `make -j` (for aggressive parallel build)
 - Type `make check` to run tests.
 - Type `make install` to install.
