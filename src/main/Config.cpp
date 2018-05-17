@@ -20,10 +20,21 @@
 #include <functional>
 #include <lib/util/format.h>
 #include <sstream>
+#include <unordered_set>
 
 namespace stellar
 {
 const uint32 Config::CURRENT_LEDGER_PROTOCOL_VERSION = 10;
+
+// Options that must only be used for testing
+static const std::unordered_set<std::string> TESTING_ONLY_OPTIONS = {
+    "RUN_STANDALONE", "MANUAL_CLOSE", "ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING",
+    "ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING",
+    "ARTIFICIALLY_SET_CLOSE_TIME_FOR_TESTING"};
+
+// Options that should only be used for testing
+static const std::unordered_set<std::string> TESTING_SUGGESTED_OPTIONS = {
+    "ALLOW_LOCALHOST_FOR_TESTING"};
 
 Config::Config() : NODE_SEED(SecretKey::random())
 {
@@ -246,6 +257,19 @@ Config::load(std::string const& filename)
         for (auto& item : g)
         {
             LOG(DEBUG) << "Config item: " << item.first;
+            if (TESTING_ONLY_OPTIONS.count(item.first) > 0)
+            {
+                LOG(INFO) << item.first
+                          << " enabled in configuration file - node will not "
+                             "function properly with most networks";
+            }
+            else if (TESTING_SUGGESTED_OPTIONS.count(item.first) > 0)
+            {
+                LOG(INFO) << item.first
+                          << " enabled in configuration file - node may not "
+                             "be configured for production use";
+            }
+
             if (item.first == "PEER_PORT")
             {
                 PEER_PORT = readInt<unsigned short>(item, 1, UINT16_MAX);
