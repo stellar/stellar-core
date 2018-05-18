@@ -41,7 +41,8 @@ main/StellarCoreVersion.cpp: always
 	@vers=$$(cd "$(srcdir)" \
 		&& git describe --always --dirty --tags 2>/dev/null \
 		|| echo "$(PACKAGE) $(VERSION)"); \
-		sed -e "s/%%VERSION%%/$$vers/" < main/StellarCoreVersion.cpp.in > $@~
+		sed -e "s/%%VERSION%%/$$vers/" \
+			< "$(srcdir)/main/StellarCoreVersion.cpp.in" > $@~
 	@if cmp -s $@~ $@; then rm -f $@~; else \
 	    mv -f $@~ $@ && printf "echo '%s' > $@\n" "$$(cat $@)"; fi
 
