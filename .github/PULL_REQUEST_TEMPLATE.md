@@ -9,7 +9,7 @@ Describe what this pull request does, which issue it's resolving (usually applic
 --->
 
 # Checklist
-- [ ] Reviewed the [contributing](CONTRIBUTING.md) document
+- [ ] Reviewed the [contributing](../CONTRIBUTING.md) document
 - [ ] Rebased on top of master (no merge commits)
 - [ ] Ran `clang-format`
 - [ ] Compiles
