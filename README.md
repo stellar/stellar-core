@@ -33,7 +33,6 @@ Checklist
      * the issue was resolved in a newer version - then you just need to install the version with the fix
      * the issue was closed for some reason. You may decide to reopen it depending on context. Make sure to explain why the issue should be re-opened.
 
-For bugs being opened/re-opened, simply paste and fill the [Bug-Template.md](./Bug-Template.md) into the issue.
 
 # Running tests
 
