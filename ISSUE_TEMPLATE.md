@@ -1,6 +1,10 @@
 # Before creating an issue
- * check the [documentation](https://www.stellar.org/developers/)
- * ask for help [from the community](https://www.stellar.org/community/)
+  * check the [documentation](https://www.stellar.org/developers/)
+  * ask for help
+    * There is a [Stellar Stack Exchange](https://stellar.stackexchange.com/)
+    * For more general questions, discuss with [the community](https://www.stellar.org/community/) (Slack, forums, Reddit, ...)
+
+Issues opened here are to report actual problems with stellar-core; any other issues will be closed (sorry - we have only a small community of people that manage issues).
 
 # Issue type
   bug/feature request/documentation/...
