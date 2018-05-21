@@ -25,6 +25,10 @@ Code formatting wise, we have a `.clang-format` config file that you should use 
 
 Try to separate logically distinct changes into separate commits and thematically distinct commits into separate pull requests.
 
+# Performance impacting changes
+
+When submiting changes that may impact performance, you need to also provide some evidence of the improvement (which also implies no regression). See the [performance evaluation](performance-eval.md) document for more details.
+
 # Submitting Changes
 
 Please [sign the Contributor License Agreement](https://docs.google.com/forms/d/1g7EF6PERciwn7zfmfke5Sir2n10yddGGSXyZsq98tVY/viewform).

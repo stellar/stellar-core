@@ -13,5 +13,5 @@ Describe what this pull request does, which issue it's resolving (usually applic
 - [ ] Rebased on top of master (no merge commits)
 - [ ] Ran `clang-format`
 - [ ] Compiles
-- [ ] ran all tests
-
+- [ ] Ran all tests
+- [ ] If change impacts performance, include supporting evidence per the [performance document](../performance-eval.md)
