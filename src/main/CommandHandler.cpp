@@ -478,7 +478,7 @@ CommandHandler::peers(std::string const&, std::string& retStr)
     int counter = 0;
     for (auto peer : mApp.getOverlayManager().getPendingPeers())
     {
-        root["pending_peers"][counter]["address"] = peer->toString();
+        root["pending_peers"][counter] = peer->toString();
 
         counter++;
     }
