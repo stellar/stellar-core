@@ -9,6 +9,14 @@
 
 Issues opened here are to report actual problems with stellar-core; any other issues (general questions, issues unrelated to stellar-core) will be closed (sorry - we have only a small community of people that manage issues).
 
+## protocol changes
+Note: a special category of issues are `protocol` related issues.
+
+Those are typically requests to modify how the core protocol works (adding a new operation, changing the way transactions work, etc).
+
+As stellar-core just implements the protocol, changes in the specification of the protocol has to be done via the [protocol repository](https://github.com/stellar/stellar-protocol/issues).
+
+
 # Issue type
   bug/feature request/documentation/...
 
