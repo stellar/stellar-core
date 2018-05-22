@@ -234,8 +234,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         {
             int64_t maxSheepCanSell = canSellAtMost(mSourceAccount, sheep,
                                                     mSheepLineA, ledgerManager);
-            int64_t maxSheepBasedOnWheat =
-                canSellAtMostBasedOnSheep(wheat, mWheatLineA, sheepPrice);
+            int64_t maxSheepBasedOnWheat;
+            if (!bigDivide(maxSheepBasedOnWheat, maxWheatReceive, sheepPrice.d,
+                           sheepPrice.n, ROUND_DOWN))
+            {
+                maxSheepBasedOnWheat = INT64_MAX;
+            }
 
             maxSheepSend = std::min({maxSheepCanSell, maxSheepBasedOnWheat});
         }
