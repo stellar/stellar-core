@@ -43,6 +43,7 @@ class BanManager;
 class StatusManager;
 class PendingEnvelopes;
 class ReadyEnvelopeHandler;
+class EnvelopeHandler;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -211,6 +212,7 @@ class Application
     virtual StatusManager& getStatusManager() = 0;
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;
     virtual ReadyEnvelopeHandler& getReadyEnvelopeHandler() = 0;
+    virtual EnvelopeHandler& getEnvelopeHandler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

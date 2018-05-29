@@ -150,7 +150,7 @@ ItemFetcher::recv(Hash itemHash)
 
         while (!tracker->empty())
         {
-            mApp.getHerder().recvSCPEnvelope(tracker->pop());
+            mApp.getEnvelopeHandler().envelope(nullptr, tracker->pop());
         }
         // stop the timer, stop requesting the item as we have it
         tracker->resetLastSeenSlotIndex();

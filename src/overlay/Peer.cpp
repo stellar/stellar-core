@@ -629,6 +629,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     assert(isAuthenticated() || stellarMsg.type() == HELLO ||
            stellarMsg.type() == AUTH || stellarMsg.type() == ERROR_MSG);
 
+    auto self = shared_from_this();
     switch (stellarMsg.type())
     {
     case ERROR_MSG:
@@ -676,14 +677,14 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_TX_SET:
     {
         auto t = mRecvGetTxSetTimer.TimeScope();
-        recvGetTxSet(stellarMsg);
+        mApp.getEnvelopeHandler().getTxSet(self, stellarMsg.txSetHash());
     }
     break;
 
     case TX_SET:
     {
         auto t = mRecvTxSetTimer.TimeScope();
-        recvTxSet(stellarMsg);
+        mApp.getEnvelopeHandler().txSet(self, stellarMsg.txSet());
     }
     break;
 
@@ -697,21 +698,21 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_SCP_QUORUMSET:
     {
         auto t = mRecvGetSCPQuorumSetTimer.TimeScope();
-        recvGetSCPQuorumSet(stellarMsg);
+        mApp.getEnvelopeHandler().getQuorumSet(self, stellarMsg.qSetHash());
     }
     break;
 
     case SCP_QUORUMSET:
     {
         auto t = mRecvSCPQuorumSetTimer.TimeScope();
-        recvSCPQuorumSet(stellarMsg);
+        mApp.getEnvelopeHandler().quorumSet(self, stellarMsg.qSet());
     }
     break;
 
     case SCP_MESSAGE:
     {
         auto t = mRecvSCPMessageTimer.TimeScope();
-        recvSCPMessage(stellarMsg);
+        mApp.getEnvelopeHandler().envelope(self, stellarMsg.envelope());
     }
     break;
 
@@ -727,33 +728,8 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
-    mApp.getHerder().peerDoesntHave(msg.dontHave().type, msg.dontHave().reqHash,
-                                    shared_from_this());
-}
-
-void
-Peer::recvGetTxSet(StellarMessage const& msg)
-{
-    auto self = shared_from_this();
-    if (auto txSet = mApp.getHerder().getTxSet(msg.txSetHash()))
-    {
-        StellarMessage newMsg;
-        newMsg.type(TX_SET);
-        txSet->toXDR(newMsg.txSet());
-
-        self->sendMessage(newMsg);
-    }
-    else
-    {
-        sendDontHave(TX_SET, msg.txSetHash());
-    }
-}
-
-void
-Peer::recvTxSet(StellarMessage const& msg)
-{
-    TxSetFrame frame(mApp.getNetworkID(), msg.txSet());
-    mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
+    mApp.getEnvelopeHandler().doesNotHave(
+        shared_from_this(), msg.dontHave().type, msg.dontHave().reqHash);
 }
 
 void
@@ -780,54 +756,6 @@ Peer::recvTransaction(StellarMessage const& msg)
             }
         }
     }
-}
-
-void
-Peer::recvGetSCPQuorumSet(StellarMessage const& msg)
-{
-    SCPQuorumSetPtr qset = mApp.getHerder().getQSet(msg.qSetHash());
-
-    if (qset)
-    {
-        sendSCPQuorumSet(qset);
-    }
-    else
-    {
-        if (Logging::logTrace("Overlay"))
-            CLOG(TRACE, "Overlay")
-                << "No quorum set: " << hexAbbrev(msg.qSetHash());
-        sendDontHave(SCP_QUORUMSET, msg.qSetHash());
-        // do we want to ask other people for it?
-    }
-}
-void
-Peer::recvSCPQuorumSet(StellarMessage const& msg)
-{
-    Hash hash = sha256(xdr::xdr_to_opaque(msg.qSet()));
-    mApp.getHerder().recvSCPQuorumSet(hash, msg.qSet());
-}
-
-void
-Peer::recvSCPMessage(StellarMessage const& msg)
-{
-    SCPEnvelope const& envelope = msg.envelope();
-    if (Logging::logTrace("Overlay"))
-        CLOG(TRACE, "Overlay")
-            << "recvSCPMessage node: "
-            << mApp.getConfig().toShortString(msg.envelope().statement.nodeID);
-
-    mApp.getOverlayManager().recvFloodedMsg(msg, shared_from_this());
-
-    auto type = msg.envelope().statement.pledges.type();
-    auto t = (type == SCP_ST_PREPARE
-                  ? mRecvSCPPrepareTimer.TimeScope()
-                  : (type == SCP_ST_CONFIRM
-                         ? mRecvSCPConfirmTimer.TimeScope()
-                         : (type == SCP_ST_EXTERNALIZE
-                                ? mRecvSCPExternalizeTimer.TimeScope()
-                                : (mRecvSCPNominateTimer.TimeScope()))));
-
-    mApp.getHerder().recvSCPEnvelope(envelope);
 }
 
 void

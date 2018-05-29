@@ -69,7 +69,8 @@ class PendingEnvelopes
      *
      * Return status of received envelope.
      */
-    Herder::EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope);
+    EnvelopeHandler::EnvelopeStatus
+    recvSCPEnvelope(SCPEnvelope const& envelope);
 
     /**
      * Add @p qset identified by @p hash to local cache. Notifies

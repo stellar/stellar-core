@@ -12,6 +12,7 @@
 #include "main/Config.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerDoor.h"
+#include "overlay/PendingEnvelopes.h"
 #include "simulation/Simulation.h"
 #include "simulation/Topologies.h"
 #include "test/TestAccount.h"
@@ -229,7 +230,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             TxSetFrame txSet(lcl.hash);
             txSet.add(tx1);
             txSet.sortForHash();
-            auto& herder = inApp->getHerder();
+            auto& envelopeHandler = inApp->getEnvelopeHandler();
 
             // build the quorum set used by this message
             // use sources as validators
@@ -261,8 +262,12 @@ TEST_CASE("Flooding", "[flood][overlay]")
                 inApp->getNetworkID(), ENVELOPE_TYPE_SCP, st));
 
             // inject the message
-            REQUIRE(herder.recvSCPEnvelope(envelope, qset, txSet) ==
-                    Herder::ENVELOPE_STATUS_READY);
+            TransactionSet txValue;
+            txSet.toXDR(txValue);
+            envelopeHandler.txSet(nullptr, txValue, true);
+            envelopeHandler.quorumSet(nullptr, qset, true);
+            REQUIRE(envelopeHandler.envelope(nullptr, envelope) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
 
         };
 
@@ -272,7 +277,7 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto const& lcl =
                 app->getLedgerManager().getLastClosedLedgerHeader();
 
-            HerderImpl& herder = *static_cast<HerderImpl*>(&app->getHerder());
+            auto& herder = app->getHerder();
             auto state =
                 herder.getSCP().getCurrentState(lcl.header.ledgerSeq + 1);
             for (auto const& s : keys)

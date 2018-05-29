@@ -70,6 +70,8 @@ class OverlayManagerImpl : public OverlayManager
     ~OverlayManagerImpl();
 
     void ledgerClosed(uint32_t lastClosedledgerSeq) override;
+    void scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
+                              EnvelopeHandler::EnvelopeStatus status) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;
     void broadcastMessage(StellarMessage const& msg,
                           bool force = false) override;

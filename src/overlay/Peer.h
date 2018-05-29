@@ -141,7 +141,7 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvMessage(AuthenticatedMessage const& msg);
     void recvMessage(xdr::msg_ptr const& xdrBytes);
 
-    virtual void recvError(StellarMessage const& msg);
+    void recvError(StellarMessage const& msg);
     // returns false if we should drop this peer
     void noteHandshakeSuccessInPeerRecord();
     void recvAuth(StellarMessage const& msg);
@@ -150,18 +150,11 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void recvHello(Hello const& elo);
     void recvPeers(StellarMessage const& msg);
 
-    void recvGetTxSet(StellarMessage const& msg);
-    void recvTxSet(StellarMessage const& msg);
     void recvTransaction(StellarMessage const& msg);
-    void recvGetSCPQuorumSet(StellarMessage const& msg);
-    void recvSCPQuorumSet(StellarMessage const& msg);
-    void recvSCPMessage(StellarMessage const& msg);
     void recvGetSCPState(StellarMessage const& msg);
 
     void sendHello();
     void sendAuth();
-    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
-    void sendDontHave(MessageType type, uint256 const& itemID);
     void sendPeers();
 
     // NB: This is a move-argument because the write-buffer has to travel
@@ -200,6 +193,9 @@ class Peer : public std::enable_shared_from_this<Peer>,
     void sendGetQuorumSet(uint256 const& setID);
     void sendGetPeers();
     void sendGetScpState(uint32 ledgerSeq);
+
+    void sendSCPQuorumSet(SCPQuorumSetPtr qSet);
+    void sendDontHave(MessageType type, uint256 const& itemID);
 
     void sendMessage(StellarMessage const& msg);
 

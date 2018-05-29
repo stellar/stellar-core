@@ -60,11 +60,6 @@ class HerderImpl : public Herder
 
     TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) override;
 
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) override;
-    EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                   const SCPQuorumSet& qset,
-                                   TxSetFrame txset) override;
-
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
     bool recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset) override;
@@ -147,6 +142,8 @@ class HerderImpl : public Herder
     // ensures that if we don't hear from the network, we throw the herder into
     // indeterminate mode
     void trackingHeartBeat();
+
+    void updateValidRange();
 
     VirtualTimer mTriggerTimer;
 

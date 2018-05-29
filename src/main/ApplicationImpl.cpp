@@ -38,6 +38,7 @@
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
+#include "overlay/OverlayEnvelopeHandler.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
 #include "process/ProcessManager.h"
@@ -125,6 +126,7 @@ ApplicationImpl::initialize()
     mStatusManager = std::make_unique<StatusManager>();
     mPendingEnvelopes = std::make_unique<PendingEnvelopes>(*this);
     mReadyEnvelopeHandler = std::make_unique<HerderReadyEnvelopeHandler>(*this);
+    mEnvelopeHandler = std::make_unique<OverlayEnvelopeHandler>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -142,8 +144,7 @@ ApplicationImpl::initialize()
     }
 
     auto localNode = getHerder().getSCP().getLocalNode();
-    Hash hash = localNode->getQuorumSetHash();
-    getPendingEnvelopes().addSCPQuorumSet(hash, localNode->getQuorumSet());
+    mEnvelopeHandler->quorumSet(nullptr, localNode->getQuorumSet(), true);
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -759,6 +760,12 @@ ReadyEnvelopeHandler&
 ApplicationImpl::getReadyEnvelopeHandler()
 {
     return *mReadyEnvelopeHandler;
+}
+
+EnvelopeHandler&
+ApplicationImpl::getEnvelopeHandler()
+{
+    return *mEnvelopeHandler;
 }
 
 asio::io_service&

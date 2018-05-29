@@ -1,4 +1,4 @@
-﻿#include "overlay/PendingEnvelopes.h"
+#include "overlay/PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderUtils.h"
@@ -130,7 +130,7 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
 }
 
 // called from Peer and when an Item tracker completes
-Herder::EnvelopeStatus
+EnvelopeHandler::EnvelopeStatus
 PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     auto const& nodeID = envelope.statement.nodeID;
@@ -139,7 +139,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
         CLOG(DEBUG, "Herder")
             << "Dropping envelope from "
             << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
     // did we discard this envelope?
@@ -151,7 +151,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
     {
         if (isDiscarded(envelope))
         {
-            return Herder::ENVELOPE_STATUS_DISCARDED;
+            return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
         }
 
         touchFetchCache(envelope);
@@ -174,7 +174,7 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             else
             {
                 // we already have this one
-                return Herder::ENVELOPE_STATUS_PROCESSED;
+                return EnvelopeHandler::ENVELOPE_STATUS_PROCESSED;
             }
         }
 
@@ -186,17 +186,17 @@ PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
             processedList.emplace_back(*fetching);
             set.erase(fetching);
             envelopeReady(envelope);
-            return Herder::ENVELOPE_STATUS_READY;
+            return EnvelopeHandler::ENVELOPE_STATUS_READY;
         } // else just keep waiting for it to come in
 
-        return Herder::ENVELOPE_STATUS_FETCHING;
+        return EnvelopeHandler::ENVELOPE_STATUS_FETCHING;
     }
     catch (xdr::xdr_runtime_error& e)
     {
         CLOG(TRACE, "Herder")
             << "PendingEnvelopes::recvSCPEnvelope got corrupt message: "
             << e.what();
-        return Herder::ENVELOPE_STATUS_DISCARDED;
+        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 }
 

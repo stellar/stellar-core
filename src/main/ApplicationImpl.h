@@ -72,6 +72,7 @@ class ApplicationImpl : public Application
     virtual StatusManager& getStatusManager() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
     virtual ReadyEnvelopeHandler& getReadyEnvelopeHandler() override;
+    virtual EnvelopeHandler& getEnvelopeHandler() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 
@@ -152,6 +153,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<PendingEnvelopes> mPendingEnvelopes;
     std::unique_ptr<ReadyEnvelopeHandler> mReadyEnvelopeHandler;
+    std::unique_ptr<EnvelopeHandler> mEnvelopeHandler;
 
     std::vector<std::thread> mWorkerThreads;
 

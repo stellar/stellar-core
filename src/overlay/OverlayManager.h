@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "overlay/EnvelopeHandler.h"
 #include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
 
@@ -63,6 +64,12 @@ class OverlayManager
     // `ledger`.
     // This is called by LedgerManager when a ledger closes.
     virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
+
+    // SCP envelope has been processed. Overlay can now broadcast it if
+    // neccessary.
+    virtual void
+    scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
+                         EnvelopeHandler::EnvelopeStatus status) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.

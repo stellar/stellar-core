@@ -7,6 +7,7 @@
 #include "TxSetFrame.h"
 #include "Upgrades.h"
 #include "lib/json/json-forwards.h"
+#include "overlay/EnvelopeHandler.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
@@ -77,20 +78,6 @@ class Herder
 
     static const char* TX_STATUS_STRING[TX_STATUS_COUNT];
 
-    enum EnvelopeStatus
-    {
-        // for some reason this envelope was discarded - either is was invalid,
-        // used unsane qset or was coming from node that is not in quorum
-        ENVELOPE_STATUS_DISCARDED,
-        // envelope data is currently being fetched
-        ENVELOPE_STATUS_FETCHING,
-        // current call to recvSCPEnvelope() was the first when the envelope
-        // was fully fetched so it is ready for processing
-        ENVELOPE_STATUS_READY,
-        // envelope was already processed
-        ENVELOPE_STATUS_PROCESSED,
-    };
-
     virtual State getState() const = 0;
     virtual std::string getStateHuman() const = 0;
 
@@ -116,14 +103,6 @@ class Herder
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
     virtual void processSCPQueue() = 0;
-
-    // We are learning about a new envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope) = 0;
-
-    // We are learning about a new fully-fetched envelope.
-    virtual EnvelopeStatus recvSCPEnvelope(SCPEnvelope const& envelope,
-                                           const SCPQuorumSet& qset,
-                                           TxSetFrame txset) = 0;
 
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
