@@ -1,10 +1,13 @@
 ﻿#pragma once
+
 #include "crypto/SecretKey.h"
 #include "herder/Herder.h"
-#include "lib/json/json.h"
-#include "lib/util/lrucache.hpp"
 #include "overlay/ItemFetcher.h"
+#include "overlay/NodesInQuorum.h"
+
 #include <autocheck/function.hpp>
+#include <lib/json/json.h>
+#include <lib/util/lrucache.hpp>
 #include <map>
 #include <medida/medida.h>
 #include <queue>
@@ -49,12 +52,9 @@ class PendingEnvelopes
     cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
 
     // NodeIDs that are in quorum
-    cache::lru_cache<NodeID, bool> mNodesInQuorum;
+    NodesInQuorum mNodesInQuorum;
 
     medida::Counter& mReadyEnvelopesSize;
-
-    // returns true if we think that the node is in quorum
-    bool isNodeInQuorum(NodeID const& node);
 
     // discards all SCP envelopes thats use QSet with given hash,
     // as it is not sane QSet

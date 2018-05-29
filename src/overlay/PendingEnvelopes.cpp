@@ -1,21 +1,21 @@
-﻿#include "PendingEnvelopes.h"
+﻿#include "overlay/PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "herder/HerderUtils.h"
 #include "herder/TxSetFrame.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/OverlayManager.h"
 #include "scp/QuorumSetUtils.h"
+#include "scp/Slot.h"
 #include "util/Logging.h"
-#include <overlay/OverlayManager.h>
-#include <scp/Slot.h>
+
 #include <xdrpp/marshal.h>
 
 using namespace std;
 
 #define QSET_CACHE_SIZE 10000
 #define TXSET_CACHE_SIZE 10000
-#define NODES_QUORUM_CACHE_SIZE 1000
 
 namespace stellar
 {
@@ -28,7 +28,7 @@ PendingEnvelopes::PendingEnvelopes(Application& app)
     , mQuorumSetFetcher(app, [](Peer::pointer peer,
                                 Hash hash) { peer->sendGetQuorumSet(hash); })
     , mTxSetCache(TXSET_CACHE_SIZE)
-    , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
+    , mNodesInQuorum(mApp)
     , mReadyEnvelopesSize(
           app.getMetrics().NewCounter({"scp", "memory", "pending-envelopes"}))
 {
@@ -129,37 +129,12 @@ PendingEnvelopes::recvTxSet(Hash hash, TxSetFramePtr txset)
     return true;
 }
 
-bool
-PendingEnvelopes::isNodeInQuorum(NodeID const& node)
-{
-    bool res;
-
-    res = mNodesInQuorum.exists(node);
-    if (res)
-    {
-        res = mNodesInQuorum.get(node);
-    }
-    else
-    {
-        // search through the known slots
-        SCP::TriBool r = mApp.getHerder().getSCP().isNodeInQuorum(node);
-
-        // consider a node in quorum if it's either in quorum
-        // or we don't know if it is (until we get further evidence)
-        res = (r != SCP::TB_FALSE);
-
-        mNodesInQuorum.put(node, res);
-    }
-
-    return res;
-}
-
 // called from Peer and when an Item tracker completes
 Herder::EnvelopeStatus
 PendingEnvelopes::recvSCPEnvelope(SCPEnvelope const& envelope)
 {
     auto const& nodeID = envelope.statement.nodeID;
-    if (!isNodeInQuorum(nodeID))
+    if (!mNodesInQuorum.isNodeInQuorum(nodeID))
     {
         CLOG(DEBUG, "Herder")
             << "Dropping envelope from "
