@@ -16,6 +16,7 @@
 #include "database/Database.h"
 #include "herder/Herder.h"
 #include "herder/HerderPersistence.h"
+#include "herder/HerderReadyEnvelopeHandler.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
@@ -123,6 +124,7 @@ ApplicationImpl::initialize()
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
     mPendingEnvelopes = std::make_unique<PendingEnvelopes>(*this);
+    mReadyEnvelopeHandler = std::make_unique<HerderReadyEnvelopeHandler>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -751,6 +753,12 @@ PendingEnvelopes&
 ApplicationImpl::getPendingEnvelopes()
 {
     return *mPendingEnvelopes;
+}
+
+ReadyEnvelopeHandler&
+ApplicationImpl::getReadyEnvelopeHandler()
+{
+    return *mReadyEnvelopeHandler;
 }
 
 asio::io_service&

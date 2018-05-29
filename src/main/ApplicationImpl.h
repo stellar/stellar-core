@@ -71,6 +71,7 @@ class ApplicationImpl : public Application
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
     virtual PendingEnvelopes& getPendingEnvelopes() override;
+    virtual ReadyEnvelopeHandler& getReadyEnvelopeHandler() override;
 
     virtual asio::io_service& getWorkerIOService() override;
 
@@ -150,6 +151,7 @@ class ApplicationImpl : public Application
     std::shared_ptr<NtpSynchronizationChecker> mNtpSynchronizationChecker;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<PendingEnvelopes> mPendingEnvelopes;
+    std::unique_ptr<ReadyEnvelopeHandler> mReadyEnvelopeHandler;
 
     std::vector<std::thread> mWorkerThreads;
 
