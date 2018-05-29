@@ -5,28 +5,19 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
-#include "lib/catch.hpp"
 #include "scp/QuorumSetUtils.h"
+#include "test/TestUtils.h"
 #include "xdr/Stellar-SCP.h"
+
+#include <lib/catch.hpp>
 
 namespace stellar
 {
 
+using namespace testutil;
+
 TEST_CASE("sane quorum set", "[scp][quorumset]")
 {
-    auto makePublicKey = [](int i) {
-        auto hash = sha256("NODE_SEED_" + std::to_string(i));
-        auto secretKey = SecretKey::fromSeed(hash);
-        return secretKey.getPublicKey();
-    };
-
-    auto makeSingleton = [](const PublicKey& key) {
-        auto result = SCPQuorumSet{};
-        result.threshold = 1;
-        result.validators.push_back(key);
-        return result;
-    };
-
     auto keys = std::vector<PublicKey>{};
     for (auto i = 0; i < 1001; i++)
     {
@@ -55,7 +46,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, false, qSet);
     }
 
-    auto validOneNode = makeSingleton(keys[0]);
+    auto validOneNode = makeSaneQuorumSet(keys[0]);
 
     SECTION("{ t: 0, v0 }")
     {
@@ -152,9 +143,9 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 } } } -> { t: 1, v0, { t: 1, "
             "v1, v2 } }")
     {
-        auto qSet = makeSingleton(keys[0]);
-        auto qSet1 = makeSingleton(keys[1]);
-        auto qSet2 = makeSingleton(keys[2]);
+        auto qSet = makeSaneQuorumSet(keys[0]);
+        auto qSet1 = makeSaneQuorumSet(keys[1]);
+        auto qSet2 = makeSaneQuorumSet(keys[2]);
         qSet1.innerSets.push_back(qSet2);
         qSet.innerSets.push_back(qSet1);
 
@@ -172,10 +163,10 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     SECTION(
         "{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 } } } } -> too deep")
     {
-        auto qSet = makeSingleton(keys[0]);
-        auto qSet1 = makeSingleton(keys[1]);
-        auto qSet2 = makeSingleton(keys[2]);
-        auto qSet3 = makeSingleton(keys[3]);
+        auto qSet = makeSaneQuorumSet(keys[0]);
+        auto qSet1 = makeSaneQuorumSet(keys[1]);
+        auto qSet2 = makeSaneQuorumSet(keys[2]);
+        auto qSet3 = makeSaneQuorumSet(keys[3]);
         qSet2.innerSets.push_back(qSet3);
         qSet1.innerSets.push_back(qSet2);
         qSet.innerSets.push_back(qSet1);

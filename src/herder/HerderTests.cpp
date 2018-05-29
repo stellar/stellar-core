@@ -579,28 +579,15 @@ TEST_CASE("SCP Driver", "[herder]")
 
     SECTION("accept qset and txset")
     {
-        auto makePublicKey = [](int i) {
-            auto hash = sha256("NODE_SEED_" + std::to_string(i));
-            auto secretKey = SecretKey::fromSeed(hash);
-            return secretKey.getPublicKey();
-        };
-
-        auto makeSingleton = [](const PublicKey& key) {
-            auto result = SCPQuorumSet{};
-            result.threshold = 1;
-            result.validators.push_back(key);
-            return result;
-        };
-
         auto keys = std::vector<PublicKey>{};
         for (auto i = 0; i < 1001; i++)
         {
             keys.push_back(makePublicKey(i));
         }
 
-        auto saneQSet1 = makeSingleton(keys[0]);
+        auto saneQSet1 = makeSaneQuorumSet(keys[0]);
         auto saneQSet1Hash = sha256(xdr::xdr_to_opaque(saneQSet1));
-        auto saneQSet2 = makeSingleton(keys[1]);
+        auto saneQSet2 = makeSaneQuorumSet(keys[1]);
         auto saneQSet2Hash = sha256(xdr::xdr_to_opaque(saneQSet2));
 
         auto bigQSet = SCPQuorumSet{};

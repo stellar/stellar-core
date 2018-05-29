@@ -2,7 +2,9 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestUtils.h"
+#include "test/TestUtils.h"
+#include "crypto/Hex.h"
+#include "crypto/SHA.h"
 #include "overlay/LoopbackPeer.h"
 
 namespace stellar
@@ -110,5 +112,22 @@ genesis(int minute, int second)
 {
     return VirtualClock::tmToPoint(
         getTestDateTime(1, 7, 2014, 0, minute, second));
+}
+
+PublicKey
+makePublicKey(int i)
+{
+    auto hash = sha256("NODE_SEED_" + std::to_string(i));
+    auto secretKey = SecretKey::fromSeed(hash);
+    return secretKey.getPublicKey();
+};
+
+SCPQuorumSet
+makeSaneQuorumSet(PublicKey key)
+{
+    auto result = SCPQuorumSet{};
+    result.threshold = 1;
+    result.validators.push_back(key);
+    return result;
 }
 }
