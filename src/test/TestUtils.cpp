@@ -5,7 +5,10 @@
 #include "test/TestUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/LedgerCloseData.h"
 #include "overlay/LoopbackPeer.h"
+
+#include <xdrpp/marshal.h>
 
 namespace stellar
 {
@@ -129,5 +132,17 @@ makeSaneQuorumSet(PublicKey key)
     result.threshold = 1;
     result.validators.push_back(key);
     return result;
+}
+
+SCPEnvelope
+makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex)
+{
+    auto envelope = SCPEnvelope{};
+    envelope.statement.slotIndex = slotIndex;
+    envelope.statement.pledges.type(SCP_ST_PREPARE);
+    envelope.statement.pledges.prepare().ballot.value =
+        xdr::xdr_to_opaque(StellarValue{txHash, 10, emptyUpgradeSteps, 0});
+    envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
+    return envelope;
 }
 }
