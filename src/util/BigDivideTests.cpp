@@ -176,3 +176,186 @@ TEST_CASE("big divide", "[bigDivide]")
         verifyUnsignedDown(145295143558111, 253921, 2, UINT64_MAX);
     }
 }
+
+TEST_CASE("bigDivide 128bit by 64bit", "[bigdivide]")
+{
+    auto verifySigned = [](uint128_t a, int64_t b, Rounding rounding) {
+        int64_t res;
+        REQUIRE(!bigDivide(res, a, b, rounding));
+        REQUIRE_THROWS_AS(bigDivide(a, b, rounding), std::overflow_error);
+    };
+    auto verifySignedValue = [](uint128_t a, int64_t b, Rounding rounding,
+                                int64_t expected) {
+        int64_t res;
+        REQUIRE(bigDivide(res, a, b, rounding));
+        REQUIRE(res == expected);
+        REQUIRE(bigDivide(a, b, rounding) == expected);
+    };
+
+    auto verifyUnsigned = [](uint128_t a, uint64_t b, Rounding rounding) {
+        uint64_t res;
+        REQUIRE(!bigDivide(res, a, b, rounding));
+    };
+    auto verifyUnsignedValue = [](uint128_t a, uint64_t b, Rounding rounding,
+                                  uint64_t expected) {
+        uint64_t res;
+        REQUIRE(bigDivide(res, a, b, rounding));
+        REQUIRE(res == expected);
+    };
+
+    SECTION("identities")
+    {
+        auto signedValues = std::vector<int64_t>{
+            0,        1, 2, 3, 1000, INT32_MAX - 1, INT32_MAX, INT64_MAX - 1,
+            INT64_MAX};
+        for (auto value : signedValues)
+        {
+            uint128_t value128(value);
+
+            verifySignedValue(value128, 1, ROUND_UP, value);
+            verifySignedValue(value128, 1, ROUND_DOWN, value);
+
+            if (value != 0)
+            {
+                verifySignedValue(value128 + 1, value, ROUND_UP, 2);
+                verifySignedValue(value128 + 1, value, ROUND_DOWN,
+                                  (value == 1) ? 2 : 1);
+                verifySignedValue(value128, value, ROUND_UP, 1);
+                verifySignedValue(value128, value, ROUND_DOWN, 1);
+                verifySignedValue(value128 - 1, value, ROUND_UP,
+                                  (value == 1) ? 0 : 1);
+                verifySignedValue(value128 - 1, value, ROUND_DOWN, 0);
+
+                if (value > 1)
+                {
+                    verifySignedValue(value128, value - 1, ROUND_UP, 2);
+                    verifySignedValue(value128, value - 1, ROUND_DOWN,
+                                      (value == 2) ? 2 : 1);
+                }
+                if (value < INT64_MAX)
+                {
+                    verifySignedValue(value128, value + 1, ROUND_UP, 1);
+                    verifySignedValue(value128, value + 1, ROUND_DOWN, 0);
+                }
+            }
+        }
+        for (auto val1 : signedValues)
+        {
+            for (auto val2 : signedValues)
+            {
+                if (val2 > 0)
+                {
+                    verifySignedValue(bigMultiply(val1, val2), val2, ROUND_UP,
+                                      val1);
+                    verifySignedValue(bigMultiply(val1, val2), val2, ROUND_DOWN,
+                                      val1);
+                }
+            }
+        }
+
+        auto unsignedValues = std::vector<uint64_t>{0,          1,
+                                                    2,          3,
+                                                    1000,       INT32_MAX - 1,
+                                                    INT32_MAX,  UINT32_MAX - 1,
+                                                    UINT32_MAX, INT64_MAX - 1,
+                                                    INT64_MAX,  UINT64_MAX - 1,
+                                                    UINT64_MAX};
+        for (auto value : unsignedValues)
+        {
+            uint128_t value128(value);
+
+            verifyUnsignedValue(value128, 1, ROUND_UP, value);
+            verifyUnsignedValue(value128, 1, ROUND_DOWN, value);
+
+            if (value != 0)
+            {
+                verifyUnsignedValue(value128 + 1, value, ROUND_UP, 2);
+                verifyUnsignedValue(value128 + 1, value, ROUND_DOWN,
+                                    (value == 1) ? 2 : 1);
+                verifyUnsignedValue(value128, value, ROUND_UP, 1);
+                verifyUnsignedValue(value128, value, ROUND_DOWN, 1);
+                verifyUnsignedValue(value128 - 1, value, ROUND_UP,
+                                    (value == 1) ? 0 : 1);
+                verifyUnsignedValue(value128 - 1, value, ROUND_DOWN, 0);
+
+                if (value > 1)
+                {
+                    verifyUnsignedValue(value128, value - 1, ROUND_UP, 2);
+                    verifyUnsignedValue(value128, value - 1, ROUND_DOWN,
+                                        (value == 2) ? 2 : 1);
+                }
+                if (value < UINT64_MAX)
+                {
+                    verifyUnsignedValue(value128, value + 1, ROUND_UP, 1);
+                    verifyUnsignedValue(value128, value + 1, ROUND_DOWN, 0);
+                }
+            }
+        }
+        for (auto val1 : unsignedValues)
+        {
+            for (auto val2 : unsignedValues)
+            {
+                if (val2 > 0)
+                {
+                    verifyUnsignedValue(bigMultiply(val1, val2), val2, ROUND_UP,
+                                        val1);
+                    verifyUnsignedValue(bigMultiply(val1, val2), val2,
+                                        ROUND_DOWN, val1);
+                }
+            }
+        }
+    }
+
+    SECTION("overflow threshold")
+    {
+        uint128_t const twiceSignedMax = bigMultiply(INT64_MAX, 2);
+        verifySigned(twiceSignedMax + 2, 2, ROUND_UP);
+        verifySigned(twiceSignedMax + 2, 2, ROUND_DOWN);
+        verifySigned(twiceSignedMax + 1, 2, ROUND_UP);
+        verifySignedValue(twiceSignedMax + 1, 2, ROUND_DOWN, INT64_MAX);
+        verifySignedValue(twiceSignedMax, 2, ROUND_UP, INT64_MAX);
+        verifySignedValue(twiceSignedMax, 2, ROUND_DOWN, INT64_MAX);
+
+        uint128_t const twiceUnsignedMax = bigMultiply(UINT64_MAX, 2);
+        verifyUnsigned(twiceUnsignedMax + 2, 2, ROUND_UP);
+        verifyUnsigned(twiceUnsignedMax + 2, 2, ROUND_DOWN);
+        verifyUnsigned(twiceUnsignedMax + 1, 2, ROUND_UP);
+        verifyUnsignedValue(twiceUnsignedMax + 1, 2, ROUND_DOWN, UINT64_MAX);
+        verifyUnsignedValue(twiceUnsignedMax, 2, ROUND_UP, UINT64_MAX);
+        verifyUnsignedValue(twiceUnsignedMax, 2, ROUND_DOWN, UINT64_MAX);
+    }
+
+    SECTION("upper limits")
+    {
+        uint128_t const unsignedLimit = bigMultiply(UINT64_MAX, UINT64_MAX);
+        uint128_t const UINT128_MAX(UINT64_MAX, UINT64_MAX);
+        REQUIRE(UINT128_MAX + 1 == 0);
+
+        verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_UP);
+        verifyUnsigned(UINT128_MAX, UINT64_MAX, ROUND_DOWN);
+        verifyUnsigned(unsignedLimit + UINT64_MAX, UINT64_MAX, ROUND_DOWN);
+        verifyUnsignedValue(unsignedLimit + UINT64_MAX - 1, UINT64_MAX,
+                            ROUND_DOWN, UINT64_MAX);
+        verifyUnsigned(unsignedLimit + 1, UINT64_MAX, ROUND_UP);
+        verifyUnsignedValue(unsignedLimit + 1, UINT64_MAX, ROUND_DOWN,
+                            UINT64_MAX);
+        verifyUnsignedValue(unsignedLimit, UINT64_MAX, ROUND_UP, UINT64_MAX);
+        verifyUnsignedValue(unsignedLimit, UINT64_MAX, ROUND_DOWN, UINT64_MAX);
+
+        uint128_t const signedLimit = bigMultiply(INT64_MAX, INT64_MAX);
+        verifySigned(UINT128_MAX, INT64_MAX, ROUND_UP);
+        verifySigned(UINT128_MAX, INT64_MAX, ROUND_DOWN);
+        verifySigned(signedLimit + INT64_MAX, INT64_MAX, ROUND_DOWN);
+        verifySignedValue(signedLimit + INT64_MAX - 1, INT64_MAX, ROUND_DOWN,
+                          INT64_MAX);
+        verifySigned(signedLimit + 1, INT64_MAX, ROUND_UP);
+        verifySignedValue(signedLimit + 1, INT64_MAX, ROUND_DOWN, INT64_MAX);
+        verifySignedValue(signedLimit, INT64_MAX, ROUND_UP, INT64_MAX);
+        verifySignedValue(signedLimit, INT64_MAX, ROUND_DOWN, INT64_MAX);
+
+        verifyUnsigned(UINT128_MAX - UINT64_MAX, UINT64_MAX, ROUND_UP);
+        verifyUnsigned(UINT128_MAX - UINT64_MAX, UINT64_MAX, ROUND_DOWN);
+        verifySigned(UINT128_MAX - INT64_MAX, INT64_MAX, ROUND_UP);
+        verifySigned(UINT128_MAX - INT64_MAX, INT64_MAX, ROUND_DOWN);
+    }
+}

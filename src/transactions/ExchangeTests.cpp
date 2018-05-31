@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "lib/util/uint128_t.h"
 #include "transactions/OfferExchange.h"
@@ -492,6 +493,373 @@ TEST_CASE("Exchange", "[exchange]")
                        {4294967298, INT64_MAX, true});
             validate(INT64_MAX, Price{INT32_MAX, INT32_MAX}, INT64_MAX,
                      INT64_MAX, {INT64_MAX, INT64_MAX, false});
+        }
+    }
+}
+
+TEST_CASE("ExchangeV10", "[exchange]")
+{
+    SECTION("Limited by maxWheatSend and maxSheepSend")
+    {
+        auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
+                                   int64_t maxSheepSend, int64_t wheatReceive,
+                                   int64_t sheepSend) {
+            auto res = exchangeV10(p, maxWheatSend, INT64_MAX, maxSheepSend,
+                                   INT64_MAX, false);
+            REQUIRE(res.wheatStays ==
+                    (maxWheatSend * p.n > maxSheepSend * p.d));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+            if (res.wheatStays)
+            {
+                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+            }
+            else
+            {
+                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+            }
+        };
+
+        SECTION("price > 1")
+        {
+            // Exact boundary
+            checkExchangeV10(Price{3, 2}, 3000, 4501, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 4500, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 4499, 2999, 4499);
+
+            // Boundary between two values
+            checkExchangeV10(Price{3, 2}, 2999, 4499, 2999, 4498);
+            checkExchangeV10(Price{3, 2}, 2999, 4498, 2998, 4497);
+        }
+
+        SECTION("price < 1")
+        {
+            // Exact boundary
+            checkExchangeV10(Price{2, 3}, 3000, 2001, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 2000, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 1999, 2998, 1999);
+
+            // Boundary between two values
+            checkExchangeV10(Price{2, 3}, 2999, 2000, 2999, 1999);
+            checkExchangeV10(Price{2, 3}, 2999, 1999, 2998, 1999);
+        }
+    }
+
+    SECTION("Limited by maxWheatReceive and maxSheepReceive")
+    {
+        auto checkExchangeV10 = [](Price const& p, int64_t maxWheatReceive,
+                                   int64_t maxSheepReceive,
+                                   int64_t wheatReceive, int64_t sheepSend) {
+            auto res = exchangeV10(p, INT64_MAX, maxWheatReceive, INT64_MAX,
+                                   maxSheepReceive, false);
+            REQUIRE(res.wheatStays ==
+                    (maxSheepReceive * p.d > maxWheatReceive * p.n));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+            if (res.wheatStays)
+            {
+                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+            }
+            else
+            {
+                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+            }
+        };
+
+        SECTION("price > 1")
+        {
+            // Exact boundary
+            checkExchangeV10(Price{3, 2}, 3000, 4501, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 4500, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 4499, 2999, 4498);
+
+            // Boundary between two values
+            checkExchangeV10(Price{3, 2}, 2999, 4499, 2999, 4499);
+            checkExchangeV10(Price{3, 2}, 2999, 4498, 2998, 4497);
+        }
+
+        SECTION("price < 1")
+        {
+            // Exact boundary
+            checkExchangeV10(Price{2, 3}, 3000, 2001, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 2000, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 1999, 2999, 1999);
+
+            // Boundary between two values
+            checkExchangeV10(Price{2, 3}, 2999, 2000, 2998, 1999);
+            checkExchangeV10(Price{2, 3}, 2999, 1999, 2999, 1999);
+        }
+    }
+
+    SECTION("Limited by maxWheatSend and maxWheatReceive")
+    {
+        auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
+                                   int64_t maxWheatReceive,
+                                   int64_t wheatReceive, int64_t sheepSend) {
+            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+                                   INT64_MAX, false);
+            REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+            if (res.wheatStays)
+            {
+                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+            }
+            else
+            {
+                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+            }
+        };
+
+        SECTION("price > 1")
+        {
+            // Exact boundary (boundary between values impossible in this case)
+            checkExchangeV10(Price{3, 2}, 3000, 3001, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 3000, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 3000, 2999, 2999, 4499);
+        }
+
+        SECTION("price < 1")
+        {
+            // Exact boundary (boundary between values impossible in this case)
+            checkExchangeV10(Price{2, 3}, 3000, 3001, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 3000, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 3000, 2999, 2998, 1999);
+        }
+    }
+
+    SECTION("Limited by maxSheepSend and maxSheepReceive")
+    {
+        auto checkExchangeV10 = [](Price const& p, int64_t maxSheepSend,
+                                   int64_t maxSheepReceive,
+                                   int64_t wheatReceive, int64_t sheepSend) {
+            auto res = exchangeV10(p, INT64_MAX, INT64_MAX, maxSheepSend,
+                                   maxSheepReceive, false);
+            REQUIRE(res.wheatStays == (maxSheepReceive > maxSheepSend));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+            if (res.wheatStays)
+            {
+                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+            }
+            else
+            {
+                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+            }
+        };
+
+        SECTION("price > 1")
+        {
+            // Exact boundary (boundary between values impossible in this case)
+            checkExchangeV10(Price{3, 2}, 4500, 4501, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 4500, 4500, 3000, 4500);
+            checkExchangeV10(Price{3, 2}, 4500, 4499, 2999, 4498);
+        }
+
+        SECTION("price < 1")
+        {
+            // Exact boundary (boundary between values impossible in this case)
+            checkExchangeV10(Price{2, 3}, 2000, 2001, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 2000, 2000, 3000, 2000);
+            checkExchangeV10(Price{2, 3}, 2000, 1999, 2999, 1999);
+        }
+    }
+
+    SECTION("Threshold")
+    {
+        auto checkExchangeV10 = [](Price const& p, int64_t maxWheatSend,
+                                   int64_t maxWheatReceive,
+                                   int64_t wheatReceive, int64_t sheepSend) {
+            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+                                   INT64_MAX, false);
+            REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+            if (res.wheatStays)
+            {
+                REQUIRE(sheepSend * p.d >= wheatReceive * p.n);
+            }
+            else
+            {
+                REQUIRE(sheepSend * p.d <= wheatReceive * p.n);
+            }
+        };
+
+        // Exchange nothing if thresholds exceeded
+        checkExchangeV10(Price{3, 2}, 28, 27, 0, 0);
+        checkExchangeV10(Price{3, 2}, 28, 26, 26, 39);
+
+        // Thresholds not exceeded for sufficiently large offers
+        checkExchangeV10(Price{3, 2}, 52, 51, 51, 77);
+        checkExchangeV10(Price{3, 2}, 52, 50, 50, 75);
+    }
+
+    SECTION("isPathPayment")
+    {
+        auto check = [](Price const& p, int64_t maxWheatSend,
+                        int64_t maxWheatReceive, bool isPathPayment,
+                        int64_t wheatReceive, int64_t sheepSend) {
+            auto res = exchangeV10(p, maxWheatSend, maxWheatReceive, INT64_MAX,
+                                   INT64_MAX, isPathPayment);
+            REQUIRE(res.wheatStays == (maxWheatSend > maxWheatReceive));
+            REQUIRE(res.numWheatReceived == wheatReceive);
+            REQUIRE(res.numSheepSend == sheepSend);
+        };
+
+        SECTION("no thresholding")
+        {
+            check(Price{3, 2}, 28, 27, false, 0, 0);
+            check(Price{3, 2}, 28, 27, true, 27, 41);
+        }
+
+        SECTION("result is unchanged if wheat is more valuable")
+        {
+            check(Price{3, 2}, 150, 101, false, 101, 152);
+            check(Price{3, 2}, 150, 101, true, 101, 152);
+        }
+
+        SECTION("transfer can increase if sheep is more valuable")
+        {
+            check(Price{2, 3}, 150, 101, false, 100, 67);
+            check(Price{2, 3}, 150, 101, true, 101, 68);
+        }
+    }
+}
+
+TEST_CASE("Adjust Offer", "[exchange]")
+{
+    auto checkAdjustOffer = [](Price const& p, int64_t maxWheatSend,
+                               int64_t maxSheepReceive,
+                               int64_t expectedAmount) {
+        int64_t adjAmount = adjustOffer(p, maxWheatSend, maxSheepReceive);
+        REQUIRE(adjAmount == expectedAmount);
+    };
+
+    SECTION("Limits")
+    {
+        SECTION("price > 1")
+        {
+            SECTION("limited by maxWheatSend")
+            {
+                checkAdjustOffer(Price{1, 1000}, 2001, INT64_MAX, 2000);
+                checkAdjustOffer(Price{1, 1000}, 2000, INT64_MAX, 2000);
+                checkAdjustOffer(Price{1, 1000}, 1999, INT64_MAX, 1000);
+            }
+
+            SECTION("limited (or not) by maxSheepReceive")
+            {
+                checkAdjustOffer(Price{1, 1000}, 2000, 3, 2000);
+                checkAdjustOffer(Price{1, 1000}, 2000, 2, 2000);
+                checkAdjustOffer(Price{1, 1000}, 2000, 1, 1000);
+            }
+        }
+
+        SECTION("price < 1")
+        {
+            SECTION("limited by maxWheatSend")
+            {
+                checkAdjustOffer(Price{1000, 1}, 401, INT64_MAX, 401);
+                checkAdjustOffer(Price{1000, 1}, 400, INT64_MAX, 400);
+                checkAdjustOffer(Price{1000, 1}, 399, INT64_MAX, 399);
+            }
+
+            SECTION("limited (or not) by maxSheepReceive")
+            {
+                checkAdjustOffer(Price{1000, 1}, 400, 400 * 1000 + 1, 400);
+                checkAdjustOffer(Price{1000, 1}, 400, 400 * 1000, 400);
+                checkAdjustOffer(Price{1000, 1}, 400, 400 * 1000 - 1, 399);
+            }
+        }
+    }
+
+    SECTION("Adjusting offer again has no effect")
+    {
+        auto checkAdjustOfferTwice = [&](Price const& p, int64_t maxWheatSend,
+                                         int64_t maxSheepReceive,
+                                         int64_t expectedAmount) {
+            checkAdjustOffer(p, maxWheatSend, maxSheepReceive, expectedAmount);
+            checkAdjustOffer(p, expectedAmount, maxSheepReceive,
+                             expectedAmount);
+        };
+
+        SECTION("price > 1")
+        {
+            SECTION("limited by maxWheatSend")
+            {
+                checkAdjustOfferTwice(Price{7, 3}, 429, INT64_MAX, 429);
+                checkAdjustOfferTwice(Price{7, 3}, 428, INT64_MAX, 428);
+                checkAdjustOfferTwice(Price{7, 3}, 427, INT64_MAX, 427);
+            }
+
+            SECTION("limited (or not) by maxSheepReceive")
+            {
+                checkAdjustOfferTwice(Price{7, 3}, 428, 999, 428);
+                checkAdjustOfferTwice(Price{7, 3}, 428, 998, 427);
+                checkAdjustOfferTwice(Price{7, 3}, 428, 997, 427);
+            }
+        }
+
+        SECTION("price < 1")
+        {
+            SECTION("limited by maxWheatSend")
+            {
+                checkAdjustOfferTwice(Price{3, 7}, 1001, INT64_MAX, 1001);
+                checkAdjustOfferTwice(Price{3, 7}, 1000, INT64_MAX, 999);
+                checkAdjustOfferTwice(Price{3, 7}, 999, INT64_MAX, 999);
+            }
+
+            SECTION("limited (or not) by maxSheepReceive")
+            {
+                checkAdjustOfferTwice(Price{3, 7}, 1000, 429, 999);
+                checkAdjustOfferTwice(Price{3, 7}, 1000, 428, 999);
+                checkAdjustOfferTwice(Price{3, 7}, 1000, 427, 997);
+            }
+        }
+    }
+
+    SECTION("Thresholds")
+    {
+        // Thresholds effect some small offers but not all
+        checkAdjustOffer(Price{3, 2}, 29, INT64_MAX, 0);
+        checkAdjustOffer(Price{3, 2}, 28, INT64_MAX, 28);
+        checkAdjustOffer(Price{3, 2}, 27, INT64_MAX, 0);
+        checkAdjustOffer(Price{3, 2}, 26, INT64_MAX, 26);
+
+        // Thresholds don't effect sufficiently large offers
+        checkAdjustOffer(Price{3, 2}, 51, INT64_MAX, 51);
+        checkAdjustOffer(Price{3, 2}, 50, INT64_MAX, 50);
+    }
+}
+
+TEST_CASE("Check price error bounds", "[exchange]")
+{
+    auto validateBounds = [](Price const& p, int64_t wheatReceive,
+                             int64_t sheepSendHigh, int64_t sheepSendLow,
+                             bool canFavorWheat) {
+        REQUIRE(checkPriceErrorBound(p, wheatReceive, sheepSendHigh + 1,
+                                     canFavorWheat) == canFavorWheat);
+        REQUIRE(checkPriceErrorBound(p, wheatReceive, sheepSendHigh,
+                                     canFavorWheat));
+        REQUIRE(
+            checkPriceErrorBound(p, wheatReceive, sheepSendLow, canFavorWheat));
+        REQUIRE(!checkPriceErrorBound(p, wheatReceive, sheepSendLow - 1,
+                                      canFavorWheat));
+    };
+
+    for (bool canFavorWheat : {false, true})
+    {
+        SECTION(canFavorWheat ? "can favor wheat" : "cannot favor wheat")
+        {
+            // No rounding
+            validateBounds(Price{1, 1}, 1000, 1010, 990, canFavorWheat);
+            // No rounding on boundary, p > 1
+            validateBounds(Price{5, 2}, 1000, 2525, 2475, canFavorWheat);
+            // No rounding on boundary, p < 1
+            validateBounds(Price{2, 5}, 1000, 404, 396, canFavorWheat);
+            // Rounding on boundary, p > 1
+            validateBounds(Price{7, 3}, 1000, 2356, 2310, canFavorWheat);
+            // Rounding on boundary, p > 1
+            validateBounds(Price{3, 7}, 1000, 432, 425, canFavorWheat);
         }
     }
 }

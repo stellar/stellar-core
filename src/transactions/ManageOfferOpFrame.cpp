@@ -149,10 +149,13 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
 
+    soci::transaction sqlTx(db.getSession());
+    LedgerDelta tempDelta(delta);
+
     if (offerID)
     { // modifying an old offer
         mSellSheepOffer =
-            OfferFrame::loadOffer(getSourceID(), offerID, db, &delta);
+            OfferFrame::loadOffer(getSourceID(), offerID, db, &tempDelta);
 
         if (!mSellSheepOffer)
         {
@@ -163,6 +166,12 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
+
+        // WARNING: mSellSheepOffer is deleted but mSourceAccount is not updated
+        // to reflect the change in numSubEntries at this point. However, we
+        // can't delete it here since doing so would modify mSourceAccount,
+        // which would lead to different buckets being generated.
+        mSellSheepOffer->storeDelete(tempDelta, db);
 
         // rebuild offer based off the manage offer
         mSellSheepOffer->getOffer() = buildOffer(
@@ -179,17 +188,13 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         mSellSheepOffer = std::make_shared<OfferFrame>(le);
     }
 
-    int64_t maxSheepSend = mSellSheepOffer->getAmount();
-
-    int64_t maxAmountOfSheepCanSell;
-
     innerResult().code(MANAGE_OFFER_SUCCESS);
 
-    soci::transaction sqlTx(db.getSession());
-    LedgerDelta tempDelta(delta);
+    bool adjusted = false;
 
     if (mManageOffer.amount == 0)
     {
+        // deleting the offer
         mSellSheepOffer->getOffer().amount = 0;
     }
     else
@@ -211,80 +216,60 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                     innerResult().code(MANAGE_OFFER_LOW_RESERVE);
                     return false;
                 }
-                maxAmountOfSheepCanSell =
-                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
-                // restore the number back (will be re-incremented later if
-                // the offer really needs to be created)
-                mSourceAccount->addNumEntries(-1, ledgerManager);
-            }
-            else
-            {
-                maxAmountOfSheepCanSell =
-                    mSourceAccount->getBalanceAboveReserve(ledgerManager);
-            }
-        }
-        else
-        {
-            maxAmountOfSheepCanSell = mSheepLineA->getBalance();
-        }
-
-        // the maximum is defined by how much wheat it can receive
-        int64_t maxWheatCanBuy;
-        if (wheat.type() == ASSET_TYPE_NATIVE)
-        {
-            maxWheatCanBuy = INT64_MAX;
-        }
-        else
-        {
-            maxWheatCanBuy = mWheatLineA->getMaxAmountReceive();
-            if (maxWheatCanBuy == 0)
-            {
-                app.getMetrics()
-                    .NewMeter({"op-manage-offer", "invalid", "line-full"},
-                              "operation")
-                    .Mark();
-                innerResult().code(MANAGE_OFFER_LINE_FULL);
-                return false;
+                adjusted = true;
             }
         }
 
         Price const& sheepPrice = mSellSheepOffer->getPrice();
+        const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
 
+        int64_t maxWheatReceive = canBuyAtMost(wheat, mWheatLineA);
+        int64_t maxSheepSend;
+        if (app.getLedgerManager().getCurrentLedgerVersion() >= 10)
         {
+            maxSheepSend = canSellAtMost(mSourceAccount, sheep, mSheepLineA,
+                                         ledgerManager);
+        }
+        else
+        {
+            int64_t maxSheepCanSell = canSellAtMost(mSourceAccount, sheep,
+                                                    mSheepLineA, ledgerManager);
             int64_t maxSheepBasedOnWheat;
-            if (!bigDivide(maxSheepBasedOnWheat, maxWheatCanBuy, sheepPrice.d,
+            if (!bigDivide(maxSheepBasedOnWheat, maxWheatReceive, sheepPrice.d,
                            sheepPrice.n, ROUND_DOWN))
             {
                 maxSheepBasedOnWheat = INT64_MAX;
             }
 
-            if (maxAmountOfSheepCanSell > maxSheepBasedOnWheat)
-            {
-                maxAmountOfSheepCanSell = maxSheepBasedOnWheat;
-            }
+            maxSheepSend = std::min({maxSheepCanSell, maxSheepBasedOnWheat});
         }
-
         // amount of sheep for sale is the lesser of amount we can sell and
         // amount put in the offer
-        if (maxAmountOfSheepCanSell < maxSheepSend)
+        maxSheepSend = std::min(mSellSheepOffer->getAmount(), maxSheepSend);
+
+        if (adjusted)
         {
-            maxSheepSend = maxAmountOfSheepCanSell;
+            // restore the number back (will be re-incremented later if
+            // the offer really needs to be created)
+            mSourceAccount->addNumEntries(-1, ledgerManager);
+        }
+
+        if (maxWheatReceive == 0)
+        {
+            app.getMetrics()
+                .NewMeter({"op-manage-offer", "invalid", "line-full"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_LINE_FULL);
+            return false;
         }
 
         int64_t sheepSent, wheatReceived;
-
         OfferExchange oe(tempDelta, ledgerManager);
-
-        const Price maxWheatPrice(sheepPrice.d, sheepPrice.n);
-
         OfferExchange::ConvertResult r = oe.convertWithOffers(
-            sheep, maxSheepSend, sheepSent, wheat, maxWheatCanBuy,
-            wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
-                if (o.getOfferID() == mSellSheepOffer->getOfferID())
-                {
-                    // don't let the offer cross itself when updating it
-                    return OfferExchange::eSkip;
-                }
+            sheep, maxSheepSend, sheepSent, wheat, maxWheatReceive,
+            wheatReceived, false, [this, &maxWheatPrice](OfferFrame const& o) {
+                assert(o.getOfferID() != mSellSheepOffer->getOfferID());
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
                     (o.getPrice() > maxWheatPrice))
                 {
@@ -298,20 +283,26 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
                 }
                 return OfferExchange::eKeep;
             });
-
         assert(sheepSent >= 0);
 
+        bool sheepStays;
         switch (r)
         {
         case OfferExchange::eOK:
+            sheepStays = false;
+            break;
         case OfferExchange::ePartial:
+            sheepStays = true;
             break;
         case OfferExchange::eFilterStop:
             if (innerResult().code() != MANAGE_OFFER_SUCCESS)
             {
                 return false;
             }
+            sheepStays = true;
             break;
+        default:
+            abort();
         }
 
         // updates the result with the offers that got taken on the way
@@ -366,8 +357,19 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             }
         }
 
-        // recomputes the amount of sheep for sale
         mSellSheepOffer->getOffer().amount = maxSheepSend - sheepSent;
+        if (ledgerManager.getCurrentLedgerVersion() >= 10)
+        {
+            if (sheepStays)
+            {
+                adjustOffer(*mSellSheepOffer, ledgerManager, mSourceAccount,
+                            sheep, mSheepLineA, wheat, mWheatLineA);
+            }
+            else
+            {
+                mSellSheepOffer->getOffer().amount = 0;
+            }
+        }
     }
 
     if (mSellSheepOffer->getOffer().amount > 0)
@@ -389,14 +391,13 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             mSellSheepOffer->mEntry.data.offer().offerID =
                 tempDelta.getHeaderFrame().generateID();
             innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
-            mSellSheepOffer->storeAdd(tempDelta, db);
             mSourceAccount->storeChange(tempDelta, db);
         }
         else
         {
             innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
-            mSellSheepOffer->storeChange(tempDelta, db);
         }
+        mSellSheepOffer->storeAdd(tempDelta, db);
         innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
     }
     else
@@ -405,7 +406,6 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (!creatingNewOffer)
         {
-            mSellSheepOffer->storeDelete(tempDelta, db);
             mSourceAccount->addNumEntries(-1, ledgerManager);
             mSourceAccount->storeChange(tempDelta, db);
         }

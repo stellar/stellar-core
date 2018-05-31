@@ -631,7 +631,9 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is sell 150 USD for 100 USD; sell USD @ 1.5 /
                     // buy IRD @ 0.66
                     market.requireChangesWithOffer(
-                        {{offers[0].key, OfferState::DELETED}}, [&] {
+                        {{offers[0].key, OfferState::DELETED},
+                         {offers[1].key, offers[1].state}},
+                        [&] {
                             return market.addOffer(
                                 b1, {usd, idr, exactCrossPrice, 150},
                                 OfferState::DELETED);
@@ -641,7 +643,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("offer crosses, removes first six and changes seventh")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
@@ -651,6 +653,8 @@ TEST_CASE("create offer", "[tx][offers]")
                     // -> buy USD @ 1.5
                     // first 6 offers get taken for 6*150=900 USD, gets 600
                     // IDR in return
+
+                    // For versions < 10:
                     // offer #7 : has 110 USD available
                     //    -> can claim partial offer 100*110/150 = 73.333 ;
                     //    -> 26.66666 left
@@ -667,6 +671,53 @@ TEST_CASE("create offer", "[tx][offers]")
                          {offers[4].key, OfferState::DELETED},
                          {offers[5].key, OfferState::DELETED},
                          {offers[6].key, {idr, usd, price, 27}}},
+                        [&] {
+                            return market.addOffer(
+                                b1, {usd, idr, Price{1, 2}, 1010},
+                                OfferState::DELETED);
+                        });
+
+                    market.requireBalances({{a1, {{usd, 1010}, {idr, 99327}}},
+                                            {b1, {{usd, 18990}, {idr, 673}}}});
+                });
+
+                for_versions_from(10, *app, [&] {
+                    issuer.pay(b1, usd, 20000);
+
+                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
+                                            {b1, {{usd, 20000}, {idr, 0}}}});
+
+                    // Offers are: sell 100 IDR for 150 USD; sell IRD @ 0.66
+                    // -> buy USD @ 1.5
+                    // first 6 offers get taken for 6*150=900 USD, gets 600
+                    // IDR in return
+
+                    // For versions >= 10:
+                    // offer #7: has 110 USD available
+                    //    -> wheatValue = 100 * 3 = 300
+                    //       sheepValue = 110 * 2 = 220
+                    //       wheatStays
+                    //    -> price.n > price.d
+                    //    -> wheatReceive = floor(220 / 3) = 73
+                    //    -> sheepSend = ceil(73 * 3 / 2) = 110
+                    // added offer:
+                    //    -> wheatValue = 27 * 3 = 81
+                    //       !wheatStays
+                    //    -> price.n > price.d
+                    //    -> wheatReceive = floor(81 / 3) = 27
+                    //    -> sheepSend = floor(27 * 3 / 2) = 40
+                    //    abs(3/2 - 40/27) = 1 / 54 > (3/2) / 100 = 3/200
+                    //    -> wheatReceive = sheepSend = 0
+
+                    // offer is sell 1010 USD for 505 IDR; sell USD @ 0.5
+                    market.requireChangesWithOffer(
+                        {{offers[0].key, OfferState::DELETED},
+                         {offers[1].key, OfferState::DELETED},
+                         {offers[2].key, OfferState::DELETED},
+                         {offers[3].key, OfferState::DELETED},
+                         {offers[4].key, OfferState::DELETED},
+                         {offers[5].key, OfferState::DELETED},
+                         {offers[6].key, OfferState::DELETED}},
                         [&] {
                             return market.addOffer(
                                 b1, {usd, idr, Price{1, 2}, 1010},
@@ -729,7 +780,7 @@ TEST_CASE("create offer", "[tx][offers]")
 
             SECTION("multiple offers with small amount crosses")
             {
-                for_all_versions(*app, [&] {
+                for_versions_to(9, *app, [&] {
                     issuer.pay(b1, usd, 20000);
 
                     market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
@@ -749,6 +800,34 @@ TEST_CASE("create offer", "[tx][offers]")
 
                     market.requireBalances({{a1, {{usd, 100}, {idr, 99940}}},
                                             {b1, {{usd, 19900}, {idr, 60}}}});
+                });
+                for_versions_from(10, *app, [&] {
+                    issuer.pay(b1, usd, 20000);
+
+                    market.requireBalances({{a1, {{usd, 0}, {idr, 100000}}},
+                                            {b1, {{usd, 20000}, {idr, 0}}}});
+
+                    // wheatValue = 100 * 3 = 300
+                    // sheepValue = 10 * 2 = 20
+                    // wheatStays
+                    // price.n > price.d
+                    // wheatReceive = floor(20 / 3) = 6
+                    // sheepSend = ceil(6 * 3 / 2) = 9
+
+                    auto offerPosted = OfferState{usd, idr, Price{1, 2}, 10};
+                    auto offerChanged = OfferState{idr, usd, price, 100};
+                    for (auto i = 0; i < 10; i++)
+                    {
+                        offerChanged.amount -= 6;
+                        market.requireChangesWithOffer(
+                            {{offers[0].key, offerChanged}}, [&] {
+                                return market.addOffer(b1, offerPosted,
+                                                       OfferState::DELETED);
+                            });
+                    }
+
+                    market.requireBalances({{a1, {{usd, 90}, {idr, 99940}}},
+                                            {b1, {{usd, 19910}, {idr, 60}}}});
                 });
             }
         }
@@ -792,6 +871,16 @@ TEST_CASE("create offer", "[tx][offers]")
                     // offer is buy 200 IDR for 300 USD; buy IDR @ 0.66
                     // USD
                     // -> sell USD @ 1.5 IDR
+
+                    // OfferA1: Sell 150 USD buy 100 IDR
+                    // OfferB1:
+                    //     -> wheatValue = 100 * 3 = 300
+                    //        sheepValue = min(150 * 2, 50 * 3) = 150
+                    //        wheatStays
+                    //     -> price.n > price.d
+                    //     -> wheatReceive = floor(150 / 3) = 50
+                    //     -> sheepSend = ceil(50 * 3 / 2) = 75
+
                     auto offerChanged = OfferState{idr, usd, price, 50};
                     market.requireChangesWithOffer(
                         {{offerA1.key, OfferState::DELETED},
@@ -953,6 +1042,95 @@ TEST_CASE("create offer", "[tx][offers]")
             }
         }
 
+        SECTION("offers with limit when buying")
+        {
+            const int64_t assetMultiplier = 1000000;
+
+            auto c1 = root.create("C", minBalance3 + 1000);
+
+            c1.changeTrust(idr, 2000 * assetMultiplier);
+            issuer.pay(c1, idr, 1000 * assetMultiplier);
+            c1.changeTrust(usd, INT64_MAX);
+
+            // offer is sell 1000 IDR for 9000 USD; buy USD @ 9.0 = sell
+            // IRD @ 0.111
+            auto offerC1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    c1, {idr, usd, Price{9, 1}, 1000 * assetMultiplier});
+            });
+
+            // sell some USD at a price that crosses with offerC1
+            // sell 20000 USD for 200 IDR; buy IDR @ 0.01 = sell USD @ 100.0
+            auto p = Price{1, 100};
+
+            auto b1 = root.create("B", minBalance3 + 1000);
+            b1.changeTrust(idr, 101 * assetMultiplier);
+            issuer.pay(b1, idr, 100 * assetMultiplier);
+            b1.changeTrust(usd, INT64_MAX);
+            issuer.pay(b1, usd, 20000 * assetMultiplier);
+
+            auto offerB1Params = OfferState{usd, idr, p, 200 * assetMultiplier};
+
+            SECTION("Source account limit")
+            {
+                // only 1 IDR can be bought (per limit)
+                // at maximum price p -> will be at most 100 USD
+
+                // b1 buys 1 IDR by sending 9 USD (market price)
+
+                auto offerC1Changed =
+                    OfferState{idr, usd, Price{9, 1}, 999 * assetMultiplier};
+
+                for_versions_to(9, *app, [&]() {
+                    // offer gets created with amount of USD predicted -
+                    // actual
+                    // --> 100-9 = 91 USD
+                    auto offerRemaining =
+                        OfferState{usd, idr, p, 91 * assetMultiplier};
+
+                    auto offerB1 = market.requireChangesWithOffer(
+                        {{offerC1.key, offerC1Changed}}, [&] {
+                            return market.addOffer(b1, offerB1Params,
+                                                   offerRemaining);
+                        });
+                });
+
+                for_versions_from(10, *app, [&]() {
+                    // as b1 cannot buy any more IDRs the offer should be
+                    // deleted
+                    auto offerB1 = market.requireChangesWithOffer(
+                        {{offerC1.key, offerC1Changed}}, [&] {
+                            return market.addOffer(b1, offerB1Params,
+                                                   OfferState::DELETED);
+                        });
+                });
+            }
+            SECTION("Offer reaches limit")
+            {
+                // make it that c1 can only receive 9 USD (for 1 IDR)
+                c1.changeTrust(usd, 9 * assetMultiplier);
+                // make it that b1 can receive more than 1 IDR
+                b1.changeTrust(idr, 1000 * assetMultiplier);
+
+                // as c1 cannot buy any more USDs, c1's offer should be
+                // deleted
+                // b1's offer is created to sell the remainder
+                // 200-9 = 191 USD
+
+                auto offerRemaining =
+                    OfferState{usd, idr, p, 191 * assetMultiplier};
+
+                for_all_versions(*app, [&]() {
+
+                    auto offerB1 = market.requireChangesWithOffer(
+                        {{offerC1.key, OfferState::DELETED}}, [&] {
+                            return market.addOffer(b1, offerB1Params,
+                                                   offerRemaining);
+                        });
+                });
+            }
+        }
+
         SECTION("issuer offers")
         {
             auto offerA1 = market.requireChangesWithOffer({}, [&] {
@@ -1046,11 +1224,26 @@ TEST_CASE("create offer", "[tx][offers]")
                     });
             });
 
-            for_versions_from(3, *app, [&] {
-                // 8224563625 / 4.1220000 = 1995284722 = 2000000000 -
-                // 4715278
+            for_versions(3, 9, *app, [&] {
+                // 8224563625 / 4.1220000 = 1995284723 = 2000000000 -
+                // 4715277
                 // (rounding up)
                 auto updatedAsking = OfferState{idr, xlm, askPrice, 4715277};
+                market.requireChangesWithOffer(
+                    {{biddingKey, OfferState::DELETED}}, [&] {
+                        return market.addOffer(askingAccount, asking,
+                                               updatedAsking);
+                    });
+            });
+
+            for_versions_from(10, *app, [&] {
+                // wheatValue = 8224563625 * 500
+                // sheepValue = 2000000000 * 2061
+                // !wheatStays
+                // price.n < price.d
+                // sheepSend = floor(8224563625 * 500 / 2061) = 1995284722
+                // wheatReceive = ceil(1995284722 * 500 / 2061) = 484057429
+                auto updatedAsking = OfferState{idr, xlm, askPrice, 4715278};
                 market.requireChangesWithOffer(
                     {{biddingKey, OfferState::DELETED}}, [&] {
                         return market.addOffer(askingAccount, asking,
@@ -1064,8 +1257,6 @@ TEST_CASE("create offer", "[tx][offers]")
             for_all_versions(*app, [&] {
                 // 2000000000 * 4.0816000 = 8163200000 = 8224563625 -
                 // 61363625
-                auto updatedBidding = OfferState{xlm, idr, bidPrice, 61363625};
-
                 auto askingKey =
                     market
                         .requireChangesWithOffer({},
@@ -1074,6 +1265,8 @@ TEST_CASE("create offer", "[tx][offers]")
                                                          askingAccount, asking);
                                                  })
                         .key;
+
+                auto updatedBidding = OfferState{xlm, idr, bidPrice, 61363625};
                 market.requireChangesWithOffer(
                     {{askingKey, OfferState::DELETED}}, [&] {
                         return market.addOffer(biddingAccount, bidding,
@@ -1081,5 +1274,239 @@ TEST_CASE("create offer", "[tx][offers]")
                     });
             });
         }
+    }
+
+    SECTION("updated offers respect reserve")
+    {
+        auto market = TestMarket{*app};
+        auto a1 = root.create("A", app->getLedgerManager().getMinBalance(2) +
+                                       4 * txfee + 10);
+        a1.changeTrust(usd, trustLineLimit);
+        for_all_versions(*app, [&] {
+            auto offer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(a1, {xlm, usd, oneone, 9});
+            });
+            market.requireChangesWithOffer({}, [&] {
+                return market.updateOffer(a1, offer.key.offerID,
+                                          {xlm, usd, oneone, 111},
+                                          {xlm, usd, oneone, 110});
+            });
+        });
+    }
+
+    SECTION("wheat stays or sheep stays")
+    {
+        auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
+        auto wheatSeller = root.create("wheat", minBalance3 + 10000);
+        auto sheepSeller = root.create("sheep", minBalance3 + 10000);
+
+        wheatSeller.changeTrust(idr, INT64_MAX);
+        wheatSeller.changeTrust(usd, INT64_MAX);
+        sheepSeller.changeTrust(idr, INT64_MAX);
+        sheepSeller.changeTrust(usd, INT64_MAX);
+
+        auto market = TestMarket{*app};
+
+        auto check = [&](Price const& wheatPrice, int64_t maxWheatSend,
+                         int64_t maxSheepSend) {
+            Price sheepPrice(wheatPrice.d, wheatPrice.n);
+            auto res = exchangeV10(wheatPrice, maxWheatSend, INT64_MAX,
+                                   maxSheepSend, INT64_MAX, false);
+
+            auto adjWheatAmount =
+                adjustOffer(wheatPrice, maxWheatSend, INT64_MAX);
+            auto wheatAmount = adjWheatAmount - res.numWheatReceived;
+            wheatAmount = adjustOffer(wheatPrice, wheatAmount, INT64_MAX);
+            auto wheatState = OfferState::DELETED;
+            if (res.wheatStays && wheatAmount > 0)
+            {
+                wheatState = OfferState{idr, usd, wheatPrice, wheatAmount};
+            }
+
+            auto sheepAmount = maxSheepSend - res.numSheepSend;
+            sheepAmount = adjustOffer(sheepPrice, sheepAmount, INT64_MAX);
+            auto sheepState = OfferState::DELETED;
+            if (!res.wheatStays && sheepAmount > 0)
+            {
+                sheepState = OfferState{usd, idr, sheepPrice, sheepAmount};
+            }
+
+            // Create the market making offer
+            issuer.pay(wheatSeller, idr, maxWheatSend);
+            auto wheatOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(wheatSeller,
+                                       {idr, usd, wheatPrice, maxWheatSend},
+                                       {idr, usd, wheatPrice, adjWheatAmount});
+            });
+
+            // Create the crossing offer
+            issuer.pay(sheepSeller, usd, maxSheepSend);
+            auto sheepOffer = market.requireChangesWithOffer(
+                {{wheatOffer.key, wheatState}}, [&] {
+                    return market.addOffer(sheepSeller,
+                                           {usd, idr, sheepPrice, maxSheepSend},
+                                           sheepState);
+                });
+
+            // Delete offers that stayed in the book
+            if (!(wheatState == OfferState::DELETED))
+            {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(
+                        wheatSeller, wheatOffer.key.offerID,
+                        {idr, usd, wheatPrice, 0}, OfferState::DELETED);
+                });
+            }
+            if (!(sheepState == OfferState::DELETED))
+            {
+                market.requireChangesWithOffer({}, [&] {
+                    return market.updateOffer(
+                        sheepSeller, sheepOffer.key.offerID,
+                        {usd, idr, sheepPrice, 0}, OfferState::DELETED);
+                });
+            }
+
+            // Return balances to issuer
+            if (res.numWheatReceived < maxWheatSend)
+            {
+                wheatSeller.pay(issuer, idr,
+                                maxWheatSend - res.numWheatReceived);
+            }
+            if (res.numSheepSend > 0)
+            {
+                wheatSeller.pay(issuer, usd, res.numSheepSend);
+            }
+            if (res.numWheatReceived > 0)
+            {
+                sheepSeller.pay(issuer, idr, res.numWheatReceived);
+            }
+            if (res.numSheepSend < maxSheepSend)
+            {
+                sheepSeller.pay(issuer, usd, maxSheepSend - res.numSheepSend);
+            }
+            market.requireBalances({{wheatSeller, {{idr, 0}, {usd, 0}}},
+                                    {sheepSeller, {{idr, 0}, {usd, 0}}}});
+        };
+
+        for_versions_from(10, *app, [&] {
+            // Sheep stays
+            check(Price{3, 2}, 3000, 4501);
+            check(Price{3, 2}, 3000, 4500);
+            check(Price{2, 3}, 3000, 2001);
+            check(Price{2, 3}, 3000, 2000);
+
+            // Wheat stays
+            check(Price{3, 2}, 3000, 4499);
+            check(Price{2, 3}, 3000, 1999);
+        });
+    }
+
+    SECTION("new offer is not created if it does not satisfy thresholds")
+    {
+        for_versions_from(10, *app, [&] {
+            auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
+            auto wheatSeller = root.create("wheat", minBalance3 + 10000);
+
+            wheatSeller.changeTrust(idr, INT64_MAX);
+            wheatSeller.changeTrust(usd, INT64_MAX);
+            issuer.pay(wheatSeller, idr, 1000);
+
+            auto market = TestMarket{*app};
+            auto wheatOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(wheatSeller, {idr, usd, Price{3, 2}, 27},
+                                       OfferState::DELETED);
+            });
+        });
+    }
+
+    SECTION("available balance non-native can cause an offer to adjust to 0")
+    {
+        for_versions_from(10, *app, [&] {
+            auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
+            auto wheatSeller = root.create("wheat", minBalance3 + 10000);
+            auto sheepSeller = root.create("sheep", minBalance3 + 10000);
+
+            wheatSeller.changeTrust(idr, INT64_MAX);
+            wheatSeller.changeTrust(usd, INT64_MAX);
+            sheepSeller.changeTrust(idr, INT64_MAX);
+            sheepSeller.changeTrust(usd, INT64_MAX);
+
+            auto market = TestMarket{*app};
+
+            issuer.pay(wheatSeller, idr, 28);
+            auto wheatOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(wheatSeller, {idr, usd, Price{3, 2}, 28},
+                                       {idr, usd, Price{3, 2}, 28});
+            });
+            wheatSeller.pay(issuer, idr, 1);
+
+            issuer.pay(sheepSeller, usd, 1000);
+            auto sheepOffer = market.requireChangesWithOffer(
+                {{wheatOffer.key, OfferState::DELETED}}, [&] {
+                    return market.addOffer(sheepSeller,
+                                           {usd, idr, Price{2, 3}, 999},
+                                           {usd, idr, Price{2, 3}, 999});
+                });
+        });
+    }
+
+    SECTION("available balance native can cause an offer to adjust to 0")
+    {
+        for_versions_from(10, *app, [&] {
+            auto const baseMinBalance2 =
+                app->getLedgerManager().getMinBalance(2);
+            auto wheatSeller = root.create("wheat", baseMinBalance2 + 10000);
+            auto sheepSeller = root.create("sheep", baseMinBalance2 + 10000);
+
+            wheatSeller.changeTrust(usd, INT64_MAX);
+            sheepSeller.changeTrust(usd, INT64_MAX);
+
+            auto market = TestMarket{*app};
+
+            auto wheatOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(wheatSeller, {xlm, usd, Price{3, 2}, 28},
+                                       {xlm, usd, Price{3, 2}, 28});
+            });
+            wheatSeller.pay(issuer, xlm, 10000 - 3 * txfee - 27);
+
+            issuer.pay(sheepSeller, usd, 1000);
+            auto sheepOffer = market.requireChangesWithOffer(
+                {{wheatOffer.key, OfferState::DELETED}}, [&] {
+                    return market.addOffer(sheepSeller,
+                                           {usd, xlm, Price{2, 3}, 999},
+                                           {usd, xlm, Price{2, 3}, 999});
+                });
+        });
+    }
+
+    SECTION("trust line limit can cause an offer to adjust to 0")
+    {
+        for_versions_from(10, *app, [&] {
+            auto const minBalance3 = app->getLedgerManager().getMinBalance(3);
+            auto wheatSeller = root.create("wheat", minBalance3 + 10000);
+            auto sheepSeller = root.create("sheep", minBalance3 + 10000);
+
+            wheatSeller.changeTrust(idr, INT64_MAX);
+            wheatSeller.changeTrust(usd, INT64_MAX);
+            sheepSeller.changeTrust(idr, INT64_MAX);
+            sheepSeller.changeTrust(usd, INT64_MAX);
+
+            auto market = TestMarket{*app};
+
+            issuer.pay(wheatSeller, idr, 28);
+            auto wheatOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(wheatSeller, {idr, usd, Price{3, 2}, 28},
+                                       {idr, usd, Price{3, 2}, 28});
+            });
+            wheatSeller.changeTrust(usd, 41);
+
+            issuer.pay(sheepSeller, usd, 1000);
+            auto sheepOffer = market.requireChangesWithOffer(
+                {{wheatOffer.key, OfferState::DELETED}}, [&] {
+                    return market.addOffer(sheepSeller,
+                                           {usd, idr, Price{2, 3}, 999},
+                                           {usd, idr, Price{2, 3}, 999});
+                });
+        });
     }
 }
