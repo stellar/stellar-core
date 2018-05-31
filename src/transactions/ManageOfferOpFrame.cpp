@@ -301,6 +301,8 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             }
             sheepStays = true;
             break;
+        default:
+            abort();
         }
 
         // updates the result with the offers that got taken on the way
