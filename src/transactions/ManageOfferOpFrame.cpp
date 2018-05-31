@@ -149,10 +149,13 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     bool creatingNewOffer = false;
     uint64_t offerID = mManageOffer.offerID;
 
+    soci::transaction sqlTx(db.getSession());
+    LedgerDelta tempDelta(delta);
+
     if (offerID)
     { // modifying an old offer
         mSellSheepOffer =
-            OfferFrame::loadOffer(getSourceID(), offerID, db, &delta);
+            OfferFrame::loadOffer(getSourceID(), offerID, db, &tempDelta);
 
         if (!mSellSheepOffer)
         {
@@ -163,6 +166,11 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
             innerResult().code(MANAGE_OFFER_NOT_FOUND);
             return false;
         }
+
+        mSellSheepOffer->storeDelete(tempDelta, db);
+        bool res = mSourceAccount->addNumEntries(-1, ledgerManager);
+        assert(res);
+        mSourceAccount->storeChange(tempDelta, db);
 
         // rebuild offer based off the manage offer
         mSellSheepOffer->getOffer() = buildOffer(
@@ -185,9 +193,6 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     innerResult().code(MANAGE_OFFER_SUCCESS);
 
-    soci::transaction sqlTx(db.getSession());
-    LedgerDelta tempDelta(delta);
-
     if (mManageOffer.amount == 0)
     {
         mSellSheepOffer->getOffer().amount = 0;
@@ -196,7 +201,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (creatingNewOffer &&
+            if (!creatingNewOffer ||
                 app.getLedgerManager().getCurrentLedgerVersion() > 8)
             {
                 // we need to compute maxAmountOfSheepCanSell based on the
@@ -280,11 +285,7 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             sheep, maxSheepSend, sheepSent, wheat, maxWheatCanBuy,
             wheatReceived, [this, &maxWheatPrice](OfferFrame const& o) {
-                if (o.getOfferID() == mSellSheepOffer->getOfferID())
-                {
-                    // don't let the offer cross itself when updating it
-                    return OfferExchange::eSkip;
-                }
+                assert(o.getOfferID() != mSellSheepOffer->getOfferID());
                 if ((mPassive && (o.getPrice() >= maxWheatPrice)) ||
                     (o.getPrice() > maxWheatPrice))
                 {
@@ -372,31 +373,30 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
     if (mSellSheepOffer->getOffer().amount > 0)
     { // we still have sheep to sell so leave an offer
+        // make sure we don't allow us to add offers when we don't have
+        // the minbalance (should never happen at this stage in v9+)
+        if (!mSourceAccount->addNumEntries(1, ledgerManager))
+        {
+            app.getMetrics()
+                .NewMeter({"op-manage-offer", "invalid", "low reserve"},
+                          "operation")
+                .Mark();
+            innerResult().code(MANAGE_OFFER_LOW_RESERVE);
+            return false;
+        }
 
         if (creatingNewOffer)
         {
-            // make sure we don't allow us to add offers when we don't have
-            // the minbalance (should never happen at this stage in v9+)
-            if (!mSourceAccount->addNumEntries(1, ledgerManager))
-            {
-                app.getMetrics()
-                    .NewMeter({"op-manage-offer", "invalid", "low reserve"},
-                              "operation")
-                    .Mark();
-                innerResult().code(MANAGE_OFFER_LOW_RESERVE);
-                return false;
-            }
             mSellSheepOffer->mEntry.data.offer().offerID =
                 tempDelta.getHeaderFrame().generateID();
             innerResult().success().offer.effect(MANAGE_OFFER_CREATED);
-            mSellSheepOffer->storeAdd(tempDelta, db);
-            mSourceAccount->storeChange(tempDelta, db);
         }
         else
         {
             innerResult().success().offer.effect(MANAGE_OFFER_UPDATED);
-            mSellSheepOffer->storeChange(tempDelta, db);
         }
+        mSourceAccount->storeChange(tempDelta, db);
+        mSellSheepOffer->storeAdd(tempDelta, db);
         innerResult().success().offer.offer() = mSellSheepOffer->getOffer();
     }
     else
@@ -405,8 +405,6 @@ ManageOfferOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (!creatingNewOffer)
         {
-            mSellSheepOffer->storeDelete(tempDelta, db);
-            mSourceAccount->addNumEntries(-1, ledgerManager);
             mSourceAccount->storeChange(tempDelta, db);
         }
     }
