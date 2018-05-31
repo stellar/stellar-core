@@ -2696,7 +2696,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 1}},
@@ -2719,6 +2719,42 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 1}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
                  {mm12a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 1}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
                  {mm12b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 78}, {cur2, 1}, {cur3, 0}, {cur4, 0}}},
+                 {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 40}, {cur3, 0}, {cur4, 0}}},
+                 {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 20}, {cur4, 0}}},
+                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+            // clang-format on
+        });
+
+        // For o1a:
+        //     wheatValue = 1 * 1 = 1
+        //     sheepValue = 40 * 1 = 40
+        //     !wheatStays
+        //     price.n < price.d
+        //     sheepSend = floor(1 / 2) = 0
+        //     wheatReceive = ceil(0 * 2 / 1) = 0
+        for_versions_from(10, *app, [&] {
+            auto actual = std::vector<ClaimOfferAtom>{};
+            market.requireChanges({{o1a.key, OfferState::DELETED},
+                                   {o1b.key, OfferState::DELETED},
+                                   {o2.key, OfferState::DELETED},
+                                   {o3.key, OfferState::DELETED}},
+                                  [&] {
+                                      actual =
+                                          source
+                                              .pay(destination, cur1, 80, cur4,
+                                                   10, {cur1, cur2, cur3, cur4})
+                                              .success()
+                                              .offers;
+                                  });
+            auto expected = std::vector<ClaimOfferAtom>{
+                o1a.exchanged(0, 0), o1b.exchanged(40, 80),
+                o2.exchanged(20, 40), o3.exchanged(10, 20)};
+            REQUIRE(actual == expected);
+            // clang-format off
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm12a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 0}, {cur2, 1}, {cur3, 0}, {cur4, 0}}},
+                 {mm12b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 80}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
                  {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 40}, {cur3, 0}, {cur4, 0}}},
                  {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 20}, {cur4, 0}}},
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
@@ -2797,7 +2833,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, {cur2, cur1, Price{2, 1}, 1}},
                                    {o2a.key, OfferState::DELETED},
@@ -2821,6 +2857,42 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 78}, {cur2, 1}, {cur3, 0}, {cur4, 0}}},
                  {mm23a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 0}, {cur2, 1}, {cur3, 0}, {cur4, 0}}},
                  {mm23b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 38}, {cur3, 1}, {cur4, 0}}},
+                 {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 20}, {cur4, 0}}},
+                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+            // clang-format on
+        });
+
+        // For o2a:
+        //     wheatValue = 1 * 1 = 1
+        //     sheepValue = 20 * 1 = 20
+        //     !wheatStays
+        //     price.n < price.d
+        //     sheepSend = floor(1 / 2) = 0
+        //     wheatReceive = ceil(0 * 2 / 1) = 0
+        for_versions_from(10, *app, [&] {
+            auto actual = std::vector<ClaimOfferAtom>{};
+            market.requireChanges({{o1.key, OfferState::DELETED},
+                                   {o2a.key, OfferState::DELETED},
+                                   {o2b.key, OfferState::DELETED},
+                                   {o3.key, OfferState::DELETED}},
+                                  [&] {
+                                      actual =
+                                          source
+                                              .pay(destination, cur1, 80, cur4,
+                                                   10, {cur1, cur2, cur3, cur4})
+                                              .success()
+                                              .offers;
+                                  });
+            auto expected = std::vector<ClaimOfferAtom>{
+                o1.exchanged(40, 80), o2a.exchanged(0, 0),
+                o2b.exchanged(20, 40), o3.exchanged(10, 20)};
+            REQUIRE(actual == expected);
+            // clang-format off
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 80}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm23a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 1}, {cur4, 0}}},
+                 {mm23b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 40}, {cur3, 0}, {cur4, 0}}},
                  {mm34, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 20}, {cur4, 0}}},
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
@@ -2898,7 +2970,7 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1.key, {cur2, cur1, Price{2, 1}, 2}},
                                    {o2.key, {cur3, cur2, Price{2, 1}, 1}},
@@ -2923,6 +2995,42 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 38}, {cur3, 1}, {cur4, 0}}},
                  {mm34a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 1}, {cur4, 0}}},
                  {mm34b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 18}, {cur4, 1}}},
+                 {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
+            // clang-format on
+        });
+
+        // For o3a:
+        //     wheatValue = 1 * 1 = 1
+        //     sheepValue = 10 * 1 = 10
+        //     !wheatStays
+        //     price.n < price.d
+        //     sheepSend = floor(1 / 2) = 0
+        //     wheatReceive = ceil(0 * 2 / 1) = 0
+        for_versions_from(10, *app, [&] {
+            auto actual = std::vector<ClaimOfferAtom>{};
+            market.requireChanges({{o1.key, OfferState::DELETED},
+                                   {o2.key, OfferState::DELETED},
+                                   {o3a.key, OfferState::DELETED},
+                                   {o3b.key, OfferState::DELETED}},
+                                  [&] {
+                                      actual =
+                                          source
+                                              .pay(destination, cur1, 80, cur4,
+                                                   10, {cur1, cur2, cur3, cur4})
+                                              .success()
+                                              .offers;
+                                  });
+            auto expected = std::vector<ClaimOfferAtom>{
+                o1.exchanged(40, 80), o2.exchanged(20, 40), o3a.exchanged(0, 0),
+                o3b.exchanged(10, 20)};
+            REQUIRE(actual == expected);
+            // clang-format off
+            market.requireBalances(
+                {{source, {{xlm, minBalance4 - 2 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm12, {{xlm, minBalance3 - 3 * txfee}, {cur1, 80}, {cur2, 0}, {cur3, 0}, {cur4, 0}}},
+                 {mm23, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 40}, {cur3, 0}, {cur4, 0}}},
+                 {mm34a, {{xlm, minBalance3 - 4 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 1}}},
+                 {mm34b, {{xlm, minBalance3 - 3 * txfee}, {cur1, 0}, {cur2, 0}, {cur3, 20}, {cur4, 0}}},
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 10}}}});
             // clang-format on
         });
@@ -3231,35 +3339,35 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 17);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
-        });
-        auto o1b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
-        });
-        auto o1c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
-        });
-        auto o2a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
-        });
-        auto o2b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
-        });
-        auto o2c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
-        });
-        auto o3a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
-        });
-        auto o3b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
-        });
-        auto o3c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
-        });
-
         for_versions_to(2, *app, [&] {
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+            });
+
             market.requireChanges({}, [&] {
                 REQUIRE_THROWS_AS(source.pay(destination, cur1, 45, cur4, 10,
                                              {cur1, cur2, cur3, cur4}),
@@ -3274,7 +3382,37 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}}});
             // clang-format on
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
+            // Some of these offers are invalid starting in version 10, so we
+            // can't run this test in that case.
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+            });
+
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, OfferState::DELETED},
@@ -3334,35 +3472,35 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway2.pay(mm23, cur3, 17);
         gateway2.pay(mm34, cur4, 10);
 
-        auto o1a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
-        });
-        auto o1b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
-        });
-        auto o1c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
-        });
-        auto o2a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
-        });
-        auto o2b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
-        });
-        auto o2c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
-        });
-        auto o3a = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
-        });
-        auto o3b = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
-        });
-        auto o3c = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
-        });
-
         for_versions_to(2, *app, [&] {
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+            });
+
             market.requireChanges({}, [&] {
                 REQUIRE_THROWS_AS(source.pay(destination, cur1, 29, cur4, 8,
                                              {cur1, cur2, cur3, cur4}),
@@ -3377,7 +3515,37 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                  {destination, {{xlm, minBalance1 - txfee}, {cur1, 0}, {cur2, 0}, {cur3, 0}, {cur4, 0}}}});
             // clang-format on
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
+            // Some of these offers are invalid starting in version 10, so we
+            // can't run this test in that case.
+            auto o1a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{3, 2}, 10});
+            });
+            auto o1b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{2, 1}, 9});
+            });
+            auto o1c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm12, {cur2, cur1, Price{4, 3}, 9});
+            });
+            auto o2a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{2, 1}, 5});
+            });
+            auto o2b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{3, 2}, 5});
+            });
+            auto o2c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm23, {cur3, cur2, Price{4, 3}, 7});
+            });
+            auto o3a = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{4, 3}, 4});
+            });
+            auto o3b = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{3, 2}, 3});
+            });
+            auto o3c = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm34, {cur4, cur3, Price{2, 1}, 3});
+            });
+
             auto actual = std::vector<ClaimOfferAtom>{};
             market.requireChanges({{o1a.key, OfferState::DELETED},
                                    {o1b.key, {cur2, cur1, Price{2, 1}, 8}},
@@ -3557,22 +3725,23 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         gateway.pay(mm, idr, 1000000000);
         gateway2.pay(mm, usd, 1000000000);
 
-        auto idrCurCheapOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
-        });
-        auto idrCurMidBogusOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});
-        });
-        auto idrCurExpensiveOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});
-        });
-        auto usdCurOffer = market.requireChangesWithOffer({}, [&] {
-            return market.addOffer(mm, {usd, xlm, Price{1, 2}, 2 * offerSize});
-        });
-
         auto path = std::vector<Asset>{xlm, usd};
 
         for_versions_to(2, *app, [&] {
+            auto idrCurCheapOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
+            });
+            auto idrCurMidBogusOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});
+            });
+            auto idrCurExpensiveOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});
+            });
+            auto usdCurOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm,
+                                       {usd, xlm, Price{1, 2}, 2 * offerSize});
+            });
+
             auto res = source.pay(destination, xlm, 8 * paymentToReceive, idr,
                                   paymentToReceive, path);
 
@@ -3583,7 +3752,23 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
                 idrCurExpensiveOffer.exchanged(120000000, 60000000)};
             REQUIRE(res.success().offers == expected);
         });
-        for_versions_from(3, *app, [&] {
+        for_versions(3, 9, *app, [&] {
+            // Some of these offers are invalid starting in version 10, so we
+            // can't run this test in that case.
+            auto idrCurCheapOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{3, 12}, offerSize});
+            });
+            auto idrCurMidBogusOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{4, 12}, 1});
+            });
+            auto idrCurExpensiveOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {idr, usd, Price{6, 12}, offerSize});
+            });
+            auto usdCurOffer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm,
+                                       {usd, xlm, Price{1, 2}, 2 * offerSize});
+            });
+
             auto res = source.pay(destination, xlm, 8 * paymentToReceive, idr,
                                   paymentToReceive, path);
 
@@ -3809,5 +3994,73 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
             // wise to do)
             testPath("anti-arbitrage with big sendmax", Price(2, 1), 8, false);
         });
+    }
+
+    SECTION("path payment rounding")
+    {
+        auto source = root.create(
+            "source", app->getLedgerManager().getMinBalance(1) + 10 * txfee);
+        auto mm = root.create("mm", app->getLedgerManager().getMinBalance(4) +
+                                        10 * txfee);
+        auto destination =
+            root.create("destination",
+                        app->getLedgerManager().getMinBalance(1) + 10 * txfee);
+
+        SECTION("exchangeV10 recalculate sheepValue: 1 offer")
+        {
+            source.changeTrust(cur1, 2);
+            mm.changeTrust(cur1, 2);
+            mm.changeTrust(cur2, 2000);
+            destination.changeTrust(cur2, 1001);
+
+            gateway.pay(source, cur1, 2);
+            gateway.pay(mm, cur2, 2000);
+
+            auto market = TestMarket{*app};
+            auto o1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {cur2, cur1, Price{1, 1000}, 2000});
+            });
+
+            for_versions_from(10, *app, [&] {
+                market.requireChanges({{o1.key, OfferState::DELETED}}, [&] {
+                    source.pay(destination, cur1, 2, cur2, 1001, {cur1, cur2});
+                });
+                market.requireBalances({{source, {{cur1, 0}}},
+                                        {mm, {{cur1, 2}, {cur2, 999}}},
+                                        {destination, {{cur2, 1001}}}});
+            });
+        }
+
+        SECTION("exchangeV10 recalculate sheepValue: 2 offers")
+        {
+            source.changeTrust(cur1, 7);
+            mm.changeTrust(cur1, 10);
+            mm.changeTrust(cur2, 10000);
+            destination.changeTrust(cur2, 6001);
+
+            gateway.pay(source, cur1, 7);
+            gateway.pay(mm, cur2, 10000);
+
+            auto market = TestMarket{*app};
+            auto o1 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {cur2, cur1, Price{1, 1000}, 5000});
+            });
+            auto o2 = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(mm, {cur2, cur1, Price{1, 1000}, 5000});
+            });
+
+            for_versions_from(10, *app, [&] {
+                market.requireChanges(
+                    {{o1.key, OfferState::DELETED},
+                     {o2.key, {cur2, cur1, Price{1, 1000}, 3000}}},
+                    [&] {
+                        source.pay(destination, cur1, 7, cur2, 6001,
+                                   {cur1, cur2});
+                    });
+                market.requireBalances({{source, {{cur1, 0}}},
+                                        {mm, {{cur1, 7}, {cur2, 3999}}},
+                                        {destination, {{cur2, 6001}}}});
+            });
+        }
     }
 }

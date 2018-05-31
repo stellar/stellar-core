@@ -186,7 +186,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
         medida::MetricsRegistry& metrics = app.getMetrics();
         OfferExchange::ConvertResult r = oe.convertWithOffers(
             curA, INT64_MAX, curASent, curB, curBReceived, actualCurBReceived,
-            [this, &metrics](OfferFrame const& o) {
+            true, [this, &metrics](OfferFrame const& o) {
                 if (o.getSellerID() == getSourceID())
                 {
                     // we are crossing our own offer, potentially invalidating
