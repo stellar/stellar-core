@@ -184,8 +184,12 @@ debugging purpose).
 
 ### The following HTTP commands are exposed on test instances
 * **generateload**
-  `/generateload[?accounts=N&txs=M&txrate=(R|auto)]`<br>
+  `/generateload[?accounts=N&&offset=K&txs=M&txrate=(R|auto)&batchsize=L]`<br>
   Artificially generate load for testing; must be used with `ARTIFICIALLY_GENERATE_LOAD_FOR_TESTING` set to true.
+  Depending on the mode, either creates new accounts or generates payments on
+  accounts specified (where number of accounts can be offset).
+  Additionally, allows batching up to 100 account creations per transaction
+  via 'batchsize'.
 
 * **manualclose**
   If MANUAL_CLOSE is set to true in the .cfg file. This will cause the current ledger to close.
