@@ -484,7 +484,6 @@ ApplicationImpl::generateLoad(bool isCreate, uint32_t nAccounts,
                               uint32_t batchSize, bool autoRate)
 {
     getMetrics().NewMeter({"loadgen", "run", "start"}, "run").Mark();
-    getLoadGenerator().clear();
     getLoadGenerator().generateLoad(isCreate, nAccounts, offset, nTxs, txRate,
                                     batchSize, autoRate);
 }

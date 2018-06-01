@@ -623,6 +623,7 @@ LoadGenerator::waitTillComplete()
         mApp.getMetrics()
             .NewMeter({"loadgen", "run", "complete"}, "run")
             .Mark();
+        clear();
         return;
     }
     else
