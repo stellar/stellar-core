@@ -1599,6 +1599,7 @@
     <None Include="..\..\src\history\serialize-tests\stellar-history.testnet.6714239.json">
       <Filter>history\tests\serialize-tests</Filter>
     </None>
+    <None Include="..\..\performance-eval.md" />
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\xdr\Stellar-ledger.x">

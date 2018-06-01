@@ -763,6 +763,7 @@ exit /b 0
     <None Include="..\..\NEWS" />
     <None Include="..\..\.github\ISSUE_TEMPLATE.md" />
     <None Include="..\..\.github\PULL_REQUEST_TEMPLATE.md" />
+    <None Include="..\..\performance-eval.md" />
     <None Include="..\..\README" />
     <None Include="..\..\README.md" />
     <None Include="..\..\src\bucket\readme.md" />
