@@ -12,7 +12,7 @@
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
  * remote TCP peers (TCPPeer), a mechanism for flooding messages to all peers
  * (FloodGate), and a mechanism for sending and receiving anycast request/reply
- * pairs (ItemFetcher).
+ * pairs (ItemFetchQueue).
  *
  * Overlay network messages are defined as the XDR structure type
  * `StellarMessage`, in the file src/xdr/Stellar-overlay.x
@@ -32,7 +32,7 @@
  *  - Two-way anycast messages requesting a value (by hash) or providing it:
  *    GET_TX_SET, TX_SET, GET_SCP_QUORUMSET, SCP_QUORUMSET, GET_SCP_STATE
  *
- * Anycasts are initiated and serviced two instances of ItemFetcher
+ * Anycasts are initiated and serviced two instances of ItemFetchQueue
  * (mTxSetFetcher and mQuorumSetFetcher). Anycast messages are sent to
  * directly-connected peers, in sequence until satisfied. They are not
  * flooded between peers.
@@ -60,7 +60,7 @@ class OverlayManager
     // Drop all PeerRecords from the Database
     static void dropAll(Database& db);
 
-    // Flush all FloodGate and ItemFetcher state for ledgers older than
+    // Flush all FloodGate and ItemFetchQueue state for ledgers older than
     // `ledger`.
     // This is called by LedgerManager when a ledger closes.
     virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
@@ -131,9 +131,6 @@ class OverlayManager
     // Attempt to connect to a peer identified by peer record. Can modify back
     // off value of pr and save it do database.
     virtual void connectTo(PeerRecord& pr) = 0;
-
-    // returns the list of peers that sent us the item with hash `h`
-    virtual std::set<Peer::pointer> getPeersKnows(Hash const& h) = 0;
 
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;

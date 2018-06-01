@@ -74,5 +74,6 @@ VirtualClock::time_point genesis(int minute, int second);
 
 PublicKey makePublicKey(int i);
 SCPQuorumSet makeSaneQuorumSet(PublicKey key);
+SCPQuorumSet makeBigQuorumSet();
 SCPEnvelope makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex);
 }

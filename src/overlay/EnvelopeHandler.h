@@ -65,7 +65,6 @@ class EnvelopeHandler
     /**
      * Called when "donthave" message is received from external peer.
      */
-    virtual void doesNotHave(Peer::pointer peer, stellar::MessageType type,
-                             uint256 const& itemID) = 0;
+    virtual void doesNotHave(Peer::pointer peer, ItemKey itemKey) = 0;
 };
 }

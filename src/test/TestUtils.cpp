@@ -134,6 +134,28 @@ makeSaneQuorumSet(PublicKey key)
     return result;
 }
 
+SCPQuorumSet
+makeBigQuorumSet()
+{
+    auto keys = std::vector<PublicKey>{};
+    for (auto i = 0; i < 1001; i++)
+    {
+        keys.push_back(makePublicKey(i));
+    }
+
+    auto bigQSet = SCPQuorumSet{};
+    bigQSet.threshold = 1;
+    bigQSet.validators.push_back(keys[0]);
+    for (auto i = 0; i < 10; i++)
+    {
+        bigQSet.innerSets.push_back({});
+        bigQSet.innerSets.back().threshold = 1;
+        for (auto j = i * 100 + 1; j <= (i + 1) * 100; j++)
+            bigQSet.innerSets.back().validators.push_back(keys[j]);
+    }
+    return bigQSet;
+}
+
 SCPEnvelope
 makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex)
 {

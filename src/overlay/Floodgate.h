@@ -59,9 +59,6 @@ class Floodgate
 
     void broadcast(StellarMessage const& msg, bool force);
 
-    // returns the list of peers that sent us the item with hash `h`
-    std::set<Peer::pointer> getPeersKnows(Hash const& h);
-
     void shutdown();
 };
 }

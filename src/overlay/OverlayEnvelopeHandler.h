@@ -27,8 +27,7 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
     std::set<SCPEnvelope> txSet(Peer::pointer peer, TransactionSet const& txSet,
                                 bool force) override;
 
-    void doesNotHave(Peer::pointer peer, stellar::MessageType type,
-                     uint256 const& itemID) override;
+    void doesNotHave(Peer::pointer peer, ItemKey itemKey) override;
 
   private:
     Application& mApp;

@@ -4,106 +4,86 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "herder/TxSetFrame.h"
+#include "overlay/ItemKey.h"
 #include "overlay/Peer.h"
-#include "util/HashOfHash.h"
-#include "util/NonCopyable.h"
-#include "util/Timer.h"
-#include <deque>
-#include <functional>
-#include <map>
-#include <util/optional.h>
-
-namespace medida
-{
-class Counter;
-}
 
 namespace stellar
 {
 
-class Tracker;
-class TxSetFrame;
-struct SCPQuorumSet;
-using TxSetFramePtr = std::shared_ptr<TxSetFrame>;
+class Application;
+
 using SCPQuorumSetPtr = std::shared_ptr<SCPQuorumSet>;
-using AskPeer = std::function<void(Peer::pointer, Hash)>;
 
 /**
- * @class ItemFetcher
- *
- * Manages asking for Transaction or Quorum sets from Peers
- *
- * The ItemFetcher keeps instances of the Tracker class. There exists exactly
- * one Tracker per item. The tracker is used to maintain the state of the
- * search.
+ * This class is responsible for handling envelope items - quorum and
+ * transaction sets. It keeps cache of them and can requests data from network
+ * when neccessary.
  */
-class ItemFetcher : private NonMovableOrCopyable
+class ItemFetcher
 {
   public:
-    using TrackerPtr = std::shared_ptr<Tracker>;
+    using AddResult = std::pair<bool, ItemKey>;
 
     /**
-     * Create ItemFetcher that fetches data using @p askPeer delegate.
+     * Add quorum set to local cache. If force is false adding is only possible
+     * when item was requested from remote peer. Returns pair of values - first
+     * one is set to true if value was properly added to cache, second is
+     * ItemKey thatn will help with identyfing that item in future.
      */
-    explicit ItemFetcher(Application& app, AskPeer askPeer);
+    virtual AddResult add(SCPQuorumSet const& qset, bool force) = 0;
 
     /**
-     * Fetch data identified by @p hash and needed by @p envelope. Multiple
-     * envelopes may require one set of data.
+     * Add transaction set to local cache. If force is false adding is only
+     * possible when item was requested from remote peer. Returns pair of values
+     * - first one is set to true if value was properly added to cache, second
+     * is ItemKey thatn will help with identyfing that item in future.
      */
-    void fetch(Hash itemHash, const SCPEnvelope& envelope);
+    virtual AddResult add(TransactionSet const& txSet, bool force) = 0;
 
     /**
-     * Stops fetching data identified by @p hash for @p envelope. If other
-     * envelopes requires this data, it is still being fetched, but
-     * @p envelope will not be notified about it.
+     * Touches LRU cache for given item, ensuring that it will be available
+     * longer.
      */
-    void stopFetch(Hash itemHash, const SCPEnvelope& envelope);
+    virtual void touch(ItemKey key) = 0;
 
     /**
-     * Return biggest slot index seen for given hash. If 0, then given hash
-     * is not being fetched.
+     * Return true if item with given key is available in cache.
      */
-    uint64 getLastSeenSlotIndex(Hash itemHash) const;
+    virtual bool contains(ItemKey key) const = 0;
 
     /**
-     * Return envelopes that require data identified by @p hash.
+     * Return quorum set with given hash or null pointer if it is not available
+     * in cache.
      */
-    std::vector<SCPEnvelope> fetchingFor(Hash itemHash) const;
+    virtual SCPQuorumSetPtr getQuorumSet(Hash hash) = 0;
 
     /**
-     * Called periodically to remove old envelopes from list (with ledger id
-     * below some @p slotIndex). Can also remove @see Tracker instances when
-     * non needed anymore.
+     * Return transaction set with given hash or null pointer if it is not
+     * available in cache.
      */
-    void stopFetchingBelow(uint64 slotIndex);
+    virtual TxSetFramePtr getTxSet(Hash hash) = 0;
 
     /**
-     * Called when given @p peer informs that it does not have data identified
-     * by @p itemHash.
+     * Start fetching items for given envelope, if neccessary. Try to ask peer
+     * first as it probably has those items. Returns item keys for items that
+     * are not available in cache and are being fetched now.
      */
-    void doesntHave(Hash const& itemHash, Peer::pointer peer);
+    virtual std::vector<ItemKey> fetchFor(SCPEnvelope const& envelope,
+                                          Peer::pointer peer) = 0;
 
     /**
-     * Called when data with given @p itemHash was received. All envelopes
-     * added before with @see fetch and the same @p itemHash will be resent
-     * to Herder, matching @see Tracker will be cleaned up.
+     * Stops fetching given item and remove it from cache.
      */
-    void recv(Hash itemHash);
+    virtual void forget(ItemKey itemKey) = 0;
 
-  protected:
-    void stopFetchingBelowInternal(uint64 slotIndex);
+    /**
+     * Remove given peer from set of peers that probably have given item.
+     */
+    virtual void removeKnowing(Peer::pointer peer, ItemKey itemKey) = 0;
 
-    Application& mApp;
-    std::map<Hash, std::shared_ptr<Tracker>> mTrackers;
-
-    // NB: There are many ItemFetchers in the system at once, but we are sharing
-    // a single counter for all the items being fetched by all of them. Be
-    // careful, therefore, to only increment and decrement this counter, not set
-    // it absolutely.
-    medida::Counter& mItemMapSize;
-
-  private:
-    AskPeer mAskPeer;
+    virtual ~ItemFetcher()
+    {
+    }
 };
 }

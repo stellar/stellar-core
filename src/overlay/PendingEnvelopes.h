@@ -1,134 +1,92 @@
 ﻿#pragma once
 
-#include "crypto/SecretKey.h"
-#include "herder/Herder.h"
-#include "overlay/ItemFetcher.h"
+// Copyright 2018 Stellar Development Foundation and contributors. Licensed
+// under the Apache License, Version 2.0. See the COPYING file at the root
+// of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
+
+#include "overlay/EnvelopeHandler.h"
+#include "overlay/EnvelopeItemMap.h"
 #include "overlay/NodesInQuorum.h"
+#include "overlay/ReadyEnvelopes.h"
+#include "xdr/Stellar-types.h"
 
-#include <autocheck/function.hpp>
-#include <lib/json/json.h>
-#include <lib/util/lrucache.hpp>
-#include <map>
-#include <medida/medida.h>
-#include <queue>
-#include <set>
-#include <util/optional.h>
-
-/*
-SCP messages that you have received but are waiting to get the info of
-before feeding into SCP
-*/
-
+/**
+ * Container for envelopes that have not yet been processed by Herder. Each
+ * envelope here can have on of four states: DISCARDED means that envelope
+ * should not be processed for any reason, FETCHING means that some data for
+ * this envelope is still not available on local node, READY means that it can
+ * be processed by herder and PROCESSED that is has been processed already.
+ */
 namespace stellar
 {
 
-struct SlotEnvelopes
-{
-    // list of envelopes we have processed already
-    std::vector<SCPEnvelope> mProcessedEnvelopes;
-    // list of envelopes we have discarded already
-    std::set<SCPEnvelope> mDiscardedEnvelopes;
-    // list of envelopes we are fetching right now
-    std::set<SCPEnvelope> mFetchingEnvelopes;
-    // list of ready envelopes that haven't been sent to SCP yet
-    std::vector<SCPEnvelope> mReadyEnvelopes;
-};
-
 class PendingEnvelopes
 {
-    Application& mApp;
-
-    // ledger# and list of envelopes in various states
-    std::map<uint64, SlotEnvelopes> mEnvelopes;
-
-    // all the quorum sets we have learned about
-    cache::lru_cache<Hash, SCPQuorumSetPtr> mQsetCache;
-
-    ItemFetcher mTxSetFetcher;
-    ItemFetcher mQuorumSetFetcher;
-
-    using TxSetFramCacheItem = std::pair<uint64, TxSetFramePtr>;
-    // all the txsets we have learned about per ledger#
-    cache::lru_cache<Hash, TxSetFramCacheItem> mTxSetCache;
-
-    // NodeIDs that are in quorum
-    NodesInQuorum mNodesInQuorum;
-
-    medida::Counter& mReadyEnvelopesSize;
-
-    // discards all SCP envelopes thats use QSet with given hash,
-    // as it is not sane QSet
-    void discardSCPEnvelopesWithQSet(Hash hash);
-
   public:
     PendingEnvelopes(Application& app);
     ~PendingEnvelopes();
 
     /**
-     * Process received @p envelope.
-     *
-     * Return status of received envelope.
+     * Checks if this envelope should be processed at all - if it is too old or
+     * was discarded or processed already, it will be ignored. Otherwise it is
+     * either put into FETCHING or READY state.
      */
-    EnvelopeHandler::EnvelopeStatus
-    recvSCPEnvelope(SCPEnvelope const& envelope);
+    EnvelopeHandler::EnvelopeStatus handleEnvelope(Peer::pointer peer,
+                                                   SCPEnvelope const& envelope);
 
     /**
-     * Add @p qset identified by @p hash to local cache. Notifies
-     * @see ItemFetcher about that event - it may cause calls to Herder's
-     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
-     * in PendingEnvelopes.
+     * After clearing internal quorum node cache it passes the call to
+     * FetchingEnvelopes class. Returns list of envelopes that are now READY.
      */
-    void addSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    std::set<SCPEnvelope> handleQuorumSet(SCPQuorumSet const& qSet,
+                                          bool force = false);
 
     /**
-     * Check if @p qset identified by @p hash was requested before from peers.
-     * If not, ignores that @p qset. If it was requested, calls
-     * @see addSCPQuorumSet.
-     *
-     * Return true if SCPQuorumSet is sane and useful (was asked for).
+     * It passes the call to FetchingEnvelopes class. Returns list of envelopes
+     * that are now READY.
      */
-    bool recvSCPQuorumSet(Hash hash, const SCPQuorumSet& qset);
+    std::set<SCPEnvelope> handleTxSet(TransactionSet const& txSet,
+                                      bool force = false);
 
     /**
-     * Add @p txset identified by @p hash to local cache. Notifies
-     * @see ItemFetcher about that event - it may cause calls to Herder's
-     * recvSCPEnvelope which in turn may cause calls to @see recvSCPEnvelope
-     * in PendingEnvelopes.
+     * Sets minimum value of envelope slot index that is acceptable.
      */
-    void addTxSet(Hash hash, uint64 lastSeenSlotIndex, TxSetFramePtr txset);
+    void setMinimumSlotIndex(uint64_t slotIndex);
 
     /**
-     * Check if @p txset identified by @p hash was requested before from peers.
-     * If not, ignores that @p txset. If it was requested, calls
-     * @see addTxSet.
-     *
-     * Return true if TxSet useful (was asked for).
+     * It passes the call to ReadyEnvelopes class.
      */
-    bool recvTxSet(Hash hash, TxSetFramePtr txset);
-    void discardSCPEnvelope(SCPEnvelope const& envelope);
+    bool pop(uint64_t slotIndex, SCPEnvelope& ret);
 
-    void peerDoesntHave(MessageType type, Hash const& itemID,
-                        Peer::pointer peer);
-
-    bool isDiscarded(SCPEnvelope const& envelope) const;
-    bool isFullyFetched(SCPEnvelope const& envelope);
-    void startFetch(SCPEnvelope const& envelope);
-    void stopFetch(SCPEnvelope const& envelope);
-    void touchFetchCache(SCPEnvelope const& envelope);
-
-    void envelopeReady(SCPEnvelope const& envelope);
-
-    bool pop(uint64 slotIndex, SCPEnvelope& ret);
-
-    void eraseBelow(uint64 slotIndex);
-
-    void slotClosed(uint64 slotIndex);
-
-    std::vector<uint64> readySlots();
+    /**
+     * It passes the call to ReadyEnvelopes class.
+     */
+    std::vector<uint64_t> readySlots();
 
     Json::Value getJsonInfo(size_t limit);
 
-    TxSetFramePtr getTxSet(Hash const& hash);
-    SCPQuorumSetPtr getQSet(Hash const& hash);
+  private:
+    Application& mApp;
+    ReadyEnvelopes mReadyEnvelopes;
+    NodesInQuorum mNodesInQuorum;
+
+    struct SlotEnvelopes
+    {
+        std::set<SCPEnvelope> mDiscardedEnvelopes;
+        std::set<SCPEnvelope> mFetchingEnvelopes;
+    };
+
+    std::map<uint64_t, SlotEnvelopes> mEnvelopes;
+
+    EnvelopeItemMap mEnvelopeItemMap;
+
+    uint64_t mMinimumSlotIndex{0};
+
+    void discardEnvelope(SCPEnvelope const& envelope);
+    void discardEnvelopesWithItem(ItemKey itemKey);
+
+    void touchItemCache(SCPEnvelope const& envelope);
+    std::set<SCPEnvelope> processReadyItems(ItemKey itemKey);
+    bool isDiscarded(SCPEnvelope const& envelope);
 };
 }

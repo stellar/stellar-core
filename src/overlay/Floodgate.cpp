@@ -115,18 +115,6 @@ Floodgate::broadcast(StellarMessage const& msg, bool force)
                            << peersTold.size();
 }
 
-std::set<Peer::pointer>
-Floodgate::getPeersKnows(Hash const& h)
-{
-    std::set<Peer::pointer> res;
-    auto record = mFloodMap.find(h);
-    if (record != mFloodMap.end())
-    {
-        res = record->second->mPeersTold;
-    }
-    return res;
-}
-
 void
 Floodgate::shutdown()
 {

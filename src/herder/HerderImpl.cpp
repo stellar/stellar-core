@@ -16,6 +16,7 @@
 #include "main/Config.h"
 #include "main/PersistentState.h"
 #include "overlay/EnvelopeHandler.h"
+#include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
 #include "scp/LocalNode.h"
@@ -176,8 +177,7 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         CLOG(DEBUG, "Herder") << "HerderSCPDriver::valueExternalized"
                               << " txSet: " << hexAbbrev(value.txSetHash);
 
-    TxSetFramePtr externalizedSet =
-        mApp.getPendingEnvelopes().getTxSet(value.txSetHash);
+    auto externalizedSet = mApp.getItemFetcher().getTxSet(value.txSetHash);
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -399,14 +399,6 @@ HerderImpl::processSCPQueue()
 {
     if (mHerderSCPDriver.trackingSCP())
     {
-        // drop obsolete slots
-        if (mHerderSCPDriver.nextConsensusLedgerIndex() > MAX_SLOTS_TO_REMEMBER)
-        {
-            mApp.getPendingEnvelopes().eraseBelow(
-                mHerderSCPDriver.nextConsensusLedgerIndex() -
-                MAX_SLOTS_TO_REMEMBER);
-        }
-
         processSCPQueueUpToIndex(mHerderSCPDriver.nextConsensusLedgerIndex());
     }
     else
@@ -453,8 +445,16 @@ HerderImpl::ledgerClosed()
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+    if (lastIndex > MAX_SLOTS_TO_REMEMBER)
+    {
+        mApp.getPendingEnvelopes().setMinimumSlotIndex(lastIndex -
+                                                       MAX_SLOTS_TO_REMEMBER);
+    }
+    else
+    {
+        mApp.getPendingEnvelopes().setMinimumSlotIndex(0);
+    }
 
-    mApp.getPendingEnvelopes().slotClosed(lastIndex);
     mApp.getOverlayManager().ledgerClosed(lastIndex);
     updateValidRange();
 
@@ -550,38 +550,6 @@ HerderImpl::removeReceivedTxs(std::vector<TransactionFramePtr> const& dropTxs)
     }
 }
 
-bool
-HerderImpl::recvSCPQuorumSet(Hash const& hash, const SCPQuorumSet& qset)
-{
-    return mApp.getPendingEnvelopes().recvSCPQuorumSet(hash, qset);
-}
-
-bool
-HerderImpl::recvTxSet(Hash const& hash, const TxSetFrame& t)
-{
-    TxSetFramePtr txset(new TxSetFrame(t));
-    return mApp.getPendingEnvelopes().recvTxSet(hash, txset);
-}
-
-void
-HerderImpl::peerDoesntHave(MessageType type, uint256 const& itemID,
-                           PeerPtr peer)
-{
-    mApp.getPendingEnvelopes().peerDoesntHave(type, itemID, peer);
-}
-
-TxSetFramePtr
-HerderImpl::getTxSet(Hash const& hash)
-{
-    return mApp.getPendingEnvelopes().getTxSet(hash);
-}
-
-SCPQuorumSetPtr
-HerderImpl::getQSet(Hash const& qSetHash)
-{
-    return mHerderSCPDriver.getQSet(qSetHash);
-}
-
 uint32_t
 HerderImpl::getCurrentLedgerSeq() const
 {
@@ -658,8 +626,6 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         throw std::runtime_error("wanting to emit an invalid txSet");
     }
 
-    auto txSetHash = proposedSet->getContentsHash();
-
     // use the slot index from ledger manager here as our vote is based off
     // the last closed ledger stored in ledger manager
     uint32_t slotIndex = lcl.header.ledgerSeq + 1;
@@ -687,6 +653,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
         nextCloseTime = lcl.header.scpValue.closeTime + 1;
     }
 
+    auto txSetHash = proposedSet->getContentsHash();
     StellarValue newProposedValue(txSetHash, nextCloseTime, emptyUpgradeSteps,
                                   0);
 
@@ -822,14 +789,14 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getTxSetHashes(e))
         {
-            auto txSet = mApp.getPendingEnvelopes().getTxSet(h);
+            auto txSet = mApp.getItemFetcher().getTxSet(h);
             if (txSet)
             {
                 txSets.insert(std::make_pair(h, txSet));
             }
         }
         auto qsHash = getQuorumSetHash(e);
-        auto qSet = mApp.getPendingEnvelopes().getQSet(qsHash);
+        auto qSet = mApp.getItemFetcher().getQuorumSet(qsHash);
         if (qSet)
         {
             quorumSets.insert(std::make_pair(qsHash, qSet));
@@ -888,14 +855,11 @@ HerderImpl::restoreSCPState()
 
         for (auto const& txset : latestTxSets)
         {
-            TxSetFramePtr cur =
-                make_shared<TxSetFrame>(mApp.getNetworkID(), txset);
-            Hash h = cur->getContentsHash();
-            mApp.getPendingEnvelopes().addTxSet(h, 0, cur);
+            mApp.getItemFetcher().add(txset, true);
         }
         for (auto const& qset : latestQSets)
         {
-            mApp.getEnvelopeHandler().quorumSet(nullptr, qset, true);
+            mApp.getItemFetcher().add(qset, true);
         }
         for (auto const& e : latestEnvs)
         {

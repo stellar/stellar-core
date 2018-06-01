@@ -105,7 +105,7 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
         return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
-    auto status = mApp.getPendingEnvelopes().recvSCPEnvelope(envelope);
+    auto status = mApp.getPendingEnvelopes().handleEnvelope(nullptr, envelope);
     if (status == EnvelopeHandler::ENVELOPE_STATUS_READY)
     {
         mApp.getReadyEnvelopeHandler().readyEnvelopeAvailable();
@@ -117,7 +117,7 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
 void
 OverlayEnvelopeHandler::getQuorumSet(Peer::pointer peer, Hash const& hash)
 {
-    if (auto qset = mApp.getHerder().getQSet(hash))
+    if (auto qset = mApp.getItemFetcher().getQuorumSet(hash))
     {
         peer->sendSCPQuorumSet(qset);
     }
@@ -134,22 +134,18 @@ std::set<SCPEnvelope>
 OverlayEnvelopeHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet,
                                   bool force)
 {
-    Hash hash = sha256(xdr::xdr_to_opaque(qSet));
-    if (force)
+    auto envelopes = mApp.getPendingEnvelopes().handleQuorumSet(qSet, force);
+    for (auto const& e : envelopes)
     {
-        mApp.getPendingEnvelopes().addSCPQuorumSet(hash, qSet);
+        envelope(peer, e);
     }
-    else
-    {
-        mApp.getHerder().recvSCPQuorumSet(hash, qSet);
-    }
-    return {};
+    return envelopes;
 }
 
 void
 OverlayEnvelopeHandler::getTxSet(Peer::pointer peer, Hash const& hash)
 {
-    if (auto txSet = mApp.getHerder().getTxSet(hash))
+    if (auto txSet = mApp.getItemFetcher().getTxSet(hash))
     {
         StellarMessage newMsg;
         newMsg.type(TX_SET);
@@ -167,24 +163,17 @@ std::set<SCPEnvelope>
 OverlayEnvelopeHandler::txSet(Peer::pointer peer, TransactionSet const& txSet,
                               bool force)
 {
-    TxSetFrame frame(mApp.getNetworkID(), txSet);
-    if (force)
+    auto envelopes = mApp.getPendingEnvelopes().handleTxSet(txSet, force);
+    for (auto const& e : envelopes)
     {
-        mApp.getPendingEnvelopes().addTxSet(
-            frame.getContentsHash(), 0, std::make_shared<TxSetFrame>(frame));
+        envelope(peer, e);
     }
-    else
-    {
-        mApp.getHerder().recvTxSet(frame.getContentsHash(), frame);
-    }
-    return {};
+    return envelopes;
 }
 
 void
-OverlayEnvelopeHandler::doesNotHave(Peer::pointer peer,
-                                    stellar::MessageType type,
-                                    uint256 const& itemID)
+OverlayEnvelopeHandler::doesNotHave(Peer::pointer peer, ItemKey itemKey)
 {
-    mApp.getHerder().peerDoesntHave(type, itemID, peer);
+    mApp.getItemFetcher().removeKnowing(peer, itemKey);
 }
 }

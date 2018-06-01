@@ -631,7 +631,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
-                    std::set<SCPEnvelope>{});
+                    std::set<SCPEnvelope>{saneEnvelopeQ1T1});
             REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
         }
@@ -745,7 +745,7 @@ TEST_CASE("SCP Driver", "[herder]")
             REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
-                    std::set<SCPEnvelope>{});
+                    std::set<SCPEnvelope>{saneEnvelopeQ1T1});
         }
     }
 }

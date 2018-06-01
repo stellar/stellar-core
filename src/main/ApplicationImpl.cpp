@@ -14,7 +14,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
-#include "herder/Herder.h"
+#include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
 #include "herder/HerderReadyEnvelopeHandler.h"
 #include "history/HistoryArchiveManager.h"
@@ -38,6 +38,7 @@
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
+#include "overlay/ItemFetcherImpl.h"
 #include "overlay/OverlayEnvelopeHandler.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
@@ -118,6 +119,7 @@ ApplicationImpl::initialize()
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
+    mItemFetcher = std::make_unique<ItemFetcherImpl>(*this);
     mMaintainer = std::make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
@@ -144,7 +146,7 @@ ApplicationImpl::initialize()
     }
 
     auto localNode = getHerder().getSCP().getLocalNode();
-    mEnvelopeHandler->quorumSet(nullptr, localNode->getQuorumSet(), true);
+    mItemFetcher->add(localNode->getQuorumSet(), true);
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -706,6 +708,12 @@ InvariantManager&
 ApplicationImpl::getInvariantManager()
 {
     return *mInvariantManager;
+}
+
+ItemFetcher&
+ApplicationImpl::getItemFetcher()
+{
+    return *mItemFetcher;
 }
 
 OverlayManager&

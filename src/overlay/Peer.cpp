@@ -14,31 +14,27 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/EnvelopeHandler.h"
+#include "overlay/ItemFetcher.h"
 #include "overlay/LoadManager.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PeerRecord.h"
+#include "overlay/PendingEnvelopes.h"
 #include "overlay/StellarXDR.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
 
-#include "medida/meter.h"
-#include "medida/metrics_registry.h"
-#include "medida/timer.h"
-
-#include "xdrpp/marshal.h"
-
-#include <soci.h>
-#include <time.h>
+#include <medida/meter.h>
+#include <medida/metrics_registry.h>
+#include <medida/timer.h>
+#include <xdrpp/marshal.h>
 
 // LATER: need to add some way of docking peers that are misbehaving by sending
 // you bad data
 
 namespace stellar
 {
-
-using namespace std;
-using namespace soci;
 
 medida::Meter&
 Peer::getByteReadMeter(Application& app)
@@ -95,15 +91,6 @@ Peer::Peer(Application& app, PeerRole role)
           app.getMetrics().NewTimer({"overlay", "recv", "scp-message"}))
     , mRecvGetSCPStateTimer(
           app.getMetrics().NewTimer({"overlay", "recv", "get-scp-state"}))
-
-    , mRecvSCPPrepareTimer(
-          app.getMetrics().NewTimer({"overlay", "recv", "scp-prepare"}))
-    , mRecvSCPConfirmTimer(
-          app.getMetrics().NewTimer({"overlay", "recv", "scp-confirm"}))
-    , mRecvSCPNominateTimer(
-          app.getMetrics().NewTimer({"overlay", "recv", "scp-nominate"}))
-    , mRecvSCPExternalizeTimer(
-          app.getMetrics().NewTimer({"overlay", "recv", "scp-externalize"}))
 
     , mSendErrorMeter(
           app.getMetrics().NewMeter({"overlay", "send", "error"}, "message"))
@@ -184,7 +171,7 @@ Peer::sendHello()
     elo.networkID = mApp.getNetworkID();
     elo.listeningPort = mApp.getConfig().PEER_PORT;
     elo.peerID = mApp.getConfig().NODE_SEED.getPublicKey();
-    elo.cert = this->getAuthCert();
+    elo.cert = getAuthCert();
     elo.nonce = mSendNonce;
     sendMessage(msg);
 }
@@ -519,7 +506,7 @@ Peer::sendMessage(StellarMessage const& msg)
         ++mSendMacSeq;
     }
     xdr::msg_ptr xdrBytes(xdr::xdr_to_msg(amsg));
-    this->sendMessage(std::move(xdrBytes));
+    sendMessage(std::move(xdrBytes));
 }
 
 void
@@ -642,14 +629,14 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case HELLO:
     {
         auto t = mRecvHelloTimer.TimeScope();
-        this->recvHello(stellarMsg.hello());
+        recvHello(stellarMsg.hello());
     }
     break;
 
     case AUTH:
     {
         auto t = mRecvAuthTimer.TimeScope();
-        this->recvAuth(stellarMsg);
+        recvAuth(stellarMsg);
     }
     break;
 
@@ -728,8 +715,27 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
 void
 Peer::recvDontHave(StellarMessage const& msg)
 {
+    ItemType itemType;
+    switch (msg.dontHave().type)
+    {
+    case TX_SET:
+    {
+        itemType = ItemType::TX_SET;
+        break;
+    }
+    case SCP_QUORUMSET:
+    {
+        itemType = ItemType::QUORUM_SET;
+        break;
+    }
+    default:
+    {
+        assert(false);
+    }
+    }
+
     mApp.getEnvelopeHandler().doesNotHave(
-        shared_from_this(), msg.dontHave().type, msg.dontHave().reqHash);
+        shared_from_this(), ItemKey{itemType, msg.dontHave().reqHash});
 }
 
 void
