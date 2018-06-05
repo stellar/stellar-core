@@ -39,7 +39,8 @@ class OperationFrame
     AccountFrame::pointer mSourceAccount;
     OperationResult& mResult;
 
-    bool checkSignature(SignatureChecker& signatureChecker) const;
+    bool checkSignature(SignatureChecker& signatureChecker, Application& app,
+                        LedgerDelta* delta);
 
     virtual bool doCheckValid(Application& app) = 0;
     virtual bool doApply(Application& app, LedgerDelta& delta,
