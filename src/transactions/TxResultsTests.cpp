@@ -5,14 +5,15 @@
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/Timer.h"
-#include "xdrpp/printer.h"
+
 #include <algorithm>
+#include <lib/catch.hpp>
+#include <xdrpp/printer.h>
 
 using namespace stellar;
 using namespace stellar::txtest;
@@ -644,19 +645,19 @@ TEST_CASE("txresults", "[tx][txresults]")
                         baseFee * 3, 3, txFAILED,
                         {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
             });
-            for_versions({7}, *app, [&] {
-                validateTxResults(
-                    tx, *app, {baseFee * 3, txSUCCESS},
-                    expectedResult(baseFee * 3, 3, txSUCCESS,
-                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
-                                    PAYMENT_SUCCESS}));
-            });
-            for_versions_from(8, *app, [&] {
+            for_versions({8, 9}, *app, [&] {
                 validateTxResults(
                     tx, *app, {baseFee * 3, txSUCCESS},
                     expectedResult(
                         baseFee * 3, 3, txFAILED,
                         {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+            });
+            for_versions_from({7, 10}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 3, txSUCCESS},
+                    expectedResult(baseFee * 3, 3, txSUCCESS,
+                                   {PAYMENT_SUCCESS, SET_OPTIONS_SUCCESS,
+                                    PAYMENT_SUCCESS}));
             });
         }
 

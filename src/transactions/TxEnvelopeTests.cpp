@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "crypto/Hex.h"
 #include "crypto/Random.h"
 #include "crypto/SignerKey.h"
 #include "crypto/SignerKeyUtils.h"
@@ -157,7 +158,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+            for_all_versions_except({7}, *app, [&] {
                 applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txBAD_AUTH);
             });
@@ -176,7 +177,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s2);
 
-            for_versions_from({1, 2, 3, 4, 5, 6, 8}, *app, [&] {
+            for_all_versions_except({7}, *app, [&] {
                 applyCheck(tx, *app);
                 REQUIRE(tx->getResultCode() == txFAILED);
                 REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
@@ -270,7 +271,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         struct AltSignature
         {
             std::string name;
-            bool removeAfterSucces;
+            bool autoRemove;
             std::function<SignerKey(TransactionFrame const&)> createSigner;
             std::function<void(TransactionFrame&)> sign;
         };
@@ -377,7 +378,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                        for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -386,6 +387,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txBAD_AUTH_EXTRA);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                     }
 
@@ -409,7 +416,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
-                                    (alternative.removeAfterSucces ? 0 : 1));
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                         for_versions({7}, *app, [&] {
                             applyCheck(tx, *app);
@@ -463,12 +470,20 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
 
-                        for_versions_from(3, *app, [&] {
+                        for_versions(3, 9, *app, [&] {
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == stellar::txFAILED);
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == stellar::PAYMENT_MALFORMED);
                             REQUIRE(getAccountSigners(a1, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == stellar::txFAILED);
+                            REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
+                                        *tx)) == stellar::PAYMENT_MALFORMED);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                     }
                 }
@@ -556,7 +571,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             REQUIRE(PaymentOpFrame::getInnerCode(getFirstResult(
                                         *tx)) == PAYMENT_SUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() ==
-                                    (alternative.removeAfterSucces ? 1 : 2));
+                                    (alternative.autoRemove ? 1 : 2));
                         });
                         for_versions({7}, *app, [&] {
                             applyCheck(tx, *app);
@@ -590,9 +605,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
                         REQUIRE(getAccountSigners(root, *app).size() ==
-                                (alternative.removeAfterSucces ? 0 : 1));
+                                (alternative.autoRemove ? 0 : 1));
                         REQUIRE(getAccountSigners(a1, *app).size() ==
-                                (alternative.removeAfterSucces ? 0 : 1));
+                                (alternative.autoRemove ? 0 : 1));
                     });
                     for_versions({7}, *app, [&] {
                         applyCheck(tx, *app);
@@ -627,9 +642,9 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(PaymentOpFrame::getInnerCode(
                                     getFirstResult(*tx)) == PAYMENT_SUCCESS);
                         REQUIRE(getAccountSigners(root, *app).size() ==
-                                (alternative.removeAfterSucces ? 0 : 1));
+                                (alternative.autoRemove ? 0 : 1));
                         REQUIRE(getAccountSigners(a1, *app).size() ==
-                                (alternative.removeAfterSucces ? 0 : 1));
+                                (alternative.autoRemove ? 0 : 1));
                     });
                     for_versions({7}, *app, [&] {
                         applyCheck(tx, *app);
@@ -858,23 +873,10 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     //  2. send from C -> root
 
                     auto tx = b1.tx(
-                        {createAccount(c1.getPublicKey(), paymentAmount / 2)});
-                    auto tx_c = c1.tx({payment(root, 1000)});
+                        {createAccount(c1.getPublicKey(), paymentAmount / 2),
+                         c1.op(payment(root, 1000))});
 
-                    tx_c->getEnvelope()
-                        .tx.operations[0]
-                        .sourceAccount.activate() = c1.getPublicKey();
-
-                    tx->getEnvelope().tx.operations.push_back(
-                        tx_c->getEnvelope().tx.operations[0]);
-
-                    tx->getEnvelope().tx.fee *= 2;
-
-                    tx->getEnvelope().signatures.clear();
-                    tx->addSignature(b1);
                     tx->addSignature(c1);
-
-                    REQUIRE(tx->checkValid(*app, 0));
 
                     applyCheck(tx, *app);
 
@@ -1009,6 +1011,220 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     REQUIRE(txFrame->getResultCode() == txBAD_SEQ);
                 });
             }
+        }
+    }
+
+    SECTION("change signer and weights mid-transaction")
+    {
+        auto a = root.create("a", paymentAmount);
+        auto b = root.create("b", paymentAmount);
+        auto const baseFee =
+            app->getLedgerManager().getCurrentLedgerHeader().baseFee;
+
+        SECTION("switch a into regular account 1")
+        {
+            a.setOptions(setSigner(makeSigner(b, 1)) | setMasterWeight(1) |
+                         setLowThreshold(2) | setMedThreshold(2) |
+                         setHighThreshold(2));
+
+            auto tx = a.tx(
+                {setOptions(setMasterWeight(2) | setSigner(makeSigner(b, 0)))});
+            tx->addSignature(b);
+
+            for_all_versions(*app, [&] {
+                validateTxResults(tx, *app, {baseFee * 1, txSUCCESS},
+                                  expectedResult(baseFee * 1, 1, txSUCCESS,
+                                                 {SET_OPTIONS_SUCCESS}));
+            });
+        }
+
+        SECTION("switch a into regular account 2")
+        {
+            a.setOptions(setMasterWeight(1) | setLowThreshold(2) |
+                         setMedThreshold(2) | setHighThreshold(2) |
+                         setSigner(makeSigner(b, 1)));
+
+            auto tx = a.tx({setOptions(setSigner(makeSigner(b, 0))),
+                            setOptions(setMasterWeight(2))});
+            tx->addSignature(b);
+
+            for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txFAILED,
+                                   {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+            });
+            for_versions_from({7, 10}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+            });
+        }
+
+        SECTION("merge one of signing accounts")
+        {
+            a.setOptions(setMasterWeight(0) | setSigner(makeSigner(b, 1)));
+            closeLedgerOn(*app, 2, 1, 1, 2016);
+
+            SECTION("by destination")
+            {
+                auto tx = b.tx({a.op(setOptions(setMasterWeight(1) |
+                                                setSigner(makeSigner(b, 0)))),
+                                a.op(accountMerge(b))});
+
+                for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                    validateTxResults(
+                        tx, *app, {baseFee * 2, txSUCCESS},
+                        expectedResult(baseFee * 2, 2, txFAILED,
+                                       {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                });
+                for_versions_from({7, 10}, *app, [&] {
+                    auto applyResult = expectedResult(
+                        baseFee * 2, 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
+                    applyResult.result.results()[1]
+                        .tr()
+                        .accountMergeResult()
+                        .sourceAccountBalance() = paymentAmount - 100;
+                    validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
+                                      applyResult);
+                });
+            }
+
+            SECTION("by source, signed by destination")
+            {
+                auto tx = a.tx({setOptions(setMasterWeight(1) |
+                                           setSigner(makeSigner(b, 0))),
+                                accountMerge(b)});
+                tx->getEnvelope().signatures.clear();
+                tx->addSignature(b);
+
+                for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                    validateTxResults(
+                        tx, *app, {baseFee * 2, txSUCCESS},
+                        expectedResult(baseFee * 2, 2, txFAILED,
+                                       {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+                });
+                for_versions_from({7, 10}, *app, [&] {
+                    auto applyResult = expectedResult(
+                        baseFee * 2, 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
+                    applyResult.result.results()[1]
+                        .tr()
+                        .accountMergeResult()
+                        .sourceAccountBalance() = paymentAmount - 300;
+                    validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
+                                      applyResult);
+                });
+            }
+
+            SECTION("by source, signed by both")
+            {
+                auto tx = a.tx({setOptions(setMasterWeight(1) |
+                                           setSigner(makeSigner(b, 0))),
+                                accountMerge(b)});
+                tx->addSignature(b);
+
+                for_all_versions_except({7}, *app, [&] {
+                    validateTxResults(tx, *app,
+                                      {baseFee * 2, txBAD_AUTH_EXTRA});
+                });
+                for_versions({7}, *app, [&] {
+                    auto applyResult = expectedResult(
+                        baseFee * 2, 2, txSUCCESS,
+                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
+                    applyResult.result.results()[1]
+                        .tr()
+                        .accountMergeResult()
+                        .sourceAccountBalance() = paymentAmount - 300;
+                    validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
+                                      applyResult);
+                });
+            }
+        }
+
+        SECTION("change thresholds twice")
+        {
+            auto tx = a.tx({setOptions(setHighThreshold(3)),
+                            setOptions(setHighThreshold(3))});
+            for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txFAILED,
+                                   {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+            });
+            for_versions_from({7, 10}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+            });
+        }
+
+        SECTION("lower master weight twice")
+        {
+            a.setOptions(setMasterWeight(10) | setLowThreshold(1) |
+                         setMedThreshold(5) | setHighThreshold(10));
+
+            auto tx = a.tx({setOptions(setMasterWeight(9)),
+                            setOptions(setMasterWeight(8))});
+            for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txFAILED,
+                                   {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+            });
+            for_versions_from({7, 10}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+            });
+        }
+
+        SECTION("remove signer, do something")
+        {
+            a.setOptions(setSigner(makeSigner(b, 1)) | setMasterWeight(1) |
+                         setLowThreshold(2) | setMedThreshold(2) |
+                         setHighThreshold(2));
+
+            auto tx = a.tx({setOptions(setSigner(makeSigner(b, 0))),
+                            setOptions(setHomeDomain("stellar.org"))});
+            tx->addSignature(b);
+
+            for_versions({1, 2, 3, 4, 5, 6, 8, 9}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txFAILED,
+                                   {SET_OPTIONS_SUCCESS, opBAD_AUTH}));
+            });
+            for_versions_from({7, 10}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+            });
+        }
+
+        SECTION("add signer, increase thresholds, do something")
+        {
+            auto tx =
+                a.tx({setOptions(setSigner(makeSigner(b, 1)) |
+                                 setMasterWeight(1) | setLowThreshold(2) |
+                                 setMedThreshold(2) | setHighThreshold(2)),
+                      setOptions(setHomeDomain("stellar.org"))});
+            tx->addSignature(b);
+
+            for_all_versions_except({7}, *app, [&] {
+                validateTxResults(tx, *app, {baseFee * 2, txBAD_AUTH_EXTRA});
+            });
+            for_versions({7}, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 2, txSUCCESS},
+                    expectedResult(baseFee * 2, 2, txSUCCESS,
+                                   {SET_OPTIONS_SUCCESS, SET_OPTIONS_SUCCESS}));
+            });
         }
     }
 }

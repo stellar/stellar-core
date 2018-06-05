@@ -56,6 +56,8 @@ class TransactionFrame
         kInvalid,             // transaction is not valid at all
         kInvalidUpdateSeqNum, // transaction is invalid but its sequence number
                               // should be updated
+        kInvalidPostAuth,     // transaction is invalid but its sequence number
+                              // should be updated and one-time signers removed
         kFullyValid
     };
 
@@ -82,6 +84,8 @@ class TransactionFrame
                          TransactionMetaV1& meta, Application& app);
 
     void processSeqNum(LedgerManager& lm, LedgerDelta& delta);
+    bool processSignatures(SignatureChecker& signatureChecker, Application& app,
+                           LedgerDelta& delta);
 
   public:
     TransactionFrame(Hash const& networkID,

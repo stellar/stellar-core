@@ -155,10 +155,14 @@ OperationFrame::checkSignature(SignatureChecker& signatureChecker,
         return false;
     }
 
-    if (!forApply)
+    if (app.getLedgerManager().getCurrentLedgerVersion() >= 10 || !forApply)
     {
         // safety: operations should not rely on ledger state as
         // previous operations may change it (can even create the account)
+        //
+        // for ledger version >= 10 signature checking is done before applying
+        // phase so we reset source account as well, so it can be restored
+        // and checked later in checkValid method
         mSourceAccount.reset();
     }
 
@@ -204,9 +208,27 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         return false;
     }
 
-    if (!checkSignature(signatureChecker, app, delta))
+    bool forApply = (delta != nullptr);
+    if (!forApply || app.getLedgerManager().getCurrentLedgerVersion() < 10)
     {
-        return false;
+        if (!checkSignature(signatureChecker, app, delta))
+        {
+            return false;
+        }
+    }
+    else
+    {
+        // for ledger versions >= 10 we need to load account here, as for
+        // previous versions it is done in checkSignature call
+        if (!loadAccount(app.getLedgerManager().getCurrentLedgerVersion(),
+                         delta, app.getDatabase()))
+        {
+            app.getMetrics()
+                .NewMeter({"operation", "invalid", "no-account"}, "operation")
+                .Mark();
+            mResult.code(opNO_ACCOUNT);
+            return false;
+        }
     }
 
     mResult.code(opINNER);
