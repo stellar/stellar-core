@@ -48,12 +48,20 @@ struct ValidationResult
     TransactionResultCode code;
 };
 
-struct ThresholdSetter
+struct SetOptionsArguments
 {
     optional<int> masterWeight;
     optional<int> lowThreshold;
     optional<int> medThreshold;
     optional<int> highThreshold;
+    optional<Signer> signer;
+    optional<uint32_t> setFlags;
+    optional<uint32_t> clearFlags;
+    optional<AccountID> inflationDest;
+    optional<std::string> homeDomain;
+
+    friend SetOptionsArguments operator|(SetOptionsArguments const& x,
+                                         SetOptionsArguments const& y);
 };
 
 TransactionResult expectedResult(int64_t fee, size_t opsCount,
@@ -75,6 +83,8 @@ TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
 SecretKey getRoot(Hash const& networkID);
 
 SecretKey getAccount(const char* n);
+
+Signer makeSigner(SecretKey key, int weight);
 
 // shorthand to load an existing account
 AccountFrame::pointer loadAccount(PublicKey const& k, Application& app,
@@ -148,10 +158,17 @@ uint64_t applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                  Price const& price, int64_t amount,
                                  SequenceNumber seq,
                                  ManageOfferEffect expectedEffect);
+Operation setOptions(SetOptionsArguments const& arguments);
 
-Operation setOptions(AccountID* inflationDest, uint32_t* setFlags,
-                     uint32_t* clearFlags, ThresholdSetter* thrs,
-                     Signer* signer, std::string* homeDomain);
+SetOptionsArguments setMasterWeight(int master);
+SetOptionsArguments setLowThreshold(int low);
+SetOptionsArguments setMedThreshold(int med);
+SetOptionsArguments setHighThreshold(int high);
+SetOptionsArguments setSigner(Signer signer);
+SetOptionsArguments setFlags(uint32_t setFlags);
+SetOptionsArguments clearFlags(uint32_t clearFlags);
+SetOptionsArguments setInflationDestination(AccountID inflationDest);
+SetOptionsArguments setHomeDomain(std::string const& homeDomain);
 
 Asset makeNativeAsset();
 Asset makeInvalidAsset();

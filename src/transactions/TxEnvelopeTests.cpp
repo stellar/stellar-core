@@ -137,24 +137,17 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     SECTION("multisig")
     {
         auto a1 = root.create("A", paymentAmount);
+        auto s1 = getAccount("S1");
+        auto sk1 = makeSigner(s1, 5);
+        auto th = setMasterWeight(100) | setLowThreshold(10) |
+                  setMedThreshold(50) | setHighThreshold(100);
 
-        SecretKey s1 = getAccount("S1");
-        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()),
-                   5); // below low rights
+        a1.setOptions(th | setSigner(sk1));
 
-        ThresholdSetter th;
+        auto s2 = getAccount("S2");
+        auto sk2 = makeSigner(s2, 95); // med rights account
 
-        th.masterWeight = make_optional<int>(100);
-        th.lowThreshold = make_optional<int>(10);
-        th.medThreshold = make_optional<int>(50);
-        th.highThreshold = make_optional<int>(100);
-        a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
-
-        SecretKey s2 = getAccount("S2");
-        Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()),
-                   95); // med rights account
-
-        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+        a1.setOptions(setSigner(sk2));
 
         SECTION("not enough rights (envelope)")
         {
@@ -177,8 +170,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("not enough rights (operation)")
         {
             // updating thresholds requires high
-            auto tx = a1.tx(
-                {setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr)});
+            auto tx = a1.tx({setOptions(th | setSigner(sk1))});
 
             // only sign with s2 (med)
             tx->getEnvelope().signatures.clear();
@@ -198,8 +190,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
         SECTION("success two signatures")
         {
             // updating thresholds requires high
-            auto tx = a1.tx(
-                {setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr)});
+            auto tx = a1.tx({setOptions(th | setSigner(sk1))});
 
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
@@ -215,9 +206,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("without master key")
         {
-            ThresholdSetter th2;
-            th2.masterWeight = make_optional<int>(0);
-            a1.setOptions(nullptr, nullptr, nullptr, &th2, nullptr, nullptr);
+            a1.setOptions(setMasterWeight(0));
 
             auto checkPayment = [&](bool withMaster,
                                     TransactionResultCode expectedRes) {
@@ -248,10 +237,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("account locked down")
         {
-            ThresholdSetter th2;
-
-            th2.masterWeight = make_optional<int>(0);
-            root.setOptions(nullptr, nullptr, nullptr, &th2, nullptr, nullptr);
+            root.setOptions(setMasterWeight(0));
 
             for_versions_from(8, *app, [&] {
                 REQUIRE_THROWS_AS(root.pay(root, 1000), ex_txBAD_AUTH);
@@ -320,8 +306,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SignerKey sk = alternative.createSigner(*tx);
                     Signer sk1(sk, 1);
-                    REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
-                                                    nullptr, &sk1, nullptr),
+                    REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk1)),
                                       ex_SET_OPTIONS_BAD_SIGNER);
                 });
 
@@ -335,8 +320,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
@@ -363,8 +347,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         SignerKey sk = alternative.createSigner(*tx);
                         KeyFunctions<SignerKey>::getKeyValue(sk)[0] ^= 0x01;
                         Signer sk1(sk, 1);
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
@@ -389,8 +372,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
@@ -416,8 +398,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
@@ -452,8 +433,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        b1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        b1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 0);
                         REQUIRE(getAccountSigners(b1, *app).size() == 1);
@@ -478,8 +458,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 1);
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 1);
                         alternative.sign(*tx);
@@ -496,19 +475,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                 SECTION("multisig")
                 {
-                    SecretKey s1 = getAccount("S1");
-                    Signer sk1Org(
-                        KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
+                    auto s1 = getAccount("S1");
+                    auto sk1Org = makeSigner(s1, 95);
+                    auto th = setMasterWeight(100) | setLowThreshold(10) |
+                              setMedThreshold(50) | setHighThreshold(100);
 
-                    ThresholdSetter th;
-
-                    th.masterWeight = make_optional<int>(100);
-                    th.lowThreshold = make_optional<int>(10);
-                    th.medThreshold = make_optional<int>(50);
-                    th.highThreshold = make_optional<int>(100);
-
-                    a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1Org,
-                                  nullptr);
+                    a1.setOptions(th | setSigner(sk1Org));
 
                     SECTION("not enough rights (envelope)")
                     {
@@ -519,8 +491,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 5); // below low rights
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
@@ -540,15 +511,13 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                     SECTION("not enough rights (operation)")
                     {
                         // updating thresholds requires high
-                        auto tx = a1.tx({setOptions(nullptr, nullptr, nullptr,
-                                                    &th, nullptr, nullptr)},
+                        auto tx = a1.tx({setOptions(th)},
                                         a1.getLastSequenceNumber() + 2);
                         tx->getEnvelope().signatures.clear();
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 95); // med rights account
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
@@ -576,8 +545,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                         SignerKey sk = alternative.createSigner(*tx);
                         Signer sk1(sk, 5); // below low rights
-                        a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                      nullptr);
+                        a1.setOptions(setSigner(sk1));
 
                         REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
@@ -609,10 +577,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SignerKey sk = alternative.createSigner(*tx);
                     Signer sk1(sk, 1);
-                    root.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                  nullptr);
+                    root.setOptions(setSigner(sk1));
+                    a1.setOptions(setSigner(sk1));
 
                     REQUIRE(getAccountSigners(root, *app).size() == 1);
                     REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -648,10 +614,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
                     SignerKey sk = alternative.createSigner(*tx);
                     Signer sk1(sk, 1);
-                    root.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                    nullptr);
-                    a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1,
-                                  nullptr);
+                    root.setOptions(setSigner(sk1));
+                    a1.setOptions(setSigner(sk1));
 
                     REQUIRE(getAccountSigners(root, *app).size() == 1);
                     REQUIRE(getAccountSigners(a1, *app).size() == 1);
@@ -681,17 +645,12 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
         SECTION("empty X")
         {
-            SecretKey s1 = getAccount("S1");
-            Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()), 95);
+            auto s1 = getAccount("S1");
+            auto sk1 = makeSigner(s1, 95);
+            auto th = setMasterWeight(100) | setLowThreshold(10) |
+                      setMedThreshold(50) | setHighThreshold(100);
 
-            ThresholdSetter th;
-
-            th.masterWeight = make_optional<int>(100);
-            th.lowThreshold = make_optional<int>(10);
-            th.medThreshold = make_optional<int>(50);
-            th.highThreshold = make_optional<int>(100);
-
-            a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+            a1.setOptions(th | setSigner(sk1));
 
             auto tx = a1.tx({payment(root, 1000)});
             tx->getEnvelope().signatures.clear();
@@ -701,7 +660,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
 
             SignerKey sk = SignerKeyUtils::hashXKey(x);
             Signer sk2(sk, 5); // below low rights
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(setSigner(sk2));
 
             REQUIRE(getAccountSigners(a1, *app).size() == 2);
             tx->addSignature(SignatureUtils::signHashX(x));

@@ -353,6 +353,12 @@ getAccount(const char* n)
     return SecretKey::fromSeed(seed);
 }
 
+Signer
+makeSigner(SecretKey key, int weight)
+{
+    return Signer{KeyUtils::convertKey<SignerKey>(key.getPublicKey()), weight};
+}
+
 AccountFrame::pointer
 loadAccount(PublicKey const& k, Application& app, bool mustExist)
 {
@@ -712,61 +718,145 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                                     : 0;
 }
 
+SetOptionsArguments
+operator|(SetOptionsArguments const& x, SetOptionsArguments const& y)
+{
+    auto result = SetOptionsArguments{};
+    result.masterWeight = y.masterWeight ? y.masterWeight : x.masterWeight;
+    result.lowThreshold = y.lowThreshold ? y.lowThreshold : x.lowThreshold;
+    result.medThreshold = y.medThreshold ? y.medThreshold : x.medThreshold;
+    result.highThreshold = y.highThreshold ? y.highThreshold : x.highThreshold;
+    result.signer = y.signer ? y.signer : x.signer;
+    result.setFlags = y.setFlags ? y.setFlags : x.setFlags;
+    result.clearFlags = y.clearFlags ? y.clearFlags : x.clearFlags;
+    result.inflationDest = y.inflationDest ? y.inflationDest : x.inflationDest;
+    result.homeDomain = y.homeDomain ? y.homeDomain : x.homeDomain;
+    return result;
+}
+
 Operation
-setOptions(AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
-           ThresholdSetter* thrs, Signer* signer, std::string* homeDomain)
+setOptions(SetOptionsArguments const& arguments)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
 
     SetOptionsOp& setOp = op.body.setOptionsOp();
 
-    if (inflationDest)
+    if (arguments.inflationDest)
     {
-        setOp.inflationDest.activate() = *inflationDest;
+        setOp.inflationDest.activate() = *arguments.inflationDest;
     }
 
-    if (setFlags)
+    if (arguments.setFlags)
     {
-        setOp.setFlags.activate() = *setFlags;
+        setOp.setFlags.activate() = *arguments.setFlags;
     }
 
-    if (clearFlags)
+    if (arguments.clearFlags)
     {
-        setOp.clearFlags.activate() = *clearFlags;
+        setOp.clearFlags.activate() = *arguments.clearFlags;
     }
 
-    if (thrs)
+    if (arguments.masterWeight)
     {
-        if (thrs->masterWeight)
-        {
-            setOp.masterWeight.activate() = *thrs->masterWeight;
-        }
-        if (thrs->lowThreshold)
-        {
-            setOp.lowThreshold.activate() = *thrs->lowThreshold;
-        }
-        if (thrs->medThreshold)
-        {
-            setOp.medThreshold.activate() = *thrs->medThreshold;
-        }
-        if (thrs->highThreshold)
-        {
-            setOp.highThreshold.activate() = *thrs->highThreshold;
-        }
+        setOp.masterWeight.activate() = *arguments.masterWeight;
+    }
+    if (arguments.lowThreshold)
+    {
+        setOp.lowThreshold.activate() = *arguments.lowThreshold;
+    }
+    if (arguments.medThreshold)
+    {
+        setOp.medThreshold.activate() = *arguments.medThreshold;
+    }
+    if (arguments.highThreshold)
+    {
+        setOp.highThreshold.activate() = *arguments.highThreshold;
     }
 
-    if (signer)
+    if (arguments.signer)
     {
-        setOp.signer.activate() = *signer;
+        setOp.signer.activate() = *arguments.signer;
     }
 
-    if (homeDomain)
+    if (arguments.homeDomain)
     {
-        setOp.homeDomain.activate() = *homeDomain;
+        setOp.homeDomain.activate() = *arguments.homeDomain;
     }
 
     return op;
+}
+
+SetOptionsArguments
+setMasterWeight(int master)
+{
+    SetOptionsArguments result;
+    result.masterWeight = make_optional<int>(master);
+    return result;
+}
+
+SetOptionsArguments
+setLowThreshold(int low)
+{
+    SetOptionsArguments result;
+    result.lowThreshold = make_optional<int>(low);
+    return result;
+}
+
+SetOptionsArguments
+setMedThreshold(int med)
+{
+    SetOptionsArguments result;
+    result.medThreshold = make_optional<int>(med);
+    return result;
+}
+
+SetOptionsArguments
+setHighThreshold(int high)
+{
+    SetOptionsArguments result;
+    result.highThreshold = make_optional<int>(high);
+    return result;
+}
+
+SetOptionsArguments
+setSigner(Signer signer)
+{
+    SetOptionsArguments result;
+    result.signer = make_optional<Signer>(signer);
+    return result;
+}
+
+SetOptionsArguments
+setFlags(uint32_t setFlags)
+{
+    SetOptionsArguments result;
+    result.setFlags = make_optional<uint32_t>(setFlags);
+    return result;
+}
+
+SetOptionsArguments
+clearFlags(uint32_t clearFlags)
+{
+    SetOptionsArguments result;
+    result.clearFlags = make_optional<uint32_t>(clearFlags);
+    return result;
+}
+
+SetOptionsArguments
+setInflationDestination(AccountID inflationDest)
+{
+    SetOptionsArguments result;
+    result.inflationDest = make_optional<AccountID>(inflationDest);
+    return result;
+}
+
+SetOptionsArguments
+setHomeDomain(std::string const& homeDomain)
+{
+    SetOptionsArguments result;
+    result.homeDomain = make_optional<std::string>(homeDomain);
+    return result;
 }
 
 Operation

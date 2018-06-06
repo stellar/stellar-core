@@ -444,8 +444,7 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("Account has static auth flag set")
     {
         for_all_versions(*app, [&] {
-            uint32 flags = AUTH_IMMUTABLE_FLAG;
-            a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr, nullptr);
+            a1.setOptions(setFlags(AUTH_IMMUTABLE_FLAG));
 
             REQUIRE_THROWS_AS(a1.merge(b1), ex_ACCOUNT_MERGE_IMMUTABLE_SET);
         });
@@ -507,9 +506,7 @@ TEST_CASE("merge", "[tx][merge]")
         SECTION("account has signer")
         {
             for_all_versions(*app, [&]() {
-                Signer s(
-                    KeyUtils::convertKey<SignerKey>(gateway.getPublicKey()), 5);
-                a1.setOptions(nullptr, nullptr, nullptr, nullptr, &s, nullptr);
+                a1.setOptions(setSigner(makeSigner(gateway, 5)));
                 a1.merge(b1);
             });
         }

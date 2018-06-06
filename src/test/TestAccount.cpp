@@ -2,13 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TestAccount.h"
-
+#include "test/TestAccount.h"
 #include "ledger/DataFrame.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TxTests.h"
+
+#include <lib/catch.hpp>
 
 namespace stellar
 {
@@ -158,13 +158,9 @@ TestAccount::hasTrustLine(Asset const& asset) const
 }
 
 void
-TestAccount::setOptions(AccountID* inflationDest, uint32_t* setFlags,
-                        uint32_t* clearFlags, ThresholdSetter* thrs,
-                        Signer* signer, std::string* homeDomain)
+TestAccount::setOptions(SetOptionsArguments const& arguments)
 {
-    applyTx(tx({txtest::setOptions(inflationDest, setFlags, clearFlags, thrs,
-                                   signer, homeDomain)}),
-            mApp);
+    applyTx(tx({txtest::setOptions(arguments)}), mApp);
 }
 
 void

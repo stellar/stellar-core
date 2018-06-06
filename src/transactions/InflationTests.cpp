@@ -357,12 +357,10 @@ TEST_CASE("inflation", "[tx][inflation]")
         REQUIRE(clh.feePool == 1000000299);
         REQUIRE(clh.totalCoins == 1000000000000000000);
 
-        auto t1Public = target1.getPublicKey();
-        auto t2Public = target2.getPublicKey();
-        auto setInflationDestination1 = voter1.tx({setOptions(
-            &t1Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
-        auto setInflationDestination2 = voter2.tx({setOptions(
-            &t2Public, nullptr, nullptr, nullptr, nullptr, nullptr)});
+        auto setInflationDestination1 = voter1.tx(
+            {setOptions(setInflationDestination(target1.getPublicKey()))});
+        auto setInflationDestination2 = voter2.tx(
+            {setOptions(setInflationDestination(target2.getPublicKey()))});
 
         closeLedgerOn(*app, 3, 21, 7, 2014,
                       {setInflationDestination1, setInflationDestination2});

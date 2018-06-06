@@ -618,17 +618,12 @@ TEST_CASE("txresults", "[tx][txresults]")
 
     SECTION("not enough signature weight")
     {
-        auto th = ThresholdSetter{};
-        th.masterWeight = make_optional<int>(10);
-        th.lowThreshold = make_optional<int>(10);
-        th.medThreshold = make_optional<int>(50);
-        th.highThreshold = make_optional<int>(100);
+        auto th = setMasterWeight(10) | setLowThreshold(10) |
+                  setMedThreshold(50) | setHighThreshold(100);
 
         SECTION("normal")
         {
-            auto tx =
-                a.tx({payment(b, 1000), setOptions(nullptr, nullptr, nullptr,
-                                                   &th, nullptr, nullptr)});
+            auto tx = a.tx({payment(b, 1000), setOptions(th)});
             for_all_versions(*app, [&] {
                 validateTxResults(
                     tx, *app, {baseFee * 2, txSUCCESS},
@@ -639,10 +634,8 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("with operation after")
         {
-            auto tx = a.tx(
-                {payment(b, 1000),
-                 setOptions(nullptr, nullptr, nullptr, &th, nullptr, nullptr),
-                 payment(c, 1000)});
+            auto tx =
+                a.tx({payment(b, 1000), setOptions(th), payment(c, 1000)});
 
             for_versions_to(6, *app, [&] {
                 validateTxResults(
@@ -669,7 +662,7 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         SECTION("before tx")
         {
-            a.setOptions(nullptr, nullptr, nullptr, &th, nullptr, nullptr);
+            a.setOptions(th);
             auto tx = a.tx({payment(b, 1000)});
 
             for_versions_to(6, *app, [&] {

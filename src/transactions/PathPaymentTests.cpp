@@ -353,12 +353,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto noAuthorizedSourceTrust =
             root.create("no-authorized-source-trust", minBalance1);
         auto destination = root.create("destination", minBalance1);
-        auto setFlags = uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG};
         noAuthorizedSourceTrust.changeTrust(idr, 20);
         gateway.pay(noAuthorizedSourceTrust, idr, 10);
         destination.changeTrust(idr, 20);
-        gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
-                           nullptr);
+        gateway.setOptions(
+            setFlags(uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG}));
         gateway.denyTrust(idr, noAuthorizedSourceTrust);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
@@ -470,12 +469,11 @@ TEST_CASE("pathpayment", "[tx][pathpayment]")
         auto source = root.create("source", minBalance1);
         auto noAuthorizedDestinationTrust =
             root.create("no-authorized-destination-trust", minBalance1);
-        auto setFlags = uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG};
         source.changeTrust(idr, 20);
         gateway.pay(source, idr, 10);
         noAuthorizedDestinationTrust.changeTrust(idr, 20);
-        gateway.setOptions(nullptr, &setFlags, nullptr, nullptr, nullptr,
-                           nullptr);
+        gateway.setOptions(
+            setFlags(uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG}));
         gateway.denyTrust(idr, noAuthorizedDestinationTrust);
         for_all_versions(*app, [&] {
             REQUIRE_THROWS_AS(
