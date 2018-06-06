@@ -185,9 +185,6 @@ TEST_CASE("txresults", "[tx][txresults]")
     auto validate = [&](TransactionFramePtr const& tx,
                         ValidationResult validationResult,
                         TransactionResult const& applyResult = {}) {
-        LedgerDelta delta(app->getLedgerManager().getCurrentLedgerHeader(),
-                          app->getDatabase());
-
         auto shouldValidateOk = validationResult.code == txSUCCESS;
         REQUIRE(tx->checkValid(*app, 0) == shouldValidateOk);
         REQUIRE(tx->getResult().result.code() == validationResult.code);
@@ -211,7 +208,7 @@ TEST_CASE("txresults", "[tx][txresults]")
         }
 
         auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
-        auto applyOk = tx->apply(delta, *app);
+        auto applyOk = applyCheck(tx, *app);
         REQUIRE(tx->getResult() == applyResult);
         REQUIRE(applyOk == shouldApplyOk);
     };
@@ -685,7 +682,7 @@ TEST_CASE("txresults", "[tx][txresults]")
             applyResult.result.results()[1]
                 .tr()
                 .accountMergeResult()
-                .sourceAccountBalance() = startAmount - 1000;
+                .sourceAccountBalance() = startAmount - 1200;
             for_all_versions(*app, [&] {
                 validate(tx, {baseFee * 2, txSUCCESS}, applyResult);
             });
