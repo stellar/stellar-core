@@ -2,14 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TxTests.h"
-
+#include "test/TxTests.h"
 #include "crypto/ByteSlice.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
@@ -30,6 +29,8 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include <lib/catch.hpp>
+
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -38,6 +39,76 @@ namespace stellar
 {
 namespace txtest
 {
+
+ExpectedOpResult::ExpectedOpResult(OperationResultCode code) : code{code}
+{
+}
+ExpectedOpResult::ExpectedOpResult(CreateAccountResultCode createAccountCode)
+    : code{opINNER}, type{CREATE_ACCOUNT}, createAccountCode{createAccountCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(PaymentResultCode paymentCode)
+    : code{opINNER}, type{PAYMENT}, paymentCode{paymentCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(AccountMergeResultCode accountMergeCode)
+    : code{opINNER}, type{ACCOUNT_MERGE}, accountMergeCode{accountMergeCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
+    : code{opINNER}
+    , type{SET_OPTIONS}
+    , setOptionsResultCode{setOptionsResultCode}
+{
+}
+
+TransactionResult
+expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
+               std::vector<ExpectedOpResult> ops)
+{
+    auto result = TransactionResult{};
+    result.feeCharged = fee;
+    result.result.code(code);
+    if (code != txSUCCESS && code != txFAILED)
+    {
+        return result;
+    }
+    if (ops.empty())
+    {
+        std::fill_n(std::back_inserter(ops), opsCount, PAYMENT_SUCCESS);
+    }
+
+    result.result.results().resize(static_cast<uint32_t>(ops.size()));
+    for (size_t i = 0; i < ops.size(); i++)
+    {
+        auto& r = result.result.results()[i];
+        auto& o = ops[i];
+        r.code(o.code);
+        if (o.code == opINNER)
+        {
+            r.tr().type(o.type);
+            switch (o.type)
+            {
+            case CREATE_ACCOUNT:
+                r.tr().createAccountResult().code(o.createAccountCode);
+                break;
+            case PAYMENT:
+                r.tr().paymentResult().code(o.paymentCode);
+                break;
+            case ACCOUNT_MERGE:
+                r.tr().accountMergeResult().code(o.accountMergeCode);
+                break;
+            case SET_OPTIONS:
+                r.tr().setOptionsResult().code(o.setOptionsResultCode);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    return result;
+}
 
 bool
 applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
@@ -193,6 +264,39 @@ applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
     throwIf(tx->getResult());
     checkTransaction(*tx, app);
 }
+
+void
+validateTxResults(TransactionFramePtr const& tx, Application& app,
+                  ValidationResult validationResult,
+                  TransactionResult const& applyResult)
+{
+    auto shouldValidateOk = validationResult.code == txSUCCESS;
+    REQUIRE(tx->checkValid(app, 0) == shouldValidateOk);
+    REQUIRE(tx->getResult().result.code() == validationResult.code);
+    REQUIRE(tx->getResult().feeCharged == validationResult.fee);
+
+    // do not try to apply if checkValid returned false
+    if (!shouldValidateOk)
+    {
+        REQUIRE(applyResult == TransactionResult{});
+        return;
+    }
+
+    switch (applyResult.result.code())
+    {
+    case txINTERNAL_ERROR:
+    case txBAD_AUTH_EXTRA:
+    case txBAD_SEQ:
+        return;
+    default:
+        break;
+    }
+
+    auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
+    auto applyOk = applyCheck(tx, app);
+    REQUIRE(tx->getResult() == applyResult);
+    REQUIRE(applyOk == shouldApplyOk);
+};
 
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,

@@ -26,6 +26,28 @@ namespace txtest
 typedef std::vector<std::pair<TransactionResultPair, LedgerEntryChanges>>
     TxSetResultMeta;
 
+struct ExpectedOpResult
+{
+    OperationResultCode code;
+    OperationType type;
+    CreateAccountResultCode createAccountCode;
+    PaymentResultCode paymentCode;
+    AccountMergeResultCode accountMergeCode;
+    SetOptionsResultCode setOptionsResultCode;
+
+    ExpectedOpResult(OperationResultCode code);
+    ExpectedOpResult(CreateAccountResultCode createAccountCode);
+    ExpectedOpResult(PaymentResultCode paymentCode);
+    ExpectedOpResult(AccountMergeResultCode accountMergeCode);
+    ExpectedOpResult(SetOptionsResultCode setOptionsResultCode);
+};
+
+struct ValidationResult
+{
+    int64_t fee;
+    TransactionResultCode code;
+};
+
 struct ThresholdSetter
 {
     optional<int> masterWeight;
@@ -34,10 +56,17 @@ struct ThresholdSetter
     optional<int> highThreshold;
 };
 
+TransactionResult expectedResult(int64_t fee, size_t opsCount,
+                                 TransactionResultCode code,
+                                 std::vector<ExpectedOpResult> ops = {});
+
 bool applyCheck(TransactionFramePtr tx, Application& app,
                 bool checkSeqNum = true);
 void applyTx(TransactionFramePtr const& tx, Application& app,
              bool checkSeqNum = true);
+void validateTxResults(TransactionFramePtr const& tx, Application& app,
+                       ValidationResult validationResult,
+                       TransactionResult const& applyResult = {});
 
 TxSetResultMeta closeLedgerOn(Application& app, uint32 ledgerSeq, int day,
                               int month, int year,
