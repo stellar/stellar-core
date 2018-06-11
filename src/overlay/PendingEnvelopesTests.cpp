@@ -5,6 +5,7 @@
 #include "crypto/SHA.h"
 #include "herder/HerderImpl.h"
 #include "main/ApplicationImpl.h"
+#include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -33,7 +34,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
     auto saneEnvelope = makeEnvelope(txSetHash, saneQSetHash, 4);
     auto bigEnvelope = makeEnvelope(txSetHash, bigQSetHash, 4);
 
-    auto& pendingEnvelopes = app.getPendingEnvelopes();
+    auto& pendingEnvelopes = app.getOverlayManager().getPendingEnvelopes();
 
     SECTION("return FETCHING when first receiving envelope")
     {
@@ -67,14 +68,14 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
 
-            SECTION("and then PROCESSED again")
+            SECTION("and then READY again")
             {
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
             }
         }
 
@@ -101,19 +102,19 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
 
-            SECTION("and then PROCESSED again")
+            SECTION("and then READY again")
             {
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
                 REQUIRE(
                     pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                    EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
+                    EnvelopeHandler::ENVELOPE_STATUS_READY);
             }
         }
     }
 
-    SECTION("return PROCESSED when receiving envelope with quorum set and tx "
+    SECTION("return READY when receiving envelope with quorum set and tx "
             "set that were manually added before")
     {
         REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet, true) ==
@@ -124,7 +125,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
                 EnvelopeHandler::ENVELOPE_STATUS_READY);
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
-                EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
+                EnvelopeHandler::ENVELOPE_STATUS_READY);
     }
 
     SECTION("return DISCARDED when receiving envelope with too big quorum set")

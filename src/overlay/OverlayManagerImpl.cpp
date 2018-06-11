@@ -6,10 +6,12 @@
 #include "crypto/KeyUtils.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "herder/Herder.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerRecord.h"
+#include "overlay/PendingEnvelopes.h"
 #include "overlay/TCPPeer.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
@@ -59,6 +61,7 @@ OverlayManager::create(Application& app)
 OverlayManagerImpl::OverlayManagerImpl(Application& app)
     : mApp(app)
     , mDoor(mApp)
+    , mPendingEnvelopes(mApp)
     , mAuth(mApp)
     , mShuttingDown(false)
     , mMessagesReceived(app.getMetrics().NewMeter(
@@ -341,6 +344,16 @@ void
 OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
 {
     mFloodGate.clearBelow(lastClosedledgerSeq);
+
+    if (lastClosedledgerSeq > Herder::MAX_SLOTS_TO_REMEMBER)
+    {
+        mPendingEnvelopes.setMinimumSlotIndex(lastClosedledgerSeq -
+                                              Herder::MAX_SLOTS_TO_REMEMBER);
+    }
+    else
+    {
+        mPendingEnvelopes.setMinimumSlotIndex(0);
+    }
 }
 
 void
@@ -568,6 +581,12 @@ OverlayManagerImpl::getPeerAuth()
     return mAuth;
 }
 
+PendingEnvelopes&
+OverlayManagerImpl::getPendingEnvelopes()
+{
+    return mPendingEnvelopes;
+}
+
 LoadManager&
 OverlayManagerImpl::getLoadManager()
 {
@@ -600,5 +619,11 @@ bool
 OverlayManagerImpl::isShuttingDown() const
 {
     return mShuttingDown;
+}
+
+Json::Value
+OverlayManagerImpl::getJsonInfo(size_t limit)
+{
+    return mPendingEnvelopes.getJsonInfo(limit);
 }
 }

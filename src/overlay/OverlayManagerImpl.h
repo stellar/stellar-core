@@ -12,6 +12,7 @@
 #include "herder/TxSetFrame.h"
 #include "overlay/Floodgate.h"
 #include "overlay/OverlayManager.h"
+#include "overlay/PendingEnvelopes.h"
 #include "overlay/StellarXDR.h"
 #include "util/Timer.h"
 
@@ -41,6 +42,7 @@ class OverlayManagerImpl : public OverlayManager
     // authenticated and connected peers
     std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
     PeerDoor mDoor;
+    PendingEnvelopes mPendingEnvelopes;
     PeerAuth mAuth;
     LoadManager mLoad;
     bool mShuttingDown;
@@ -95,6 +97,8 @@ class OverlayManagerImpl : public OverlayManager
     void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
 
+    PendingEnvelopes& getPendingEnvelopes() override;
+
     PeerAuth& getPeerAuth() override;
 
     LoadManager& getLoadManager() override;
@@ -103,6 +107,8 @@ class OverlayManagerImpl : public OverlayManager
     void shutdown() override;
 
     bool isShuttingDown() const override;
+
+    Json::Value getJsonInfo(size_t limit) override;
 
   private:
     std::vector<PeerRecord> getPreferredPeersFromConfig();

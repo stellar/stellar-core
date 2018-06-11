@@ -80,6 +80,7 @@ HerderImpl::HerderImpl(Application& app)
     , mRebroadcastTimer(app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
+    , mReadyEnvelopes(app)
     , mSCPMetrics(app)
 {
 }
@@ -406,7 +407,7 @@ HerderImpl::processSCPQueue()
         // we don't know which ledger we're in
         // try to consume the messages from the queue
         // starting from the smallest slot
-        for (auto& slot : mApp.getPendingEnvelopes().readySlots())
+        for (auto& slot : mReadyEnvelopes.readySlots())
         {
             processSCPQueueUpToIndex(slot);
             if (mHerderSCPDriver.trackingSCP())
@@ -425,7 +426,7 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
     while (true)
     {
         SCPEnvelope env;
-        if (mApp.getPendingEnvelopes().pop(slotIndex, env))
+        if (mReadyEnvelopes.pop(slotIndex, env))
         {
             getSCP().receiveEnvelope(env);
         }
@@ -447,12 +448,11 @@ HerderImpl::ledgerClosed()
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
     if (lastIndex > MAX_SLOTS_TO_REMEMBER)
     {
-        mApp.getPendingEnvelopes().setMinimumSlotIndex(lastIndex -
-                                                       MAX_SLOTS_TO_REMEMBER);
+        mReadyEnvelopes.setMinimumSlotIndex(lastIndex - MAX_SLOTS_TO_REMEMBER);
     }
     else
     {
-        mApp.getPendingEnvelopes().setMinimumSlotIndex(0);
+        mReadyEnvelopes.setMinimumSlotIndex(0);
     }
 
     mApp.getOverlayManager().ledgerClosed(lastIndex);
@@ -718,6 +718,20 @@ HerderImpl::getUpgradesJson()
 }
 
 bool
+HerderImpl::seen(SCPEnvelope const& envelope)
+{
+    return mReadyEnvelopes.seen(envelope);
+}
+
+bool
+HerderImpl::push(SCPEnvelope const& envelope)
+{
+    auto result = mReadyEnvelopes.push(envelope);
+    processSCPQueue();
+    return result;
+}
+
+bool
 HerderImpl::resolveNodeID(std::string const& s, PublicKey& retKey)
 {
     bool r = mApp.getConfig().resolveNodeID(s, retKey);
@@ -757,7 +771,8 @@ HerderImpl::getJsonInfo(size_t limit)
         mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
 
     ret["scp"] = getSCP().getJsonInfo(limit);
-    ret["queue"] = mApp.getPendingEnvelopes().getJsonInfo(limit);
+    ret["queue"] = mApp.getOverlayManager().getJsonInfo(limit);
+    mReadyEnvelopes.dumpInfo(ret["queue"], limit);
     return ret;
 }
 

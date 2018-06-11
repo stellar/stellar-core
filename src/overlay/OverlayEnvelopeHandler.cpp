@@ -11,7 +11,6 @@
 #include "overlay/OverlayManagerImpl.h"
 #include "overlay/PeerAuth.h"
 #include "overlay/PendingEnvelopes.h"
-#include "overlay/ReadyEnvelopeHandler.h"
 #include "util/Logging.h"
 
 #include <medida/meter.h>
@@ -103,13 +102,20 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
         return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
-    auto status = mApp.getPendingEnvelopes().handleEnvelope(nullptr, envelope);
-    if (status == EnvelopeHandler::ENVELOPE_STATUS_READY)
+    auto status = mApp.getOverlayManager().getPendingEnvelopes().handleEnvelope(
+        nullptr, envelope);
+    if (status != EnvelopeHandler::ENVELOPE_STATUS_READY)
     {
-        mApp.getReadyEnvelopeHandler().readyEnvelopeAvailable();
+        return status;
     }
 
-    return status;
+    if (mApp.getHerder().seen(envelope))
+    {
+        return EnvelopeHandler::ENVELOPE_STATUS_PROCESSED;
+    }
+
+    mApp.getHerder().push(envelope);
+    return EnvelopeHandler::ENVELOPE_STATUS_READY;
 }
 
 void
@@ -132,7 +138,9 @@ std::set<SCPEnvelope>
 OverlayEnvelopeHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet,
                                   bool force)
 {
-    auto envelopes = mApp.getPendingEnvelopes().handleQuorumSet(qSet, force);
+    auto envelopes =
+        mApp.getOverlayManager().getPendingEnvelopes().handleQuorumSet(qSet,
+                                                                       force);
     for (auto const& e : envelopes)
     {
         envelope(peer, e);
@@ -161,7 +169,8 @@ std::set<SCPEnvelope>
 OverlayEnvelopeHandler::txSet(Peer::pointer peer, TransactionSet const& txSet,
                               bool force)
 {
-    auto envelopes = mApp.getPendingEnvelopes().handleTxSet(txSet, force);
+    auto envelopes = mApp.getOverlayManager().getPendingEnvelopes().handleTxSet(
+        txSet, force);
     for (auto const& e : envelopes)
     {
         envelope(peer, e);

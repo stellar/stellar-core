@@ -8,6 +8,8 @@
 #include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
 
+#include <lib/json/json-forwards.h>
+
 /**
  * OverlayManager maintains a virtual broadcast network, consisting of a set of
  * remote TCP peers (TCPPeer), a mechanism for flooding messages to all peers
@@ -50,6 +52,7 @@ namespace stellar
 class PeerAuth;
 class PeerBareAddress;
 class PeerRecord;
+class PendingEnvelopes;
 class LoadManager;
 
 class OverlayManager
@@ -132,6 +135,9 @@ class OverlayManager
     // off value of pr and save it do database.
     virtual void connectTo(PeerRecord& pr) = 0;
 
+    // Return PendingEnvelopes
+    virtual PendingEnvelopes& getPendingEnvelopes() = 0;
+
     // Return the persistent p2p authentication-key cache.
     virtual PeerAuth& getPeerAuth() = 0;
 
@@ -144,6 +150,8 @@ class OverlayManager
     virtual void shutdown() = 0;
 
     virtual bool isShuttingDown() const = 0;
+
+    virtual Json::Value getJsonInfo(size_t limit) = 0;
 
     virtual ~OverlayManager()
     {

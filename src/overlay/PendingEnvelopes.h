@@ -7,7 +7,6 @@
 #include "overlay/EnvelopeHandler.h"
 #include "overlay/EnvelopeItemMap.h"
 #include "overlay/NodesInQuorum.h"
-#include "overlay/ReadyEnvelopes.h"
 #include "xdr/Stellar-types.h"
 
 /**
@@ -53,21 +52,10 @@ class PendingEnvelopes
      */
     void setMinimumSlotIndex(uint64_t slotIndex);
 
-    /**
-     * It passes the call to ReadyEnvelopes class.
-     */
-    bool pop(uint64_t slotIndex, SCPEnvelope& ret);
-
-    /**
-     * It passes the call to ReadyEnvelopes class.
-     */
-    std::vector<uint64_t> readySlots();
-
     Json::Value getJsonInfo(size_t limit);
 
   private:
     Application& mApp;
-    ReadyEnvelopes mReadyEnvelopes;
     NodesInQuorum mNodesInQuorum;
 
     struct SlotEnvelopes

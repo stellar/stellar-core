@@ -6,6 +6,7 @@
 
 #include "herder/Herder.h"
 #include "herder/HerderSCPDriver.h"
+#include "herder/ReadyEnvelopes.h"
 #include "herder/Upgrades.h"
 #include "util/HashOfHash.h"
 #include "util/Timer.h"
@@ -72,6 +73,9 @@ class HerderImpl : public Herder
 
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
+
+    bool seen(SCPEnvelope const& envelope) override;
+    bool push(SCPEnvelope const& envelope) override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
@@ -144,6 +148,7 @@ class HerderImpl : public Herder
 
     Application& mApp;
     LedgerManager& mLedgerManager;
+    ReadyEnvelopes mReadyEnvelopes;
 
     struct SCPMetrics
     {

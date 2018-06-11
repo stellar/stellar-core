@@ -22,7 +22,6 @@ namespace stellar
 {
 
 class EnvelopeHandler;
-class ReadyEnvelopeHandler;
 class VirtualClock;
 class TmpDirManager;
 class LedgerManager;
@@ -44,8 +43,6 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
-class PendingEnvelopes;
-class ReadyEnvelopeHandler;
 class EnvelopeHandler;
 
 class Application;
@@ -214,8 +211,6 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
-    virtual PendingEnvelopes& getPendingEnvelopes() = 0;
-    virtual ReadyEnvelopeHandler& getReadyEnvelopeHandler() = 0;
     virtual EnvelopeHandler& getEnvelopeHandler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to

@@ -18,7 +18,7 @@ namespace stellar
 {
 
 PendingEnvelopes::PendingEnvelopes(Application& app)
-    : mApp(app), mReadyEnvelopes(mApp), mNodesInQuorum(mApp)
+    : mApp(app), mNodesInQuorum(mApp)
 {
 }
 
@@ -51,15 +51,9 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
 
     touchItemCache(envelope);
 
-    if (mReadyEnvelopes.seen(envelope))
-    {
-        return EnvelopeHandler::ENVELOPE_STATUS_PROCESSED;
-    }
-
     auto items = mApp.getItemFetcher().fetchFor(envelope, peer);
     if (items.empty())
     {
-        mReadyEnvelopes.push(envelope);
         return EnvelopeHandler::ENVELOPE_STATUS_READY;
     }
     else
@@ -203,20 +197,6 @@ PendingEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
     {
         mApp.getItemFetcher().forget(item);
     }
-
-    mReadyEnvelopes.setMinimumSlotIndex(slotIndex);
-}
-
-bool
-PendingEnvelopes::pop(uint64_t slotIndex, SCPEnvelope& ret)
-{
-    return mReadyEnvelopes.pop(slotIndex, ret);
-}
-
-std::vector<uint64_t>
-PendingEnvelopes::readySlots()
-{
-    return mReadyEnvelopes.readySlots();
 }
 
 Json::Value
@@ -241,7 +221,6 @@ PendingEnvelopes::getJsonInfo(size_t limit)
         it++;
     }
 
-    mReadyEnvelopes.dumpInfo(ret, limit);
     return ret;
 }
 }

@@ -16,7 +16,6 @@
 #include "database/Database.h"
 #include "herder/HerderImpl.h"
 #include "herder/HerderPersistence.h"
-#include "herder/HerderReadyEnvelopeHandler.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "invariant/AccountSubEntriesCountIsValid.h"
@@ -126,8 +125,6 @@ ApplicationImpl::initialize()
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mPendingEnvelopes = std::make_unique<PendingEnvelopes>(*this);
-    mReadyEnvelopeHandler = std::make_unique<HerderReadyEnvelopeHandler>(*this);
     mEnvelopeHandler = std::make_unique<OverlayEnvelopeHandler>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
@@ -756,18 +753,6 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
-}
-
-PendingEnvelopes&
-ApplicationImpl::getPendingEnvelopes()
-{
-    return *mPendingEnvelopes;
-}
-
-ReadyEnvelopeHandler&
-ApplicationImpl::getReadyEnvelopeHandler()
-{
-    return *mReadyEnvelopeHandler;
 }
 
 EnvelopeHandler&
