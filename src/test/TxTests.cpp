@@ -188,7 +188,25 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         // checks that the failure is the same if pre checks failed
         if (!check)
         {
-            REQUIRE(checkResult == tx->getResult());
+            if (app.getLedgerManager().getCurrentLedgerVersion() >= 10 ||
+                tx->getResultCode() != txFAILED)
+            {
+                REQUIRE(checkResult == tx->getResult());
+            }
+            else
+            {
+                auto const& txResults = tx->getResult().result.results();
+                auto const& checkResults = checkResult.result.results();
+                for (auto i = 0u; i < txResults.size(); i++)
+                {
+                    REQUIRE(checkResults[i] == txResults[i]);
+                    if (checkResults[i].code() == opBAD_AUTH)
+                    {
+                        // results may not match after first opBAD_AUTH
+                        break;
+                    }
+                }
+            }
         }
 
         if (code != txNO_ACCOUNT)

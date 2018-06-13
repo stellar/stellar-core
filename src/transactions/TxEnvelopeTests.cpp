@@ -168,7 +168,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             });
         }
 
-        SECTION("not enough rights (operation)")
+        SECTION("not enough rights (operation, together)")
         {
             // updating thresholds requires high
             auto tx = a1.tx({setOptions(th | setSigner(sk1))});
@@ -188,10 +188,84 @@ TEST_CASE("txenvelope", "[tx][envelope]")
             });
         }
 
-        SECTION("success two signatures")
+        SECTION("not enough rights (first thresholds)")
+        {
+            // updating thresholds requires high
+            auto tx = a1.tx({setOptions(th), setOptions(setSigner(sk1))});
+
+            // only sign with s2 (med)
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s2);
+
+            for_all_versions_except({7}, *app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txFAILED);
+                REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
+            });
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+            });
+        }
+
+        SECTION("not enough rights (first signer)")
+        {
+            // updating thresholds requires high
+            auto tx = a1.tx({setOptions(setSigner(sk1)), setOptions(th)});
+
+            // only sign with s2 (med)
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s2);
+
+            for_all_versions_except({7}, *app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txFAILED);
+                REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
+            });
+            for_versions({7}, *app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+            });
+        }
+
+        SECTION("success two signatures, together")
         {
             // updating thresholds requires high
             auto tx = a1.tx({setOptions(th | setSigner(sk1))});
+
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s1);
+            tx->addSignature(s2);
+
+            for_all_versions(*app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+                REQUIRE(SetOptionsOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        SET_OPTIONS_SUCCESS);
+            });
+        }
+
+        SECTION("success two signatures, first thresholds")
+        {
+            // updating thresholds requires high
+            auto tx = a1.tx({setOptions(th), setOptions(setSigner(sk1))});
+
+            tx->getEnvelope().signatures.clear();
+            tx->addSignature(s1);
+            tx->addSignature(s2);
+
+            for_all_versions(*app, [&] {
+                applyCheck(tx, *app);
+                REQUIRE(tx->getResultCode() == txSUCCESS);
+                REQUIRE(SetOptionsOpFrame::getInnerCode(getFirstResult(*tx)) ==
+                        SET_OPTIONS_SUCCESS);
+            });
+        }
+
+        SECTION("success two signatures, first signer")
+        {
+            // updating thresholds requires high
+            auto tx = a1.tx({setOptions(setSigner(sk1)), setOptions(th)});
 
             tx->getEnvelope().signatures.clear();
             tx->addSignature(s1);
