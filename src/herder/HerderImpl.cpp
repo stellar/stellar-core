@@ -40,6 +40,8 @@ using namespace std;
 namespace stellar
 {
 
+constexpr const int NODES_QUORUM_CACHE_SIZE = 1000;
+
 std::unique_ptr<Herder>
 Herder::create(Application& app)
 {
@@ -81,6 +83,7 @@ HerderImpl::HerderImpl(Application& app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mReadyEnvelopes(app)
+    , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
     , mSCPMetrics(app)
 {
 }
@@ -456,6 +459,7 @@ HerderImpl::ledgerClosed()
     }
 
     mApp.getOverlayManager().ledgerClosed(lastIndex);
+    mNodesInQuorum.clear();
     updateValidRange();
 
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
@@ -729,6 +733,37 @@ HerderImpl::push(SCPEnvelope const& envelope)
     auto result = mReadyEnvelopes.push(envelope);
     processSCPQueue();
     return result;
+}
+
+bool
+HerderImpl::isNodeInQuorum(NodeID const& node)
+{
+    bool res;
+
+    res = mNodesInQuorum.exists(node);
+    if (res)
+    {
+        res = mNodesInQuorum.get(node);
+    }
+    else
+    {
+        // search through the known slots
+        SCP::TriBool r = mApp.getHerder().getSCP().isNodeInQuorum(node);
+
+        // consider a node in quorum if it's either in quorum
+        // or we don't know if it is (until we get further evidence)
+        res = (r != SCP::TB_FALSE);
+
+        mNodesInQuorum.put(node, res);
+    }
+
+    return res;
+}
+
+void
+HerderImpl::clearNodesInQuorumCache()
+{
+    mNodesInQuorum.clear();
 }
 
 bool

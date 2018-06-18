@@ -5,6 +5,7 @@
 #include "overlay/OverlayEnvelopeHandler.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/Herder.h"
 #include "main/Application.h"
 #include "overlay/BanManager.h"
 #include "overlay/ItemFetcher.h"
@@ -102,6 +103,15 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
         return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 
+    auto const& nodeID = envelope.statement.nodeID;
+    if (!mApp.getHerder().isNodeInQuorum(nodeID))
+    {
+        CLOG(DEBUG, "Herder")
+            << "Dropping envelope from "
+            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
+        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
+    }
+
     auto status = mApp.getOverlayManager().getPendingEnvelopes().handleEnvelope(
         nullptr, envelope);
     if (status != EnvelopeHandler::ENVELOPE_STATUS_READY)
@@ -138,14 +148,19 @@ std::set<SCPEnvelope>
 OverlayEnvelopeHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet,
                                   bool force)
 {
-    auto envelopes =
+    auto result =
         mApp.getOverlayManager().getPendingEnvelopes().handleQuorumSet(qSet,
                                                                        force);
-    for (auto const& e : envelopes)
+    if (result.first)
+    {
+        mApp.getHerder().clearNodesInQuorumCache();
+    }
+
+    for (auto const& e : result.second)
     {
         envelope(peer, e);
     }
-    return envelopes;
+    return result.second;
 }
 
 void

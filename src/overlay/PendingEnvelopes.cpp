@@ -5,6 +5,7 @@
 #include "overlay/PendingEnvelopes.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/Herder.h"
 #include "herder/HerderUtils.h"
 #include "main/Application.h"
 #include "overlay/ItemFetcher.h"
@@ -17,8 +18,7 @@
 namespace stellar
 {
 
-PendingEnvelopes::PendingEnvelopes(Application& app)
-    : mApp(app), mNodesInQuorum(mApp)
+PendingEnvelopes::PendingEnvelopes(Application& app) : mApp(app)
 {
 }
 
@@ -65,7 +65,7 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
     }
 }
 
-std::set<SCPEnvelope>
+std::pair<bool, std::set<SCPEnvelope>>
 PendingEnvelopes::handleQuorumSet(SCPQuorumSet const& qSet, bool force)
 {
     auto addResult = mApp.getItemFetcher().add(qSet, force);
@@ -75,11 +75,10 @@ PendingEnvelopes::handleQuorumSet(SCPQuorumSet const& qSet, bool force)
         {
             discardEnvelopesWithItem(addResult.second);
         }
-        return std::set<SCPEnvelope>{};
+        return std::make_pair(false, std::set<SCPEnvelope>{});
     }
 
-    mNodesInQuorum.clear();
-    return processReadyItems(addResult.second);
+    return std::make_pair(true, processReadyItems(addResult.second));
 }
 
 std::set<SCPEnvelope>
@@ -154,15 +153,6 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope)
         return true;
     }
 
-    auto const& nodeID = envelope.statement.nodeID;
-    if (!mNodesInQuorum.isNodeInQuorum(nodeID))
-    {
-        CLOG(DEBUG, "Herder")
-            << "Dropping envelope from "
-            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
-        return true;
-    }
-
     auto& discardedSet =
         mEnvelopes[envelope.statement.slotIndex].mDiscardedEnvelopes;
     auto discarded =
@@ -174,9 +164,6 @@ void
 PendingEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
 {
     mMinimumSlotIndex = slotIndex;
-
-    // force recomputing the quorums
-    mNodesInQuorum.clear();
 
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {

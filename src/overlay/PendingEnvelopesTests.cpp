@@ -48,11 +48,11 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         SECTION("and then READY when all data came (quorum set first)")
         {
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(true, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
@@ -64,7 +64,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
                     EnvelopeHandler::ENVELOPE_STATUS_READY);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
 
@@ -91,14 +91,14 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{saneEnvelope});
+                    std::make_pair(true, std::set<SCPEnvelope>{saneEnvelope}));
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_READY);
 
             REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
 
@@ -118,7 +118,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             "set that were manually added before")
     {
         REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet, true) ==
-                std::set<SCPEnvelope>{});
+                std::make_pair(true, std::set<SCPEnvelope>{}));
         REQUIRE(pendingEnvelopes.handleTxSet(txSet, true) ==
                 std::set<SCPEnvelope>{});
 
@@ -136,7 +136,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         SECTION("quorum set first")
         {
             REQUIRE(pendingEnvelopes.handleQuorumSet(bigQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
@@ -150,7 +150,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
             REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                     std::set<SCPEnvelope>{});
             REQUIRE(pendingEnvelopes.handleQuorumSet(bigQSet) ==
-                    std::set<SCPEnvelope>{});
+                    std::make_pair(false, std::set<SCPEnvelope>{}));
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_DISCARDED);
             REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, bigEnvelope) ==
@@ -167,7 +167,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==
                 EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
         REQUIRE(pendingEnvelopes.handleQuorumSet(saneQSet) ==
-                std::set<SCPEnvelope>{});
+                std::make_pair(true, std::set<SCPEnvelope>{}));
         REQUIRE(pendingEnvelopes.handleTxSet(txSet) ==
                 std::set<SCPEnvelope>{saneEnvelope});
         REQUIRE(pendingEnvelopes.handleEnvelope(nullptr, saneEnvelope) ==

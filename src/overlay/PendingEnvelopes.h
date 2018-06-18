@@ -6,8 +6,9 @@
 
 #include "overlay/EnvelopeHandler.h"
 #include "overlay/EnvelopeItemMap.h"
-#include "overlay/NodesInQuorum.h"
 #include "xdr/Stellar-types.h"
+
+#include <lib/json/json-forwards.h>
 
 /**
  * Container for envelopes that have not yet been processed by Herder. Each
@@ -37,8 +38,8 @@ class PendingEnvelopes
      * After clearing internal quorum node cache it passes the call to
      * FetchingEnvelopes class. Returns list of envelopes that are now READY.
      */
-    std::set<SCPEnvelope> handleQuorumSet(SCPQuorumSet const& qSet,
-                                          bool force = false);
+    std::pair<bool, std::set<SCPEnvelope>>
+    handleQuorumSet(SCPQuorumSet const& qSet, bool force = false);
 
     /**
      * It passes the call to FetchingEnvelopes class. Returns list of envelopes
@@ -56,7 +57,6 @@ class PendingEnvelopes
 
   private:
     Application& mApp;
-    NodesInQuorum mNodesInQuorum;
 
     struct SlotEnvelopes
     {

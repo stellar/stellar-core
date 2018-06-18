@@ -76,6 +76,8 @@ class HerderImpl : public Herder
 
     bool seen(SCPEnvelope const& envelope) override;
     bool push(SCPEnvelope const& envelope) override;
+    bool isNodeInQuorum(NodeID const& node) override;
+    void clearNodesInQuorumCache() override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
@@ -149,6 +151,7 @@ class HerderImpl : public Herder
     Application& mApp;
     LedgerManager& mLedgerManager;
     ReadyEnvelopes mReadyEnvelopes;
+    cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
     struct SCPMetrics
     {

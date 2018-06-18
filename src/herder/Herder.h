@@ -134,6 +134,9 @@ class Herder
      */
     virtual bool push(SCPEnvelope const& envelope) = 0;
 
+    virtual bool isNodeInQuorum(NodeID const& node) = 0;
+    virtual void clearNodesInQuorumCache() = 0;
+
     virtual ~Herder()
     {
     }
