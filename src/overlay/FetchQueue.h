@@ -38,7 +38,7 @@ class FetchQueue
      * Remove top job (with lowest time) from queue and then add it again at new
      * time.
      */
-    void pushToLater(VirtualClock::time_point when);
+    void rescheduleTop(VirtualClock::time_point when);
 
     uint32_t count(ItemKey what) const;
 

@@ -190,7 +190,7 @@ ItemFetchQueue::fetchFromQueue()
 
         auto item = it->first;
         auto timeout = fetchFrom(item, it->second);
-        mFetchQueue.pushToLater(now + timeout);
+        mFetchQueue.rescheduleTop(now + timeout);
     }
 }
 

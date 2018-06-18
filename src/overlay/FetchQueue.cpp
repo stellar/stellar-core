@@ -28,7 +28,7 @@ FetchQueue::pop()
 }
 
 void
-FetchQueue::pushToLater(VirtualClock::time_point when)
+FetchQueue::rescheduleTop(VirtualClock::time_point when)
 {
     auto item = top().second;
     pop();
