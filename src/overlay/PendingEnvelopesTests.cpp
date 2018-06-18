@@ -27,7 +27,7 @@ TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
     ApplicationImpl app{clock, cfg};
     app.initialize();
 
-    auto saneQSet = makeSaneQuorumSet(makePublicKey(0));
+    auto saneQSet = makeSingletonQuorumSet(makePublicKey(0));
     auto saneQSetHash = sha256(xdr::xdr_to_opaque(saneQSet));
     auto bigQSet = makeBigQuorumSet();
     auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));

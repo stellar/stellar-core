@@ -589,9 +589,9 @@ TEST_CASE("SCP Driver", "[herder]")
             keys.push_back(makePublicKey(i));
         }
 
-        auto saneQSet1 = makeSaneQuorumSet(keys[0]);
+        auto saneQSet1 = makeSingletonQuorumSet(keys[0]);
         auto saneQSet1Hash = sha256(xdr::xdr_to_opaque(saneQSet1));
-        auto saneQSet2 = makeSaneQuorumSet(keys[1]);
+        auto saneQSet2 = makeSingletonQuorumSet(keys[1]);
         auto saneQSet2Hash = sha256(xdr::xdr_to_opaque(saneQSet2));
 
         auto bigQSet = SCPQuorumSet{};

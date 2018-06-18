@@ -126,7 +126,7 @@ makePublicKey(int i)
 };
 
 SCPQuorumSet
-makeSaneQuorumSet(PublicKey key)
+makeSingletonQuorumSet(PublicKey key)
 {
     auto result = SCPQuorumSet{};
     result.threshold = 1;

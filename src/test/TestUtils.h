@@ -73,7 +73,7 @@ std::tm getTestDateTime(int day, int month, int year, int hour, int minute,
 VirtualClock::time_point genesis(int minute, int second);
 
 PublicKey makePublicKey(int i);
-SCPQuorumSet makeSaneQuorumSet(PublicKey key);
+SCPQuorumSet makeSingletonQuorumSet(PublicKey key);
 SCPQuorumSet makeBigQuorumSet();
 SCPEnvelope makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex);
 }

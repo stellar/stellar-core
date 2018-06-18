@@ -46,7 +46,7 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
         check(qSet, false, qSet);
     }
 
-    auto validOneNode = makeSaneQuorumSet(keys[0]);
+    auto validOneNode = makeSingletonQuorumSet(keys[0]);
 
     SECTION("{ t: 0, v0 }")
     {
@@ -143,9 +143,9 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     SECTION("{ t: 1, v0, { t: 1, v1, { t: 1, v2 } } } -> { t: 1, v0, { t: 1, "
             "v1, v2 } }")
     {
-        auto qSet = makeSaneQuorumSet(keys[0]);
-        auto qSet1 = makeSaneQuorumSet(keys[1]);
-        auto qSet2 = makeSaneQuorumSet(keys[2]);
+        auto qSet = makeSingletonQuorumSet(keys[0]);
+        auto qSet1 = makeSingletonQuorumSet(keys[1]);
+        auto qSet2 = makeSingletonQuorumSet(keys[2]);
         qSet1.innerSets.push_back(qSet2);
         qSet.innerSets.push_back(qSet1);
 
@@ -163,10 +163,10 @@ TEST_CASE("sane quorum set", "[scp][quorumset]")
     SECTION(
         "{ t: 1, v0, { t: 1, v1, { t: 1, v2, { t: 1, v3 } } } } -> too deep")
     {
-        auto qSet = makeSaneQuorumSet(keys[0]);
-        auto qSet1 = makeSaneQuorumSet(keys[1]);
-        auto qSet2 = makeSaneQuorumSet(keys[2]);
-        auto qSet3 = makeSaneQuorumSet(keys[3]);
+        auto qSet = makeSingletonQuorumSet(keys[0]);
+        auto qSet1 = makeSingletonQuorumSet(keys[1]);
+        auto qSet2 = makeSingletonQuorumSet(keys[2]);
+        auto qSet3 = makeSingletonQuorumSet(keys[3]);
         qSet2.innerSets.push_back(qSet3);
         qSet1.innerSets.push_back(qSet2);
         qSet.innerSets.push_back(qSet1);
