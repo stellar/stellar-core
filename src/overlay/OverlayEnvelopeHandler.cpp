@@ -22,8 +22,6 @@
 namespace stellar
 {
 
-using xdr::operator<;
-
 OverlayEnvelopeHandler::OverlayEnvelopeHandler(Application& app)
     : mApp{app}
     , mLocalNodeID{mApp.getConfig().NODE_SEED.getPublicKey()}

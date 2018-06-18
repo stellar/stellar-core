@@ -15,8 +15,6 @@
 namespace stellar
 {
 
-using xdr::operator<;
-
 ReadyEnvelopes::ReadyEnvelopes(Application& app)
     : mApp(app)
     , mReadyEnvelopesSize(

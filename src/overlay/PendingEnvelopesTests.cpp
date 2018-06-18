@@ -15,11 +15,6 @@
 using namespace stellar;
 using namespace stellar::testutil;
 
-namespace stellar
-{
-using xdr::operator<;
-}
-
 TEST_CASE("PendingEnvelopes", "[herder][unit][PendingEnvelopes]")
 {
     Config cfg(getTestConfig());

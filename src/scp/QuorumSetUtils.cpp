@@ -109,7 +109,6 @@ isQuorumSetSane(SCPQuorumSet const& qSet, bool extraChecks)
 void
 normalizeQSet(SCPQuorumSet& qSet, NodeID const* idToRemove)
 {
-    using xdr::operator==;
     auto& v = qSet.validators;
     if (idToRemove)
     {
