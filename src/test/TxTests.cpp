@@ -188,8 +188,7 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         // checks that the failure is the same if pre checks failed
         if (!check)
         {
-            if (app.getLedgerManager().getCurrentLedgerVersion() >= 10 ||
-                tx->getResultCode() != txFAILED)
+            if (tx->getResultCode() != txFAILED)
             {
                 REQUIRE(checkResult == tx->getResult());
             }
@@ -320,7 +319,6 @@ TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFramePtr> const& txs)
 {
-
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 

@@ -295,21 +295,37 @@ TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
         return true;
     }
 
+    auto allOpsValid = true;
     for (auto& op : mOperations)
     {
         if (!op->checkSignature(signatureChecker, app, nullptr))
         {
-            app.getMetrics()
-                .NewMeter({"transaction", "invalid", "invalid-op"},
-                          "transaction")
-                .Mark();
-            markResultFailed();
-            return false;
+            allOpsValid = false;
         }
     }
 
     removeUsedOneTimeSignerKeys(signatureChecker, delta,
                                 app.getLedgerManager());
+
+    if (!allOpsValid)
+    {
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "invalid-op"}, "transaction")
+            .Mark();
+        markResultFailed();
+        return false;
+    }
+
+    if (!signatureChecker.checkAllSignaturesUsed())
+    {
+        getResult().result.code(txBAD_AUTH_EXTRA);
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                      "transaction")
+            .Mark();
+        return false;
+    }
+
     return true;
 }
 
@@ -589,16 +605,16 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         if (!errorEncountered)
         {
-            if (!signatureChecker.checkAllSignaturesUsed())
-            {
-                getResult().result.code(txBAD_AUTH_EXTRA);
-                // this should never happen: malformed transaction should not be
-                // accepted by nodes
-                return false;
-            }
-
             if (app.getLedgerManager().getCurrentLedgerVersion() < 10)
             {
+                if (!signatureChecker.checkAllSignaturesUsed())
+                {
+                    getResult().result.code(txBAD_AUTH_EXTRA);
+                    // this should never happen: malformed transaction should
+                    // not be accepted by nodes
+                    return false;
+                }
+
                 // if an error occurred, it is responsibility of account's owner
                 // to remove that signer
                 removeUsedOneTimeSignerKeys(signatureChecker, thisTxOpsDelta,

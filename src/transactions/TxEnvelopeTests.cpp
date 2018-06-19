@@ -611,7 +611,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                         REQUIRE(getAccountSigners(a1, *app).size() == 2);
                         alternative.sign(*tx);
 
-                        for_versions_from({3, 4, 5, 6, 8}, *app, [&] {
+                        for_versions({3, 4, 5, 6, 8, 9}, *app, [&] {
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txFAILED);
                             REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
@@ -621,6 +621,69 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                             applyCheck(tx, *app);
                             REQUIRE(tx->getResultCode() == txSUCCESS);
                             REQUIRE(getAccountSigners(a1, *app).size() == 2);
+                        });
+                        for_versions_from(10, *app, [&] {
+                            applyCheck(tx, *app);
+                            REQUIRE(tx->getResultCode() == txFAILED);
+                            REQUIRE(getFirstResultCode(*tx) == opBAD_AUTH);
+                            REQUIRE(getAccountSigners(a1, *app).size() ==
+                                    (alternative.autoRemove ? 1 : 2));
+                        });
+                    }
+
+                    SECTION("not enough rights on first operation")
+                    {
+                        auto b = root.create("b", 1000000000);
+                        auto tx1 = b.tx({setOptions(
+                            setMasterWeight(1) | setLowThreshold(1) |
+                            setMedThreshold(2) | setHighThreshold(3))});
+                        auto tx2 =
+                            b.tx({payment(root, 100), root.op(payment(b, 100))},
+                                 b.getLastSequenceNumber() + 1);
+
+                        SignerKey sk = alternative.createSigner(*tx2);
+                        Signer sk1(sk, 100); // high rights account
+                        root.setOptions(setSigner(sk1));
+
+                        REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        alternative.sign(*tx2);
+
+                        for_versions(3, 9, *app, [&] {
+                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
+                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            REQUIRE(getAccountSigners(root, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
+                        });
+                    }
+
+                    SECTION("not enough rights on second operation")
+                    {
+                        auto b = root.create("b", 1000000000);
+                        auto tx1 = b.tx({setOptions(
+                            setMasterWeight(1) | setLowThreshold(1) |
+                            setMedThreshold(2) | setHighThreshold(3))});
+                        auto tx2 =
+                            b.tx({root.op(payment(b, 100)), payment(root, 100)},
+                                 b.getLastSequenceNumber() + 1);
+
+                        SignerKey sk = alternative.createSigner(*tx2);
+                        Signer sk1(sk, 100); // high rights account
+                        root.setOptions(setSigner(sk1));
+
+                        REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        alternative.sign(*tx2);
+
+                        for_versions(3, 9, *app, [&] {
+                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            REQUIRE(getAccountSigners(root, *app).size() == 1);
+                        });
+                        for_versions_from(10, *app, [&] {
+                            closeLedgerOn(*app, 2, 1, 1, 2010, {tx1, tx2});
+                            REQUIRE(getAccountSigners(root, *app).size() ==
+                                    (alternative.autoRemove ? 0 : 1));
                         });
                     }
 
