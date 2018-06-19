@@ -557,7 +557,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         mApp.getClock().getIOService().post([this, bestTxSet]() {
             TransactionSet txSet;
             bestTxSet->toXDR(txSet);
-            mApp.getItemFetcher().add(txSet, true);
+            mApp.getEnvelopeHandler().txSet(nullptr, txSet, true);
         });
     }
 

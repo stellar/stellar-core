@@ -633,9 +633,12 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     // Inform the item fetcher so queries from other peers about his txSet
     // can be answered. Note this can trigger SCP callbacks, externalize, etc
     // if we happen to build a txset that we were trying to download.
-    TransactionSet txSet;
-    proposedSet->toXDR(txSet);
-    mApp.getEnvelopeHandler().txSet(nullptr, txSet, true);
+    // Post to avoid triggering SCP handling code recursively.
+    mApp.getClock().getIOService().post([this, proposedSet]() {
+        TransactionSet txSet;
+        proposedSet->toXDR(txSet);
+        mApp.getEnvelopeHandler().txSet(nullptr, txSet, true);
+    });
 
     // no point in sending out a prepare:
     // externalize was triggered on a more recent ledger
