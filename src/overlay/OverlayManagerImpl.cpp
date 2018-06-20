@@ -548,7 +548,7 @@ OverlayManagerImpl::recvFloodedMsg(StellarMessage const& msg,
 void
 OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer,
                                          SCPEnvelope const& envelope,
-                                         EnvelopeHandler::EnvelopeStatus status)
+                                         bool broadcast)
 {
     StellarMessage msg;
     msg.type(SCP_MESSAGE);
@@ -556,7 +556,7 @@ OverlayManagerImpl::scpEnvelopeProcessed(Peer::pointer peer,
 
     recvFloodedMsg(msg, peer);
 
-    if (status == EnvelopeHandler::ENVELOPE_STATUS_READY)
+    if (broadcast)
     {
         broadcastMessage(msg);
     }

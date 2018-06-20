@@ -65,7 +65,8 @@ OverlayEnvelopeHandler::handleEnvelope(Peer::pointer peer,
                                 : (mRecvSCPNominateTimer.TimeScope()))));
 
     auto status = processEnvelope(peer, envelope);
-    mApp.getOverlayManager().scpEnvelopeProcessed(peer, envelope, status);
+    mApp.getOverlayManager().scpEnvelopeProcessed(
+        peer, envelope, status == EnvelopeHandler::ENVELOPE_STATUS_READY);
     return status;
 }
 

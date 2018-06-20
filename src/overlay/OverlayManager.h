@@ -70,9 +70,9 @@ class OverlayManager
 
     // SCP envelope has been processed. Overlay can now broadcast it if
     // neccessary.
-    virtual void
-    scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
-                         EnvelopeHandler::EnvelopeStatus status) = 0;
+    virtual void scpEnvelopeProcessed(Peer::pointer peer,
+                                      SCPEnvelope const& envelope,
+                                      bool broadcast) = 0;
 
     // Send a given message to all peers, via the FloodGate. This is called by
     // Herder.
