@@ -15,6 +15,7 @@ namespace stellar
 {
 
 class LoopbackPeerConnection;
+class SCP;
 
 namespace testutil
 {
@@ -76,4 +77,6 @@ PublicKey makePublicKey(int i);
 SCPQuorumSet makeSingletonQuorumSet(PublicKey key);
 SCPQuorumSet makeBigQuorumSet();
 SCPEnvelope makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex);
+
+SCP& getSCP(Application& app);
 }

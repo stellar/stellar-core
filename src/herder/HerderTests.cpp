@@ -1077,9 +1077,9 @@ TEST_CASE("In quorum filtering", "[herder]")
             for (auto const& k : qSetBase.validators)
             {
                 auto c = sim->getNode(k);
-                auto& herder = c->getHerder();
+                auto& scp = getSCP(*c);
 
-                auto state = herder.getSCP().getCurrentState(
+                auto state = scp.getCurrentState(
                     c->getLedgerManager().getLedgerNum() - 1);
                 proc(state);
             }

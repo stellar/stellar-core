@@ -5,6 +5,7 @@
 #include "test/TestUtils.h"
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
+#include "herder/HerderImpl.h"
 #include "herder/LedgerCloseData.h"
 #include "overlay/LoopbackPeer.h"
 
@@ -166,5 +167,12 @@ makeEnvelope(Hash txHash, Hash qSetHash, uint64_t slotIndex)
         xdr::xdr_to_opaque(StellarValue{txHash, 10, emptyUpgradeSteps, 0});
     envelope.statement.pledges.prepare().quorumSetHash = qSetHash;
     return envelope;
+}
+
+SCP&
+getSCP(Application& app)
+{
+    auto& herder = dynamic_cast<HerderImpl&>(app.getHerder());
+    return herder.getSCP();
 }
 }
