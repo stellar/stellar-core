@@ -49,7 +49,12 @@ class HerderImpl : public Herder
 
     void restoreState() override;
 
-    SCP& getSCP() override;
+    std::string envToStr(SCPEnvelope const& envelope) const override;
+
+    SCP const& getSCP() const;
+
+    SCP& getSCP();
+
     HerderSCPDriver&
     getHerderSCPDriver()
     {

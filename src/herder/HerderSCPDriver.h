@@ -79,6 +79,12 @@ class HerderSCPDriver : public SCPDriver
         return lastConsensusLedgerIndex() + 1;
     }
 
+    SCP const&
+    getSCP() const
+    {
+        return mSCP;
+    }
+
     SCP&
     getSCP()
     {

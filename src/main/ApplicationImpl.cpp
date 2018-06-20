@@ -142,8 +142,7 @@ ApplicationImpl::initialize()
                                                         mConfig.NTP_SERVER);
     }
 
-    auto localNode = getHerder().getSCP().getLocalNode();
-    mItemFetcher->add(localNode->getQuorumSet(), true);
+    mItemFetcher->add(getConfig().QUORUM_SET, true);
 
     LOG(DEBUG) << "Application constructed";
 }

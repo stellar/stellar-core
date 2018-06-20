@@ -92,7 +92,7 @@ class Herder
     // restores Herder's state from disk
     virtual void restoreState() = 0;
 
-    virtual SCP& getSCP() = 0;
+    virtual std::string envToStr(SCPEnvelope const& envelope) const = 0;
 
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;

@@ -57,6 +57,6 @@ traceEnvelope(Application& app, std::string const& message,
 {
     if (Logging::logTrace("Herder"))
         CLOG(TRACE, "Herder")
-            << message << ": " << app.getHerder().getSCP().envToStr(envelope);
+            << message << ": " << app.getHerder().envToStr(envelope);
 }
 }

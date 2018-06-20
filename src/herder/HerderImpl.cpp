@@ -98,10 +98,22 @@ HerderImpl::getState() const
     return mHerderSCPDriver.getState();
 }
 
+SCP const&
+HerderImpl::getSCP() const
+{
+    return mHerderSCPDriver.getSCP();
+}
+
 SCP&
 HerderImpl::getSCP()
 {
     return mHerderSCPDriver.getSCP();
+}
+
+std::string
+HerderImpl::envToStr(SCPEnvelope const& envelope) const
+{
+    return getSCP().envToStr(envelope);
 }
 
 void
@@ -742,7 +754,7 @@ HerderImpl::isNodeInQuorum(NodeID const& node)
     else
     {
         // search through the known slots
-        SCP::TriBool r = mApp.getHerder().getSCP().isNodeInQuorum(node);
+        SCP::TriBool r = getSCP().isNodeInQuorum(node);
 
         // consider a node in quorum if it's either in quorum
         // or we don't know if it is (until we get further evidence)

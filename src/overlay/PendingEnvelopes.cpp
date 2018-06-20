@@ -200,10 +200,10 @@ PendingEnvelopes::getJsonInfo(size_t limit)
             !it->second.mDiscardedEnvelopes.empty())
         {
             auto& i = q[std::to_string(it->first)];
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mFetchingEnvelopes, "fetching");
-            dumpEnvelopes(mApp.getHerder().getSCP(), i,
-                          it->second.mDiscardedEnvelopes, "discarded");
+            dumpEnvelopes(mApp.getHerder(), i, it->second.mFetchingEnvelopes,
+                          "fetching");
+            dumpEnvelopes(mApp.getHerder(), i, it->second.mDiscardedEnvelopes,
+                          "discarded");
         }
         it++;
     }
