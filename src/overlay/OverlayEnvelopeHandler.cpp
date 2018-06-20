@@ -73,11 +73,6 @@ EnvelopeHandler::EnvelopeStatus
 OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
                                         SCPEnvelope const& envelope)
 {
-    if (mApp.getConfig().MANUAL_CLOSE)
-    {
-        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
-    }
-
     if (Logging::logDebug("Overlay"))
         CLOG(DEBUG, "Overlay")
             << "recvSCPEnvelope"

@@ -736,6 +736,11 @@ HerderImpl::getUpgradesJson()
 bool
 HerderImpl::processSCPEnvelope(SCPEnvelope const& envelope)
 {
+    if (mApp.getConfig().MANUAL_CLOSE)
+    {
+        return false;
+    }
+
     auto result = mReadyEnvelopes.push(envelope);
     processSCPQueue();
     return result;
