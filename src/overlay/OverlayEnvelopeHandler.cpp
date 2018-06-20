@@ -119,13 +119,14 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
         return status;
     }
 
-    if (mApp.getHerder().seen(envelope))
+    if (mApp.getHerder().push(envelope))
+    {
+        return EnvelopeHandler::ENVELOPE_STATUS_READY;
+    }
+    else
     {
         return EnvelopeHandler::ENVELOPE_STATUS_PROCESSED;
     }
-
-    mApp.getHerder().push(envelope);
-    return EnvelopeHandler::ENVELOPE_STATUS_READY;
 }
 
 void

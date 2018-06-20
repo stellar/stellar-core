@@ -121,13 +121,6 @@ class Herder
     virtual std::string getUpgradesJson() = 0;
 
     /**
-     * Checks if envelope has been pushed to this object before. Always returns
-     * true for envelopes with slot index less than one set by
-     * setMinimumSlotIndex.
-     */
-    virtual bool seen(SCPEnvelope const& envelope) = 0;
-
-    /**
      * Adds new envelope to this object only if it was not added before and its
      * slot index is equal or bigger than one set by setMinimumSlotIndex. Return
      * value indicates if item was added to object.

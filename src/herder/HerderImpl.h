@@ -74,7 +74,6 @@ class HerderImpl : public Herder
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
 
-    bool seen(SCPEnvelope const& envelope) override;
     bool push(SCPEnvelope const& envelope) override;
     bool isNodeInQuorum(NodeID const& node) override;
     void clearNodesInQuorumCache() override;

@@ -722,12 +722,6 @@ HerderImpl::getUpgradesJson()
 }
 
 bool
-HerderImpl::seen(SCPEnvelope const& envelope)
-{
-    return mReadyEnvelopes.seen(envelope);
-}
-
-bool
 HerderImpl::push(SCPEnvelope const& envelope)
 {
     auto result = mReadyEnvelopes.push(envelope);
