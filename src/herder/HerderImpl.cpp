@@ -193,7 +193,8 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
         CLOG(DEBUG, "Herder") << "HerderSCPDriver::valueExternalized"
                               << " txSet: " << hexAbbrev(value.txSetHash);
 
-    auto externalizedSet = mApp.getItemFetcher().getTxSet(value.txSetHash);
+    auto externalizedSet =
+        mApp.getOverlayManager().getItemFetcher().getTxSet(value.txSetHash);
 
     // trigger will be recreated when the ledger is closed
     // we do not want it to trigger while downloading the current set
@@ -653,7 +654,8 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     mApp.getClock().getIOService().post([this, proposedSet]() {
         TransactionSet txSet;
         proposedSet->toXDR(txSet);
-        mApp.getEnvelopeHandler().handleTxSet(nullptr, txSet, true);
+        mApp.getOverlayManager().getEnvelopeHandler().handleTxSet(nullptr,
+                                                                  txSet, true);
     });
 
     // no point in sending out a prepare:
@@ -853,14 +855,15 @@ HerderImpl::persistSCPState(uint64 slot)
         // saves transaction sets referred by the statement
         for (auto const& h : getTxSetHashes(e))
         {
-            auto txSet = mApp.getItemFetcher().getTxSet(h);
+            auto txSet = mApp.getOverlayManager().getItemFetcher().getTxSet(h);
             if (txSet)
             {
                 txSets.insert(std::make_pair(h, txSet));
             }
         }
         auto qsHash = getQuorumSetHash(e);
-        auto qSet = mApp.getItemFetcher().getQuorumSet(qsHash);
+        auto qSet =
+            mApp.getOverlayManager().getItemFetcher().getQuorumSet(qsHash);
         if (qSet)
         {
             quorumSets.insert(std::make_pair(qsHash, qSet));
@@ -919,11 +922,11 @@ HerderImpl::restoreSCPState()
 
         for (auto const& txset : latestTxSets)
         {
-            mApp.getItemFetcher().add(txset, true);
+            mApp.getOverlayManager().getItemFetcher().add(txset, true);
         }
         for (auto const& qset : latestQSets)
         {
-            mApp.getItemFetcher().add(qset, true);
+            mApp.getOverlayManager().getItemFetcher().add(qset, true);
         }
         for (auto const& e : latestEnvs)
         {
@@ -1022,7 +1025,8 @@ HerderImpl::updateValidRange()
                        LEDGER_VALIDITY_BRACKET;
     }
 
-    mApp.getEnvelopeHandler().setValidRange(minLedgerSeq, maxLedgerSeq);
+    mApp.getOverlayManager().getEnvelopeHandler().setValidRange(minLedgerSeq,
+                                                                maxLedgerSeq);
 }
 
 void

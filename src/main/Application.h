@@ -34,7 +34,6 @@ class ProcessManager;
 class Herder;
 class HerderPersistence;
 class InvariantManager;
-class ItemFetcher;
 class OverlayManager;
 class Database;
 class PersistentState;
@@ -43,7 +42,6 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
-class EnvelopeHandler;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -203,7 +201,6 @@ class Application
     virtual Herder& getHerder() = 0;
     virtual HerderPersistence& getHerderPersistence() = 0;
     virtual InvariantManager& getInvariantManager() = 0;
-    virtual ItemFetcher& getItemFetcher() = 0;
     virtual OverlayManager& getOverlayManager() = 0;
     virtual Database& getDatabase() const = 0;
     virtual PersistentState& getPersistentState() = 0;
@@ -211,7 +208,6 @@ class Application
     virtual WorkManager& getWorkManager() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
-    virtual EnvelopeHandler& getEnvelopeHandler() = 0;
 
     // Get the worker IO service, served by background threads. Work posted to
     // this io_service will execute in parallel with the calling thread, so use

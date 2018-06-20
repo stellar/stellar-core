@@ -41,7 +41,10 @@ class OverlayManagerImpl : public OverlayManager
     std::vector<Peer::pointer> mPendingPeers;
     // authenticated and connected peers
     std::map<NodeID, Peer::pointer> mAuthenticatedPeers;
+
     PeerDoor mDoor;
+    std::unique_ptr<EnvelopeHandler> mEnvelopeHandler;
+    std::unique_ptr<ItemFetcher> mItemFetcher;
     PendingEnvelopes mPendingEnvelopes;
     PeerAuth mAuth;
     LoadManager mLoad;
@@ -96,6 +99,10 @@ class OverlayManagerImpl : public OverlayManager
 
     void connectToMorePeers(vector<PeerRecord>& peers);
     std::vector<Peer::pointer> getRandomAuthenticatedPeers() override;
+
+    EnvelopeHandler& getEnvelopeHandler() override;
+
+    ItemFetcher& getItemFetcher() override;
 
     PendingEnvelopes& getPendingEnvelopes() override;
 

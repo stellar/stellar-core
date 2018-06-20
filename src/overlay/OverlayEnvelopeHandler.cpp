@@ -128,7 +128,8 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
 void
 OverlayEnvelopeHandler::getQuorumSet(Peer::pointer peer, Hash const& hash)
 {
-    if (auto qset = mApp.getItemFetcher().getQuorumSet(hash))
+    if (auto qset =
+            mApp.getOverlayManager().getItemFetcher().getQuorumSet(hash))
     {
         peer->sendSCPQuorumSet(qset);
     }
@@ -163,7 +164,7 @@ OverlayEnvelopeHandler::handleQuorumSet(Peer::pointer peer,
 void
 OverlayEnvelopeHandler::getTxSet(Peer::pointer peer, Hash const& hash)
 {
-    if (auto txSet = mApp.getItemFetcher().getTxSet(hash))
+    if (auto txSet = mApp.getOverlayManager().getItemFetcher().getTxSet(hash))
     {
         StellarMessage newMsg;
         newMsg.type(TX_SET);
@@ -193,6 +194,6 @@ OverlayEnvelopeHandler::handleTxSet(Peer::pointer peer,
 void
 OverlayEnvelopeHandler::doesNotHave(Peer::pointer peer, ItemKey itemKey)
 {
-    mApp.getItemFetcher().removeKnowing(peer, itemKey);
+    mApp.getOverlayManager().getItemFetcher().removeKnowing(peer, itemKey);
 }
 }

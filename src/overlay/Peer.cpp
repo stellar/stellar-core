@@ -664,14 +664,16 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_TX_SET:
     {
         auto t = mRecvGetTxSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().getTxSet(self, stellarMsg.txSetHash());
+        mApp.getOverlayManager().getEnvelopeHandler().getTxSet(
+            self, stellarMsg.txSetHash());
     }
     break;
 
     case TX_SET:
     {
         auto t = mRecvTxSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().handleTxSet(self, stellarMsg.txSet());
+        mApp.getOverlayManager().getEnvelopeHandler().handleTxSet(
+            self, stellarMsg.txSet());
     }
     break;
 
@@ -685,21 +687,24 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case GET_SCP_QUORUMSET:
     {
         auto t = mRecvGetSCPQuorumSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().getQuorumSet(self, stellarMsg.qSetHash());
+        mApp.getOverlayManager().getEnvelopeHandler().getQuorumSet(
+            self, stellarMsg.qSetHash());
     }
     break;
 
     case SCP_QUORUMSET:
     {
         auto t = mRecvSCPQuorumSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().handleQuorumSet(self, stellarMsg.qSet());
+        mApp.getOverlayManager().getEnvelopeHandler().handleQuorumSet(
+            self, stellarMsg.qSet());
     }
     break;
 
     case SCP_MESSAGE:
     {
         auto t = mRecvSCPMessageTimer.TimeScope();
-        mApp.getEnvelopeHandler().handleEnvelope(self, stellarMsg.envelope());
+        mApp.getOverlayManager().getEnvelopeHandler().handleEnvelope(
+            self, stellarMsg.envelope());
     }
     break;
 
@@ -734,7 +739,7 @@ Peer::recvDontHave(StellarMessage const& msg)
     }
     }
 
-    mApp.getEnvelopeHandler().doesNotHave(
+    mApp.getOverlayManager().getEnvelopeHandler().doesNotHave(
         shared_from_this(), ItemKey{itemType, msg.dontHave().reqHash});
 }
 

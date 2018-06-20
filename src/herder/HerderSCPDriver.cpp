@@ -11,6 +11,7 @@
 #include "ledger/LedgerManager.h"
 #include "main/Application.h"
 #include "overlay/ItemFetcher.h"
+#include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
 #include "scp/SCP.h"
 #include "util/Logging.h"
@@ -244,7 +245,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
 
     // we are fully synced up
 
-    TxSetFramePtr txSet = mApp.getItemFetcher().getTxSet(txSetHash);
+    TxSetFramePtr txSet =
+        mApp.getOverlayManager().getItemFetcher().getTxSet(txSetHash);
 
     SCPDriver::ValidationLevel res;
 
@@ -515,7 +517,9 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         TxSetFramePtr highestTxSet;
         for (auto const& sv : candidateValues)
         {
-            TxSetFramePtr cTxSet = mApp.getItemFetcher().getTxSet(sv.txSetHash);
+            TxSetFramePtr cTxSet =
+                mApp.getOverlayManager().getItemFetcher().getTxSet(
+                    sv.txSetHash);
 
             if (cTxSet && cTxSet->previousLedgerHash() == lcl.hash)
             {
@@ -557,7 +561,8 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
         mApp.getClock().getIOService().post([this, bestTxSet]() {
             TransactionSet txSet;
             bestTxSet->toXDR(txSet);
-            mApp.getEnvelopeHandler().handleTxSet(nullptr, txSet, true);
+            mApp.getOverlayManager().getEnvelopeHandler().handleTxSet(
+                nullptr, txSet, true);
         });
     }
 
@@ -679,7 +684,7 @@ HerderSCPDriver::nominate(uint64_t slotIndex, StellarValue const& value,
 SCPQuorumSetPtr
 HerderSCPDriver::getQSet(Hash const& qSetHash)
 {
-    return mApp.getItemFetcher().getQuorumSet(qSetHash);
+    return mApp.getOverlayManager().getItemFetcher().getQuorumSet(qSetHash);
 }
 
 void

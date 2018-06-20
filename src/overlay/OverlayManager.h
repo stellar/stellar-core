@@ -49,6 +49,8 @@
 namespace stellar
 {
 
+class EnvelopeHandler;
+class ItemFetcher;
 class PeerAuth;
 class PeerBareAddress;
 class PeerRecord;
@@ -134,6 +136,10 @@ class OverlayManager
     // Attempt to connect to a peer identified by peer record. Can modify back
     // off value of pr and save it do database.
     virtual void connectTo(PeerRecord& pr) = 0;
+
+    virtual EnvelopeHandler& getEnvelopeHandler() = 0;
+
+    virtual ItemFetcher& getItemFetcher() = 0;
 
     // Return PendingEnvelopes
     virtual PendingEnvelopes& getPendingEnvelopes() = 0;

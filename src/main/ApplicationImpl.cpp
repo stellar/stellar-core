@@ -37,8 +37,7 @@
 #include "medida/reporting/console_reporter.h"
 #include "medida/timer.h"
 #include "overlay/BanManager.h"
-#include "overlay/ItemFetcherImpl.h"
-#include "overlay/OverlayEnvelopeHandler.h"
+#include "overlay/ItemFetcher.h"
 #include "overlay/OverlayManager.h"
 #include "overlay/PendingEnvelopes.h"
 #include "process/ProcessManager.h"
@@ -118,14 +117,12 @@ ApplicationImpl::initialize()
     mHistoryArchiveManager = std::make_unique<HistoryArchiveManager>(*this);
     mHistoryManager = HistoryManager::create(*this);
     mInvariantManager = createInvariantManager();
-    mItemFetcher = std::make_unique<ItemFetcherImpl>(*this);
     mMaintainer = std::make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
-    mEnvelopeHandler = std::make_unique<OverlayEnvelopeHandler>(*this);
 
     BucketListIsConsistentWithDatabase::registerInvariant(*this);
     AccountSubEntriesCountIsValid::registerInvariant(*this);
@@ -142,7 +139,7 @@ ApplicationImpl::initialize()
                                                         mConfig.NTP_SERVER);
     }
 
-    mItemFetcher->add(getConfig().QUORUM_SET, true);
+    getOverlayManager().getItemFetcher().add(getConfig().QUORUM_SET, true);
 
     LOG(DEBUG) << "Application constructed";
 }
@@ -706,12 +703,6 @@ ApplicationImpl::getInvariantManager()
     return *mInvariantManager;
 }
 
-ItemFetcher&
-ApplicationImpl::getItemFetcher()
-{
-    return *mItemFetcher;
-}
-
 OverlayManager&
 ApplicationImpl::getOverlayManager()
 {
@@ -752,12 +743,6 @@ StatusManager&
 ApplicationImpl::getStatusManager()
 {
     return *mStatusManager;
-}
-
-EnvelopeHandler&
-ApplicationImpl::getEnvelopeHandler()
-{
-    return *mEnvelopeHandler;
 }
 
 asio::io_service&

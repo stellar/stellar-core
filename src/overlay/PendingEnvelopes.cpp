@@ -51,7 +51,8 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
 
     touchItemCache(envelope);
 
-    auto items = mApp.getItemFetcher().fetchFor(envelope, peer);
+    auto items =
+        mApp.getOverlayManager().getItemFetcher().fetchFor(envelope, peer);
     if (items.empty())
     {
         return EnvelopeHandler::ENVELOPE_STATUS_READY;
@@ -68,7 +69,7 @@ PendingEnvelopes::handleEnvelope(Peer::pointer peer,
 std::pair<bool, std::set<SCPEnvelope>>
 PendingEnvelopes::handleQuorumSet(SCPQuorumSet const& qSet, bool force)
 {
-    auto addResult = mApp.getItemFetcher().add(qSet, force);
+    auto addResult = mApp.getOverlayManager().getItemFetcher().add(qSet, force);
     if (!addResult.first)
     {
         if (!isQuorumSetSane(qSet, false))
@@ -84,7 +85,8 @@ PendingEnvelopes::handleQuorumSet(SCPQuorumSet const& qSet, bool force)
 std::set<SCPEnvelope>
 PendingEnvelopes::handleTxSet(TransactionSet const& txSet, bool force)
 {
-    auto addResult = mApp.getItemFetcher().add(txSet, force);
+    auto addResult =
+        mApp.getOverlayManager().getItemFetcher().add(txSet, force);
     if (!addResult.first)
     {
         return std::set<SCPEnvelope>{};
@@ -117,7 +119,7 @@ PendingEnvelopes::discardEnvelope(SCPEnvelope const& envelope)
         envelope);
     for (auto& item : mEnvelopeItemMap.remove(envelope))
     {
-        mApp.getItemFetcher().forget(item);
+        mApp.getOverlayManager().getItemFetcher().forget(item);
     }
 }
 
@@ -136,12 +138,13 @@ PendingEnvelopes::discardEnvelopesWithItem(ItemKey itemKey)
 void
 PendingEnvelopes::touchItemCache(SCPEnvelope const& envelope)
 {
-    mApp.getItemFetcher().touch(
+    mApp.getOverlayManager().getItemFetcher().touch(
         ItemKey{ItemType::QUORUM_SET, getQuorumSetHash(envelope)});
 
     for (auto const& h : getTxSetHashes(envelope))
     {
-        mApp.getItemFetcher().touch(ItemKey{ItemType::TX_SET, h});
+        mApp.getOverlayManager().getItemFetcher().touch(
+            ItemKey{ItemType::TX_SET, h});
     }
 }
 
@@ -182,7 +185,7 @@ PendingEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
 
     for (auto& item : removed)
     {
-        mApp.getItemFetcher().forget(item);
+        mApp.getOverlayManager().getItemFetcher().forget(item);
     }
 }
 

@@ -540,7 +540,7 @@ TEST_CASE("SCP Driver", "[herder]")
     SECTION("combineCandidates")
     {
         auto& herder = static_cast<HerderImpl&>(app->getHerder());
-        auto& envelopeHandler = app->getEnvelopeHandler();
+        auto& envelopeHandler = app->getOverlayManager().getEnvelopeHandler();
 
         std::set<Value> candidates;
 
@@ -606,8 +606,8 @@ TEST_CASE("SCP Driver", "[herder]")
         }
         auto bigQSetHash = sha256(xdr::xdr_to_opaque(bigQSet));
 
-        auto& herder = static_cast<HerderImpl&>(app->getHerder());
-        auto& envelopeHandler = app->getEnvelopeHandler();
+        auto& herder = app->getHerder();
+        auto& envelopeHandler = app->getOverlayManager().getEnvelopeHandler();
 
         auto transactions1 = makeTransactions(lcl.hash, 50);
         auto transactions2 = makeTransactions(lcl.hash, 40);

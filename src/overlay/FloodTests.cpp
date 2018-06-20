@@ -231,7 +231,8 @@ TEST_CASE("Flooding", "[flood][overlay]")
             TxSetFrame txSet(lcl.hash);
             txSet.add(tx1);
             txSet.sortForHash();
-            auto& envelopeHandler = inApp->getEnvelopeHandler();
+            auto& envelopeHandler =
+                inApp->getOverlayManager().getEnvelopeHandler();
 
             // build the quorum set used by this message
             // use sources as validators

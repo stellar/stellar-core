@@ -9,6 +9,8 @@
 #include "herder/Herder.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "overlay/ItemFetcherImpl.h"
+#include "overlay/OverlayEnvelopeHandler.h"
 #include "overlay/PeerBareAddress.h"
 #include "overlay/PeerRecord.h"
 #include "overlay/PendingEnvelopes.h"
@@ -83,6 +85,8 @@ OverlayManagerImpl::OverlayManagerImpl(Application& app)
     , mTimer(app)
     , mFloodGate(app)
 {
+    mEnvelopeHandler = std::make_unique<OverlayEnvelopeHandler>(mApp);
+    mItemFetcher = std::make_unique<ItemFetcherImpl>(mApp);
 }
 
 OverlayManagerImpl::~OverlayManagerImpl()
@@ -579,6 +583,18 @@ PeerAuth&
 OverlayManagerImpl::getPeerAuth()
 {
     return mAuth;
+}
+
+EnvelopeHandler&
+OverlayManagerImpl::getEnvelopeHandler()
+{
+    return *mEnvelopeHandler;
+}
+
+ItemFetcher&
+OverlayManagerImpl::getItemFetcher()
+{
+    return *mItemFetcher;
 }
 
 PendingEnvelopes&
