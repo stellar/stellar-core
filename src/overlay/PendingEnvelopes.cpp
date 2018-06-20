@@ -126,7 +126,7 @@ PendingEnvelopes::discardEnvelope(SCPEnvelope const& envelope)
 void
 PendingEnvelopes::discardEnvelopesWithItem(ItemKey itemKey)
 {
-    CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with SCPQSet "
+    CLOG(TRACE, "Herder") << "Discarding SCP Envelopes with item "
                           << hexAbbrev(itemKey.getHash());
 
     for (auto& envelope : mEnvelopeItemMap.envelopes(itemKey))
