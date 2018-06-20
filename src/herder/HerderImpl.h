@@ -63,8 +63,6 @@ class HerderImpl : public Herder
 
     void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) override;
 
-    void processSCPQueue() override;
-
     uint32_t getCurrentLedgerSeq() const override;
 
     SequenceNumber getMaxSeqInPendingTxs(AccountID const&) override;
@@ -104,6 +102,7 @@ class HerderImpl : public Herder
 
     void updateSCPCounters();
 
+    void processSCPQueue();
     void processSCPQueueUpToIndex(uint64 slotIndex);
 
     // 0- tx we got during ledger close

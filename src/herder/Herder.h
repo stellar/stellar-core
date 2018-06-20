@@ -97,8 +97,6 @@ class Herder
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
 
-    virtual void processSCPQueue() = 0;
-
     // a peer needs our SCP state
     virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
 
