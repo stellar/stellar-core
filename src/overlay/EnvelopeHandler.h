@@ -39,8 +39,8 @@ class EnvelopeHandler
     /**
      * Called when envelope is received from external peer.
      */
-    virtual EnvelopeStatus envelope(Peer::pointer peer,
-                                    SCPEnvelope const& envelope) = 0;
+    virtual EnvelopeStatus handleEnvelope(Peer::pointer peer,
+                                          SCPEnvelope const& envelope) = 0;
 
     virtual void getQuorumSet(Peer::pointer peer, Hash const& hash) = 0;
 
@@ -48,9 +48,9 @@ class EnvelopeHandler
      * Called when quorum set is received from external peer. When force is
      * false quorum set will be only handled when it was requested before.
      */
-    virtual std::set<SCPEnvelope> quorumSet(Peer::pointer peer,
-                                            SCPQuorumSet const& qSet,
-                                            bool force = false) = 0;
+    virtual std::set<SCPEnvelope> handleQuorumSet(Peer::pointer peer,
+                                                  SCPQuorumSet const& qSet,
+                                                  bool force = false) = 0;
 
     virtual void getTxSet(Peer::pointer peer, Hash const& hash) = 0;
 
@@ -58,9 +58,9 @@ class EnvelopeHandler
      * Called when transaction set is received from external peer. When force is
      * false transaction set will be only handled when it was requested before.
      */
-    virtual std::set<SCPEnvelope> txSet(Peer::pointer peer,
-                                        TransactionSet const& txSet,
-                                        bool force = false) = 0;
+    virtual std::set<SCPEnvelope> handleTxSet(Peer::pointer peer,
+                                              TransactionSet const& txSet,
+                                              bool force = false) = 0;
 
     /**
      * Called when "donthave" message is received from external peer.

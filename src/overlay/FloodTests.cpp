@@ -264,9 +264,9 @@ TEST_CASE("Flooding", "[flood][overlay]")
             // inject the message
             TransactionSet txValue;
             txSet.toXDR(txValue);
-            envelopeHandler.txSet(nullptr, txValue, true);
-            envelopeHandler.quorumSet(nullptr, qset, true);
-            REQUIRE(envelopeHandler.envelope(nullptr, envelope) ==
+            envelopeHandler.handleTxSet(nullptr, txValue, true);
+            envelopeHandler.handleQuorumSet(nullptr, qset, true);
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, envelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_READY);
 
         };

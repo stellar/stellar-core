@@ -15,17 +15,18 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
     ~OverlayEnvelopeHandler() = default;
 
     void setValidRange(uint32_t min, uint32_t max) override;
-    EnvelopeStatus envelope(Peer::pointer,
-                            SCPEnvelope const& envelope) override;
+    EnvelopeStatus handleEnvelope(Peer::pointer,
+                                  SCPEnvelope const& envelope) override;
 
     void getQuorumSet(Peer::pointer peer, Hash const& hash) override;
-    std::set<SCPEnvelope> quorumSet(Peer::pointer peer,
-                                    SCPQuorumSet const& qSet,
-                                    bool force) override;
+    std::set<SCPEnvelope> handleQuorumSet(Peer::pointer peer,
+                                          SCPQuorumSet const& qSet,
+                                          bool force) override;
 
     void getTxSet(Peer::pointer peer, Hash const& hash) override;
-    std::set<SCPEnvelope> txSet(Peer::pointer peer, TransactionSet const& txSet,
-                                bool force) override;
+    std::set<SCPEnvelope> handleTxSet(Peer::pointer peer,
+                                      TransactionSet const& txSet,
+                                      bool force) override;
 
     void doesNotHave(Peer::pointer peer, ItemKey itemKey) override;
 

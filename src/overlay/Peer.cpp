@@ -671,7 +671,7 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case TX_SET:
     {
         auto t = mRecvTxSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().txSet(self, stellarMsg.txSet());
+        mApp.getEnvelopeHandler().handleTxSet(self, stellarMsg.txSet());
     }
     break;
 
@@ -692,14 +692,14 @@ Peer::recvMessage(StellarMessage const& stellarMsg)
     case SCP_QUORUMSET:
     {
         auto t = mRecvSCPQuorumSetTimer.TimeScope();
-        mApp.getEnvelopeHandler().quorumSet(self, stellarMsg.qSet());
+        mApp.getEnvelopeHandler().handleQuorumSet(self, stellarMsg.qSet());
     }
     break;
 
     case SCP_MESSAGE:
     {
         auto t = mRecvSCPMessageTimer.TimeScope();
-        mApp.getEnvelopeHandler().envelope(self, stellarMsg.envelope());
+        mApp.getEnvelopeHandler().handleEnvelope(self, stellarMsg.envelope());
     }
     break;
 

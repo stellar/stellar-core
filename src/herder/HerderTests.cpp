@@ -547,9 +547,9 @@ TEST_CASE("SCP Driver", "[herder]")
         auto addToCandidates = [&](TxPair const& p) {
             candidates.emplace(p.first);
             auto envelope = makeEnvelope(p, {}, herder.getCurrentLedgerSeq());
-            REQUIRE(envelopeHandler.envelope(nullptr, envelope) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, envelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.txSet(nullptr, p.second, false) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p.second, false) ==
                     std::set<SCPEnvelope>{});
         };
 
@@ -624,127 +624,131 @@ TEST_CASE("SCP Driver", "[herder]")
 
         SECTION("return FETCHING until fetched")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{saneEnvelopeQ1T1});
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_PROCESSED);
         }
 
         SECTION("only accepts qset once")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
-                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+                REQUIRE(
+                    envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
 
             SECTION("when receiving different envelope with the same qset")
             {
-                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T2) ==
-                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+                REQUIRE(
+                    envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T2) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                         std::set<SCPEnvelope>{});
             }
         }
 
         SECTION("only accepts txset once")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
 
             SECTION("when re-receiving the same envelope")
             {
-                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
-                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+                REQUIRE(
+                    envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                         std::set<SCPEnvelope>{});
             }
 
             SECTION("when receiving different envelope with the same txset")
             {
-                REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ2T1) ==
-                        EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-                REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+                REQUIRE(
+                    envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ2T1) ==
+                    EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
+                REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                         std::set<SCPEnvelope>{});
             }
         }
 
         SECTION("do not accept unasked qset")
         {
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet2) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet2) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION("do not accept unasked txset")
         {
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.txSet(nullptr, p2.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p2.second) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION("do not accept not sane qset")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, bigEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION("do not accept txset from envelope discarded because of unsane "
                 "qset")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, bigEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION(
             "accept txset from envelope with unsane qset before receiving qset")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, bigEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
         }
 
         SECTION("accept txset from envelopes with both valid and unsane qset")
         {
-            REQUIRE(envelopeHandler.envelope(nullptr, saneEnvelopeQ1T1) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, saneEnvelopeQ1T1) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.envelope(nullptr, bigEnvelope) ==
+            REQUIRE(envelopeHandler.handleEnvelope(nullptr, bigEnvelope) ==
                     EnvelopeHandler::ENVELOPE_STATUS_FETCHING);
-            REQUIRE(envelopeHandler.quorumSet(nullptr, saneQSet1) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, saneQSet1) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.quorumSet(nullptr, bigQSet) ==
+            REQUIRE(envelopeHandler.handleQuorumSet(nullptr, bigQSet) ==
                     std::set<SCPEnvelope>{});
-            REQUIRE(envelopeHandler.txSet(nullptr, p1.second) ==
+            REQUIRE(envelopeHandler.handleTxSet(nullptr, p1.second) ==
                     std::set<SCPEnvelope>{saneEnvelopeQ1T1});
         }
     }

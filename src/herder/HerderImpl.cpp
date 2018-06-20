@@ -641,7 +641,7 @@ HerderImpl::triggerNextLedger(uint32_t ledgerSeqToTrigger)
     mApp.getClock().getIOService().post([this, proposedSet]() {
         TransactionSet txSet;
         proposedSet->toXDR(txSet);
-        mApp.getEnvelopeHandler().txSet(nullptr, txSet, true);
+        mApp.getEnvelopeHandler().handleTxSet(nullptr, txSet, true);
     });
 
     // no point in sending out a prepare:

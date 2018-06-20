@@ -47,8 +47,8 @@ OverlayEnvelopeHandler::setValidRange(uint32_t min, uint32_t max)
 }
 
 EnvelopeHandler::EnvelopeStatus
-OverlayEnvelopeHandler::envelope(Peer::pointer peer,
-                                 SCPEnvelope const& envelope)
+OverlayEnvelopeHandler::handleEnvelope(Peer::pointer peer,
+                                       SCPEnvelope const& envelope)
 {
     if (Logging::logTrace("Overlay"))
         CLOG(TRACE, "Overlay")
@@ -146,8 +146,8 @@ OverlayEnvelopeHandler::getQuorumSet(Peer::pointer peer, Hash const& hash)
 }
 
 std::set<SCPEnvelope>
-OverlayEnvelopeHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet,
-                                  bool force)
+OverlayEnvelopeHandler::handleQuorumSet(Peer::pointer peer,
+                                        SCPQuorumSet const& qSet, bool force)
 {
     auto result =
         mApp.getOverlayManager().getPendingEnvelopes().handleQuorumSet(qSet,
@@ -159,7 +159,7 @@ OverlayEnvelopeHandler::quorumSet(Peer::pointer peer, SCPQuorumSet const& qSet,
 
     for (auto const& e : result.second)
     {
-        envelope(peer, e);
+        handleEnvelope(peer, e);
     }
     return result.second;
 }
@@ -182,14 +182,14 @@ OverlayEnvelopeHandler::getTxSet(Peer::pointer peer, Hash const& hash)
 }
 
 std::set<SCPEnvelope>
-OverlayEnvelopeHandler::txSet(Peer::pointer peer, TransactionSet const& txSet,
-                              bool force)
+OverlayEnvelopeHandler::handleTxSet(Peer::pointer peer,
+                                    TransactionSet const& txSet, bool force)
 {
     auto envelopes = mApp.getOverlayManager().getPendingEnvelopes().handleTxSet(
         txSet, force);
     for (auto const& e : envelopes)
     {
-        envelope(peer, e);
+        handleEnvelope(peer, e);
     }
     return envelopes;
 }
