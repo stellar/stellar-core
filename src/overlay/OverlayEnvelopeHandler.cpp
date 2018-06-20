@@ -119,7 +119,7 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
         return status;
     }
 
-    if (mApp.getHerder().push(envelope))
+    if (mApp.getHerder().processSCPEnvelope(envelope))
     {
         return EnvelopeHandler::ENVELOPE_STATUS_READY;
     }

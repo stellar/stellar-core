@@ -734,7 +734,7 @@ HerderImpl::getUpgradesJson()
 }
 
 bool
-HerderImpl::push(SCPEnvelope const& envelope)
+HerderImpl::processSCPEnvelope(SCPEnvelope const& envelope)
 {
     auto result = mReadyEnvelopes.push(envelope);
     processSCPQueue();

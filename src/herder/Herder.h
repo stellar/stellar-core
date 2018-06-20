@@ -123,7 +123,7 @@ class Herder
      * slot index is equal or bigger than one set by setMinimumSlotIndex. Return
      * value indicates if item was added to object.
      */
-    virtual bool push(SCPEnvelope const& envelope) = 0;
+    virtual bool processSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
     virtual bool isNodeInQuorum(NodeID const& node) = 0;
     virtual void clearNodesInQuorumCache() = 0;
