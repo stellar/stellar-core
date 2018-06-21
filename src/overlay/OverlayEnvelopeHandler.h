@@ -39,6 +39,7 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
     medida::Timer& mRecvSCPNominateTimer;
     medida::Timer& mRecvSCPExternalizeTimer;
     medida::Meter& mEnvelopeReceive;
+    medida::Counter& mEnvelopeDropped;
 
     uint32_t mMin{0};
     uint32_t mMax{std::numeric_limits<uint32_t>::max()};

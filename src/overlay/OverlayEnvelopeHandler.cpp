@@ -35,6 +35,8 @@ OverlayEnvelopeHandler::OverlayEnvelopeHandler(Application& app)
           {"overlay", "recv", "scp-externalize"})}
     , mEnvelopeReceive(
           app.getMetrics().NewMeter({"scp", "envelope", "receive"}, "envelope"))
+    , mEnvelopeDropped(
+          app.getMetrics().NewCounter({"scp", "envelope", "dropped"}))
 {
 }
 
@@ -67,6 +69,10 @@ OverlayEnvelopeHandler::handleEnvelope(Peer::pointer peer,
     auto status = processEnvelope(peer, envelope);
     mApp.getOverlayManager().scpEnvelopeProcessed(
         peer, envelope, status == EnvelopeHandler::ENVELOPE_STATUS_READY);
+    if (status == EnvelopeHandler::ENVELOPE_STATUS_DISCARDED)
+    {
+        mEnvelopeDropped.inc();
+    }
     return status;
 }
 
