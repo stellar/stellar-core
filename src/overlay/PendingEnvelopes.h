@@ -49,9 +49,9 @@ class PendingEnvelopes
                                       bool force = false);
 
     /**
-     * Sets minimum value of envelope slot index that is acceptable.
+     * Remove envelopes below certain slot index.
      */
-    void setMinimumSlotIndex(uint64_t slotIndex);
+    void clearBelow(uint64_t slotIndex);
 
     Json::Value getJsonInfo(size_t limit);
 
@@ -67,8 +67,6 @@ class PendingEnvelopes
     std::map<uint64_t, SlotEnvelopes> mEnvelopes;
 
     EnvelopeItemMap mEnvelopeItemMap;
-
-    uint64_t mMinimumSlotIndex{0};
 
     void discardEnvelope(SCPEnvelope const& envelope);
     void discardEnvelopesWithItem(ItemKey itemKey);

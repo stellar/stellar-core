@@ -345,19 +345,10 @@ OverlayManagerImpl::getConnectedPeer(PeerBareAddress const& address)
 }
 
 void
-OverlayManagerImpl::ledgerClosed(uint32_t lastClosedledgerSeq)
+OverlayManagerImpl::clearBelow(uint32_t slotIndex)
 {
-    mFloodGate.clearBelow(lastClosedledgerSeq);
-
-    if (lastClosedledgerSeq > Herder::MAX_SLOTS_TO_REMEMBER)
-    {
-        mPendingEnvelopes.setMinimumSlotIndex(lastClosedledgerSeq -
-                                              Herder::MAX_SLOTS_TO_REMEMBER);
-    }
-    else
-    {
-        mPendingEnvelopes.setMinimumSlotIndex(0);
-    }
+    mFloodGate.clearBelow(slotIndex);
+    mPendingEnvelopes.clearBelow(slotIndex);
 }
 
 void

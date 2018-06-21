@@ -66,9 +66,8 @@ class OverlayManager
     static void dropAll(Database& db);
 
     // Flush all FloodGate and ItemFetchQueue state for ledgers older than
-    // `ledger`.
-    // This is called by LedgerManager when a ledger closes.
-    virtual void ledgerClosed(uint32_t lastClosedledgerSeq) = 0;
+    // `slotIndex`. This is called by LedgerManager when a ledger closes.
+    virtual void clearBelow(uint32_t slotIndex) = 0;
 
     // SCP envelope has been processed. Overlay can now broadcast it if
     // neccessary.

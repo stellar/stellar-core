@@ -74,7 +74,7 @@ class OverlayManagerImpl : public OverlayManager
     OverlayManagerImpl(Application& app);
     ~OverlayManagerImpl();
 
-    void ledgerClosed(uint32_t lastClosedledgerSeq) override;
+    void clearBelow(uint32_t slotIndex) override;
     void scpEnvelopeProcessed(Peer::pointer peer, SCPEnvelope const& envelope,
                               bool broadcast) override;
     void recvFloodedMsg(StellarMessage const& msg, Peer::pointer peer) override;

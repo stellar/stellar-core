@@ -468,10 +468,11 @@ HerderImpl::ledgerClosed()
 
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
-    mReadyEnvelopes.clearBelow(minimumSlotIndex());
+    auto minimumSlot = minimumSlotIndex();
+    mReadyEnvelopes.clearBelow(minimumSlot);
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-    mApp.getOverlayManager().ledgerClosed(lastIndex);
+    mApp.getOverlayManager().clearBelow(minimumSlot);
     mNodesInQuorum.clear();
     updateValidRange();
 

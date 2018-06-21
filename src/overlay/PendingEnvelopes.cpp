@@ -30,15 +30,6 @@ EnvelopeHandler::EnvelopeStatus
 PendingEnvelopes::handleEnvelope(Peer::pointer peer,
                                  SCPEnvelope const& envelope)
 {
-    auto const& nodeID = envelope.statement.nodeID;
-    if (envelope.statement.slotIndex < mMinimumSlotIndex)
-    {
-        CLOG(DEBUG, "Herder")
-            << "Dropping envelope from "
-            << mApp.getConfig().toShortString(nodeID) << " (too old)";
-        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
-    }
-
     // did we discard this envelope?
     // do we already have this envelope?
     // do we have the qset
@@ -151,11 +142,6 @@ PendingEnvelopes::touchItemCache(SCPEnvelope const& envelope)
 bool
 PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope)
 {
-    if (envelope.statement.slotIndex < mMinimumSlotIndex)
-    {
-        return true;
-    }
-
     auto& discardedSet =
         mEnvelopes[envelope.statement.slotIndex].mDiscardedEnvelopes;
     auto discarded =
@@ -164,13 +150,11 @@ PendingEnvelopes::isDiscarded(SCPEnvelope const& envelope)
 }
 
 void
-PendingEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
+PendingEnvelopes::clearBelow(uint64_t slotIndex)
 {
-    mMinimumSlotIndex = slotIndex;
-
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {
-        if (iter->first < mMinimumSlotIndex)
+        if (iter->first < slotIndex)
         {
             iter = mEnvelopes.erase(iter);
         }
@@ -180,7 +164,7 @@ PendingEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
 
     auto removed = mEnvelopeItemMap.removeIf(
         [this, slotIndex](SCPEnvelope const& envelope) {
-            return envelope.statement.slotIndex < mMinimumSlotIndex;
+            return envelope.statement.slotIndex < slotIndex;
         });
 
     for (auto& item : removed)

@@ -36,12 +36,12 @@ Floodgate::Floodgate(Application& app)
 
 // remove old flood records
 void
-Floodgate::clearBelow(uint32_t currentLedger)
+Floodgate::clearBelow(uint32_t slotIndex)
 {
     for (auto it = mFloodMap.cbegin(); it != mFloodMap.cend();)
     {
-        // give one ledger of leeway
-        if (it->second->mLedgerSeq + 10 < currentLedger)
+        // give MAX_SLOTS_TO_REMEMBER ledgers of leeway
+        if (it->second->mLedgerSeq < slotIndex)
         {
             mFloodMap.erase(it++);
         }
