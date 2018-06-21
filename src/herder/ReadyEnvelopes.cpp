@@ -32,11 +32,6 @@ bool
 ReadyEnvelopes::seen(SCPEnvelope const& envelope)
 {
     auto slotIndex = envelope.statement.slotIndex;
-    if (slotIndex < mMinimumSlotIndex)
-    {
-        return true;
-    }
-
     auto& seen = mEnvelopes[slotIndex].mSeenEnvelopes;
     return seen.find(envelope) != std::end(seen);
 }
@@ -52,7 +47,6 @@ ReadyEnvelopes::push(SCPEnvelope const& envelope)
     traceEnvelope(mApp, "Marked ready", envelope);
 
     auto slotIndex = envelope.statement.slotIndex;
-    assert(slotIndex >= mMinimumSlotIndex);
     assert(mEnvelopes[slotIndex].mSeenEnvelopes.find(envelope) ==
            std::end(mEnvelopes[slotIndex].mSeenEnvelopes));
 
@@ -100,13 +94,14 @@ ReadyEnvelopes::readySlots()
 }
 
 void
-ReadyEnvelopes::setMinimumSlotIndex(uint64_t slotIndex)
+ReadyEnvelopes::clearBelow(uint64_t slotIndex)
 {
-    mMinimumSlotIndex = slotIndex;
+    mReadyEnvelopesSize.clear();
+    mSeenEnvelopesSize.clear();
 
     for (auto iter = mEnvelopes.begin(); iter != mEnvelopes.end();)
     {
-        if (iter->first < mMinimumSlotIndex)
+        if (iter->first < slotIndex)
         {
             mReadyEnvelopesSize.inc(iter->second.mReadyEnvelopes.size());
             mSeenEnvelopesSize.inc(iter->second.mSeenEnvelopes.size());

@@ -147,6 +147,8 @@ class HerderImpl : public Herder
 
     void updateValidRange();
 
+    uint64_t minimumSlotIndex() const;
+
     VirtualTimer mTriggerTimer;
 
     VirtualTimer mRebroadcastTimer;

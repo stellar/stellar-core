@@ -88,25 +88,25 @@ TEST_CASE("ReadyEnvelopes", "[herder][unit][ReadyEnvelopes]")
         REQUIRE(ret == makeEnvelope(3));
     }
 
-    SECTION("forget and dont allow old items")
+    SECTION("forget old items")
     {
         ReadyEnvelopes readyEnvelopes{app};
         REQUIRE(readyEnvelopes.push(makeEnvelope(1)));
         REQUIRE(readyEnvelopes.push(makeEnvelope(3)));
         REQUIRE(readyEnvelopes.push(makeEnvelope(4)));
         REQUIRE(readyEnvelopes.push(makeEnvelope(5)));
-        readyEnvelopes.setMinimumSlotIndex(3);
+        readyEnvelopes.clearBelow(3);
 
-        REQUIRE(readyEnvelopes.seen(makeEnvelope(1)));
-        REQUIRE(readyEnvelopes.seen(makeEnvelope(2)));
+        REQUIRE(!readyEnvelopes.seen(makeEnvelope(1)));
+        REQUIRE(!readyEnvelopes.seen(makeEnvelope(2)));
         REQUIRE(readyEnvelopes.seen(makeEnvelope(3)));
         REQUIRE(readyEnvelopes.seen(makeEnvelope(4)));
         REQUIRE(readyEnvelopes.seen(makeEnvelope(5)));
-        REQUIRE(!readyEnvelopes.push(makeEnvelope(1)));
-        REQUIRE(!readyEnvelopes.push(makeEnvelope(2)));
+        REQUIRE(readyEnvelopes.push(makeEnvelope(2)));
 
         SCPEnvelope ret;
-        REQUIRE(!readyEnvelopes.pop(2, ret));
+        REQUIRE(!readyEnvelopes.pop(1, ret));
+        REQUIRE(readyEnvelopes.pop(2, ret));
         REQUIRE(readyEnvelopes.pop(5, ret));
         REQUIRE(ret == makeEnvelope(3));
         REQUIRE(readyEnvelopes.pop(5, ret));

@@ -26,8 +26,7 @@ namespace stellar
 class Application;
 
 /**
- * Container for envelopes that are ready to be processed. Only allows envelopes
- * above certaing slot index that can be set by setMinimumSlotIndex.
+ * Container for envelopes that are ready to be processed.
  */
 class ReadyEnvelopes
 {
@@ -36,15 +35,12 @@ class ReadyEnvelopes
     ~ReadyEnvelopes();
 
     /**
-     * Checks if envelope has been pushed to this object before. Always returns
-     * true for envelopes with slot index less than one set by
-     * setMinimumSlotIndex.
+     * Checks if envelope has been pushed to this object before.
      */
     bool seen(SCPEnvelope const& envelope);
 
     /**
-     * Adds new envelope to this object only if it was not added before and its
-     * slot index is equal or bigger than one set by setMinimumSlotIndex. Return
+     * Adds new envelope to this object only if it was not added before. Return
      * value indicates if item was added to object.
      */
     bool push(SCPEnvelope const& envelope);
@@ -62,11 +58,9 @@ class ReadyEnvelopes
     std::vector<uint64_t> readySlots();
 
     /**
-     * Sets minimum value of envelope slot index that is acceptable. All ready
-     * envelopes with smaller slot indexes are removed and will no longer be
-     * accepted.
+     * Remove all envelopes with slot index smaller than given minimum.
      */
-    void setMinimumSlotIndex(uint64_t slotIndex);
+    void clearBelow(uint64_t slotIndex);
 
     void dumpInfo(Json::Value& ret, size_t limit);
 
@@ -82,6 +76,5 @@ class ReadyEnvelopes
     };
 
     std::map<uint64_t, SlotReadyEnvelopes> mEnvelopes;
-    uint64_t mMinimumSlotIndex{0};
 };
 }

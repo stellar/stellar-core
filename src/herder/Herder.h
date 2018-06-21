@@ -119,9 +119,8 @@ class Herder
     virtual std::string getUpgradesJson() = 0;
 
     /**
-     * Adds new envelope to this object only if it was not added before and its
-     * slot index is equal or bigger than one set by setMinimumSlotIndex. Return
-     * value indicates if item was added to object.
+     * Adds new envelope to this object only if it was not added before and it
+     * is valid. Return value indicates if item was added to object.
      */
     virtual bool processSCPEnvelope(SCPEnvelope const& envelope) = 0;
 

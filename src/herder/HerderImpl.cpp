@@ -453,6 +453,14 @@ HerderImpl::processSCPQueueUpToIndex(uint64 slotIndex)
     }
 }
 
+uint64_t
+HerderImpl::minimumSlotIndex() const
+{
+    auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
+    return lastIndex > MAX_SLOTS_TO_REMEMBER ? lastIndex - MAX_SLOTS_TO_REMEMBER
+                                             : 0;
+}
+
 void
 HerderImpl::ledgerClosed()
 {
@@ -460,17 +468,9 @@ HerderImpl::ledgerClosed()
 
     updateSCPCounters();
     CLOG(TRACE, "Herder") << "HerderImpl::ledgerClosed";
+    mReadyEnvelopes.clearBelow(minimumSlotIndex());
 
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
-    if (lastIndex > MAX_SLOTS_TO_REMEMBER)
-    {
-        mReadyEnvelopes.setMinimumSlotIndex(lastIndex - MAX_SLOTS_TO_REMEMBER);
-    }
-    else
-    {
-        mReadyEnvelopes.setMinimumSlotIndex(0);
-    }
-
     mApp.getOverlayManager().ledgerClosed(lastIndex);
     mNodesInQuorum.clear();
     updateValidRange();
