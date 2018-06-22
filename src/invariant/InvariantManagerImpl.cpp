@@ -56,6 +56,17 @@ InvariantManagerImpl::getJsonInfo()
     return failures;
 }
 
+std::vector<std::string>
+InvariantManagerImpl::getEnabledInvariants() const
+{
+    std::vector<std::string> res;
+    for (auto const& p : mEnabled)
+    {
+        res.emplace_back(p->getName());
+    }
+    return res;
+}
+
 void
 InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                                          uint32_t ledger, uint32_t level,
