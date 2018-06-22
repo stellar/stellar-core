@@ -789,7 +789,12 @@ CommandHandler::scpInfo(std::string const& params, std::string& retStr)
     size_t lim = 2;
     maybeParseParam(retMap, "limit", lim);
 
-    auto root = mApp.getHerder().getJsonInfo(lim);
+    Json::Value root;
+    root["you"] =
+        mApp.getConfig().toStrKey(mApp.getConfig().NODE_SEED.getPublicKey());
+    root["scp"] = mApp.getHerder().getJsonSCPInfo(lim);
+    root["ready_queue"] = mApp.getHerder().getJsonQueueInfo(lim);
+    root["pending_queue"] = mApp.getOverlayManager().getJsonQueueInfo(lim);
     retStr = root.toStyledString();
 }
 

@@ -131,7 +131,8 @@ class Herder
     {
     }
 
-    virtual Json::Value getJsonInfo(size_t limit) = 0;
+    virtual Json::Value getJsonSCPInfo(size_t limit) = 0;
+    virtual Json::Value getJsonQueueInfo(size_t limit) = 0;
     virtual Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
                                           uint64 index = 0) = 0;
 };

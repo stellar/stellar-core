@@ -62,7 +62,7 @@ class ReadyEnvelopes
      */
     void clearBelow(uint64_t slotIndex);
 
-    void dumpInfo(Json::Value& ret, size_t limit);
+    Json::Value getJsonInfo(size_t limit);
 
   private:
     Application& mApp;

@@ -113,10 +113,11 @@ ReadyEnvelopes::clearBelow(uint64_t slotIndex)
     }
 }
 
-void
-ReadyEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
+Json::Value
+ReadyEnvelopes::getJsonInfo(size_t limit)
 {
-    auto& q = ret["queue"];
+    Json::Value ret;
+
     auto it = mEnvelopes.rbegin();
     auto l = limit;
     while (it != mEnvelopes.rend() && l-- != 0)
@@ -124,7 +125,7 @@ ReadyEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
         if (!it->second.mReadyEnvelopes.empty() ||
             !it->second.mSeenEnvelopes.empty())
         {
-            auto& i = q[std::to_string(it->first)];
+            auto& i = ret[std::to_string(it->first)];
             dumpEnvelopes(mApp.getHerder(), i, it->second.mReadyEnvelopes,
                           "ready");
             dumpEnvelopes(mApp.getHerder(), i, it->second.mSeenEnvelopes,
@@ -132,5 +133,7 @@ ReadyEnvelopes::dumpInfo(Json::Value& ret, size_t limit)
         }
         it++;
     }
+
+    return ret;
 }
 }

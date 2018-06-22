@@ -115,7 +115,7 @@ class OverlayManagerImpl : public OverlayManager
 
     bool isShuttingDown() const override;
 
-    Json::Value getJsonInfo(size_t limit) override;
+    Json::Value getJsonQueueInfo(size_t limit) override;
 
   private:
     std::vector<PeerRecord> getPreferredPeersFromConfig();

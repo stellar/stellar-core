@@ -178,7 +178,6 @@ PendingEnvelopes::getJsonInfo(size_t limit)
 {
     Json::Value ret;
 
-    auto& q = ret["queue"];
     auto it = mEnvelopes.rbegin();
     auto l = limit;
     while (it != mEnvelopes.rend() && l-- != 0)
@@ -186,7 +185,7 @@ PendingEnvelopes::getJsonInfo(size_t limit)
         if (!it->second.mFetchingEnvelopes.empty() ||
             !it->second.mDiscardedEnvelopes.empty())
         {
-            auto& i = q[std::to_string(it->first)];
+            auto& i = ret[std::to_string(it->first)];
             dumpEnvelopes(mApp.getHerder(), i, it->second.mFetchingEnvelopes,
                           "fetching");
             dumpEnvelopes(mApp.getHerder(), i, it->second.mDiscardedEnvelopes,

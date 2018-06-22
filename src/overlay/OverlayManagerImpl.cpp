@@ -629,7 +629,7 @@ OverlayManagerImpl::isShuttingDown() const
 }
 
 Json::Value
-OverlayManagerImpl::getJsonInfo(size_t limit)
+OverlayManagerImpl::getJsonQueueInfo(size_t limit)
 {
     return mPendingEnvelopes.getJsonInfo(limit);
 }

@@ -156,7 +156,7 @@ class OverlayManager
 
     virtual bool isShuttingDown() const = 0;
 
-    virtual Json::Value getJsonInfo(size_t limit) = 0;
+    virtual Json::Value getJsonQueueInfo(size_t limit) = 0;
 
     virtual ~OverlayManager()
     {

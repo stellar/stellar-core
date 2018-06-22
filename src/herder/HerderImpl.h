@@ -83,7 +83,8 @@ class HerderImpl : public Herder
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
 
-    Json::Value getJsonInfo(size_t limit) override;
+    Json::Value getJsonSCPInfo(size_t limit) override;
+    Json::Value getJsonQueueInfo(size_t limit) override;
     Json::Value getJsonQuorumInfo(NodeID const& id, bool summary,
                                   uint64 index) override;
 
