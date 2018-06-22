@@ -17,6 +17,8 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 
+#include <util/format.h>
+
 using namespace stellar;
 
 namespace InvariantTests
@@ -25,14 +27,30 @@ namespace InvariantTests
 class TestInvariant : public Invariant
 {
   public:
-    TestInvariant(bool shouldFail) : Invariant(true), mShouldFail(shouldFail)
+    TestInvariant(int id, bool shouldFail)
+        : Invariant(true), mInvariantID(id), mShouldFail(shouldFail)
     {
+    }
+
+    // if id < 0, generate prefix that will match any invariant
+    static std::string
+    toString(int id, bool fail)
+    {
+        if (id < 0)
+        {
+            return fmt::format("TestInvariant{}", fail ? "Fail" : "Succeed");
+        }
+        else
+        {
+            return fmt::format("TestInvariant{}{}", fail ? "Fail" : "Succeed",
+                               id);
+        }
     }
 
     virtual std::string
     getName() const override
     {
-        return mShouldFail ? "TestInvariant(Fail)" : "TestInvariant(Succeed)";
+        return toString(mInvariantID, mShouldFail);
     }
 
     virtual std::string
@@ -51,6 +69,7 @@ class TestInvariant : public Invariant
     }
 
   private:
+    int mInvariantID;
     bool mShouldFail;
 };
 }
@@ -64,9 +83,9 @@ TEST_CASE("no duplicate register", "[invariant]")
     cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->getInvariantManager().registerInvariant<TestInvariant>(true);
+    app->getInvariantManager().registerInvariant<TestInvariant>(0, true);
     REQUIRE_THROWS_AS(
-        app->getInvariantManager().registerInvariant<TestInvariant>(true),
+        app->getInvariantManager().registerInvariant<TestInvariant>(0, true),
         std::runtime_error);
 }
 
@@ -77,11 +96,12 @@ TEST_CASE("no duplicate enable", "[invariant]")
     cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->getInvariantManager().registerInvariant<TestInvariant>(true);
-    app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
-    REQUIRE_THROWS_AS(
-        app->getInvariantManager().enableInvariant("TestInvariant(Fail)"),
-        std::runtime_error);
+    app->getInvariantManager().registerInvariant<TestInvariant>(0, true);
+    app->getInvariantManager().enableInvariant(
+        TestInvariant::toString(0, true));
+    REQUIRE_THROWS_AS(app->getInvariantManager().enableInvariant(
+                          TestInvariant::toString(0, true)),
+                      std::runtime_error);
 }
 
 TEST_CASE("only enable registered invariants", "[invariant]")
@@ -91,10 +111,38 @@ TEST_CASE("only enable registered invariants", "[invariant]")
     cfg.INVARIANT_CHECKS = {};
     Application::pointer app = createTestApplication(clock, cfg);
 
-    app->getInvariantManager().registerInvariant<TestInvariant>(true);
-    app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
+    app->getInvariantManager().registerInvariant<TestInvariant>(0, true);
+    app->getInvariantManager().enableInvariant(
+        TestInvariant::toString(0, true));
     REQUIRE_THROWS_AS(app->getInvariantManager().enableInvariant("WrongName"),
                       std::runtime_error);
+}
+
+TEST_CASE("enable registered invariants regex", "[invariant]")
+{
+    VirtualClock clock;
+    Config cfg = getTestConfig();
+    cfg.INVARIANT_CHECKS = {};
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    const int nbInvariants = 3;
+    for (int i = 0; i < nbInvariants; i++)
+    {
+        app->getInvariantManager().registerInvariant<TestInvariant>(i, true);
+    }
+    app->getInvariantManager().registerInvariant<TestInvariant>(nbInvariants,
+                                                                false);
+
+    app->getInvariantManager().enableInvariant(
+        TestInvariant::toString(-1, true) + ".*");
+    auto e = app->getInvariantManager().getEnabledInvariants();
+    std::sort(e.begin(), e.end());
+
+    REQUIRE(e.size() == nbInvariants);
+    for (int i = 0; i < nbInvariants; i++)
+    {
+        REQUIRE(e[i] == TestInvariant::toString(i, true));
+    }
 }
 
 TEST_CASE("onBucketApply fail/succeed", "[invariant]")
@@ -105,8 +153,9 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
         cfg.INVARIANT_CHECKS = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->getInvariantManager().registerInvariant<TestInvariant>(true);
-        app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
+        app->getInvariantManager().registerInvariant<TestInvariant>(0, true);
+        app->getInvariantManager().enableInvariant(
+            TestInvariant::toString(0, true));
 
         auto bucket = std::make_shared<Bucket>();
         uint32_t ledger = 1;
@@ -123,8 +172,9 @@ TEST_CASE("onBucketApply fail/succeed", "[invariant]")
         cfg.INVARIANT_CHECKS = {};
         Application::pointer app = createTestApplication(clock, cfg);
 
-        app->getInvariantManager().registerInvariant<TestInvariant>(false);
-        app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
+        app->getInvariantManager().registerInvariant<TestInvariant>(0, false);
+        app->getInvariantManager().enableInvariant(
+            TestInvariant::toString(0, false));
 
         auto bucket = std::make_shared<Bucket>();
         uint32_t ledger = 1;
@@ -147,16 +197,18 @@ TEST_CASE("onOperationApply fail/succeed", "[invariant]")
 
     SECTION("Fail")
     {
-        app->getInvariantManager().registerInvariant<TestInvariant>(true);
-        app->getInvariantManager().enableInvariant("TestInvariant(Fail)");
+        app->getInvariantManager().registerInvariant<TestInvariant>(0, true);
+        app->getInvariantManager().enableInvariant(
+            TestInvariant::toString(0, true));
         REQUIRE_THROWS_AS(
             app->getInvariantManager().checkOnOperationApply({}, res, ld),
             InvariantDoesNotHold);
     }
     SECTION("Succeed")
     {
-        app->getInvariantManager().registerInvariant<TestInvariant>(false);
-        app->getInvariantManager().enableInvariant("TestInvariant(Succeed)");
+        app->getInvariantManager().registerInvariant<TestInvariant>(0, false);
+        app->getInvariantManager().enableInvariant(
+            TestInvariant::toString(0, false));
         REQUIRE_NOTHROW(
             app->getInvariantManager().checkOnOperationApply({}, res, ld));
     }
