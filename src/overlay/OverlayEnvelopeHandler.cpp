@@ -24,7 +24,6 @@ namespace stellar
 
 OverlayEnvelopeHandler::OverlayEnvelopeHandler(Application& app)
     : mApp{app}
-    , mLocalNodeID{mApp.getConfig().NODE_SEED.getPublicKey()}
     , mRecvSCPPrepareTimer{app.getMetrics().NewTimer(
           {"overlay", "recv", "scp-prepare"})}
     , mRecvSCPConfirmTimer{app.getMetrics().NewTimer(
@@ -38,14 +37,6 @@ OverlayEnvelopeHandler::OverlayEnvelopeHandler(Application& app)
     , mEnvelopeDropped(
           app.getMetrics().NewCounter({"scp", "envelope", "dropped"}))
 {
-}
-
-void
-OverlayEnvelopeHandler::setValidRange(uint32_t min, uint32_t max)
-{
-    assert(min <= max);
-    mMin = min;
-    mMax = max;
 }
 
 EnvelopeHandler::EnvelopeStatus
@@ -89,28 +80,8 @@ OverlayEnvelopeHandler::processEnvelope(Peer::pointer peer,
             << " i:" << envelope.statement.slotIndex
             << " a:" << mApp.getStateHuman();
 
-    if (envelope.statement.nodeID == mLocalNodeID)
+    if (!mApp.getHerder().isSCPEnvelopeValid(envelope))
     {
-        CLOG(DEBUG, "Overlay") << "recvSCPEnvelope: skipping own message";
-        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
-    }
-
-    // If envelopes are out of our validity brackets, we just ignore them.
-    if (envelope.statement.slotIndex > mMax ||
-        envelope.statement.slotIndex < mMin)
-    {
-        CLOG(DEBUG, "Overlay") << "Ignoring SCPEnvelope outside of range: "
-                               << envelope.statement.slotIndex << "( " << mMin
-                               << "," << mMax << ")";
-        return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
-    }
-
-    auto const& nodeID = envelope.statement.nodeID;
-    if (!mApp.getHerder().isNodeInQuorum(nodeID))
-    {
-        CLOG(DEBUG, "Herder")
-            << "Dropping envelope from "
-            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
         return EnvelopeHandler::ENVELOPE_STATUS_DISCARDED;
     }
 

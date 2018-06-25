@@ -14,7 +14,6 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
     explicit OverlayEnvelopeHandler(Application& app);
     ~OverlayEnvelopeHandler() = default;
 
-    void setValidRange(uint32_t min, uint32_t max) override;
     EnvelopeStatus handleEnvelope(Peer::pointer,
                                   SCPEnvelope const& envelope) override;
 
@@ -32,7 +31,6 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
 
   private:
     Application& mApp;
-    NodeID mLocalNodeID;
 
     medida::Timer& mRecvSCPPrepareTimer;
     medida::Timer& mRecvSCPConfirmTimer;
@@ -41,8 +39,6 @@ class OverlayEnvelopeHandler : public EnvelopeHandler
     medida::Meter& mEnvelopeReceive;
     medida::Counter& mEnvelopeDropped;
 
-    uint32_t mMin{0};
-    uint32_t mMax{std::numeric_limits<uint32_t>::max()};
     EnvelopeStatus processEnvelope(Peer::pointer, SCPEnvelope const& envelope);
 };
 }

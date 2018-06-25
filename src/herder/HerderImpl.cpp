@@ -83,6 +83,7 @@ HerderImpl::HerderImpl(Application& app)
     , mApp(app)
     , mLedgerManager(app.getLedgerManager())
     , mReadyEnvelopes(app)
+    , mLocalNodeID{mApp.getConfig().NODE_SEED.getPublicKey()}
     , mNodesInQuorum(NODES_QUORUM_CACHE_SIZE)
     , mSCPMetrics(app)
 {
@@ -474,7 +475,6 @@ HerderImpl::ledgerClosed()
     auto lastIndex = mHerderSCPDriver.lastConsensusLedgerIndex();
     mApp.getOverlayManager().clearBelow(minimumSlot);
     mNodesInQuorum.clear();
-    updateValidRange();
 
     uint64_t nextIndex = mHerderSCPDriver.nextConsensusLedgerIndex();
 
@@ -737,6 +737,58 @@ HerderImpl::getUpgradesJson()
 }
 
 bool
+HerderImpl::isSCPEnvelopeValid(SCPEnvelope const& envelope)
+{
+    if (envelope.statement.nodeID == mLocalNodeID)
+    {
+        CLOG(DEBUG, "Herder") << "isSCPEnvelopeValid: skipping own message";
+        return false;
+    }
+
+    uint32_t minLedgerSeq = getCurrentLedgerSeq();
+    if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
+    {
+        minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
+    }
+
+    uint32_t maxLedgerSeq = std::numeric_limits<uint32_t>::max();
+
+    if (mHerderSCPDriver.trackingSCP())
+    {
+        // when tracking, we can filter messages based on the information we got
+        // from consensus for the max ledger
+
+        // note that this filtering will cause a node on startup
+        // to potentially drop messages outside of the bracket
+        // causing it to discard CONSENSUS_STUCK_TIMEOUT_SECONDS worth of
+        // ledger closing
+        maxLedgerSeq = mHerderSCPDriver.nextConsensusLedgerIndex() +
+                       LEDGER_VALIDITY_BRACKET;
+    }
+
+    // If envelopes are out of our validity brackets, we just ignore them.
+    if (envelope.statement.slotIndex > maxLedgerSeq ||
+        envelope.statement.slotIndex < minLedgerSeq)
+    {
+        CLOG(DEBUG, "Herder") << "Ignoring SCPEnvelope outside of range: "
+                              << envelope.statement.slotIndex << "( "
+                              << minLedgerSeq << "," << maxLedgerSeq << ")";
+        return false;
+    }
+
+    auto const& nodeID = envelope.statement.nodeID;
+    if (!isNodeInQuorum(nodeID))
+    {
+        CLOG(DEBUG, "Herder")
+            << "Dropping envelope from "
+            << mApp.getConfig().toShortString(nodeID) << " (not in quorum)";
+        return false;
+    }
+
+    return true;
+}
+
+bool
 HerderImpl::processSCPEnvelope(SCPEnvelope const& envelope)
 {
     if (mApp.getConfig().MANUAL_CLOSE)
@@ -983,7 +1035,6 @@ HerderImpl::restoreState()
 {
     restoreSCPState();
     restoreUpgrades();
-    updateValidRange();
 }
 
 void
@@ -999,34 +1050,6 @@ HerderImpl::trackingHeartBeat()
         std::chrono::seconds(CONSENSUS_STUCK_TIMEOUT_SECONDS));
     mTrackingTimer.async_wait(std::bind(&HerderImpl::herderOutOfSync, this),
                               &VirtualTimer::onFailureNoop);
-}
-
-void
-HerderImpl::updateValidRange()
-{
-    uint32_t minLedgerSeq = getCurrentLedgerSeq();
-    if (minLedgerSeq > MAX_SLOTS_TO_REMEMBER)
-    {
-        minLedgerSeq -= MAX_SLOTS_TO_REMEMBER;
-    }
-
-    uint32_t maxLedgerSeq = std::numeric_limits<uint32_t>::max();
-
-    if (mHerderSCPDriver.trackingSCP())
-    {
-        // when tracking, we can filter messages based on the information we got
-        // from consensus for the max ledger
-
-        // note that this filtering will cause a node on startup
-        // to potentially drop messages outside of the bracket
-        // causing it to discard CONSENSUS_STUCK_TIMEOUT_SECONDS worth of
-        // ledger closing
-        maxLedgerSeq = mHerderSCPDriver.nextConsensusLedgerIndex() +
-                       LEDGER_VALIDITY_BRACKET;
-    }
-
-    mApp.getOverlayManager().getEnvelopeHandler().setValidRange(minLedgerSeq,
-                                                                maxLedgerSeq);
 }
 
 void

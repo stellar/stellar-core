@@ -118,13 +118,15 @@ class Herder
     // gets the upgrades that are scheduled by this node
     virtual std::string getUpgradesJson() = 0;
 
+    // check if envelope should be handled
+    virtual bool isSCPEnvelopeValid(SCPEnvelope const& envelope) = 0;
+
     /**
      * Adds new envelope to this object only if it was not added before and it
      * is valid. Return value indicates if item was added to object.
      */
     virtual bool processSCPEnvelope(SCPEnvelope const& envelope) = 0;
 
-    virtual bool isNodeInQuorum(NodeID const& node) = 0;
     virtual void clearNodesInQuorumCache() = 0;
 
     virtual ~Herder()

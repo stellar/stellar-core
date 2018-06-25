@@ -77,8 +77,9 @@ class HerderImpl : public Herder
     void setUpgrades(Upgrades::UpgradeParameters const& upgrades) override;
     std::string getUpgradesJson() override;
 
+    bool isSCPEnvelopeValid(SCPEnvelope const& envelope) override;
     bool processSCPEnvelope(SCPEnvelope const& envelope) override;
-    bool isNodeInQuorum(NodeID const& node) override;
+
     void clearNodesInQuorumCache() override;
 
     bool resolveNodeID(std::string const& s, PublicKey& retKey) override;
@@ -146,9 +147,9 @@ class HerderImpl : public Herder
     // indeterminate mode
     void trackingHeartBeat();
 
-    void updateValidRange();
-
     uint64_t minimumSlotIndex() const;
+
+    bool isNodeInQuorum(NodeID const& node);
 
     VirtualTimer mTriggerTimer;
 
@@ -157,6 +158,7 @@ class HerderImpl : public Herder
     Application& mApp;
     LedgerManager& mLedgerManager;
     ReadyEnvelopes mReadyEnvelopes;
+    NodeID mLocalNodeID;
     cache::lru_cache<NodeID, bool> mNodesInQuorum;
 
     struct SCPMetrics

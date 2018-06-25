@@ -34,8 +34,6 @@ class EnvelopeHandler
     {
     }
 
-    virtual void setValidRange(uint32_t min, uint32_t max) = 0;
-
     /**
      * Called when envelope is received from external peer.
      */
