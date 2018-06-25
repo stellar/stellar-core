@@ -34,6 +34,8 @@ class InvariantManagerImpl : public InvariantManager
 
     virtual Json::Value getJsonInfo() override;
 
+    virtual std::vector<std::string> getEnabledInvariants() const override;
+
     virtual void checkOnOperationApply(Operation const& operation,
                                        OperationResult const& opres,
                                        LedgerDelta const& delta) override;
