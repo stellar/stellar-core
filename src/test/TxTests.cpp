@@ -2,14 +2,13 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "TxTests.h"
-
+#include "test/TxTests.h"
 #include "crypto/ByteSlice.h"
+#include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
 #include "ledger/DataFrame.h"
 #include "ledger/LedgerDelta.h"
-#include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
@@ -30,6 +29,8 @@
 #include "util/XDROperators.h"
 #include "util/types.h"
 
+#include <lib/catch.hpp>
+
 using namespace stellar;
 using namespace stellar::txtest;
 
@@ -38,6 +39,76 @@ namespace stellar
 {
 namespace txtest
 {
+
+ExpectedOpResult::ExpectedOpResult(OperationResultCode code) : code{code}
+{
+}
+ExpectedOpResult::ExpectedOpResult(CreateAccountResultCode createAccountCode)
+    : code{opINNER}, type{CREATE_ACCOUNT}, createAccountCode{createAccountCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(PaymentResultCode paymentCode)
+    : code{opINNER}, type{PAYMENT}, paymentCode{paymentCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(AccountMergeResultCode accountMergeCode)
+    : code{opINNER}, type{ACCOUNT_MERGE}, accountMergeCode{accountMergeCode}
+{
+}
+ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
+    : code{opINNER}
+    , type{SET_OPTIONS}
+    , setOptionsResultCode{setOptionsResultCode}
+{
+}
+
+TransactionResult
+expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
+               std::vector<ExpectedOpResult> ops)
+{
+    auto result = TransactionResult{};
+    result.feeCharged = fee;
+    result.result.code(code);
+    if (code != txSUCCESS && code != txFAILED)
+    {
+        return result;
+    }
+    if (ops.empty())
+    {
+        std::fill_n(std::back_inserter(ops), opsCount, PAYMENT_SUCCESS);
+    }
+
+    result.result.results().resize(static_cast<uint32_t>(ops.size()));
+    for (size_t i = 0; i < ops.size(); i++)
+    {
+        auto& r = result.result.results()[i];
+        auto& o = ops[i];
+        r.code(o.code);
+        if (o.code == opINNER)
+        {
+            r.tr().type(o.type);
+            switch (o.type)
+            {
+            case CREATE_ACCOUNT:
+                r.tr().createAccountResult().code(o.createAccountCode);
+                break;
+            case PAYMENT:
+                r.tr().paymentResult().code(o.paymentCode);
+                break;
+            case ACCOUNT_MERGE:
+                r.tr().accountMergeResult().code(o.accountMergeCode);
+                break;
+            case SET_OPTIONS:
+                r.tr().setOptionsResult().code(o.setOptionsResultCode);
+                break;
+            default:
+                break;
+            }
+        }
+    }
+
+    return result;
+}
 
 bool
 applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
@@ -117,7 +188,24 @@ applyCheck(TransactionFramePtr tx, Application& app, bool checkSeqNum)
         // checks that the failure is the same if pre checks failed
         if (!check)
         {
-            REQUIRE(checkResult == tx->getResult());
+            if (tx->getResultCode() != txFAILED)
+            {
+                REQUIRE(checkResult == tx->getResult());
+            }
+            else
+            {
+                auto const& txResults = tx->getResult().result.results();
+                auto const& checkResults = checkResult.result.results();
+                for (auto i = 0u; i < txResults.size(); i++)
+                {
+                    REQUIRE(checkResults[i] == txResults[i]);
+                    if (checkResults[i].code() == opBAD_AUTH)
+                    {
+                        // results may not match after first opBAD_AUTH
+                        break;
+                    }
+                }
+            }
         }
 
         if (code != txNO_ACCOUNT)
@@ -194,11 +282,43 @@ applyTx(TransactionFramePtr const& tx, Application& app, bool checkSeqNum)
     checkTransaction(*tx, app);
 }
 
+void
+validateTxResults(TransactionFramePtr const& tx, Application& app,
+                  ValidationResult validationResult,
+                  TransactionResult const& applyResult)
+{
+    auto shouldValidateOk = validationResult.code == txSUCCESS;
+    REQUIRE(tx->checkValid(app, 0) == shouldValidateOk);
+    REQUIRE(tx->getResult().result.code() == validationResult.code);
+    REQUIRE(tx->getResult().feeCharged == validationResult.fee);
+
+    // do not try to apply if checkValid returned false
+    if (!shouldValidateOk)
+    {
+        REQUIRE(applyResult == TransactionResult{});
+        return;
+    }
+
+    switch (applyResult.result.code())
+    {
+    case txINTERNAL_ERROR:
+    case txBAD_AUTH_EXTRA:
+    case txBAD_SEQ:
+        return;
+    default:
+        break;
+    }
+
+    auto shouldApplyOk = applyResult.result.code() == txSUCCESS;
+    auto applyOk = applyCheck(tx, app);
+    REQUIRE(tx->getResult() == applyResult);
+    REQUIRE(applyOk == shouldApplyOk);
+};
+
 TxSetResultMeta
 closeLedgerOn(Application& app, uint32 ledgerSeq, int day, int month, int year,
               std::vector<TransactionFramePtr> const& txs)
 {
-
     auto txSet = std::make_shared<TxSetFrame>(
         app.getLedgerManager().getLastClosedLedgerHeader().hash);
 
@@ -247,6 +367,12 @@ getAccount(const char* n)
     while (seed.size() < 32)
         seed += '.';
     return SecretKey::fromSeed(seed);
+}
+
+Signer
+makeSigner(SecretKey key, int weight)
+{
+    return Signer{KeyUtils::convertKey<SignerKey>(key.getPublicKey()), weight};
 }
 
 AccountFrame::pointer
@@ -608,61 +734,145 @@ applyCreatePassiveOffer(Application& app, SecretKey const& source,
                                                     : 0;
 }
 
+SetOptionsArguments
+operator|(SetOptionsArguments const& x, SetOptionsArguments const& y)
+{
+    auto result = SetOptionsArguments{};
+    result.masterWeight = y.masterWeight ? y.masterWeight : x.masterWeight;
+    result.lowThreshold = y.lowThreshold ? y.lowThreshold : x.lowThreshold;
+    result.medThreshold = y.medThreshold ? y.medThreshold : x.medThreshold;
+    result.highThreshold = y.highThreshold ? y.highThreshold : x.highThreshold;
+    result.signer = y.signer ? y.signer : x.signer;
+    result.setFlags = y.setFlags ? y.setFlags : x.setFlags;
+    result.clearFlags = y.clearFlags ? y.clearFlags : x.clearFlags;
+    result.inflationDest = y.inflationDest ? y.inflationDest : x.inflationDest;
+    result.homeDomain = y.homeDomain ? y.homeDomain : x.homeDomain;
+    return result;
+}
+
 Operation
-setOptions(AccountID* inflationDest, uint32_t* setFlags, uint32_t* clearFlags,
-           ThresholdSetter* thrs, Signer* signer, std::string* homeDomain)
+setOptions(SetOptionsArguments const& arguments)
 {
     Operation op;
     op.body.type(SET_OPTIONS);
 
     SetOptionsOp& setOp = op.body.setOptionsOp();
 
-    if (inflationDest)
+    if (arguments.inflationDest)
     {
-        setOp.inflationDest.activate() = *inflationDest;
+        setOp.inflationDest.activate() = *arguments.inflationDest;
     }
 
-    if (setFlags)
+    if (arguments.setFlags)
     {
-        setOp.setFlags.activate() = *setFlags;
+        setOp.setFlags.activate() = *arguments.setFlags;
     }
 
-    if (clearFlags)
+    if (arguments.clearFlags)
     {
-        setOp.clearFlags.activate() = *clearFlags;
+        setOp.clearFlags.activate() = *arguments.clearFlags;
     }
 
-    if (thrs)
+    if (arguments.masterWeight)
     {
-        if (thrs->masterWeight)
-        {
-            setOp.masterWeight.activate() = *thrs->masterWeight;
-        }
-        if (thrs->lowThreshold)
-        {
-            setOp.lowThreshold.activate() = *thrs->lowThreshold;
-        }
-        if (thrs->medThreshold)
-        {
-            setOp.medThreshold.activate() = *thrs->medThreshold;
-        }
-        if (thrs->highThreshold)
-        {
-            setOp.highThreshold.activate() = *thrs->highThreshold;
-        }
+        setOp.masterWeight.activate() = *arguments.masterWeight;
+    }
+    if (arguments.lowThreshold)
+    {
+        setOp.lowThreshold.activate() = *arguments.lowThreshold;
+    }
+    if (arguments.medThreshold)
+    {
+        setOp.medThreshold.activate() = *arguments.medThreshold;
+    }
+    if (arguments.highThreshold)
+    {
+        setOp.highThreshold.activate() = *arguments.highThreshold;
     }
 
-    if (signer)
+    if (arguments.signer)
     {
-        setOp.signer.activate() = *signer;
+        setOp.signer.activate() = *arguments.signer;
     }
 
-    if (homeDomain)
+    if (arguments.homeDomain)
     {
-        setOp.homeDomain.activate() = *homeDomain;
+        setOp.homeDomain.activate() = *arguments.homeDomain;
     }
 
     return op;
+}
+
+SetOptionsArguments
+setMasterWeight(int master)
+{
+    SetOptionsArguments result;
+    result.masterWeight = make_optional<int>(master);
+    return result;
+}
+
+SetOptionsArguments
+setLowThreshold(int low)
+{
+    SetOptionsArguments result;
+    result.lowThreshold = make_optional<int>(low);
+    return result;
+}
+
+SetOptionsArguments
+setMedThreshold(int med)
+{
+    SetOptionsArguments result;
+    result.medThreshold = make_optional<int>(med);
+    return result;
+}
+
+SetOptionsArguments
+setHighThreshold(int high)
+{
+    SetOptionsArguments result;
+    result.highThreshold = make_optional<int>(high);
+    return result;
+}
+
+SetOptionsArguments
+setSigner(Signer signer)
+{
+    SetOptionsArguments result;
+    result.signer = make_optional<Signer>(signer);
+    return result;
+}
+
+SetOptionsArguments
+setFlags(uint32_t setFlags)
+{
+    SetOptionsArguments result;
+    result.setFlags = make_optional<uint32_t>(setFlags);
+    return result;
+}
+
+SetOptionsArguments
+clearFlags(uint32_t clearFlags)
+{
+    SetOptionsArguments result;
+    result.clearFlags = make_optional<uint32_t>(clearFlags);
+    return result;
+}
+
+SetOptionsArguments
+setInflationDestination(AccountID inflationDest)
+{
+    SetOptionsArguments result;
+    result.inflationDest = make_optional<AccountID>(inflationDest);
+    return result;
+}
+
+SetOptionsArguments
+setHomeDomain(std::string const& homeDomain)
+{
+    SetOptionsArguments result;
+    result.homeDomain = make_optional<std::string>(homeDomain);
+    return result;
 }
 
 Operation

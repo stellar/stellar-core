@@ -40,32 +40,24 @@ TEST_CASE("set options", "[tx][setoptions]")
 
     SECTION("Signers")
     {
-        SecretKey s1 = getAccount("S1");
-        Signer sk1(KeyUtils::convertKey<SignerKey>(s1.getPublicKey()),
-                   1); // low right account
-
-        ThresholdSetter th;
-
-        th.masterWeight = make_optional<int>(100);
-        th.lowThreshold = make_optional<int>(1);
-        th.medThreshold = make_optional<int>(10);
-        th.highThreshold = make_optional<int>(100);
+        auto s1 = getAccount("S1");
+        auto sk1 = makeSigner(s1, 1); // low right account
+        auto th = setMasterWeight(100) | setLowThreshold(1) |
+                  setMedThreshold(10) | setHighThreshold(100);
 
         SECTION("insufficient balance")
         {
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, &th,
-                                                &sk1, nullptr),
+                REQUIRE_THROWS_AS(a1.setOptions(th | setSigner(sk1)),
                                   ex_SET_OPTIONS_LOW_RESERVE);
             });
         }
 
         SECTION("can't use master key as alternate signer")
         {
-            Signer sk(KeyUtils::convertKey<SignerKey>(a1.getPublicKey()), 100);
+            auto sk = makeSigner(a1, 100);
             for_all_versions(*app, [&] {
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
-                                                nullptr, &sk, nullptr),
+                REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk)),
                                   ex_SET_OPTIONS_BAD_SIGNER);
             });
         }
@@ -74,7 +66,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             // add some funds
             root.pay(a1, app->getLedgerManager().getMinBalance(2));
 
-            a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+            a1.setOptions(th | setSigner(sk1));
 
             AccountFrame::pointer a1Account;
 
@@ -88,9 +80,9 @@ TEST_CASE("set options", "[tx][setoptions]")
             }
 
             // add signer 2
-            SecretKey s2 = getAccount("S2");
-            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            auto s2 = getAccount("S2");
+            auto sk2 = makeSigner(s2, 100);
+            a1.setOptions(setSigner(sk2));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -100,8 +92,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             SignerKey s3;
             s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, nullptr,
-                                            &sk3, nullptr),
+            REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk3)),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
             a1Account = loadAccount(a1, *app);
@@ -110,15 +101,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // update signer 2
             sk2.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(setSigner(sk2));
 
             // update signer 1
             sk1.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(setSigner(sk1));
 
             // remove signer 1
             sk1.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(setSigner(sk1));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
@@ -129,8 +120,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 3 - non account, not added, because of old ledger
             sk3.weight = 0;
-            REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr, nullptr,
-                                            &sk3, nullptr),
+            REQUIRE_THROWS_AS(a1.setOptions(setSigner(sk3)),
                               ex_SET_OPTIONS_BAD_SIGNER);
 
             a1Account = loadAccount(a1, *app);
@@ -139,7 +129,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 2
             sk2.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(setSigner(sk2));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
@@ -149,7 +139,7 @@ TEST_CASE("set options", "[tx][setoptions]")
         for_versions_from(3, *app, [&] {
             // add some funds
             root.pay(a1, app->getLedgerManager().getMinBalance(2));
-            a1.setOptions(nullptr, nullptr, nullptr, &th, &sk1, nullptr);
+            a1.setOptions(th | setSigner(sk1));
 
             AccountFrame::pointer a1Account;
 
@@ -163,9 +153,9 @@ TEST_CASE("set options", "[tx][setoptions]")
             }
 
             // add signer 2
-            SecretKey s2 = getAccount("S2");
-            Signer sk2(KeyUtils::convertKey<SignerKey>(s2.getPublicKey()), 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            auto s2 = getAccount("S2");
+            auto sk2 = makeSigner(s2, 100);
+            a1.setOptions(setSigner(sk2));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -175,7 +165,7 @@ TEST_CASE("set options", "[tx][setoptions]")
             SignerKey s3;
             s3.type(SIGNER_KEY_TYPE_PRE_AUTH_TX);
             Signer sk3(s3, 100);
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
+            a1.setOptions(setSigner(sk3));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 3);
@@ -183,15 +173,15 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // update signer 2
             sk2.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(setSigner(sk2));
 
             // update signer 1
             sk1.weight = 11;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(setSigner(sk1));
 
             // remove signer 1
             sk1.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk1, nullptr);
+            a1.setOptions(setSigner(sk1));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 2);
@@ -202,7 +192,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 3 - non account
             sk3.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk3, nullptr);
+            a1.setOptions(setSigner(sk3));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 1);
@@ -210,7 +200,7 @@ TEST_CASE("set options", "[tx][setoptions]")
 
             // remove signer 2
             sk2.weight = 0;
-            a1.setOptions(nullptr, nullptr, nullptr, nullptr, &sk2, nullptr);
+            a1.setOptions(setSigner(sk2));
 
             a1Account = loadAccount(a1, *app);
             REQUIRE(a1Account->getAccount().numSubEntries == 0);
@@ -223,48 +213,26 @@ TEST_CASE("set options", "[tx][setoptions]")
         SECTION("Can't set and clear same flag")
         {
             for_all_versions(*app, [&] {
-                uint32_t setFlags = AUTH_REQUIRED_FLAG;
-                uint32_t clearFlags = AUTH_REQUIRED_FLAG;
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &setFlags, &clearFlags,
-                                                nullptr, nullptr, nullptr),
+                REQUIRE_THROWS_AS(a1.setOptions(setFlags(AUTH_REQUIRED_FLAG) |
+                                                clearFlags(AUTH_REQUIRED_FLAG)),
                                   ex_SET_OPTIONS_BAD_FLAGS);
             });
         }
         SECTION("auth flags")
         {
             for_all_versions(*app, [&] {
-                uint32_t flags;
-
-                flags = AUTH_REQUIRED_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
-                              nullptr);
-
-                flags = AUTH_REVOCABLE_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
-                              nullptr);
-
-                // clear flag
-                a1.setOptions(nullptr, nullptr, &flags, nullptr, nullptr,
-                              nullptr);
-
-                flags = AUTH_IMMUTABLE_FLAG;
-                a1.setOptions(nullptr, &flags, nullptr, nullptr, nullptr,
-                              nullptr);
+                a1.setOptions(setFlags(AUTH_REQUIRED_FLAG));
+                a1.setOptions(setFlags(AUTH_REVOCABLE_FLAG));
+                a1.setOptions(clearFlags(AUTH_REVOCABLE_FLAG));
+                a1.setOptions(setFlags(AUTH_IMMUTABLE_FLAG));
 
                 // at this point trying to change any flag should fail
-
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags,
-                                                nullptr, nullptr, nullptr),
+                REQUIRE_THROWS_AS(
+                    a1.setOptions(clearFlags(AUTH_IMMUTABLE_FLAG)),
+                    ex_SET_OPTIONS_CANT_CHANGE);
+                REQUIRE_THROWS_AS(a1.setOptions(clearFlags(AUTH_REQUIRED_FLAG)),
                                   ex_SET_OPTIONS_CANT_CHANGE);
-
-                flags = AUTH_REQUIRED_FLAG;
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, &flags,
-                                                nullptr, nullptr, nullptr),
-                                  ex_SET_OPTIONS_CANT_CHANGE);
-
-                flags = AUTH_REVOCABLE_FLAG;
-                REQUIRE_THROWS_AS(a1.setOptions(nullptr, &flags, nullptr,
-                                                nullptr, nullptr, nullptr),
+                REQUIRE_THROWS_AS(a1.setOptions(setFlags(AUTH_REVOCABLE_FLAG)),
                                   ex_SET_OPTIONS_CANT_CHANGE);
             });
         }
@@ -279,8 +247,7 @@ TEST_CASE("set options", "[tx][setoptions]")
                                      std::string("ab\000c", 4)};
                 for (auto& s : bad)
                 {
-                    REQUIRE_THROWS_AS(a1.setOptions(nullptr, nullptr, nullptr,
-                                                    nullptr, nullptr, &s),
+                    REQUIRE_THROWS_AS(a1.setOptions(setHomeDomain(s)),
                                       ex_SET_OPTIONS_INVALID_HOME_DOMAIN);
                 }
             });

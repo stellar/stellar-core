@@ -17,7 +17,7 @@ class Application;
 
 namespace txtest
 {
-struct ThresholdSetter;
+struct SetOptionsArguments;
 }
 
 class TestAccount
@@ -48,9 +48,7 @@ class TestAccount
     TrustLineEntry loadTrustLine(Asset const& asset) const;
     bool hasTrustLine(Asset const& asset) const;
 
-    void setOptions(AccountID* inflationDest, uint32_t* setFlags,
-                    uint32_t* clearFlags, txtest::ThresholdSetter* thrs,
-                    Signer* signer, std::string* homeDomain);
+    void setOptions(txtest::SetOptionsArguments const& arguments);
 
     void manageData(std::string const& name, DataValue* value);
 

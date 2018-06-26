@@ -286,6 +286,49 @@ TransactionFrame::processSeqNum(LedgerManager& lm, LedgerDelta& delta)
     }
 }
 
+bool
+TransactionFrame::processSignatures(SignatureChecker& signatureChecker,
+                                    Application& app, LedgerDelta& delta)
+{
+    if (app.getLedgerManager().getCurrentLedgerVersion() < 10)
+    {
+        return true;
+    }
+
+    auto allOpsValid = true;
+    for (auto& op : mOperations)
+    {
+        if (!op->checkSignature(signatureChecker, app, nullptr))
+        {
+            allOpsValid = false;
+        }
+    }
+
+    removeUsedOneTimeSignerKeys(signatureChecker, delta,
+                                app.getLedgerManager());
+
+    if (!allOpsValid)
+    {
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "invalid-op"}, "transaction")
+            .Mark();
+        markResultFailed();
+        return false;
+    }
+
+    if (!signatureChecker.checkAllSignaturesUsed())
+    {
+        getResult().result.code(txBAD_AUTH_EXTRA);
+        app.getMetrics()
+            .NewMeter({"transaction", "invalid", "bad-auth-extra"},
+                      "transaction")
+            .Mark();
+        return false;
+    }
+
+    return true;
+}
+
 TransactionFrame::ValidationType
 TransactionFrame::commonValid(SignatureChecker& signatureChecker,
                               Application& app, LedgerDelta* delta,
@@ -331,6 +374,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         getResult().result.code(txBAD_AUTH);
         return res;
     }
+
+    res = ValidationType::kInvalidPostAuth;
 
     // if we are in applying mode fee was already deduced from signing account
     // balance, if not, we need to check if after that deduction this account
@@ -413,8 +458,8 @@ TransactionFrame::removeUsedOneTimeSignerKeys(
     const AccountID& accountId, const std::set<SignerKey>& keys,
     LedgerDelta& delta, LedgerManager& ledgerManager) const
 {
-    auto account =
-        AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
+    auto account = AccountFrame::loadAccount(delta, accountId,
+                                             ledgerManager.getDatabase());
     if (!account)
     {
         return; // probably account was removed due to merge operation
@@ -560,18 +605,22 @@ TransactionFrame::applyOperations(SignatureChecker& signatureChecker,
 
         if (!errorEncountered)
         {
-            if (!signatureChecker.checkAllSignaturesUsed())
+            if (app.getLedgerManager().getCurrentLedgerVersion() < 10)
             {
-                getResult().result.code(txBAD_AUTH_EXTRA);
-                // this should never happen: malformed transaction should not be
-                // accepted by nodes
-                return false;
+                if (!signatureChecker.checkAllSignaturesUsed())
+                {
+                    getResult().result.code(txBAD_AUTH_EXTRA);
+                    // this should never happen: malformed transaction should
+                    // not be accepted by nodes
+                    return false;
+                }
+
+                // if an error occurred, it is responsibility of account's owner
+                // to remove that signer
+                removeUsedOneTimeSignerKeys(signatureChecker, thisTxOpsDelta,
+                                            app.getLedgerManager());
             }
 
-            // if an error occurred, it is responsibility of account's owner to
-            // remove that signer
-            removeUsedOneTimeSignerKeys(signatureChecker, thisTxOpsDelta,
-                                        app.getLedgerManager());
             sqlTx.commit();
             thisTxOpsDelta.commit();
         }
@@ -606,9 +655,12 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMetaV1& meta,
         {
             processSeqNum(app.getLedgerManager(), txDelta);
         }
+        auto signaturesValid =
+            cv >= (ValidationType::kInvalidPostAuth) &&
+            processSignatures(signatureChecker, app, txDelta);
         meta.txChanges = txDelta.getChanges();
         txDelta.commit();
-        valid = (cv == ValidationType::kFullyValid);
+        valid = signaturesValid && (cv == ValidationType::kFullyValid);
     }
     return valid && applyOperations(signatureChecker, delta, meta, app);
 }

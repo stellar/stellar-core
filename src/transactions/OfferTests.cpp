@@ -910,10 +910,8 @@ TEST_CASE("create offer", "[tx][offers]")
                     auto usdAuth = issuerAuth.asset("USD");
                     auto idrAuth = issuerAuth.asset("IDR");
 
-                    uint32_t setFlags =
-                        AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG;
-                    issuerAuth.setOptions(nullptr, &setFlags, nullptr, nullptr,
-                                          nullptr, nullptr);
+                    issuerAuth.setOptions(setFlags(
+                        uint32_t{AUTH_REQUIRED_FLAG | AUTH_REVOCABLE_FLAG}));
 
                     // setup d1
                     auto d1 = root.create("D", minBalance3 + 10000);
