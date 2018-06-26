@@ -458,8 +458,8 @@ TransactionFrame::removeUsedOneTimeSignerKeys(
     const AccountID& accountId, const std::set<SignerKey>& keys,
     LedgerDelta& delta, LedgerManager& ledgerManager) const
 {
-    auto account =
-        AccountFrame::loadAccount(accountId, ledgerManager.getDatabase());
+    auto account = AccountFrame::loadAccount(delta, accountId,
+                                             ledgerManager.getDatabase());
     if (!account)
     {
         return; // probably account was removed due to merge operation
