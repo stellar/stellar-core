@@ -51,8 +51,7 @@ TEST_CASE("txenvelope", "[tx][envelope]")
     // set up world
     auto root = TestAccount::createRoot(*app);
 
-    const uint64_t paymentAmount =
-        app->getLedgerManager().getLastReserve() * 10;
+    const int64_t paymentAmount = app->getLedgerManager().getLastReserve() * 10;
 
     SECTION("outer envelope")
     {
@@ -1257,11 +1256,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions_from({7, 10}, *app, [&] {
                     auto applyResult = expectedResult(
                         baseFee * 2, 2, txSUCCESS,
-                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
-                    applyResult.result.results()[1]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() = paymentAmount - 100;
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 100}});
                     validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
                                       applyResult);
                 });
@@ -1284,11 +1280,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions_from({7, 10}, *app, [&] {
                     auto applyResult = expectedResult(
                         baseFee * 2, 2, txSUCCESS,
-                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
-                    applyResult.result.results()[1]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() = paymentAmount - 300;
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
                     validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
                                       applyResult);
                 });
@@ -1308,11 +1301,8 @@ TEST_CASE("txenvelope", "[tx][envelope]")
                 for_versions({7}, *app, [&] {
                     auto applyResult = expectedResult(
                         baseFee * 2, 2, txSUCCESS,
-                        {SET_OPTIONS_SUCCESS, ACCOUNT_MERGE_SUCCESS});
-                    applyResult.result.results()[1]
-                        .tr()
-                        .accountMergeResult()
-                        .sourceAccountBalance() = paymentAmount - 300;
+                        {SET_OPTIONS_SUCCESS,
+                         {ACCOUNT_MERGE_SUCCESS, paymentAmount - 300}});
                     validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
                                       applyResult);
                 });

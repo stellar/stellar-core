@@ -32,6 +32,8 @@ struct ExpectedOpResult
     ExpectedOpResult(CreateAccountResultCode createAccountCode);
     ExpectedOpResult(PaymentResultCode paymentCode);
     ExpectedOpResult(AccountMergeResultCode accountMergeCode);
+    ExpectedOpResult(AccountMergeResultCode accountMergeCode,
+                     int64_t sourceAccountBalance);
     ExpectedOpResult(SetOptionsResultCode setOptionsResultCode);
 };
 

@@ -68,6 +68,22 @@ ExpectedOpResult::ExpectedOpResult(AccountMergeResultCode accountMergeCode)
     mOperationResult.tr().accountMergeResult().code(accountMergeCode);
 }
 
+ExpectedOpResult::ExpectedOpResult(AccountMergeResultCode accountMergeCode,
+                                   int64_t sourceAccountBalance)
+{
+    if (accountMergeCode != ACCOUNT_MERGE_SUCCESS)
+    {
+        throw std::logic_error("accountMergeCode must be ACCOUNT_MERGE_SUCCESS "
+                               "when sourceAccountBalance is passed");
+    }
+
+    mOperationResult.code(opINNER);
+    mOperationResult.tr().type(ACCOUNT_MERGE);
+    mOperationResult.tr().accountMergeResult().code(ACCOUNT_MERGE_SUCCESS);
+    mOperationResult.tr().accountMergeResult().sourceAccountBalance() =
+        sourceAccountBalance;
+}
+
 ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
 {
     mOperationResult.code(opINNER);
@@ -292,7 +308,6 @@ validateTxResults(TransactionFramePtr const& tx, Application& app,
 
     switch (applyResult.result.code())
     {
-    case txINTERNAL_ERROR:
     case txBAD_AUTH_EXTRA:
     case txBAD_SEQ:
         return;

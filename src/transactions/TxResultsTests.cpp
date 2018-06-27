@@ -580,13 +580,9 @@ TEST_CASE("txresults", "[tx][txresults]")
         {
             auto tx = a.tx({payment(b, 1000), accountMerge(root)});
 
-            auto applyResult =
-                expectedResult(baseFee * 2, 2, txSUCCESS,
-                               {PAYMENT_SUCCESS, ACCOUNT_MERGE_SUCCESS});
-            applyResult.result.results()[1]
-                .tr()
-                .accountMergeResult()
-                .sourceAccountBalance() = startAmount - 1200;
+            auto applyResult = expectedResult(
+                baseFee * 2, 2, txSUCCESS,
+                {PAYMENT_SUCCESS, {ACCOUNT_MERGE_SUCCESS, startAmount - 1200}});
             for_all_versions(*app, [&] {
                 validateTxResults(tx, *app, {baseFee * 2, txSUCCESS},
                                   applyResult);
@@ -598,10 +594,19 @@ TEST_CASE("txresults", "[tx][txresults]")
             auto tx =
                 a.tx({payment(b, 1000), accountMerge(root), payment(c, 1000)});
 
-            for_all_versions(*app, [&] {
+            for_versions_to(7, *app, [&] {
                 validateTxResults(
                     tx, *app, {baseFee * 3, txSUCCESS},
                     expectedResult(baseFee * 3, 3, txINTERNAL_ERROR));
+            });
+            for_versions_from(8, *app, [&] {
+                validateTxResults(
+                    tx, *app, {baseFee * 3, txSUCCESS},
+                    expectedResult(baseFee * 3, 3, txFAILED,
+                                   {PAYMENT_SUCCESS,
+                                    {ACCOUNT_MERGE_SUCCESS,
+                                     startAmount - tx->getFee() - 1000},
+                                    opNO_ACCOUNT}));
             });
         }
     }
