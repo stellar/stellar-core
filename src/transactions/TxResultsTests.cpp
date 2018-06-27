@@ -249,7 +249,9 @@ TEST_CASE("txresults", "[tx][txresults]")
 
         auto anyFail = std::any_of(
             std::begin(opResults), std::end(opResults), [](ExpectedOpResult o) {
-                return o.code != opINNER || o.paymentCode != PAYMENT_SUCCESS;
+                return o.mOperationResult.code() != opINNER ||
+                       o.mOperationResult.tr().paymentResult().code() !=
+                           PAYMENT_SUCCESS;
             });
         return expectedResult(fee, opPayment.size(),
                               anyFail ? txFAILED : validationResult.code,

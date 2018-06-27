@@ -42,26 +42,37 @@ namespace stellar
 namespace txtest
 {
 
-ExpectedOpResult::ExpectedOpResult(OperationResultCode code) : code{code}
+ExpectedOpResult::ExpectedOpResult(OperationResultCode code)
 {
+    mOperationResult.code(code);
 }
+
 ExpectedOpResult::ExpectedOpResult(CreateAccountResultCode createAccountCode)
-    : code{opINNER}, type{CREATE_ACCOUNT}, createAccountCode{createAccountCode}
 {
+    mOperationResult.code(opINNER);
+    mOperationResult.tr().type(CREATE_ACCOUNT);
+    mOperationResult.tr().createAccountResult().code(createAccountCode);
 }
+
 ExpectedOpResult::ExpectedOpResult(PaymentResultCode paymentCode)
-    : code{opINNER}, type{PAYMENT}, paymentCode{paymentCode}
 {
+    mOperationResult.code(opINNER);
+    mOperationResult.tr().type(PAYMENT);
+    mOperationResult.tr().paymentResult().code(paymentCode);
 }
+
 ExpectedOpResult::ExpectedOpResult(AccountMergeResultCode accountMergeCode)
-    : code{opINNER}, type{ACCOUNT_MERGE}, accountMergeCode{accountMergeCode}
 {
+    mOperationResult.code(opINNER);
+    mOperationResult.tr().type(ACCOUNT_MERGE);
+    mOperationResult.tr().accountMergeResult().code(accountMergeCode);
 }
+
 ExpectedOpResult::ExpectedOpResult(SetOptionsResultCode setOptionsResultCode)
-    : code{opINNER}
-    , type{SET_OPTIONS}
-    , setOptionsResultCode{setOptionsResultCode}
 {
+    mOperationResult.code(opINNER);
+    mOperationResult.tr().type(SET_OPTIONS);
+    mOperationResult.tr().setOptionsResult().code(setOptionsResultCode);
 }
 
 TransactionResult
@@ -71,42 +82,20 @@ expectedResult(int64_t fee, size_t opsCount, TransactionResultCode code,
     auto result = TransactionResult{};
     result.feeCharged = fee;
     result.result.code(code);
+
     if (code != txSUCCESS && code != txFAILED)
     {
         return result;
     }
+
     if (ops.empty())
     {
         std::fill_n(std::back_inserter(ops), opsCount, PAYMENT_SUCCESS);
     }
 
-    result.result.results().resize(static_cast<uint32_t>(ops.size()));
-    for (size_t i = 0; i < ops.size(); i++)
+    for (auto const& op : ops)
     {
-        auto& r = result.result.results()[i];
-        auto& o = ops[i];
-        r.code(o.code);
-        if (o.code == opINNER)
-        {
-            r.tr().type(o.type);
-            switch (o.type)
-            {
-            case CREATE_ACCOUNT:
-                r.tr().createAccountResult().code(o.createAccountCode);
-                break;
-            case PAYMENT:
-                r.tr().paymentResult().code(o.paymentCode);
-                break;
-            case ACCOUNT_MERGE:
-                r.tr().accountMergeResult().code(o.accountMergeCode);
-                break;
-            case SET_OPTIONS:
-                r.tr().setOptionsResult().code(o.setOptionsResultCode);
-                break;
-            default:
-                break;
-            }
-        }
+        result.result.results().push_back(op.mOperationResult);
     }
 
     return result;

@@ -26,12 +26,7 @@ typedef std::vector<std::pair<TransactionResultPair, LedgerEntryChanges>>
 
 struct ExpectedOpResult
 {
-    OperationResultCode code;
-    OperationType type;
-    CreateAccountResultCode createAccountCode;
-    PaymentResultCode paymentCode;
-    AccountMergeResultCode accountMergeCode;
-    SetOptionsResultCode setOptionsResultCode;
+    OperationResult mOperationResult;
 
     ExpectedOpResult(OperationResultCode code);
     ExpectedOpResult(CreateAccountResultCode createAccountCode);
