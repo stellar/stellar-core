@@ -145,7 +145,7 @@ debugging purpose).
  gets the cursor identified by `ID`. If ID is not defined then all cursors will be returned.
 
 * **scp**
-  `/scp?[limit=n]
+  `/scp?[limit=n]`<br>
   Returns a JSON object with the internal state of the SCP engine for the last n (default 2) ledgers.
 
 * **tx**
