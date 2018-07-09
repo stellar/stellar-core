@@ -7,6 +7,7 @@
 #include "TxSetFrame.h"
 #include "Upgrades.h"
 #include "lib/json/json-forwards.h"
+#include "overlay/Peer.h"
 #include "overlay/StellarXDR.h"
 #include "scp/SCP.h"
 #include "util/Timer.h"
@@ -17,10 +18,7 @@
 namespace stellar
 {
 class Application;
-class Peer;
 class XDROutputFileStream;
-
-typedef std::shared_ptr<Peer> PeerPtr;
 
 /*
  * Public Interface to the Herder module
@@ -109,7 +107,7 @@ class Herder
     // We are learning about a new transaction.
     virtual TransactionSubmitStatus recvTransaction(TransactionFramePtr tx) = 0;
     virtual void peerDoesntHave(stellar::MessageType type,
-                                uint256 const& itemID, PeerPtr peer) = 0;
+                                uint256 const& itemID, Peer::pointer peer) = 0;
     virtual TxSetFramePtr getTxSet(Hash const& hash) = 0;
     virtual SCPQuorumSetPtr getQSet(Hash const& qSetHash) = 0;
 
@@ -122,7 +120,7 @@ class Herder
                                            TxSetFrame txset) = 0;
 
     // a peer needs our SCP state
-    virtual void sendSCPStateToPeer(uint32 ledgerSeq, PeerPtr peer) = 0;
+    virtual void sendSCPStateToPeer(uint32 ledgerSeq, Peer::pointer peer) = 0;
 
     // returns the latest known ledger seq using consensus information
     // and local state
