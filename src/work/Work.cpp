@@ -75,6 +75,8 @@ Work::getStatus() const
     case WORK_FAILURE_RAISE:
     case WORK_FAILURE_FATAL:
         return fmt::format("Failed: {:s}", getUniqueName());
+    case WORK_FAILURE_ABORTED:
+        return fmt::format("Aborted: {:s}", getUniqueName());
     default:
         assert(false);
         return "";
@@ -121,6 +123,8 @@ Work::stateName(State st)
         return "WORK_FAILURE_RAISE";
     case WORK_FAILURE_FATAL:
         return "WORK_FAILURE_FATAL";
+    case WORK_FAILURE_ABORTED:
+        return "WORK_FAILURE_ABORTED";
     default:
         throw std::runtime_error("Unknown Work::State");
     }
@@ -142,9 +146,21 @@ Work::callComplete()
 }
 
 void
+Work::scheduleAbort(CompleteResult result)
+{
+    if (result != WORK_COMPLETE_FATAL && result != WORK_COMPLETE_FAILURE &&
+        result != WORK_COMPLETE_ABORTED)
+    {
+        CLOG(ERROR, "Work") << "Cannot schedule abort with non-failure state";
+        return;
+    }
+    scheduleComplete(result);
+}
+
+void
 Work::scheduleRun()
 {
-    if (mScheduled)
+    if (mScheduled || mAborting)
     {
         return;
     }
@@ -183,6 +199,7 @@ Work::scheduleComplete(CompleteResult result)
             return;
         }
         self->mScheduled = false;
+        self->mAborting = false;
         self->complete(result);
     });
 }
@@ -190,7 +207,7 @@ Work::scheduleComplete(CompleteResult result)
 void
 Work::scheduleRetry()
 {
-    if (mScheduled)
+    if (mScheduled || mAborting)
     {
         return;
     }
@@ -249,25 +266,45 @@ Work::advance()
     }
 
     CLOG(DEBUG, "Work") << "advancing " << getUniqueName();
-    advanceChildren();
-    if (allChildrenSuccessful())
+
+    // If necessary, propagate abort signal before advancing children
+    // This is to prevent scheduling any children to run if they are about
+    // to be in WORK_ABORTING state (such children are scheduled to abort
+    // properly instead)
+    if (anyChildFatalFailure())
     {
-        CLOG(DEBUG, "Work") << "all " << mChildren.size() << " children of "
-                            << getUniqueName() << " successful, scheduling run";
-        scheduleRun();
-    }
-    else if (anyChildFatalFailure())
-    {
-        CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
-                            << getUniqueName() << " fatally failed, scheduling "
-                            << "fatal failure";
-        scheduleFatalFailure();
+        CLOG(DEBUG, "Work")
+            << "some of " << mChildren.size() << " children of "
+            << getUniqueName() << " FATALLY failed, propagating "
+            << "abort";
+        abort(WORK_COMPLETE_FATAL);
     }
     else if (anyChildRaiseFailure())
     {
         CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
-                            << getUniqueName() << " failed, scheduling failure";
-        scheduleFailure();
+                            << getUniqueName() << " failed, propagating "
+                            << "abort";
+        abort(WORK_COMPLETE_FAILURE);
+    }
+    else if (anyChildAborted())
+    {
+        CLOG(DEBUG, "Work") << "some of " << mChildren.size() << " children of "
+                            << getUniqueName() << " aborted, propagating "
+                            << "abort";
+        abort(WORK_COMPLETE_ABORTED);
+    }
+
+    advanceChildren();
+    if (allChildrenSuccessful())
+    {
+        if (mAborting)
+        {
+            scheduleAbort(WORK_COMPLETE_ABORTED);
+        }
+        else
+        {
+            scheduleRun();
+        }
     }
 }
 
@@ -276,6 +313,15 @@ Work::run()
 {
     if (getState() == WORK_PENDING)
     {
+        if (mAborting)
+        {
+            CLOG(DEBUG, "Work") << "aborting " << getUniqueName();
+            mApp.getMetrics()
+                .NewMeter({"work", "unit", "abort"}, "unit")
+                .Mark();
+            onAbort();
+            return;
+        }
         CLOG(DEBUG, "Work") << "starting " << getUniqueName();
         mApp.getMetrics().NewMeter({"work", "unit", "start"}, "unit").Mark();
         onStart();
@@ -294,6 +340,8 @@ Work::complete(CompleteResult result)
         mApp.getMetrics().NewMeter({"work", "unit", "success"}, "unit");
     auto& fail =
         mApp.getMetrics().NewMeter({"work", "unit", "failure"}, "unit");
+    auto& aborted =
+        mApp.getMetrics().NewMeter({"work", "unit", "abort"}, "unit");
 
     switch (result)
     {
@@ -305,6 +353,9 @@ Work::complete(CompleteResult result)
         break;
     case WORK_COMPLETE_FATAL:
         setState(WORK_FAILURE_FATAL);
+        break;
+    case WORK_COMPLETE_ABORTED:
+        setState(WORK_FAILURE_ABORTED);
         break;
     }
 
@@ -328,6 +379,13 @@ Work::complete(CompleteResult result)
         fail.Mark();
         onFailureRaise();
         CLOG(DEBUG, "Work") << "notifying parent of failed " << getUniqueName();
+        notifyParent();
+        break;
+
+    case WORK_FAILURE_ABORTED:
+        aborted.Mark();
+        CLOG(DEBUG, "Work")
+            << "notifying parent of completed abort " << getUniqueName();
         notifyParent();
         break;
 
@@ -379,6 +437,12 @@ Work::onFailureRaise()
 {
 }
 
+void
+Work::onAbort()
+{
+    scheduleAbort(WORK_COMPLETE_ABORTED);
+}
+
 Work::State
 Work::getState() const
 {
@@ -389,7 +453,7 @@ bool
 Work::isDone() const
 {
     return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE ||
-           mState == WORK_FAILURE_FATAL;
+           mState == WORK_FAILURE_FATAL || mState == WORK_FAILURE_ABORTED;
 }
 
 void
@@ -433,5 +497,44 @@ Work::notify(std::string const& child)
     CLOG(DEBUG, "Work") << "notified " << getUniqueName()
                         << " of completed child " << child;
     advance();
+}
+
+void
+Work::abort(CompleteResult result)
+{
+    // When `abort` signal is issued, pending work is in either
+    // one of two states:
+    // 1. It hasn't been scheduled to run yet. If some children are still
+    // running, this is handled in advance where work is scheduled to abort.
+    // Otherwise, work is scheduled to abort right away.
+    // 2. Work is already in IO service queue, but hasn't started running yet.
+    // This scenario is handled in `run` method, where abort is scheduled
+    // instead of success.
+
+    assert(getState() == WORK_PENDING);
+    mAborting = true;
+    bool allDone = true;
+
+    for (auto const& c : mChildren)
+    {
+        if (!c.second->isDone())
+        {
+            allDone = false;
+        }
+
+        // Only abort when work is pending. Wait if it's running, as it will be
+        // handled in `advance`. If work has finished with success or fail,
+        // nothing to abort either
+        if (c.second->getState() == Work::WORK_PENDING)
+        {
+            c.second->abort();
+        }
+    }
+
+    if (allDone)
+    {
+        // Children are ready, schedule abort for work itself.
+        scheduleAbort(result);
+    }
 }
 }

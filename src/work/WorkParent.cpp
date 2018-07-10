@@ -88,13 +88,24 @@ WorkParent::allChildrenSuccessful() const
 }
 
 bool
+WorkParent::anyChildAborted() const
+{
+    for (auto const& c : mChildren)
+    {
+        if (c.second->getState() == Work::WORK_FAILURE_ABORTED)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
 WorkParent::allChildrenDone() const
 {
     for (auto& c : mChildren)
     {
-        if (c.second->getState() != Work::WORK_SUCCESS &&
-            c.second->getState() != Work::WORK_FAILURE_RAISE &&
-            c.second->getState() != Work::WORK_FAILURE_FATAL)
+        if (!c.second->isDone())
         {
             return false;
         }

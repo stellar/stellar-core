@@ -47,14 +47,16 @@ class Work : public WorkParent
         WORK_SUCCESS,
         WORK_FAILURE_RETRY,
         WORK_FAILURE_RAISE,
-        WORK_FAILURE_FATAL
+        WORK_FAILURE_FATAL,
+        WORK_FAILURE_ABORTED
     };
 
     enum CompleteResult
     {
         WORK_COMPLETE_OK,
         WORK_COMPLETE_FAILURE,
-        WORK_COMPLETE_FATAL
+        WORK_COMPLETE_FATAL,
+        WORK_COMPLETE_ABORTED
     };
 
     Work(Application& app, WorkParent& parent, std::string uniqueName,
@@ -78,6 +80,7 @@ class Work : public WorkParent
     virtual void onRun();
     virtual void onFailureRetry();
     virtual void onFailureRaise();
+    virtual void onAbort();
 
     // onSuccess is a little different than the others: it's called on
     // WORK_SUCCESS, but it also returns the next sate desired: if you want
@@ -94,6 +97,7 @@ class Work : public WorkParent
     static std::string stateName(State st);
     State getState() const;
     bool isDone() const;
+    void abort(CompleteResult result = WORK_COMPLETE_ABORTED);
     void advance();
     void reset();
 
@@ -104,6 +108,7 @@ class Work : public WorkParent
     size_t mRetries{0};
     State mState{WORK_PENDING};
     bool mScheduled{false};
+    bool mAborting{false};
 
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
@@ -129,6 +134,7 @@ class Work : public WorkParent
         scheduleComplete(WORK_COMPLETE_FATAL);
     }
 
+    void scheduleAbort(CompleteResult result = WORK_COMPLETE_ABORTED);
     void setState(State s);
 
     void notifyParent();

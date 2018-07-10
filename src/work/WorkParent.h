@@ -43,6 +43,7 @@ class WorkParent : public std::enable_shared_from_this<WorkParent>,
     bool anyChildFatalFailure() const;
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
+    bool anyChildAborted() const;
 
     Application& app() const;
 
