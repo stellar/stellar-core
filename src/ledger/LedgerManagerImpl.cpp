@@ -639,42 +639,6 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
             std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3), hash);
 }
 
-HistoryManager::LedgerVerificationStatus
-LedgerManagerImpl::verifyCatchupCandidate(
-    LedgerHeaderHistoryEntry const& candidate, bool manualCatchup) const
-{
-    assert(mCatchupState == CatchupState::APPLYING_HISTORY);
-
-    if (manualCatchup)
-    {
-        assert(mSyncingLedgers.empty());
-        CLOG(WARNING, "History")
-            << "Accepting unknown-hash ledger due to manual catchup";
-        return HistoryManager::VERIFY_STATUS_OK;
-    }
-
-    assert(!mSyncingLedgers.empty());
-    assert(mSyncingLedgers.front().getLedgerSeq() ==
-           candidate.header.ledgerSeq + 1);
-
-    // asserts dont work in release builds
-    if (mSyncingLedgers.empty())
-    {
-        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
-    }
-
-    auto& firstSyncing = mSyncingLedgers.front();
-    if (firstSyncing.getLedgerSeq() == candidate.header.ledgerSeq + 1 &&
-        firstSyncing.getTxSet()->previousLedgerHash() == candidate.hash)
-    {
-        return HistoryManager::VERIFY_STATUS_OK;
-    }
-    else
-    {
-        return HistoryManager::VERIFY_STATUS_ERR_BAD_HASH;
-    }
-}
-
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                                    CatchupWork::ProgressState progressState,
