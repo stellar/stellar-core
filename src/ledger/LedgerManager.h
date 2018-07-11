@@ -160,7 +160,8 @@ class LedgerManager
     // This method is present in the public interface to permit testing and
     // command line catchups.
     virtual void startCatchup(CatchupConfiguration configuration,
-                              bool manualCatchup) = 0;
+                              bool manualCatchup,
+                              optional<Hash> trustedHash) = 0;
 
     // Forcibly close the current ledger, applying `ledgerData` as the consensus
     // changes.  This is normally done automatically as part of

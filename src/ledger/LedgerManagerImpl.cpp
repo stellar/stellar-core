@@ -602,8 +602,10 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
         // to verify history consistency - compare previousLedgerHash of
         // buffered ledger with last one downloaded from history
         auto firstBufferedLedgerSeq = mSyncingLedgers.front().getLedgerSeq();
-        startCatchup({firstBufferedLedgerSeq - 1, getCatchupCount(mApp)},
-                     false);
+        auto hash = make_optional<Hash>(
+            mSyncingLedgers.front().getTxSet()->previousLedgerHash());
+        startCatchup({firstBufferedLedgerSeq - 1, getCatchupCount(mApp)}, false,
+                     hash);
     }
     else
     {
@@ -618,7 +620,7 @@ LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
 
 void
 LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
-                                bool manualCatchup)
+                                bool manualCatchup, optional<Hash> trustedHash)
 {
     auto lastClosedLedger = getLastClosedLedgerNum();
     if ((configuration.toLedger() != CatchupConfiguration::CURRENT) &&
@@ -628,17 +630,13 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
     }
 
     setCatchupState(CatchupState::APPLYING_HISTORY);
+    assert(manualCatchup == mSyncingLedgers.empty());
 
-    auto hash =
-        mSyncingLedgers.empty()
-            ? nullptr
-            : make_optional<Hash>(
-                  mSyncingLedgers.front().getTxSet()->previousLedgerHash());
     mApp.getCatchupManager().catchupHistory(
-            configuration,
-            std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3), hash);
+        configuration,
+        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3),
+        trustedHash);
 }
-
 void
 LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                                    CatchupWork::ProgressState progressState,

@@ -287,7 +287,7 @@ catchup(Application::pointer app, uint32_t to, uint32_t count,
 
     try
     {
-        app->getLedgerManager().startCatchup({to, count}, true);
+        app->getLedgerManager().startCatchup({to, count}, true, nullptr);
     }
     catch (std::invalid_argument const&)
     {
