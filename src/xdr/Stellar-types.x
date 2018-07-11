@@ -44,7 +44,7 @@ union SignerKey switch (SignerKeyType type)
 case SIGNER_KEY_TYPE_ED25519:
     uint256 ed25519;
 case SIGNER_KEY_TYPE_PRE_AUTH_TX:
-    /* Hash of Transaction structure */
+    /* SHA-256 Hash of TransactionSignaturePayload structure */
     uint256 preAuthTx;
 case SIGNER_KEY_TYPE_HASH_X:
     /* Hash of random 256 bit preimage X */
