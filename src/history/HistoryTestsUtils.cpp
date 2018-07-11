@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "history/HistoryTestsUtils.h"
+#include "FileTransferInfo.h"
 #include "bucket/BucketManager.h"
 #include "crypto/Hex.h"
 #include "crypto/Random.h"
@@ -87,6 +88,94 @@ S3HistoryConfigurator::configure(Config& mCfg, bool writable) const
     mCfg.HISTORY["test"] =
         HistoryArchiveConfiguration{"test", getCmd, putCmd, mkdirCmd};
     return mCfg;
+}
+
+BucketOutputIteratorForTesting::BucketOutputIteratorForTesting(
+    std::string const& tmpDir)
+    : BucketOutputIterator{tmpDir, false}
+{
+}
+
+std::pair<std::string, uint256>
+BucketOutputIteratorForTesting::writeTmpTestBucket()
+{
+    auto ledgerEntries =
+        LedgerTestUtils::generateValidLedgerEntries(NUM_ITEMS_PER_BUCKET);
+    auto bucketEntries = Bucket::convertToBucketEntry(ledgerEntries);
+
+    for (auto const& bucketEntry : bucketEntries)
+    {
+        put(bucketEntry);
+    }
+
+    // Finish writing and close the bucket file
+    assert(mBuf);
+    mOut.writeOne(*mBuf, mHasher.get(), &mBytesPut);
+    mObjectsPut++;
+    mBuf.reset();
+    mOut.close();
+
+    return std::pair<std::string, uint256>(mFilename, mHasher->finish());
+};
+
+TestBucketGenerator::TestBucketGenerator(
+    Application& app, std::shared_ptr<HistoryArchive> archive)
+    : mApp{app}, mArchive{archive}
+{
+    mTmpDir = std::make_unique<TmpDir>(
+        mApp.getTmpDirManager().tmpDir("tmp-bucket-generator"));
+}
+
+std::string
+TestBucketGenerator::generateBucket(TestBucketState state)
+{
+    uint256 hash = HashUtils::random();
+    if (state == TestBucketState::FILE_NOT_UPLOADED)
+    {
+        // Skip uploading the file, return any hash
+        return binToHex(hash);
+    }
+
+    BucketOutputIteratorForTesting bucketOut{mTmpDir->getName()};
+    std::string filename;
+    std::tie(filename, hash) = bucketOut.writeTmpTestBucket();
+
+    if (state == TestBucketState::HASH_MISMATCH)
+    {
+        hash = HashUtils::random();
+    }
+
+    // Upload generated bucket to the archive
+    {
+        FileTransferInfo ft{mTmpDir->getName(), HISTORY_FILE_TYPE_BUCKET,
+                            binToHex(hash)};
+        auto& wm = mApp.getWorkManager();
+        auto archive =
+            mApp.getHistoryArchiveManager().getHistoryArchive("test");
+        auto put = wm.addWork<PutRemoteFileWork>(filename + ".gz",
+                                                 ft.remoteName(), archive);
+        auto mkdir = put->addWork<MakeRemoteDirWork>(ft.remoteDir(), archive);
+
+        if (state != TestBucketState::CORRUPTED_ZIPPED_FILE)
+        {
+            auto gzip = mkdir->addWork<GzipFileWork>(filename, true);
+            gzip->advance();
+        }
+        else
+        {
+            std::ofstream out(filename + ".gz");
+            out.close();
+            mkdir->advance();
+        }
+
+        while (!mApp.getClock().getIOService().stopped() &&
+               !wm.allChildrenDone())
+        {
+            mApp.getClock().crank(true);
+        }
+    }
+
+    return binToHex(hash);
 }
 
 CatchupMetrics::CatchupMetrics()
@@ -287,10 +376,10 @@ CatchupSimulation::generateRandomLedger()
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
 
-    mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
-    mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
-    mBucketListHashes.push_back(
-        lm.getLastClosedLedgerHeader().header.bucketListHash);
+    auto const& lclh = lm.getLastClosedLedgerHeader();
+    mLedgerSeqs.push_back(lclh.header.ledgerSeq);
+    mLedgerHashes.push_back(lclh.hash);
+    mBucketListHashes.push_back(lclh.header.bucketListHash);
     mBucket0Hashes.push_back(mApp.getBucketManager()
                                  .getBucketList()
                                  .getLevel(0)

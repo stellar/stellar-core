@@ -21,6 +21,7 @@ class BucketManager;
 // when finished.
 class BucketOutputIterator
 {
+  protected:
     std::string mFilename;
     XDROutputFileStream mOut;
     BucketEntryIdCmp mCmp;

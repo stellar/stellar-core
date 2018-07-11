@@ -99,6 +99,38 @@ Bucket::countLiveAndDeadEntries() const
     return std::make_pair(live, dead);
 }
 
+std::vector<BucketEntry>
+Bucket::convertToBucketEntry(std::vector<LedgerEntry> const& liveEntries)
+{
+    std::vector<BucketEntry> live;
+    live.reserve(liveEntries.size());
+    for (auto const& e : liveEntries)
+    {
+        BucketEntry ce;
+        ce.type(LIVEENTRY);
+        ce.liveEntry() = e;
+        live.push_back(ce);
+    }
+    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
+    return live;
+}
+
+std::vector<BucketEntry>
+Bucket::convertToBucketEntry(std::vector<LedgerKey> const& deadEntries)
+{
+    std::vector<BucketEntry> dead;
+    dead.reserve(deadEntries.size());
+    for (auto const& e : deadEntries)
+    {
+        BucketEntry ce;
+        ce.type(DEADENTRY);
+        ce.deadEntry() = e;
+        dead.push_back(ce);
+    }
+    std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
+    return dead;
+}
+
 void
 Bucket::apply(Database& db) const
 {
@@ -114,29 +146,8 @@ Bucket::fresh(BucketManager& bucketManager,
               std::vector<LedgerEntry> const& liveEntries,
               std::vector<LedgerKey> const& deadEntries)
 {
-    std::vector<BucketEntry> live, dead, combined;
-    live.reserve(liveEntries.size());
-    dead.reserve(deadEntries.size());
-
-    for (auto const& e : liveEntries)
-    {
-        BucketEntry ce;
-        ce.type(LIVEENTRY);
-        ce.liveEntry() = e;
-        live.push_back(ce);
-    }
-
-    for (auto const& e : deadEntries)
-    {
-        BucketEntry ce;
-        ce.type(DEADENTRY);
-        ce.deadEntry() = e;
-        dead.push_back(ce);
-    }
-
-    std::sort(live.begin(), live.end(), BucketEntryIdCmp());
-
-    std::sort(dead.begin(), dead.end(), BucketEntryIdCmp());
+    auto live = convertToBucketEntry(liveEntries);
+    auto dead = convertToBucketEntry(deadEntries);
 
     BucketOutputIterator liveOut(bucketManager.getTmpDir(), true);
     BucketOutputIterator deadOut(bucketManager.getTmpDir(), true);

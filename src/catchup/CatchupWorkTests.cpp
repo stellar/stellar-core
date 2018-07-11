@@ -149,7 +149,7 @@ TEST_CASE("compute CatchupRange from CatchupConfiguration", "[catchupWork]")
             REQUIRE(configuration.toLedger() == range.first.last());
 
             // if LCL was later than our first checkpoint, we would either
-            // apply buckets at or before LCL, or do a lot of unneccessary
+            // apply buckets at or before LCL, or do a lot of unnecessary
             // attempts to apply transactions
             REQUIRE(lastClosedLedger <= range.first.first());
 

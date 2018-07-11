@@ -5,12 +5,19 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "bucket/BucketList.h"
+#include "crypto/Hex.h"
 #include "herder/LedgerCloseData.h"
+#include "history/HistoryArchive.h"
+#include "historywork/GzipFileWork.h"
+#include "historywork/MakeRemoteDirWork.h"
+#include "historywork/PutRemoteFileWork.h"
+#include "ledger/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
 #include "util/Timer.h"
 #include "util/TmpDir.h"
 
+#include "bucket/BucketOutputIterator.h"
 #include <random>
 
 namespace stellar
@@ -22,7 +29,17 @@ class HistoryManager;
 namespace historytestutils
 {
 
+enum class TestBucketState
+{
+    CONTENTS_AND_HASH_OK,
+    CORRUPTED_ZIPPED_FILE,
+    FILE_NOT_UPLOADED,
+    HASH_MISMATCH
+};
+
 class HistoryConfigurator;
+class TestBucketGenerator;
+class BucketOutputIteratorForTesting;
 struct CatchupMetrics;
 struct CatchupPerformedWork;
 
@@ -51,6 +68,29 @@ class TmpDirHistoryConfigurator : public HistoryConfigurator
     std::string getArchiveDirName() const override;
 
     Config& configure(Config& cfg, bool writable) const override;
+};
+
+class BucketOutputIteratorForTesting : public BucketOutputIterator
+{
+    const size_t NUM_ITEMS_PER_BUCKET = 5;
+
+  public:
+    explicit BucketOutputIteratorForTesting(std::string const& tmpDir);
+    std::pair<std::string, uint256> writeTmpTestBucket();
+};
+
+class TestBucketGenerator
+{
+    Application& mApp;
+    std::shared_ptr<TmpDir> mTmpDir;
+    std::shared_ptr<HistoryArchive> mArchive;
+
+  public:
+    TestBucketGenerator(Application& app,
+                        std::shared_ptr<HistoryArchive> archive);
+
+    std::string generateBucket(
+        TestBucketState desiredState = TestBucketState::CONTENTS_AND_HASH_OK);
 };
 
 struct CatchupMetrics
