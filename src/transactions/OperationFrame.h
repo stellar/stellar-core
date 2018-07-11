@@ -56,6 +56,7 @@ class OperationFrame
     OperationFrame(Operation const& op, OperationResult& res,
                    TransactionFrame& parentTx);
     OperationFrame(OperationFrame const&) = delete;
+    virtual ~OperationFrame() = default;
 
     bool checkSignature(SignatureChecker& signatureChecker, Application& app,
                         LedgerDelta* delta);

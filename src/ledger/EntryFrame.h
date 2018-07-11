@@ -38,6 +38,7 @@ class EntryFrame : public NonMovableOrCopyable
 
     EntryFrame(LedgerEntryType type);
     EntryFrame(LedgerEntry const& from);
+    virtual ~EntryFrame() = default;
 
     static pointer FromXDR(LedgerEntry const& from);
     static pointer storeLoad(LedgerKey const& key, Database& db);
