@@ -2,13 +2,11 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "catchup/DownloadBucketsWork.h"
-#include "history/FileTransferInfo.h"
+#include "DownloadBucketsWork.h"
+#include "VerifyBucketWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
-#include "historywork/VerifyBucketWork.h"
+#include "lib/util/format.h"
 #include "main/Application.h"
-#include <medida/meter.h>
-#include <medida/metrics_registry.h>
 
 namespace stellar
 {
@@ -17,9 +15,10 @@ DownloadBucketsWork::DownloadBucketsWork(
     Application& app, WorkParent& parent,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::vector<std::string> hashes, TmpDir const& downloadDir)
-    : Work{app, parent, "download-and-verify-buckets"}
+    : BatchWork{app, parent, "download-verify-buckets"}
     , mBuckets{buckets}
-    , mHashes{std::move(hashes)}
+    , mHashes{hashes}
+    , mNextBucketIter{mHashes.begin()}
     , mDownloadDir{downloadDir}
     , mDownloadBucketStart{app.getMetrics().NewMeter(
           {"history", "download-bucket", "start"}, "event")}
@@ -40,54 +39,71 @@ DownloadBucketsWork::getStatus() const
 {
     if (mState == WORK_RUNNING || mState == WORK_PENDING)
     {
-        return "downloading buckets";
+        if (!mHashes.empty())
+        {
+            auto numDone = std::distance(mHashes.begin(), mNextBucketIter);
+            auto total = static_cast<uint32_t>(mHashes.size());
+            auto pct = (100 * numDone) / total;
+            return fmt::format(
+                "downloading and verifying buckets: {:d}/{:d} ({:d}%)", numDone,
+                total, pct);
+        }
     }
     return Work::getStatus();
 }
 
-void
-DownloadBucketsWork::onReset()
+bool
+DownloadBucketsWork::hasNext()
 {
-    clearChildren();
+    return mNextBucketIter != mHashes.end();
+}
 
-    for (auto const& hash : mHashes)
+void
+DownloadBucketsWork::resetIter()
+{
+    mNextBucketIter = mHashes.begin();
+}
+
+std::string
+DownloadBucketsWork::yieldMoreWork()
+{
+    if (!hasNext())
     {
-        FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-        // Each bucket gets its own work-chain of
-        // download->gunzip->verify
-
-        auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
-                                                hexToBin256(hash));
-        verify->addWork<GetAndUnzipRemoteFileWork>(ft);
-        mDownloadBucketStart.Mark();
+        throw std::runtime_error("Nothing to iterate over!");
     }
+
+    auto hash = *mNextBucketIter;
+    FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
+    auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
+                                            hexToBin256(hash));
+    auto download = verify->addWork<GetAndUnzipRemoteFileWork>(ft);
+    mDownloadBucketStart.Mark();
+
+    ++mNextBucketIter;
+    return verify->getUniqueName();
 }
 
 void
 DownloadBucketsWork::notify(std::string const& child)
 {
-    auto i = mChildren.find(child);
-    if (i == mChildren.end())
+    auto downloadWork = mChildren.find(child);
+    if (downloadWork != mChildren.end())
     {
-        CLOG(WARNING, "Work")
-            << "DownloadBucketsWork notified by unknown child " << child;
-        return;
+        switch (downloadWork->second->getState())
+        {
+        case Work::WORK_SUCCESS:
+            mDownloadBucketSuccess.Mark();
+            break;
+        case Work::WORK_FAILURE_RETRY:
+        case Work::WORK_FAILURE_FATAL:
+        case Work::WORK_FAILURE_RAISE:
+            mDownloadBucketFailure.Mark();
+            break;
+        default:
+            break;
+        }
     }
 
-    switch (i->second->getState())
-    {
-    case Work::WORK_SUCCESS:
-        mDownloadBucketSuccess.Mark();
-        break;
-    case Work::WORK_FAILURE_RETRY:
-    case Work::WORK_FAILURE_FATAL:
-    case Work::WORK_FAILURE_RAISE:
-        mDownloadBucketFailure.Mark();
-        break;
-    default:
-        break;
-    }
-
-    advance();
+    BatchWork::notify(child);
 }
 }
