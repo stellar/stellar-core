@@ -216,10 +216,8 @@ class CatchupSimulation
                                                uint32_t count, bool manual,
                                                Config::TestDbMode dbMode,
                                                std::string const& appName);
-
     bool catchupApplication(uint32_t initLedger, uint32_t count, bool manual,
-                            Application::pointer app2, bool doStart = true,
-                            uint32_t gap = 0);
+                            Application::pointer app2, uint32_t gap = 0);
 
     CatchupMetrics getCatchupMetrics(Application::pointer app);
     CatchupPerformedWork computeCatchupPerformedWork(
