@@ -34,8 +34,8 @@ class CatchupManagerImpl : public CatchupManager
     void historyCaughtup() override;
 
     void catchupHistory(CatchupConfiguration catchupConfiguration,
-                        bool manualCatchup,
-                        CatchupWork::ProgressHandler handler) override;
+                        CatchupWork::ProgressHandler handler,
+                        optional<Hash> trustedHash) override;
 
     std::string getStatus() const override;
 

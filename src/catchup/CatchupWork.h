@@ -98,8 +98,9 @@ class CatchupWork : public BucketDownloadWork
                      HistoryManager const& historyManager);
 
     CatchupWork(Application& app, WorkParent& parent,
-                CatchupConfiguration catchupConfiguration, bool manualCatchup,
-                ProgressHandler progressHandler, size_t maxRetries);
+                CatchupConfiguration catchupConfiguration,
+                ProgressHandler progressHandler, optional<Hash> trustedScpHash,
+                size_t maxRetries);
     std::string getStatus() const override;
     void onReset() override;
     State onSuccess() override;
@@ -110,9 +111,8 @@ class CatchupWork : public BucketDownloadWork
   private:
     HistoryArchiveState mRemoteState;
     HistoryArchiveState mApplyBucketsRemoteState;
-    uint32_t mLastClosedLedgerAtReset;
+    LedgerHeaderHistoryEntry mLastClosedLedgerAtReset;
     CatchupConfiguration const mCatchupConfiguration;
-    bool const mManualCatchup;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
     std::shared_ptr<Work> mDownloadLedgersWork;
     std::shared_ptr<Work> mVerifyLedgersWork;
@@ -122,9 +122,9 @@ class CatchupWork : public BucketDownloadWork
     std::shared_ptr<Work> mDownloadTransactionsWork;
     std::shared_ptr<Work> mApplyTransactionsWork;
     LedgerHeaderHistoryEntry mFirstVerified;
-    LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
     ProgressHandler mProgressHandler;
+    optional<Hash> mTrustedHash;
     bool mBucketsAppliedEmitted;
 
     bool hasAnyLedgersToCatchupTo() const;

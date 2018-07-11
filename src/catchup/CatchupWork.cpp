@@ -25,15 +25,15 @@ namespace stellar
 
 CatchupWork::CatchupWork(Application& app, WorkParent& parent,
                          CatchupConfiguration catchupConfiguration,
-                         bool manualCatchup, ProgressHandler progressHandler,
-                         size_t maxRetries)
+                         ProgressHandler progressHandler,
+                         optional<Hash> trustedScpHash, size_t maxRetries)
     : BucketDownloadWork(
           app, parent, "catchup",
           app.getHistoryManager().getLastClosedHistoryArchiveState(),
           maxRetries)
     , mCatchupConfiguration{catchupConfiguration}
-    , mManualCatchup{manualCatchup}
     , mProgressHandler{progressHandler}
+    , mTrustedHash{trustedScpHash}
 {
 }
 
@@ -118,7 +118,8 @@ CatchupWork::onReset()
     mDownloadTransactionsWork.reset();
     mApplyTransactionsWork.reset();
 
-    mLastClosedLedgerAtReset = mApp.getLedgerManager().getLastClosedLedgerNum();
+    mLastClosedLedgerAtReset =
+        mApp.getLedgerManager().getLastClosedLedgerHeader();
     mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
         "get-history-archive-state", mRemoteState, toCheckpoint);
 }
@@ -129,14 +130,15 @@ CatchupWork::hasAnyLedgersToCatchupTo() const
     assert(mGetHistoryArchiveStateWork);
     assert(mGetHistoryArchiveStateWork->getState() == WORK_SUCCESS);
 
-    if (mLastClosedLedgerAtReset <= mRemoteState.currentLedger)
+    if (mLastClosedLedgerAtReset.header.ledgerSeq <= mRemoteState.currentLedger)
     {
         return true;
     }
 
     CLOG(INFO, "History")
         << "Last closed ledger is later than current checkpoint: "
-        << mLastClosedLedgerAtReset << " > " << mRemoteState.currentLedger;
+        << mLastClosedLedgerAtReset.header.ledgerSeq << " > "
+        << mRemoteState.currentLedger;
     CLOG(INFO, "History") << "Wait until next checkpoint before retrying ";
     CLOG(ERROR, "History") << "Nothing to catchup to ";
     return false;
@@ -172,8 +174,9 @@ CatchupWork::verifyLedgers(LedgerRange const& range)
     CLOG(INFO, "History")
         << "Catchup verifying ledger chain for checkpointRange ["
         << range.first() << ".." << range.last() << "]";
-    mVerifyLedgersWork = addWork<VerifyLedgerChainWork>(
-        *mDownloadDir, range, mManualCatchup, mFirstVerified, mLastVerified);
+    mVerifyLedgersWork =
+        addWork<VerifyLedgerChainWork>(*mDownloadDir, range, mFirstVerified,
+                                       mLastClosedLedgerAtReset, mTrustedHash);
 
     return true;
 }
@@ -309,8 +312,8 @@ CatchupWork::onSuccess()
     auto resolvedConfiguration =
         mCatchupConfiguration.resolve(mRemoteState.currentLedger);
     auto catchupRange =
-        makeCatchupRange(mLastClosedLedgerAtReset, resolvedConfiguration,
-                         mApp.getHistoryManager());
+        makeCatchupRange(mLastClosedLedgerAtReset.header.ledgerSeq,
+                         resolvedConfiguration, mApp.getHistoryManager());
     auto ledgerRange = catchupRange.first;
     auto checkpointRange =
         CheckpointRange{ledgerRange, mApp.getHistoryManager()};

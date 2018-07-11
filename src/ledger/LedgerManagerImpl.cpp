@@ -629,9 +629,14 @@ LedgerManagerImpl::startCatchup(CatchupConfiguration configuration,
 
     setCatchupState(CatchupState::APPLYING_HISTORY);
 
+    auto hash =
+        mSyncingLedgers.empty()
+            ? nullptr
+            : make_optional<Hash>(
+                  mSyncingLedgers.front().getTxSet()->previousLedgerHash());
     mApp.getCatchupManager().catchupHistory(
-        configuration, manualCatchup,
-        std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3));
+            configuration,
+            std::bind(&LedgerManagerImpl::historyCaughtup, this, _1, _2, _3), hash);
 }
 
 HistoryManager::LedgerVerificationStatus

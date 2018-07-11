@@ -51,8 +51,8 @@ CatchupManagerImpl::historyCaughtup()
 
 void
 CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
-                                   bool manualCatchup,
-                                   CatchupWork::ProgressHandler handler)
+                                   CatchupWork::ProgressHandler handler,
+                                   optional<Hash> trustedHash)
 {
     if (mCatchupWork)
     {
@@ -62,7 +62,7 @@ CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
     mCatchupStart.Mark();
 
     mCatchupWork = mApp.getWorkManager().addWork<CatchupWork>(
-        catchupConfiguration, manualCatchup, handler, Work::RETRY_NEVER);
+        catchupConfiguration, handler, trustedHash, Work::RETRY_NEVER);
     mApp.getWorkManager().advanceChildren();
 }
 
