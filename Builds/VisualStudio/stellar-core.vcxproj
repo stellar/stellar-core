@@ -289,6 +289,7 @@ exit /b 0
     <ClCompile Include="..\..\src\herder\Upgrades.cpp" />
     <ClCompile Include="..\..\src\herder\UpgradesTests.cpp" />
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
@@ -564,6 +565,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
+    <ClInclude Include="..\..\src\historywork\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h" />
