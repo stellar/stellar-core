@@ -242,6 +242,14 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
 void
 Config::load(std::string const& filename)
 {
+    if (filename != "-" && !fs::exists(filename))
+    {
+        std::string s;
+        s = "No config file ";
+        s += filename + " found";
+        throw std::invalid_argument(s);
+    }
+
     LOG(DEBUG) << "Loading config from: " << filename;
     try
     {

@@ -847,17 +847,8 @@ main(int argc, char* const* argv)
     {
         // yes you really have to do this 3 times
         Logging::setLogLevel(logLevel, nullptr);
-        if (cfgFile == "-" || fs::exists(cfgFile))
-        {
-            cfg.load(cfgFile);
-        }
-        else
-        {
-            std::string s;
-            s = "No config file ";
-            s += cfgFile + " found";
-            throw std::invalid_argument(s);
-        }
+        cfg.load(cfgFile);
+
         Logging::setFmt(KeyUtils::toShortString(cfg.NODE_SEED.getPublicKey()));
         Logging::setLogLevel(logLevel, nullptr);
 
