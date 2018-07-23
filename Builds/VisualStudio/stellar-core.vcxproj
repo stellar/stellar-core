@@ -413,6 +413,7 @@ exit /b 0
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationTests.cpp" />
+    <ClCompile Include="..\..\src\main\ApplicationUtils.cpp" />
     <ClCompile Include="..\..\src\main\ConfigTests.cpp" />
     <ClCompile Include="..\..\src\main\dumpxdr.cpp" />
     <ClCompile Include="..\..\src\main\fuzz.cpp" />
@@ -654,6 +655,7 @@ exit /b 0
     <ClInclude Include="..\..\lib\util\uint128_t.h" />
     <ClInclude Include="..\..\src\main\Application.h" />
     <ClInclude Include="..\..\src\main\ApplicationImpl.h" />
+    <ClInclude Include="..\..\src\main\ApplicationUtils.h" />
     <ClInclude Include="..\..\src\main\CommandHandler.h" />
     <ClInclude Include="..\..\src\main\Config.h" />
     <ClInclude Include="..\..\src\main\dumpxdr.h" />

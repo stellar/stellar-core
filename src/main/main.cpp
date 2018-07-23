@@ -20,6 +20,7 @@
 #include "lib/http/HttpClient.h"
 #include "lib/util/getopt.h"
 #include "main/Application.h"
+#include "main/ApplicationUtils.h"
 #include "main/Config.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
@@ -187,412 +188,36 @@ usage(int err = 1)
     exit(err);
 }
 
-static void
-sendCommand(std::string const& command, const std::vector<char*>& rest,
-            unsigned short port)
-{
-    std::string ret;
-    std::ostringstream path;
-
-    path << "/";
-    bool gotCommand = false;
-
-    std::locale loc("C");
-
-    for (auto const& c : command)
-    {
-        if (gotCommand)
-        {
-            if (std::isalnum(c, loc))
-            {
-                path << c;
-            }
-            else
-            {
-                path << '%' << std::hex << std::setw(2) << std::setfill('0')
-                     << (unsigned int)c;
-            }
-        }
-        else
-        {
-            path << c;
-            if (c == '?')
-            {
-                gotCommand = true;
-            }
-        }
-    }
-
-    int code = http_request("127.0.0.1", path.str(), port, ret);
-    if (code == 200)
-    {
-        LOG(INFO) << ret;
-    }
-    else
-    {
-        LOG(INFO) << "http failed(" << code << ") port: " << port
-                  << " command: " << command;
-    }
-}
-
-static bool
-checkInitialized(Application::pointer app)
-{
-    try
-    {
-        // check to see if the state table exists
-        app->getPersistentState().getState(PersistentState::kDatabaseSchema);
-    }
-    catch (...)
-    {
-        LOG(INFO) << "* ";
-        LOG(INFO) << "* The database has not yet been initialized. Try --newdb";
-        LOG(INFO) << "* ";
-        return false;
-    }
-    return true;
-}
-
-static int
-catchup(Application::pointer app, uint32_t to, uint32_t count,
-        Json::Value& catchupInfo)
-{
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
-    auto done = false;
-    app->getLedgerManager().loadLastKnownLedger(
-        [&done](asio::error_code const& ec) {
-            if (ec)
-            {
-                throw std::runtime_error(
-                    "Unable to restore last-known ledger state");
-            }
-
-            done = true;
-        });
-    auto& clock = app->getClock();
-    while (!done && clock.crank(true))
-        ;
-
-    try
-    {
-        app->getLedgerManager().startCatchup({to, count}, true);
-    }
-    catch (std::invalid_argument const&)
-    {
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Target ledger " << to
-                  << " is not newer than last closed ledger"
-                  << " - nothing to do";
-        LOG(INFO) << "* If you really want to catchup to " << to
-                  << " run stellar-core with --newdb parameter.";
-        LOG(INFO) << "*";
-        return 2;
-    }
-
-    auto& io = clock.getIOService();
-    auto synced = false;
-    asio::io_service::work mainWork(io);
-    done = false;
-    while (!done && clock.crank(true))
-    {
-        switch (app->getLedgerManager().getState())
-        {
-        case LedgerManager::LM_BOOTING_STATE:
-        {
-            done = true;
-            break;
-        }
-        case LedgerManager::LM_SYNCED_STATE:
-        {
-            break;
-        }
-        case LedgerManager::LM_CATCHING_UP_STATE:
-        {
-            switch (app->getLedgerManager().getCatchupState())
-            {
-            case LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER:
-            {
-                done = true;
-                synced = true;
-                break;
-            }
-            case LedgerManager::CatchupState::NONE:
-            {
-                done = true;
-                break;
-            }
-            default:
-            {
-                break;
-            }
-            }
-            break;
-        }
-        case LedgerManager::LM_NUM_STATE:
-            abort();
-        }
-    }
-
-    LOG(INFO) << "*";
-    if (synced)
-    {
-        LOG(INFO) << "* Catchup finished.";
-    }
-    else
-    {
-        LOG(INFO) << "* Catchup failed.";
-    }
-    LOG(INFO) << "*";
-
-    catchupInfo = app->getJsonInfo();
-    return synced ? 0 : 3;
-}
-
 static int
 catchupAt(Application::pointer app, uint32_t at, Json::Value& catchupInfo)
 {
-    return catchup(app, at, 0, catchupInfo);
+    return catchup(app, CatchupConfiguration{at, 0}, catchupInfo);
 }
 
 static int
 catchupComplete(Application::pointer app, Json::Value& catchupInfo)
 {
-    return catchup(app, CatchupConfiguration::CURRENT,
-                   std::numeric_limits<uint32_t>::max(), catchupInfo);
+    return catchup(app,
+                   CatchupConfiguration{CatchupConfiguration::CURRENT,
+                                        std::numeric_limits<uint32_t>::max()},
+                   catchupInfo);
 }
 
 static int
 catchupRecent(Application::pointer app, uint32_t count,
               Json::Value& catchupInfo)
 {
-    return catchup(app, CatchupConfiguration::CURRENT, count, catchupInfo);
+    return catchup(app,
+                   CatchupConfiguration{CatchupConfiguration::CURRENT, count},
+                   catchupInfo);
 }
 
 static int
 catchupTo(Application::pointer app, uint32_t to, Json::Value& catchupInfo)
 {
-    return catchup(app, to, std::numeric_limits<uint32_t>::max(), catchupInfo);
-}
-
-static void
-writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
-{
-    std::string filename = outputFile.empty() ? "-" : outputFile;
-    auto content = catchupInfo.toStyledString();
-
-    if (filename == "-")
-    {
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Catchup info: " << content;
-        LOG(INFO) << "*";
-    }
-    else
-    {
-        std::ofstream out{};
-        out.open(filename);
-        out.write(content.c_str(), content.size());
-        out.close();
-
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Wrote catchup info to " << filename;
-        LOG(INFO) << "*";
-    }
-}
-
-static int
-reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
-{
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    if (!checkInitialized(app))
-    {
-        return 1;
-    }
-
-    auto state = HistoryArchiveState{};
-    auto& wm = app->getWorkManager();
-    auto getHistoryArchiveStateWork =
-        wm.executeWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state-work", state);
-
-    auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
-    if (ok)
-    {
-        std::string filename = outputFile.empty() ? "-" : outputFile;
-
-        if (filename == "-")
-        {
-            LOG(INFO) << "*";
-            LOG(INFO) << "* Last history checkpoint " << state.toString();
-            LOG(INFO) << "*";
-        }
-        else
-        {
-            state.save(filename);
-            LOG(INFO) << "*";
-            LOG(INFO) << "* Wrote last history checkpoint " << filename;
-            LOG(INFO) << "*";
-        }
-    }
-    else
-    {
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Fetching last history checkpoint failed.";
-        LOG(INFO) << "*";
-    }
-
-    app->gracefulStop();
-    while (clock.crank(true))
-        ;
-
-    return ok ? 0 : 1;
-}
-
-static void
-setForceSCPFlag(Config cfg, bool isOn)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    if (checkInitialized(app))
-    {
-        app->getPersistentState().setState(
-            PersistentState::kForceSCPOnNextLaunch, (isOn ? "true" : "false"));
-        if (isOn)
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been set in the db.";
-            LOG(INFO) << "* ";
-            LOG(INFO)
-                << "* The next launch will start scp from the account balances";
-            LOG(INFO) << "* as they stand in the db now, without waiting to "
-                         "hear from";
-            LOG(INFO) << "* the network.";
-            LOG(INFO) << "* ";
-        }
-        else
-        {
-            LOG(INFO) << "* ";
-            LOG(INFO) << "* The `force scp` flag has been cleared.";
-            LOG(INFO) << "* The next launch will start normally.";
-            LOG(INFO) << "* ";
-        }
-    }
-}
-
-static void
-showOfflineInfo(Config cfg)
-{
-    // needs real time to display proper stats
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
-    {
-        app->reportInfo();
-    }
-    else
-    {
-        LOG(INFO) << "Database is not initialized";
-    }
-}
-
-static void
-loadXdr(Config cfg, std::string const& bucketFile)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-    if (checkInitialized(app))
-    {
-        uint256 zero;
-        Bucket bucket(bucketFile, zero);
-        bucket.apply(*app);
-    }
-    else
-    {
-        LOG(INFO) << "Database is not initialized";
-    }
-}
-
-static void
-initializeDatabase(Config cfg)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg);
-
-    LOG(INFO) << "*";
-    LOG(INFO) << "* The next launch will catchup from the network afresh.";
-    LOG(INFO) << "*";
-}
-
-static int
-initializeHistories(Config cfg, vector<string> newHistories)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-
-    for (auto const& arch : newHistories)
-    {
-        if (!app->getHistoryArchiveManager().initializeHistoryArchive(arch))
-            return 1;
-    }
-    return 0;
-}
-
-static int
-startApp(string cfgFile, Config cfg)
-{
-    LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
-    LOG(INFO) << "Config from " << cfgFile;
-    VirtualClock clock(VirtualClock::REAL_TIME);
-    Application::pointer app;
-    try
-    {
-        app = Application::create(clock, cfg, false);
-
-        if (!checkInitialized(app))
-        {
-            return 0;
-        }
-        else
-        {
-            if (!app->getHistoryArchiveManager().checkSensibleConfig())
-            {
-                return 1;
-            }
-            if (cfg.ARTIFICIALLY_ACCELERATE_TIME_FOR_TESTING)
-            {
-                LOG(WARNING) << "Artificial acceleration of time enabled "
-                             << "(for testing only)";
-            }
-
-            app->start();
-
-            app->applyCfgCommands();
-        }
-    }
-    catch (std::exception& e)
-    {
-        LOG(FATAL) << "Got an exception: " << e.what();
-        return 1;
-    }
-    auto& io = clock.getIOService();
-    asio::io_service::work mainWork(io);
-    while (!io.stopped())
-    {
-        clock.crank();
-    }
-    return 0;
+    return catchup(
+        app, CatchupConfiguration{to, std::numeric_limits<uint32_t>::max()},
+        catchupInfo);
 }
 }
 
@@ -770,7 +395,7 @@ main(int argc, char* const* argv)
 
         if (command.size())
         {
-            sendCommand(command, rest, cfg.HTTP_PORT);
+            httpCommand(command, cfg.HTTP_PORT);
             return 0;
         }
 
@@ -835,14 +460,6 @@ main(int argc, char* const* argv)
         {
             return initializeHistories(cfg, newHistories);
         }
-
-        if (cfg.MANUAL_CLOSE)
-        {
-            // in manual close mode, we set FORCE_SCP
-            // so that the node starts fully in sync
-            // (this is to avoid to force scp all the time when testing)
-            cfg.FORCE_SCP = true;
-        }
     }
     catch (std::exception& e)
     {
@@ -850,5 +467,5 @@ main(int argc, char* const* argv)
         return 1;
     }
     // run outside of catch block so that we properly capture crashes
-    return startApp(cfgFile, cfg);
+    return runWithConfig(cfg);
 }
