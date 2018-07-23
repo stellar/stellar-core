@@ -720,6 +720,9 @@
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp">
       <Filter>history</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\history\InferredQuorumUtils.cpp">
+      <Filter>history</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp">
       <Filter>history</Filter>
     </ClCompile>
@@ -1413,6 +1416,9 @@
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\InferredQuorum.h">
+      <Filter>history</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\history\InferredQuorumUtils.h">
       <Filter>history</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\history\StateSnapshot.h">

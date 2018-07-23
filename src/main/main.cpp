@@ -14,6 +14,7 @@
 #include "database/Database.h"
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
+#include "history/InferredQuorumUtils.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/http/HttpClient.h"
@@ -518,59 +519,6 @@ loadXdr(Config cfg, std::string const& bucketFile)
     else
     {
         LOG(INFO) << "Database is not initialized";
-    }
-}
-
-static void
-inferQuorumAndWrite(Config cfg)
-{
-    InferredQuorum iq;
-    {
-        VirtualClock clock;
-        cfg.setNoListen();
-        Application::pointer app = Application::create(clock, cfg, false);
-        iq = app->getHistoryManager().inferQuorum();
-    }
-    LOG(INFO) << "Inferred quorum";
-    std::cout << iq.toString(cfg) << std::endl;
-}
-
-static void
-checkQuorumIntersection(Config cfg)
-{
-    VirtualClock clock;
-    cfg.setNoListen();
-    Application::pointer app = Application::create(clock, cfg, false);
-    InferredQuorum iq = app->getHistoryManager().inferQuorum();
-    iq.checkQuorumIntersection(cfg);
-}
-
-static void
-writeQuorumGraph(Config cfg, std::string const& outputFile)
-{
-    InferredQuorum iq;
-    {
-        VirtualClock clock;
-        cfg.setNoListen();
-        Application::pointer app = Application::create(clock, cfg, false);
-        iq = app->getHistoryManager().inferQuorum();
-    }
-    std::string filename = outputFile.empty() ? "-" : outputFile;
-    if (filename == "-")
-    {
-        std::stringstream out;
-        iq.writeQuorumGraph(cfg, out);
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Quorum graph: " << out.str();
-        LOG(INFO) << "*";
-    }
-    else
-    {
-        std::ofstream out(filename);
-        iq.writeQuorumGraph(cfg, out);
-        LOG(INFO) << "*";
-        LOG(INFO) << "* Wrote quorum graph to " << filename;
-        LOG(INFO) << "*";
     }
 }
 

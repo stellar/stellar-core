@@ -319,6 +319,7 @@ exit /b 0
     <ClCompile Include="..\..\src\history\HistoryTestsUtils.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorum.cpp" />
     <ClCompile Include="..\..\src\history\InferredQuorumTests.cpp" />
+    <ClCompile Include="..\..\src\history\InferredQuorumUtils.cpp" />
     <ClCompile Include="..\..\src\history\SerializeTests.cpp" />
     <ClCompile Include="..\..\src\history\StateSnapshot.cpp" />
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValid.cpp" />
@@ -595,6 +596,7 @@ exit /b 0
     <ClInclude Include="..\..\src\history\HistoryManagerImpl.h" />
     <ClInclude Include="..\..\src\history\HistoryTestsUtils.h" />
     <ClInclude Include="..\..\src\history\InferredQuorum.h" />
+    <ClInclude Include="..\..\src\history\InferredQuorumUtils.h" />
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
