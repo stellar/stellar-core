@@ -403,9 +403,10 @@ writeCatchupInfo(Json::Value const& catchupInfo, std::string const& outputFile)
 }
 
 static int
-reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
+reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
 {
     VirtualClock clock(VirtualClock::REAL_TIME);
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
     if (!checkInitialized(app))
@@ -486,9 +487,10 @@ parseLedgerCount(std::string const& str)
 }
 
 static void
-setForceSCPFlag(Config const& cfg, bool isOn)
+setForceSCPFlag(Config cfg, bool isOn)
 {
     VirtualClock clock;
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
     if (checkInitialized(app))
@@ -518,10 +520,11 @@ setForceSCPFlag(Config const& cfg, bool isOn)
 }
 
 static void
-showOfflineInfo(Config const& cfg)
+showOfflineInfo(Config cfg)
 {
     // needs real time to display proper stats
     VirtualClock clock(VirtualClock::REAL_TIME);
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
     if (checkInitialized(app))
     {
@@ -534,9 +537,10 @@ showOfflineInfo(Config const& cfg)
 }
 
 static void
-loadXdr(Config const& cfg, std::string const& bucketFile)
+loadXdr(Config cfg, std::string const& bucketFile)
 {
     VirtualClock clock;
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
     if (checkInitialized(app))
     {
@@ -551,11 +555,12 @@ loadXdr(Config const& cfg, std::string const& bucketFile)
 }
 
 static void
-inferQuorumAndWrite(Config const& cfg)
+inferQuorumAndWrite(Config cfg)
 {
     InferredQuorum iq;
     {
         VirtualClock clock;
+        cfg.setNoListen();
         Application::pointer app = Application::create(clock, cfg, false);
         iq = app->getHistoryManager().inferQuorum();
     }
@@ -564,20 +569,22 @@ inferQuorumAndWrite(Config const& cfg)
 }
 
 static void
-checkQuorumIntersection(Config const& cfg)
+checkQuorumIntersection(Config cfg)
 {
     VirtualClock clock;
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
     InferredQuorum iq = app->getHistoryManager().inferQuorum();
     iq.checkQuorumIntersection(cfg);
 }
 
 static void
-writeQuorumGraph(Config const& cfg, std::string const& outputFile)
+writeQuorumGraph(Config cfg, std::string const& outputFile)
 {
     InferredQuorum iq;
     {
         VirtualClock clock;
+        cfg.setNoListen();
         Application::pointer app = Application::create(clock, cfg, false);
         iq = app->getHistoryManager().inferQuorum();
     }
@@ -601,9 +608,10 @@ writeQuorumGraph(Config const& cfg, std::string const& outputFile)
 }
 
 static void
-initializeDatabase(Config& cfg)
+initializeDatabase(Config cfg)
 {
     VirtualClock clock;
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg);
 
     LOG(INFO) << "*";
@@ -612,9 +620,10 @@ initializeDatabase(Config& cfg)
 }
 
 static int
-initializeHistories(Config& cfg, vector<string> newHistories)
+initializeHistories(Config cfg, vector<string> newHistories)
 {
     VirtualClock clock;
+    cfg.setNoListen();
     Application::pointer app = Application::create(clock, cfg, false);
 
     for (auto const& arch : newHistories)
@@ -626,7 +635,7 @@ initializeHistories(Config& cfg, vector<string> newHistories)
 }
 
 static int
-startApp(string cfgFile, Config& cfg)
+startApp(string cfgFile, Config cfg)
 {
     LOG(INFO) << "Starting stellar-core " << STELLAR_CORE_VERSION;
     LOG(INFO) << "Config from " << cfgFile;
@@ -871,7 +880,6 @@ main(int argc, char* const* argv)
             doReportLastHistoryCheckpoint)
         {
             auto result = 0;
-            cfg.setNoListen();
             if (newDB)
                 initializeDatabase(cfg);
             if ((result == 0) && (doCatchupAt || doCatchupComplete ||
@@ -879,6 +887,7 @@ main(int argc, char* const* argv)
             {
                 Json::Value catchupInfo;
                 VirtualClock clock(VirtualClock::REAL_TIME);
+                cfg.setNoListen();
                 auto app = Application::create(clock, cfg, false);
                 // set known cursors before starting maintenance job
                 ExternalQueue ps(*app);
@@ -917,7 +926,6 @@ main(int argc, char* const* argv)
         }
         else if (!newHistories.empty())
         {
-            cfg.setNoListen();
             return initializeHistories(cfg, newHistories);
         }
 
