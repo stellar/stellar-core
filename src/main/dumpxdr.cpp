@@ -33,8 +33,6 @@ using namespace std::placeholders;
 namespace stellar
 {
 
-const char* signtxn_network_id;
-
 std::string
 xdr_printer(const PublicKey& pk)
 {
@@ -274,15 +272,15 @@ readSecret(const std::string& prompt, bool force_tty)
 }
 
 void
-signtxn(std::string const& filename, bool base64)
+signtxn(std::string const& filename, std::string netId, bool base64)
 {
     using namespace std;
 
     try
     {
-        if (!signtxn_network_id)
-            signtxn_network_id = getenv("STELLAR_NETWORK_ID");
-        if (!signtxn_network_id)
+        if (netId.empty())
+            netId = getenv("STELLAR_NETWORK_ID");
+        if (netId.empty())
             throw std::runtime_error("missing --netid argument or "
                                      "STELLAR_NETWORK_ID environment variable");
 
@@ -301,7 +299,7 @@ signtxn(std::string const& filename, bool base64)
         SecretKey sk(SecretKey::fromStrKeySeed(
             readSecret("Secret key seed: ", txn_stdin)));
         TransactionSignaturePayload payload;
-        payload.networkId = sha256(std::string(signtxn_network_id));
+        payload.networkId = sha256(netId);
         payload.taggedTransaction.type(ENVELOPE_TYPE_TX);
         payload.taggedTransaction.tx() = txenv.tx;
         txenv.signatures.emplace_back(

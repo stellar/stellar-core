@@ -633,7 +633,8 @@ main(int argc, char* const* argv)
     std::string loadXdrBucket;
     std::vector<std::string> newHistories;
     std::vector<std::string> metrics;
-    string filetype = "auto";
+    std::string filetype = "auto";
+    std::string netId;
 
     int opt;
     while ((opt = getopt_long_only(argc, argv, "c:", stellar_core_options,
@@ -681,13 +682,13 @@ main(int argc, char* const* argv)
             filetype = std::string(optarg);
             break;
         case OPT_SIGNTXN:
-            signtxn(std::string(optarg), base64);
+            signtxn(std::string(optarg), netId, base64);
             return 0;
         case OPT_SEC2PUB:
             priv2pub();
             return 0;
         case OPT_NETID:
-            signtxn_network_id = optarg;
+            netId = optarg;
             return 0;
         case OPT_LOADXDR:
             loadXdrBucket = std::string(optarg);
