@@ -215,6 +215,9 @@ catchupTo(Application::pointer app, uint32_t to, Json::Value& catchupInfo)
 int
 handleDeprecatedCommandLine(int argc, char* const* argv)
 {
+    std::cout << "Using DEPRECATED command-line syntax.\n";
+    std::cout << "Please refer to documentation for new syntax.\n\n";
+
     std::string cfgFile("stellar-core.cfg");
     std::string command;
     el::Level logLevel = el::Level::Info;

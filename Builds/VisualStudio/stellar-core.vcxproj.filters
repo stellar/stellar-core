@@ -144,6 +144,9 @@
     <ClCompile Include="..\..\src\main\ApplicationUtils.cpp">
       <Filter>main</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\main\CommandLine.cpp">
+      <Filter>main</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\main\DeprecatedCommandLine.cpp">
       <Filter>main</Filter>
     </ClCompile>
@@ -897,6 +900,9 @@
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\ApplicationUtils.h">
+      <Filter>main</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\main\CommandLine.h">
       <Filter>main</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\main\DeprecatedCommandLine.h">
