@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include <cstdint>
+#include <string>
 
 namespace stellar
 {
@@ -56,4 +57,7 @@ class CatchupConfiguration
     uint32_t mToLedger;
     uint32_t mCount;
 };
+
+uint32_t parseLedger(std::string const& str);
+uint32_t parseLedgerCount(std::string const& str);
 }

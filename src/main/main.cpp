@@ -453,39 +453,6 @@ reportLastHistoryCheckpoint(Config cfg, std::string const& outputFile)
     return ok ? 0 : 1;
 }
 
-static uint32_t
-parseLedger(std::string const& str)
-{
-    if (str == "current")
-    {
-        return CatchupConfiguration::CURRENT;
-    }
-
-    auto pos = std::size_t{0};
-    auto result = std::stoul(str, &pos);
-    if (pos < str.length() || result < 2)
-    {
-        throw std::runtime_error(
-            fmt::format("{} is not a valid ledger number", str));
-    }
-
-    return result;
-}
-
-static uint32_t
-parseLedgerCount(std::string const& str)
-{
-    auto pos = std::size_t{0};
-    auto result = std::stoul(str, &pos);
-    if (pos < str.length())
-    {
-        throw std::runtime_error(
-            fmt::format("{} is not a valid ledger count", str));
-    }
-
-    return result;
-}
-
 static void
 setForceSCPFlag(Config cfg, bool isOn)
 {
