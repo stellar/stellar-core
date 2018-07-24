@@ -183,7 +183,7 @@ Before attempting to configure stellar-core, it is highly recommended to first t
 All configuration for stellar-core is done with a TOML file. By default 
 stellar-core loads `./stellar-core.cfg`, but you can specify a different file to load on the command line:
 
-`$ stellar-core --conf betterfile.cfg` 
+`$ stellar-core <COMMAND> --conf betterfile.cfg` 
 
 The [example config](https://github.com/stellar/stellar-core/blob/master/docs/stellar-core_example.cfg) is not a real configuration, but documents all possible configuration elements as well as their default values.
 
@@ -206,7 +206,7 @@ messages will look like they came from you.
 
 Generate a key pair like this:
 
-`$ stellar-core --genseed`
+`$ stellar-core gen-seed`
 the output will look something like
 ```
 Secret seed: SBAAOHEU4WSWX6GBZ3VOXEGQGWRBJ72ZN3B3MFAJZWXRYGDIWHQO37SY
@@ -352,7 +352,7 @@ Cross reference your validator settings, in particular:
 
 After configuring your [database](#database) and [buckets](#buckets) settings, when running stellar-core for the first time, you must initialize the database:
 
-`$ stellar-core --newdb`
+`$ stellar-core new-db`
 
 This command will initialize the database as well as the bucket directory and then exit. 
 
@@ -414,7 +414,7 @@ Archive sections can also be configured with `put` and `mkdir` commands to
  cause the instance to publish to that archive (for nodes configured as [archiver nodes](#archiver-nodes) or [full validators](#full-validators)).
 
 The very first time you want to use your archive *before starting your node* you need to initialize it with:
-`$ stellar-core --newhist <historyarchive>`
+`$ stellar-core new-hist <historyarchive>`
 
 **IMPORTANT:**
  * make sure that you configure both `put` and `mkdir` if `put` doesn't
@@ -437,7 +437,7 @@ After having configured your node and its environment, you're ready to start ste
 
 This can be done with a command equivalent to
 
-`$ stellar-core`
+`$ stellar-core run`
 
 At this point you're ready to observe core's activity as it joins the network.
 
@@ -448,7 +448,7 @@ While running, interaction with stellar-core is done via an administrative
 HTTP endpoint. Commands can be submitted using command-line HTTP tools such 
 as `curl`, or by running a command such as
 
-`$ stellar-core -c <command>`
+`$ stellar-core http-command <http-command>`
 
 The endpoint is [not intended to be exposed to the public internet](#interaction-with-other-internal-systems). It's typically accessed by administrators, or by a mid-tier application to submit transactions to the Stellar network. 
 
@@ -526,14 +526,14 @@ configurable as `LOG_FILE_PATH`.
 The log level can be controlled by configuration, the `-ll` command-line flag 
 or adjusted dynamically by administrative (HTTP) commands. Run:
 
-`$ stellar-core -c "ll?level=debug"`
+`$ stellar-core http-command "ll?level=debug"`
 
 against a running system.
 Log levels can also be adjusted on a partition-by-partition basis through the 
 administrative interface.
  For example the history system can be set to DEBUG-level logging by running:
 
-`$ stellar-core -c "ll?level=debug&partition=history"` 
+`$ stellar-core http-command "ll?level=debug&partition=history"` 
 
 against a running system.
  The default log level is `INFO`, which is moderately verbose and should emit 
@@ -545,7 +545,7 @@ against a running system.
 Information provided here can be used for both human operators and programmatic access.
 
 ### General node information
-Run `$ stellar-core --c 'info'`
+Run `$ stellar-core http-command 'info'`
 The output will look something like
 ```json
  {
@@ -624,7 +624,7 @@ The `peers` command returns information on the peers the instance is connected t
 
 This list is the result of both inbound connections from other peers and outbound connections from this node to other peers.
 
-`$ stellar-core --c 'peers'`
+`$ stellar-core http-command 'peers'`
 
 ```json
 {
@@ -661,7 +661,7 @@ The `quorum` command allows to diagnose problems with the quorum set of the loca
 
 Run
 
-`$ stellar-core --c 'quorum'`
+`$ stellar-core http-command 'quorum'`
 
 The output looks something like:
 ```json
@@ -702,7 +702,7 @@ as a whole will not be able to reach consensus (and the opposite is true, the ne
 may fail because of a different set of validators failing).
 
 You can get a sense of the quorum set health of a different node by doing
-`$ stellar-core --c 'quorum?node=$sdf1` or `$ stellar-core --c 'quorum?node=@GABCDE` 
+`$ stellar-core http-command 'quorum?node=$sdf1` or `$ stellar-core http-command 'quorum?node=@GABCDE` 
 
 Overall network health can be evaluated by walking through all nodes and looking at their health. Note that this is only an approximation as remote nodes may not have received the same messages (in particular: `missing` for other nodes is not reliable).
 
@@ -769,9 +769,9 @@ For more information look at [`docs/versioning.md`](../versioning.md).
 
 Example here is to upgrade the protocol version to version 9 on January-31-2018.
 
-1. `$ stellar-core -c 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
+1. `$ stellar-core http-command 'upgrades?mode=set&upgradetime=2018-01-31T20:00:00Z&protocolversion=9'`
 
-2. `$ stellar-core -c info`
+2. `$ stellar-core http-command info`
 At this point `info` will tell you that the node is setup to vote for this upgrade:
 ```json
       "status" : [

@@ -362,7 +362,7 @@ catchup(Application::pointer app, CatchupConfiguration cc,
                   << " is not newer than last closed ledger"
                   << " - nothing to do";
         LOG(INFO) << "* If you really want to catchup to " << cc.toLedger()
-                  << " run stellar-core with --newdb parameter.";
+                  << " run stellar-core new-db";
         LOG(INFO) << "*";
         return 2;
     }
