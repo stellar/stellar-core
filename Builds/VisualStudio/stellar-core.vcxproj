@@ -521,6 +521,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\ChangeTrustOpFrame.cpp" />
     <ClCompile Include="..\..\src\util\Logging.cpp" />
     <ClCompile Include="..\..\src\util\Uint128Tests.cpp" />
+    <ClInclude Include="..\..\src\work\BatchableWork.cpp" />
     <ClCompile Include="..\..\src\work\Work.cpp" />
     <ClCompile Include="..\..\src\work\WorkManagerImpl.cpp" />
     <ClCompile Include="..\..\src\work\WorkParent.cpp" />
@@ -727,6 +728,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\types.h" />
     <ClInclude Include="..\..\src\util\MetricResetter.h" />
     <ClInclude Include="..\..\src\util\XDRStream.h" />
+    <ClInclude Include="..\..\src\work\BatchableWork.h" />
     <ClInclude Include="..\..\src\work\Work.h" />
     <ClInclude Include="..\..\src\work\WorkManager.h" />
     <ClInclude Include="..\..\src\work\WorkManagerImpl.h" />
