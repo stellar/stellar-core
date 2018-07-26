@@ -8,6 +8,7 @@
 #include "history/HistoryArchiveManager.h"
 #include "history/HistoryManager.h"
 #include "history/HistoryTestsUtils.h"
+#include "historywork/DownloadVerifyLedgersWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/GunzipFileWork.h"
 #include "historywork/GzipFileWork.h"
@@ -320,11 +321,10 @@ class TestBatchWork : public BatchWork
         mCount = 0;
     }
 
-    std::string
+    std::shared_ptr<BatchableWork>
     yieldMoreWork() override
     {
-        return addWork<Work>(fmt::format("child-{:d}", mCount++), 0)
-            ->getUniqueName();
+        return addWork<BatchableWork>(fmt::format("child-{:d}", mCount++), 0);
     }
 };
 
@@ -343,6 +343,88 @@ TEST_CASE("Work batching", "[batching]")
                 app->getConfig().MAX_CONCURRENT_SUBPROCESSES);
     }
     REQUIRE(verify->getState() == Work::WORK_SUCCESS);
+}
+
+class TestGatedBatchableWork : public BatchableWork
+{
+  public:
+    bool isReady;
+    TestGatedBatchableWork(Application& app, WorkParent& parent,
+                           std::string const& uniqueName, bool ready)
+        : BatchableWork(app, parent, uniqueName), isReady(ready)
+    {
+    }
+
+    void
+    unblockWork(BatchableWorkResultData const& data) override
+    {
+        isReady = true;
+    }
+
+    Work::State
+    onSuccess() override
+    {
+        if (isReady)
+        {
+            notifyCompleted();
+            return Work::WORK_SUCCESS;
+        }
+        return Work::WORK_PENDING;
+    }
+};
+
+class TestGatedBatchWork : public TestBatchWork
+{
+    std::deque<std::shared_ptr<BatchableWork>> mBatchableDependents;
+
+  public:
+    TestGatedBatchWork(Application& app, WorkParent& parent,
+                       std::string const& uniqueName)
+        : TestBatchWork(app, parent, uniqueName)
+    {
+    }
+
+    std::shared_ptr<BatchableWork>
+    yieldMoreWork() override
+    {
+        auto ready = mCount == 0;
+        auto newWork = addWork<TestGatedBatchableWork>(
+            fmt::format("child-{:d}", mCount++), ready);
+        mBatchableDependents.push_back(newWork);
+        return newWork;
+    }
+
+    void
+    notify(std::string const& child) override
+    {
+        if (!mBatchableDependents.empty())
+        {
+            auto blockingWork = mBatchableDependents.front();
+            // Ensure work succeeds in correct order
+            REQUIRE(blockingWork->getUniqueName() == child);
+            REQUIRE(blockingWork->getState() == Work::WORK_SUCCESS);
+            auto dependent = blockingWork->getDependent();
+            mBatchableDependents.pop_front();
+            if (dependent)
+            {
+                REQUIRE_FALSE(dependent->isDone());
+                REQUIRE(mBatchableDependents.front()->getUniqueName() ==
+                        dependent->getUniqueName());
+            }
+        }
+        TestBatchWork::notify(child);
+    }
+};
+
+TEST_CASE("Gated work batching", "[batching][gatedbatching]")
+{
+    Config cfg(getTestConfig(0));
+    VirtualClock clock;
+    Application::pointer app = createTestApplication(clock, cfg);
+    auto& wm = app->getWorkManager();
+
+    auto gatedBatching = wm.executeWork<TestGatedBatchWork>("test-gated-batch");
+    REQUIRE(gatedBatching->getState() == Work::WORK_SUCCESS);
 }
 
 TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
