@@ -82,7 +82,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
     // update last balance in the chain
     if (curB.type() == ASSET_TYPE_NATIVE)
     {
-        if (!destination->addBalance(curBReceived))
+        if (!destination->addBalance(curBReceived, ledgerManager))
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "invalid", "balance-overflow"},
@@ -139,7 +139,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        if (!destLine->addBalance(curBReceived))
+        if (!destLine->addBalance(curBReceived, ledgerManager))
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "line-full"},
@@ -270,9 +270,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             }
         }
 
-        int64_t minBalance = sourceAccount->getMinimumBalance(ledgerManager);
-
-        if ((sourceAccount->getAccount().balance - curBSent) < minBalance)
+        if (curBSent > sourceAccount->getAvailableBalance(ledgerManager))
         { // they don't have enough to send
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},
@@ -282,7 +280,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        auto ok = sourceAccount->addBalance(-curBSent);
+        auto ok = sourceAccount->addBalance(-curBSent, ledgerManager);
         assert(ok);
         sourceAccount->storeChange(delta, db);
     }
@@ -332,7 +330,7 @@ PathPaymentOpFrame::doApply(Application& app, LedgerDelta& delta,
             return false;
         }
 
-        if (!sourceLineFrame->addBalance(-curBSent))
+        if (!sourceLineFrame->addBalance(-curBSent, ledgerManager))
         {
             app.getMetrics()
                 .NewMeter({"op-path-payment", "failure", "underfunded"},

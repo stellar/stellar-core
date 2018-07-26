@@ -53,10 +53,7 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
         }
         else
         {
-            int64_t minBalance =
-                mSourceAccount->getMinimumBalance(ledgerManager);
-
-            if ((mSourceAccount->getAccount().balance - minBalance) <
+            if (mSourceAccount->getAvailableBalance(ledgerManager) <
                 mCreateAccount.startingBalance)
             { // they don't have enough to send
                 app.getMetrics()
@@ -67,16 +64,16 @@ CreateAccountOpFrame::doApply(Application& app, LedgerDelta& delta,
                 return false;
             }
 
-            auto ok =
-                mSourceAccount->addBalance(-mCreateAccount.startingBalance);
+            auto ok = mSourceAccount->addBalance(
+                -mCreateAccount.startingBalance, ledgerManager);
             assert(ok);
 
             mSourceAccount->storeChange(delta, db);
 
             destAccount = make_shared<AccountFrame>(mCreateAccount.destination);
-            destAccount->getAccount().seqNum =
-                delta.getHeaderFrame().getStartingSequenceNumber();
-            destAccount->getAccount().balance = mCreateAccount.startingBalance;
+            auto& acc = destAccount->getAccount();
+            acc.seqNum = delta.getHeaderFrame().getStartingSequenceNumber();
+            acc.balance = mCreateAccount.startingBalance;
 
             destAccount->storeAdd(delta, db);
 

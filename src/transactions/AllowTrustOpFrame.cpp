@@ -4,7 +4,9 @@
 
 #include "transactions/AllowTrustOpFrame.h"
 #include "database/Database.h"
+#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/OfferFrame.h"
 #include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
@@ -79,9 +81,8 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
     }
 
     Database& db = ledgerManager.getDatabase();
-    TrustFrame::pointer trustLine;
-    trustLine = TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
-
+    TrustFrame::pointer trustLine =
+        TrustFrame::loadTrustLine(mAllowTrust.trustor, ci, db, &delta);
     if (!trustLine)
     {
         app.getMetrics()
@@ -92,15 +93,45 @@ AllowTrustOpFrame::doApply(Application& app, LedgerDelta& delta,
         return false;
     }
 
+    bool wasAuthorized = trustLine->isAuthorized();
+    bool didRevokeAuth = wasAuthorized && !mAllowTrust.authorize;
+    if (ledgerManager.getCurrentLedgerVersion() >= 10 && didRevokeAuth)
+    {
+        auto trustAcc =
+            AccountFrame::loadAccount(delta, mAllowTrust.trustor, db);
+
+        // Delete all offers owned by the trustor that are either buying or
+        // selling the asset which had authorization revoked.
+        auto offers = OfferFrame::loadOffersByAccountAndAsset(
+            mAllowTrust.trustor, ci, db);
+        for (auto& offer : offers)
+        {
+            delta.recordEntry(*offer);
+
+            if (offer->getBuying() == ci)
+            {
+                offer->releaseLiabilities(trustAcc, trustLine, nullptr, delta,
+                                          db, ledgerManager);
+            }
+            else if (offer->getSelling() == ci)
+            {
+                offer->releaseLiabilities(trustAcc, nullptr, trustLine, delta,
+                                          db, ledgerManager);
+            }
+
+            trustAcc->addNumEntries(-1, ledgerManager);
+            trustAcc->storeChange(delta, db);
+            offer->storeDelete(delta, db);
+        }
+    }
+
+    trustLine->setAuthorized(mAllowTrust.authorize);
+    trustLine->storeChange(delta, db);
+
     app.getMetrics()
         .NewMeter({"op-allow-trust", "success", "apply"}, "operation")
         .Mark();
     innerResult().code(ALLOW_TRUST_SUCCESS);
-
-    trustLine->setAuthorized(mAllowTrust.authorize);
-
-    trustLine->storeChange(delta, db);
-
     return true;
 }
 

@@ -118,10 +118,119 @@ AccountFrame::getBalance() const
     return (mAccountEntry.balance);
 }
 
-bool
-AccountFrame::addBalance(int64_t delta)
+int64_t
+getBuyingLiabilities(AccountEntry const& acc, LedgerManager const& lm)
 {
-    return stellar::addBalance(mAccountEntry.balance, delta);
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (acc.ext.v() == 0) ? 0 : acc.ext.v1().liabilities.buying;
+}
+
+int64_t
+getSellingLiabilities(AccountEntry const& acc, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (acc.ext.v() == 0) ? 0 : acc.ext.v1().liabilities.selling;
+}
+
+int64_t
+AccountFrame::getBuyingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getBuyingLiabilities(mAccountEntry, lm);
+}
+
+int64_t
+AccountFrame::getSellingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getSellingLiabilities(mAccountEntry, lm);
+}
+
+bool
+AccountFrame::addBuyingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    if (delta == 0)
+    {
+        return true;
+    }
+    int64_t buyingLiab = (mAccountEntry.ext.v() == 0)
+                             ? 0
+                             : mAccountEntry.ext.v1().liabilities.buying;
+
+    int64_t maxLiabilities = INT64_MAX - getBalance();
+    bool res = stellar::addBalance(buyingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mAccountEntry.ext.v() == 0)
+        {
+            mAccountEntry.ext.v(1);
+            mAccountEntry.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mAccountEntry.ext.v1().liabilities.buying = buyingLiab;
+    }
+    return res;
+}
+
+bool
+AccountFrame::addSellingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    if (delta == 0)
+    {
+        return true;
+    }
+    int64_t sellingLiab = (mAccountEntry.ext.v() == 0)
+                              ? 0
+                              : mAccountEntry.ext.v1().liabilities.selling;
+
+    int64_t maxLiabilities = getBalance() - getMinimumBalance(lm);
+    if (maxLiabilities < 0)
+    {
+        return false;
+    }
+
+    bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mAccountEntry.ext.v() == 0)
+        {
+            mAccountEntry.ext.v(1);
+            mAccountEntry.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mAccountEntry.ext.v1().liabilities.selling = sellingLiab;
+    }
+    return res;
+}
+
+bool
+AccountFrame::addBalance(int64_t delta, LedgerManager const& lm)
+{
+    if (delta == 0)
+    {
+        return true;
+    }
+
+    auto newBalance = mAccountEntry.balance;
+    if (!stellar::addBalance(newBalance, delta))
+    {
+        return false;
+    }
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        if (delta < 0 &&
+            newBalance - getMinimumBalance(lm) < getSellingLiabilities(lm))
+        {
+            return false;
+        }
+        if (newBalance > INT64_MAX - getBuyingLiabilities(lm))
+        {
+            return false;
+        }
+    }
+
+    mAccountEntry.balance = newBalance;
+    return true;
 }
 
 int64_t
@@ -131,17 +240,28 @@ AccountFrame::getMinimumBalance(LedgerManager const& lm) const
 }
 
 int64_t
-AccountFrame::getBalanceAboveReserve(LedgerManager const& lm) const
+AccountFrame::getAvailableBalance(LedgerManager const& lm) const
 {
     int64_t avail =
         getBalance() - lm.getMinBalance(mAccountEntry.numSubEntries);
-    if (avail < 0)
+    if (lm.getCurrentLedgerVersion() >= 10)
     {
-        // nothing can leave this account if below the reserve
-        // (this can happen if the reserve is raised)
-        avail = 0;
+        avail -= getSellingLiabilities(lm);
     }
     return avail;
+}
+
+int64_t
+AccountFrame::getMaxAmountReceive(LedgerManager const& lm) const
+{
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        return INT64_MAX - getBalance() - getBuyingLiabilities(lm);
+    }
+    else
+    {
+        return INT64_MAX;
+    }
 }
 
 // returns true if successfully updated,
@@ -154,8 +274,15 @@ AccountFrame::addNumEntries(int count, LedgerManager const& lm)
     {
         throw std::runtime_error("invalid account state");
     }
+
+    int64_t effMinBalance = lm.getMinBalance(newEntriesCount);
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        effMinBalance += getSellingLiabilities(lm);
+    }
+
     // only check minBalance when attempting to add subEntries
-    if (count > 0 && getBalance() < lm.getMinBalance(newEntriesCount))
+    if (count > 0 && getBalance() < effMinBalance)
     {
         // balance too low
         return false;

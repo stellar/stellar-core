@@ -46,12 +46,15 @@ struct ExchangeResultV10
 
 int64_t canSellAtMostBasedOnSheep(Asset const& sheep,
                                   TrustFrame::pointer sheepLine,
-                                  Price const& wheatPrice);
+                                  Price const& wheatPrice,
+                                  LedgerManager& ledgerManager);
 
 int64_t canSellAtMost(AccountFrame::pointer account, Asset const& asset,
                       TrustFrame::pointer trustLine,
                       LedgerManager& ledgerManager);
-int64_t canBuyAtMost(Asset const& asset, TrustFrame::pointer trustLine);
+int64_t canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
+                     TrustFrame::pointer trustLine,
+                     LedgerManager& ledgerManager);
 
 ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);

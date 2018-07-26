@@ -8,6 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -90,6 +91,115 @@ TrustFrame::getBalance() const
     return mTrustLine.balance;
 }
 
+int64_t
+TrustFrame::getAvailableBalance(LedgerManager const& lm) const
+{
+    int64_t availableBalance = getBalance();
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        availableBalance -= getSellingLiabilities(lm);
+    }
+    return availableBalance;
+}
+
+int64_t
+TrustFrame::getMinimumLimit(LedgerManager const& lm) const
+{
+    int64_t minLimit = getBalance();
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        minLimit += getBuyingLiabilities(lm);
+    }
+    return minLimit;
+}
+
+int64_t
+getBuyingLiabilities(TrustLineEntry const& tl, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.buying;
+}
+
+int64_t
+getSellingLiabilities(TrustLineEntry const& tl, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.selling;
+}
+
+int64_t
+TrustFrame::getBuyingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getBuyingLiabilities(mTrustLine, lm);
+}
+
+int64_t
+TrustFrame::getSellingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getSellingLiabilities(mTrustLine, lm);
+}
+
+bool
+TrustFrame::addBuyingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    assert(mTrustLine.limit >= 0);
+    if (mIsIssuer || delta == 0)
+    {
+        return true;
+    }
+    if (!isAuthorized())
+    {
+        return false;
+    }
+    int64_t buyingLiab =
+        (mTrustLine.ext.v() == 0) ? 0 : mTrustLine.ext.v1().liabilities.buying;
+
+    int64_t maxLiabilities = mTrustLine.limit - getBalance();
+    bool res = stellar::addBalance(buyingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mTrustLine.ext.v() == 0)
+        {
+            mTrustLine.ext.v(1);
+            mTrustLine.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mTrustLine.ext.v1().liabilities.buying = buyingLiab;
+    }
+    return res;
+}
+
+bool
+TrustFrame::addSellingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    if (mIsIssuer || delta == 0)
+    {
+        return true;
+    }
+    if (!isAuthorized())
+    {
+        return false;
+    }
+    int64_t sellingLiab =
+        (mTrustLine.ext.v() == 0) ? 0 : mTrustLine.ext.v1().liabilities.selling;
+
+    int64_t maxLiabilities = mTrustLine.balance;
+    bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mTrustLine.ext.v() == 0)
+        {
+            mTrustLine.ext.v(1);
+            mTrustLine.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mTrustLine.ext.v1().liabilities.selling = sellingLiab;
+    }
+    return res;
+}
+
 bool
 TrustFrame::isAuthorized() const
 {
@@ -110,7 +220,7 @@ TrustFrame::setAuthorized(bool authorized)
 }
 
 bool
-TrustFrame::addBalance(int64_t delta)
+TrustFrame::addBalance(int64_t delta, LedgerManager const& lm)
 {
     if (mIsIssuer || delta == 0)
     {
@@ -120,11 +230,30 @@ TrustFrame::addBalance(int64_t delta)
     {
         return false;
     }
-    return stellar::addBalance(mTrustLine.balance, delta, mTrustLine.limit);
+
+    auto newBalance = mTrustLine.balance;
+    if (!stellar::addBalance(newBalance, delta, mTrustLine.limit))
+    {
+        return false;
+    }
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        if (newBalance < getSellingLiabilities(lm))
+        {
+            return false;
+        }
+        if (newBalance > mTrustLine.limit - getBuyingLiabilities(lm))
+        {
+            return false;
+        }
+    }
+
+    mTrustLine.balance = newBalance;
+    return true;
 }
 
 int64_t
-TrustFrame::getMaxAmountReceive() const
+TrustFrame::getMaxAmountReceive(LedgerManager& lm) const
 {
     int64_t amount = 0;
     if (mIsIssuer)
@@ -134,6 +263,10 @@ TrustFrame::getMaxAmountReceive() const
     else if (isAuthorized())
     {
         amount = mTrustLine.limit - mTrustLine.balance;
+        if (lm.getCurrentLedgerVersion() >= 10)
+        {
+            amount -= getBuyingLiabilities(lm);
+        }
     }
     return amount;
 }

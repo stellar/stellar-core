@@ -103,12 +103,21 @@ InflationOpFrame::doApply(Application& app, LedgerDelta& delta,
 
         if (winner)
         {
+            if (ledgerManager.getCurrentLedgerVersion() >= 10)
+            {
+                toDoleThisWinner =
+                    std::min(winner->getMaxAmountReceive(ledgerManager),
+                             toDoleThisWinner);
+                if (toDoleThisWinner == 0)
+                    continue;
+            }
+
             leftAfterDole -= toDoleThisWinner;
             if (ledgerManager.getCurrentLedgerVersion() <= 7)
             {
                 lcl.totalCoins += toDoleThisWinner;
             }
-            if (!winner->addBalance(toDoleThisWinner))
+            if (!winner->addBalance(toDoleThisWinner, ledgerManager))
             {
                 throw std::runtime_error(
                     "inflation overflowed destination balance");
