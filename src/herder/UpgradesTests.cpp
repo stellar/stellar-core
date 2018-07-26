@@ -9,6 +9,7 @@
 #include "history/HistoryTestsUtils.h"
 #include "lib/catch.hpp"
 #include "simulation/Simulation.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/StatusManager.h"
@@ -489,7 +490,7 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
     VirtualClock clock;
     auto cfg = getTestConfig(0);
     cfg.USE_CONFIG_FOR_GENESIS = false;
-    auto app = Application::create(clock, cfg);
+    auto app = createTestApplication(clock, cfg);
     app->start();
 
     auto const& lcl = app->getLedgerManager().getLastClosedLedgerHeader();
@@ -554,6 +555,1051 @@ TEST_CASE("Ledger Manager applies upgrades properly", "[upgrades]")
         REQUIRE(header.baseFee == 1000);
         REQUIRE(header.maxTxSetSize == 1300);
         REQUIRE(header.baseReserve == 1000);
+    }
+}
+
+TEST_CASE("upgrade to version 10", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    cfg.LEDGER_PROTOCOL_VERSION = 9;
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& lm = app->getLedgerManager();
+    auto txFee = lm.getTxFee();
+
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+
+    auto root = TestAccount::createRoot(*app);
+    auto issuer = root.create("issuer", lm.getMinBalance(0) + 100 * txFee);
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = issuer.asset("CUR1");
+    auto cur2 = issuer.asset("CUR2");
+
+    auto market = TestMarket{*app};
+
+    auto executeUpgrade = [&] {
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        upgrades.push_back(toUpgradeType(makeProtocolVersionUpgrade(10)));
+
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+        app->getLedgerManager().closeLedger(ledgerData);
+
+        auto const& lhhe = app->getLedgerManager().getLastClosedLedgerHeader();
+        REQUIRE(lhhe.header.ledgerVersion == 10);
+    };
+
+    auto getLiabilities = [&](TestAccount& acc) {
+        Liabilities res;
+        auto account = txtest::loadAccount(acc.getPublicKey(), *app);
+        res.selling = account->getSellingLiabilities(lm);
+        res.buying = account->getBuyingLiabilities(lm);
+        return res;
+    };
+    auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
+        Liabilities res;
+        if (acc.hasTrustLine(asset))
+        {
+            auto trust = acc.loadTrustLine(asset);
+            res.selling = getSellingLiabilities(trust, lm);
+            res.buying = getBuyingLiabilities(trust, lm);
+        }
+        return res;
+    };
+
+    auto createOffer = [&](TestAccount& acc, Asset const& selling,
+                           Asset const& buying,
+                           std::vector<TestMarketOffer>& offers,
+                           OfferState const& afterUpgrade = OfferState::SAME) {
+        OfferState state = {selling, buying, Price{2, 1}, 1000};
+        auto offer = market.requireChangesWithOffer(
+            {}, [&] { return market.addOffer(acc, state); });
+        if (afterUpgrade == OfferState::SAME)
+        {
+            offers.push_back({offer.key, offer.state});
+        }
+        else
+        {
+            offers.push_back({offer.key, afterUpgrade});
+        }
+    };
+
+    SECTION("one account, multiple offers, one asset pair")
+    {
+        SECTION("valid native")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(5) + 2000 + 5 * txFee);
+            a1.changeTrust(cur1, 6000);
+            issuer.pay(a1, cur1, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{4000, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 2000});
+        }
+
+        SECTION("invalid selling native")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(5) + 1000 + 5 * txFee);
+            a1.changeTrust(cur1, 6000);
+            issuer.pay(a1, cur1, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{4000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 2000});
+        }
+
+        SECTION("invalid buying native")
+        {
+            auto createOfferQuantity =
+                [&](TestAccount& acc, Asset const& selling, Asset const& buying,
+                    int64_t quantity, std::vector<TestMarketOffer>& offers,
+                    OfferState const& afterUpgrade = OfferState::SAME) {
+                    OfferState state = {selling, buying, Price{2, 1}, quantity};
+                    auto offer = market.requireChangesWithOffer(
+                        {}, [&] { return market.addOffer(acc, state); });
+                    if (afterUpgrade == OfferState::SAME)
+                    {
+                        offers.push_back({offer.key, offer.state});
+                    }
+                    else
+                    {
+                        offers.push_back({offer.key, afterUpgrade});
+                    }
+                };
+
+            auto a1 = root.create("A", lm.getMinBalance(5) + 2000 + 5 * txFee);
+            a1.changeTrust(cur1, INT64_MAX);
+            issuer.pay(a1, cur1, INT64_MAX - 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOfferQuantity(a1, cur1, native, INT64_MAX / 4 - 2000, offers,
+                                OfferState::DELETED);
+            createOfferQuantity(a1, cur1, native, INT64_MAX / 4 - 2000, offers,
+                                OfferState::DELETED);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{0, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 0});
+        }
+
+        SECTION("valid non-native")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.pay(a1, cur1, 2000);
+            issuer.pay(a1, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 2000});
+        }
+
+        SECTION("invalid non-native")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.pay(a1, cur1, 1000);
+            issuer.pay(a1, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+            market.requireChanges(offers, executeUpgrade);
+
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 2000});
+        }
+
+        SECTION("valid non-native issued by account")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(4) + 4 * txFee);
+            auto issuedCur1 = a1.asset("CUR1");
+            auto issuedCur2 = a1.asset("CUR2");
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, issuedCur1, issuedCur2, offers);
+            createOffer(a1, issuedCur1, issuedCur2, offers);
+            createOffer(a1, issuedCur2, issuedCur1, offers);
+            createOffer(a1, issuedCur2, issuedCur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+        }
+    }
+
+    SECTION("one account, multiple offers, multiple asset pairs")
+    {
+        SECTION("all valid")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 4000});
+        }
+
+        SECTION("one invalid native")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(14) + 2000 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 4000});
+        }
+
+        SECTION("one invalid non-native")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 1000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, cur2, native, offers, OfferState::DELETED);
+            createOffer(a1, cur2, native, offers, OfferState::DELETED);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 0});
+        }
+    }
+
+    SECTION("multiple accounts, multiple offers, multiple asset pairs")
+    {
+        SECTION("all valid")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            auto a2 =
+                root.create("B", lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a2.changeTrust(cur1, 12000);
+            a2.changeTrust(cur2, 12000);
+            issuer.pay(a2, cur1, 4000);
+            issuer.pay(a2, cur2, 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur2, cur1, offers);
+            createOffer(a2, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 4000});
+            REQUIRE(getLiabilities(a2) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur2) == Liabilities{8000, 4000});
+        }
+
+        SECTION("one invalid per account")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(14) + 2000 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            auto a2 =
+                root.create("B", lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a2.changeTrust(cur1, 12000);
+            a2.changeTrust(cur2, 12000);
+            issuer.pay(a2, cur1, 4000);
+            issuer.pay(a2, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, cur2, native, offers, OfferState::DELETED);
+            createOffer(a2, cur2, native, offers, OfferState::DELETED);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur2, cur1, offers, OfferState::DELETED);
+            createOffer(a2, cur2, cur1, offers, OfferState::DELETED);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 4000});
+            REQUIRE(getLiabilities(a2) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur2) == Liabilities{8000, 0});
+        }
+    }
+
+    SECTION("liabilities overflow")
+    {
+        auto createOfferLarge = [&](TestAccount& acc, Asset const& selling,
+                                    Asset const& buying,
+                                    std::vector<TestMarketOffer>& offers,
+                                    OfferState const& afterUpgrade =
+                                        OfferState::SAME) {
+            OfferState state = {selling, buying, Price{2, 1}, INT64_MAX / 3};
+            auto offer = market.requireChangesWithOffer(
+                {}, [&] { return market.addOffer(acc, state); });
+            if (afterUpgrade == OfferState::SAME)
+            {
+                offers.push_back({offer.key, offer.state});
+            }
+            else
+            {
+                offers.push_back({offer.key, afterUpgrade});
+            }
+        };
+
+        SECTION("non-native for non-native, all invalid")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, INT64_MAX);
+            a1.changeTrust(cur2, INT64_MAX);
+            issuer.pay(a1, cur1, INT64_MAX / 3);
+            issuer.pay(a1, cur2, INT64_MAX / 3);
+
+            std::vector<TestMarketOffer> offers;
+            createOfferLarge(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOfferLarge(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOfferLarge(a1, cur2, cur1, offers, OfferState::DELETED);
+            createOfferLarge(a1, cur2, cur1, offers, OfferState::DELETED);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+        }
+
+        SECTION("non-native for non-native, half invalid")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, INT64_MAX);
+            a1.changeTrust(cur2, INT64_MAX);
+            issuer.pay(a1, cur1, INT64_MAX / 3);
+            issuer.pay(a1, cur2, INT64_MAX / 3);
+
+            std::vector<TestMarketOffer> offers;
+            createOfferLarge(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOfferLarge(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOfferLarge(a1, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) ==
+                    Liabilities{INT64_MAX / 3 * 2, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) ==
+                    Liabilities{0, INT64_MAX / 3});
+        }
+
+        SECTION("issued asset for issued asset")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(4) + 4 * txFee);
+            auto issuedCur1 = a1.asset("CUR1");
+            auto issuedCur2 = a1.asset("CUR2");
+
+            std::vector<TestMarketOffer> offers;
+            createOfferLarge(a1, issuedCur1, issuedCur2, offers);
+            createOfferLarge(a1, issuedCur1, issuedCur2, offers);
+            createOfferLarge(a1, issuedCur2, issuedCur1, offers);
+            createOfferLarge(a1, issuedCur2, issuedCur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+        }
+    }
+
+    SECTION("adjust offers")
+    {
+        SECTION("offers that do not satisfy thresholds are deleted")
+        {
+            auto createOfferQuantity =
+                [&](TestAccount& acc, Asset const& selling, Asset const& buying,
+                    int64_t quantity, std::vector<TestMarketOffer>& offers,
+                    OfferState const& afterUpgrade = OfferState::SAME) {
+                    OfferState state = {selling, buying, Price{3, 2}, quantity};
+                    auto offer = market.requireChangesWithOffer(
+                        {}, [&] { return market.addOffer(acc, state); });
+                    if (afterUpgrade == OfferState::SAME)
+                    {
+                        offers.push_back({offer.key, offer.state});
+                    }
+                    else
+                    {
+                        offers.push_back({offer.key, afterUpgrade});
+                    }
+                };
+
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, 1000);
+            a1.changeTrust(cur2, 1000);
+            issuer.pay(a1, cur1, 500);
+            issuer.pay(a1, cur2, 500);
+
+            std::vector<TestMarketOffer> offers;
+            createOfferQuantity(a1, cur1, cur2, 27, offers,
+                                OfferState::DELETED);
+            createOfferQuantity(a1, cur1, cur2, 28, offers);
+            createOfferQuantity(a1, cur2, cur1, 27, offers,
+                                OfferState::DELETED);
+            createOfferQuantity(a1, cur2, cur1, 28, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{42, 28});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{42, 28});
+        }
+
+        SECTION("offers that need rounding are rounded")
+        {
+            auto createOfferQuantity =
+                [&](TestAccount& acc, Asset const& selling, Asset const& buying,
+                    int64_t quantity, std::vector<TestMarketOffer>& offers,
+                    OfferState const& afterUpgrade = OfferState::SAME) {
+                    OfferState state = {selling, buying, Price{2, 3}, quantity};
+                    auto offer = market.requireChangesWithOffer(
+                        {}, [&] { return market.addOffer(acc, state); });
+                    if (afterUpgrade == OfferState::SAME)
+                    {
+                        offers.push_back({offer.key, offer.state});
+                    }
+                    else
+                    {
+                        offers.push_back({offer.key, afterUpgrade});
+                    }
+                };
+
+            auto a1 = root.create("A", lm.getMinBalance(4) + 4 * txFee);
+            a1.changeTrust(cur1, 1000);
+            a1.changeTrust(cur2, 1000);
+            issuer.pay(a1, cur1, 500);
+
+            std::vector<TestMarketOffer> offers;
+            createOfferQuantity(a1, cur1, cur2, 201, offers);
+            createOfferQuantity(a1, cur1, cur2, 202, offers,
+                                {cur1, cur2, Price{2, 3}, 201});
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 402});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{268, 0});
+        }
+
+        SECTION("offers that do not satisfy thresholds still contribute "
+                "liabilities")
+        {
+            auto createOfferQuantity =
+                [&](TestAccount& acc, Asset const& selling, Asset const& buying,
+                    int64_t quantity, std::vector<TestMarketOffer>& offers,
+                    OfferState const& afterUpgrade = OfferState::SAME) {
+                    OfferState state = {selling, buying, Price{3, 2}, quantity};
+                    auto offer = market.requireChangesWithOffer(
+                        {}, [&] { return market.addOffer(acc, state); });
+                    if (afterUpgrade == OfferState::SAME)
+                    {
+                        offers.push_back({offer.key, offer.state});
+                    }
+                    else
+                    {
+                        offers.push_back({offer.key, afterUpgrade});
+                    }
+                };
+
+            auto a1 =
+                root.create("A", lm.getMinBalance(10) + 2000 + 12 * txFee);
+            a1.changeTrust(cur1, 5125);
+            a1.changeTrust(cur2, 5125);
+            issuer.pay(a1, cur1, 2050);
+            issuer.pay(a1, cur2, 2050);
+
+            SECTION("normal offers remain without liabilities from"
+                    " offers that do not satisfy thresholds")
+            {
+                // Pay txFee to send 4*baseReserve + 3*txFee for net balance
+                // decrease of 4*baseReserve + 4*txFee. This matches the balance
+                // decrease from creating 4 offers as in the next test section.
+                a1.pay(root,
+                       4 * lm.getCurrentLedgerHeader().baseReserve + 3 * txFee);
+
+                std::vector<TestMarketOffer> offers;
+                createOfferQuantity(a1, cur1, native, 1000, offers);
+                createOfferQuantity(a1, cur1, native, 1000, offers);
+                createOfferQuantity(a1, native, cur1, 1000, offers);
+                createOfferQuantity(a1, native, cur1, 1000, offers);
+
+                market.requireChanges(offers, executeUpgrade);
+                REQUIRE(getLiabilities(a1) == Liabilities{3000, 2000});
+                REQUIRE(getAssetLiabilities(a1, cur1) ==
+                        Liabilities{3000, 2000});
+                REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+            }
+
+            SECTION("normal offers deleted with liabilities from"
+                    " offers that do not satisfy thresholds")
+            {
+                std::vector<TestMarketOffer> offers;
+                createOfferQuantity(a1, cur1, cur2, 27, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, cur1, cur2, 27, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, cur1, native, 1000, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, cur1, native, 1000, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, cur2, cur1, 27, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, cur2, cur1, 27, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, native, cur1, 1000, offers,
+                                    OfferState::DELETED);
+                createOfferQuantity(a1, native, cur1, 1000, offers,
+                                    OfferState::DELETED);
+
+                market.requireChanges(offers, executeUpgrade);
+                REQUIRE(getLiabilities(a1) == Liabilities{0, 0});
+                REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+                REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+            }
+        }
+    }
+
+    SECTION("unauthorized offers")
+    {
+        auto toSet = static_cast<uint32_t>(AUTH_REQUIRED_FLAG) |
+                     static_cast<uint32_t>(AUTH_REVOCABLE_FLAG);
+        issuer.setOptions(txtest::setFlags(toSet));
+
+        SECTION("both assets require authorization and authorized")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 6 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.allowTrust(cur1, a1);
+            issuer.allowTrust(cur2, a1);
+            issuer.pay(a1, cur1, 2000);
+            issuer.pay(a1, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 2000});
+        }
+
+        SECTION("selling asset not authorized")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 4000 + 6 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.allowTrust(cur1, a1);
+            issuer.allowTrust(cur2, a1);
+            issuer.pay(a1, cur1, 2000);
+            issuer.pay(a1, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, native, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers, OfferState::DELETED);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+
+            issuer.denyTrust(cur1, a1);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{4000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 2000});
+        }
+
+        SECTION("buying asset not authorized")
+        {
+            auto a1 = root.create("A", lm.getMinBalance(6) + 4000 + 6 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.allowTrust(cur1, a1);
+            issuer.allowTrust(cur2, a1);
+            issuer.pay(a1, cur1, 2000);
+            issuer.pay(a1, cur2, 2000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, native, cur2, offers);
+
+            issuer.denyTrust(cur1, a1);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{0, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 0});
+        }
+
+        SECTION("unauthorized offers still contribute liabilities")
+        {
+            auto a1 =
+                root.create("A", lm.getMinBalance(10) + 2000 + 10 * txFee);
+            a1.changeTrust(cur1, 6000);
+            a1.changeTrust(cur2, 6000);
+            issuer.allowTrust(cur1, a1);
+            issuer.allowTrust(cur2, a1);
+            issuer.pay(a1, cur1, 2000);
+            issuer.pay(a1, cur2, 2000);
+
+            SECTION("authorized offers remain without liabilities from"
+                    " unauthorized offers")
+            {
+                // Pay txFee to send 4*baseReserve + 3*txFee for net balance
+                // decrease of 4*baseReserve + 4*txFee. This matches the balance
+                // decrease from creating 4 offers as in the next test section.
+                a1.pay(root,
+                       4 * lm.getCurrentLedgerHeader().baseReserve + 3 * txFee);
+
+                std::vector<TestMarketOffer> offers;
+                createOffer(a1, cur1, native, offers);
+                createOffer(a1, cur1, native, offers);
+                createOffer(a1, native, cur1, offers);
+                createOffer(a1, native, cur1, offers);
+
+                issuer.denyTrust(cur2, a1);
+
+                market.requireChanges(offers, executeUpgrade);
+                REQUIRE(getLiabilities(a1) == Liabilities{4000, 2000});
+                REQUIRE(getAssetLiabilities(a1, cur1) ==
+                        Liabilities{4000, 2000});
+                REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+            }
+
+            SECTION("authorized offers deleted with liabilities from"
+                    " unauthorized offers")
+            {
+                std::vector<TestMarketOffer> offers;
+                createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+                createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+                createOffer(a1, cur1, native, offers, OfferState::DELETED);
+                createOffer(a1, cur1, native, offers, OfferState::DELETED);
+                createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+                createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+                createOffer(a1, native, cur1, offers, OfferState::DELETED);
+                createOffer(a1, native, cur1, offers, OfferState::DELETED);
+
+                issuer.denyTrust(cur2, a1);
+
+                market.requireChanges(offers, executeUpgrade);
+                REQUIRE(getLiabilities(a1) == Liabilities{0, 0});
+                REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+                REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+            }
+        }
+    }
+
+    SECTION("deleted trust lines")
+    {
+        auto a1 = root.create("A", lm.getMinBalance(4) + 6 * txFee);
+        a1.changeTrust(cur1, 6000);
+        a1.changeTrust(cur2, 6000);
+        issuer.pay(a1, cur1, 2000);
+
+        std::vector<TestMarketOffer> offers;
+        createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+        createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+
+        SECTION("deleted selling trust line")
+        {
+            a1.pay(issuer, cur1, 2000);
+            a1.changeTrust(cur1, 0);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+        }
+        SECTION("deleted buying trust line")
+        {
+            a1.changeTrust(cur2, 0);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+        }
+    }
+
+    SECTION("offers with deleted trust lines still contribute liabilities")
+    {
+        auto a1 = root.create("A", lm.getMinBalance(10) + 2000 + 12 * txFee);
+        a1.changeTrust(cur1, 6000);
+        a1.changeTrust(cur2, 6000);
+        issuer.pay(a1, cur1, 2000);
+        issuer.pay(a1, cur2, 2000);
+
+        SECTION("normal offers remain without liabilities from"
+                " offers with deleted trust lines")
+        {
+            // Pay txFee to send 4*baseReserve + 3*txFee for net balance
+            // decrease of 4*baseReserve + 4*txFee. This matches the balance
+            // decrease from creating 4 offers as in the next test section.
+            a1.pay(root,
+                   4 * lm.getCurrentLedgerHeader().baseReserve + 3 * txFee);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+
+            a1.pay(issuer, cur2, 2000);
+            a1.changeTrust(cur2, 0);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{4000, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 2000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+        }
+
+        SECTION("normal offers deleted with liabilities from"
+                " offers with deleted trust lines")
+        {
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur1, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers, OfferState::DELETED);
+            createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur2, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+
+            a1.pay(issuer, cur2, 2000);
+            a1.changeTrust(cur2, 0);
+
+            market.requireChanges(offers, executeUpgrade);
+            REQUIRE(getLiabilities(a1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{0, 0});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{0, 0});
+        }
+    }
+}
+
+TEST_CASE("upgrade base reserve", "[upgrades]")
+{
+    VirtualClock clock;
+    auto cfg = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg);
+    app->start();
+
+    auto& lm = app->getLedgerManager();
+    auto txFee = lm.getTxFee();
+
+    auto const& lcl = lm.getLastClosedLedgerHeader();
+    auto txSet = std::make_shared<TxSetFrame>(lcl.hash);
+
+    auto root = TestAccount::createRoot(*app);
+    auto issuer = root.create("issuer", lm.getMinBalance(0) + 100 * txFee);
+    auto native = txtest::makeNativeAsset();
+    auto cur1 = issuer.asset("CUR1");
+    auto cur2 = issuer.asset("CUR2");
+
+    auto market = TestMarket{*app};
+
+    auto executeUpgrade = [&](uint32_t newReserve) {
+        auto upgrades = xdr::xvector<UpgradeType, 6>{};
+        upgrades.push_back(toUpgradeType(makeBaseReserveUpgrade(newReserve)));
+
+        StellarValue sv{txSet->getContentsHash(), 2, upgrades, 0};
+        LedgerCloseData ledgerData(lcl.header.ledgerSeq + 1, txSet, sv);
+        app->getLedgerManager().closeLedger(ledgerData);
+
+        auto const& lhhe = app->getLedgerManager().getLastClosedLedgerHeader();
+        REQUIRE(lhhe.header.baseReserve == newReserve);
+    };
+
+    auto getLiabilities = [&](TestAccount& acc) {
+        Liabilities res;
+        auto account = txtest::loadAccount(acc.getPublicKey(), *app);
+        res.selling = account->getSellingLiabilities(lm);
+        res.buying = account->getBuyingLiabilities(lm);
+        return res;
+    };
+    auto getAssetLiabilities = [&](TestAccount& acc, Asset const& asset) {
+        Liabilities res;
+        auto trust = acc.loadTrustLine(asset);
+        res.selling = getSellingLiabilities(trust, lm);
+        res.buying = getBuyingLiabilities(trust, lm);
+        return res;
+    };
+
+    auto createOffer = [&](TestAccount& acc, Asset const& selling,
+                           Asset const& buying,
+                           std::vector<TestMarketOffer>& offers,
+                           OfferState const& afterUpgrade = OfferState::SAME) {
+        OfferState state = {selling, buying, Price{2, 1}, 1000};
+        auto offer = market.requireChangesWithOffer(
+            {}, [&] { return market.addOffer(acc, state); });
+        if (afterUpgrade == OfferState::SAME)
+        {
+            offers.push_back({offer.key, offer.state});
+        }
+        else
+        {
+            offers.push_back({offer.key, afterUpgrade});
+        }
+    };
+
+    SECTION("decrease reserve")
+    {
+        auto a1 = root.create("A", lm.getMinBalance(14) + 4000 + 14 * txFee);
+        a1.changeTrust(cur1, 12000);
+        a1.changeTrust(cur2, 12000);
+        issuer.pay(a1, cur1, 4000);
+        issuer.pay(a1, cur2, 4000);
+
+        std::vector<TestMarketOffer> offers;
+        createOffer(a1, native, cur1, offers);
+        createOffer(a1, native, cur1, offers);
+        createOffer(a1, cur1, native, offers);
+        createOffer(a1, cur1, native, offers);
+        createOffer(a1, native, cur2, offers);
+        createOffer(a1, native, cur2, offers);
+        createOffer(a1, cur2, native, offers);
+        createOffer(a1, cur2, native, offers);
+        createOffer(a1, cur1, cur2, offers);
+        createOffer(a1, cur1, cur2, offers);
+        createOffer(a1, cur2, cur1, offers);
+        createOffer(a1, cur2, cur1, offers);
+
+        for_versions_to(9, *app, [&] {
+            uint32_t baseReserve = lm.getCurrentLedgerHeader().baseReserve;
+            market.requireChanges(offers,
+                                  std::bind(executeUpgrade, baseReserve / 2));
+        });
+        for_versions_from(10, *app, [&] {
+            uint32_t baseReserve = lm.getCurrentLedgerHeader().baseReserve;
+            market.requireChanges(offers,
+                                  std::bind(executeUpgrade, baseReserve / 2));
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{8000, 4000});
+        });
+    }
+
+    SECTION("increase reserve")
+    {
+        for_versions_to(9, *app, [&] {
+            auto a1 =
+                root.create("A", 2 * lm.getMinBalance(14) + 3999 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            auto a2 =
+                root.create("B", 2 * lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a2.changeTrust(cur1, 12000);
+            a2.changeTrust(cur2, 12000);
+            issuer.pay(a2, cur1, 4000);
+            issuer.pay(a2, cur2, 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, native, cur1, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, native, cur2, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur2, cur1, offers);
+            createOffer(a2, cur2, cur1, offers);
+
+            uint32_t baseReserve = lm.getCurrentLedgerHeader().baseReserve;
+            market.requireChanges(offers,
+                                  std::bind(executeUpgrade, 2 * baseReserve));
+        });
+        for_versions_from(10, *app, [&] {
+            auto a1 =
+                root.create("A", 2 * lm.getMinBalance(14) + 3999 + 14 * txFee);
+            a1.changeTrust(cur1, 12000);
+            a1.changeTrust(cur2, 12000);
+            issuer.pay(a1, cur1, 4000);
+            issuer.pay(a1, cur2, 4000);
+
+            auto a2 =
+                root.create("B", 2 * lm.getMinBalance(14) + 4000 + 14 * txFee);
+            a2.changeTrust(cur1, 12000);
+            a2.changeTrust(cur2, 12000);
+            issuer.pay(a2, cur1, 4000);
+            issuer.pay(a2, cur2, 4000);
+
+            std::vector<TestMarketOffer> offers;
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, native, cur1, offers, OfferState::DELETED);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, cur1, native, offers);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, native, cur2, offers, OfferState::DELETED);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur2, native, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur1, cur2, offers);
+            createOffer(a1, cur2, cur1, offers);
+            createOffer(a1, cur2, cur1, offers);
+
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, native, cur1, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, cur1, native, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, native, cur2, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur2, native, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur1, cur2, offers);
+            createOffer(a2, cur2, cur1, offers);
+            createOffer(a2, cur2, cur1, offers);
+
+            uint32_t baseReserve = lm.getCurrentLedgerHeader().baseReserve;
+            market.requireChanges(offers,
+                                  std::bind(executeUpgrade, 2 * baseReserve));
+            REQUIRE(getLiabilities(a1) == Liabilities{8000, 0});
+            REQUIRE(getAssetLiabilities(a1, cur1) == Liabilities{4000, 4000});
+            REQUIRE(getAssetLiabilities(a1, cur2) == Liabilities{4000, 4000});
+            REQUIRE(getLiabilities(a2) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur1) == Liabilities{8000, 4000});
+            REQUIRE(getAssetLiabilities(a2, cur2) == Liabilities{8000, 4000});
+        });
     }
 }
 
