@@ -427,6 +427,103 @@ TEST_CASE("Gated work batching", "[batching][gatedbatching]")
     REQUIRE(gatedBatching->getState() == Work::WORK_SUCCESS);
 }
 
+TEST_CASE("Ledger chain verification",
+          "[batching][gatedbatching][ledgerheaderverification]")
+{
+    Config cfg(getTestConfig(0));
+    VirtualClock clock;
+    auto cg = std::make_shared<TmpDirHistoryConfigurator>();
+    cg->configure(cfg, true);
+    Application::pointer app = createTestApplication(clock, cfg);
+    CHECK(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+
+    auto tmpDir = app->getTmpDirManager().tmpDir("tmp-chain-generator");
+    auto& wm = app->getWorkManager();
+
+    LedgerHeaderHistoryEntry firstVerified{};
+    LedgerHeaderHistoryEntry verifiedAhead{};
+
+    uint32_t initLedger = 127;
+    LedgerRange ledgerRange{
+        initLedger,
+        initLedger + app->getHistoryManager().getCheckpointFrequency() * 10};
+    CheckpointRange checkpointRange{ledgerRange, app->getHistoryManager()};
+    auto ledgerChainGenerator = TestLedgerChainGenerator{
+        *app, app->getHistoryArchiveManager().getHistoryArchive("test"),
+        checkpointRange, tmpDir};
+
+    auto downloadDir = app->getTmpDirManager().tmpDir("ledger-chain-snap-test");
+    auto checkExpectedBehavior = [&](Work::State expectedState,
+                                     LedgerHeaderHistoryEntry lcl,
+                                     Hash trustedHash) {
+        auto w = wm.executeWork<DownloadVerifyLedgersWork>(
+            ledgerRange, downloadDir, lcl, firstVerified,
+            make_optional<Hash>(trustedHash));
+        REQUIRE(expectedState == w->getState());
+    };
+
+    LedgerHeaderHistoryEntry lcl, last;
+    SECTION("fully valid")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        checkExpectedBehavior(Work::WORK_SUCCESS, lcl, last.hash);
+    }
+    SECTION("invalid link due to bad hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_BAD_HASH);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("invalid ledger version")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("overshot")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_OVERSHOT);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("undershot")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("missing entries")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("chain does not agree with LCL")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.hash = HashUtils::random();
+
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("chain does not agree with LCL on checkpoint boundary")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        lcl.header.ledgerSeq -= 1;
+        lcl.hash = HashUtils::random();
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl, last.hash);
+    }
+    SECTION("chain does not agree with trusted hash")
+    {
+        std::tie(lcl, last) = ledgerChainGenerator.makeLedgerChainFiles(
+            HistoryManager::VERIFY_STATUS_OK);
+        checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl,
+                              HashUtils::random());
+    }
+}
+
 TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
 {
     CatchupSimulation catchupSimulation{};

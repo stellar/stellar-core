@@ -5,6 +5,10 @@
 #include "LedgerTestUtils.h"
 #include "crypto/SecretKey.h"
 #include "ledger/AccountFrame.h"
+#include "ledger/LedgerHeaderFrame.h"
+#include "main/Config.h"
+#include "util/Logging.h"
+#include "util/Math.h"
 #include "util/types.h"
 #include <cctype>
 #include <string>
@@ -139,6 +143,68 @@ makeValid(DataEntry& d)
     replaceControlCharacters(d.dataName, 1);
 }
 
+void
+makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
+          LedgerHeaderHistoryEntry firstLedger,
+          HistoryManager::LedgerVerificationStatus state)
+{
+    auto randomIndex = rand_uniform<size_t>(1, lhv.size() - 1);
+    auto prevHash = firstLedger.header.previousLedgerHash;
+    auto ledgerSeq = firstLedger.header.ledgerSeq;
+
+    for (auto i = 0; i < lhv.size(); i++)
+    {
+        auto& lh = lhv[i];
+
+        lh.header.ledgerVersion = Config::CURRENT_LEDGER_PROTOCOL_VERSION;
+        lh.header.previousLedgerHash = prevHash;
+        lh.header.ledgerSeq = ledgerSeq;
+
+        if (i == randomIndex && state != HistoryManager::VERIFY_STATUS_OK)
+        {
+            switch (state)
+            {
+            case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
+                lh.header.ledgerVersion += 1;
+                break;
+            case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
+                lh.header.previousLedgerHash = HashUtils::random();
+                break;
+            case HistoryManager::VERIFY_STATUS_ERR_UNDERSHOT:
+                lh.header.ledgerSeq = ledgerSeq - 1;
+                break;
+            case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
+                lh.header.ledgerSeq += 1;
+                break;
+            default:
+                break;
+            }
+        }
+        LedgerHeaderFrame lFrame(lh.header);
+
+        // On a coin flip, corrupt header content rather than previous link
+        autocheck::generator<bool> flip;
+        if (i == randomIndex &&
+            state == HistoryManager::VERIFY_STATUS_ERR_BAD_HASH && flip())
+        {
+            lh.hash = HashUtils::random();
+        }
+        else
+        {
+            lh.hash = lFrame.getHash();
+        }
+
+        prevHash = lh.hash;
+        ledgerSeq = lh.header.ledgerSeq + 1;
+    }
+
+    if (state == HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES)
+    {
+        // Delete last element
+        lhv.erase(lhv.begin() + lhv.size() - 1);
+    }
+}
+
 static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
@@ -256,6 +322,18 @@ generateValidDataEntries(size_t n)
 {
     static auto vecgen = autocheck::list_of(validDataEntryGenerator);
     return vecgen(n);
+}
+
+std::vector<LedgerHeaderHistoryEntry>
+generateLedgerHeadersForCheckpoint(
+    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
+    HistoryManager::LedgerVerificationStatus state)
+{
+    static auto vecgen =
+        autocheck::list_of(autocheck::generator<LedgerHeaderHistoryEntry>());
+    auto res = vecgen(freq);
+    makeValid(res, firstLedger, state);
+    return res;
 }
 }
 }

@@ -4,13 +4,16 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "FileTransferInfo.h"
 #include "bucket/BucketList.h"
+#include "catchup/VerifyLedgerChainWork.h"
 #include "crypto/Hex.h"
 #include "herder/LedgerCloseData.h"
 #include "history/HistoryArchive.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/MakeRemoteDirWork.h"
 #include "historywork/PutRemoteFileWork.h"
+#include "ledger/LedgerRange.h"
 #include "ledger/LedgerTestUtils.h"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -18,6 +21,8 @@
 #include "util/TmpDir.h"
 
 #include "bucket/BucketOutputIterator.h"
+#include "ledger/CheckpointRange.h"
+#include "lib/catch.hpp"
 #include <random>
 
 namespace stellar
@@ -79,6 +84,17 @@ class BucketOutputIteratorForTesting : public BucketOutputIterator
     std::pair<std::string, uint256> writeTmpTestBucket();
 };
 
+class TestFileUploader
+{
+  protected:
+    Application& mApp;
+    FileTransferInfo mFt;
+
+  public:
+    TestFileUploader(Application& app, FileTransferInfo ft);
+    void uploadFile();
+};
+
 class TestBucketGenerator
 {
     Application& mApp;
@@ -91,6 +107,31 @@ class TestBucketGenerator
 
     std::string generateBucket(
         TestBucketState desiredState = TestBucketState::CONTENTS_AND_HASH_OK);
+};
+
+class TestLedgerChainGenerator
+{
+    Application& mApp;
+    std::shared_ptr<HistoryArchive> mArchive;
+    CheckpointRange mCheckpointRange;
+    TmpDir const& mTmpDir;
+
+  public:
+    using CheckpointEnds =
+        std::pair<LedgerHeaderHistoryEntry, LedgerHeaderHistoryEntry>;
+    TestLedgerChainGenerator(Application& app,
+                             std::shared_ptr<HistoryArchive> archive,
+                             CheckpointRange range, const TmpDir& tmpDir);
+    void writeAndUploadFile(std::vector<LedgerHeaderHistoryEntry> const& lhv,
+                            LedgerHeaderHistoryEntry& first,
+                            LedgerHeaderHistoryEntry& last,
+                            uint32_t checkpoint);
+    CheckpointEnds
+    makeOneLedgerFile(uint32_t currCheckpoint, Hash prevHash,
+                      HistoryManager::LedgerVerificationStatus state);
+    CheckpointEnds
+    makeLedgerChainFiles(HistoryManager::LedgerVerificationStatus state =
+                             HistoryManager::VERIFY_STATUS_OK);
 };
 
 struct CatchupMetrics
