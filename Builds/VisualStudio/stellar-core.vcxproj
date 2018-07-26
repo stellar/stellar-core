@@ -331,8 +331,8 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\InvariantTests.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp" />
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
-    <ClCompile Include="..\..\src\invariant\MinimumAccountBalance.cpp" />
     <ClCompile Include="..\..\src\invariant\MinimumAccountBalanceTests.cpp" />
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />
@@ -601,7 +601,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
     <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
-    <ClInclude Include="..\..\src\invariant\MinimumAccountBalance.h" />
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />

@@ -24,7 +24,7 @@
 #include "invariant/ConservationOfLumens.h"
 #include "invariant/InvariantManager.h"
 #include "invariant/LedgerEntryIsValid.h"
-#include "invariant/MinimumAccountBalance.h"
+#include "invariant/LiabilitiesMatchOffers.h"
 #include "ledger/LedgerManager.h"
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
@@ -127,7 +127,7 @@ ApplicationImpl::initialize()
     CacheIsConsistentWithDatabase::registerInvariant(*this);
     ConservationOfLumens::registerInvariant(*this);
     LedgerEntryIsValid::registerInvariant(*this);
-    MinimumAccountBalance::registerInvariant(*this);
+    LiabilitiesMatchOffers::registerInvariant(*this);
     enableInvariantsFromConfig();
 
     if (!mConfig.NTP_SERVER.empty())
