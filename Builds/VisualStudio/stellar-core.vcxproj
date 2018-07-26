@@ -346,6 +346,7 @@ exit /b 0
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp" />
+    <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp" />
     <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp" />
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp" />
