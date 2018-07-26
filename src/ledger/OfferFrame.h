@@ -98,6 +98,10 @@ class OfferFrame : public EntryFrame
     static std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
     loadAllOffers(Database& db);
 
+    static std::vector<OfferFrame::pointer>
+    loadOffersByAccountAndAsset(AccountID const& accountID, Asset const& asset,
+                                Database& db);
+
     static void dropAll(Database& db);
 
   private:

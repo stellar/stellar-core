@@ -349,6 +349,52 @@ OfferFrame::loadAllOffers(Database& db)
     return retOffers;
 }
 
+// Note: This function is currently only used in AllowTrustOpFrame, which means
+// the asset parameter will never satisfy asset.type() == ASSET_TYPE_NATIVE. As
+// a consequence, I have not implemented that possibility so this function
+// throws in that case.
+std::vector<OfferFrame::pointer>
+OfferFrame::loadOffersByAccountAndAsset(AccountID const& accountID,
+                                        Asset const& asset, Database& db)
+{
+    std::vector<OfferFrame::pointer> retOffers;
+    std::string sql = offerColumnSelector;
+    sql += " WHERE sellerid = :acc"
+           " AND ((sellingassetcode = :code AND sellingissuer = :iss)"
+           " OR   (buyingassetcode = :code AND buyingissuer = :iss))";
+
+    std::string accountStr = KeyUtils::toStrKey(accountID);
+
+    std::string assetCode;
+    std::string assetIssuer;
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
+        assetIssuer = KeyUtils::toStrKey(asset.alphaNum4().issuer);
+    }
+    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset.alphaNum12().assetCode, assetCode);
+        assetIssuer = KeyUtils::toStrKey(asset.alphaNum12().issuer);
+    }
+    else
+    {
+        throw std::runtime_error("Invalid asset type");
+    }
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(use(accountStr, "acc"));
+    st.exchange(use(assetCode, "code"));
+    st.exchange(use(assetIssuer, "iss"));
+
+    auto timer = db.getSelectTimer("offer");
+    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
+        retOffers.emplace_back(make_shared<OfferFrame>(of));
+    });
+    return retOffers;
+}
+
 bool
 OfferFrame::exists(Database& db, LedgerKey const& key)
 {
