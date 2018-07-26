@@ -3,7 +3,11 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Upgrades.h"
+#include "database/Database.h"
+#include "database/DatabaseUtils.h"
+#include "ledger/LedgerManager.h"
 #include "main/Config.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include <cereal/archives/json.hpp>
@@ -317,5 +321,63 @@ bool
 Upgrades::timeForUpgrade(uint64_t time) const
 {
     return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
+}
+
+void
+Upgrades::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS upgradehistory";
+    db.getSession() << "CREATE TABLE upgradehistory ("
+                       "ledgerseq    INT NOT NULL CHECK (ledgerseq >= 0), "
+                       "upgradeindex INT NOT NULL, "
+                       "upgrade      TEXT NOT NULL, "
+                       "changes      TEXT NOT NULL, "
+                       "PRIMARY KEY (ledgerseq, upgradeindex)"
+                       ")";
+    db.getSession()
+        << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
+}
+
+void
+Upgrades::storeUpgradeHistory(LedgerManager& ledgerManager,
+                              LedgerUpgrade const& upgrade,
+                              LedgerEntryChanges const& changes, int index)
+{
+    uint32_t ledgerSeq = ledgerManager.getCurrentLedgerHeader().ledgerSeq;
+
+    xdr::opaque_vec<> upgradeContent(xdr::xdr_to_opaque(upgrade));
+    std::string upgradeContent64 = decoder::encode_b64(upgradeContent);
+
+    xdr::opaque_vec<> upgradeChanges(xdr::xdr_to_opaque(changes));
+    std::string upgradeChanges64 = decoder::encode_b64(upgradeChanges);
+
+    auto& db = ledgerManager.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO upgradehistory "
+        "(ledgerseq, upgradeindex,  upgrade,  changes) VALUES "
+        "(:seq,      :upgradeindex, :upgrade, :changes)");
+
+    auto& st = prep.statement();
+    st.exchange(soci::use(ledgerSeq));
+    st.exchange(soci::use(index));
+    st.exchange(soci::use(upgradeContent64));
+    st.exchange(soci::use(upgradeChanges64));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("upgradehistory");
+        st.execute(true);
+    }
+
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
+}
+
+void
+Upgrades::deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
+{
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "upgradehistory", "ledgerseq");
 }
 }

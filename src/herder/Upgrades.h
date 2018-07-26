@@ -15,6 +15,8 @@
 namespace stellar
 {
 class Config;
+class Database;
+class LedgerManager;
 struct LedgerHeader;
 struct LedgerUpgrade;
 
@@ -80,6 +82,15 @@ class Upgrades
     removeUpgrades(std::vector<UpgradeType>::const_iterator beginUpdates,
                    std::vector<UpgradeType>::const_iterator endUpdates,
                    bool& updated);
+
+    static void dropAll(Database& db);
+
+    static void storeUpgradeHistory(LedgerManager& ledgerManager,
+                                    LedgerUpgrade const& upgrade,
+                                    LedgerEntryChanges const& changes,
+                                    int index);
+    static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                 uint32_t count);
 
   private:
     UpgradeParameters mParams;

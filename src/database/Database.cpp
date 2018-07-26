@@ -15,6 +15,7 @@
 
 #include "bucket/BucketManager.h"
 #include "herder/HerderPersistence.h"
+#include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
@@ -146,6 +147,7 @@ Database::applySchemaUpgrade(unsigned long vers)
         break;
 
     case 7:
+        Upgrades::dropAll(*this);
         mSession << "ALTER TABLE accounts ADD buyingliabilities BIGINT "
                     "CHECK (buyingliabilities >= 0)";
         mSession << "ALTER TABLE accounts ADD sellingliabilities BIGINT "
