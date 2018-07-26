@@ -848,20 +848,47 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
     // apply any upgrades that were decided during consensus
     // this must be done after applying transactions as the txset
     // was validated before upgrades
+    LedgerHeader headerBeforeUpgrades = getCurrentLedgerHeader();
     for (size_t i = 0; i < sv.upgrades.size(); i++)
     {
         LedgerUpgrade lupgrade;
         try
         {
             xdr::xdr_from_opaque(sv.upgrades[i], lupgrade);
-            Upgrades::applyTo(lupgrade, ledgerDelta.getHeader());
         }
         catch (xdr::xdr_runtime_error)
         {
             CLOG(FATAL, "Ledger") << "Unknown upgrade step at index " << i;
             throw;
         }
+
+        LedgerHeader previousHeader = getCurrentLedgerHeader();
+        try
+        {
+            soci::transaction upgradeScope(getDatabase().getSession());
+            LedgerDelta upgradeDelta(ledgerDelta);
+            Upgrades::applyTo(lupgrade, *this, upgradeDelta);
+            // Note: Index from 1 rather than 0 to match the behavior of
+            // storeTransaction and storeTransactionFee.
+            Upgrades::storeUpgradeHistory(*this, lupgrade,
+                                          upgradeDelta.getChanges(), i + 1);
+            upgradeDelta.commit();
+            upgradeScope.commit();
+        }
+        catch (std::runtime_error& e)
+        {
+            CLOG(ERROR, "Ledger") << "Exception during upgrade: " << e.what();
+            getCurrentLedgerHeader() = previousHeader;
+        }
+        catch (...)
+        {
+            CLOG(ERROR, "Ledger") << "Unknown exception during upgrade";
+            getCurrentLedgerHeader() = previousHeader;
+        }
     }
+    // It is required to rollback the current LedgerHeader in order to satisfy
+    // the consistency checks enforced by LedgerDelta::commit.
+    getCurrentLedgerHeader() = headerBeforeUpgrades;
 
     ledgerDelta.commit();
     ledgerClosed(ledgerDelta);
