@@ -94,6 +94,8 @@ tlimit | BIGINT NOT NULL DEFAULT 0 CHECK (tlimit >= 0) | limit
 balance | BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0) |
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
 
 ## txhistory

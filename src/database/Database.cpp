@@ -150,6 +150,10 @@ Database::applySchemaUpgrade(unsigned long vers)
                     "CHECK (buyingliabilities >= 0)";
         mSession << "ALTER TABLE accounts ADD sellingliabilities BIGINT "
                     "CHECK (sellingliabilities >= 0)";
+        mSession << "ALTER TABLE trustlines ADD buyingliabilities BIGINT "
+                    "CHECK (buyingliabilities >= 0)";
+        mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
+                    "CHECK (sellingliabilities >= 0)";
         break;
 
     default:

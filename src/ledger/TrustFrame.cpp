@@ -237,15 +237,26 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db)
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
+    Liabilities liabilities;
+    soci::indicator liabilitiesInd = soci::i_null;
+    if (mTrustLine.ext.v() == 1)
+    {
+        liabilities = mTrustLine.ext.v1().liabilities;
+        liabilitiesInd = soci::i_ok;
+    }
+
     auto prep = db.getPreparedStatement(
         "UPDATE trustlines "
-        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm "
+        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm, "
+        "buyingliabilities=:bl, sellingliabilities=:sl "
         "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
     auto& st = prep.statement();
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
     st.exchange(use(getLastModified()));
+    st.exchange(use(liabilities.buying, liabilitiesInd));
+    st.exchange(use(liabilities.selling, liabilitiesInd));
     st.exchange(use(actIDStrKey));
     st.exchange(use(issuerStrKey));
     st.exchange(use(assetCode));
@@ -277,11 +288,19 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
     unsigned int assetType = getKey().trustLine().asset.type();
     getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
 
+    Liabilities liabilities;
+    soci::indicator liabilitiesInd = soci::i_null;
+    if (mTrustLine.ext.v() == 1)
+    {
+        liabilities = mTrustLine.ext.v1().liabilities;
+        liabilitiesInd = soci::i_ok;
+    }
+
     auto prep = db.getPreparedStatement(
         "INSERT INTO trustlines "
         "(accountid, assettype, issuer, assetcode, balance, tlimit, flags, "
-        "lastmodified) "
-        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8)");
+        "lastmodified, buyingliabilities, sellingliabilities) "
+        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(assetType));
@@ -291,6 +310,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
     st.exchange(use(getLastModified()));
+    st.exchange(use(liabilities.buying, liabilitiesInd));
+    st.exchange(use(liabilities.selling, liabilitiesInd));
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("trust");
@@ -307,7 +328,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
 
 static const char* trustLineColumnSelector =
     "SELECT "
-    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified "
+    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified,"
+    "buyingliabilities,sellingliabilities "
     "FROM trustlines";
 
 TrustFrame::pointer
@@ -425,6 +447,10 @@ TrustFrame::loadLines(StatementContext& prep,
     std::string issuerStrKey, assetCode;
     unsigned int assetType;
 
+    Liabilities liabilities;
+    soci::indicator buyingLiabilitiesInd;
+    soci::indicator sellingLiabilitiesInd;
+
     LedgerEntry le;
     le.data.type(TRUSTLINE);
 
@@ -439,6 +465,8 @@ TrustFrame::loadLines(StatementContext& prep,
     st.exchange(into(tl.balance));
     st.exchange(into(tl.flags));
     st.exchange(into(le.lastModifiedLedgerSeq));
+    st.exchange(into(liabilities.buying, buyingLiabilitiesInd));
+    st.exchange(into(liabilities.selling, sellingLiabilitiesInd));
     st.define_and_bind();
 
     st.execute(true);
@@ -457,6 +485,13 @@ TrustFrame::loadLines(StatementContext& prep,
             tl.asset.alphaNum12().issuer =
                 KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
             strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
+        }
+
+        assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+        if (buyingLiabilitiesInd == soci::i_ok)
+        {
+            tl.ext.v(1);
+            tl.ext.v1().liabilities = liabilities;
         }
 
         trustProcessor(le);
