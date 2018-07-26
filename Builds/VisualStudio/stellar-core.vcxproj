@@ -292,6 +292,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\BatchWork.cpp" />
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp" />
     <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\DownloadVerifyLedgersWork.cpp" />
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetAndUnzipRemoteFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GetHistoryArchiveStateWork.cpp" />
@@ -299,6 +300,7 @@ exit /b 0
     <ClCompile Include="..\..\src\historywork\GunzipFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\GzipFileWork.cpp" />
     <ClCompile Include="..\..\src\historywork\MakeRemoteDirWork.cpp" />
+    <ClCompile Include="..\..\src\historywork\LedgerChainVerificationSnapshotWork.cpp" />
     <ClCompile Include="..\..\src\historywork\Progress.cpp" />
     <ClCompile Include="..\..\src\historywork\PublishWork.cpp" />
     <ClCompile Include="..\..\src\historywork\PutHistoryArchiveStateWork.cpp" />
@@ -566,6 +568,7 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\HerderUtils.h" />
     <ClInclude Include="..\..\src\herder\Upgrades.h" />
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h" />
+    <ClInclude Include="..\..\src\historywork\DownloadVerifyLedgersWork.h" />
     <ClInclude Include="..\..\src\historywork\BatchWork.h" />
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h" />
     <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h" />
@@ -576,6 +579,7 @@ exit /b 0
     <ClInclude Include="..\..\src\historywork\GunzipFileWork.h" />
     <ClInclude Include="..\..\src\historywork\GzipFileWork.h" />
     <ClInclude Include="..\..\src\historywork\MakeRemoteDirWork.h" />
+    <ClCompile Include="..\..\src\historywork\LedgerChainVerificationSnapshotWork.h" />
     <ClInclude Include="..\..\src\historywork\Progress.h" />
     <ClInclude Include="..\..\src\historywork\PublishWork.h" />
     <ClInclude Include="..\..\src\historywork\PutHistoryArchiveStateWork.h" />

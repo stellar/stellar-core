@@ -114,8 +114,7 @@ class CatchupWork : public BucketDownloadWork
     LedgerHeaderHistoryEntry mLastClosedLedgerAtReset;
     CatchupConfiguration const mCatchupConfiguration;
     std::shared_ptr<Work> mGetHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mVerifyLedgersWork;
+    std::shared_ptr<Work> mDownloadVerifyLedgersWork;
     std::shared_ptr<Work> mGetBucketsHistoryArchiveStateWork;
     std::shared_ptr<Work> mDownloadBucketsWork;
     std::shared_ptr<Work> mApplyBucketsWork;
@@ -128,8 +127,7 @@ class CatchupWork : public BucketDownloadWork
     bool mBucketsAppliedEmitted;
 
     bool hasAnyLedgersToCatchupTo() const;
-    bool downloadLedgers(CheckpointRange const& range);
-    bool verifyLedgers(LedgerRange const& range);
+    bool downloadVerifyLedgers(LedgerRange const& range);
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
     bool downloadBucketsHistoryArchiveState(uint32_t atCheckpoint);
     bool downloadBuckets();

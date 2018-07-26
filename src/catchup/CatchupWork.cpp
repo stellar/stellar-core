@@ -11,6 +11,7 @@
 #include "history/HistoryManager.h"
 #include "historywork/BatchDownloadWork.h"
 #include "historywork/DownloadBucketsWork.h"
+#include "historywork/DownloadVerifyLedgersWork.h"
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/GetHistoryArchiveStateWork.h"
 #include "historywork/VerifyBucketWork.h"
@@ -67,13 +68,9 @@ CatchupWork::getStatus() const
         {
             return mGetBucketsHistoryArchiveStateWork->getStatus();
         }
-        else if (mVerifyLedgersWork)
+        else if (mDownloadVerifyLedgersWork)
         {
-            return mVerifyLedgersWork->getStatus();
-        }
-        else if (mDownloadLedgersWork)
-        {
-            return mDownloadLedgersWork->getStatus();
+            return mDownloadVerifyLedgersWork->getStatus();
         }
         else if (mGetHistoryArchiveStateWork)
         {
@@ -110,8 +107,7 @@ CatchupWork::onReset()
     mBucketsAppliedEmitted = false;
     BucketDownloadWork::onReset();
     mGetHistoryArchiveStateWork.reset();
-    mDownloadLedgersWork.reset();
-    mVerifyLedgersWork.reset();
+    mDownloadVerifyLedgersWork.reset();
     mGetBucketsHistoryArchiveStateWork.reset();
     mDownloadBucketsWork.reset();
     mApplyBucketsWork.reset();
@@ -145,38 +141,20 @@ CatchupWork::hasAnyLedgersToCatchupTo() const
 }
 
 bool
-CatchupWork::downloadLedgers(CheckpointRange const& range)
+CatchupWork::downloadVerifyLedgers(LedgerRange const& range)
 {
-    if (mDownloadLedgersWork)
+    if (mDownloadVerifyLedgersWork)
     {
-        assert(mDownloadLedgersWork->getState() == WORK_SUCCESS);
+        assert(mDownloadVerifyLedgersWork->getState() == WORK_SUCCESS);
         return false;
     }
 
     CLOG(INFO, "History")
         << "Catchup downloading ledger chain for checkpointRange ["
         << range.first() << ".." << range.last() << "]";
-    mDownloadLedgersWork = addWork<BatchDownloadWork>(
-        range, HISTORY_FILE_TYPE_LEDGER, *mDownloadDir);
-
-    return true;
-}
-
-bool
-CatchupWork::verifyLedgers(LedgerRange const& range)
-{
-    if (mVerifyLedgersWork)
-    {
-        assert(mVerifyLedgersWork->getState() == WORK_SUCCESS);
-        return false;
-    }
-
-    CLOG(INFO, "History")
-        << "Catchup verifying ledger chain for checkpointRange ["
-        << range.first() << ".." << range.last() << "]";
-    mVerifyLedgersWork =
-        addWork<VerifyLedgerChainWork>(*mDownloadDir, range, mFirstVerified,
-                                       mLastClosedLedgerAtReset, mTrustedHash);
+    mDownloadVerifyLedgersWork = addWork<DownloadVerifyLedgersWork>(
+        range, *mDownloadDir, mLastClosedLedgerAtReset, mFirstVerified,
+        mTrustedHash);
 
     return true;
 }
@@ -318,12 +296,7 @@ CatchupWork::onSuccess()
     auto checkpointRange =
         CheckpointRange{ledgerRange, mApp.getHistoryManager()};
 
-    if (downloadLedgers(checkpointRange))
-    {
-        return WORK_PENDING;
-    }
-
-    if (verifyLedgers(ledgerRange))
+    if (downloadVerifyLedgers(ledgerRange))
     {
         return WORK_PENDING;
     }
