@@ -64,7 +64,7 @@ DownloadBucketsWork::resetIter()
     mNextBucketIter = mHashes.begin();
 }
 
-std::string
+std::shared_ptr<BatchableWork>
 DownloadBucketsWork::yieldMoreWork()
 {
     if (!hasNext())
@@ -80,7 +80,7 @@ DownloadBucketsWork::yieldMoreWork()
     mDownloadBucketStart.Mark();
 
     ++mNextBucketIter;
-    return verify->getUniqueName();
+    return verify;
 }
 
 void

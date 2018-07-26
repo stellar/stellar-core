@@ -48,7 +48,7 @@ class BatchDownloadWork : public BatchWork
     void notify(std::string const& child) override;
 
     bool hasNext() override;
-    std::string yieldMoreWork() override;
+    std::shared_ptr<BatchableWork> yieldMoreWork() override;
     void resetIter() override;
 };
 }

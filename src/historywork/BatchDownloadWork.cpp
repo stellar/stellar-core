@@ -61,7 +61,7 @@ BatchDownloadWork::resetIter()
     mNext = mRange.first();
 }
 
-std::string
+std::shared_ptr<BatchableWork>
 BatchDownloadWork::yieldMoreWork()
 {
     if (!hasNext())
@@ -76,7 +76,7 @@ BatchDownloadWork::yieldMoreWork()
     mDownloadStart.Mark();
 
     mNext += mApp.getHistoryManager().getCheckpointFrequency();
-    return getAndUnzip->getUniqueName();
+    return getAndUnzip;
 }
 
 void

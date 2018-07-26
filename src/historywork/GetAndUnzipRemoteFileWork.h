@@ -6,6 +6,7 @@
 
 #include "work/Work.h"
 
+#include "work/BatchableWork.h"
 #include "history/FileTransferInfo.h"
 
 namespace stellar
@@ -13,7 +14,7 @@ namespace stellar
 
 class HistoryArchive;
 
-class GetAndUnzipRemoteFileWork : public Work
+class GetAndUnzipRemoteFileWork : public BatchableWork
 {
     std::shared_ptr<Work> mGetRemoteFileWork;
     std::shared_ptr<Work> mGunzipFileWork;

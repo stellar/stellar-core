@@ -21,7 +21,7 @@ class DownloadBucketsWork : public BatchWork
                         TmpDir const& downloadDir);
     ~DownloadBucketsWork() override;
     bool hasNext() override;
-    std::string yieldMoreWork() override;
+    std::shared_ptr<BatchableWork> yieldMoreWork() override;
     void resetIter() override;
     std::string getStatus() const override;
     void notify(std::string const& child) override;

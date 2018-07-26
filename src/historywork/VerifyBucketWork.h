@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "work/BatchableWork.h"
 #include "work/Work.h"
 #include "xdr/Stellar-types.h"
 
@@ -17,7 +18,7 @@ namespace stellar
 
 class Bucket;
 
-class VerifyBucketWork : public Work
+class VerifyBucketWork : public BatchableWork
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     std::string mBucketFile;
