@@ -331,8 +331,8 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\InvariantTests.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantTestUtils.cpp" />
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
-    <ClCompile Include="..\..\src\invariant\MinimumAccountBalanceTests.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp" />
     <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
     <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />

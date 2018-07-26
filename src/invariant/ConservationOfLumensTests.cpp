@@ -96,31 +96,6 @@ updateBalances(std::vector<LedgerEntry> const& entries, Application& app,
     return updateBalances(entries, app, gen, newTotalCoins - lh.totalCoins);
 }
 
-std::vector<EntryFrame::pointer>
-generateEntryFrames(std::vector<LedgerEntry> const& entries)
-{
-    std::vector<EntryFrame::pointer> result;
-    std::transform(
-        entries.begin(), entries.end(), std::back_inserter(result),
-        [](LedgerEntry const& le) { return EntryFrame::FromXDR(le); });
-    return result;
-}
-
-UpdateList
-generateUpdateList(std::vector<EntryFrame::pointer> const& current,
-                   std::vector<EntryFrame::pointer> const& previous)
-{
-    assert(current.size() == previous.size());
-    UpdateList updates;
-    std::transform(
-        current.begin(), current.end(), previous.begin(),
-        std::back_inserter(updates),
-        [](EntryFrame::pointer const& curr, EntryFrame::pointer const& prev) {
-            return UpdateList::value_type{curr, prev};
-        });
-    return updates;
-}
-
 TEST_CASE("Total coins change without inflation",
           "[invariant][conservationoflumens]")
 {

@@ -25,5 +25,11 @@ bool store(Application& app, UpdateList const& apply,
            OperationResult const* resPtr = nullptr);
 
 UpdateList makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right);
+
+std::vector<EntryFrame::pointer>
+generateEntryFrames(std::vector<LedgerEntry> const& entries);
+
+UpdateList generateUpdateList(std::vector<EntryFrame::pointer> const& current,
+                              std::vector<EntryFrame::pointer> const& previous);
 }
 }
