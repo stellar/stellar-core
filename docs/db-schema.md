@@ -51,6 +51,8 @@ homedomain | VARCHAR(32) |
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
 ## offers
 
