@@ -3,6 +3,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "LedgerTestUtils.h"
+#include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/LedgerHeaderFrame.h"
@@ -10,6 +11,7 @@
 #include "util/Logging.h"
 #include "util/Math.h"
 #include "util/types.h"
+#include "xdrpp/marshal.h"
 #include <cctype>
 #include <string>
 #include <xdrpp/autocheck.h>
@@ -205,6 +207,13 @@ makeValid(std::vector<LedgerHeaderHistoryEntry>& lhv,
     }
 }
 
+void
+makeValid(TransactionHistoryResultEntry& th, LedgerHeaderHistoryEntry& lh)
+{
+    th.ledgerSeq = lh.header.ledgerSeq;
+    lh.header.txSetResultHash = sha256(xdr::xdr_to_opaque(th.txResultSet));
+}
+
 static auto validLedgerEntryGenerator = autocheck::map(
     [](LedgerEntry&& le, size_t s) {
         auto& led = le.data;
@@ -325,15 +334,23 @@ generateValidDataEntries(size_t n)
 }
 
 std::vector<LedgerHeaderHistoryEntry>
-generateLedgerHeadersForCheckpoint(
-    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
-    HistoryManager::LedgerVerificationStatus state)
+generateHeadersForCheckpoint(LedgerHeaderHistoryEntry firstLedger,
+                             uint32_t freq,
+                             HistoryManager::LedgerVerificationStatus state)
 {
     static auto vecgen =
         autocheck::list_of(autocheck::generator<LedgerHeaderHistoryEntry>());
     auto res = vecgen(freq);
     makeValid(res, firstLedger, state);
     return res;
+}
+
+std::vector<TransactionHistoryResultEntry>
+generateTxResultEntries(size_t n)
+{
+    static auto vecgen = autocheck::list_of(
+        autocheck::generator<TransactionHistoryResultEntry>());
+    return vecgen(n);
 }
 }
 }

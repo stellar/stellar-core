@@ -134,6 +134,23 @@ class TestLedgerChainGenerator
                              HistoryManager::VERIFY_STATUS_OK);
 };
 
+class TestTxResultsGenerator
+{
+    Application& mApp;
+    std::shared_ptr<HistoryArchive> mArchive;
+    CheckpointRange mRange;
+    TmpDir const& mTmpDir;
+
+  public:
+    TestTxResultsGenerator(Application& app,
+                           std::shared_ptr<HistoryArchive> archive,
+                           CheckpointRange range, TmpDir const& tmpDir);
+    void makeTxResultFiles(bool isValid);
+    void
+    writeAndUploadFile(std::vector<TransactionHistoryResultEntry> const& thv,
+                       uint32_t checkpoint);
+};
+
 struct CatchupMetrics
 {
     uint64_t mHistoryArchiveStatesDownloaded;

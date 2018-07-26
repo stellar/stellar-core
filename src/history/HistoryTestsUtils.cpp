@@ -15,6 +15,7 @@
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
+#include "util/Math.h"
 #include "util/XDROperators.h"
 #include "work/WorkManager.h"
 
@@ -285,6 +286,69 @@ TestLedgerChainGenerator::makeLedgerChainFiles(
     }
 
     return CheckpointEnds(beginRange, last);
+}
+
+TestTxResultsGenerator::TestTxResultsGenerator(
+    Application& app, std::shared_ptr<HistoryArchive> archive,
+    CheckpointRange range, TmpDir const& tmpDir)
+    : mApp(app), mArchive(archive), mRange(range), mTmpDir(tmpDir)
+{
+}
+
+void
+TestTxResultsGenerator::makeTxResultFiles(bool isValid)
+{
+    // Note that tx result files depend on ledger header files
+
+    auto lcg = TestLedgerChainGenerator{mApp, mArchive, mRange, mTmpDir};
+    auto begin = mApp.getLedgerManager().getLastClosedLedgerHeader();
+    auto freq = mApp.getHistoryManager().getCheckpointFrequency();
+
+    for (auto i = mRange.first(); i <= mRange.last(); i += freq)
+    {
+        auto numLedgers = i == 63 ? freq - 1 : freq;
+        auto ledgerChain =
+            LedgerTestUtils::generateHeadersForCheckpoint(begin, numLedgers);
+        auto results = LedgerTestUtils::generateTxResultEntries(numLedgers);
+
+        for (auto idx = 0; idx < numLedgers; ++idx)
+        {
+            LedgerTestUtils::makeValid(results[idx], ledgerChain[idx]);
+        }
+
+        if (!isValid)
+        {
+            auto randomIndex = rand_uniform<size_t>(0, numLedgers - 1);
+            ledgerChain[randomIndex].header.txSetResultHash =
+                HashUtils::random();
+        }
+
+        LedgerHeaderHistoryEntry first, last;
+        lcg.writeAndUploadFile(ledgerChain, first, last, i);
+        writeAndUploadFile(results, i);
+
+        begin = {};
+        begin.header.ledgerSeq = last.header.ledgerSeq + 1;
+        begin.header.previousLedgerHash = last.hash;
+    }
+}
+
+void
+TestTxResultsGenerator::writeAndUploadFile(
+    std::vector<TransactionHistoryResultEntry> const& thv, uint32_t checkpoint)
+{
+    FileTransferInfo ft{mTmpDir, HISTORY_FILE_TYPE_RESULTS, checkpoint};
+    XDROutputFileStream txsOut;
+    txsOut.open(ft.localPath_nogz());
+
+    for (auto& tx : thv)
+    {
+        REQUIRE(txsOut.writeOne(tx));
+    }
+    txsOut.close();
+
+    TestFileUploader tfu{mApp, ft};
+    tfu.uploadFile();
 }
 
 CatchupMetrics::CatchupMetrics()

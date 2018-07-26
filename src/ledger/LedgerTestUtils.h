@@ -27,6 +27,7 @@ void makeValid(DataEntry& d);
 void makeValid(LedgerHeaderHistoryEntry& lh,
                LedgerHeaderHistoryEntry firstLedger,
                HistoryManager::LedgerVerificationStatus state);
+void makeValid(TransactionHistoryResultEntry& th, LedgerHeaderHistoryEntry& lh);
 
 LedgerEntry generateValidLedgerEntry(size_t b = 3);
 std::vector<LedgerEntry> generateValidLedgerEntries(size_t n);
@@ -43,9 +44,12 @@ std::vector<OfferEntry> generateValidOfferEntries(size_t n);
 DataEntry generateValidDataEntry(size_t b = 3);
 std::vector<DataEntry> generateValidDataEntries(size_t n);
 
-std::vector<LedgerHeaderHistoryEntry> generateLedgerHeadersForCheckpoint(
-    LedgerHeaderHistoryEntry firstLedger, uint32_t freq,
-    HistoryManager::LedgerVerificationStatus state =
-        HistoryManager::VERIFY_STATUS_OK);
+std::vector<LedgerHeaderHistoryEntry>
+generateHeadersForCheckpoint(LedgerHeaderHistoryEntry firstLedger,
+                             uint32_t freq,
+                             HistoryManager::LedgerVerificationStatus state =
+                                 HistoryManager::VERIFY_STATUS_OK);
+
+std::vector<TransactionHistoryResultEntry> generateTxResultEntries(size_t n);
 }
 }

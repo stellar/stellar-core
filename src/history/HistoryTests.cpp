@@ -23,6 +23,7 @@
 #include "work/WorkManager.h"
 
 #include "historywork/DownloadBucketsWork.h"
+#include "historywork/DownloadVerifyTxResultsWork.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
 
@@ -521,6 +522,41 @@ TEST_CASE("Ledger chain verification",
             HistoryManager::VERIFY_STATUS_OK);
         checkExpectedBehavior(Work::WORK_FAILURE_FATAL, lcl,
                               HashUtils::random());
+    }
+}
+
+TEST_CASE("Tx results verification", "[batching][resultsverification]")
+{
+    Config cfg(getTestConfig(0));
+    VirtualClock clock;
+    auto cg = std::make_shared<TmpDirHistoryConfigurator>();
+    cg->configure(cfg, true);
+    Application::pointer app = createTestApplication(clock, cfg);
+
+    CHECK(app->getHistoryArchiveManager().initializeHistoryArchive("test"));
+    CheckpointRange checkpointRange{
+        63, 703, app->getHistoryManager().getCheckpointFrequency()};
+
+    auto tmpDir = app->getTmpDirManager().tmpDir("ledger-chain-snap-test");
+    auto resultsGen = TestTxResultsGenerator{
+        *app, app->getHistoryArchiveManager().getHistoryArchive("test"),
+        checkpointRange, tmpDir};
+
+    auto& wm = app->getWorkManager();
+
+    SECTION("all valid")
+    {
+        resultsGen.makeTxResultFiles(true);
+        auto ledgerVerify = wm.executeWork<DownloadVerifyTxResultsWork>(
+            checkpointRange, tmpDir);
+        REQUIRE(ledgerVerify->getState() == Work::WORK_SUCCESS);
+    }
+    SECTION("invalid hash")
+    {
+        resultsGen.makeTxResultFiles(false);
+        auto ledgerVerify = wm.executeWork<DownloadVerifyTxResultsWork>(
+            checkpointRange, tmpDir);
+        REQUIRE(ledgerVerify->getState() == Work::WORK_FAILURE_FATAL);
     }
 }
 
