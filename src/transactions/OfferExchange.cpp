@@ -427,6 +427,22 @@ ExchangeResultV10
 exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
             int64_t maxSheepSend, int64_t maxSheepReceive, bool isPathPayment)
 {
+    auto beforeThresholds = exchangeV10WithoutPriceErrorThresholds(
+        price, maxWheatSend, maxWheatReceive, maxSheepSend, maxSheepReceive,
+        isPathPayment);
+    return applyPriceErrorThresholds(
+        price, beforeThresholds.numWheatReceived, beforeThresholds.numSheepSend,
+        beforeThresholds.wheatStays, isPathPayment);
+}
+
+// See comment before exchangeV10.
+ExchangeResultV10
+exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
+                                       int64_t maxWheatReceive,
+                                       int64_t maxSheepSend,
+                                       int64_t maxSheepReceive,
+                                       bool isPathPayment)
+{
     uint128_t wheatValue =
         calculateOfferValue(price.n, price.d, maxWheatSend, maxSheepReceive);
     uint128_t sheepValue =
@@ -473,6 +489,18 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
         throw std::runtime_error("sheepSend out of bounds");
     }
 
+    ExchangeResultV10 res;
+    res.numWheatReceived = wheatReceive;
+    res.numSheepSend = sheepSend;
+    res.wheatStays = wheatStays;
+    return res;
+}
+
+// See comment before exchangeV10.
+ExchangeResultV10
+applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
+                          bool wheatStays, bool isPathPayment)
+{
     if (wheatReceive > 0 && sheepSend > 0)
     {
         uint128_t wheatReceiveValue = bigMultiply(wheatReceive, price.n);
