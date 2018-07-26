@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -65,7 +66,8 @@ createTestAccounts(Application& app, int nbAccounts,
 static std::vector<int64>
 simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
                   int64& totFees, std::function<int64(int)> getBalance,
-                  std::function<int(int)> getVote)
+                  std::function<int(int)> getVote, LedgerManager& ledgerManager,
+                  Database& db)
 {
     std::map<int, int64> balances;
     std::map<int, int64> votes;
@@ -135,6 +137,13 @@ simulateInflation(int ledgerVersion, int nbAccounts, int64& totCoins,
         // computes the share of this guy
         int64 toDoleToThis =
             bigDivide(coinsToDole, votes.at(w), totVotes, ROUND_DOWN);
+        if (ledgerVersion >= 10)
+        {
+            auto winner =
+                AccountFrame::loadAccount(getTestAccount(w).getPublicKey(), db);
+            toDoleToThis = std::min(winner->getMaxAmountReceive(ledgerManager),
+                                    toDoleToThis);
+        }
         if (balances[w] >= 0)
         {
             balances[w] += toDoleToThis;
@@ -206,9 +215,10 @@ doInflation(Application& app, int ledgerVersion, int nbAccounts,
     auto txFrame = root.tx({inflation()});
     expectedFees += txFrame->getFee();
 
-    expectedBalances = simulateInflation(
-        ledgerVersion, nbAccounts, expectedTotcoins, expectedFees,
-        [&](int i) { return balances[i]; }, getVote);
+    expectedBalances =
+        simulateInflation(ledgerVersion, nbAccounts, expectedTotcoins,
+                          expectedFees, [&](int i) { return balances[i]; },
+                          getVote, app.getLedgerManager(), app.getDatabase());
 
     // perform actual inflation
     applyTx(txFrame, app);
@@ -550,5 +560,75 @@ TEST_CASE("inflation", "[tx][inflation]")
                 verify();
             }
         });
+    }
+
+    SECTION("inflation with liabilities")
+    {
+        auto inflationWithLiabilities = [&](int64_t available,
+                                            int64_t expectedPayout) {
+            int64_t txfee = app->getLedgerManager().getTxFee();
+
+            auto balanceFunc = [&](int n) { return 1 + winnerVote / 2; };
+            auto voteFunc = [&](int n) { return 0; };
+            createTestAccounts(*app, 2, balanceFunc, voteFunc);
+            auto a0 = TestAccount(*app, getTestAccount(0));
+            auto native = makeNativeAsset();
+            auto cur1 = a0.asset("CUR1");
+            auto offerAmount = INT64_MAX - a0.getBalance() - available;
+
+            TestMarket market(*app);
+            auto offer = market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(
+                    a0, {cur1, native, Price{1, 1}, offerAmount});
+            });
+            root.pay(a0, txfee);
+
+            closeLedgerOn(*app, 2, 21, 7, 2014);
+
+            int expectedWinners = (expectedPayout > 0);
+            doInflation(*app, app->getLedgerManager().getCurrentLedgerVersion(),
+                        2, balanceFunc, voteFunc, expectedWinners);
+        };
+
+        auto header = app->getLedgerManager().getCurrentLedgerHeader();
+        int64_t maxPayout =
+            bigDivide(header.totalCoins, 190721, 1000000000, ROUND_DOWN) +
+            header.feePool;
+
+        SECTION("no available balance")
+        {
+            for_versions_to(9, *app,
+                            [&] { inflationWithLiabilities(0, maxPayout); });
+            for_versions_from(10, *app,
+                              [&] { inflationWithLiabilities(0, 0); });
+        }
+
+        SECTION("small available balance less than payout")
+        {
+            for_versions_to(9, *app,
+                            [&] { inflationWithLiabilities(1, maxPayout); });
+            for_versions_from(10, *app,
+                              [&] { inflationWithLiabilities(1, 1); });
+        }
+
+        SECTION("large available balance less than payout")
+        {
+            for_versions_to(9, *app, [&] {
+                inflationWithLiabilities(maxPayout - 1, maxPayout);
+            });
+            for_versions_from(10, *app, [&] {
+                inflationWithLiabilities(maxPayout - 1, maxPayout - 1);
+            });
+        }
+
+        SECTION("available balance greater than payout")
+        {
+            for_versions_to(9, *app, [&] {
+                inflationWithLiabilities(maxPayout + 1, maxPayout);
+            });
+            for_versions_from(10, *app, [&] {
+                inflationWithLiabilities(maxPayout + 1, maxPayout);
+            });
+        }
     }
 }

@@ -7,6 +7,7 @@
 #include "main/Application.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -169,6 +170,64 @@ TEST_CASE("change trust", "[tx][changetrust]")
         for_versions_from(10, *app, [&] {
             REQUIRE_THROWS_AS(gateway.changeTrust(nativeAsset, INT64_MAX - 1),
                               ex_CHANGE_TRUST_MALFORMED);
+        });
+    }
+
+    SECTION("create trust line with native selling liabilities")
+    {
+        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
+        auto txfee = app->getLedgerManager().getTxFee();
+        auto const native = makeNativeAsset();
+        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        TestMarket market(*app);
+
+        auto cur1 = acc1.asset("CUR1");
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(acc1, {native, cur1, Price{1, 1}, 500});
+        });
+
+        for_versions_to(9, *app, [&] { acc1.changeTrust(idr, 1000); });
+        for_versions_from(10, *app, [&] {
+            REQUIRE_THROWS_AS(acc1.changeTrust(idr, 1000),
+                              ex_CHANGE_TRUST_LOW_RESERVE);
+            root.pay(acc1, txfee + 1);
+            acc1.changeTrust(idr, 1000);
+        });
+    }
+
+    SECTION("create trust line with native buying liabilities")
+    {
+        auto const minBal2 = app->getLedgerManager().getMinBalance(2);
+        auto txfee = app->getLedgerManager().getTxFee();
+        auto const native = makeNativeAsset();
+        auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+        TestMarket market(*app);
+
+        auto cur1 = acc1.asset("CUR1");
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
+        });
+
+        for_all_versions(*app, [&] { acc1.changeTrust(idr, 1000); });
+    }
+
+    SECTION("cannot reduce limit below buying liabilities or delete")
+    {
+        for_versions_from(10, *app, [&] {
+            auto txfee = app->getLedgerManager().getTxFee();
+            auto const native = makeNativeAsset();
+            auto acc1 = root.create("acc1", minBalance2 + 10 * txfee);
+            TestMarket market(*app);
+
+            acc1.changeTrust(idr, 1000);
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc1, {native, idr, Price{1, 1}, 500});
+            });
+            acc1.changeTrust(idr, 500);
+            REQUIRE_THROWS_AS(acc1.changeTrust(idr, 499),
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
+            REQUIRE_THROWS_AS(acc1.changeTrust(idr, 0),
+                              ex_CHANGE_TRUST_INVALID_LIMIT);
         });
     }
 }
