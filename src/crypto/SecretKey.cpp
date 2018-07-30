@@ -249,7 +249,7 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey& key)
 {
     switch (key.type())
     {
-    case SIGNER_KEY_TYPE_ED25519:
+    case PUBLIC_KEY_TYPE_ED25519:
         return key.ed25519();
     default:
         throw std::invalid_argument("invalid public key type");
@@ -261,7 +261,7 @@ KeyFunctions<PublicKey>::getKeyValue(PublicKey const& key)
 {
     switch (key.type())
     {
-    case SIGNER_KEY_TYPE_ED25519:
+    case PUBLIC_KEY_TYPE_ED25519:
         return key.ed25519();
     default:
         throw std::invalid_argument("invalid public key type");
