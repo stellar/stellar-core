@@ -28,7 +28,8 @@ RunCommandWork::onStart()
     if (!cmd.empty())
     {
         auto exit = mApp.getProcessManager().runProcess(cmd, outfile);
-        exit.async_wait(callComplete());
+        exit->async_wait(callComplete());
+        mExitEvent = std::weak_ptr<ProcessExitEvent>(exit);
     }
     else
     {
@@ -40,5 +41,16 @@ void
 RunCommandWork::onRun()
 {
     // Do nothing: we ran the command in onStart().
+}
+
+void
+RunCommandWork::onAbort(CompleteResult result)
+{
+    auto ptr = mExitEvent.lock();
+    if (ptr)
+    {
+        mApp.getProcessManager().shutdownProcess(ptr);
+    }
+    Work::onAbort(result);
 }
 }

@@ -4,6 +4,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "process/ProcessManager.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -18,6 +19,7 @@ namespace stellar
 class RunCommandWork : public Work
 {
     virtual void getCommand(std::string& cmdLine, std::string& outFile) = 0;
+    std::weak_ptr<ProcessExitEvent> mExitEvent;
 
   public:
     RunCommandWork(Application& app, WorkParent& parent,
@@ -26,5 +28,6 @@ class RunCommandWork : public Work
     ~RunCommandWork();
     void onStart() override;
     void onRun() override;
+    void onAbort(CompleteResult result) override;
 };
 }
