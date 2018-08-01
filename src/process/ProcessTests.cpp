@@ -192,17 +192,90 @@ TEST_CASE("shutdown while process running", "[process]")
     // Wait, just in case the processes haven't started yet
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // Shutdown so we force the command execution to fail
-    app1->getProcessManager().shutdown();
-    app2->getProcessManager().shutdown();
+    SECTION("shutdown process manager")
+    {
+        // Shutdown so we force the command execution to fail
+        app1->getProcessManager().shutdown();
+        app2->getProcessManager().shutdown();
 
-    while (exitedCount < events.size() && !clock.getIOService().stopped())
+        while (exitedCount < events.size() && !clock.getIOService().stopped())
+        {
+            clock.crank(true);
+        }
+        REQUIRE(exitedCount == events.size());
+        for (auto const& errorCode : errorCodes)
+        {
+            REQUIRE(errorCode == asio::error::operation_aborted);
+        }
+    }
+    SECTION("shutdown single process")
+    {
+        // Shutdown processes individually
+        app1->getProcessManager().shutdownProcess(events[0]);
+        while (exitedCount < 1 && !clock.getIOService().stopped())
+        {
+            clock.crank(true);
+        }
+        REQUIRE(exitedCount == 1);
+        REQUIRE(errorCodes.size() == 1);
+        REQUIRE(errorCodes[0] == asio::error::operation_aborted);
+
+        app2->getProcessManager().shutdownProcess(events[1]);
+        while (exitedCount < 2 && !clock.getIOService().stopped())
+        {
+            clock.crank(true);
+        }
+        REQUIRE(exitedCount == 2);
+        REQUIRE(errorCodes.size() == 2);
+        REQUIRE(errorCodes[1] == asio::error::operation_aborted);
+    }
+}
+
+TEST_CASE("remove pending ProcessExitEvent", "[process]")
+{
+    // Shutdown ProcessExitEvent while it is in pending
+    // queue, meaning process hasn't spawned yet
+
+    VirtualClock clock;
+    auto const& cfg1 = getTestConfig(0);
+    auto app = createTestApplication(clock, cfg1);
+#ifdef _WIN32
+    std::string command = "waitfor /T 10 pause";
+#else
+    std::string command = "sleep 10";
+#endif
+    auto maxProcesses = app->getConfig().MAX_CONCURRENT_SUBPROCESSES;
+    auto count = 0;
+    std::deque<std::shared_ptr<ProcessExitEvent>> events;
+
+    // Run extra process outside of capacity so that it's in pending queue
+    while (count < maxProcesses + 1)
+    {
+        events.push_back(app->getProcessManager().runProcess(command));
+        count++;
+    }
+
+    asio::error_code errorCode;
+    bool exited = false;
+    events.back()->async_wait([&](asio::error_code ec) {
+        exited = true;
+        errorCode = ec;
+    });
+
+    // Wait, just in case the processes haven't started yet
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    app->getProcessManager().shutdownProcess(events.back());
+    while (!exited && !clock.getIOService().stopped())
     {
         clock.crank(true);
     }
-    REQUIRE(exitedCount == events.size());
-    for (auto const& errorCode : errorCodes)
-    {
-        REQUIRE(errorCode == asio::error::operation_aborted);
-    }
+
+    REQUIRE(exited);
+    REQUIRE(errorCode == asio::error::operation_aborted);
+    // Running processes are not affected
+    REQUIRE(app->getProcessManager().getNumRunningProcesses() == maxProcesses);
+
+    // Clean up
+    app->getProcessManager().shutdown();
 }
