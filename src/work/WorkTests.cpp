@@ -58,6 +58,51 @@ TEST_CASE("work manager", "[work]")
     }
 }
 
+TEST_CASE("work aborted while running or in process queue", "[work][process]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkManager();
+    auto maxProcesses = appPtr->getConfig().MAX_CONCURRENT_SUBPROCESSES;
+
+    auto w = wm.addWork<CallCmdWork>("hostname");
+    std::deque<std::shared_ptr<Work>> workQueue;
+
+    // intentionally longer work so that we can abort while it's running
+#ifdef _WIN32
+    std::string command = "waitfor /T 10 pause";
+#else
+    std::string command = "sleep 10";
+#endif
+
+    // 5 extra processes that won't be spawned right away
+    for (auto i = 0; i < 5 + maxProcesses; i++)
+    {
+        workQueue.push_back(w->addWork<CallCmdWork>(command, i));
+    }
+
+    wm.advanceChildren();
+
+    // Wait for at least one work to be "running"
+    while (workQueue.front()->getState() != Work::WORK_RUNNING)
+    {
+        clock.crank();
+    }
+
+    wm.abortChildren();
+    while (!wm.allChildrenDone())
+    {
+        clock.crank();
+    }
+
+    REQUIRE(appPtr->getProcessManager().getNumRunningProcesses() == 0);
+    for (auto work : workQueue)
+    {
+        REQUIRE(work->getState() == Work::WORK_FAILURE_ABORTED);
+    }
+}
+
 class CountDownWork : public Work
 {
     size_t mCount;

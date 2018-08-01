@@ -48,6 +48,15 @@ WorkParent::advanceChildren()
     }
 }
 
+void
+WorkParent::abortChildren()
+{
+    for (auto& c : mChildren)
+    {
+        c.second->abort();
+    }
+}
+
 bool
 WorkParent::anyChildRaiseFailure() const
 {

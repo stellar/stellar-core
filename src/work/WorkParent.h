@@ -39,6 +39,7 @@ class WorkParent : public std::enable_shared_from_this<WorkParent>,
     void addChild(std::shared_ptr<Work> child);
     void clearChildren();
     void advanceChildren();
+    void abortChildren();
     bool anyChildRaiseFailure() const;
     bool anyChildFatalFailure() const;
     bool allChildrenSuccessful() const;
