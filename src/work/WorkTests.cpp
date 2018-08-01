@@ -2,6 +2,7 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
+#include "historywork/RunCommandWork.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "main/Config.h"
@@ -9,6 +10,7 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
+#include "util/format.h"
 #include "work/WorkManager.h"
 
 #include <cstdio>
@@ -18,20 +20,24 @@
 
 using namespace stellar;
 
-class CallCmdWork : public Work
+class CallCmdWork : public RunCommandWork
 {
     std::string mCommand;
 
   public:
-    CallCmdWork(Application& app, WorkParent& parent, std::string command)
-        : Work(app, parent, std::string("call-") + command), mCommand(command)
+    CallCmdWork(Application& app, WorkParent& parent, std::string command,
+                uint32_t count = 0)
+        : RunCommandWork(app, parent,
+                         fmt::format("call-{:s}-{:d}", command, count),
+                         Work::RETRY_A_FEW)
+        , mCommand(command)
     {
     }
+
     virtual void
-    onRun() override
+    getCommand(std::string& cmdLine, std::string& outFile) override
     {
-        auto evt = mApp.getProcessManager().runProcess(mCommand);
-        evt.async_wait(callComplete());
+        cmdLine = mCommand;
     }
 };
 
