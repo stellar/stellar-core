@@ -107,16 +107,16 @@ ProcessManagerImpl::~ProcessManagerImpl()
         forceShutdown(impl);
     };
     // Use SIGKILL on any processes we already used SIGINT on
-    while (!mKillableImpls.empty())
+    while (!mKillable.empty())
     {
-        auto impl = std::move(mKillableImpls.front());
-        mKillableImpls.pop_front();
-        killProcess(*impl);
+        auto pe = std::move(mKillable.front());
+        mKillable.pop_front();
+        killProcess(*pe->mImpl);
     }
     // Use SIGKILL on any processes we haven't politely asked to exit yet
     for (auto& pair : mImpls)
     {
-        killProcess(*pair.second);
+        killProcess(*pair.second->mImpl);
     }
 }
 
@@ -136,26 +136,61 @@ ProcessManagerImpl::shutdown()
 
         // Cancel all pending.
         std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-        for (auto& pending : mPendingImpls)
+        for (auto& pending : mPending)
         {
-            pending->cancel(ec);
+            pending->mImpl->cancel(ec);
         }
-        mPendingImpls.clear();
+        mPending.clear();
 
         // Cancel all running.
         for (auto& pair : mImpls)
         {
             // Mark it as "ready to be killed"
-            mKillableImpls.push_back(pair.second);
+            mKillable.push_back(pair.second);
             // Cancel any pending events and shut down the process cleanly
-            pair.second->cancel(ec);
-            cleanShutdown(*pair.second);
+            pair.second->mImpl->cancel(ec);
+            cleanShutdown(*pair.second->mImpl);
         }
         mImpls.clear();
         gNumProcessesActive = 0;
 #ifndef _WIN32
         mSigChild.cancel(ec);
 #endif
+    }
+}
+
+void
+ProcessManagerImpl::shutdownProcess(std::shared_ptr<ProcessExitEvent> pev)
+{
+    // Shutdown a ProcessExitEvent, which could be either in pending queue
+    // or running
+
+    auto ec = ABORT_ERROR_CODE;
+    auto impl = pev->mImpl;
+
+    std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
+    auto pendingIt = find(mPending.begin(), mPending.end(), pev);
+    if (pendingIt != mPending.end())
+    {
+        (*pendingIt)->mImpl->cancel(ec);
+        mPending.erase(pendingIt);
+    }
+    else
+    {
+        auto pid = impl->getProcessId();
+        auto runningIt = mImpls.find(pid);
+        if (runningIt != mImpls.end())
+        {
+            impl->cancel(ec);
+            forceShutdown(*runningIt->second->mImpl);
+            mImpls.erase(pid);
+            gNumProcessesActive--;
+        }
+        else
+        {
+            CLOG(DEBUG, "Process")
+                << "failed to find pending or running process";
+        }
     }
 }
 
@@ -388,7 +423,7 @@ ProcessManagerImpl::handleProcessTermination(int pid, int status)
         CLOG(DEBUG, "Process") << "failed to find process with pid " << pid;
         return;
     }
-    auto impl = pair->second;
+    auto impl = pair->second->mImpl;
 
     asio::error_code ec;
     if (WIFEXITED(status))
@@ -533,7 +568,7 @@ ProcessExitEvent::Impl::run()
 
 #endif
 
-ProcessExitEvent
+std::shared_ptr<ProcessExitEvent>
 ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
 {
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
@@ -543,10 +578,12 @@ ProcessManagerImpl::runProcess(std::string const& cmdLine, std::string outFile)
     std::weak_ptr<ProcessManagerImpl> weakSelf(self);
     pe.mImpl = std::make_shared<ProcessExitEvent::Impl>(
         pe.mTimer, pe.mEc, cmdLine, outFile, weakSelf);
-    mPendingImpls.push_back(pe.mImpl);
+
+    auto pePtr = std::make_shared<ProcessExitEvent>(pe);
+    mPending.push_back(pePtr);
 
     maybeRunPendingProcesses();
-    return pe;
+    return pePtr;
 }
 
 void
@@ -557,23 +594,28 @@ ProcessManagerImpl::maybeRunPendingProcesses()
         return;
     }
     std::lock_guard<std::recursive_mutex> guard(mImplsMutex);
-    while (!mPendingImpls.empty() && gNumProcessesActive < mMaxProcesses)
+    while (!mPending.empty() && gNumProcessesActive < mMaxProcesses)
     {
-        auto i = mPendingImpls.front();
-        mPendingImpls.pop_front();
+        auto i = std::move(mPending.front());
+        mPending.pop_front();
+        if (!i || !i->mImpl)
+        {
+            throw std::runtime_error(
+                "Cannot start process: invalid ProcessExitEvent");
+        }
         try
         {
-            CLOG(DEBUG, "Process") << "Running: " << i->mCmdLine;
+            CLOG(DEBUG, "Process") << "Running: " << i->mImpl->mCmdLine;
 
-            i->run();
-            mImpls[i->getProcessId()] = i;
+            i->mImpl->run();
+            mImpls[i->mImpl->getProcessId()] = i;
             ++gNumProcessesActive;
         }
         catch (std::runtime_error& e)
         {
-            i->cancel(std::make_error_code(std::errc::io_error));
+            i->mImpl->cancel(std::make_error_code(std::errc::io_error));
             CLOG(ERROR, "Process") << "Error starting process: " << e.what();
-            CLOG(ERROR, "Process") << "When running: " << i->mCmdLine;
+            CLOG(ERROR, "Process") << "When running: " << i->mImpl->mCmdLine;
         }
     }
 }

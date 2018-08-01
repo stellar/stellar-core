@@ -28,7 +28,7 @@ TEST_CASE("subprocess", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname");
     bool exited = false;
     bool failed = false;
-    evt.async_wait([&](asio::error_code ec) {
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -53,7 +53,7 @@ TEST_CASE("subprocess fails", "[process]")
     auto evt = app->getProcessManager().runProcess("hostname -xsomeinvalid");
     bool exited = false;
     bool failed = false;
-    evt.async_wait([&](asio::error_code ec) {
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -79,7 +79,7 @@ TEST_CASE("subprocess redirect to file", "[process]")
     std::string filename("hostname.txt");
     auto evt = app.getProcessManager().runProcess("hostname", filename);
     bool exited = false;
-    evt.async_wait([&](asio::error_code ec) {
+    evt->async_wait([&](asio::error_code ec) {
         CLOG(DEBUG, "Process") << "process exited: " << ec;
         if (ec)
         {
@@ -127,7 +127,7 @@ TEST_CASE("subprocess storm", "[process]")
             out << i;
         }
         auto evt = app.getProcessManager().runProcess("mv " + src + " " + dst);
-        evt.async_wait([&](asio::error_code ec) {
+        evt->async_wait([&](asio::error_code ec) {
             CLOG(INFO, "Process") << "process exited: " << ec;
             if (ec)
             {
@@ -171,14 +171,14 @@ TEST_CASE("shutdown while process running", "[process]")
 #else
     std::string command = "sleep 10";
 #endif
-    std::vector<ProcessExitEvent> events = {
+    std::vector<std::shared_ptr<ProcessExitEvent>> events = {
         app1->getProcessManager().runProcess(command),
         app2->getProcessManager().runProcess(command)};
     std::vector<asio::error_code> errorCodes;
     size_t exitedCount = 0;
     for (auto& event : events)
     {
-        event.async_wait([&](asio::error_code ec) {
+        event->async_wait([&](asio::error_code ec) {
             CLOG(DEBUG, "Process") << "process exited: " << ec;
             if (ec)
             {

@@ -27,14 +27,14 @@ class ProcessManagerImpl : public ProcessManager
     // Subprocesses will be removed asynchronously, hence the lock on
     // just this member
     std::recursive_mutex mImplsMutex;
-    std::map<int, std::shared_ptr<ProcessExitEvent::Impl>> mImpls;
+    std::map<int, std::shared_ptr<ProcessExitEvent>> mImpls;
 
     bool mIsShutdown{false};
     size_t mMaxProcesses;
     asio::io_service& mIOService;
 
-    std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mPendingImpls;
-    std::deque<std::shared_ptr<ProcessExitEvent::Impl>> mKillableImpls;
+    std::deque<std::shared_ptr<ProcessExitEvent>> mPending;
+    std::deque<std::shared_ptr<ProcessExitEvent>> mKillable;
     void maybeRunPendingProcesses();
 
     // These are only used on POSIX, but they're harmless here.
@@ -49,12 +49,13 @@ class ProcessManagerImpl : public ProcessManager
 
   public:
     ProcessManagerImpl(Application& app);
-    ProcessExitEvent runProcess(std::string const& cmdLine,
-                                std::string outFile = "") override;
+    std::shared_ptr<ProcessExitEvent>
+    runProcess(std::string const& cmdLine, std::string outFile = "") override;
     size_t getNumRunningProcesses() override;
 
     bool isShutdown() const override;
     void shutdown() override;
+    void shutdownProcess(std::shared_ptr<ProcessExitEvent> pe) override;
 
     ~ProcessManagerImpl() override;
 };
