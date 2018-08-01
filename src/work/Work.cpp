@@ -141,7 +141,12 @@ Work::callComplete()
         {
             return;
         }
-        self->complete(ec ? WORK_COMPLETE_FAILURE : WORK_COMPLETE_OK);
+        auto status = ec ? WORK_COMPLETE_FAILURE : WORK_COMPLETE_OK;
+        if (self->mAborting)
+        {
+            status = WORK_COMPLETE_ABORTED;
+        }
+        self->complete(status);
     };
 }
 
@@ -311,17 +316,16 @@ Work::advance()
 void
 Work::run()
 {
+    if (mAborting)
+    {
+        CLOG(DEBUG, "Work") << "aborting " << getUniqueName();
+        mApp.getMetrics().NewMeter({"work", "unit", "abort"}, "unit").Mark();
+        onAbort();
+        return;
+    }
+
     if (getState() == WORK_PENDING)
     {
-        if (mAborting)
-        {
-            CLOG(DEBUG, "Work") << "aborting " << getUniqueName();
-            mApp.getMetrics()
-                .NewMeter({"work", "unit", "abort"}, "unit")
-                .Mark();
-            onAbort();
-            return;
-        }
         CLOG(DEBUG, "Work") << "starting " << getUniqueName();
         mApp.getMetrics().NewMeter({"work", "unit", "start"}, "unit").Mark();
         onStart();
@@ -438,9 +442,9 @@ Work::onFailureRaise()
 }
 
 void
-Work::onAbort()
+Work::onAbort(CompleteResult result)
 {
-    scheduleAbort(WORK_COMPLETE_ABORTED);
+    scheduleAbort(result);
 }
 
 Work::State
@@ -502,7 +506,7 @@ Work::notify(std::string const& child)
 void
 Work::abort(CompleteResult result)
 {
-    // When `abort` signal is issued, pending work is in either
+    // When `abort` signal is issued, pending/running work is in either
     // one of two states:
     // 1. It hasn't been scheduled to run yet. If some children are still
     // running, this is handled in advance where work is scheduled to abort.
@@ -511,7 +515,7 @@ Work::abort(CompleteResult result)
     // This scenario is handled in `run` method, where abort is scheduled
     // instead of success.
 
-    assert(getState() == WORK_PENDING);
+    assert(getState() == WORK_PENDING || getState() == WORK_RUNNING);
     mAborting = true;
     bool allDone = true;
 
@@ -522,10 +526,10 @@ Work::abort(CompleteResult result)
             allDone = false;
         }
 
-        // Only abort when work is pending. Wait if it's running, as it will be
-        // handled in `advance`. If work has finished with success or fail,
-        // nothing to abort either
-        if (c.second->getState() == Work::WORK_PENDING)
+        // Abort pending or running work. If work has finished with success or
+        // fail, there's nothing to do
+        if (c.second->getState() == Work::WORK_PENDING ||
+            c.second->getState() == WORK_RUNNING)
         {
             c.second->abort();
         }
@@ -534,7 +538,7 @@ Work::abort(CompleteResult result)
     if (allDone)
     {
         // Children are ready, schedule abort for work itself.
-        scheduleAbort(result);
+        onAbort(result);
     }
 }
 }

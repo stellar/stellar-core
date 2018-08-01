@@ -302,7 +302,7 @@ TEST_CASE("subwork triggers abort", "[work][workabort]")
             clock.crank();
         }
 
-        REQUIRE(work1->getState() == Work::WORK_SUCCESS);
+        REQUIRE(work1->getState() == Work::WORK_FAILURE_ABORTED);
         REQUIRE(work2->getState() == Work::WORK_FAILURE_RAISE);
         REQUIRE(w->getState() == Work::WORK_FAILURE_RAISE);
     }

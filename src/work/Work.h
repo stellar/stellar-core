@@ -80,7 +80,7 @@ class Work : public WorkParent
     virtual void onRun();
     virtual void onFailureRetry();
     virtual void onFailureRaise();
-    virtual void onAbort();
+    virtual void onAbort(CompleteResult result = WORK_COMPLETE_ABORTED);
 
     // onSuccess is a little different than the others: it's called on
     // WORK_SUCCESS, but it also returns the next sate desired: if you want
