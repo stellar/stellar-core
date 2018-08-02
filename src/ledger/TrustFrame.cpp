@@ -8,6 +8,7 @@
 #include "crypto/SHA.h"
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
+#include "ledger/LedgerManager.h"
 #include "ledger/LedgerRange.h"
 #include "util/XDROperators.h"
 #include "util/types.h"
@@ -90,6 +91,115 @@ TrustFrame::getBalance() const
     return mTrustLine.balance;
 }
 
+int64_t
+TrustFrame::getAvailableBalance(LedgerManager const& lm) const
+{
+    int64_t availableBalance = getBalance();
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        availableBalance -= getSellingLiabilities(lm);
+    }
+    return availableBalance;
+}
+
+int64_t
+TrustFrame::getMinimumLimit(LedgerManager const& lm) const
+{
+    int64_t minLimit = getBalance();
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        minLimit += getBuyingLiabilities(lm);
+    }
+    return minLimit;
+}
+
+int64_t
+getBuyingLiabilities(TrustLineEntry const& tl, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.buying;
+}
+
+int64_t
+getSellingLiabilities(TrustLineEntry const& tl, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    return (tl.ext.v() == 0) ? 0 : tl.ext.v1().liabilities.selling;
+}
+
+int64_t
+TrustFrame::getBuyingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getBuyingLiabilities(mTrustLine, lm);
+}
+
+int64_t
+TrustFrame::getSellingLiabilities(LedgerManager const& lm) const
+{
+    return stellar::getSellingLiabilities(mTrustLine, lm);
+}
+
+bool
+TrustFrame::addBuyingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    assert(mTrustLine.limit >= 0);
+    if (mIsIssuer || delta == 0)
+    {
+        return true;
+    }
+    if (!isAuthorized())
+    {
+        return false;
+    }
+    int64_t buyingLiab =
+        (mTrustLine.ext.v() == 0) ? 0 : mTrustLine.ext.v1().liabilities.buying;
+
+    int64_t maxLiabilities = mTrustLine.limit - getBalance();
+    bool res = stellar::addBalance(buyingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mTrustLine.ext.v() == 0)
+        {
+            mTrustLine.ext.v(1);
+            mTrustLine.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mTrustLine.ext.v1().liabilities.buying = buyingLiab;
+    }
+    return res;
+}
+
+bool
+TrustFrame::addSellingLiabilities(int64_t delta, LedgerManager const& lm)
+{
+    assert(lm.getCurrentLedgerVersion() >= 10);
+    assert(getBalance() >= 0);
+    if (mIsIssuer || delta == 0)
+    {
+        return true;
+    }
+    if (!isAuthorized())
+    {
+        return false;
+    }
+    int64_t sellingLiab =
+        (mTrustLine.ext.v() == 0) ? 0 : mTrustLine.ext.v1().liabilities.selling;
+
+    int64_t maxLiabilities = mTrustLine.balance;
+    bool res = stellar::addBalance(sellingLiab, delta, maxLiabilities);
+    if (res)
+    {
+        if (mTrustLine.ext.v() == 0)
+        {
+            mTrustLine.ext.v(1);
+            mTrustLine.ext.v1().liabilities = Liabilities{0, 0};
+        }
+        mTrustLine.ext.v1().liabilities.selling = sellingLiab;
+    }
+    return res;
+}
+
 bool
 TrustFrame::isAuthorized() const
 {
@@ -110,7 +220,7 @@ TrustFrame::setAuthorized(bool authorized)
 }
 
 bool
-TrustFrame::addBalance(int64_t delta)
+TrustFrame::addBalance(int64_t delta, LedgerManager const& lm)
 {
     if (mIsIssuer || delta == 0)
     {
@@ -120,11 +230,30 @@ TrustFrame::addBalance(int64_t delta)
     {
         return false;
     }
-    return stellar::addBalance(mTrustLine.balance, delta, mTrustLine.limit);
+
+    auto newBalance = mTrustLine.balance;
+    if (!stellar::addBalance(newBalance, delta, mTrustLine.limit))
+    {
+        return false;
+    }
+    if (lm.getCurrentLedgerVersion() >= 10)
+    {
+        if (newBalance < getSellingLiabilities(lm))
+        {
+            return false;
+        }
+        if (newBalance > mTrustLine.limit - getBuyingLiabilities(lm))
+        {
+            return false;
+        }
+    }
+
+    mTrustLine.balance = newBalance;
+    return true;
 }
 
 int64_t
-TrustFrame::getMaxAmountReceive() const
+TrustFrame::getMaxAmountReceive(LedgerManager& lm) const
 {
     int64_t amount = 0;
     if (mIsIssuer)
@@ -134,6 +263,10 @@ TrustFrame::getMaxAmountReceive() const
     else if (isAuthorized())
     {
         amount = mTrustLine.limit - mTrustLine.balance;
+        if (lm.getCurrentLedgerVersion() >= 10)
+        {
+            amount -= getBuyingLiabilities(lm);
+        }
     }
     return amount;
 }
@@ -237,15 +370,26 @@ TrustFrame::storeChange(LedgerDelta& delta, Database& db)
     std::string actIDStrKey, issuerStrKey, assetCode;
     getKeyFields(key, actIDStrKey, issuerStrKey, assetCode);
 
+    Liabilities liabilities;
+    soci::indicator liabilitiesInd = soci::i_null;
+    if (mTrustLine.ext.v() == 1)
+    {
+        liabilities = mTrustLine.ext.v1().liabilities;
+        liabilitiesInd = soci::i_ok;
+    }
+
     auto prep = db.getPreparedStatement(
         "UPDATE trustlines "
-        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm "
+        "SET balance=:b, tlimit=:tl, flags=:a, lastmodified=:lm, "
+        "buyingliabilities=:bl, sellingliabilities=:sl "
         "WHERE accountid=:v1 AND issuer=:v2 AND assetcode=:v3");
     auto& st = prep.statement();
     st.exchange(use(mTrustLine.balance));
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
     st.exchange(use(getLastModified()));
+    st.exchange(use(liabilities.buying, liabilitiesInd));
+    st.exchange(use(liabilities.selling, liabilitiesInd));
     st.exchange(use(actIDStrKey));
     st.exchange(use(issuerStrKey));
     st.exchange(use(assetCode));
@@ -277,11 +421,19 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
     unsigned int assetType = getKey().trustLine().asset.type();
     getKeyFields(getKey(), actIDStrKey, issuerStrKey, assetCode);
 
+    Liabilities liabilities;
+    soci::indicator liabilitiesInd = soci::i_null;
+    if (mTrustLine.ext.v() == 1)
+    {
+        liabilities = mTrustLine.ext.v1().liabilities;
+        liabilitiesInd = soci::i_ok;
+    }
+
     auto prep = db.getPreparedStatement(
         "INSERT INTO trustlines "
         "(accountid, assettype, issuer, assetcode, balance, tlimit, flags, "
-        "lastmodified) "
-        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8)");
+        "lastmodified, buyingliabilities, sellingliabilities) "
+        "VALUES (:v1, :v2, :v3, :v4, :v5, :v6, :v7, :v8, :v9, :v10)");
     auto& st = prep.statement();
     st.exchange(use(actIDStrKey));
     st.exchange(use(assetType));
@@ -291,6 +443,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
     st.exchange(use(mTrustLine.limit));
     st.exchange(use(mTrustLine.flags));
     st.exchange(use(getLastModified()));
+    st.exchange(use(liabilities.buying, liabilitiesInd));
+    st.exchange(use(liabilities.selling, liabilitiesInd));
     st.define_and_bind();
     {
         auto timer = db.getInsertTimer("trust");
@@ -307,7 +461,8 @@ TrustFrame::storeAdd(LedgerDelta& delta, Database& db)
 
 static const char* trustLineColumnSelector =
     "SELECT "
-    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified "
+    "accountid,assettype,issuer,assetcode,tlimit,balance,flags,lastmodified,"
+    "buyingliabilities,sellingliabilities "
     "FROM trustlines";
 
 TrustFrame::pointer
@@ -425,6 +580,10 @@ TrustFrame::loadLines(StatementContext& prep,
     std::string issuerStrKey, assetCode;
     unsigned int assetType;
 
+    Liabilities liabilities;
+    soci::indicator buyingLiabilitiesInd;
+    soci::indicator sellingLiabilitiesInd;
+
     LedgerEntry le;
     le.data.type(TRUSTLINE);
 
@@ -439,6 +598,8 @@ TrustFrame::loadLines(StatementContext& prep,
     st.exchange(into(tl.balance));
     st.exchange(into(tl.flags));
     st.exchange(into(le.lastModifiedLedgerSeq));
+    st.exchange(into(liabilities.buying, buyingLiabilitiesInd));
+    st.exchange(into(liabilities.selling, sellingLiabilitiesInd));
     st.define_and_bind();
 
     st.execute(true);
@@ -457,6 +618,13 @@ TrustFrame::loadLines(StatementContext& prep,
             tl.asset.alphaNum12().issuer =
                 KeyUtils::fromStrKey<PublicKey>(issuerStrKey);
             strToAssetCode(tl.asset.alphaNum12().assetCode, assetCode);
+        }
+
+        assert(buyingLiabilitiesInd == sellingLiabilitiesInd);
+        if (buyingLiabilitiesInd == soci::i_ok)
+        {
+            tl.ext.v(1);
+            tl.ext.v1().liabilities = liabilities;
         }
 
         trustProcessor(le);

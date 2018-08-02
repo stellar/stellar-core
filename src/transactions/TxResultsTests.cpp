@@ -6,6 +6,7 @@
 #include "crypto/SignerKey.h"
 #include "ledger/LedgerDelta.h"
 #include "test/TestAccount.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -676,6 +677,42 @@ TEST_CASE("txresults", "[tx][txresults]")
             });
             for_versions_from(8, *app, [&] {
                 validateTxResults(tx, *app, {baseFee * 1, txFAILED});
+            });
+        }
+    }
+
+    SECTION("fees with liabilities")
+    {
+        auto acc = root.create("acc", lm.getMinBalance(1) + baseFee + 1000);
+        auto native = makeNativeAsset();
+        auto cur1 = acc.asset("CUR1");
+
+        TestMarket market(*app);
+        SECTION("selling liabilities")
+        {
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc, {native, cur1, Price{1, 1}, 1000});
+            });
+            auto tx = acc.tx({payment(root, 1)});
+            for_versions_to(9, *app, [&] {
+                auto res =
+                    expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
+                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
+            });
+            for_versions_from(10, *app, [&] {
+                validateTxResults(tx, *app, {baseFee, txINSUFFICIENT_BALANCE});
+            });
+        }
+        SECTION("buying liabilities")
+        {
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc, {cur1, native, Price{1, 1}, 1000});
+            });
+            auto tx = acc.tx({payment(root, 1)});
+            for_all_versions(*app, [&] {
+                auto res =
+                    expectedResult(baseFee, 1, txSUCCESS, {PAYMENT_SUCCESS});
+                validateTxResults(tx, *app, {baseFee, txSUCCESS}, res);
             });
         }
     }

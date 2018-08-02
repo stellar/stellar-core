@@ -234,10 +234,8 @@ TxSetFrame::checkOrTrim(
         if (lastTx)
         {
             // make sure account can pay the fee for all these tx
-            int64_t newBalance =
-                lastTx->getSourceAccount().getBalance() - totFee;
-            if (newBalance < lastTx->getSourceAccount().getMinimumBalance(
-                                 app.getLedgerManager()))
+            auto const& source = lastTx->getSourceAccount();
+            if (source.getAvailableBalance(app.getLedgerManager()) < totFee)
             {
                 if (!processInsufficientBalance(item.second))
                     return false;

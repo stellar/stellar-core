@@ -221,6 +221,8 @@ throwIf(AccountMergeResult const& result)
         throw ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES{};
     case ACCOUNT_MERGE_SEQNUM_TOO_FAR:
         throw ex_ACCOUNT_MERGE_SEQNUM_TOO_FAR{};
+    case ACCOUNT_MERGE_DEST_FULL:
+        throw ex_ACCOUNT_MERGE_DEST_FULL{};
     case ACCOUNT_MERGE_SUCCESS:
         break;
     default:

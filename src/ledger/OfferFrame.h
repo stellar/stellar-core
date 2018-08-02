@@ -5,6 +5,7 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "ledger/EntryFrame.h"
+#include "ledger/TrustFrame.h"
 #include <functional>
 #include <unordered_map>
 
@@ -18,6 +19,9 @@ namespace stellar
 class LedgerRange;
 class ManageOfferOpFrame;
 class StatementContext;
+
+int64_t getSellingLiabilities(OfferEntry const& oe);
+int64_t getBuyingLiabilities(OfferEntry const& oe);
 
 class OfferFrame : public EntryFrame
 {
@@ -59,6 +63,9 @@ class OfferFrame : public EntryFrame
     uint64 getOfferID() const;
     uint32 getFlags() const;
 
+    int64_t getSellingLiabilities() const;
+    int64_t getBuyingLiabilities() const;
+
     OfferEntry const&
     getOffer() const
     {
@@ -98,9 +105,31 @@ class OfferFrame : public EntryFrame
     static std::unordered_map<AccountID, std::vector<OfferFrame::pointer>>
     loadAllOffers(Database& db);
 
+    static std::vector<OfferFrame::pointer>
+    loadOffersByAccountAndAsset(AccountID const& accountID, Asset const& asset,
+                                Database& db);
+
     static void dropAll(Database& db);
 
+    void releaseLiabilities(AccountFrame::pointer const& account,
+                            TrustFrame::pointer const& buyingTrust,
+                            TrustFrame::pointer const& sellingTrust,
+                            LedgerDelta& delta, Database& db,
+                            LedgerManager& ledgerManager);
+    void acquireLiabilities(AccountFrame::pointer const& account,
+                            TrustFrame::pointer const& buyingTrust,
+                            TrustFrame::pointer const& sellingTrust,
+                            LedgerDelta& delta, Database& db,
+                            LedgerManager& ledgerManager);
+
   private:
+    void acquireOrReleaseLiabilities(bool isAcquire,
+                                     AccountFrame::pointer const& account,
+                                     TrustFrame::pointer const& buyingTrust,
+                                     TrustFrame::pointer const& sellingTrust,
+                                     LedgerDelta& delta, Database& db,
+                                     LedgerManager& ledgerManager);
+
     static const char* kSQLCreateStatement1;
     static const char* kSQLCreateStatement2;
     static const char* kSQLCreateStatement3;

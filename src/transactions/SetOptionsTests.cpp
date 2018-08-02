@@ -8,6 +8,7 @@
 #include "main/Config.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -51,6 +52,46 @@ TEST_CASE("set options", "[tx][setoptions]")
                 REQUIRE_THROWS_AS(a1.setOptions(th | setSigner(sk1)),
                                   ex_SET_OPTIONS_LOW_RESERVE);
             });
+        }
+
+        SECTION("add signer with native selling liabilities")
+        {
+            auto const minBal2 = app->getLedgerManager().getMinBalance(2);
+            auto txfee = app->getLedgerManager().getTxFee();
+            auto const native = makeNativeAsset();
+            auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+            TestMarket market(*app);
+
+            auto cur1 = acc1.asset("CUR1");
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc1, {native, cur1, Price{1, 1}, 500});
+            });
+
+            for_versions_to(9, *app,
+                            [&] { acc1.setOptions(th | setSigner(sk1)); });
+            for_versions_from(10, *app, [&] {
+                REQUIRE_THROWS_AS(acc1.setOptions(th | setSigner(sk1)),
+                                  ex_SET_OPTIONS_LOW_RESERVE);
+                root.pay(acc1, txfee + 1);
+                acc1.setOptions(th | setSigner(sk1));
+            });
+        }
+
+        SECTION("add signer with native buying liabilities")
+        {
+            auto const minBal2 = app->getLedgerManager().getMinBalance(2);
+            auto txfee = app->getLedgerManager().getTxFee();
+            auto const native = makeNativeAsset();
+            auto acc1 = root.create("acc1", minBal2 + 2 * txfee + 500 - 1);
+            TestMarket market(*app);
+
+            auto cur1 = acc1.asset("CUR1");
+            market.requireChangesWithOffer({}, [&] {
+                return market.addOffer(acc1, {cur1, native, Price{1, 1}, 500});
+            });
+
+            for_all_versions(*app,
+                             [&] { acc1.setOptions(th | setSigner(sk1)); });
         }
 
         SECTION("can't use master key as alternate signer")

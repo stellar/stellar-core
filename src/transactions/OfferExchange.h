@@ -46,12 +46,15 @@ struct ExchangeResultV10
 
 int64_t canSellAtMostBasedOnSheep(Asset const& sheep,
                                   TrustFrame::pointer sheepLine,
-                                  Price const& wheatPrice);
+                                  Price const& wheatPrice,
+                                  LedgerManager& ledgerManager);
 
 int64_t canSellAtMost(AccountFrame::pointer account, Asset const& asset,
                       TrustFrame::pointer trustLine,
                       LedgerManager& ledgerManager);
-int64_t canBuyAtMost(Asset const& asset, TrustFrame::pointer trustLine);
+int64_t canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
+                     TrustFrame::pointer trustLine,
+                     LedgerManager& ledgerManager);
 
 ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
@@ -60,6 +63,13 @@ ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
 ExchangeResultV10 exchangeV10(Price price, int64_t maxWheatSend,
                               int64_t maxWheatReceive, int64_t maxSheepSend,
                               int64_t maxSheepReceive, bool isPathPayment);
+
+ExchangeResultV10 exchangeV10WithoutPriceErrorThresholds(
+    Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
+    int64_t maxSheepSend, int64_t maxSheepReceive, bool isPathPayment);
+ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
+                                            int64_t sheepSend, bool wheatStays,
+                                            bool isPathPayment);
 
 void adjustOffer(OfferFrame& offer, LedgerManager& lm,
                  AccountFrame::pointer account, Asset const& wheat,

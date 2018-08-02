@@ -9,7 +9,9 @@
 #include "crypto/SecretKey.h"
 #include "database/Database.h"
 #include "ledger/LedgerRange.h"
+#include "ledger/TrustFrame.h"
 #include "transactions/ManageOfferOpFrame.h"
+#include "transactions/OfferExchange.h"
 #include "util/types.h"
 
 using namespace std;
@@ -51,6 +53,22 @@ static const char* offerColumnSelector =
     "buyingassettype,buyingassetcode,buyingissuer,amount,pricen,priced,"
     "flags,lastmodified "
     "FROM offers";
+
+int64_t
+getSellingLiabilities(OfferEntry const& oe)
+{
+    auto res = exchangeV10WithoutPriceErrorThresholds(
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+    return res.numWheatReceived;
+}
+
+int64_t
+getBuyingLiabilities(OfferEntry const& oe)
+{
+    auto res = exchangeV10WithoutPriceErrorThresholds(
+        oe.price, oe.amount, INT64_MAX, INT64_MAX, INT64_MAX, false);
+    return res.numSheepSend;
+}
 
 OfferFrame::OfferFrame() : EntryFrame(OFFER), mOffer(mEntry.data.offer())
 {
@@ -116,6 +134,18 @@ uint32
 OfferFrame::getFlags() const
 {
     return mOffer.flags;
+}
+
+int64_t
+OfferFrame::getSellingLiabilities() const
+{
+    return stellar::getSellingLiabilities(mOffer);
+}
+
+int64_t
+OfferFrame::getBuyingLiabilities() const
+{
+    return stellar::getBuyingLiabilities(mOffer);
 }
 
 OfferFrame::pointer
@@ -349,6 +379,52 @@ OfferFrame::loadAllOffers(Database& db)
     return retOffers;
 }
 
+// Note: This function is currently only used in AllowTrustOpFrame, which means
+// the asset parameter will never satisfy asset.type() == ASSET_TYPE_NATIVE. As
+// a consequence, I have not implemented that possibility so this function
+// throws in that case.
+std::vector<OfferFrame::pointer>
+OfferFrame::loadOffersByAccountAndAsset(AccountID const& accountID,
+                                        Asset const& asset, Database& db)
+{
+    std::vector<OfferFrame::pointer> retOffers;
+    std::string sql = offerColumnSelector;
+    sql += " WHERE sellerid = :acc"
+           " AND ((sellingassetcode = :code AND sellingissuer = :iss)"
+           " OR   (buyingassetcode = :code AND buyingissuer = :iss))";
+
+    std::string accountStr = KeyUtils::toStrKey(accountID);
+
+    std::string assetCode;
+    std::string assetIssuer;
+    if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM4)
+    {
+        assetCodeToStr(asset.alphaNum4().assetCode, assetCode);
+        assetIssuer = KeyUtils::toStrKey(asset.alphaNum4().issuer);
+    }
+    else if (asset.type() == ASSET_TYPE_CREDIT_ALPHANUM12)
+    {
+        assetCodeToStr(asset.alphaNum12().assetCode, assetCode);
+        assetIssuer = KeyUtils::toStrKey(asset.alphaNum12().issuer);
+    }
+    else
+    {
+        throw std::runtime_error("Invalid asset type");
+    }
+
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+    st.exchange(use(accountStr, "acc"));
+    st.exchange(use(assetCode, "code"));
+    st.exchange(use(assetIssuer, "iss"));
+
+    auto timer = db.getSelectTimer("offer");
+    loadOffers(prep, [&retOffers](LedgerEntry const& of) {
+        retOffers.emplace_back(make_shared<OfferFrame>(of));
+    });
+    return retOffers;
+}
+
 bool
 OfferFrame::exists(Database& db, LedgerKey const& key)
 {
@@ -553,5 +629,119 @@ OfferFrame::dropAll(Database& db)
     db.getSession() << kSQLCreateStatement2;
     db.getSession() << kSQLCreateStatement3;
     db.getSession() << kSQLCreateStatement4;
+}
+
+void
+OfferFrame::releaseLiabilities(AccountFrame::pointer const& account,
+                               TrustFrame::pointer const& buyingTrust,
+                               TrustFrame::pointer const& sellingTrust,
+                               LedgerDelta& delta, Database& db,
+                               LedgerManager& ledgerManager)
+{
+    acquireOrReleaseLiabilities(false, account, buyingTrust, sellingTrust,
+                                delta, db, ledgerManager);
+}
+
+void
+OfferFrame::acquireLiabilities(AccountFrame::pointer const& account,
+                               TrustFrame::pointer const& buyingTrust,
+                               TrustFrame::pointer const& sellingTrust,
+                               LedgerDelta& delta, Database& db,
+                               LedgerManager& ledgerManager)
+{
+    acquireOrReleaseLiabilities(true, account, buyingTrust, sellingTrust, delta,
+                                db, ledgerManager);
+}
+
+void
+OfferFrame::acquireOrReleaseLiabilities(bool isAcquire,
+                                        AccountFrame::pointer const& account,
+                                        TrustFrame::pointer const& buyingTrust,
+                                        TrustFrame::pointer const& sellingTrust,
+                                        LedgerDelta& delta, Database& db,
+                                        LedgerManager& ledgerManager)
+{
+    // This should never happen
+    if (getBuying() == getSelling())
+    {
+        throw std::runtime_error("buying and selling same asset");
+    }
+
+    auto loadAccountIfNecessaryAndValidate = [this, &account, &delta, &db]() {
+        AccountFrame::pointer acc = account;
+        if (!acc)
+        {
+            acc = AccountFrame::loadAccount(delta, getSellerID(), db);
+            assert(acc);
+        }
+        assert(acc->getID() == getSellerID());
+        return acc;
+    };
+
+    auto loadTrustIfNecessaryAndValidate = [this, &delta, &db](
+                                               TrustFrame::pointer const& trust,
+                                               Asset const& asset) {
+        TrustFrame::pointer tf = trust;
+        if (!tf)
+        {
+            tf = TrustFrame::loadTrustLine(getSellerID(), asset, db, &delta);
+            assert(tf);
+        }
+        assert(tf->getTrustLine().accountID == getSellerID());
+        assert(tf->getTrustLine().asset == asset);
+        return tf;
+    };
+
+    int64_t buyingLiabilities =
+        isAcquire ? getBuyingLiabilities() : -getBuyingLiabilities();
+    Asset const& buyingAsset = getBuying();
+    if (buyingAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto acc = loadAccountIfNecessaryAndValidate();
+        bool res = acc->addBuyingLiabilities(buyingLiabilities, ledgerManager);
+        if (!res)
+        {
+            throw std::runtime_error("could not add buying liabilities");
+        }
+        acc->storeChange(delta, db);
+    }
+    else
+    {
+        auto trust = loadTrustIfNecessaryAndValidate(buyingTrust, buyingAsset);
+        bool res =
+            trust->addBuyingLiabilities(buyingLiabilities, ledgerManager);
+        if (!res)
+        {
+            throw std::runtime_error("could not add buying liabilities");
+        }
+        trust->storeChange(delta, db);
+    }
+
+    int64_t sellingLiabilities =
+        isAcquire ? getSellingLiabilities() : -getSellingLiabilities();
+    Asset const& sellingAsset = getSelling();
+    if (sellingAsset.type() == ASSET_TYPE_NATIVE)
+    {
+        auto acc = loadAccountIfNecessaryAndValidate();
+        bool res =
+            acc->addSellingLiabilities(sellingLiabilities, ledgerManager);
+        if (!res)
+        {
+            throw std::runtime_error("could not add selling liabilities");
+        }
+        acc->storeChange(delta, db);
+    }
+    else
+    {
+        auto trust =
+            loadTrustIfNecessaryAndValidate(sellingTrust, sellingAsset);
+        bool res =
+            trust->addSellingLiabilities(sellingLiabilities, ledgerManager);
+        if (!res)
+        {
+            throw std::runtime_error("could not add selling liabilities");
+        }
+        trust->storeChange(delta, db);
+    }
 }
 }

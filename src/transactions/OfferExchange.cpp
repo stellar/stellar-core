@@ -16,7 +16,7 @@ namespace stellar
 // while buying as much sheep as possible
 int64_t
 canSellAtMostBasedOnSheep(Asset const& sheep, TrustFrame::pointer sheepLine,
-                          Price const& wheatPrice)
+                          Price const& wheatPrice, LedgerManager& ledgerManager)
 {
     if (sheep.type() == ASSET_TYPE_NATIVE)
     {
@@ -24,7 +24,8 @@ canSellAtMostBasedOnSheep(Asset const& sheep, TrustFrame::pointer sheepLine,
     }
 
     // compute value based on what the account can receive
-    auto sellerMaxSheep = sheepLine ? sheepLine->getMaxAmountReceive() : 0;
+    auto sellerMaxSheep =
+        sheepLine ? sheepLine->getMaxAmountReceive(ledgerManager) : 0;
 
     auto wheatAmount = int64_t{};
     if (!bigDivide(wheatAmount, sellerMaxSheep, wheatPrice.d, wheatPrice.n,
@@ -43,27 +44,34 @@ canSellAtMost(AccountFrame::pointer account, Asset const& asset,
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
         // can only send above the minimum balance
-        return account->getBalanceAboveReserve(ledgerManager);
+        return std::max(
+            {account->getAvailableBalance(ledgerManager), int64_t(0)});
     }
 
     if (trustLine && trustLine->isAuthorized())
     {
-        return trustLine->getBalance();
+        return std::max(
+            {trustLine->getAvailableBalance(ledgerManager), int64_t(0)});
     }
 
     return 0;
 }
 
 int64_t
-canBuyAtMost(Asset const& asset, TrustFrame::pointer trustLine)
+canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
+             TrustFrame::pointer trustLine, LedgerManager& ledgerManager)
 {
     if (asset.type() == ASSET_TYPE_NATIVE)
     {
-        return INT64_MAX;
+        return std::max(
+            {account->getMaxAmountReceive(ledgerManager), int64_t(0)});
     }
     else
     {
-        return trustLine ? trustLine->getMaxAmountReceive() : 0;
+        return trustLine
+                   ? std::max({trustLine->getMaxAmountReceive(ledgerManager),
+                               int64_t(0)})
+                   : 0;
     }
 }
 
@@ -427,6 +435,22 @@ ExchangeResultV10
 exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
             int64_t maxSheepSend, int64_t maxSheepReceive, bool isPathPayment)
 {
+    auto beforeThresholds = exchangeV10WithoutPriceErrorThresholds(
+        price, maxWheatSend, maxWheatReceive, maxSheepSend, maxSheepReceive,
+        isPathPayment);
+    return applyPriceErrorThresholds(
+        price, beforeThresholds.numWheatReceived, beforeThresholds.numSheepSend,
+        beforeThresholds.wheatStays, isPathPayment);
+}
+
+// See comment before exchangeV10.
+ExchangeResultV10
+exchangeV10WithoutPriceErrorThresholds(Price price, int64_t maxWheatSend,
+                                       int64_t maxWheatReceive,
+                                       int64_t maxSheepSend,
+                                       int64_t maxSheepReceive,
+                                       bool isPathPayment)
+{
     uint128_t wheatValue =
         calculateOfferValue(price.n, price.d, maxWheatSend, maxSheepReceive);
     uint128_t sheepValue =
@@ -473,6 +497,18 @@ exchangeV10(Price price, int64_t maxWheatSend, int64_t maxWheatReceive,
         throw std::runtime_error("sheepSend out of bounds");
     }
 
+    ExchangeResultV10 res;
+    res.numWheatReceived = wheatReceive;
+    res.numSheepSend = sheepSend;
+    res.wheatStays = wheatStays;
+    return res;
+}
+
+// See comment before exchangeV10.
+ExchangeResultV10
+applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
+                          bool wheatStays, bool isPathPayment)
+{
     if (wheatReceive > 0 && sheepSend > 0)
     {
         uint128_t wheatReceiveValue = bigMultiply(wheatReceive, price.n);
@@ -606,7 +642,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
 
     numWheatReceived = std::min(
         {canSellAtMostBasedOnSheep(sheep, sheepLineAccountB,
-                                   sellingWheatOffer.getOffer().price),
+                                   sellingWheatOffer.getOffer().price,
+                                   mLedgerManager),
          canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager),
          sellingWheatOffer.getOffer().amount});
     assert(numWheatReceived >= 0);
@@ -658,7 +695,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(numSheepSend))
+            if (!accountB->addBalance(numSheepSend, mLedgerManager))
             {
                 return eOfferCantConvert;
             }
@@ -666,7 +703,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         }
         else
         {
-            if (!sheepLineAccountB->addBalance(numSheepSend))
+            if (!sheepLineAccountB->addBalance(numSheepSend, mLedgerManager))
             {
                 return eOfferCantConvert;
             }
@@ -678,7 +715,7 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(-numWheatReceived))
+            if (!accountB->addBalance(-numWheatReceived, mLedgerManager))
             {
                 return eOfferCantConvert;
             }
@@ -686,7 +723,8 @@ OfferExchange::crossOffer(OfferFrame& sellingWheatOffer,
         }
         else
         {
-            if (!wheatLineAccountB->addBalance(-numWheatReceived))
+            if (!wheatLineAccountB->addBalance(-numWheatReceived,
+                                               mLedgerManager))
             {
                 return eOfferCantConvert;
             }
@@ -709,7 +747,7 @@ adjustOffer(OfferFrame& offer, LedgerManager& lm, AccountFrame::pointer account,
     OfferEntry& oe = offer.getOffer();
     int64_t maxWheatSend =
         std::min({oe.amount, canSellAtMost(account, wheat, wheatLine, lm)});
-    int64_t maxSheepReceive = canBuyAtMost(sheep, sheepLine);
+    int64_t maxSheepReceive = canBuyAtMost(account, sheep, sheepLine, lm);
     oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
 }
 
@@ -887,6 +925,16 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
             TrustFrame::loadTrustLine(accountBID, sheep, db, &mDelta);
     }
 
+    // Remove liabilities associated with the offer being crossed.
+    if (mLedgerManager.getCurrentLedgerVersion() >= 10)
+    {
+        sellingWheatOffer.releaseLiabilities(accountB, sheepLineAccountB,
+                                             wheatLineAccountB, mDelta, db,
+                                             mLedgerManager);
+    }
+
+    // As of the protocol version 10, this call to adjustOffer should have no
+    // effect. We leave it here only as a preventative measure.
     adjustOffer(sellingWheatOffer, mLedgerManager, accountB, wheat,
                 wheatLineAccountB, sheep, sheepLineAccountB);
 
@@ -894,7 +942,8 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
         canSellAtMost(accountB, wheat, wheatLineAccountB, mLedgerManager);
     maxWheatSend =
         std::min({sellingWheatOffer.getOffer().amount, maxWheatSend});
-    int64_t maxSheepReceive = canBuyAtMost(sheep, sheepLineAccountB);
+    int64_t maxSheepReceive =
+        canBuyAtMost(accountB, sheep, sheepLineAccountB, mLedgerManager);
     auto exchangeResult = exchangeV10(
         sellingWheatOffer.getOffer().price, maxWheatSend, maxWheatReceived,
         maxSheepSend, maxSheepReceive, isPathPayment);
@@ -908,7 +957,7 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
     {
         if (sheep.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(numSheepSend))
+            if (!accountB->addBalance(numSheepSend, mLedgerManager))
             {
                 throw std::runtime_error("overflowed sheep balance");
             }
@@ -916,7 +965,7 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
         }
         else
         {
-            if (!sheepLineAccountB->addBalance(numSheepSend))
+            if (!sheepLineAccountB->addBalance(numSheepSend, mLedgerManager))
             {
                 throw std::runtime_error("overflowed sheep balance");
             }
@@ -928,7 +977,7 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
     {
         if (wheat.type() == ASSET_TYPE_NATIVE)
         {
-            if (!accountB->addBalance(-numWheatReceived))
+            if (!accountB->addBalance(-numWheatReceived, mLedgerManager))
             {
                 throw std::runtime_error("overflowed wheat balance");
             }
@@ -936,7 +985,8 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
         }
         else
         {
-            if (!wheatLineAccountB->addBalance(-numWheatReceived))
+            if (!wheatLineAccountB->addBalance(-numWheatReceived,
+                                               mLedgerManager))
             {
                 throw std::runtime_error("overflowed wheat balance");
             }
@@ -964,6 +1014,12 @@ OfferExchange::crossOfferV10(OfferFrame& sellingWheatOffer,
     }
     else
     {
+        if (mLedgerManager.getCurrentLedgerVersion() >= 10)
+        {
+            sellingWheatOffer.acquireLiabilities(accountB, sheepLineAccountB,
+                                                 wheatLineAccountB, mDelta, db,
+                                                 mLedgerManager);
+        }
         sellingWheatOffer.storeChange(mDelta, db);
     }
 

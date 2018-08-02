@@ -608,7 +608,9 @@ enum AccountMergeResultCode
     ACCOUNT_MERGE_NO_ACCOUNT = -2,      // destination does not exist
     ACCOUNT_MERGE_IMMUTABLE_SET = -3,   // source account has AUTH_IMMUTABLE set
     ACCOUNT_MERGE_HAS_SUB_ENTRIES = -4, // account has trust lines/offers
-    ACCOUNT_MERGE_SEQNUM_TOO_FAR = -5   // sequence number is over max allowed
+    ACCOUNT_MERGE_SEQNUM_TOO_FAR = -5,  // sequence number is over max allowed
+    ACCOUNT_MERGE_DEST_FULL = -6        // can't add source balance to
+                                        // destination balance
 };
 
 union AccountMergeResult switch (AccountMergeResultCode code)

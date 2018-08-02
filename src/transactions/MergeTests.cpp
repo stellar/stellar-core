@@ -9,6 +9,7 @@
 #include "main/Config.h"
 #include "test/TestAccount.h"
 #include "test/TestExceptions.h"
+#include "test/TestMarket.h"
 #include "test/TestUtils.h"
 #include "test/TxTests.h"
 #include "test/test.h"
@@ -469,17 +470,13 @@ TEST_CASE("merge", "[tx][merge]")
                 for_all_versions(*app, [&] {
                     gateway.pay(a1, usd, trustLineBalance);
                     auto xlm = makeNativeAsset();
+                    auto curIssued = a1.asset("CUR1");
 
                     const Price somePrice(3, 2);
                     for (int i = 0; i < 4; i++)
                     {
-                        a1.manageOffer(0, xlm, usd, somePrice, 100);
+                        a1.manageOffer(0, xlm, curIssued, somePrice, 100);
                     }
-                    // empty out balance
-                    a1.pay(gateway, usd, trustLineBalance);
-                    // delete the trust line
-                    a1.changeTrust(usd, 0);
-
                     REQUIRE_THROWS_AS(a1.merge(b1),
                                       ex_ACCOUNT_MERGE_HAS_SUB_ENTRIES);
                 });
@@ -646,6 +643,44 @@ TEST_CASE("merge", "[tx][merge]")
                             .accountMergeResult()
                             .code() == ACCOUNT_MERGE_SEQNUM_TOO_FAR);
             }
+        });
+    }
+
+    SECTION("destination with native buying liabilities")
+    {
+        auto& lm = app->getLedgerManager();
+        auto txfee = lm.getTxFee();
+        auto minBal = lm.getMinBalance(1);
+        auto acc1 = root.create("acc1", minBal + txfee);
+        auto acc2 = root.create("acc2", minBal + txfee + 1);
+
+        auto const native = makeNativeAsset();
+        auto cur1 = acc1.asset("CUR1");
+
+        TestMarket market(*app);
+        market.requireChangesWithOffer({}, [&] {
+            return market.addOffer(
+                acc1, {cur1, native, Price{1, 1}, INT64_MAX - 2 * minBal});
+        });
+
+        for_versions_to(9, *app, [&] {
+            acc2.merge(acc1);
+
+            auto af = AccountFrame::loadAccount(acc1.getPublicKey(),
+                                                app->getDatabase());
+            REQUIRE(af->getBalance() == 2 * minBal + 1);
+        });
+        for_versions_from(10, *app, [&] {
+            closeLedgerOn(*app, 3, 1, 1, 2017);
+            REQUIRE_THROWS_AS(acc2.merge(acc1), ex_ACCOUNT_MERGE_DEST_FULL);
+            root.pay(acc2, txfee - 1);
+            acc2.merge(acc1);
+
+            auto af = AccountFrame::loadAccount(acc1.getPublicKey(),
+                                                app->getDatabase());
+            REQUIRE(af->getBalance() == 2 * minBal);
+            REQUIRE(af->getBalance() + af->getBuyingLiabilities(lm) ==
+                    INT64_MAX);
         });
     }
 }

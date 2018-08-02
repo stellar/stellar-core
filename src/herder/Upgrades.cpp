@@ -3,9 +3,19 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "herder/Upgrades.h"
+#include "database/Database.h"
+#include "database/DatabaseUtils.h"
+#include "ledger/AccountFrame.h"
+#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerManager.h"
+#include "ledger/OfferFrame.h"
+#include "ledger/TrustFrame.h"
 #include "main/Config.h"
+#include "transactions/OfferExchange.h"
+#include "util/Decoder.h"
 #include "util/Logging.h"
 #include "util/Timer.h"
+#include "util/types.h"
 #include <cereal/archives/json.hpp>
 #include <cereal/cereal.hpp>
 #include <lib/util/format.h>
@@ -119,12 +129,14 @@ Upgrades::createUpgradesFor(LedgerHeader const& header) const
 }
 
 void
-Upgrades::applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header)
+Upgrades::applyTo(LedgerUpgrade const& upgrade, LedgerManager& ledgerManager,
+                  LedgerDelta& ld)
 {
+    LedgerHeader& header = ld.getHeader();
     switch (upgrade.type())
     {
     case LEDGER_UPGRADE_VERSION:
-        header.ledgerVersion = upgrade.newLedgerVersion();
+        applyVersionUpgrade(ledgerManager, ld, upgrade.newLedgerVersion());
         break;
     case LEDGER_UPGRADE_BASE_FEE:
         header.baseFee = upgrade.newBaseFee();
@@ -133,7 +145,7 @@ Upgrades::applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header)
         header.maxTxSetSize = upgrade.newMaxTxSetSize();
         break;
     case LEDGER_UPGRADE_BASE_RESERVE:
-        header.baseReserve = upgrade.newBaseReserve();
+        applyReserveUpgrade(ledgerManager, ld, upgrade.newBaseReserve());
         break;
     default:
     {
@@ -317,5 +329,359 @@ bool
 Upgrades::timeForUpgrade(uint64_t time) const
 {
     return mParams.mUpgradeTime <= VirtualClock::from_time_t(time);
+}
+
+void
+Upgrades::dropAll(Database& db)
+{
+    db.getSession() << "DROP TABLE IF EXISTS upgradehistory";
+    db.getSession() << "CREATE TABLE upgradehistory ("
+                       "ledgerseq    INT NOT NULL CHECK (ledgerseq >= 0), "
+                       "upgradeindex INT NOT NULL, "
+                       "upgrade      TEXT NOT NULL, "
+                       "changes      TEXT NOT NULL, "
+                       "PRIMARY KEY (ledgerseq, upgradeindex)"
+                       ")";
+    db.getSession()
+        << "CREATE INDEX upgradehistbyseq ON upgradehistory (ledgerseq);";
+}
+
+void
+Upgrades::storeUpgradeHistory(LedgerManager& ledgerManager,
+                              LedgerUpgrade const& upgrade,
+                              LedgerEntryChanges const& changes, int index)
+{
+    uint32_t ledgerSeq = ledgerManager.getCurrentLedgerHeader().ledgerSeq;
+
+    xdr::opaque_vec<> upgradeContent(xdr::xdr_to_opaque(upgrade));
+    std::string upgradeContent64 = decoder::encode_b64(upgradeContent);
+
+    xdr::opaque_vec<> upgradeChanges(xdr::xdr_to_opaque(changes));
+    std::string upgradeChanges64 = decoder::encode_b64(upgradeChanges);
+
+    auto& db = ledgerManager.getDatabase();
+    auto prep = db.getPreparedStatement(
+        "INSERT INTO upgradehistory "
+        "(ledgerseq, upgradeindex,  upgrade,  changes) VALUES "
+        "(:seq,      :upgradeindex, :upgrade, :changes)");
+
+    auto& st = prep.statement();
+    st.exchange(soci::use(ledgerSeq));
+    st.exchange(soci::use(index));
+    st.exchange(soci::use(upgradeContent64));
+    st.exchange(soci::use(upgradeChanges64));
+    st.define_and_bind();
+    {
+        auto timer = db.getInsertTimer("upgradehistory");
+        st.execute(true);
+    }
+
+    if (st.get_affected_rows() != 1)
+    {
+        throw std::runtime_error("Could not update data in SQL");
+    }
+}
+
+void
+Upgrades::deleteOldEntries(Database& db, uint32_t ledgerSeq, uint32_t count)
+{
+    DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
+                                          "upgradehistory", "ledgerseq");
+}
+
+static void
+addLiabilities(std::map<Asset, std::unique_ptr<int64_t>>& liabilities,
+               AccountID const& accountID, Asset const& asset, int64_t delta)
+{
+    auto iter =
+        liabilities.insert(std::make_pair(asset, std::make_unique<int64_t>(0)))
+            .first;
+    if (asset.type() != ASSET_TYPE_NATIVE && accountID == getIssuer(asset))
+    {
+        return;
+    }
+    if (iter->second)
+    {
+        if (!stellar::addBalance(*iter->second, delta))
+        {
+            iter->second.reset();
+        }
+    }
+}
+
+static int64_t
+getAvailableBalance(AccountID const& accountID, Asset const& asset,
+                    int64_t balanceAboveReserve, LedgerDelta& ld, Database& db)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return balanceAboveReserve;
+    }
+
+    if (accountID == getIssuer(asset))
+    {
+        return INT64_MAX;
+    }
+    else
+    {
+        auto trust = TrustFrame::loadTrustLine(accountID, asset, db, &ld);
+        if (trust && trust->isAuthorized())
+        {
+            return trust->getBalance();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
+static int64_t
+getAvailableLimit(AccountID const& accountID, Asset const& asset,
+                  int64_t balance, LedgerDelta& ld, Database& db)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return INT64_MAX - balance;
+    }
+
+    if (accountID == getIssuer(asset))
+    {
+        return INT64_MAX;
+    }
+    else
+    {
+        auto trust = TrustFrame::loadTrustLine(accountID, asset, db, &ld);
+        if (trust && trust->isAuthorized())
+        {
+            return trust->getTrustLine().limit - trust->getBalance();
+        }
+        else
+        {
+            return 0;
+        }
+    }
+}
+
+static bool
+shouldDeleteOffer(Asset const& asset, int64_t effectiveBalance,
+                  std::map<Asset, std::unique_ptr<int64_t>> const& liabilities,
+                  std::function<int64_t(Asset const&, int64_t)> getCap)
+{
+    auto iter = liabilities.find(asset);
+    if (iter == liabilities.end())
+    {
+        throw std::runtime_error("liabilities were not calculated");
+    }
+    // Offers should be deleted if liabilities exceed INT64_MAX (nullptr) or if
+    // there are excess liabilities.
+    return iter->second ? *iter->second > getCap(asset, effectiveBalance)
+                        : true;
+}
+
+// This function is used to bring offers and liabilities into a valid state.
+// For every account that has offers,
+//   1. Calculate total liabilities for each asset
+//   2. For every asset with excess buying liabilities according to (1), erase
+//      all offers buying that asset. For every asset with excess selling
+//      liabilities according to (1), erase all offers selling that asset.
+//   3. Update liabilities to reflect offers remaining in the book.
+// It is essential to note that the excess liabilities are determined only
+// using the initial result of step (1), so it does not matter what order the
+// offers are processed.
+static void
+prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
+{
+    using namespace std::placeholders;
+
+    auto& db = ledgerManager.getDatabase();
+    db.getEntryCache().clear();
+    auto offersByAccount = OfferFrame::loadAllOffers(db);
+
+    for (auto& accountOffers : offersByAccount)
+    {
+        // The purpose of std::unique_ptr here is to have a special value
+        // (nullptr) to indicate that an integer overflow would have occured.
+        // Overflow is possible here because existing offers were not
+        // constrainted to have int64_t liabilities. This must be carefully
+        // handled in what follows.
+        std::map<Asset, std::unique_ptr<int64_t>> initialBuyingLiabilities;
+        std::map<Asset, std::unique_ptr<int64_t>> initialSellingLiabilities;
+        for (auto const& offerFrame : accountOffers.second)
+        {
+            auto const& offer = offerFrame->getOffer();
+            addLiabilities(initialBuyingLiabilities, offer.sellerID,
+                           offer.buying, offerFrame->getBuyingLiabilities());
+            addLiabilities(initialSellingLiabilities, offer.sellerID,
+                           offer.selling, offerFrame->getSellingLiabilities());
+        }
+
+        auto accountFrame =
+            AccountFrame::loadAccount(ld, accountOffers.first, db);
+        if (!accountFrame)
+        {
+            throw std::runtime_error("account does not exist");
+        }
+
+        // balanceAboveReserve must exclude native selling liabilities, since
+        // these are in the process of being recalculated from scratch.
+        int64_t balance = accountFrame->getBalance();
+        int64_t minBalance = accountFrame->getMinimumBalance(ledgerManager);
+        int64_t balanceAboveReserve = balance - minBalance;
+
+        std::map<Asset, Liabilities> liabilities;
+        for (auto const& offerFrame : accountOffers.second)
+        {
+            auto& offer = offerFrame->getOffer();
+
+            auto availableBalanceBind =
+                std::bind(getAvailableBalance, offer.sellerID, _1, _2,
+                          std::ref(ld), std::ref(db));
+            auto availableLimitBind =
+                std::bind(getAvailableLimit, offer.sellerID, _1, _2,
+                          std::ref(ld), std::ref(db));
+
+            bool erase = shouldDeleteOffer(offer.selling, balanceAboveReserve,
+                                           initialSellingLiabilities,
+                                           availableBalanceBind);
+            erase = erase || shouldDeleteOffer(offer.buying, balance,
+                                               initialBuyingLiabilities,
+                                               availableLimitBind);
+
+            // If erase == false then we know that the total buying liabilities
+            // of the buying asset do not exceed its available limit, and the
+            // total selling liabilities of the selling asset do not exceed its
+            // available balance. This implies that there are no excess
+            // liabilities for this offer, so the only applicable limit is the
+            // offer amount. We then use adjustOffer to check that it will
+            // satisfy thresholds.
+            erase =
+                erase || (adjustOffer(offerFrame->getPrice(),
+                                      offerFrame->getAmount(), INT64_MAX) == 0);
+
+            if (erase)
+            {
+                accountFrame->addNumEntries(-1, ledgerManager);
+                offerFrame->storeDelete(ld, db);
+            }
+            else
+            {
+                // The same logic for adjustOffer discussed above applies here,
+                // except that we now actually update the offer to reflect the
+                // adjustment.
+                offer.amount = adjustOffer(offerFrame->getPrice(),
+                                           offerFrame->getAmount(), INT64_MAX);
+                offerFrame->storeChange(ld, db);
+
+                if (offer.buying.type() == ASSET_TYPE_NATIVE ||
+                    !(offer.sellerID == getIssuer(offer.buying)))
+                {
+                    if (!stellar::addBalance(
+                            liabilities[offer.buying].buying,
+                            offerFrame->getBuyingLiabilities()))
+                    {
+                        throw std::runtime_error("could not add buying "
+                                                 "liabilities");
+                    }
+                }
+                if (offer.selling.type() == ASSET_TYPE_NATIVE ||
+                    !(offer.sellerID == getIssuer(offer.selling)))
+                {
+                    if (!stellar::addBalance(
+                            liabilities[offer.selling].selling,
+                            offerFrame->getSellingLiabilities()))
+                    {
+                        throw std::runtime_error("could not add selling "
+                                                 "liabilities");
+                    }
+                }
+            }
+        }
+
+        for (auto const& assetLiabilities : liabilities)
+        {
+            Asset const& asset = assetLiabilities.first;
+            Liabilities const& liab = assetLiabilities.second;
+            if (asset.type() == ASSET_TYPE_NATIVE)
+            {
+                int64_t deltaSelling =
+                    liab.selling -
+                    accountFrame->getSellingLiabilities(ledgerManager);
+                int64_t deltaBuying =
+                    liab.buying -
+                    accountFrame->getBuyingLiabilities(ledgerManager);
+                if (!accountFrame->addSellingLiabilities(deltaSelling,
+                                                         ledgerManager))
+                {
+                    throw std::runtime_error("invalid selling liabilities "
+                                             "during upgrade");
+                }
+                if (!accountFrame->addBuyingLiabilities(deltaBuying,
+                                                        ledgerManager))
+                {
+                    throw std::runtime_error("invalid buying liabilities "
+                                             "during upgrade");
+                }
+            }
+            else
+            {
+                auto trustFrame = TrustFrame::loadTrustLine(accountOffers.first,
+                                                            asset, db, &ld);
+                int64_t deltaSelling =
+                    liab.selling -
+                    trustFrame->getSellingLiabilities(ledgerManager);
+                int64_t deltaBuying =
+                    liab.buying -
+                    trustFrame->getBuyingLiabilities(ledgerManager);
+                if (!trustFrame->addSellingLiabilities(deltaSelling,
+                                                       ledgerManager))
+                {
+                    throw std::runtime_error("invalid selling liabilities "
+                                             "during upgrade");
+                }
+                if (!trustFrame->addBuyingLiabilities(deltaBuying,
+                                                      ledgerManager))
+                {
+                    throw std::runtime_error("invalid buying liabilities "
+                                             "during upgrade");
+                }
+                trustFrame->storeChange(ld, db);
+            }
+        }
+
+        accountFrame->storeChange(ld, db);
+    }
+
+    db.getEntryCache().clear();
+}
+
+void
+Upgrades::applyVersionUpgrade(LedgerManager& ledgerManager, LedgerDelta& ld,
+                              uint32_t newVersion)
+{
+    LedgerHeader& header = ld.getHeader();
+    uint32_t prevVersion = header.ledgerVersion;
+
+    header.ledgerVersion = newVersion;
+    ledgerManager.getCurrentLedgerHeader().ledgerVersion = newVersion;
+    if (header.ledgerVersion >= 10 && prevVersion < 10)
+    {
+        prepareLiabilities(ledgerManager, ld);
+    }
+}
+
+void
+Upgrades::applyReserveUpgrade(LedgerManager& ledgerManager, LedgerDelta& ld,
+                              uint32_t newReserve)
+{
+    LedgerHeader& header = ld.getHeader();
+    bool didReserveIncrease = newReserve > header.baseReserve;
+
+    header.baseReserve = newReserve;
+    ledgerManager.getCurrentLedgerHeader().baseReserve = newReserve;
+    if (header.ledgerVersion >= 10 && didReserveIncrease)
+    {
+        prepareLiabilities(ledgerManager, ld);
+    }
 }
 }

@@ -23,6 +23,9 @@ namespace stellar
 class LedgerManager;
 class LedgerRange;
 
+int64_t getBuyingLiabilities(AccountEntry const& acc, LedgerManager const& lm);
+int64_t getSellingLiabilities(AccountEntry const& acc, LedgerManager const& lm);
+
 class AccountFrame : public EntryFrame
 {
     void storeUpdate(LedgerDelta& delta, Database& db, bool insert);
@@ -63,14 +66,22 @@ class AccountFrame : public EntryFrame
     // actual balance for the account
     int64_t getBalance() const;
 
+    int64_t getBuyingLiabilities(LedgerManager const& lm) const;
+    int64_t getSellingLiabilities(LedgerManager const& lm) const;
+
+    bool addBuyingLiabilities(int64_t delta, LedgerManager const& lm);
+    bool addSellingLiabilities(int64_t delta, LedgerManager const& lm);
+
     // update balance for account
-    bool addBalance(int64_t delta);
+    bool addBalance(int64_t delta, LedgerManager const& lm);
 
     // reserve balance that the account must always hold
     int64_t getMinimumBalance(LedgerManager const& lm) const;
 
     // balance that can be spent (above the limit)
-    int64_t getBalanceAboveReserve(LedgerManager const& lm) const;
+    int64_t getAvailableBalance(LedgerManager const& lm) const;
+
+    int64_t getMaxAmountReceive(LedgerManager const& lm) const;
 
     // returns true if successfully updated,
     // false if balance is not sufficient

@@ -15,6 +15,7 @@
 
 #include "bucket/BucketManager.h"
 #include "herder/HerderPersistence.h"
+#include "herder/Upgrades.h"
 #include "history/HistoryManager.h"
 #include "ledger/AccountFrame.h"
 #include "ledger/DataFrame.h"
@@ -53,7 +54,7 @@ using namespace std;
 
 bool Database::gDriversRegistered = false;
 
-static unsigned long const SCHEMA_VERSION = 6;
+static unsigned long const SCHEMA_VERSION = 7;
 
 static void
 setSerializable(soci::session& sess)
@@ -140,9 +141,23 @@ Database::applySchemaUpgrade(unsigned long vers)
             }
         }
         break;
+
     case 6:
         mSession << "ALTER TABLE peers ADD flags INT NOT NULL DEFAULT 0";
         break;
+
+    case 7:
+        Upgrades::dropAll(*this);
+        mSession << "ALTER TABLE accounts ADD buyingliabilities BIGINT "
+                    "CHECK (buyingliabilities >= 0)";
+        mSession << "ALTER TABLE accounts ADD sellingliabilities BIGINT "
+                    "CHECK (sellingliabilities >= 0)";
+        mSession << "ALTER TABLE trustlines ADD buyingliabilities BIGINT "
+                    "CHECK (buyingliabilities >= 0)";
+        mSession << "ALTER TABLE trustlines ADD sellingliabilities BIGINT "
+                    "CHECK (sellingliabilities >= 0)";
+        break;
+
     default:
         throw std::runtime_error("Unknown DB schema version");
         break;

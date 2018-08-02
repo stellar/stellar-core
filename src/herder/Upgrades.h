@@ -15,6 +15,9 @@
 namespace stellar
 {
 class Config;
+class Database;
+class LedgerDelta;
+class LedgerManager;
 struct LedgerHeader;
 struct LedgerUpgrade;
 
@@ -60,7 +63,8 @@ class Upgrades
     createUpgradesFor(LedgerHeader const& header) const;
 
     // apply upgrade to ledger header
-    static void applyTo(LedgerUpgrade const& upgrade, LedgerHeader& header);
+    static void applyTo(LedgerUpgrade const& upgrade,
+                        LedgerManager& ledgerManager, LedgerDelta& ld);
 
     // convert upgrade value to string
     static std::string toString(LedgerUpgrade const& upgrade);
@@ -81,9 +85,24 @@ class Upgrades
                    std::vector<UpgradeType>::const_iterator endUpdates,
                    bool& updated);
 
+    static void dropAll(Database& db);
+
+    static void storeUpgradeHistory(LedgerManager& ledgerManager,
+                                    LedgerUpgrade const& upgrade,
+                                    LedgerEntryChanges const& changes,
+                                    int index);
+    static void deleteOldEntries(Database& db, uint32_t ledgerSeq,
+                                 uint32_t count);
+
   private:
     UpgradeParameters mParams;
 
     bool timeForUpgrade(uint64_t time) const;
+
+    static void applyVersionUpgrade(LedgerManager& lm, LedgerDelta& ld,
+                                    uint32_t newVersion);
+
+    static void applyReserveUpgrade(LedgerManager& lm, LedgerDelta& ld,
+                                    uint32_t newReserve);
 };
 }

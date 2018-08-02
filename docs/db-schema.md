@@ -51,6 +51,8 @@ homedomain | VARCHAR(32) |
 thresholds | TEXT | (BASE64)
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
 ## offers
 
@@ -92,6 +94,8 @@ tlimit | BIGINT NOT NULL DEFAULT 0 CHECK (tlimit >= 0) | limit
 balance | BIGINT NOT NULL DEFAULT 0 CHECK (balance >= 0) |
 flags | INT NOT NULL |
 lastmodified | INT NOT NULL | lastModifiedLedgerSeq
+buyingliabilities | BIGINT CHECK (buyingliabilities >= 0)
+sellingliabilities | BIGINT CHECK (sellingliabilities >= 0)
 
 
 ## txhistory
@@ -153,4 +157,16 @@ ip | VARCHAR(15) NOT NULL |
 port | INT DEFAULT 0 CHECK (port > 0 AND port <= 65535) NOT NULL |
 nextattempt | TIMESTAMP NOT NULL |
 numfailures | INT DEFAULT 0 CHECK (numfailures >= 0) NOT NULL |
+
+
+## upgradehistory
+
+Defined in [`src/herder/Upgrades.cpp`](/src/herder/Upgrades.cpp)
+
+Field | Type | Description
+------|------|---------------
+ledgerseq | INT NOT NULL CHECK (ledgerseq >= 0) | Ledger this upgrade got applied
+upgradeindex | INT NOT NULL | Apply order (per ledger, 1)
+upgrade | TEXT NOT NULL | The upgrade (XDR)
+changes | TEXT NOT NULL | LedgerEntryChanges (XDR)
 
