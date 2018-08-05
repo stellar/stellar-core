@@ -171,7 +171,25 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
         }
     }
 
-    if (!checkSignature(signatureChecker))
+    bool shouldSkipSigCheck = false;
+
+    if (mOperation.body.type() == CHANGE_TRUST)
+    {
+	for (auto const& opFrame : mParentTx.getOperations())
+	{
+            auto body = opFrame->getOperation().body;
+
+            if (body.type() == CREATE_ACCOUNT &&
+                body.createAccountOp().destination == *mOperation.sourceAccount)
+            {
+                shouldSkipSigCheck = true;
+
+                break;
+            }
+        }
+    }
+
+    if (!checkSignature(signatureChecker) && !shouldSkipSigCheck)
     {
         app.getMetrics()
             .NewMeter({"operation", "invalid", "bad-auth"}, "operation")
