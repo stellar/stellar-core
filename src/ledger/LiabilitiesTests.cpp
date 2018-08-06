@@ -256,7 +256,8 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             REQUIRE(af->getSellingLiabilities(lm) == 0);
             if (res)
             {
-                REQUIRE(af->getAccount().ext.v() == (deltaLiabilities != 0));
+                REQUIRE(af->getAccount().ext.v() ==
+                        ((deltaLiabilities != 0) ? 1 : 0));
                 REQUIRE(af->getBuyingLiabilities(lm) == deltaLiabilities);
             }
             else
@@ -460,7 +461,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 if (res)
                 {
                     REQUIRE(tf->getTrustLine().ext.v() ==
-                            (deltaLiabilities != 0));
+                            ((deltaLiabilities != 0) ? 1 : 0));
                     REQUIRE(tf->getSellingLiabilities(lm) == deltaLiabilities);
                 }
                 else
@@ -594,7 +595,8 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             REQUIRE(tf->getSellingLiabilities(lm) == 0);
             if (res)
             {
-                REQUIRE(tf->getTrustLine().ext.v() == (deltaLiabilities != 0));
+                REQUIRE(tf->getTrustLine().ext.v() ==
+                        ((deltaLiabilities != 0) ? 1 : 0));
                 REQUIRE(tf->getBuyingLiabilities(lm) == deltaLiabilities);
             }
             else
