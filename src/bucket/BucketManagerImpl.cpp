@@ -184,7 +184,14 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
         {
             std::string err("Failed to rename bucket :");
             err += strerror(errno);
-            throw std::runtime_error(err);
+            // it seems there is a race condition with external systems
+            // retry after sleeping for a second works around the problem
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (rename(filename.c_str(), canonicalName.c_str()) != 0)
+            {
+                // if rename fails again, surface the original error
+                throw std::runtime_error(err);
+            }
         }
 
         b = std::make_shared<Bucket>(canonicalName, hash);
