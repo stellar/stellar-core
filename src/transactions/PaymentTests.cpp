@@ -130,7 +130,6 @@ TEST_CASE("payment", "[tx][payment]")
             auto const minBal0 = app->getLedgerManager().getMinBalance(0);
             auto const minBal3 = app->getLedgerManager().getMinBalance(3);
 
-            auto txfee = app->getLedgerManager().getTxFee();
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
             TestMarket market(*app);
@@ -154,7 +153,6 @@ TEST_CASE("payment", "[tx][payment]")
             auto const minBal0 = app->getLedgerManager().getMinBalance(0);
             auto const minBal3 = app->getLedgerManager().getMinBalance(3);
 
-            auto txfee = app->getLedgerManager().getTxFee();
             auto const native = makeNativeAsset();
             auto acc1 = root.create("acc1", minBal3 + 2 * txfee + 500);
             TestMarket market(*app);

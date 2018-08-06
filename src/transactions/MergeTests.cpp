@@ -649,7 +649,6 @@ TEST_CASE("merge", "[tx][merge]")
     SECTION("destination with native buying liabilities")
     {
         auto& lm = app->getLedgerManager();
-        auto txfee = lm.getTxFee();
         auto minBal = lm.getMinBalance(1);
         auto acc1 = root.create("acc1", minBal + txfee);
         auto acc2 = root.create("acc2", minBal + txfee + 1);
