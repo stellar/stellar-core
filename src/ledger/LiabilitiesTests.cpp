@@ -23,7 +23,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
     SECTION("add account selling liabilities")
     {
         auto addSellingLiabilities =
-            [&](int64_t initNumSubEntries, int64_t initBalance,
+            [&](uint32_t initNumSubEntries, int64_t initBalance,
                 int64_t initSellingLiabilities, int64_t deltaLiabilities) {
                 AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
                 ae.balance = initBalance;
@@ -57,7 +57,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 return res;
             };
         auto addSellingLiabilitiesUninitialized =
-            [&](int64_t initNumSubEntries, int64_t initBalance,
+            [&](uint32_t initNumSubEntries, int64_t initBalance,
                 int64_t deltaLiabilities) {
                 AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
                 ae.balance = initBalance;
@@ -75,7 +75,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 if (res)
                 {
                     REQUIRE(af->getAccount().ext.v() ==
-                            (deltaLiabilities != 0));
+                            ((deltaLiabilities != 0) ? 1 : 0));
                     REQUIRE(af->getSellingLiabilities(lm) == deltaLiabilities);
                 }
                 else
@@ -204,7 +204,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
 
     SECTION("add account buying liabilities")
     {
-        auto addBuyingLiabilities = [&](int64_t initNumSubEntries,
+        auto addBuyingLiabilities = [&](uint32_t initNumSubEntries,
                                         int64_t initBalance,
                                         int64_t initBuyingLiabilities,
                                         int64_t deltaLiabilities) {
@@ -238,7 +238,7 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             }
             return res;
         };
-        auto addBuyingLiabilitiesUninitialized = [&](int64_t initNumSubEntries,
+        auto addBuyingLiabilitiesUninitialized = [&](uint32_t initNumSubEntries,
                                                      int64_t initBalance,
                                                      int64_t deltaLiabilities) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
@@ -390,11 +390,11 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                     0, lm.getMinBalance(0), INT64_MAX - lm.getMinBalance(0) - 1,
                     1));
 
-                REQUIRE(!addBuyingLiabilities(INT64_MAX, INT64_MAX / 2 + 1,
+                REQUIRE(!addBuyingLiabilities(UINT32_MAX, INT64_MAX / 2 + 1,
                                               INT64_MAX / 2, 1));
-                REQUIRE(!addBuyingLiabilities(INT64_MAX, INT64_MAX / 2,
+                REQUIRE(!addBuyingLiabilities(UINT32_MAX, INT64_MAX / 2,
                                               INT64_MAX / 2 + 1, 1));
-                REQUIRE(addBuyingLiabilities(INT64_MAX, INT64_MAX / 2,
+                REQUIRE(addBuyingLiabilities(UINT32_MAX, INT64_MAX / 2,
                                              INT64_MAX / 2, 1));
             }
         });
@@ -682,7 +682,7 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
 
     SECTION("account add balance")
     {
-        auto addBalance = [&](int64_t initNumSubEntries, int64_t initBalance,
+        auto addBalance = [&](uint32_t initNumSubEntries, int64_t initBalance,
                               Liabilities initLiabilities,
                               int64_t deltaBalance) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
@@ -779,9 +779,10 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
 
     SECTION("account add subentries")
     {
-        auto addSubEntries = [&](int64_t initNumSubEntries, int64_t initBalance,
+        auto addSubEntries = [&](uint32_t initNumSubEntries,
+                                 int64_t initBalance,
                                  int64_t initSellingLiabilities,
-                                 int64_t deltaNumSubEntries) {
+                                 int32_t deltaNumSubEntries) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
             ae.balance = initBalance;
             ae.numSubEntries = initNumSubEntries;
@@ -938,7 +939,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
 
     SECTION("account available balance")
     {
-        auto checkAvailableBalance = [&](int64_t initNumSubEntries,
+        auto checkAvailableBalance = [&](uint32_t initNumSubEntries,
                                          int64_t initBalance,
                                          int64_t initSellingLiabilities) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
@@ -987,7 +988,7 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
 
     SECTION("account available limit")
     {
-        auto checkAvailableLimit = [&](int64_t initNumSubEntries,
+        auto checkAvailableLimit = [&](uint32_t initNumSubEntries,
                                        int64_t initBalance,
                                        int64_t initBuyingLiabilities) {
             AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
