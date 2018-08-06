@@ -822,9 +822,6 @@
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp">
       <Filter>invariant</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\invariant\MinimumAccountBalance.cpp">
-      <Filter>invariant</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp">
       <Filter>invariant\tests</Filter>
     </ClCompile>
@@ -835,9 +832,6 @@
       <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp">
-      <Filter>invariant\tests</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\invariant\MinimumAccountBalanceTests.cpp">
       <Filter>invariant\tests</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\database\DatabaseConnectionStringTest.cpp">
@@ -869,6 +863,15 @@
     </ClCompile>
     <ClCompile Include="..\..\src\overlay\LoadManagerTests.cpp">
       <Filter>overlay\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp">
+      <Filter>invariant\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp">
+      <Filter>invariant</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp">
+      <Filter>ledger\tests</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1478,9 +1481,6 @@
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h">
       <Filter>invariant</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\invariant\MinimumAccountBalance.h">
-      <Filter>invariant</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\main\Maintainer.h">
       <Filter>main</Filter>
     </ClInclude>
@@ -1498,6 +1498,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\overlay\PeerSharedKeyId.h">
       <Filter>overlay</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
+      <Filter>invariant</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -89,6 +89,7 @@
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -145,6 +146,7 @@ exit /b 0
       </ControlFlowGuard>
       <SmallerTypeCheck>false</SmallerTypeCheck>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -201,6 +203,7 @@ exit /b 0
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DisableSpecificWarnings>4060;4100;4127;4324;4408;4510;4512;4582;4583;4592</DisableSpecificWarnings>
       <ControlFlowGuard>false</ControlFlowGuard>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -602,7 +605,7 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\InvariantManagerImpl.h" />
     <ClInclude Include="..\..\src\invariant\InvariantTestUtils.h" />
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
-    <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
+    <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
     <ClInclude Include="..\..\src\ledger\DataFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />
