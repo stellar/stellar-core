@@ -11,6 +11,7 @@ Most objects are the straight representation of the equivalent XDR object.
 See [`src/ledger/readme.md`](/src/ledger/readme.md) for a detailed description of those.
 
 Types used in the tables:
+
 Type Name | Description
 --------- | -----------
 HEX | Hex encoded binary blob
