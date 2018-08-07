@@ -871,7 +871,8 @@ LedgerManagerImpl::closeLedger(LedgerCloseData const& ledgerData)
             // Note: Index from 1 rather than 0 to match the behavior of
             // storeTransaction and storeTransactionFee.
             Upgrades::storeUpgradeHistory(*this, lupgrade,
-                                          upgradeDelta.getChanges(), i + 1);
+                                          upgradeDelta.getChanges(),
+                                          static_cast<int>(i + 1));
             upgradeDelta.commit();
             upgradeScope.commit();
         }
