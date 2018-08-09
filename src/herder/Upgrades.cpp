@@ -479,6 +479,95 @@ shouldDeleteOffer(Asset const& asset, int64_t effectiveBalance,
                         : true;
 }
 
+enum class UpdateOfferResult
+{
+    Unchanged,
+    Adjusted,
+    AdjustedToZero,
+    Erased
+};
+
+static UpdateOfferResult
+updateOffer(
+    OfferFrame& offerFrame, int64_t balance, int64_t balanceAboveReserve,
+    std::map<Asset, Liabilities>& liabilities,
+    std::map<Asset, std::unique_ptr<int64_t>> const& initialBuyingLiabilities,
+    std::map<Asset, std::unique_ptr<int64_t>> const& initialSellingLiabilities,
+    LedgerDelta& ld, Database& db)
+{
+    using namespace std::placeholders;
+    auto& offer = offerFrame.getOffer();
+
+    auto availableBalanceBind = std::bind(getAvailableBalance, offer.sellerID,
+                                          _1, _2, std::ref(ld), std::ref(db));
+    auto availableLimitBind = std::bind(getAvailableLimit, offer.sellerID, _1,
+                                        _2, std::ref(ld), std::ref(db));
+
+    bool erase =
+        shouldDeleteOffer(offer.selling, balanceAboveReserve,
+                          initialSellingLiabilities, availableBalanceBind);
+    erase = erase ||
+            shouldDeleteOffer(offer.buying, balance, initialBuyingLiabilities,
+                              availableLimitBind);
+    UpdateOfferResult res =
+        erase ? UpdateOfferResult::Erased : UpdateOfferResult::Unchanged;
+
+    // If erase == false then we know that the total buying liabilities
+    // of the buying asset do not exceed its available limit, and the
+    // total selling liabilities of the selling asset do not exceed its
+    // available balance. This implies that there are no excess
+    // liabilities for this offer, so the only applicable limit is the
+    // offer amount. We then use adjustOffer to check that it will
+    // satisfy thresholds.
+    if (!erase && adjustOffer(offerFrame.getPrice(), offerFrame.getAmount(),
+                              INT64_MAX) == 0)
+    {
+        erase = true;
+        res = UpdateOfferResult::AdjustedToZero;
+    }
+
+    if (erase)
+    {
+        offerFrame.storeDelete(ld, db);
+    }
+    else
+    {
+        // The same logic for adjustOffer discussed above applies here,
+        // except that we now actually update the offer to reflect the
+        // adjustment.
+        auto adjAmount = adjustOffer(offerFrame.getPrice(),
+                                     offerFrame.getAmount(), INT64_MAX);
+        if (adjAmount != offer.amount)
+        {
+            offer.amount = adjAmount;
+            res = UpdateOfferResult::Adjusted;
+        }
+        offerFrame.storeChange(ld, db);
+
+        if (offer.buying.type() == ASSET_TYPE_NATIVE ||
+            !(offer.sellerID == getIssuer(offer.buying)))
+        {
+            if (!stellar::addBalance(liabilities[offer.buying].buying,
+                                     offerFrame.getBuyingLiabilities()))
+            {
+                throw std::runtime_error("could not add buying "
+                                         "liabilities");
+            }
+        }
+        if (offer.selling.type() == ASSET_TYPE_NATIVE ||
+            !(offer.sellerID == getIssuer(offer.selling)))
+        {
+            if (!stellar::addBalance(liabilities[offer.selling].selling,
+                                     offerFrame.getSellingLiabilities()))
+            {
+                throw std::runtime_error("could not add selling "
+                                         "liabilities");
+            }
+        }
+    }
+    return res;
+}
+
 // This function is used to bring offers and liabilities into a valid state.
 // For every account that has offers,
 //   1. Calculate total liabilities for each asset
@@ -492,12 +581,15 @@ shouldDeleteOffer(Asset const& asset, int64_t effectiveBalance,
 static void
 prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
 {
-    using namespace std::placeholders;
+    CLOG(INFO, "Ledger") << "Starting prepareLiabilities";
 
     auto& db = ledgerManager.getDatabase();
     db.getEntryCache().clear();
     auto offersByAccount = OfferFrame::loadAllOffers(db);
 
+    uint64_t nChangedAccounts = 0;
+    uint64_t nChangedTrustLines = 0;
+    std::map<UpdateOfferResult, uint64_t> nUpdatedOffers;
     for (auto& accountOffers : offersByAccount)
     {
         // The purpose of std::unique_ptr here is to have a special value
@@ -522,6 +614,7 @@ prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
         {
             throw std::runtime_error("account does not exist");
         }
+        AccountEntry const accountBefore = accountFrame->getAccount();
 
         // balanceAboveReserve must exclude native selling liabilities, since
         // these are in the process of being recalculated from scratch.
@@ -532,69 +625,36 @@ prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
         std::map<Asset, Liabilities> liabilities;
         for (auto const& offerFrame : accountOffers.second)
         {
-            auto& offer = offerFrame->getOffer();
-
-            auto availableBalanceBind =
-                std::bind(getAvailableBalance, offer.sellerID, _1, _2,
-                          std::ref(ld), std::ref(db));
-            auto availableLimitBind =
-                std::bind(getAvailableLimit, offer.sellerID, _1, _2,
-                          std::ref(ld), std::ref(db));
-
-            bool erase = shouldDeleteOffer(offer.selling, balanceAboveReserve,
-                                           initialSellingLiabilities,
-                                           availableBalanceBind);
-            erase = erase || shouldDeleteOffer(offer.buying, balance,
-                                               initialBuyingLiabilities,
-                                               availableLimitBind);
-
-            // If erase == false then we know that the total buying liabilities
-            // of the buying asset do not exceed its available limit, and the
-            // total selling liabilities of the selling asset do not exceed its
-            // available balance. This implies that there are no excess
-            // liabilities for this offer, so the only applicable limit is the
-            // offer amount. We then use adjustOffer to check that it will
-            // satisfy thresholds.
-            erase =
-                erase || (adjustOffer(offerFrame->getPrice(),
-                                      offerFrame->getAmount(), INT64_MAX) == 0);
-
-            if (erase)
+            auto offerID = offerFrame->getOfferID();
+            auto res = updateOffer(*offerFrame, balance, balanceAboveReserve,
+                                   liabilities, initialBuyingLiabilities,
+                                   initialSellingLiabilities, ld, db);
+            if (res == UpdateOfferResult::AdjustedToZero ||
+                res == UpdateOfferResult::Erased)
             {
                 accountFrame->addNumEntries(-1, ledgerManager);
-                offerFrame->storeDelete(ld, db);
             }
-            else
-            {
-                // The same logic for adjustOffer discussed above applies here,
-                // except that we now actually update the offer to reflect the
-                // adjustment.
-                offer.amount = adjustOffer(offerFrame->getPrice(),
-                                           offerFrame->getAmount(), INT64_MAX);
-                offerFrame->storeChange(ld, db);
 
-                if (offer.buying.type() == ASSET_TYPE_NATIVE ||
-                    !(offer.sellerID == getIssuer(offer.buying)))
+            ++nUpdatedOffers[res];
+            if (res != UpdateOfferResult::Unchanged)
+            {
+                std::string message;
+                switch (res)
                 {
-                    if (!stellar::addBalance(
-                            liabilities[offer.buying].buying,
-                            offerFrame->getBuyingLiabilities()))
-                    {
-                        throw std::runtime_error("could not add buying "
-                                                 "liabilities");
-                    }
+                case UpdateOfferResult::Adjusted:
+                    message = " was adjusted";
+                    break;
+                case UpdateOfferResult::AdjustedToZero:
+                    message = " was adjusted to zero";
+                    break;
+                case UpdateOfferResult::Erased:
+                    message = " was erased";
+                    break;
+                default:
+                    throw std::runtime_error("Unknown UpdateOfferResult");
                 }
-                if (offer.selling.type() == ASSET_TYPE_NATIVE ||
-                    !(offer.sellerID == getIssuer(offer.selling)))
-                {
-                    if (!stellar::addBalance(
-                            liabilities[offer.selling].selling,
-                            offerFrame->getSellingLiabilities()))
-                    {
-                        throw std::runtime_error("could not add selling "
-                                                 "liabilities");
-                    }
-                }
+                CLOG(DEBUG, "Ledger")
+                    << "Offer with offerID=" << offerID << message;
             }
         }
 
@@ -633,6 +693,11 @@ prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
                 int64_t deltaBuying =
                     liab.buying -
                     trustFrame->getBuyingLiabilities(ledgerManager);
+                if (deltaSelling != 0 || deltaBuying != 0)
+                {
+                    ++nChangedTrustLines;
+                }
+
                 if (!trustFrame->addSellingLiabilities(deltaSelling,
                                                        ledgerManager))
                 {
@@ -649,10 +714,23 @@ prepareLiabilities(LedgerManager& ledgerManager, LedgerDelta& ld)
             }
         }
 
+        if (!(accountFrame->getAccount() == accountBefore))
+        {
+            ++nChangedAccounts;
+        }
         accountFrame->storeChange(ld, db);
     }
 
     db.getEntryCache().clear();
+    CLOG(INFO, "Ledger") << "prepareLiabilities completed with "
+                         << nChangedAccounts << " accounts modified, "
+                         << nChangedTrustLines << " trustlines modified, "
+                         << nUpdatedOffers[UpdateOfferResult::Adjusted]
+                         << " offers adjusted, "
+                         << nUpdatedOffers[UpdateOfferResult::AdjustedToZero]
+                         << " offers adjusted to zero, and "
+                         << nUpdatedOffers[UpdateOfferResult::Erased]
+                         << " offers erased";
 }
 
 void
