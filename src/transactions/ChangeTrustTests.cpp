@@ -32,6 +32,67 @@ TEST_CASE("change trust", "[tx][changetrust]")
     auto gateway = root.create("gw", minBalance2);
     Asset idr = makeAsset(gateway, "IDR");
 
+    SECTION("crust tests")
+    {
+        SECTION("create+trust") {
+            for_all_versions(*app, [&] {
+                auto sk = getAccount("crust1");
+
+                auto ca = createAccount(sk.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
+                auto ct = changeTrust(idr, 10000, sk.getPublicKey());
+
+                REQUIRE_NOTHROW(applyTx(root.tx({ca, ct}),
+                                        *app));
+
+                auto af = loadAccount(sk.getPublicKey(), *app, false);
+
+                auto a1 = TestAccount(*app, sk);
+
+                REQUIRE_NOTHROW(gateway.pay(a1, idr, 1)); 
+            });
+        }
+        SECTION("create+trust (multiple)") {
+            for_all_versions(*app, [&] {
+                auto sk1 = getAccount("crust1");
+                auto sk2 = getAccount("crust2");
+
+                auto ca1 = createAccount(sk1.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
+                auto ct1 = changeTrust(idr, 10000, sk1.getPublicKey());
+
+                auto ca2 = createAccount(sk2.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
+                auto ct2 = changeTrust(idr, 10000, sk2.getPublicKey());
+
+                REQUIRE_NOTHROW(applyTx(root.tx({ca1, ct1, ca2, ct2}),
+                                        *app));
+
+                auto af1 = loadAccount(sk1.getPublicKey(), *app, false);
+                auto af2 = loadAccount(sk2.getPublicKey(), *app, false);
+
+                auto a1 = TestAccount(*app, sk1);
+                auto a2 = TestAccount(*app, sk2);
+
+                REQUIRE_NOTHROW(gateway.pay(a1, idr, 1));
+                REQUIRE_NOTHROW(a2.changeTrust(idr, 0));
+            });
+        }
+        SECTION("create, then trust") {
+            for_all_versions(*app, [&] {
+                auto sk = getAccount("crust2");
+
+                auto ca = createAccount(sk.getPublicKey(), app->getLedgerManager().getMinBalance(0) * 2);
+                auto ct = changeTrust(idr, 10000, sk.getPublicKey());
+
+                applyTx(root.tx({ca}), *app);
+
+                REQUIRE_THROWS_AS(applyTx(root.tx({ct}),
+                                          *app), xdr::xdr_wrong_union);
+
+                auto a2 = TestAccount(*app, sk);
+
+                REQUIRE_THROWS_AS(gateway.pay(a2, idr, 1), ex_PAYMENT_NO_TRUST);
+            });
+        }
+    }
     SECTION("basic tests")
     {
         for_all_versions(*app, [&] {
