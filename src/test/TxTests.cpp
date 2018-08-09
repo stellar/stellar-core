@@ -261,6 +261,19 @@ changeTrust(Asset const& asset, int64_t limit)
 }
 
 Operation
+changeTrust(Asset const& asset, int64_t limit, AccountID account)
+{
+    Operation op;
+
+    op.body.type(CHANGE_TRUST);
+    op.body.changeTrustOp().limit = limit;
+    op.body.changeTrustOp().line = asset;
+    op.sourceAccount.activate() = account;
+
+    return op;
+}
+
+Operation
 allowTrust(PublicKey const& trustor, Asset const& asset, bool authorize)
 {
     Operation op;
