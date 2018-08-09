@@ -112,7 +112,7 @@ void
 checkTransaction(TransactionFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
-            app.getLedgerManager().getTxFee());
+            app.getLedgerManager().getTxFee() * txFrame.getOperations().size());
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
