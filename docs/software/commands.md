@@ -34,9 +34,9 @@ forcescp doesn't change the requirements for quorum so although this node will e
 * **--metric METRIC**: Report metric METRIC on exit. Used for gathering a metric cumulatively during a test run.
 * **--newdb**: Clears the local database and resets it to the genesis ledger. If you connect to the network after that it will catch up from scratch. 
 * **--newhist ARCH**:  Initialize the named history archive ARCH. ARCH should be one of the history archives you have specified in the stellar-core.cfg. This will write a `.well-known/stellar-history.json` file in the archive root.
-* **--printtxn FILE**:  Pretty-print a binary file containing a
-  `TransactionEnvelope`.  If FILE is "-", the transaction is read from
+* **--printxdr FILE**:  Pretty-print a binary file containing an XDR object. If FILE is "-", the XDR object is read from
   standard input.
+* **--filetype [auto|ledgerheader|meta|result|resultpair|tx|txfee]**: toggle for type used for printxdr (default: auto).
 * **--signtxn FILE**:  Add a digital signature to a transaction
   envelope stored in binary format in FILE, and send the result to
   standard output (which should be redirected to a file or piped
