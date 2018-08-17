@@ -166,7 +166,9 @@ debugging purpose).
   * `/upgrades?mode=clear`<br>
   clears any upgrade settings<br>
   * `/upgrades?mode=set&upgradetime=DATETIME&[basefee=NUM]&[basereserve=NUM]&[maxtxsize=NUM]&[protocolversion=NUM]`<br>
-  upgradetime is a required date (UTC) in the form 1970-01-01T00:00:00Z.<br>
+    * upgradetime is a required date (UTC) in the form `1970-01-01T00:00:00Z`. 
+        It is the time the upgrade will be scheduled for. If it is in the past,
+        the upgrade will occur immediately.<br>
     * fee (uint32) This is what you would prefer the base fee to be. It is
         in stroops<br>
     * basereserve (uint32) This is what you would prefer the base reserve 
