@@ -39,8 +39,9 @@ As stellar-core just implements the protocol, changes in the specification of th
  *what should have happened*
 
 ## Supporting files
+
  Paste here or link to a gist/s3 bucket/etc material relevant to this issue:
-    * configuration files (DON'T FORGET TO REMOVE SECRETS)
-    * log files - best is to have logs running at DEBUG level (`-ll DEBUG` on the command line)
+   * configuration files (DON'T FORGET TO REMOVE SECRETS)
+   * log files - best is to have logs running at DEBUG level (`-ll DEBUG` on the command line)
 
 
