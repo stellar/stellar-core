@@ -9,9 +9,9 @@ Describe what this pull request does, which issue it's resolving (usually applic
 --->
 
 # Checklist
-- [ ] Reviewed the [contributing](../CONTRIBUTING.md) document
+- [ ] Reviewed the [contributing](https://github.com/stellar/stellar-core/blob/master/CONTRIBUTING.md#submitting-changes) document
 - [ ] Rebased on top of master (no merge commits)
 - [ ] Ran `clang-format`
 - [ ] Compiles
 - [ ] Ran all tests
-- [ ] If change impacts performance, include supporting evidence per the [performance document](../performance-eval.md)
+- [ ] If change impacts performance, include supporting evidence per the [performance document](https://github.com/stellar/stellar-core/blob/master/performance-eval.md)
