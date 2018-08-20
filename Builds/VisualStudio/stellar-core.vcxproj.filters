@@ -642,9 +642,6 @@
     <ClCompile Include="..\..\src\catchup\CatchupWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\catchup\DownloadBucketsWork.cpp">
-      <Filter>catchup</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\catchup\VerifyLedgerChainWork.cpp">
       <Filter>catchup</Filter>
     </ClCompile>
@@ -661,6 +658,9 @@
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\historywork\DownloadBucketsWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\historywork\FetchRecentQsetsWork.cpp">
@@ -1343,9 +1343,6 @@
     <ClInclude Include="..\..\src\catchup\CatchupWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\catchup\DownloadBucketsWork.h">
-      <Filter>catchup</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\catchup\VerifyLedgerChainWork.h">
       <Filter>catchup</Filter>
     </ClInclude>
@@ -1362,6 +1359,9 @@
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\DownloadBucketsWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\FetchRecentQsetsWork.h">
