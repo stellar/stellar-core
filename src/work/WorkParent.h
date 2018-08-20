@@ -54,5 +54,11 @@ class WorkParent : public std::enable_shared_from_this<WorkParent>,
         addChild(w);
         return w;
     }
+
+    std::map<std::string, std::shared_ptr<Work>> const&
+    getChildren()
+    {
+        return mChildren;
+    }
 };
 }
