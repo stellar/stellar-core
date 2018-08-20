@@ -657,6 +657,9 @@
     <ClCompile Include="..\..\src\historywork\BatchDownloadWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\historywork\BatchWork.cpp">
+      <Filter>historyWork</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\historywork\BucketDownloadWork.cpp">
       <Filter>historyWork</Filter>
     </ClCompile>
@@ -1356,6 +1359,9 @@
       <Filter>ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BatchDownloadWork.h">
+      <Filter>historyWork</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\historywork\BatchWork.h">
       <Filter>historyWork</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\historywork\BucketDownloadWork.h">
