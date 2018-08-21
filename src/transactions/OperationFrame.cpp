@@ -175,9 +175,9 @@ OperationFrame::checkValid(SignatureChecker& signatureChecker, Application& app,
 
     if (mOperation.body.type() == CHANGE_TRUST)
     {
-	for (auto const& opFrame : mParentTx.getOperations())
-	{
-            auto body = opFrame->getOperation().body;
+        for (auto const& opFrame : mParentTx.getOperations())
+        {
+            auto const& body = opFrame->getOperation().body;
 
             if (body.type() == CREATE_ACCOUNT &&
                 body.createAccountOp().destination == *mOperation.sourceAccount)
