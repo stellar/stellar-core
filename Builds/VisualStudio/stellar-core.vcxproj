@@ -714,6 +714,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\GlobalChecks.h" />
     <ClInclude Include="..\..\src\util\HashOfHash.h" />
     <ClInclude Include="..\..\src\util\Logging.h" />
+    <ClInclude Include="..\..\src\util\LogSlowExecution.h" />
     <ClInclude Include="..\..\src\util\make_unique.h" />
     <ClInclude Include="..\..\src\util\Math.h" />
     <ClInclude Include="..\..\src\util\must_use.h" />
