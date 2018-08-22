@@ -75,7 +75,7 @@ TEST_CASE("change trust", "[tx][changetrust]")
                 REQUIRE_NOTHROW(a2.changeTrust(idr, 0));
             });
         }
-        SECTION("create, then trust") {
+        SECTION("create, then trust (separate tx) should fail") {
             for_all_versions(*app, [&] {
                 auto sk = getAccount("crust2");
 
