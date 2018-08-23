@@ -112,7 +112,7 @@ void
 checkTransaction(TransactionFrame& txFrame, Application& app)
 {
     REQUIRE(txFrame.getResult().feeCharged ==
-            app.getLedgerManager().getTxFee());
+            app.getLedgerManager().getTxFee() * txFrame.getOperations().size());
     REQUIRE((txFrame.getResultCode() == txSUCCESS ||
              txFrame.getResultCode() == txFAILED));
 }
@@ -256,6 +256,19 @@ changeTrust(Asset const& asset, int64_t limit)
     op.body.type(CHANGE_TRUST);
     op.body.changeTrustOp().limit = limit;
     op.body.changeTrustOp().line = asset;
+
+    return op;
+}
+
+Operation
+changeTrust(Asset const& asset, int64_t limit, AccountID account)
+{
+    Operation op;
+
+    op.body.type(CHANGE_TRUST);
+    op.body.changeTrustOp().limit = limit;
+    op.body.changeTrustOp().line = asset;
+    op.sourceAccount.activate() = account;
 
     return op;
 }
