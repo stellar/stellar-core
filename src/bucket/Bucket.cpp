@@ -26,6 +26,7 @@
 #include "main/Application.h"
 #include "medida/medida.h"
 #include "util/Fs.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/XDRStream.h"
@@ -151,7 +152,13 @@ Bucket::fresh(BucketManager& bucketManager,
 
     auto liveBucket = liveOut.getBucket(bucketManager);
     auto deadBucket = deadOut.getBucket(bucketManager);
-    return Bucket::merge(bucketManager, liveBucket, deadBucket);
+
+    std::shared_ptr<Bucket> bucket;
+    {
+        auto timer = LogSlowExecution("Bucket merge");
+        bucket = Bucket::merge(bucketManager, liveBucket, deadBucket);
+    }
+    return bucket;
 }
 
 inline void
