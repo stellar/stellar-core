@@ -2126,6 +2126,145 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
     }
 }
 
+TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    // core3 has an edge case where v-blocking and quorum can be the same
+    // v-blocking set size: 2
+    // threshold: 2 = 1 + self or 2 others
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+    REQUIRE(xValue < yValue);
+
+    auto recvQuorumChecksEx2 = [&](genEnvelope gen, bool withChecks,
+                                   bool delayedQuorum, bool checkUpcoming,
+                                   bool minQuorum) {
+        SCPEnvelope e1 = gen(v1SecretKey);
+        SCPEnvelope e2 = gen(v2SecretKey);
+
+        scp.bumpTimerOffset();
+
+        size_t i = scp.mEnvs.size() + 1;
+        scp.receiveEnvelope(e1);
+        if (withChecks && !delayedQuorum)
+        {
+            REQUIRE(scp.mEnvs.size() == i);
+        }
+        if (checkUpcoming)
+        {
+            REQUIRE(scp.hasBallotTimerUpcoming());
+        }
+        if (!minQuorum)
+        {
+            // nothing happens with an extra vote (unless we're in
+            // delayedQuorum)
+            scp.receiveEnvelope(e2);
+            if (withChecks)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+        }
+    };
+    auto recvQuorumChecksEx =
+        std::bind(recvQuorumChecksEx2, _1, _2, _3, _4, false);
+    auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
+    auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
+    auto recvQuorum = std::bind(recvQuorumEx, _1, false);
+
+    // no timer is set
+    REQUIRE(!scp.hasBallotTimer());
+
+    Value const& aValue = yValue;
+    Value const& bValue = xValue;
+
+    SCPBallot A1(1, aValue);
+    SCPBallot B1(1, bValue);
+
+    SCPBallot A2 = A1;
+    A2.counter++;
+
+    SCPBallot A3 = A2;
+    A3.counter++;
+
+    SCPBallot A4 = A3;
+    A4.counter++;
+
+    SCPBallot A5 = A4;
+    A5.counter++;
+
+    SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
+
+    SCPBallot B2 = B1;
+    B2.counter++;
+
+    SCPBallot B3 = B2;
+    B3.counter++;
+
+    REQUIRE(scp.bumpState(0, aValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+    REQUIRE(!scp.hasBallotTimer());
+
+    SECTION("prepared B1 (quorum votes B1)")
+    {
+        scp.bumpTimerOffset();
+        recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+        REQUIRE(scp.hasBallotTimer());
+        SECTION("quorum prepared B1")
+        {
+            scp.bumpTimerOffset();
+            recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), true, false);
+#ifdef GOOD
+            REQUIRE(scp.mEnvs.size() == 3);
+#else
+            // BAD (should be noop)
+            REQUIRE(scp.mEnvs.size() == 3);
+            verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &B1, 0,
+                          1);
+            // REQUIRE(!scp.hasBallotTimer());
+#endif
+            SECTION("quorum bumps to A2")
+            {
+                scp.bumpTimerOffset();
+                recvQuorumChecksEx2(makePrepareGen(qSetHash, A2, &B1), false,
+                                    false, false, true);
+#ifdef GOOD
+                REQUIRE(scp.mEnvs.size() == 7);
+                REQUIRE(scp.hasBallotTimerUpcoming());
+#else
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, A1, &A1,
+                              0, 1, &B1);
+
+                scp.bumpTimerOffset();
+                // quorum commits A1
+                recvQuorumChecksEx2(
+                    makePrepareGen(qSetHash, A2, &A1, 1, 1, &B1), false, false,
+                    false, true);
+                REQUIRE(scp.mEnvs.size() == 5);
+                verifyConfirm(scp.mEnvs[4], v0SecretKey, qSetHash0, 0, 3, A3, 3,
+                              3);
+#endif
+            }
+        }
+    }
+}
+
 TEST_CASE("nomination tests core5", "[scp][nominationprotocol]")
 {
     SIMULATION_CREATE_NODE(0);
