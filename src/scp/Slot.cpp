@@ -328,7 +328,12 @@ Slot::getJsonInfo()
 Json::Value
 Slot::getJsonQuorumInfo(NodeID const& id, bool summary)
 {
-    return mBallotProtocol.getJsonQuorumInfo(id, summary);
+    Json::Value ret = mBallotProtocol.getJsonQuorumInfo(id, summary);
+    if (getLocalNode()->isValidator())
+    {
+        ret["validated"] = isFullyValidated();
+    }
+    return ret;
 }
 
 bool
