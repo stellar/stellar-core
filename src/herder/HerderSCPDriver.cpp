@@ -198,6 +198,11 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
         {
             // if we're not tracking, there is not much more we can do to
             // validate
+            if (Logging::logTrace("Herder"))
+            {
+                CLOG(TRACE, "Herder")
+                    << "MaybeValidValue (not tracking) for slot " << slotIndex;
+            }
             return SCPDriver::kMaybeValidValue;
         }
 
@@ -206,6 +211,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
         {
             // we already moved on from this slot
             // still send it through for emitting the final messages
+            if (Logging::logTrace("Herder"))
+            {
+                CLOG(TRACE, "Herder")
+                    << "MaybeValidValue (already moved on) for slot "
+                    << slotIndex << ", at " << nextConsensusLedgerIndex();
+            }
             return SCPDriver::kMaybeValidValue;
         }
         if (nextConsensusLedgerIndex() < slotIndex)
@@ -215,8 +226,8 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
             CLOG(ERROR, "Herder")
                 << "HerderSCPDriver::validateValue"
                 << " i: " << slotIndex
-                << " processing a future message while tracking";
-
+                << " processing a future message while tracking; got: "
+                << nextConsensusLedgerIndex();
             return SCPDriver::kInvalidValue;
         }
         lastCloseTime = mTrackingSCP->mConsensusValue.closeTime;
@@ -225,6 +236,12 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
     // Check closeTime (not too old)
     if (b.closeTime <= lastCloseTime)
     {
+        if (Logging::logTrace("Herder"))
+        {
+            CLOG(TRACE, "Herder")
+                << "Close time too old for slot " << slotIndex << ", got "
+                << b.closeTime << " vs " << lastCloseTime;
+        }
         return SCPDriver::kInvalidValue;
     }
 
@@ -232,12 +249,24 @@ HerderSCPDriver::validateValueHelper(uint64_t slotIndex,
     uint64_t timeNow = mApp.timeNow();
     if (b.closeTime > timeNow + Herder::MAX_TIME_SLIP_SECONDS.count())
     {
+        if (Logging::logTrace("Herder"))
+        {
+            CLOG(TRACE, "Herder")
+                << "Close time too recent for slot " << slotIndex << ", got "
+                << b.closeTime << " vs " << timeNow;
+        }
         return SCPDriver::kInvalidValue;
     }
 
     if (!compat)
     {
         // this is as far as we can go if we don't have the state
+        if (Logging::logTrace("Herder"))
+        {
+            CLOG(TRACE, "Herder")
+                << "Can't validate locally, value may be valid for slot "
+                << slotIndex;
+        }
         return SCPDriver::kMaybeValidValue;
     }
 
