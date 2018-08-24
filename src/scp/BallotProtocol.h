@@ -48,6 +48,7 @@ class BallotProtocol
     std::unique_ptr<SCPBallot> mCommit;             // c
     std::map<NodeID, SCPEnvelope> mLatestEnvelopes; // M
     SCPPhase mPhase;                                // Phi
+    std::unique_ptr<Value> mValueOverride;          // z
 
     int mCurrentMessageLevel; // number of messages triggered in one run
 
@@ -164,7 +165,7 @@ class BallotProtocol
     std::set<SCPBallot> getPrepareCandidates(SCPStatement const& hint);
 
     // helper to perform step (8) from the paper
-    void updateCurrentIfNeeded();
+    bool updateCurrentIfNeeded(SCPBallot const& h);
 
     // An interval is [low,high] represented as a pair
     using Interval = std::pair<uint32, uint32>;
