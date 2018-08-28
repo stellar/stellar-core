@@ -10,6 +10,7 @@
 #include "main/Config.h"
 #include "overlay/StellarXDR.h"
 #include "util/Fs.h"
+#include "util/LogSlowExecution.h"
 #include "util/Logging.h"
 #include "util/TmpDir.h"
 #include "util/types.h"
@@ -171,7 +172,10 @@ BucketManagerImpl::adoptFileAsBucket(std::string const& filename,
     {
         CLOG(DEBUG, "Bucket") << "Deleting bucket file " << filename
                               << " that is redundant with existing bucket";
-        std::remove(filename.c_str());
+        {
+            auto timer = LogSlowExecution("Delete redundant bucket");
+            std::remove(filename.c_str());
+        }
     }
     else
     {
