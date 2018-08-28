@@ -163,6 +163,20 @@ SCP::isValidator()
     return mLocalNode->isValidator();
 }
 
+bool
+SCP::isSlotFullyValidated(uint64 slotIndex)
+{
+    auto slot = getSlot(slotIndex, false);
+    if (slot)
+    {
+        return slot->isFullyValidated();
+    }
+    else
+    {
+        return false;
+    }
+}
+
 size_t
 SCP::getKnownSlotsCount() const
 {

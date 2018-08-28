@@ -612,7 +612,7 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         {
             REQUIRE(scp.mEnvs.size() == i);
         }
-        if (checkUpcoming)
+        if (checkUpcoming && !delayedQuorum)
         {
             REQUIRE(scp.hasBallotTimerUpcoming());
         }
@@ -622,9 +622,17 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         {
             REQUIRE(scp.mEnvs.size() == i);
         }
+        if (checkUpcoming && delayedQuorum)
+        {
+            REQUIRE(scp.hasBallotTimerUpcoming());
+        }
+
     };
+    // doesn't check timers
     auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
+    // checks enabled, no delayed quorum
     auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
+    // checks enabled, no delayed quorum, no check timers
     auto recvQuorum = std::bind(recvQuorumEx, _1, false);
 
     auto nodesAllPledgeToCommit = [&]() {
@@ -1016,6 +1024,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                             verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0,
                                           0, A2, &B2, 0, 2, &A2);
                             REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                            recvQuorum(makePrepareGen(qSetHash, B2, &B2, 2, 2));
+                            REQUIRE(scp.mEnvs.size() == 7);
+                            verifyConfirm(scp.mEnvs[6], v0SecretKey, qSetHash0,
+                                          0, 2, B2, 2, 2);
+                            REQUIRE(!scp.hasBallotTimerUpcoming());
                         }
                         SECTION("higher counter")
                         {
@@ -1093,6 +1107,14 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                               0, 0, &A1);
                 REQUIRE(!scp.hasBallotTimerUpcoming());
             }
+            SECTION("switch prepare B1")
+            {
+                recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
+                REQUIRE(scp.mEnvs.size() == 3);
+                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &B1,
+                              0, 0, &A1);
+                REQUIRE(!scp.hasBallotTimerUpcoming());
+            }
         }
         SECTION("prepared B (v-blocking)")
         {
@@ -1100,6 +1122,12 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
             REQUIRE(scp.mEnvs.size() == 2);
             verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
             REQUIRE(!scp.hasBallotTimer());
+        }
+        SECTION("prepare B (quorum)")
+        {
+            recvQuorumChecksEx(makePrepareGen(qSetHash, B1), true, true, true);
+            REQUIRE(scp.mEnvs.size() == 2);
+            verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
         }
         SECTION("confirm (v-blocking)")
         {
@@ -1513,22 +1541,20 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
                     }
                     SECTION("mixed B2")
                     {
-                        // causes h=B2
-                        // but c = 0, as p >!~ h
+                        // causes computed_h=B2 ~ not set as h ~!= b
+                        // -> noop
                         scp.bumpTimerOffset();
                         scp.receiveEnvelope(
                             makePrepare(v3SecretKey, qSetHash, 0, A2, &B2));
 
-                        REQUIRE(scp.mEnvs.size() == 6);
-                        verifyPrepare(scp.mEnvs[5], v0SecretKey, qSetHash0, 0,
-                                      A2, &A2, 0, 2, &B2);
+                        REQUIRE(scp.mEnvs.size() == 5);
                         REQUIRE(!scp.hasBallotTimerUpcoming());
 
                         scp.bumpTimerOffset();
                         scp.receiveEnvelope(
                             makePrepare(v4SecretKey, qSetHash, 0, B2, &B2));
 
-                        REQUIRE(scp.mEnvs.size() == 6);
+                        REQUIRE(scp.mEnvs.size() == 5);
                         REQUIRE(!scp.hasBallotTimerUpcoming());
                     }
                 }
@@ -1983,6 +2009,32 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         verifyPrepare(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, newbx, &bx,
                       bx.counter, bx.counter);
     }
+    SECTION("timeout when h exists but can't be set -> vote for h")
+    {
+        // start with (1,y)
+        SCPBallot by(1, yValue);
+        REQUIRE(scp.bumpState(0, yValue));
+        REQUIRE(scp.mEnvs.size() == 1);
+
+        SCPBallot bx(1, xValue);
+        // but quorum goes with (1,x)
+        // v-blocking -> prepared
+        recvVBlocking(makePrepareGen(qSetHash, bx, &bx));
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, by, &bx);
+        // quorum -> confirm prepared (no-op as b > h)
+        recvQuorumChecks(makePrepareGen(qSetHash, bx, &bx), false, false);
+        REQUIRE(scp.mEnvs.size() == 2);
+
+        REQUIRE(scp.bumpState(0, yValue));
+        REQUIRE(scp.mEnvs.size() == 3);
+        SCPBallot newbx(2, xValue);
+        // on timeout:
+        // * we should move to the quorum's h value
+        // * c can't be set yet as b > h
+        verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, newbx, &bx, 0,
+                      bx.counter);
+    }
 
     SECTION("timeout from multiple nodes")
     {
@@ -2122,6 +2174,141 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         {
             scp2.mSCP.setStateFromEnvelope(
                 0, makeExternalize(v0SecretKey, qSetHash0, 0, b, 2));
+        }
+    }
+}
+
+TEST_CASE("ballot protocol core3", "[scp][ballotprotocol]")
+{
+    SIMULATION_CREATE_NODE(0);
+    SIMULATION_CREATE_NODE(1);
+    SIMULATION_CREATE_NODE(2);
+
+    // core3 has an edge case where v-blocking and quorum can be the same
+    // v-blocking set size: 2
+    // threshold: 2 = 1 + self or 2 others
+    SCPQuorumSet qSet;
+    qSet.threshold = 2;
+    qSet.validators.push_back(v0NodeID);
+    qSet.validators.push_back(v1NodeID);
+    qSet.validators.push_back(v2NodeID);
+
+    uint256 qSetHash = sha256(xdr::xdr_to_opaque(qSet));
+
+    TestSCP scp(v0SecretKey.getPublicKey(), qSet);
+
+    scp.storeQuorumSet(std::make_shared<SCPQuorumSet>(qSet));
+    uint256 qSetHash0 = scp.mSCP.getLocalNode()->getQuorumSetHash();
+
+    REQUIRE(xValue < yValue);
+
+    auto recvQuorumChecksEx2 = [&](genEnvelope gen, bool withChecks,
+                                   bool delayedQuorum, bool checkUpcoming,
+                                   bool minQuorum) {
+        SCPEnvelope e1 = gen(v1SecretKey);
+        SCPEnvelope e2 = gen(v2SecretKey);
+
+        scp.bumpTimerOffset();
+
+        size_t i = scp.mEnvs.size() + 1;
+        scp.receiveEnvelope(e1);
+        if (withChecks && !delayedQuorum)
+        {
+            REQUIRE(scp.mEnvs.size() == i);
+        }
+        if (checkUpcoming)
+        {
+            REQUIRE(scp.hasBallotTimerUpcoming());
+        }
+        if (!minQuorum)
+        {
+            // nothing happens with an extra vote (unless we're in
+            // delayedQuorum)
+            scp.receiveEnvelope(e2);
+            if (withChecks)
+            {
+                REQUIRE(scp.mEnvs.size() == i);
+            }
+        }
+    };
+    auto recvQuorumChecksEx =
+        std::bind(recvQuorumChecksEx2, _1, _2, _3, _4, false);
+    auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);
+    auto recvQuorumEx = std::bind(recvQuorumChecksEx, _1, true, false, _2);
+    auto recvQuorum = std::bind(recvQuorumEx, _1, false);
+
+    // no timer is set
+    REQUIRE(!scp.hasBallotTimer());
+
+    Value const& aValue = yValue;
+    Value const& bValue = xValue;
+
+    SCPBallot A1(1, aValue);
+    SCPBallot B1(1, bValue);
+
+    SCPBallot A2 = A1;
+    A2.counter++;
+
+    SCPBallot A3 = A2;
+    A3.counter++;
+
+    SCPBallot A4 = A3;
+    A4.counter++;
+
+    SCPBallot A5 = A4;
+    A5.counter++;
+
+    SCPBallot AInf(UINT32_MAX, aValue), BInf(UINT32_MAX, bValue);
+
+    SCPBallot B2 = B1;
+    B2.counter++;
+
+    SCPBallot B3 = B2;
+    B3.counter++;
+
+    REQUIRE(scp.bumpState(0, aValue));
+    REQUIRE(scp.mEnvs.size() == 1);
+    REQUIRE(!scp.hasBallotTimer());
+
+    SECTION("prepared B1 (quorum votes B1)")
+    {
+        scp.bumpTimerOffset();
+        recvQuorumChecks(makePrepareGen(qSetHash, B1), true, true);
+        REQUIRE(scp.mEnvs.size() == 2);
+        verifyPrepare(scp.mEnvs[1], v0SecretKey, qSetHash0, 0, A1, &B1);
+        REQUIRE(scp.hasBallotTimerUpcoming());
+        SECTION("quorum prepared B1")
+        {
+            scp.bumpTimerOffset();
+            recvQuorumChecks(makePrepareGen(qSetHash, B1, &B1), false, false);
+            REQUIRE(scp.mEnvs.size() == 2);
+            // nothing happens:
+            // computed_h = B1 (2)
+            //    does not actually update h as b > computed_h
+            //    also skips (3)
+            REQUIRE(!scp.hasBallotTimerUpcoming());
+            SECTION("quorum bumps to A1")
+            {
+                scp.bumpTimerOffset();
+                recvQuorumChecksEx2(makePrepareGen(qSetHash, A1, &B1), false,
+                                    false, false, true);
+
+                REQUIRE(scp.mEnvs.size() == 3);
+                // still does not set h as b > computed_h
+                verifyPrepare(scp.mEnvs[2], v0SecretKey, qSetHash0, 0, A1, &A1,
+                              0, 0, &B1);
+                REQUIRE(!scp.hasBallotTimerUpcoming());
+
+                scp.bumpTimerOffset();
+                // quorum commits A1
+                recvQuorumChecksEx2(
+                    makePrepareGen(qSetHash, A2, &A1, 1, 1, &B1), false, false,
+                    false, true);
+                REQUIRE(scp.mEnvs.size() == 4);
+                verifyConfirm(scp.mEnvs[3], v0SecretKey, qSetHash0, 0, 2, A1, 1,
+                              1);
+                REQUIRE(!scp.hasBallotTimerUpcoming());
+            }
         }
     }
 }

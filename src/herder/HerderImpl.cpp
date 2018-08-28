@@ -174,9 +174,20 @@ HerderImpl::valueExternalized(uint64 slotIndex, StellarValue const& value)
     // called both here and at the end (this one is in case of an exception)
     trackingHeartBeat();
 
+    bool validated = getSCP().isSlotFullyValidated(slotIndex);
+
     if (Logging::logDebug("Herder"))
-        CLOG(DEBUG, "Herder") << "HerderSCPDriver::valueExternalized"
-                              << " txSet: " << hexAbbrev(value.txSetHash);
+        CLOG(DEBUG, "Herder") << fmt::format(
+            "HerderSCPDriver::valueExternalized index: {} txSet: {}", slotIndex,
+            hexAbbrev(value.txSetHash));
+
+    if (getSCP().isValidator() && !validated)
+    {
+        CLOG(WARNING, "Herder")
+            << fmt::format("Ledger {} ({}) closed and could NOT be fully "
+                           "validated by validator",
+                           slotIndex, hexAbbrev(value.txSetHash));
+    }
 
     TxSetFramePtr externalizedSet = mPendingEnvelopes.getTxSet(value.txSetHash);
 
