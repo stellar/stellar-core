@@ -11,7 +11,7 @@
 #include "scp/QuorumSetUtils.h"
 #include "util/Logging.h"
 #include "util/XDROperators.h"
-#include "util/types.h"
+#include "util/numeric.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
 #include <unordered_set>
