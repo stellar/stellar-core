@@ -8,7 +8,6 @@
 #include "crypto/Hex.h"
 #include "crypto/SHA.h"
 #include "lib/json/json.h"
-#include "main/Config.h"
 #include "scp/LocalNode.h"
 #include "scp/QuorumSetUtils.h"
 #include "util/GlobalChecks.h"
