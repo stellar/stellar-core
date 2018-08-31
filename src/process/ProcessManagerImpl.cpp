@@ -511,12 +511,25 @@ ProcessExitEvent::Impl::run()
     // Iterate through all possibly open file descriptors except stdin, stdout,
     // and stderr and set FD_CLOEXEC so the subprocess doesn't inherit them
     const int maxFds = sysconf(_SC_OPEN_MAX);
-    for (int fd = 3; fd < maxFds; ++fd)
+    // as the space of open file descriptors is arbitrary large
+    // we use as a heuristic the number of consecutive unused descriptors
+    // as an indication that we're past the range where descriptors are
+    // allocated
+    // a better way would be to enumerate the opened descriptors, but there
+    // doesn't seem to be a portable way to do this
+    const int maxGAP = 512;
+    for (int fd = 3, lastFd = 3; (fd < maxFds) && ((fd - lastFd) < maxGAP);
+         ++fd)
     {
         int flags = fcntl(fd, F_GETFD);
         if (flags != -1)
         {
-            fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+            // set if it was not already set
+            if ((flags & FD_CLOEXEC) == 0)
+            {
+                fcntl(fd, F_SETFD, flags | FD_CLOEXEC);
+            }
+            lastFd = fd;
         }
     }
     err = posix_spawnp(&mProcessId, argv[0], fileActions,
