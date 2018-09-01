@@ -873,6 +873,9 @@
     <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp">
       <Filter>ledger\tests</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\util\numeric.cpp">
+      <Filter>util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\ledger\LedgerManager.h">
@@ -1501,6 +1504,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h">
       <Filter>invariant</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\LogSlowExecution.h">
+      <Filter>util</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\util\numeric.h">
+      <Filter>util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
