@@ -499,6 +499,7 @@ exit /b 0
     <ClCompile Include="..\..\src\util\Math.cpp" />
     <ClCompile Include="..\..\src\util\NtpClient.cpp" />
     <ClCompile Include="..\..\src\util\NtpWork.cpp" />
+    <ClCompile Include="..\..\src\util\numeric.cpp" />
     <ClCompile Include="..\..\src\util\SecretValue.cpp" />
     <ClCompile Include="..\..\src\util\StatusManager.cpp" />
     <ClCompile Include="..\..\src\util\StatusManagerTest.cpp" />
@@ -721,6 +722,7 @@ exit /b 0
     <ClInclude Include="..\..\src\util\NonCopyable.h" />
     <ClInclude Include="..\..\src\util\NtpClient.h" />
     <ClInclude Include="..\..\src\util\NtpWork.h" />
+    <ClInclude Include="..\..\src\util\numeric.h" />
     <ClInclude Include="..\..\src\util\optional.h" />
     <ClInclude Include="..\..\src\util\SecretValue.h" />
     <ClInclude Include="..\..\src\util\SociNoWarnings.h" />
