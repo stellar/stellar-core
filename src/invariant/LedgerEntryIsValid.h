@@ -34,13 +34,14 @@ class LedgerEntryIsValid : public Invariant
 
   private:
     template <typename IterType>
-    std::string check(IterType iter, IterType const& end,
-                      uint32_t ledgerSeq) const;
+    std::string check(IterType iter, IterType const& end, uint32_t ledgerSeq,
+                      uint32 version) const;
 
-    std::string checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq) const;
-    std::string checkIsValid(AccountEntry const& ae) const;
-    std::string checkIsValid(TrustLineEntry const& tl) const;
-    std::string checkIsValid(OfferEntry const& oe) const;
-    std::string checkIsValid(DataEntry const& de) const;
+    std::string checkIsValid(LedgerEntry const& le, uint32_t ledgerSeq,
+                             uint32 version) const;
+    std::string checkIsValid(AccountEntry const& ae, uint32 version) const;
+    std::string checkIsValid(TrustLineEntry const& tl, uint32 version) const;
+    std::string checkIsValid(OfferEntry const& oe, uint32 version) const;
+    std::string checkIsValid(DataEntry const& de, uint32 version) const;
 };
 }
