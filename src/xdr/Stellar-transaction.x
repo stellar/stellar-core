@@ -226,6 +226,8 @@ struct ManageDataOp
 
     increases the sequence to a given level
 
+    Threshold: low
+
     Result: BumpSequenceResult
 */
 
