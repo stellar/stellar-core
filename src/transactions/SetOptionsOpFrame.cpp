@@ -293,6 +293,16 @@ SetOptionsOpFrame::doCheckValid(Application& app)
             innerResult().code(SET_OPTIONS_BAD_SIGNER);
             return false;
         }
+        if (mSetOptions.signer->weight > UINT8_MAX &&
+            app.getLedgerManager().getCurrentLedgerVersion() > 9)
+        {
+            app.getMetrics()
+                .NewMeter({"op-set-options", "invalid", "bad-signer"},
+                          "operation")
+                .Mark();
+            innerResult().code(SET_OPTIONS_BAD_SIGNER);
+            return false;
+        }
     }
 
     if (mSetOptions.homeDomain)
