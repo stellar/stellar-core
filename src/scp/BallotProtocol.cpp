@@ -349,8 +349,6 @@ BallotProtocol::bumpState(Value const& value, bool force)
         return false;
     }
 
-    SCPBallot newb;
-
     n = mCurrentBallot ? (mCurrentBallot->counter + 1) : 1;
 
     return bumpState(value, n);
