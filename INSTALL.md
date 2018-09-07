@@ -36,7 +36,7 @@ When running a node, the best bet is to go with the latest release.
     # sudo apt-get install software-properties-common
     # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config libtool autoconf automake libtool bison flex libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
+    # sudo apt-get install git build-essential pkg-config libtool autoconf automake libtool bison flex pandoc libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
 
 In order to make changes, you'll need to install the proper version of clang-format.
 
