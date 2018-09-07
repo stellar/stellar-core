@@ -23,6 +23,7 @@ When running a node, the best bet is to go with the latest release.
 
 - `clang` >= 5.0 or `g++` >= 5.0
 - `pkg-config`
+- `libtool`
 - `bison` and `flex`
 - `libpq-dev` unless you `./configure --disable-postgres` in the build step below.
 - 64-bit system
@@ -34,7 +35,7 @@ When running a node, the best bet is to go with the latest release.
 
     # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
+    # sudo apt-get install git build-essential pkg-config libtool autoconf automake libtool bison flex libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
 
 In order to make changes, you'll need to install the proper version of clang-format.
 
