@@ -1619,8 +1619,11 @@ BallotProtocol::setPrepared(SCPBallot const& ballot)
         }
         else if (comp > 0)
         {
-            // check if we should update only p'
-            if (!mPreparedPrime || compareBallots(*mPreparedPrime, ballot) < 0)
+            // check if we should update only p' with two situations:
+            // 1. p' is NULL
+            // 2. p' is smaller than ballot and p is incompatible with ballot
+            if (!mPreparedPrime || 
+                (compareBallots(*mPreparedPrime, ballot) < 0 && !areBallotsCompatible(*mPrepared, ballot)))
             {
                 mPreparedPrime = std::make_unique<SCPBallot>(ballot);
                 didWork = true;
