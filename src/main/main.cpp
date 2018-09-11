@@ -187,15 +187,6 @@ usage(int err = 1)
 }
 
 static void
-setNoListen(Config& cfg)
-{
-    // prevent opening up a port for other peers
-    cfg.RUN_STANDALONE = true;
-    cfg.HTTP_PORT = 0;
-    cfg.MANUAL_CLOSE = true;
-}
-
-static void
 sendCommand(std::string const& command, const std::vector<char*>& rest,
             unsigned short port)
 {
@@ -880,7 +871,7 @@ main(int argc, char* const* argv)
             doReportLastHistoryCheckpoint)
         {
             auto result = 0;
-            setNoListen(cfg);
+            cfg.setNoListen();
             if (newDB)
                 initializeDatabase(cfg);
             if ((result == 0) && (doCatchupAt || doCatchupComplete ||
@@ -926,7 +917,7 @@ main(int argc, char* const* argv)
         }
         else if (!newHistories.empty())
         {
-            setNoListen(cfg);
+            cfg.setNoListen();
             return initializeHistories(cfg, newHistories);
         }
 

@@ -835,4 +835,13 @@ Config::getExpectedLedgerCloseTime() const
     }
     return Herder::EXP_LEDGER_TIMESPAN_SECONDS;
 }
+
+void
+Config::setNoListen()
+{
+    // prevent opening up a port for other peers
+    RUN_STANDALONE = true;
+    HTTP_PORT = 0;
+    MANUAL_CLOSE = true;
+}
 }
