@@ -36,17 +36,22 @@ When running a node, the best bet is to go with the latest release.
     # sudo apt-get install software-properties-common
     # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
     # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config libtool autoconf automake libtool bison flex pandoc libpq-dev clang++-5.0 gcc-5 g++-5 cpp-5
+    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev
+    # sudo apt-get install clang++-5.0 gcc-5 g++-5 cpp-5
+    # sudo apt-get install pandoc
+    # #optional install for man pages
+    # sudo apt-get install pandoc
 
-In order to make changes, you'll need to install the proper version of clang-format.
+In order to make changes, you'll need to install the proper version of `clang-format`.
 
 In order to install the llvm (clang) toolchain, you may have to follow instructions on https://apt.llvm.org/
     # sudo apt-get install clang-format-5.0
 
+Note that, for proper documentation generation (man page), `pandoc` is needed:
+
 See [installing gcc 5 on ubuntu 14.04](https://askubuntu.com/questions/618474/how-to-install-the-latest-gcurrently-5-1-in-ubuntucurrently-14-04)
 
-Additional, for proper documentation generation (man page), pandoc is needed:
-    # sudo apt-get install pandoc
+
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
