@@ -33,14 +33,16 @@ When running a node, the best bet is to go with the latest release.
 
 ### Ubuntu 14.04
 
-    # sudo apt-get install software-properties-common
-    # sudo add-apt-repository ppa:ubuntu-toolchain-r/test
-    # sudo apt-get update
-    # sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev
-    # sudo apt-get install clang++-5.0 gcc-5 g++-5 cpp-5
-    # sudo apt-get install pandoc
-    # #optional install for man pages
-    # sudo apt-get install pandoc
+```
+sudo apt-get install software-properties-common
+sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+sudo apt-get update
+sudo apt-get install git build-essential pkg-config autoconf automake libtool bison flex libpq-dev
+sudo apt-get install clang++-5.0 gcc-5 g++-5 cpp-5
+sudo apt-get install pandoc
+#optional install for man pages
+sudo apt-get install pandoc
+```
 
 In order to make changes, you'll need to install the proper version of `clang-format`.
 
