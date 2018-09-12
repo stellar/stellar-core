@@ -171,6 +171,13 @@ base64Parser(bool& base64)
     return clara::Opt{base64}["--base64"]("use base64");
 }
 
+clara::Opt
+disableBucketGCParser(bool& disableBucketGC)
+{
+    return clara::Opt{disableBucketGC}["--disable-bucket-gc"](
+        "keeps all, even old, buckets on disk");
+}
+
 clara::Parser
 configurationParser(CommandLine::ConfigOption& configOption)
 {
@@ -394,24 +401,27 @@ runCatchup(CommandLineArgs const& args)
     auto catchupStringParser = ParserWithValidation{
         clara::Arg(catchupString, "DESTINATION-LEDGER/LEDGER-COUNT").required(),
         validateCatchupString};
+    auto disableBucketGC = false;
 
-    return runWithHelp(args,
-                       {configurationParser(configOption), catchupStringParser,
-                        outputFileParser(outputFile)},
-                       [&] {
-                           auto config = configOption.getConfig();
-                           config.setNoListen();
+    return runWithHelp(
+        args,
+        {configurationParser(configOption), catchupStringParser,
+         outputFileParser(outputFile), disableBucketGCParser(disableBucketGC)},
+        [&] {
+            auto config = configOption.getConfig();
+            config.setNoListen();
+            config.DISABLE_BUCKET_GC = disableBucketGC;
 
-                           VirtualClock clock(VirtualClock::REAL_TIME);
-                           auto app = Application::create(clock, config, false);
-                           Json::Value catchupInfo;
-                           auto result = catchup(
-                               app, parseCatchup(catchupString), catchupInfo);
-                           if (!catchupInfo.isNull())
-                               writeCatchupInfo(catchupInfo, outputFile);
+            VirtualClock clock(VirtualClock::REAL_TIME);
+            auto app = Application::create(clock, config, false);
+            Json::Value catchupInfo;
+            auto result =
+                catchup(app, parseCatchup(catchupString), catchupInfo);
+            if (!catchupInfo.isNull())
+                writeCatchupInfo(catchupInfo, outputFile);
 
-                           return result;
-                       });
+            return result;
+        });
 }
 
 int
@@ -613,21 +623,27 @@ int
 run(CommandLineArgs const& args)
 {
     CommandLine::ConfigOption configOption;
+    auto disableBucketGC = false;
 
-    return runWithHelp(args, {configurationParser(configOption)}, [&] {
-        Config cfg;
-        try
-        {
-            cfg = configOption.getConfig();
-        }
-        catch (std::exception& e)
-        {
-            LOG(FATAL) << "Got an exception: " << e.what();
-            return 1;
-        }
-        // run outside of catch block so that we properly capture crashes
-        return runWithConfig(cfg);
-    });
+    return runWithHelp(args,
+                       {configurationParser(configOption),
+                        disableBucketGCParser(disableBucketGC)},
+                       [&] {
+                           Config cfg;
+                           try
+                           {
+                               cfg = configOption.getConfig();
+                               cfg.DISABLE_BUCKET_GC = disableBucketGC;
+                           }
+                           catch (std::exception& e)
+                           {
+                               LOG(FATAL) << "Got an exception: " << e.what();
+                               return 1;
+                           }
+                           // run outside of catch block so that we properly
+                           // capture crashes
+                           return runWithConfig(cfg);
+                       });
 }
 
 int
