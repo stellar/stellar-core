@@ -57,26 +57,43 @@ See [installing gcc 5 on ubuntu 14.04](https://askubuntu.com/questions/618474/ho
 
 ### OS X
 When building on OSX, here's some dependencies you'll need:
+
 - Install xcode
 - Install homebrew
-- brew install libsodium
-- brew install libtool
-- brew install automake
-- brew install pkg-config
-- brew install libpqxx *(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
-- brew install pandoc
+
+Then:
+
+```
+brew install libsodium
+brew install libtool
+brew install automake
+brew install pkg-config
+brew install libpqxx
+#optional install for man pages
+brew install pandoc
+```
+
+*(If ./configure later complains about libpq missing, try PKG_CONFIG_PATH='/usr/local/lib/pkgconfig')*
 
 ### Windows
 See [INSTALL-Windows.md](INSTALL-Windows.md)
 
 ## Basic Installation
 
-- `git clone https://github.com/stellar/stellar-core.git`
-- `cd stellar-core`
-- `git submodule init`
-- `git submodule update`
-- Type `./autogen.sh`.
-- Type `./configure`   *(If configure complains about compiler versions, try `CXX=clang-5.0 ./configure` or `CXX=g++-5 ./configure` or similar, depending on your compiler.)*
-- Type `make` or `make -j` (for aggressive parallel build)
-- Type `make check` to run tests.
-- Type `make install` to install.
+```
+git clone https://github.com/stellar/stellar-core.git
+cd stellar-core
+git submodule init
+git submodule update
+./autogen.sh
+#If configure complains about compiler versions, try setting CXX environment variable, e.g.
+#CXX=clang-5.0 ./configure 
+#CXX=g++-5 ./configure 
+./configure
+#make or make -j for parallel build
+make
+#run tests
+make check
+#install
+make install
+```
