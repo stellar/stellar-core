@@ -19,7 +19,11 @@
 #include "test/test.h"
 #include "util/Fs.h"
 #include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
+#include "catchup/DownloadBucketsWork.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
+#include "historywork/VerifyBucketWork.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
 

@@ -10,7 +10,9 @@
 #include "test/test.h"
 #include "util/Fs.h"
 #include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
+#include "historywork/RunCommandWork.h"
 #include <cstdio>
 #include <fstream>
 #include <random>
@@ -49,6 +51,239 @@ TEST_CASE("work manager", "[work]")
     while (!wm.allChildrenSuccessful())
     {
         clock.crank();
+    }
+}
+
+class TestWork : public Work
+{
+    bool mRetry;
+
+  public:
+    int mSteps{3};
+    int mRunningCount{0};
+    int mSuccessCount{0};
+    int mFailureCount{0};
+    int mRetryCount{0};
+
+    TestWork(Application& app, std::function<void()> callback, std::string name,
+             bool retry = false)
+        : Work(app, callback, name, RETRY_ONCE), mRetry(retry)
+    {
+    }
+
+    BasicWork::State
+    doWork() override
+    {
+        if (mSteps-- > 0)
+        {
+            mRunningCount++;
+            return BasicWork::WORK_RUNNING;
+        }
+        return mRetry ? BasicWork::WORK_FAILURE_RETRY : BasicWork::WORK_SUCCESS;
+    }
+
+    void
+    onSuccess() override
+    {
+        mSuccessCount++;
+    }
+
+    void
+    onFailureRaise() override
+    {
+        mFailureCount++;
+    }
+
+    void
+    onFailureRetry() override
+    {
+        mRetryCount++;
+    }
+
+    void
+    onReset() override
+    {
+        mSteps = 3;
+    }
+};
+
+class TestWorkWaitForChildren : public Work
+{
+  public:
+    TestWorkWaitForChildren(Application& app, std::function<void()> callback,
+                            std::string name)
+        : Work(app, callback, name, RETRY_ONCE)
+    {
+    }
+
+    BasicWork::State
+    doWork() override
+    {
+        if (allChildrenSuccessful())
+        {
+            return BasicWork::WORK_SUCCESS;
+        }
+        return BasicWork::WORK_RUNNING;
+    }
+};
+
+TEST_CASE("Work scheduling", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    auto checkSuccess = [](TestWork const& w) {
+        REQUIRE(w.mRunningCount == w.mSteps);
+        REQUIRE(w.mSuccessCount == 1);
+        REQUIRE(w.mFailureCount == 0);
+        REQUIRE(w.mRetryCount == 0);
+    };
+
+    SECTION("basic one work")
+    {
+        auto w = wm.addWork<TestWork>("test-work");
+        while (!wm.allChildrenSuccessful())
+        {
+            clock.crank();
+        }
+        checkSuccess(*w);
+    }
+
+    SECTION("2 works round robin")
+    {
+        auto w1 = wm.addWork<TestWork>("test-work1");
+        auto w2 = wm.addWork<TestWork>("test-work2");
+        while (!wm.allChildrenSuccessful())
+        {
+            clock.crank();
+        }
+        checkSuccess(*w1);
+        checkSuccess(*w2);
+    }
+
+    SECTION("another work added midway")
+    {
+        int crankCount = 0;
+        auto w1 = wm.addWork<TestWork>("test-work1");
+        auto w2 = wm.addWork<TestWork>("test-work2");
+        while (!wm.allChildrenSuccessful())
+        {
+            if (++crankCount > 1)
+            {
+                wm.addWork<TestWork>("test-work3");
+            };
+            clock.crank();
+        }
+        checkSuccess(*w1);
+        checkSuccess(*w2);
+    }
+
+    SECTION("new work wakes up scheduler")
+    {
+        // Scheduler wakes up to execute work,
+        // and goes back into a waiting state once child is done
+        while (wm.getState() != BasicWork::WORK_WAITING)
+        {
+            clock.crank();
+        }
+
+        auto w = wm.addWork<TestWork>("test-work");
+        while (!wm.allChildrenSuccessful() ||
+               wm.getState() != BasicWork::WORK_WAITING)
+        {
+            clock.crank();
+        }
+        checkSuccess(*w);
+    }
+
+    SECTION("work retries and fails")
+    {
+        auto w = wm.addWork<TestWork>("test-work", true);
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+        REQUIRE(w->getState() == BasicWork::WORK_FAILURE_RAISE);
+
+        // Work of 3 steps retried once
+        REQUIRE(w->mRunningCount == w->mSteps * 2);
+        REQUIRE(w->mSuccessCount == 0);
+        REQUIRE(w->mFailureCount == 1);
+        REQUIRE(w->mRetryCount == 1);
+    }
+}
+
+TEST_CASE("work with children scheduling", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    auto w1 = wm.addWork<TestWorkWaitForChildren>("test-work1");
+    auto w2 = wm.addWork<TestWorkWaitForChildren>("test-work2");
+    auto w3 = w1->addWork<TestWork>("test-work3");
+
+    while (!wm.allChildrenSuccessful())
+    {
+        clock.crank();
+    }
+}
+
+class TestRunCommandWork : public RunCommandWork
+{
+    std::string mCommand;
+
+  public:
+    TestRunCommandWork(Application& app, std::function<void()> callback,
+                       std::string name, std::string command)
+        : RunCommandWork(app, callback, name), mCommand(command)
+    {
+    }
+    ~TestRunCommandWork() override = default;
+
+    RunCommandInfo
+    getCommand() override
+    {
+        return RunCommandInfo(mCommand, std::string());
+    }
+};
+
+TEST_CASE("RunCommandWork test", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    SECTION("one run command work")
+    {
+        wm.addWork<TestRunCommandWork>("test-run-command", "date");
+        while (!wm.allChildrenSuccessful())
+        {
+            clock.crank();
+        }
+    }
+    SECTION("round robin with other work")
+    {
+        wm.addWork<TestRunCommandWork>("test-run-command", "date");
+        wm.addWork<TestWork>("test-work");
+        while (!wm.allChildrenSuccessful())
+        {
+            clock.crank();
+        }
+    }
+    SECTION("invalid run command")
+    {
+        auto w =
+            wm.addWork<TestRunCommandWork>("test-run-command", "_invalid_");
+        while (!wm.allChildrenDone())
+        {
+            clock.crank();
+        }
+        REQUIRE(w->getState() == BasicWork::WORK_FAILURE_RAISE);
     }
 }
 
