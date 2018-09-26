@@ -39,6 +39,7 @@ class PersistentState;
 class LoadGenerator;
 class CommandHandler;
 class WorkManager;
+class WorkScheduler;
 class BanManager;
 class StatusManager;
 
@@ -205,6 +206,7 @@ class Application
     virtual PersistentState& getPersistentState() = 0;
     virtual CommandHandler& getCommandHandler() = 0;
     virtual WorkManager& getWorkManager() = 0;
+    virtual WorkScheduler& getWorkScheduler() = 0;
     virtual BanManager& getBanManager() = 0;
     virtual StatusManager& getStatusManager() = 0;
 

@@ -44,6 +44,7 @@
 #include "simulation/LoadGenerator.h"
 #include "util/StatusManager.h"
 #include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -119,6 +120,7 @@ ApplicationImpl::initialize()
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
     mWorkManager = WorkManager::create(*this);
+    mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
 
@@ -726,6 +728,12 @@ WorkManager&
 ApplicationImpl::getWorkManager()
 {
     return *mWorkManager;
+}
+
+WorkScheduler&
+ApplicationImpl::getWorkScheduler()
+{
+    return *mWorkScheduler;
 }
 
 BanManager&
