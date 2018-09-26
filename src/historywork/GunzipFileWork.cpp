@@ -7,26 +7,21 @@
 
 namespace stellar
 {
-
-GunzipFileWork::GunzipFileWork(Application& app, WorkParent& parent,
+GunzipFileWork::GunzipFileWork(Application& app, std::function<void()> callback,
                                std::string const& filenameGz, bool keepExisting,
                                size_t maxRetries)
-    : RunCommandWork(app, parent, std::string("gunzip-file ") + filenameGz,
-                     maxRetries)
+    : RunCommandWork(app, callback, std::string("gunzip-file ") + filenameGz,
+                        maxRetries)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
 {
     fs::checkGzipSuffix(mFilenameGz);
 }
 
-GunzipFileWork::~GunzipFileWork()
+RunCommandInfo
+GunzipFileWork::getCommand()
 {
-    clearChildren();
-}
-
-void
-GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
-{
+    std::string cmdLine, outFile;
     cmdLine = "gzip -d ";
     if (mKeepExisting)
     {
@@ -34,11 +29,21 @@ GunzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
         outFile = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     }
     cmdLine += mFilenameGz;
+    return RunCommandInfo(cmdLine, outFile);
 }
 
 void
-GunzipFileWork::onReset()
+GunzipFileWork::onFailureRaise()
 {
+    std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
+    std::remove(filenameNoGz.c_str());
+}
+
+void
+GunzipFileWork::onFailureRetry()
+{
+    // We shouldn't rely on atomicity of gzip (it's not anyways),
+    // hence clean up on failure
     std::string filenameNoGz = mFilenameGz.substr(0, mFilenameGz.size() - 3);
     std::remove(filenameNoGz.c_str());
 }

@@ -13,13 +13,16 @@ class GunzipFileWork : public RunCommandWork
 {
     std::string mFilenameGz;
     bool mKeepExisting;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    RunCommandInfo getCommand() override;
 
   public:
-    GunzipFileWork(Application& app, WorkParent& parent,
+    GunzipFileWork(Application& app, std::function<void()> callback,
                    std::string const& filenameGz, bool keepExisting = false,
                    size_t maxRetries = Work::RETRY_NEVER);
-    ~GunzipFileWork();
-    void onReset() override;
+    ~GunzipFileWork() = default;
+
+  protected:
+    void onFailureRaise() override;
+    void onFailureRetry() override;
 };
 }

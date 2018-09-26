@@ -4,9 +4,8 @@
 
 #pragma once
 
-#include "work/Work.h"
-
 #include "history/FileTransferInfo.h"
+#include "work/Work.h"
 
 namespace stellar
 {
@@ -21,18 +20,23 @@ class GetAndUnzipRemoteFileWork : public Work
     FileTransferInfo mFt;
     std::shared_ptr<HistoryArchive> mArchive;
 
+    bool validateFile();
+
   public:
     // Passing `nullptr` for the archive argument will cause the work to
     // select a new readable history archive at random each time it runs /
     // retries.
-    GetAndUnzipRemoteFileWork(Application& app, WorkParent& parent,
+    GetAndUnzipRemoteFileWork(Application& app, std::function<void()> callback,
                               FileTransferInfo ft,
                               std::shared_ptr<HistoryArchive> archive = nullptr,
-                              size_t maxRetries = Work::RETRY_A_LOT);
-    ~GetAndUnzipRemoteFileWork();
+                              size_t maxRetries = BasicWork::RETRY_A_LOT);
+    ~GetAndUnzipRemoteFileWork() = default;
     std::string getStatus() const override;
+
+  protected:
     void onReset() override;
-    Work::State onSuccess() override;
     void onFailureRaise() override;
+    void onFailureRetry() override;
+    State doWork() override;
 };
 }
