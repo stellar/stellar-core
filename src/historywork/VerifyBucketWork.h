@@ -22,19 +22,19 @@ class VerifyBucketWork : public Work
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     std::string mBucketFile;
     uint256 mHash;
+    bool mDone{false};
+    std::error_code mEc;
 
-    medida::Meter& mVerifyBucketSuccess;
-    medida::Meter& mVerifyBucketFailure;
+    void adoptBucket();
+    void spawnVerifier();
 
   public:
-    VerifyBucketWork(Application& app, WorkParent& parent,
+    VerifyBucketWork(Application& app, std::function<void()> callback,
                      std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                      std::string const& bucketFile, uint256 const& hash);
     ~VerifyBucketWork();
-    void onRun() override;
-    void onStart() override;
-    Work::State onSuccess() override;
-    void onFailureRetry() override;
-    void onFailureRaise() override;
+
+  protected:
+    BasicWork::State doWork() override;
 };
 }

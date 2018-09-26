@@ -16,37 +16,77 @@
 
 namespace stellar
 {
-
 VerifyBucketWork::VerifyBucketWork(
-    Application& app, WorkParent& parent,
+    Application& app, std::function<void()> callback,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::string const& bucketFile, uint256 const& hash)
-    : Work(app, parent, std::string("verify-bucket-hash ") + bucketFile,
-           RETRY_NEVER)
+    : Work(app, callback, "verify-bucket-hash-" + bucketFile, RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)
-    , mVerifyBucketSuccess{app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "success"}, "event")}
-    , mVerifyBucketFailure{app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "failure"}, "event")}
 {
-    fs::checkNoGzipSuffix(mBucketFile);
 }
 
 VerifyBucketWork::~VerifyBucketWork()
 {
-    clearChildren();
+}
+
+BasicWork::State
+VerifyBucketWork::doWork()
+{
+    // FIXME (mlo) this a logical problem, as this check shouldn't be here
+    // VerifyBucketWork shouldn't be required to know that it depends on
+    // GetAndUnzipRemoteFileWork. This will be resolved with batching though,
+    // as DownloadBuckets work will take care of when to dispatch download
+    // and verify tasks.
+    if (!allChildrenSuccessful())
+    {
+        return BasicWork::WORK_RUNNING;
+    }
+
+    if (mDone)
+    {
+        if (mEc)
+        {
+            return WORK_FAILURE_RETRY;
+        }
+
+        adoptBucket();
+        return WORK_SUCCESS;
+    }
+
+    spawnVerifier();
+    return WORK_WAITING;
 }
 
 void
-VerifyBucketWork::onStart()
+VerifyBucketWork::adoptBucket()
+{
+    assert(mDone);
+    assert(!mEc);
+
+    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
+    mBuckets[binToHex(mHash)] = b;
+}
+
+void
+VerifyBucketWork::spawnVerifier()
 {
     std::string filename = mBucketFile;
     uint256 hash = mHash;
-    Application& app = this->mApp;
-    auto handler = callComplete();
-    app.getWorkerIOService().post([&app, filename, handler, hash]() {
+    std::weak_ptr<VerifyBucketWork> weak(
+        std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
+    auto handler = [weak](asio::error_code const& ec) {
+        auto self = weak.lock();
+        if (self)
+        {
+            self->mEc = ec;
+            self->mDone = true;
+            self->wakeUp();
+        }
+    };
+
+    mApp.getWorkerIOService().post([filename, handler, hash]() {
         auto hasher = SHA256::create();
         asio::error_code ec;
         char buf[4096];
@@ -75,36 +115,7 @@ VerifyBucketWork::onStart()
                 ec = std::make_error_code(std::errc::io_error);
             }
         }
-        app.getClock().getIOService().post([ec, handler]() { handler(ec); });
+        handler(ec);
     });
-}
-
-void
-VerifyBucketWork::onRun()
-{
-    // Do nothing: we spawned the verifier in onStart().
-}
-
-Work::State
-VerifyBucketWork::onSuccess()
-{
-    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
-    mBuckets[binToHex(mHash)] = b;
-    mVerifyBucketSuccess.Mark();
-    return WORK_SUCCESS;
-}
-
-void
-VerifyBucketWork::onFailureRetry()
-{
-    mVerifyBucketFailure.Mark();
-    Work::onFailureRetry();
-}
-
-void
-VerifyBucketWork::onFailureRaise()
-{
-    mVerifyBucketFailure.Mark();
-    Work::onFailureRaise();
 }
 }
