@@ -64,6 +64,9 @@ private:
   /// Buffer for incoming data.
   std::array<char, 8192> buffer_;
 
+  /// Size of received data
+  size_t received_count_;
+
   /// The incoming request.
   request request_;
 

@@ -14,6 +14,8 @@
 #include "connection_manager.hpp"
 #include "server.hpp"
 
+#define MAX_REQUEST_SIZE (1024 * 1024 * 10) // 10 MB
+
 namespace http
 {
 namespace server
@@ -24,6 +26,7 @@ connection::connection(asio::ip::tcp::socket socket,
     : socket_(std::move(socket))
     , connection_manager_(manager)
     , request_handler_(handler)
+    , received_count_(0)
 {
 }
 
@@ -52,15 +55,16 @@ connection::do_read()
             request_parser::result_type result;
             std::tie(result, std::ignore) = request_parser_.parse(
                 request_, buffer_.data(), buffer_.data() + bytes_transferred);
+            received_count_ += bytes_transferred;
 
-            if (result == request_parser::good)
-            {
-                request_handler_.handle_request(request_, reply_);
-                do_write();
-            }
-            else if (result == request_parser::bad)
+            if (result == request_parser::bad || received_count_ > MAX_REQUEST_SIZE)
             {
                 reply_ = reply::stock_reply(reply::bad_request);
+                do_write();
+            }
+            else if (result == request_parser::good)
+            {
+                request_handler_.handle_request(request_, reply_);
                 do_write();
             }
             else
