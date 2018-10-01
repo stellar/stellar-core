@@ -12,7 +12,8 @@ namespace stellar
 {
 Work::Work(Application& app, std::function<void()> callback, std::string name,
            size_t maxRetries)
-    : BasicWork(app, name, callback, maxRetries), mNextChild(mChildren.begin())
+    : BasicWork(app, std::move(name), std::move(callback), maxRetries)
+    , mNextChild(mChildren.begin())
 {
 }
 
@@ -43,10 +44,17 @@ Work::onRun()
 void
 Work::onReset()
 {
-    CLOG(DEBUG, "Work") << "resetting  " << getName();
+    // TODO (mlo) upon proper implementation of WorkScheduler shutdown,
+    // this assert needs to move to `clearChildren`
     assert(allChildrenDone());
-    mNextChild = mChildren.begin();
     clearChildren();
+    mNextChild = mChildren.begin();
+    doReset();
+}
+
+void
+Work::doReset()
+{
 }
 
 void
@@ -82,9 +90,7 @@ Work::allChildrenDone() const
 {
     for (auto& c : mChildren)
     {
-        if (c->getState() != BasicWork::WORK_SUCCESS &&
-            c->getState() != BasicWork::WORK_FAILURE_RAISE &&
-            c->getState() != BasicWork::WORK_FAILURE_FATAL)
+        if (!c->isDone())
         {
             return false;
         }

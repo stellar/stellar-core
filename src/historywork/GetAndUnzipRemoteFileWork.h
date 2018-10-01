@@ -34,7 +34,7 @@ class GetAndUnzipRemoteFileWork : public Work
     std::string getStatus() const override;
 
   protected:
-    void onReset() override;
+    void doReset() override;
     void onFailureRaise() override;
     void onFailureRetry() override;
     State doWork() override;

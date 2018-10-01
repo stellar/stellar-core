@@ -11,6 +11,14 @@
 namespace stellar
 {
 
+/**
+ * Work is an extension of BasicWork,
+ * which additionally manages children. This allows the following:
+ *  - Work might be dependent on the state of its children before performing
+ *  its duties
+ *  - Work may have children that are independent and could run in parallel,
+ *  or dispatch children serially.
+ */
 class Work : public BasicWork
 {
     bool mScheduleSelf{false};
@@ -32,8 +40,8 @@ class Work : public BasicWork
     std::shared_ptr<T>
     addWork(Args&&... args)
     {
-        // `wakeUp` is sufficient as a callback for any child work of
-        // WorkScheduler (see custom callback for WorkScheduler)
+        // `wakeUp` is sufficient as a callback for any child Work of
+        // WorkScheduler
         std::weak_ptr<Work> weak(
             std::static_pointer_cast<Work>(shared_from_this()));
         auto callback = [weak]() {
@@ -52,6 +60,7 @@ class Work : public BasicWork
     }
 
     // Children status helper methods
+    // TODO (mlo) look into potentially using std::all_of/std::any_of
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
     bool anyChildRaiseFailure() const;
@@ -62,12 +71,18 @@ class Work : public BasicWork
   protected:
     Work(Application& app, std::function<void()> callback, std::string name,
          size_t retries = BasicWork::RETRY_A_FEW);
+
+    // TODO (mlo) needs to private eventually,
+    // see comment for WorkScheduler::~WorkScheduler
     void clearChildren();
     State onRun() final;
-    void onReset() override;
+    void onReset() final;
 
     // Implementers decide what they want to do: spawn more children,
     // wait for all children to finish, or perform work
     virtual BasicWork::State doWork() = 0;
+
+    // Provide additional cleanup logic for reset
+    virtual void doReset();
 };
 }

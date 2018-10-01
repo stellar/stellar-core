@@ -11,13 +11,15 @@ namespace stellar
 
 /**
  * WorkScheduler is a top level Work, that is in charge of scheduling
- * cranks (posting to the IO service); this is done via custom mNotifyCallback
- * that checks the status of the scheduler and cranks if necessary.
+ * cranks (posting to the IO service); this is done via custom
+ * implementation of `onWakeUp`, which schedules a crank if necessary.
  */
 class WorkScheduler : public Work
 {
+    WorkScheduler(Application& app, std::function<void()> callback = nullptr);
+    bool mScheduled{false};
+
   public:
-    explicit WorkScheduler(Application& app);
     virtual ~WorkScheduler();
     static std::shared_ptr<WorkScheduler> create(Application& app);
 
@@ -33,5 +35,9 @@ class WorkScheduler : public Work
         }
         return work;
     }
+
+  protected:
+    void onWakeUp() override;
+    State doWork() override;
 };
 }

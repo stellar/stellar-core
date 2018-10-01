@@ -29,7 +29,7 @@ class RunCommandWork : public Work
     ~RunCommandWork() = default;
 
   protected:
-    void onReset() override;
+    void doReset() override;
     BasicWork::State doWork() override;
 };
 }

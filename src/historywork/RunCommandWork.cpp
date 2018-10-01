@@ -51,10 +51,9 @@ RunCommandWork::doWork()
 }
 
 void
-RunCommandWork::onReset()
+RunCommandWork::doReset()
 {
     mDone = false;
     mEc = asio::error_code();
-    Work::onReset();
 }
 }

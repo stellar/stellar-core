@@ -17,7 +17,7 @@ GetRemoteFileWork::GetRemoteFileWork(Application& app,
                                      std::shared_ptr<HistoryArchive> archive,
                                      size_t maxRetries)
     : RunCommandWork(app, callback, std::string("get-remote-file ") + remote,
-                        maxRetries)
+                     maxRetries)
     , mRemote(remote)
     , mLocal(local)
     , mArchive(archive)
@@ -43,7 +43,9 @@ GetRemoteFileWork::getCommand()
 void
 GetRemoteFileWork::onFailureRetry()
 {
+    assert(mCurrentArchive);
     std::remove(mLocal.c_str());
+    RunCommandWork::onFailureRetry();
 }
 
 void

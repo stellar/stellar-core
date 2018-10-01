@@ -55,17 +55,16 @@ GetHistoryArchiveStateWork::doWork()
     {
         auto name = mSeq == 0 ? HistoryArchiveState::wellKnownRemoteName()
                               : HistoryArchiveState::remoteName(mSeq);
-        mGetRemoteFile = addWork<GetRemoteFileWork>(
-            name, mLocalFilename, mArchive, getMaxRetries());
+        mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
+                                                    mArchive, getMaxRetries());
         return WORK_RUNNING;
     }
 }
 
 void
-GetHistoryArchiveStateWork::onReset()
+GetHistoryArchiveStateWork::doReset()
 {
     mGetRemoteFile.reset();
     std::remove(mLocalFilename.c_str());
-    Work::onReset();
 }
 }

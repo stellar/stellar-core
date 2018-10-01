@@ -52,9 +52,8 @@ DownloadBucketsWork::doWork()
 }
 
 void
-DownloadBucketsWork::onReset()
+DownloadBucketsWork::doReset()
 {
     mChildrenStarted = false;
-    Work::onReset();
 }
 }

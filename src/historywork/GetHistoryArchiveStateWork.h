@@ -36,6 +36,6 @@ class GetHistoryArchiveStateWork : public Work
 
   protected:
     BasicWork::State doWork() override;
-    void onReset() override;
+    void doReset() override;
 };
 }

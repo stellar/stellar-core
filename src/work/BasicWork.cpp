@@ -18,7 +18,10 @@ size_t const BasicWork::RETRY_FOREVER = 0xffffffff;
 
 BasicWork::BasicWork(Application& app, std::string name,
                      std::function<void()> callback, size_t maxRetries)
-    : mApp(app), mNotifyCallback(callback), mName(name), mMaxRetries(maxRetries)
+    : mApp(app)
+    , mNotifyCallback(std::move(callback))
+    , mName(std::move(name))
+    , mMaxRetries(maxRetries)
 {
 }
 
@@ -26,7 +29,7 @@ BasicWork::~BasicWork()
 {
 }
 
-std::string
+std::string const&
 BasicWork::getName() const
 {
     return mName;
@@ -36,7 +39,7 @@ std::string
 BasicWork::getStatus() const
 {
     // Work is in `WAITING` state when retrying
-    auto state = mRetrying ? WORK_FAILURE_RETRY : mState;
+    auto state = mRetryTimer ? WORK_FAILURE_RETRY : mState;
 
     switch (state)
     {
@@ -92,7 +95,7 @@ BasicWork::stateName(State st)
 void
 BasicWork::reset()
 {
-    CLOG(DEBUG, "Work") << "restarting " << getName();
+    CLOG(DEBUG, "Work") << "resetting " << getName();
     setState(WORK_RUNNING);
     onReset();
 }
@@ -100,13 +103,14 @@ BasicWork::reset()
 void
 BasicWork::waitForRetry()
 {
-    if (!mRetryTimer)
+    if (mRetryTimer)
     {
-        mRetryTimer = std::make_unique<VirtualTimer>(mApp.getClock());
+        std::runtime_error(
+            fmt::format("Retry timer for {} already exists!", getName()));
     }
 
-    std::weak_ptr<BasicWork> weak(
-        std::static_pointer_cast<BasicWork>(shared_from_this()));
+    mRetryTimer = std::make_unique<VirtualTimer>(mApp.getClock());
+    std::weak_ptr<BasicWork> weak = shared_from_this();
     auto t = getRetryDelay();
     mRetryTimer->expires_from_now(t);
     CLOG(WARNING, "Work")
@@ -114,7 +118,6 @@ BasicWork::waitForRetry()
         << " in " << std::chrono::duration_cast<std::chrono::seconds>(t).count()
         << " sec, for " << getName();
     setState(WORK_WAITING);
-    mRetrying = true;
     mRetryTimer->async_wait(
         [weak]() {
             auto self = weak.lock();
@@ -123,9 +126,9 @@ BasicWork::waitForRetry()
                 return;
             }
             self->mRetries++;
-            self->mRetrying = false;
-            self->reset();
+            self->mRetryTimer = nullptr;
             self->wakeUp();
+            self->reset();
         },
         VirtualTimer::onFailureNoop);
 }
@@ -147,6 +150,11 @@ BasicWork::onFailureRetry()
 
 void
 BasicWork::onFailureRaise()
+{
+}
+
+void
+BasicWork::onWakeUp()
 {
 }
 
@@ -178,8 +186,13 @@ BasicWork::setState(BasicWork::State st)
 void
 BasicWork::wakeUp()
 {
+    auto shouldNotify = mState != WORK_RUNNING;
     setState(WORK_RUNNING);
-    mNotifyCallback();
+    onWakeUp();
+    if (mNotifyCallback && shouldNotify)
+    {
+        mNotifyCallback();
+    }
 }
 
 void

@@ -11,7 +11,7 @@ GunzipFileWork::GunzipFileWork(Application& app, std::function<void()> callback,
                                std::string const& filenameGz, bool keepExisting,
                                size_t maxRetries)
     : RunCommandWork(app, callback, std::string("gunzip-file ") + filenameGz,
-                        maxRetries)
+                     maxRetries)
     , mFilenameGz(filenameGz)
     , mKeepExisting(keepExisting)
 {

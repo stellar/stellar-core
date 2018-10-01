@@ -39,11 +39,10 @@ GetAndUnzipRemoteFileWork::getStatus() const
 }
 
 void
-GetAndUnzipRemoteFileWork::onReset()
+GetAndUnzipRemoteFileWork::doReset()
 {
     mGetRemoteFileWork.reset();
     mGunzipFileWork.reset();
-    Work::onReset();
 }
 
 void

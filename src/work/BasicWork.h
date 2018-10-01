@@ -10,14 +10,12 @@ namespace stellar
 
 /** BasicWork is an implementation of a finite state machine,
  * that is used for async or long-running tasks that:
- * - May depend on other Work before starting
- *  - May have parts that can run in parallel, other parts in serial
  *  - May need to be broken into steps, so as not to block the main thread
  *  - May fail and need to retry, after some delay
  *
  *  BasicWork manages all state transitions via `crankWork` as well as retries.
  *  While customers can trigger cranking and check on BasicWork's status,
- *  it is implementers responsibility to implement `onRun`, that
+ *  it is implementers' responsibility to implement `onRun`, that
  *  hints the next desired state.
  */
 class BasicWork : public std::enable_shared_from_this<BasicWork>,
@@ -45,12 +43,12 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
               std::function<void()> callback, size_t maxRetries = RETRY_A_FEW);
     virtual ~BasicWork();
 
-    virtual std::string getName() const;
+    std::string const& getName() const;
     virtual std::string getStatus() const;
     State getState() const;
     bool isDone() const;
 
-    virtual size_t getMaxRetries() const;
+    size_t getMaxRetries() const;
     uint64_t getRetryETA() const;
 
     // Main method for state transition, mostly dictated by `onRun`
@@ -78,7 +76,10 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     virtual void onFailureRetry();
     virtual void onFailureRaise();
     virtual void onSuccess();
+    virtual void onWakeUp();
 
+    // This methods needs to be called in between state transitions
+    // (e.g. between retries, of after going into a completed state)
     void reset();
 
     // A helper method that implementers can use if they plan to
@@ -90,7 +91,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     void wakeUp();
 
     Application& mApp;
-    std::function<void()> mNotifyCallback;
 
   private:
     VirtualClock::duration getRetryDelay() const;
@@ -98,12 +98,12 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     void setState(State s);
     void waitForRetry();
 
-    std::string mName;
+    std::function<void()> mNotifyCallback;
+    std::string const mName;
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
     State mState{WORK_RUNNING};
     size_t mRetries{0};
-    size_t mMaxRetries{RETRY_A_FEW};
-    bool mRetrying{false};
+    size_t const mMaxRetries{RETRY_A_FEW};
 };
 }

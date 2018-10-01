@@ -101,7 +101,7 @@ class TestWork : public Work
     }
 
     void
-    onReset() override
+    doReset() override
     {
         mSteps = 3;
     }
@@ -190,8 +190,8 @@ TEST_CASE("Work scheduling", "[work]")
         }
 
         auto w = wm.addWork<TestWork>("test-work");
-        while (!wm.allChildrenSuccessful() ||
-               wm.getState() != BasicWork::WORK_WAITING)
+        REQUIRE(wm.getState() == BasicWork::WORK_RUNNING);
+        while (!wm.allChildrenSuccessful())
         {
             clock.crank();
         }
