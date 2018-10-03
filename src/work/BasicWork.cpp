@@ -27,6 +27,7 @@ BasicWork::BasicWork(Application& app, std::string name,
 
 BasicWork::~BasicWork()
 {
+    mState = WORK_DESTRUCTING;
 }
 
 std::string const&
@@ -105,7 +106,7 @@ BasicWork::waitForRetry()
 {
     if (mRetryTimer)
     {
-        std::runtime_error(
+        throw std::runtime_error(
             fmt::format("Retry timer for {} already exists!", getName()));
     }
 
@@ -186,10 +187,14 @@ BasicWork::setState(BasicWork::State st)
 void
 BasicWork::wakeUp()
 {
-    auto shouldNotify = mState != WORK_RUNNING;
+    if (mState == WORK_RUNNING || mState == WORK_DESTRUCTING)
+    {
+        return;
+    }
+
     setState(WORK_RUNNING);
     onWakeUp();
-    if (mNotifyCallback && shouldNotify)
+    if (mNotifyCallback)
     {
         mNotifyCallback();
     }

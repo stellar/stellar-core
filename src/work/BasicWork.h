@@ -36,7 +36,8 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         WORK_FAILURE_RETRY,
         WORK_FAILURE_RAISE,
         // TODO (mlo) fatal failure seems redundant now
-        WORK_FAILURE_FATAL
+        WORK_FAILURE_FATAL,
+        WORK_DESTRUCTING
     };
 
     BasicWork(Application& app, std::string name,
@@ -78,8 +79,11 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     virtual void onSuccess();
     virtual void onWakeUp();
 
-    // This methods needs to be called in between state transitions
-    // (e.g. between retries, of after going into a completed state)
+    // TODO (mlo) look into uses of reset in current interface
+    // Proper cleanup needs to happen at some point, and `reset`
+    // might not be the best place. For instance, `GetRemoteFileWork`
+    // calls std::remove is `onReset`, so an attempt to remove a non-existent
+    // file happens every time a child is added, which is inefficient.
     void reset();
 
     // A helper method that implementers can use if they plan to

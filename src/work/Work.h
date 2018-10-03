@@ -21,7 +21,6 @@ namespace stellar
  */
 class Work : public BasicWork
 {
-    bool mScheduleSelf{false};
     std::list<std::shared_ptr<Work>> mChildren;
     std::list<std::shared_ptr<Work>>::const_iterator mNextChild;
     std::shared_ptr<Work> yieldNextRunningChild();

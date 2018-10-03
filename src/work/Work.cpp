@@ -19,25 +19,24 @@ Work::Work(Application& app, std::function<void()> callback, std::string name,
 
 Work::~Work()
 {
-    assert(!hasChildren());
+    // TODO consider this assert when abort logic is implemented
+    //    assert(!hasChildren());
 }
 
 BasicWork::State
 Work::onRun()
 {
-    if (mScheduleSelf || !anyChildRunning())
+    auto child = yieldNextRunningChild();
+    if (child)
     {
-        mScheduleSelf = false;
-        CLOG(DEBUG, "Work") << "Running self " << getName();
-        return doWork();
-    }
-    else
-    {
-        mScheduleSelf = true;
-        auto child = yieldNextRunningChild();
         CLOG(DEBUG, "Work") << "Running next child " << child->getName();
         child->crankWork();
         return BasicWork::WORK_RUNNING;
+    }
+    else
+    {
+        CLOG(DEBUG, "Work") << "Running self " << getName();
+        return doWork();
     }
 }
 
@@ -68,7 +67,13 @@ Work::addChild(std::shared_ptr<Work> child)
 {
     // TODO (mlo) potentially check for child duplication
 
+    bool resetIter = !hasChildren();
     mChildren.push_back(child);
+
+    if (resetIter)
+    {
+        mNextChild = mChildren.begin();
+    }
     child->reset();
 }
 
@@ -146,22 +151,17 @@ Work::anyChildFatalFailure() const
 std::shared_ptr<Work>
 Work::yieldNextRunningChild()
 {
-    // onRun should ensure this function is called properly,
-    // that is there's a running child to return (like the name suggests)
-    assert(anyChildRunning());
-
-    for (;;)
+    while (mNextChild != mChildren.end())
     {
+        auto next = *mNextChild;
         mNextChild++;
-        if (mNextChild == mChildren.end())
+        if (next->getState() == BasicWork::WORK_RUNNING)
         {
-            mNextChild = mChildren.begin();
-        }
-
-        if ((*mNextChild)->getState() == BasicWork::WORK_RUNNING)
-        {
-            return *mNextChild;
+            return next;
         }
     }
+
+    mNextChild = mChildren.begin();
+    return nullptr;
 }
 }

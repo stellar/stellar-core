@@ -15,10 +15,6 @@ WorkScheduler::WorkScheduler(Application& app, std::function<void()> callback)
 
 WorkScheduler::~WorkScheduler()
 {
-    // TODO (mlo) With proper shutdown implementation, this call
-    // won't be necessary as WorkScheduler will transition into
-    // failure state and `reset` will take care of clearing children
-    clearChildren();
 }
 
 std::shared_ptr<WorkScheduler>
@@ -50,7 +46,7 @@ WorkScheduler::onWakeUp()
         self->crankWork();
         if (self->getState() == WORK_RUNNING)
         {
-            self->wakeUp();
+            self->onWakeUp();
         }
     });
 }
