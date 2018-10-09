@@ -18,16 +18,36 @@ class PutSnapshotFilesWork : public Work
     std::shared_ptr<StateSnapshot> mSnapshot;
     HistoryArchiveState mRemoteState;
 
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
-    std::shared_ptr<Work> mPutFilesWork;
-    std::shared_ptr<Work> mPutHistoryArchiveStateWork;
+    std::shared_ptr<WorkSequence> mPublishSnapshot;
 
   public:
-    PutSnapshotFilesWork(Application& app, WorkParent& parent,
+    PutSnapshotFilesWork(Application& app, std::function<void()> callback,
                          std::shared_ptr<HistoryArchive> archive,
                          std::shared_ptr<StateSnapshot> snapshot);
-    ~PutSnapshotFilesWork();
-    void onReset() override;
-    Work::State onSuccess() override;
+    ~PutSnapshotFilesWork() = default;
+
+  protected:
+    void doReset() override;
+    State doWork() override;
+};
+
+class GzipAndPutFilesWork : public Work
+{
+    std::shared_ptr<HistoryArchive> mArchive;
+    std::shared_ptr<StateSnapshot> mSnapshot;
+    HistoryArchiveState const& mRemoteState;
+
+    bool mChildrenSpawned{false};
+
+  public:
+    GzipAndPutFilesWork(Application& app, std::function<void()> callback,
+                        std::shared_ptr<HistoryArchive> archive,
+                        std::shared_ptr<StateSnapshot> snapshot,
+                        HistoryArchiveState const& remoteState);
+    ~GzipAndPutFilesWork() = default;
+
+  protected:
+    void doReset() override;
+    State doWork() override;
 };
 }

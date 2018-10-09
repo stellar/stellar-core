@@ -31,9 +31,11 @@ DownloadBucketsWork::doWork()
         for (auto const& hash : mHashes)
         {
             FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-            auto verify = addWork<VerifyBucketWork>(
+            auto sequenceWork =
+                addWork<WorkSequence>("download-verify-sequence-" + hash);
+            sequenceWork->addToSequence<GetAndUnzipRemoteFileWork>(ft);
+            sequenceWork->addToSequence<VerifyBucketWork>(
                 mBuckets, ft.localPath_nogz(), hexToBin256(hash));
-            verify->addWork<GetAndUnzipRemoteFileWork>(ft);
         }
         mChildrenStarted = true;
     }
@@ -43,9 +45,13 @@ DownloadBucketsWork::doWork()
         {
             return WORK_SUCCESS;
         }
-        if (anyChildRaiseFailure() || anyChildFatalFailure())
+        else if (anyChildRaiseFailure())
         {
             return WORK_FAILURE_RETRY;
+        }
+        else if (!anyChildRunning())
+        {
+            return WORK_WAITING;
         }
     }
     return WORK_RUNNING;

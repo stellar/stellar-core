@@ -109,19 +109,6 @@ Work::allChildrenDone() const
 }
 
 bool
-Work::allChildrenWaiting() const
-{
-    for (auto& c : mChildren)
-    {
-        if (c->getState() != BasicWork::WORK_WAITING)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-bool
 Work::anyChildRunning() const
 {
     for (auto& c : mChildren)

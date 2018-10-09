@@ -16,16 +16,21 @@ class PutHistoryArchiveStateWork : public Work
 {
     HistoryArchiveState const& mState;
     std::shared_ptr<HistoryArchive> mArchive;
-    std::string mLocalFilename;
-    std::shared_ptr<Work> mPutRemoteFileWork;
+    std::string const mLocalFilename;
+    std::shared_ptr<WorkSequence> mPutRemoteFileWork;
+
+    void spawnPublishWork();
 
   public:
-    PutHistoryArchiveStateWork(Application& app, WorkParent& parent,
+    PutHistoryArchiveStateWork(Application& app, std::function<void()> callback,
                                HistoryArchiveState const& state,
                                std::shared_ptr<HistoryArchive> archive);
-    ~PutHistoryArchiveStateWork();
-    void onReset() override;
-    void onRun() override;
-    Work::State onSuccess() override;
+    ~PutHistoryArchiveStateWork() = default;
+
+  protected:
+    void doReset() override;
+    State doWork() override;
+    void onFailureRetry() override;
+    void onFailureRaise() override;
 };
 }

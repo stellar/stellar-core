@@ -12,51 +12,71 @@
 #include "historywork/PutHistoryArchiveStateWork.h"
 #include "historywork/PutRemoteFileWork.h"
 #include "main/Application.h"
+#include "util/format.h"
 
 namespace stellar
 {
-
 PutSnapshotFilesWork::PutSnapshotFilesWork(
-    Application& app, WorkParent& parent,
+    Application& app, std::function<void()> callback,
     std::shared_ptr<HistoryArchive> archive,
     std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "put-snapshot-files-" + archive->getName())
+    : Work(app, callback, "put-snapshot-files-" + archive->getName())
     , mArchive(archive)
     , mSnapshot(snapshot)
 {
 }
 
-PutSnapshotFilesWork::~PutSnapshotFilesWork()
-{
-    clearChildren();
-}
-
 void
-PutSnapshotFilesWork::onReset()
+PutSnapshotFilesWork::doReset()
 {
-    clearChildren();
-
-    mGetHistoryArchiveStateWork.reset();
-    mPutFilesWork.reset();
-    mPutHistoryArchiveStateWork.reset();
+    mPublishSnapshot.reset();
 }
 
-Work::State
-PutSnapshotFilesWork::onSuccess()
+BasicWork::State
+PutSnapshotFilesWork::doWork()
 {
-    // Phase 1: fetch remote history archive state
-    if (!mGetHistoryArchiveStateWork)
+    if (!mPublishSnapshot)
     {
-        mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
+        mPublishSnapshot = addWork<WorkSequence>("publish-snapshots-files");
+
+        // Phase 1: fetch remote history archive state
+        mPublishSnapshot->addToSequence<GetHistoryArchiveStateWork>(
             "get-history-archive-state", mRemoteState, 0, mArchive);
-        return WORK_PENDING;
+
+        // Phase 2: put all requisite data files
+        mPublishSnapshot->addToSequence<GzipAndPutFilesWork>(
+            mArchive, mSnapshot, mRemoteState);
+
+        // Phase 3: update remote history archive state
+        mPublishSnapshot->addToSequence<PutHistoryArchiveStateWork>(
+            mSnapshot->mLocalState, mArchive);
+
+        return WORK_RUNNING;
     }
-
-    // Phase 2: put all requisite data files
-    if (!mPutFilesWork)
+    else
     {
-        mPutFilesWork = addWork<Work>("put-files");
+        auto state = mPublishSnapshot->getState();
+        return state == WORK_FAILURE_RAISE ? WORK_FAILURE_RETRY : state;
+    }
+}
 
+GzipAndPutFilesWork::GzipAndPutFilesWork(
+    Application& app, std::function<void()> callback,
+    std::shared_ptr<HistoryArchive> archive,
+    std::shared_ptr<StateSnapshot> snapshot,
+    HistoryArchiveState const& remoteState)
+    : Work(app, callback, "helper-put-files-" + archive->getName())
+    , mArchive(archive)
+    , mSnapshot(snapshot)
+    , mRemoteState(remoteState)
+{
+}
+
+BasicWork::State
+GzipAndPutFilesWork::doWork()
+{
+    if (!mChildrenSpawned)
+    {
         std::vector<std::shared_ptr<FileTransferInfo>> files = {
             mSnapshot->mLedgerSnapFile, mSnapshot->mTransactionSnapFile,
             mSnapshot->mTransactionResultSnapFile,
@@ -75,24 +95,44 @@ PutSnapshotFilesWork::onSuccess()
         {
             if (f && fs::exists(f->localPath_nogz()))
             {
-                auto put = mPutFilesWork->addWork<PutRemoteFileWork>(
+                auto publish = addWork<WorkSequence>("publish-snapshots");
+                publish->addToSequence<GzipFileWork>(f->localPath_nogz(),
+                                                        true);
+                publish->addToSequence<MakeRemoteDirWork>(f->remoteDir(),
+                                                             mArchive);
+                publish->addToSequence<PutRemoteFileWork>(
                     f->localPath_gz(), f->remoteName(), mArchive);
-                auto mkdir =
-                    put->addWork<MakeRemoteDirWork>(f->remoteDir(), mArchive);
-                mkdir->addWork<GzipFileWork>(f->localPath_nogz(), true);
+            }
+            else
+            {
+                throw std::runtime_error(
+                    fmt::format("Publish snapshot files error: invalid file {}",
+                                f->localPath_nogz()));
             }
         }
-        return WORK_PENDING;
+        mChildrenSpawned = true;
     }
-
-    // Phase 3: update remote history archive state
-    if (!mPutHistoryArchiveStateWork)
+    else
     {
-        mPutHistoryArchiveStateWork = addWork<PutHistoryArchiveStateWork>(
-            mSnapshot->mLocalState, mArchive);
-        return WORK_PENDING;
+        if (allChildrenSuccessful())
+        {
+            return WORK_SUCCESS;
+        }
+        else if (anyChildRaiseFailure())
+        {
+            return WORK_FAILURE_RETRY;
+        }
+        else if (!anyChildRunning())
+        {
+            return WORK_WAITING;
+        }
     }
+    return WORK_RUNNING;
+}
 
-    return WORK_SUCCESS;
+void
+GzipAndPutFilesWork::doReset()
+{
+    mChildrenSpawned = false;
 }
 }

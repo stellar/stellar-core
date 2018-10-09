@@ -32,7 +32,6 @@ class Work : public BasicWork
     // Children status helper methods
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
-    bool allChildrenWaiting() const;
     bool anyChildRaiseFailure() const;
     bool anyChildRunning() const;
     bool hasChildren() const;

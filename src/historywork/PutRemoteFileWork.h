@@ -20,7 +20,7 @@ class PutRemoteFileWork : public RunCommandWork
 
   public:
     PutRemoteFileWork(Application& app, std::function<void()> callback,
-                      std::string const& remote, std::string const& local,
+                      std::string const& local, std::string const& remote,
                       std::shared_ptr<HistoryArchive> archive);
     ~PutRemoteFileWork();
 
