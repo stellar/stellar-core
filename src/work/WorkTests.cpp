@@ -54,7 +54,7 @@ TEST_CASE("work manager", "[work]")
     }
 }
 
-class TestWork : public Work
+class TestWork : public BasicWork
 {
     bool mRetry;
 
@@ -67,12 +67,12 @@ class TestWork : public Work
 
     TestWork(Application& app, std::function<void()> callback, std::string name,
              bool retry = false)
-        : Work(app, callback, name, RETRY_ONCE), mRetry(retry)
+        : BasicWork(app, callback, name, RETRY_ONCE), mRetry(retry)
     {
     }
 
     BasicWork::State
-    doWork() override
+    onRun() override
     {
         if (mSteps-- > 0)
         {
@@ -101,7 +101,7 @@ class TestWork : public Work
     }
 
     void
-    doReset() override
+    onReset() override
     {
         mSteps = 3;
     }
@@ -109,6 +109,8 @@ class TestWork : public Work
 
 class TestWorkWaitForChildren : public Work
 {
+    bool mWorkAdded{false};
+
   public:
     TestWorkWaitForChildren(Application& app, std::function<void()> callback,
                             std::string name)
@@ -122,6 +124,12 @@ class TestWorkWaitForChildren : public Work
         if (allChildrenSuccessful())
         {
             return BasicWork::WORK_SUCCESS;
+        }
+
+        if (!mWorkAdded)
+        {
+            addWork<TestWork>("test-work");
+            mWorkAdded = true;
         }
         return BasicWork::WORK_RUNNING;
     }
@@ -143,7 +151,7 @@ TEST_CASE("Work scheduling", "[work]")
 
     SECTION("basic one work")
     {
-        auto w = wm.addWork<TestWork>("test-work");
+        auto w = wm.addWorkTree<TestWork>("test-work");
         while (!wm.allChildrenSuccessful())
         {
             clock.crank();
@@ -153,8 +161,8 @@ TEST_CASE("Work scheduling", "[work]")
 
     SECTION("2 works round robin")
     {
-        auto w1 = wm.addWork<TestWork>("test-work1");
-        auto w2 = wm.addWork<TestWork>("test-work2");
+        auto w1 = wm.addWorkTree<TestWork>("test-work1");
+        auto w2 = wm.addWorkTree<TestWork>("test-work2");
         while (!wm.allChildrenSuccessful())
         {
             clock.crank();
@@ -166,13 +174,13 @@ TEST_CASE("Work scheduling", "[work]")
     SECTION("another work added midway")
     {
         int crankCount = 0;
-        auto w1 = wm.addWork<TestWork>("test-work1");
-        auto w2 = wm.addWork<TestWork>("test-work2");
+        auto w1 = wm.addWorkTree<TestWork>("test-work1");
+        auto w2 = wm.addWorkTree<TestWork>("test-work2");
         while (!wm.allChildrenSuccessful())
         {
-            if (++crankCount > 1)
+            if (++crankCount == 2)
             {
-                wm.addWork<TestWork>("test-work3");
+                wm.addWorkTree<TestWork>("test-work3");
             };
             clock.crank();
         }
@@ -189,7 +197,7 @@ TEST_CASE("Work scheduling", "[work]")
             clock.crank();
         }
 
-        auto w = wm.addWork<TestWork>("test-work");
+        auto w = wm.addWorkTree<TestWork>("test-work");
         REQUIRE(wm.getState() == BasicWork::WORK_RUNNING);
         while (!wm.allChildrenSuccessful())
         {
@@ -200,7 +208,7 @@ TEST_CASE("Work scheduling", "[work]")
 
     SECTION("work retries and fails")
     {
-        auto w = wm.addWork<TestWork>("test-work", true);
+        auto w = wm.addWorkTree<TestWork>("test-work", true);
         while (!wm.allChildrenDone())
         {
             clock.crank();
@@ -222,10 +230,8 @@ TEST_CASE("work with children scheduling", "[work]")
     Application::pointer appPtr = createTestApplication(clock, cfg);
     auto& wm = appPtr->getWorkScheduler();
 
-    auto w1 = wm.addWork<TestWorkWaitForChildren>("test-work1");
-    auto w2 = wm.addWork<TestWorkWaitForChildren>("test-work2");
-    auto w3 = w1->addWork<TestWork>("test-work3");
-
+    auto w1 = wm.addWorkTree<TestWorkWaitForChildren>("test-work1");
+    auto w2 = wm.addWorkTree<TestWorkWaitForChildren>("test-work2");
     while (!wm.allChildrenSuccessful())
     {
         clock.crank();
@@ -260,7 +266,7 @@ TEST_CASE("RunCommandWork test", "[work]")
 
     SECTION("one run command work")
     {
-        wm.addWork<TestRunCommandWork>("test-run-command", "date");
+        wm.addWorkTree<TestRunCommandWork>("test-run-command", "date");
         while (!wm.allChildrenSuccessful())
         {
             clock.crank();
@@ -268,8 +274,8 @@ TEST_CASE("RunCommandWork test", "[work]")
     }
     SECTION("round robin with other work")
     {
-        wm.addWork<TestRunCommandWork>("test-run-command", "date");
-        wm.addWork<TestWork>("test-work");
+        wm.addWorkTree<TestRunCommandWork>("test-run-command", "date");
+        wm.addWorkTree<TestWork>("test-work");
         while (!wm.allChildrenSuccessful())
         {
             clock.crank();
@@ -278,13 +284,97 @@ TEST_CASE("RunCommandWork test", "[work]")
     SECTION("invalid run command")
     {
         auto w =
-            wm.addWork<TestRunCommandWork>("test-run-command", "_invalid_");
+            wm.addWorkTree<TestRunCommandWork>("test-run-command", "_invalid_");
         while (!wm.allChildrenDone())
         {
             clock.crank();
         }
         REQUIRE(w->getState() == BasicWork::WORK_FAILURE_RAISE);
     }
+}
+
+TEST_CASE("WorkSequence test", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    auto work = wm.addWorkTree<WorkSequence>("test-work-sequence");
+    int cranks = 0;
+    auto w1 = work->addToSequence<TestWork>("test-work-1");
+    auto w2 = work->addToSequence<TestWork>("test-work-2");
+    auto w3 = work->addToSequence<TestWork>("test-work-3");
+
+    SECTION("basic")
+    {
+        while (!wm.allChildrenSuccessful())
+        {
+            if (!w1->mSuccessCount)
+            {
+                REQUIRE(!w2->mRunningCount);
+                REQUIRE(!w3->mRunningCount);
+            }
+            else if (!w2->mSuccessCount)
+            {
+                REQUIRE(w1->mSuccessCount);
+                REQUIRE(!w3->mRunningCount);
+            }
+            else
+            {
+                REQUIRE(w1->mSuccessCount);
+                REQUIRE(w2->mSuccessCount);
+            }
+            clock.crank();
+        }
+    }
+    SECTION("new work added midway")
+    {
+        while (!wm.allChildrenSuccessful())
+        {
+            if (++cranks == 2)
+            {
+                auto w4 = work->addToSequence<TestWork>("test-work-3");
+            }
+            // TODO refactor duplication
+            if (!w1->mSuccessCount)
+            {
+                REQUIRE(!w2->mRunningCount);
+                REQUIRE(!w3->mRunningCount);
+            }
+            else if (!w2->mSuccessCount)
+            {
+                REQUIRE(w1->mSuccessCount);
+                REQUIRE(!w3->mRunningCount);
+            }
+            else
+            {
+                REQUIRE(w1->mSuccessCount);
+                REQUIRE(w2->mSuccessCount);
+            }
+            clock.crank();
+        }
+    }
+}
+
+TEST_CASE("WorkSequence work in sequence fails", "[work]")
+{
+    VirtualClock clock;
+    Config const& cfg = getTestConfig();
+    Application::pointer appPtr = createTestApplication(clock, cfg);
+    auto& wm = appPtr->getWorkScheduler();
+
+    auto work = wm.addWorkTree<WorkSequence>("test-work-sequence");
+    auto w1 = work->addToSequence<TestWork>("test-work-1", true);
+    auto w2 = work->addToSequence<TestWork>("test-work-2");
+    auto w3 = work->addToSequence<TestWork>("test-work-3");
+
+    while (!wm.allChildrenDone())
+    {
+        clock.crank();
+    }
+    REQUIRE_FALSE(work->hasChildren());
+    REQUIRE(work->getState() == BasicWork::WORK_FAILURE_RAISE);
 }
 
 class CountDownWork : public Work
