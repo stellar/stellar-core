@@ -1,19 +1,25 @@
-// Copyright 2018 Stellar Development Foundation and contributors. Licensed
+// Copyright 2015 Stellar Development Foundation and contributors. Licensed
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "Work.h"
-
-#include "Work.h"
+#include "work/Work.h"
 #include "lib/util/format.h"
 #include "util/Logging.h"
 
 namespace stellar
 {
+
+size_t const Work::RETRY_NEVER = 0;
+size_t const Work::RETRY_ONCE = 1;
+size_t const Work::RETRY_A_FEW = 5;
+size_t const Work::RETRY_A_LOT = 32;
+size_t const Work::RETRY_FOREVER = 0xffffffff;
+
 Work::Work(Application& app, std::function<void()> callback, std::string name,
-           size_t maxRetries)
-    : BasicWork(app, std::move(name), std::move(callback), maxRetries)
+           size_t maxRetries, Execution order)
+    : BasicWork(app, std::move(callback), std::move(name), maxRetries)
     , mNextChild(mChildren.begin())
+    , mExecutionOrder(order)
 {
 }
 
@@ -43,9 +49,9 @@ Work::onRun()
 void
 Work::onReset()
 {
-    // TODO (mlo) upon proper implementation of WorkScheduler shutdown,
+    // TODO upon proper implementation of WorkScheduler shutdown,
     // this assert needs to move to `clearChildren`
-    assert(allChildrenDone());
+    //    assert(allChildrenDone());
     clearChildren();
     mNextChild = mChildren.begin();
     doReset();
@@ -63,7 +69,7 @@ Work::clearChildren()
 }
 
 void
-Work::addChild(std::shared_ptr<Work> child)
+Work::addChild(std::shared_ptr<BasicWork> child)
 {
     // TODO (mlo) potentially check for child duplication
 
@@ -74,7 +80,6 @@ Work::addChild(std::shared_ptr<Work> child)
     {
         mNextChild = mChildren.begin();
     }
-    child->reset();
 }
 
 bool
@@ -96,6 +101,19 @@ Work::allChildrenDone() const
     for (auto& c : mChildren)
     {
         if (!c->isDone())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool
+Work::allChildrenWaiting() const
+{
+    for (auto& c : mChildren)
+    {
+        if (c->getState() != BasicWork::WORK_WAITING)
         {
             return false;
         }
@@ -135,33 +153,74 @@ Work::anyChildRaiseFailure() const
     return false;
 }
 
-bool
-Work::anyChildFatalFailure() const
-{
-    for (auto& c : mChildren)
-    {
-        if (c->getState() == BasicWork::WORK_FAILURE_FATAL)
-        {
-            return true;
-        }
-    }
-    return false;
-}
-
-std::shared_ptr<Work>
+std::shared_ptr<BasicWork>
 Work::yieldNextRunningChild()
 {
-    while (mNextChild != mChildren.end())
+    if (mExecutionOrder == WORK_PARALLEL)
     {
-        auto next = *mNextChild;
-        mNextChild++;
-        if (next->getState() == BasicWork::WORK_RUNNING)
+        while (mNextChild != mChildren.end())
         {
-            return next;
+            auto next = *mNextChild;
+            mNextChild++;
+            if (next->getState() == BasicWork::WORK_RUNNING)
+            {
+                return next;
+            }
         }
+        mNextChild = mChildren.begin();
+        return nullptr;
     }
+    else
+    {
+        // All children has reached terminal state, run parent
+        if (mNextChild == mChildren.end())
+        {
+            assert(allChildrenDone());
+            return nullptr;
+        }
 
-    mNextChild = mChildren.begin();
-    return nullptr;
+        assert(*mNextChild);
+        if ((*mNextChild)->isDone())
+        {
+            // Advance to next child, and let the parent run
+            mNextChild++;
+            return nullptr;
+        }
+
+        // Child is waiting, let the parent run and decide how to proceed
+        if ((*mNextChild)->getState() == WORK_WAITING)
+        {
+            return nullptr;
+        }
+
+        return *mNextChild;
+    }
+}
+
+WorkSequence::WorkSequence(Application& app, std::function<void()> callback,
+                           std::string name)
+    : Work(app, callback, std::move(name), RETRY_NEVER, WORK_SERIAL)
+{
+}
+
+BasicWork::State
+WorkSequence::doWork()
+{
+    auto isWaiting = mNextChild != mChildren.end() &&
+                     (*mNextChild)->getState() == WORK_WAITING;
+
+    if (isWaiting)
+    {
+        return WORK_WAITING;
+    }
+    else if (anyChildRaiseFailure())
+    {
+        return WORK_FAILURE_RETRY;
+    }
+    else if (allChildrenSuccessful())
+    {
+        return WORK_SUCCESS;
+    }
+    return WORK_RUNNING;
 }
 }

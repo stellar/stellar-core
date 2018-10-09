@@ -20,7 +20,7 @@ VerifyBucketWork::VerifyBucketWork(
     Application& app, std::function<void()> callback,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::string const& bucketFile, uint256 const& hash)
-    : Work(app, callback, "verify-bucket-hash-" + bucketFile, RETRY_NEVER)
+    : BasicWork(app, callback, "verify-bucket-hash-" + bucketFile, RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)
@@ -32,18 +32,8 @@ VerifyBucketWork::~VerifyBucketWork()
 }
 
 BasicWork::State
-VerifyBucketWork::doWork()
+VerifyBucketWork::onRun()
 {
-    // FIXME (mlo) this a logical problem, as this check shouldn't be here
-    // VerifyBucketWork shouldn't be required to know that it depends on
-    // GetAndUnzipRemoteFileWork. This will be resolved with batching though,
-    // as DownloadBuckets work will take care of when to dispatch download
-    // and verify tasks.
-    if (!allChildrenSuccessful())
-    {
-        return BasicWork::WORK_RUNNING;
-    }
-
     if (mDone)
     {
         if (mEc)
@@ -74,19 +64,23 @@ VerifyBucketWork::spawnVerifier()
 {
     std::string filename = mBucketFile;
     uint256 hash = mHash;
+    Application& app = mApp;
+
     std::weak_ptr<VerifyBucketWork> weak(
-        std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
+        std::static_pointer_cast<NewVerifyBucketWork>(shared_from_this()));
     auto handler = [weak](asio::error_code const& ec) {
-        auto self = weak.lock();
-        if (self)
-        {
-            self->mEc = ec;
-            self->mDone = true;
-            self->wakeUp();
-        }
+        return [weak, ec]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->mEc = ec;
+                self->mDone = true;
+                self->wakeUp();
+            }
+        };
     };
 
-    mApp.getWorkerIOService().post([filename, handler, hash]() {
+    mApp.getWorkerIOService().post([&app, filename, handler, hash]() {
         auto hasher = SHA256::create();
         asio::error_code ec;
         char buf[4096];
@@ -115,7 +109,11 @@ VerifyBucketWork::spawnVerifier()
                 ec = std::make_error_code(std::errc::io_error);
             }
         }
-        handler(ec);
+
+        // TODO (mlo) Not ideal, but needed to prevent race conditions with
+        // main thread, since BasicWork's state is not thread-safe. This is a
+        // temporary workaround, as a cleaner solution is needed.
+        app.getClock().getIOService().post(handler(ec));
     });
 }
 }

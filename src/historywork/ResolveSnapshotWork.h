@@ -11,14 +11,18 @@ namespace stellar
 
 struct StateSnapshot;
 
-class ResolveSnapshotWork : public Work
+class ResolveSnapshotWork : public BasicWork
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
+    std::unique_ptr<VirtualTimer> mTimer;
+    std::chrono::seconds const mDelay{1};
 
   public:
-    ResolveSnapshotWork(Application& app, WorkParent& parent,
+    ResolveSnapshotWork(Application& app, std::function<void()> callback,
                         std::shared_ptr<StateSnapshot> snapshot);
-    ~ResolveSnapshotWork();
-    void onRun() override;
+    ~ResolveSnapshotWork() = default;
+
+  protected:
+    State onRun() override;
 };
 }

@@ -14,8 +14,8 @@ class HistoryArchive;
 
 class GetAndUnzipRemoteFileWork : public Work
 {
-    std::shared_ptr<Work> mGetRemoteFileWork;
-    std::shared_ptr<Work> mGunzipFileWork;
+    std::shared_ptr<BasicWork> mGetRemoteFileWork;
+    std::shared_ptr<BasicWork> mGunzipFileWork;
 
     FileTransferInfo mFt;
     std::shared_ptr<HistoryArchive> mArchive;

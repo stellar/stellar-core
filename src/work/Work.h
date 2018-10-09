@@ -10,7 +10,6 @@
 
 namespace stellar
 {
-
 /**
  * Work is an extension of BasicWork,
  * which additionally manages children. This allows the following:
@@ -21,67 +20,87 @@ namespace stellar
  */
 class Work : public BasicWork
 {
-    std::list<std::shared_ptr<Work>> mChildren;
-    std::list<std::shared_ptr<Work>>::const_iterator mNextChild;
-    std::shared_ptr<Work> yieldNextRunningChild();
-
-    void addChild(std::shared_ptr<Work> child);
-
   public:
+    enum Execution
+    {
+        WORK_PARALLEL,
+        WORK_SERIAL
+    };
+
     virtual ~Work();
 
-    // Note: `shared_from_this` assumes there exists a shared_ptr to the
-    // references class. This relates to who owns what in Work interface.
-    // Thus, `addWork` should be used to create work (then the parent holds
-    // the reference).
-
-    template <typename T, typename... Args>
-    std::shared_ptr<T>
-    addWork(Args&&... args)
-    {
-        // `wakeUp` is sufficient as a callback for any child Work of
-        // WorkScheduler
-        std::weak_ptr<Work> weak(
-            std::static_pointer_cast<Work>(shared_from_this()));
-        auto callback = [weak]() {
-            auto self = weak.lock();
-            if (self)
-            {
-                self->wakeUp();
-            }
-        };
-
-        auto child =
-            std::make_shared<T>(mApp, callback, std::forward<Args>(args)...);
-        addChild(child);
-        wakeUp();
-        return child;
-    }
-
     // Children status helper methods
-    // TODO (mlo) look into potentially using std::all_of/std::any_of
     bool allChildrenSuccessful() const;
     bool allChildrenDone() const;
+    bool allChildrenWaiting() const;
     bool anyChildRaiseFailure() const;
-    bool anyChildFatalFailure() const;
     bool anyChildRunning() const;
     bool hasChildren() const;
 
   protected:
     Work(Application& app, std::function<void()> callback, std::string name,
-         size_t retries = BasicWork::RETRY_A_FEW);
+         size_t retries = BasicWork::RETRY_A_FEW,
+         Execution order = WORK_PARALLEL);
 
-    // TODO (mlo) needs to private eventually,
-    // see comment for WorkScheduler::~WorkScheduler
-    void clearChildren();
+    // Note: `shared_from_this` assumes there exists a shared_ptr to the
+    // references class. This relates to who owns what in Work interface.
+    // Thus, `addWork` should be used to create Work (then the parent holds
+    // the reference).
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    addWork(Args&&... args)
+    {
+        auto child = std::make_shared<T>(mApp, wakeUpCallback(),
+                                         std::forward<Args>(args)...);
+        addChild(child);
+        child->reset();
+        wakeUp();
+        return child;
+    }
+
     State onRun() final;
     void onReset() final;
 
     // Implementers decide what they want to do: spawn more children,
-    // wait for all children to finish, or perform work
+    // wait for all children to finish, or perform Work
     virtual BasicWork::State doWork() = 0;
 
     // Provide additional cleanup logic for reset
     virtual void doReset();
+
+  private:
+    std::list<std::shared_ptr<BasicWork>> mChildren;
+    std::list<std::shared_ptr<BasicWork>>::const_iterator mNextChild;
+    Execution const mExecutionOrder;
+
+    std::shared_ptr<BasicWork> yieldNextRunningChild();
+    void addChild(std::shared_ptr<BasicWork> child);
+    void clearChildren();
+
+    friend class WorkSequence;
+};
+
+/*
+ * WorkSequence is a helper class, that implementers can use if they
+ * wish to enforce the order of work execution. It also allows parent works
+ * to construct more complex work trees by exposing public `addToSequence`
+ * method.
+ */
+class WorkSequence : public Work
+{
+  public:
+    WorkSequence(Application& app, std::function<void()> callback,
+                 std::string name);
+    ~WorkSequence() = default;
+
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    addToSequence(Args&&... args)
+    {
+        return addWork<T>(std::forward<Args>(args)...);
+    }
+
+  protected:
+    State doWork() final;
 };
 }

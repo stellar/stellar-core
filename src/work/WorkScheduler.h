@@ -36,6 +36,14 @@ class WorkScheduler : public Work
         return work;
     }
 
+    // TODO this probably needs a better name
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    addWorkTree(Args&&... args)
+    {
+        return addWork<T>(std::forward<Args>(args)...);
+    }
+
   protected:
     void onWakeUp() override;
     State doWork() override;

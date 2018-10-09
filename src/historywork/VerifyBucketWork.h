@@ -17,7 +17,7 @@ namespace stellar
 
 class Bucket;
 
-class VerifyBucketWork : public Work
+class VerifyBucketWork : public BasicWork
 {
     std::map<std::string, std::shared_ptr<Bucket>>& mBuckets;
     std::string mBucketFile;
@@ -35,6 +35,6 @@ class VerifyBucketWork : public Work
     ~VerifyBucketWork();
 
   protected:
-    BasicWork::State doWork() override;
+    BasicWork::State onRun() override;
 };
 }

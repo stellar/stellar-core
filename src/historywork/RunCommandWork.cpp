@@ -11,12 +11,12 @@ namespace stellar
 
 RunCommandWork::RunCommandWork(Application& app, std::function<void()> callback,
                                std::string const& name, size_t maxRetries)
-    : Work(app, callback, name, maxRetries)
+    : BasicWork(app, callback, name, maxRetries)
 {
 }
 
 BasicWork::State
-RunCommandWork::doWork()
+RunCommandWork::onRun()
 {
     if (mDone)
     {
@@ -51,7 +51,7 @@ RunCommandWork::doWork()
 }
 
 void
-RunCommandWork::doReset()
+RunCommandWork::onReset()
 {
     mDone = false;
     mEc = asio::error_code();

@@ -13,12 +13,15 @@ class GzipFileWork : public RunCommandWork
 {
     std::string mFilenameNoGz;
     bool mKeepExisting;
-    void getCommand(std::string& cmdLine, std::string& outFile) override;
+    RunCommandInfo getCommand() override;
 
   public:
-    GzipFileWork(Application& app, WorkParent& parent,
+    GzipFileWork(Application& app, std::function<void()> callback,
                  std::string const& filenameNoGz, bool keepExisting = false);
     ~GzipFileWork();
-    void onReset() override;
+
+  protected:
+    void onFailureRetry() override;
+    void onFailureRaise() override;
 };
 }

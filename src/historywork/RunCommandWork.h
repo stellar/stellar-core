@@ -16,7 +16,7 @@ using RunCommandInfo = std::pair<std::string, std::string>;
  * waiting for a process to exit, and wakes up when it's ready
  * to be scheduled again.
  */
-class RunCommandWork : public Work
+class RunCommandWork : public BasicWork
 {
     bool mDone{false};
     asio::error_code mEc;
@@ -29,7 +29,7 @@ class RunCommandWork : public Work
     ~RunCommandWork() = default;
 
   protected:
-    void doReset() override;
-    BasicWork::State doWork() override;
+    void onReset() override;
+    BasicWork::State onRun() override;
 };
 }

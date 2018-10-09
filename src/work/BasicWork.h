@@ -35,13 +35,11 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         WORK_WAITING,
         WORK_FAILURE_RETRY,
         WORK_FAILURE_RAISE,
-        // TODO (mlo) fatal failure seems redundant now
-        WORK_FAILURE_FATAL,
         WORK_DESTRUCTING
     };
 
-    BasicWork(Application& app, std::string name,
-              std::function<void()> callback, size_t maxRetries = RETRY_A_FEW);
+    BasicWork(Application& app, std::function<void()> callback,
+              std::string name, size_t maxRetries);
     virtual ~BasicWork();
 
     std::string const& getName() const;
@@ -54,6 +52,13 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
 
     // Main method for state transition, mostly dictated by `onRun`
     void crankWork();
+
+    // TODO (mlo) look into uses of reset in current interface
+    // Proper cleanup needs to happen at some point, and `reset`
+    // might not be the best place. For instance, `GetRemoteFileWork`
+    // calls std::remove is `onReset`, so an attempt to remove a non-existent
+    // file happens every time a child is added, which is inefficient.
+    void reset();
 
   protected:
     // Implementers can override these callbacks to customize functionality
@@ -79,13 +84,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     virtual void onSuccess();
     virtual void onWakeUp();
 
-    // TODO (mlo) look into uses of reset in current interface
-    // Proper cleanup needs to happen at some point, and `reset`
-    // might not be the best place. For instance, `GetRemoteFileWork`
-    // calls std::remove is `onReset`, so an attempt to remove a non-existent
-    // file happens every time a child is added, which is inefficient.
-    void reset();
-
     // A helper method that implementers can use if they plan to
     // utilize WAITING state. This tells the work to return to RUNNING
     // state, and propagate the notification up to the scheduler
@@ -93,6 +91,9 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     // a timer is used to async_wait for a process to exit,
     // with a call to `wakeUp` upon completion.
     void wakeUp();
+
+    // Default wakeUp callback that implementers can use
+    std::function<void()> wakeUpCallback();
 
     Application& mApp;
 

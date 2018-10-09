@@ -8,9 +8,9 @@
 namespace stellar
 {
 
-GzipFileWork::GzipFileWork(Application& app, WorkParent& parent,
+GzipFileWork::GzipFileWork(Application& app, std::function<void()> callback,
                            std::string const& filenameNoGz, bool keepExisting)
-    : RunCommandWork(app, parent, std::string("gzip-file ") + filenameNoGz)
+    : RunCommandWork(app, callback, std::string("gzip-file ") + filenameNoGz)
     , mFilenameNoGz(filenameNoGz)
     , mKeepExisting(keepExisting)
 {
@@ -19,25 +19,34 @@ GzipFileWork::GzipFileWork(Application& app, WorkParent& parent,
 
 GzipFileWork::~GzipFileWork()
 {
-    clearChildren();
 }
 
 void
-GzipFileWork::onReset()
+GzipFileWork::onFailureRetry()
 {
     std::string filenameGz = mFilenameNoGz + ".gz";
     std::remove(filenameGz.c_str());
 }
 
 void
-GzipFileWork::getCommand(std::string& cmdLine, std::string& outFile)
+GzipFileWork::onFailureRaise()
 {
-    cmdLine = "gzip ";
+    std::string filenameGz = mFilenameNoGz + ".gz";
+    std::remove(filenameGz.c_str());
+}
+
+RunCommandInfo
+GzipFileWork::getCommand()
+{
+    std::string cmdLine = "gzip ";
+    std::string outFile;
     if (mKeepExisting)
     {
         cmdLine += "-c ";
         outFile = mFilenameNoGz + ".gz";
     }
     cmdLine += mFilenameNoGz;
+
+    return RunCommandInfo(cmdLine, outFile);
 }
 }

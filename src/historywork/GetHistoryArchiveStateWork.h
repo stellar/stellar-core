@@ -19,7 +19,7 @@ struct HistoryArchiveState;
 
 class GetHistoryArchiveStateWork : public Work
 {
-    std::shared_ptr<Work> mGetRemoteFile;
+    std::shared_ptr<BasicWork> mGetRemoteFile;
 
     HistoryArchiveState& mState;
     uint32_t mSeq;

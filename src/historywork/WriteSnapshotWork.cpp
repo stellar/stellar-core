@@ -13,48 +13,69 @@
 namespace stellar
 {
 
-WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
+WriteSnapshotWork::WriteSnapshotWork(Application& app,
+                                     std::function<void()> callback,
                                      std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "write-snapshot", Work::RETRY_A_LOT)
+    : BasicWork(app, callback, "write-snapshot", Work::RETRY_A_LOT)
     , mSnapshot(snapshot)
 {
 }
 
-WriteSnapshotWork::~WriteSnapshotWork()
+BasicWork::State
+WriteSnapshotWork::onRun()
 {
-    clearChildren();
-}
+    if (mDone)
+    {
+        return mSuccess ? WORK_SUCCESS : WORK_FAILURE_RETRY;
+    }
 
-void
-WriteSnapshotWork::onStart()
-{
-    auto handler = callComplete();
-    auto snap = mSnapshot;
-    auto work = [handler, snap]() {
-        asio::error_code ec;
+    std::weak_ptr<NewWriteSnapshotWork> weak(
+        std::static_pointer_cast<WriteSnapshotWork>(shared_from_this()));
+
+    auto handler = [weak](bool success) {
+        return [weak, success]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->mDone = true;
+                self->mSuccess = success;
+                self->wakeUp();
+            }
+        };
+    };
+
+    auto work = [weak, handler]() {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+
+        auto snap = self->mSnapshot;
+        bool success = true;
         if (!snap->writeHistoryBlocks())
         {
-            ec = std::make_error_code(std::errc::io_error);
+            success = false;
         }
-        snap->mApp.getClock().getIOService().post(
-            [handler, ec]() { handler(ec); });
+
+        // TODO (mlo) Not ideal, but needed to prevent race conditions with
+        // main thread, since BasicWork's state is not thread-safe. This is a
+        // temporary workaround, as a cleaner solution is needed.
+        self->mApp.getClock().getIOService().post(handler(success));
     };
 
     // Throw the work over to a worker thread if we can use DB pools,
     // otherwise run on main thread.
+    // TODO check if this is actually correct
     if (mApp.getDatabase().canUsePool())
     {
         mApp.getWorkerIOService().post(work);
+        return WORK_WAITING;
     }
     else
     {
         work();
+        return WORK_RUNNING;
     }
-}
-
-void
-WriteSnapshotWork::onRun()
-{
-    // Do nothing: we spawned the writer in onStart().
 }
 }

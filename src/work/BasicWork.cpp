@@ -16,8 +16,8 @@ size_t const BasicWork::RETRY_A_FEW = 5;
 size_t const BasicWork::RETRY_A_LOT = 32;
 size_t const BasicWork::RETRY_FOREVER = 0xffffffff;
 
-BasicWork::BasicWork(Application& app, std::string name,
-                     std::function<void()> callback, size_t maxRetries)
+BasicWork::BasicWork(Application& app, std::function<void()> callback,
+                     std::string name, size_t maxRetries)
     : mApp(app)
     , mNotifyCallback(std::move(callback))
     , mName(std::move(name))
@@ -56,7 +56,6 @@ BasicWork::getStatus() const
         return fmt::format("Retrying in {:d} sec: {:s}", eta, getName());
     }
     case WORK_FAILURE_RAISE:
-    case WORK_FAILURE_FATAL:
         return fmt::format("Failed: {:s}", getName());
     default:
         assert(false);
@@ -67,8 +66,7 @@ BasicWork::getStatus() const
 bool
 BasicWork::isDone() const
 {
-    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE ||
-           mState == WORK_FAILURE_FATAL;
+    return mState == WORK_SUCCESS || mState == WORK_FAILURE_RAISE;
 }
 
 std::string
@@ -86,8 +84,6 @@ BasicWork::stateName(State st)
         return "WORK_FAILURE_RETRY";
     case WORK_FAILURE_RAISE:
         return "WORK_FAILURE_RAISE";
-    case WORK_FAILURE_FATAL:
-        return "WORK_FAILURE_FATAL";
     default:
         throw std::runtime_error("Unknown Work::State");
     }
@@ -99,6 +95,20 @@ BasicWork::reset()
     CLOG(DEBUG, "Work") << "resetting " << getName();
     setState(WORK_RUNNING);
     onReset();
+}
+
+std::function<void()>
+BasicWork::wakeUpCallback()
+{
+    std::weak_ptr<BasicWork> weak = shared_from_this();
+    auto callback = [weak]() {
+        auto self = weak.lock();
+        if (self)
+        {
+            self->wakeUp();
+        }
+    };
+    return callback;
 }
 
 void
@@ -214,7 +224,6 @@ BasicWork::crankWork()
         onSuccess();
         onReset();
         break;
-    case WORK_FAILURE_FATAL:
     case WORK_FAILURE_RAISE:
         onFailureRaise();
         onReset();

@@ -11,19 +11,15 @@ namespace stellar
 {
 
 ResolveSnapshotWork::ResolveSnapshotWork(
-    Application& app, WorkParent& parent,
+    Application& app, std::function<void()> callback,
     std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "prepare-snapshot", Work::RETRY_FOREVER)
+    : BasicWork(app, callback, "prepare-snapshot", Work::RETRY_NEVER)
     , mSnapshot(snapshot)
+    , mTimer(std::make_unique<VirtualTimer>(app.getClock()))
 {
 }
 
-ResolveSnapshotWork::~ResolveSnapshotWork()
-{
-    clearChildren();
-}
-
-void
+BasicWork::State
 ResolveSnapshotWork::onRun()
 {
     mSnapshot->mLocalState.resolveAnyReadyFutures();
@@ -32,11 +28,22 @@ ResolveSnapshotWork::onRun()
          mSnapshot->mLocalState.currentLedger) &&
         mSnapshot->mLocalState.futuresAllResolved())
     {
-        scheduleSuccess();
+        return WORK_SUCCESS;
     }
     else
     {
-        scheduleFailure();
+        std::weak_ptr<ResolveSnapshotWork> weak(
+            std::static_pointer_cast<ResolveSnapshotWork>(shared_from_this()));
+        auto handler = [weak](asio::error_code const& ec) {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->wakeUp();
+            }
+        };
+        mTimer->expires_from_now(mDelay);
+        mTimer->async_wait(handler);
+        return WORK_WAITING;
     }
 }
 }
