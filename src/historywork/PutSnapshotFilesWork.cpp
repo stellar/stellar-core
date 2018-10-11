@@ -41,7 +41,7 @@ PutSnapshotFilesWork::doWork()
 
         // Phase 1: fetch remote history archive state
         mPublishSnapshot->addToSequence<GetHistoryArchiveStateWork>(
-            "get-history-archive-state", mRemoteState, 0, mArchive);
+            mRemoteState, 0, mArchive);
 
         // Phase 2: put all requisite data files
         mPublishSnapshot->addToSequence<GzipAndPutFilesWork>(
@@ -93,21 +93,15 @@ GzipAndPutFilesWork::doWork()
         }
         for (auto f : files)
         {
+            // Empty files are removed and shouldn't be uploaded
             if (f && fs::exists(f->localPath_nogz()))
             {
                 auto publish = addWork<WorkSequence>("publish-snapshots");
-                publish->addToSequence<GzipFileWork>(f->localPath_nogz(),
-                                                        true);
+                publish->addToSequence<GzipFileWork>(f->localPath_nogz(), true);
                 publish->addToSequence<MakeRemoteDirWork>(f->remoteDir(),
-                                                             mArchive);
+                                                          mArchive);
                 publish->addToSequence<PutRemoteFileWork>(
                     f->localPath_gz(), f->remoteName(), mArchive);
-            }
-            else
-            {
-                throw std::runtime_error(
-                    fmt::format("Publish snapshot files error: invalid file {}",
-                                f->localPath_nogz()));
             }
         }
         mChildrenSpawned = true;

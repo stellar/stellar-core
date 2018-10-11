@@ -28,7 +28,6 @@ class GetHistoryArchiveStateWork : public Work
 
   public:
     GetHistoryArchiveStateWork(Application& app, std::function<void()> callback,
-                               std::string uniqueName,
                                HistoryArchiveState& state, uint32_t seq,
                                std::shared_ptr<HistoryArchive> archive,
                                size_t maxRetries = BasicWork::RETRY_A_FEW);

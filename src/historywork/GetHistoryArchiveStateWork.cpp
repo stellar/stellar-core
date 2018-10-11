@@ -15,10 +15,10 @@
 namespace stellar
 {
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app, std::function<void()> callback, std::string uniqueName,
+    Application& app, std::function<void()> callback,
     HistoryArchiveState& state, uint32_t seq,
     std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
-    : Work(app, callback, uniqueName, maxRetries)
+    : Work(app, callback, "get-archive-state", maxRetries)
     , mState(state)
     , mSeq(seq)
     , mArchive(archive)
