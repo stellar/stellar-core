@@ -632,7 +632,7 @@ Config::validateConfig()
             if (QUORUM_SET.threshold < minSize)
             {
                 LOG(ERROR)
-                    << "Your THESHOLD_PERCENTAGE is too low. If you really "
+                    << "Your THRESHOLD_PERCENTAGE is too low. If you really "
                        "want "
                        "this set UNSAFE_QUORUM=true. Be sure you know what you "
                        "are doing!";
