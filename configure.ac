@@ -46,6 +46,20 @@ AX_FRESH_COMPILER
 # -pthread seems to be required by -std=c++14 on some hosts
 AX_APPEND_COMPILE_FLAGS([-pthread])
 
+AC_MSG_CHECKING([for c++14 compliant std::weak_ptr move-constructor])
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <memory>]], [[std::shared_ptr<int> shared = std::make_shared<int>(0);
+std::weak_ptr<int> weak1(shared);
+std::weak_ptr<int> weak2(std::move(weak1));
+return !((weak1.expired()) && (weak1.lock() == nullptr));
+]])], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no]); AC_MSG_ERROR([non-compliant std::weak_ptr move-constructor])], AC_MSG_FAILURE)
+
+AC_MSG_CHECKING([for c++14 compliant std::weak_ptr move-assignment operator])
+AC_RUN_IFELSE([AC_LANG_PROGRAM([[#include <memory>]], [[std::shared_ptr<int> shared = std::make_shared<int>(0);
+std::weak_ptr<int> weak1(shared);
+std::weak_ptr<int> weak2 = std::move(weak1);
+return !((weak1.expired()) && (weak1.lock() == nullptr));
+]])], [AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no]); AC_MSG_ERROR([non-compliant std::weak_ptr move-assignment operator])], AC_MSG_FAILURE)
+
 AC_ARG_ENABLE([sdfprefs],
     AS_HELP_STRING([--enable-sdfprefs],
         [Enable build settings preferred by Stellar developers]))
