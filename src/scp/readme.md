@@ -11,13 +11,14 @@ implementation of SCP easier to model, compare to the paper describing the
 protocol, audit for correctness, and extract for reuse in different programs at
 a later date.
 
-The central [SCP class](SCP.h) should be subclassed by any module wishing to
+The [SCPDriver class](SCPDriver.h) should be subclassed by any module wishing to
 implement consensus using the SCP protocol, implementing the necessary abstract
-methods for handling SCP-generated events, and calling SCP base-class methods to
-receive incoming messages. The messages making up the protocol are defined in
-XDR, in the file [Stellar-SCP.x](../xdr/Stellar-SCP.x)
+methods for handling SCP-generated events, and calling methods from the central
+[SCP base-class](SCP.h) methods to receive incoming messages.
+The messages making up the protocol are defined in XDR,
+in the file [Stellar-SCP.x](../xdr/Stellar-SCP.x)
 
-The `stellar-core` program has a single subclass of SCP called
+The `stellar-core` program has a single subclass of SCPDriver called
 [Herder](../herder), which gives a specific interpretation to "slot" and
 "value", and connects SCP up with a specific broadcast communication medium
 ([Overlay](../overlay)) and specific replicated state machine
