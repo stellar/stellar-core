@@ -22,7 +22,7 @@ class PutHistoryArchiveStateWork : public Work
     void spawnPublishWork();
 
   public:
-    PutHistoryArchiveStateWork(Application& app, std::function<void()> callback,
+    PutHistoryArchiveStateWork(Application& app,
                                HistoryArchiveState const& state,
                                std::shared_ptr<HistoryArchive> archive);
     ~PutHistoryArchiveStateWork() = default;

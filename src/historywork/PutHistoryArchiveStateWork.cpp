@@ -11,9 +11,9 @@
 namespace stellar
 {
 PutHistoryArchiveStateWork::PutHistoryArchiveStateWork(
-    Application& app, std::function<void()> callback,
+    Application& app,
     HistoryArchiveState const& state, std::shared_ptr<HistoryArchive> archive)
-    : Work(app, callback, "put-history-archive-state")
+    : Work(app, "put-history-archive-state")
     , mState(state)
     , mArchive(archive)
     , mLocalFilename(HistoryArchiveState::localName(app, archive->getName()))
@@ -81,19 +81,22 @@ PutHistoryArchiveStateWork::spawnPublishWork()
     auto seqName = HistoryArchiveState::remoteName(mState.currentLedger);
     auto seqDir = HistoryArchiveState::remoteDir(mState.currentLedger);
 
-    mPutRemoteFileWork = addWork<WorkSequence>("put-history-file-sequence");
-    mPutRemoteFileWork->addToSequence<MakeRemoteDirWork>(seqDir, mArchive);
-    mPutRemoteFileWork->addToSequence<PutRemoteFileWork>(mLocalFilename,
-                                                         seqName, mArchive);
+    auto w1 = std::make_shared<MakeRemoteDirWork>(mApp, seqDir, mArchive);
+    auto w2 = std::make_shared<PutRemoteFileWork>(mApp, mLocalFilename,
+                                                     seqName, mArchive);
+
+    std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
+    mPutRemoteFileWork =
+            addWork<WorkSequence>("put-history-file-sequence", seq);
 
     // Also put it in the .well-known/stellar-history.json file
     auto wkName = HistoryArchiveState::wellKnownRemoteName();
     auto wkDir = HistoryArchiveState::wellKnownRemoteDir();
 
-    auto wellKnownPut =
-        addWork<WorkSequence>("put-history-well-known-sequence");
-    wellKnownPut->addToSequence<MakeRemoteDirWork>(wkDir, mArchive);
-    wellKnownPut->addToSequence<PutRemoteFileWork>(mLocalFilename, wkName,
-                                                   mArchive);
+    auto w3 = std::make_shared<MakeRemoteDirWork>(mApp, wkDir, mArchive);
+    auto w4 = std::make_shared<PutRemoteFileWork>(mApp, mLocalFilename,
+                                                     wkName, mArchive);
+    std::vector<std::shared_ptr<BasicWork>> seqWk{w3, w4};
+    addWork<WorkSequence>("put-history-well-known-sequence", seqWk);
 }
 }

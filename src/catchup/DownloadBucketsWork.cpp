@@ -13,10 +13,10 @@
 namespace stellar
 {
 DownloadBucketsWork::DownloadBucketsWork(
-    Application& app, std::function<void()> callback,
+    Application& app,
     std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::vector<std::string> hashes, TmpDir const& downloadDir)
-    : Work{app, callback, "download-and-verify-buckets"}
+    : Work{app, "download-and-verify-buckets"}
     , mBuckets{buckets}
     , mHashes{std::move(hashes)}
     , mDownloadDir{downloadDir}
@@ -31,11 +31,12 @@ DownloadBucketsWork::doWork()
         for (auto const& hash : mHashes)
         {
             FileTransferInfo ft(mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-            auto sequenceWork =
-                addWork<WorkSequence>("download-verify-sequence-" + hash);
-            sequenceWork->addToSequence<GetAndUnzipRemoteFileWork>(ft);
-            sequenceWork->addToSequence<VerifyBucketWork>(
-                mBuckets, ft.localPath_nogz(), hexToBin256(hash));
+
+            auto w1 = std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
+            auto w2 = std::make_shared<VerifyBucketWork>(
+                            mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash));
+            std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
+            addWork<WorkSequence>("download-verify-sequence-" + hash, seq);
         }
         mChildrenStarted = true;
     }

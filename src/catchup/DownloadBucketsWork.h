@@ -25,7 +25,7 @@ class DownloadBucketsWork : public Work
     bool mChildrenStarted{false};
 
   public:
-    DownloadBucketsWork(Application& app, std::function<void()> callback,
+    DownloadBucketsWork(Application& app,
                         std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                         std::vector<std::string> hashes,
                         TmpDir const& downloadDir);
