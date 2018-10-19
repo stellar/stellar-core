@@ -28,8 +28,12 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     static size_t const RETRY_A_LOT;
     static size_t const RETRY_FOREVER;
 
+    // TODO this needs to be split into 2 enums:
+    // one for publicly exposed state and one for
+    // internal transitions within BasicWork
     enum State
     {
+        WORK_PENDING,
         WORK_RUNNING,
         WORK_SUCCESS,
         WORK_WAITING,
@@ -38,8 +42,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
         WORK_DESTRUCTING
     };
 
-    BasicWork(Application& app, std::function<void()> callback,
-              std::string name, size_t maxRetries);
+    BasicWork(Application& app, std::string name, size_t maxRetries);
     virtual ~BasicWork();
 
     std::string const& getName() const;
@@ -52,13 +55,8 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
 
     // Main method for state transition, mostly dictated by `onRun`
     void crankWork();
-
-    // TODO (mlo) look into uses of reset in current interface
-    // Proper cleanup needs to happen at some point, and `reset`
-    // might not be the best place. For instance, `GetRemoteFileWork`
-    // calls std::remove is `onReset`, so an attempt to remove a non-existent
-    // file happens every time a child is added, which is inefficient.
-    void reset();
+    void restartWork(std::function<void()> wakeUpParent);
+    virtual void shutdown();
 
   protected:
     // Implementers can override these callbacks to customize functionality
@@ -79,10 +77,12 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
 
     virtual void onReset();
     virtual State onRun() = 0;
+    virtual void onWakeUp();
+
+    // TODO potentially remove these if they are not actually helpful
     virtual void onFailureRetry();
     virtual void onFailureRaise();
     virtual void onSuccess();
-    virtual void onWakeUp();
 
     // A helper method that implementers can use if they plan to
     // utilize WAITING state. This tells the work to return to RUNNING
@@ -98,6 +98,13 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     Application& mApp;
 
   private:
+    // TODO (mlo) look into uses of reset in current interface
+    // Proper cleanup needs to happen at some point, and `reset`
+    // might not be the best place. For instance, `GetRemoteFileWork`
+    // calls std::remove is `onReset`, so an attempt to remove a non-existent
+    // file happens every time a child is added, which is inefficient.
+    void reset();
+
     VirtualClock::duration getRetryDelay() const;
     static std::string stateName(State st);
     void setState(State s);
@@ -107,7 +114,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     std::string const mName;
     std::unique_ptr<VirtualTimer> mRetryTimer;
 
-    State mState{WORK_RUNNING};
+    State mState{WORK_PENDING};
     size_t mRetries{0};
     size_t const mMaxRetries{RETRY_A_FEW};
 };

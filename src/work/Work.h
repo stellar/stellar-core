@@ -21,12 +21,6 @@ namespace stellar
 class Work : public BasicWork
 {
   public:
-    enum Execution
-    {
-        WORK_PARALLEL,
-        WORK_SERIAL
-    };
-
     virtual ~Work();
 
     // Children status helper methods
@@ -36,10 +30,11 @@ class Work : public BasicWork
     bool anyChildRunning() const;
     bool hasChildren() const;
 
+    void shutdown() override;
+
   protected:
-    Work(Application& app, std::function<void()> callback, std::string name,
-         size_t retries = BasicWork::RETRY_A_FEW,
-         Execution order = WORK_PARALLEL);
+    Work(Application& app, std::string name,
+         size_t retries = BasicWork::RETRY_A_FEW);
 
     // Note: `shared_from_this` assumes there exists a shared_ptr to the
     // references class. This relates to who owns what in Work interface.
@@ -49,10 +44,9 @@ class Work : public BasicWork
     std::shared_ptr<T>
     addWork(Args&&... args)
     {
-        auto child = std::make_shared<T>(mApp, wakeUpCallback(),
-                                         std::forward<Args>(args)...);
+        auto child = std::make_shared<T>(mApp, std::forward<Args>(args)...);
+        child->restartWork(wakeUpCallback());
         addChild(child);
-        child->reset();
         wakeUp();
         return child;
     }
@@ -70,7 +64,6 @@ class Work : public BasicWork
   private:
     std::list<std::shared_ptr<BasicWork>> mChildren;
     std::list<std::shared_ptr<BasicWork>>::const_iterator mNextChild;
-    Execution const mExecutionOrder;
 
     std::shared_ptr<BasicWork> yieldNextRunningChild();
     void addChild(std::shared_ptr<BasicWork> child);
@@ -87,19 +80,16 @@ class Work : public BasicWork
  */
 class WorkSequence : public Work
 {
-  public:
-    WorkSequence(Application& app, std::function<void()> callback,
-                 std::string name);
+    std::vector<std::shared_ptr<BasicWork>> mSequenceOfWork;
+    std::vector<std::shared_ptr<BasicWork>>::const_iterator mNextInSequence;
+
+public:
+    WorkSequence(Application& app, std::string name,
+                 std::vector<std::shared_ptr<BasicWork>> sequence);
     ~WorkSequence() = default;
 
-    template <typename T, typename... Args>
-    std::shared_ptr<T>
-    addToSequence(Args&&... args)
-    {
-        return addWork<T>(std::forward<Args>(args)...);
-    }
-
-  protected:
+protected:
     State doWork() final;
+    void doReset() final;
 };
 }

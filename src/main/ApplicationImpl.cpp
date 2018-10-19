@@ -295,6 +295,10 @@ ApplicationImpl::~ApplicationImpl()
     {
         mNtpSynchronizationChecker->shutdown();
     }
+    if (mWorkScheduler)
+    {
+        mWorkScheduler->shutdown();
+    }
     if (mProcessManager)
     {
         mProcessManager->shutdown();

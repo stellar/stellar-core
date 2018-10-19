@@ -9,9 +9,9 @@
 namespace stellar
 {
 
-RunCommandWork::RunCommandWork(Application& app, std::function<void()> callback,
+RunCommandWork::RunCommandWork(Application& app,
                                std::string const& name, size_t maxRetries)
-    : BasicWork(app, callback, name, maxRetries)
+    : BasicWork(app, name, maxRetries)
 {
 }
 
@@ -32,7 +32,7 @@ RunCommandWork::onRun()
 
             std::weak_ptr<RunCommandWork> weak(
                 std::static_pointer_cast<RunCommandWork>(shared_from_this()));
-            exit.async_wait([weak](asio::error_code ec) {
+            exit.async_wait([weak](asio::error_code const& ec) {
                 auto self = weak.lock();
                 if (self)
                 {

@@ -23,8 +23,7 @@ class RunCommandWork : public BasicWork
     virtual RunCommandInfo getCommand() = 0;
 
   public:
-    RunCommandWork(Application& app, std::function<void()> callback,
-                   std::string const& name,
+    RunCommandWork(Application& app, std::string const& name,
                    size_t maxRetries = BasicWork::RETRY_A_FEW);
     ~RunCommandWork() = default;
 

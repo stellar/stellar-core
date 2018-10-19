@@ -15,11 +15,10 @@ size_t const Work::RETRY_A_FEW = 5;
 size_t const Work::RETRY_A_LOT = 32;
 size_t const Work::RETRY_FOREVER = 0xffffffff;
 
-Work::Work(Application& app, std::function<void()> callback, std::string name,
-           size_t maxRetries, Execution order)
-    : BasicWork(app, std::move(callback), std::move(name), maxRetries)
+Work::Work(Application& app, std::string name,
+           size_t maxRetries)
+    : BasicWork(app, std::move(name), maxRetries)
     , mNextChild(mChildren.begin())
-    , mExecutionOrder(order)
 {
 }
 
@@ -27,6 +26,16 @@ Work::~Work()
 {
     // TODO consider this assert when abort logic is implemented
     //    assert(!hasChildren());
+}
+
+void
+Work::shutdown()
+{
+    for (auto& c : mChildren)
+    {
+        c->shutdown();
+    }
+    BasicWork::shutdown();
 }
 
 BasicWork::State
@@ -53,7 +62,6 @@ Work::onReset()
     // this assert needs to move to `clearChildren`
     //    assert(allChildrenDone());
     clearChildren();
-    mNextChild = mChildren.begin();
     doReset();
 }
 
@@ -66,6 +74,7 @@ void
 Work::clearChildren()
 {
     mChildren.clear();
+    mNextChild = mChildren.begin();
 }
 
 void
@@ -143,71 +152,66 @@ Work::anyChildRaiseFailure() const
 std::shared_ptr<BasicWork>
 Work::yieldNextRunningChild()
 {
-    if (mExecutionOrder == WORK_PARALLEL)
+    while (mNextChild != mChildren.end())
     {
-        while (mNextChild != mChildren.end())
+        auto next = *mNextChild;
+        mNextChild++;
+        if (next->getState() == BasicWork::WORK_RUNNING)
         {
-            auto next = *mNextChild;
-            mNextChild++;
-            if (next->getState() == BasicWork::WORK_RUNNING)
-            {
-                return next;
-            }
+            return next;
         }
-        mNextChild = mChildren.begin();
-        return nullptr;
     }
-    else
-    {
-        // All children has reached terminal state, run parent
-        if (mNextChild == mChildren.end())
-        {
-            assert(allChildrenDone());
-            return nullptr;
-        }
-
-        assert(*mNextChild);
-        if ((*mNextChild)->isDone())
-        {
-            // Advance to next child, and let the parent run
-            mNextChild++;
-            return nullptr;
-        }
-
-        // Child is waiting, let the parent run and decide how to proceed
-        if ((*mNextChild)->getState() == WORK_WAITING)
-        {
-            return nullptr;
-        }
-
-        return *mNextChild;
-    }
+    mNextChild = mChildren.begin();
+    return nullptr;
 }
 
-WorkSequence::WorkSequence(Application& app, std::function<void()> callback,
-                           std::string name)
-    : Work(app, callback, std::move(name), RETRY_NEVER, WORK_SERIAL)
+WorkSequence::WorkSequence(Application& app, std::string name,
+                           std::vector<std::shared_ptr<BasicWork>> sequence)
+        : Work(app, std::move(name), RETRY_A_FEW)
+        , mSequenceOfWork(sequence)
+        , mNextInSequence(mSequenceOfWork.begin())
 {
 }
 
 BasicWork::State
 WorkSequence::doWork()
 {
-    auto isWaiting = mNextChild != mChildren.end() &&
-                     (*mNextChild)->getState() == WORK_WAITING;
-
-    if (isWaiting)
+    if (mNextInSequence == mSequenceOfWork.end())
     {
-        return WORK_WAITING;
-    }
-    else if (anyChildRaiseFailure())
-    {
-        return WORK_FAILURE_RETRY;
-    }
-    else if (allChildrenSuccessful())
-    {
+        // Completed all the work
+        assert(!hasChildren());
         return WORK_SUCCESS;
     }
-    return WORK_RUNNING;
+
+    auto w = *mNextInSequence;
+    assert(w);
+    if (!hasChildren())
+    {
+        w->restartWork(wakeUpCallback());
+        addChild(w);
+        return WORK_RUNNING;
+    }
+    else
+    {
+        auto state = w->getState();
+        if (state == WORK_SUCCESS)
+        {
+            clearChildren();
+            mNextInSequence++;
+            return WORK_RUNNING;
+        }
+        else if (state == WORK_FAILURE_RAISE)
+        {
+            // Work will do all the cleanup
+            return WORK_FAILURE_RETRY;
+        }
+        return state;
+    }
+}
+
+void
+WorkSequence::doReset()
+{
+    mNextInSequence = mSequenceOfWork.begin();
 }
 }

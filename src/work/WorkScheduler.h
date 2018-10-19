@@ -16,12 +16,12 @@ namespace stellar
  */
 class WorkScheduler : public Work
 {
-    WorkScheduler(Application& app, std::function<void()> callback = nullptr);
+    WorkScheduler(Application& app);
     bool mScheduled{false};
 
   public:
     virtual ~WorkScheduler();
-    static std::shared_ptr<WorkScheduler> create(Application& app);
+    static std::shared_ptr<WorkScheduler> create(Application& app, std::function<void()> wakeUpCallback = nullptr);
 
     template <typename T, typename... Args>
     std::shared_ptr<T>

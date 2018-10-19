@@ -8,8 +8,8 @@
 
 namespace stellar
 {
-WorkScheduler::WorkScheduler(Application& app, std::function<void()> callback)
-    : Work(app, std::move(callback), "work-scheduler", BasicWork::RETRY_NEVER)
+WorkScheduler::WorkScheduler(Application& app)
+    : Work(app, "work-scheduler", BasicWork::RETRY_NEVER)
 {
 }
 
@@ -18,9 +18,10 @@ WorkScheduler::~WorkScheduler()
 }
 
 std::shared_ptr<WorkScheduler>
-WorkScheduler::create(Application& app)
+WorkScheduler::create(Application& app, std::function<void()> wakeUpCallback)
 {
     auto work = std::shared_ptr<WorkScheduler>(new WorkScheduler(app));
+    work->restartWork(wakeUpCallback);
     work->crankWork();
     return work;
 };

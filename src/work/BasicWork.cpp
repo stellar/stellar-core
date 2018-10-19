@@ -16,16 +16,19 @@ size_t const BasicWork::RETRY_A_FEW = 5;
 size_t const BasicWork::RETRY_A_LOT = 32;
 size_t const BasicWork::RETRY_FOREVER = 0xffffffff;
 
-BasicWork::BasicWork(Application& app, std::function<void()> callback,
-                     std::string name, size_t maxRetries)
+BasicWork::BasicWork(Application& app, std::string name, size_t maxRetries)
     : mApp(app)
-    , mNotifyCallback(std::move(callback))
     , mName(std::move(name))
     , mMaxRetries(maxRetries)
 {
 }
 
 BasicWork::~BasicWork()
+{
+}
+
+void
+BasicWork::shutdown()
 {
     mState = WORK_DESTRUCTING;
 }
@@ -44,6 +47,8 @@ BasicWork::getStatus() const
 
     switch (state)
     {
+    case WORK_PENDING:
+        return fmt::format("Pending: {:s}", getName());
     case WORK_RUNNING:
         return fmt::format("Running: {:s}", getName());
     case WORK_WAITING:
@@ -74,6 +79,8 @@ BasicWork::stateName(State st)
 {
     switch (st)
     {
+    case WORK_PENDING:
+        return "WORK_PENDING";
     case WORK_WAITING:
         return "WORK_WAITING";
     case WORK_RUNNING:
@@ -93,7 +100,13 @@ void
 BasicWork::reset()
 {
     CLOG(DEBUG, "Work") << "resetting " << getName();
-    setState(WORK_RUNNING);
+
+    if (mRetryTimer)
+    {
+        mRetryTimer->cancel();
+        mRetryTimer.reset();
+    }
+
     onReset();
 }
 
@@ -109,6 +122,22 @@ BasicWork::wakeUpCallback()
         }
     };
     return callback;
+}
+
+void
+BasicWork::restartWork(std::function<void()> wakeUpParent)
+{
+    if (mState != WORK_PENDING)
+    {
+        // Only restart if work is in terminal state
+        assert(isDone());
+        reset();
+        setState(WORK_PENDING);
+    }
+
+    mNotifyCallback = wakeUpParent;
+    setState(WORK_RUNNING);
+    reset();
 }
 
 void
@@ -136,11 +165,12 @@ BasicWork::waitForRetry()
             {
                 return;
             }
+            assert(self->getState() == WORK_WAITING);
             self->mRetries++;
-            self->mRetryTimer = nullptr;
+            self->mRetryTimer.reset();
             self->wakeUp();
-            self->reset();
         },
+        // TODO for abort logic: what needs to happen on cancellation?
         VirtualTimer::onFailureNoop);
 }
 
@@ -178,6 +208,9 @@ BasicWork::getState() const
 void
 BasicWork::setState(BasicWork::State st)
 {
+    // TODO Enforce proper state transitions
+    // by adding extra asserts
+
     auto maxR = getMaxRetries();
     if (st == WORK_FAILURE_RETRY && (mRetries >= maxR))
     {
@@ -191,6 +224,25 @@ BasicWork::setState(BasicWork::State st)
         CLOG(DEBUG, "Work") << "work " << getName() << " : "
                             << stateName(mState) << " -> " << stateName(st);
         mState = st;
+    }
+
+    switch (mState)
+    {
+        case WORK_SUCCESS:
+            onSuccess();
+            reset();
+            break;
+        case WORK_FAILURE_RAISE:
+            onFailureRaise();
+            reset();
+            break;
+        case WORK_FAILURE_RETRY:
+            onFailureRetry();
+            reset();
+            waitForRetry();
+            break;
+        default:
+            break;
     }
 }
 
@@ -217,24 +269,6 @@ BasicWork::crankWork()
 
     auto nextState = onRun();
     setState(nextState);
-
-    switch (mState)
-    {
-    case WORK_SUCCESS:
-        onSuccess();
-        onReset();
-        break;
-    case WORK_FAILURE_RAISE:
-        onFailureRaise();
-        onReset();
-        break;
-    case WORK_FAILURE_RETRY:
-        onFailureRetry();
-        waitForRetry();
-        break;
-    default:
-        break;
-    }
 }
 
 size_t
