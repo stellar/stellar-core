@@ -333,7 +333,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(root.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(lm, *app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -348,7 +348,7 @@ TEST_CASE("surge", "[herder]")
         random_shuffle(txSet->mTransactions.begin(),
                        txSet->mTransactions.end());
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(lm, *app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
@@ -364,7 +364,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(lm, *app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -388,7 +388,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(tx);
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(lm, *app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
         for (auto& tx : txSet->mTransactions)
@@ -407,7 +407,7 @@ TEST_CASE("surge", "[herder]")
             txSet->add(accountC.tx({payment(destAccount, n + 10)}));
         }
         txSet->sortForHash();
-        txSet->surgePricingFilter(lm);
+        txSet->surgePricingFilter(lm, *app);
         REQUIRE(txSet->mTransactions.size() == 5);
         REQUIRE(txSet->checkValid(*app));
     }
