@@ -150,6 +150,26 @@ DataFrame::loadAllData(Database& db)
     return retData;
 }
 
+std::vector<DataFrame::pointer>
+DataFrame::loadAllData(Database& db, AccountID const& accountID)
+{
+    std::string actIDStrKey = KeyUtils::toStrKey(accountID);
+
+    std::vector<DataFrame::pointer> retData;
+    std::string sql = dataColumnSelector;
+    sql += " WHERE accountid = :id";
+    auto prep = db.getPreparedStatement(sql);
+    auto& st = prep.statement();
+
+	st.exchange(use(actIDStrKey));
+
+    auto timer = db.getSelectTimer("data");
+    loadData(prep, [&retData](LedgerEntry const& of) {
+        retData.emplace_back(make_shared<DataFrame>(of));
+    });
+    return retData;
+}
+
 bool
 DataFrame::exists(Database& db, LedgerKey const& key)
 {

@@ -82,6 +82,9 @@ class DataFrame : public EntryFrame
     static std::unordered_map<AccountID, std::vector<DataFrame::pointer>>
     loadAllData(Database& db);
 
+    static std::vector<DataFrame::pointer>
+	loadAllData(Database& db, AccountID const& accountID);
+
     static void dropAll(Database& db);
 
   private:
