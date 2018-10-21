@@ -9,6 +9,7 @@
 #include "database/Database.h"
 #include "main/Application.h"
 #include "main/Config.h"
+#include "main/Whitelist.h"
 #include "util/Logging.h"
 #include "xdrpp/marshal.h"
 #include <algorithm>
