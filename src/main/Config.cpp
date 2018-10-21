@@ -144,7 +144,7 @@ readInt(ConfigItem const& item, T min = std::numeric_limits<T>::min(),
     }
     return static_cast<T>(v);
 }
-}
+} // namespace
 
 void
 Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
@@ -246,7 +246,11 @@ Config::load(std::string const& filename)
         for (auto& item : g)
         {
             LOG(DEBUG) << "Config item: " << item.first;
-            if (item.first == "PEER_PORT")
+            if (item.first == "WHITELIST")
+            {
+                WHITELIST = readString(item);
+            }
+            else if (item.first == "PEER_PORT")
             {
                 PEER_PORT = readInt<unsigned short>(item, 1, UINT16_MAX);
             }
@@ -784,4 +788,4 @@ Config::expandNodeID(const std::string& s) const
         return {};
     }
 }
-}
+} // namespace stellar
