@@ -625,7 +625,6 @@ TEST_CASE("ballot protocol core5", "[scp][ballotprotocol]")
         {
             REQUIRE(scp.hasBallotTimerUpcoming());
         }
-
     };
     // doesn't check timers
     auto recvQuorumChecks = std::bind(recvQuorumChecksEx, _1, _2, _3, false);

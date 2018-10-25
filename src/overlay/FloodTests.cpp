@@ -145,7 +145,6 @@ TEST_CASE("Flooding", "[flood][overlay]")
             auto res = inApp->getHerder().recvTransaction(tx1);
             REQUIRE(res == Herder::TX_STATUS_PENDING);
             inApp->getOverlayManager().broadcastMessage(msg);
-
         };
 
         auto ackedTransactions = [&](std::shared_ptr<Application> app) {
@@ -263,7 +262,6 @@ TEST_CASE("Flooding", "[flood][overlay]")
             // inject the message
             REQUIRE(herder.recvSCPEnvelope(envelope, qset, txSet) ==
                     Herder::ENVELOPE_STATUS_READY);
-
         };
 
         auto ackedSCP = [&](std::shared_ptr<Application> app) {
