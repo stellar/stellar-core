@@ -31,7 +31,7 @@
 #include "util/Logging.h"
 #include "util/Timer.h"
 #include "util/optional.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 #include <lib/util/format.h>
 #include <limits>
 #include <locale>
@@ -423,12 +423,12 @@ reportLastHistoryCheckpoint(Config const& cfg, std::string const& outputFile)
     }
 
     auto state = HistoryArchiveState{};
-    auto& wm = app->getWorkManager();
+    auto& ws = app->getWorkScheduler();
     auto getHistoryArchiveStateWork =
-        wm.executeWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state-work", state);
+        ws.executeWork<GetHistoryArchiveStateWork>(state);
 
-    auto ok = getHistoryArchiveStateWork->getState() == Work::WORK_SUCCESS;
+    auto ok = getHistoryArchiveStateWork->getState() ==
+              BasicWork::State::WORK_SUCCESS;
     if (ok)
     {
         std::string filename = outputFile.empty() ? "-" : outputFile;
