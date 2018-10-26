@@ -16,7 +16,7 @@
 #include "util/Logging.h"
 #include "util/StatusManager.h"
 #include "util/format.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 namespace stellar
 {
@@ -61,9 +61,8 @@ CatchupManagerImpl::catchupHistory(CatchupConfiguration catchupConfiguration,
 
     mCatchupStart.Mark();
 
-    mCatchupWork = mApp.getWorkManager().addWork<CatchupWork>(
+    mCatchupWork = mApp.getWorkScheduler().scheduleWork<CatchupWork>(
         catchupConfiguration, manualCatchup, handler, Work::RETRY_NEVER);
-    mApp.getWorkManager().advanceChildren();
 }
 
 std::string

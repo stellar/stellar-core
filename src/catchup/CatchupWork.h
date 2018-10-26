@@ -5,8 +5,9 @@
 #pragma once
 
 #include "catchup/CatchupConfiguration.h"
-#include "historywork/BucketDownloadWork.h"
+#include "history/HistoryArchive.h"
 #include "ledger/LedgerRange.h"
+#include "work/Work.h"
 
 namespace stellar
 {
@@ -14,6 +15,8 @@ namespace stellar
 class LedgerRange;
 class CheckpointRange;
 class HistoryManager;
+class Bucket;
+class TmpDir;
 
 // Range required to do a catchup.
 //
@@ -54,8 +57,18 @@ using CatchupRange = std::pair<LedgerRange, bool>;
 //
 // After that, catchup is done and node can replay buffered ledgers and take
 // part in consensus protocol.
-class CatchupWork : public BucketDownloadWork
+
+class CatchupWork : public Work
 {
+  protected:
+    HistoryArchiveState mLocalState;
+    std::unique_ptr<TmpDir> mDownloadDir;
+    std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
+
+    void doReset() override;
+    BasicWork::State doWork() override;
+    void onFailureRaise() override;
+
   public:
     enum class ProgressState
     {
@@ -85,27 +98,23 @@ class CatchupWork : public BucketDownloadWork
         asio::error_code const& ec, ProgressState progressState,
         LedgerHeaderHistoryEntry const& lastClosed)>;
 
-  public:
     /**
      * Preconditions:
      * * lastClosedLedger > 0
      * * configuration.toLedger() >= lastClosedLedger
      * * configuration.toLedger() != CatchupConfiguration::CURRENT
      */
+
     static CatchupRange
     makeCatchupRange(uint32_t lastClosedLedger,
                      CatchupConfiguration const& configuration,
                      HistoryManager const& historyManager);
 
-    CatchupWork(Application& app, WorkParent& parent,
-                CatchupConfiguration catchupConfiguration, bool manualCatchup,
-                ProgressHandler progressHandler, size_t maxRetries);
-    std::string getStatus() const override;
-    void onReset() override;
-    State onSuccess() override;
-    void onFailureRaise() override;
-
+    CatchupWork(Application& app, CatchupConfiguration catchupConfiguration,
+                bool manualCatchup, ProgressHandler progressHandler,
+                size_t maxRetries);
     ~CatchupWork();
+    std::string getStatus() const override;
 
   private:
     HistoryArchiveState mRemoteState;
@@ -113,28 +122,27 @@ class CatchupWork : public BucketDownloadWork
     uint32_t mLastClosedLedgerAtReset;
     CatchupConfiguration const mCatchupConfiguration;
     bool const mManualCatchup;
-    std::shared_ptr<Work> mGetHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadLedgersWork;
-    std::shared_ptr<Work> mVerifyLedgersWork;
-    std::shared_ptr<Work> mGetBucketsHistoryArchiveStateWork;
-    std::shared_ptr<Work> mDownloadBucketsWork;
-    std::shared_ptr<Work> mApplyBucketsWork;
-    std::shared_ptr<Work> mDownloadTransactionsWork;
-    std::shared_ptr<Work> mApplyTransactionsWork;
     LedgerHeaderHistoryEntry mFirstVerified;
     LedgerHeaderHistoryEntry mLastVerified;
     LedgerHeaderHistoryEntry mLastApplied;
     ProgressHandler mProgressHandler;
-    bool mBucketsAppliedEmitted;
+    bool mBucketsAppliedEmitted{false};
+
+    std::shared_ptr<BasicWork> mGetHistoryArchiveStateWork;
+    std::shared_ptr<BasicWork> mGetBucketStateWork;
+
+    std::shared_ptr<WorkSequence> mDownloadVerifyLedgersSeq;
+    std::shared_ptr<WorkSequence> mBucketVerifyApplySeq;
+    std::shared_ptr<WorkSequence> mTransactionsVerifyApplySeq;
+
+    bool mBucketsProcessing{false};
 
     bool hasAnyLedgersToCatchupTo() const;
-    bool downloadLedgers(CheckpointRange const& range);
-    bool verifyLedgers(LedgerRange const& range);
     bool alreadyHaveBucketsHistoryArchiveState(uint32_t atCheckpoint) const;
-    bool downloadBucketsHistoryArchiveState(uint32_t atCheckpoint);
-    bool downloadBuckets();
-    bool applyBuckets();
-    bool downloadTransactions(CheckpointRange const& range);
-    bool applyTransactions(LedgerRange const& range);
+    BasicWork::State bucketProcessingState(CatchupRange catchupRange) const;
+
+    void downloadVerifyLedgerChain(CatchupRange catchupRange);
+    void downloadApplyBuckets(CatchupRange catchupRange);
+    void downloadApplyTransactions(CatchupRange catchupRange);
 };
 }

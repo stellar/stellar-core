@@ -12,115 +12,142 @@ namespace stellar
 {
 
 GetAndUnzipRemoteFileWork::GetAndUnzipRemoteFileWork(
-    Application& app, WorkParent& parent, FileTransferInfo ft,
+    Application& app, FileTransferInfo ft,
     std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
-    : Work(app, parent,
-           std::string("get-and-unzip-remote-file ") + ft.remoteName(),
+    : Work(app, std::string("get-and-unzip-remote-file ") + ft.remoteName(),
            maxRetries)
     , mFt(std::move(ft))
     , mArchive(archive)
+    , mDownloadStart(app.getMetrics().NewMeter(
+          {"history", "download-" + mFt.getType(), "start"}, "event"))
+    , mDownloadSuccess(app.getMetrics().NewMeter(
+          {"history", "download-" + mFt.getType(), "success"}, "event"))
+    , mDownloadFailure(app.getMetrics().NewMeter(
+          {"history", "download-" + mFt.getType(), "failure"}, "event"))
 {
-}
-
-GetAndUnzipRemoteFileWork::~GetAndUnzipRemoteFileWork()
-{
-    clearChildren();
 }
 
 std::string
 GetAndUnzipRemoteFileWork::getStatus() const
 {
-    if (mState == WORK_PENDING)
+    if (mGunzipFileWork)
     {
-        if (mGunzipFileWork)
-        {
-            return mGunzipFileWork->getStatus();
-        }
-        else if (mGetRemoteFileWork)
-        {
-            return mGetRemoteFileWork->getStatus();
-        }
+        return mGunzipFileWork->getStatus();
     }
-    return Work::getStatus();
+    else if (mGetRemoteFileWork)
+    {
+        return mGetRemoteFileWork->getStatus();
+    }
+    return BasicWork::getStatus();
 }
 
 void
-GetAndUnzipRemoteFileWork::onReset()
+GetAndUnzipRemoteFileWork::doReset()
 {
-    clearChildren();
+    std::remove(mFt.localPath_nogz().c_str());
+    std::remove(mFt.localPath_gz().c_str());
+    std::remove(mFt.localPath_gz_tmp().c_str());
     mGetRemoteFileWork.reset();
     mGunzipFileWork.reset();
-
-    CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName()
-                           << ": downloading";
-    mGetRemoteFileWork = addWork<GetRemoteFileWork>(
-        mFt.remoteName(), mFt.localPath_gz_tmp(), nullptr, RETRY_NEVER);
-}
-
-Work::State
-GetAndUnzipRemoteFileWork::onSuccess()
-{
-    if (mGunzipFileWork)
-    {
-        if (!fs::exists(mFt.localPath_nogz()))
-        {
-            CLOG(ERROR, "History") << "Downloading and unzipping "
-                                   << mFt.remoteName() << ": .xdr not found";
-            return WORK_FAILURE_RETRY;
-        }
-        else
-        {
-            return WORK_SUCCESS;
-        }
-    }
-
-    if (fs::exists(mFt.localPath_gz_tmp()))
-    {
-        CLOG(TRACE, "History")
-            << "Downloading and unzipping " << mFt.remoteName()
-            << ": renaming .gz.tmp to .gz";
-        if (fs::exists(mFt.localPath_gz()) &&
-            std::remove(mFt.localPath_gz().c_str()))
-        {
-            CLOG(ERROR, "History")
-                << "Downloading and unzipping " << mFt.remoteName()
-                << ": failed to remove .gz";
-            return WORK_FAILURE_RETRY;
-        }
-
-        if (std::rename(mFt.localPath_gz_tmp().c_str(),
-                        mFt.localPath_gz().c_str()))
-        {
-            CLOG(ERROR, "History")
-                << "Downloading and unzipping " << mFt.remoteName()
-                << ": failed to rename .gz.tmp to .gz";
-            return WORK_FAILURE_RETRY;
-        }
-
-        CLOG(TRACE, "History")
-            << "Downloading and unzipping " << mFt.remoteName()
-            << ": renamed .gz.tmp to .gz";
-    }
-
-    if (!fs::exists(mFt.localPath_gz()))
-    {
-        CLOG(ERROR, "History") << "Downloading and unzipping "
-                               << mFt.remoteName() << ": .gz not found";
-        return WORK_FAILURE_RETRY;
-    }
-
-    CLOG(DEBUG, "History") << "Downloading and unzipping " << mFt.remoteName()
-                           << ": unzipping";
-    mGunzipFileWork =
-        addWork<GunzipFileWork>(mFt.localPath_gz(), false, RETRY_NEVER);
-    return WORK_PENDING;
 }
 
 void
 GetAndUnzipRemoteFileWork::onFailureRaise()
 {
-    std::remove(mFt.localPath_nogz().c_str());
-    std::remove(mFt.localPath_gz().c_str());
-    std::remove(mFt.localPath_gz_tmp().c_str());
+
+    mDownloadFailure.Mark();
+    Work::onFailureRaise();
+}
+
+void
+GetAndUnzipRemoteFileWork::onSuccess()
+{
+    mDownloadSuccess.Mark();
+    Work::onSuccess();
+}
+
+BasicWork::State
+GetAndUnzipRemoteFileWork::doWork()
+{
+    if (mGunzipFileWork)
+    {
+        // Download completed, unzipping started
+        assert(mGetRemoteFileWork);
+        assert(mGetRemoteFileWork->getState() == State::WORK_SUCCESS);
+        auto state = mGunzipFileWork->getState();
+        if (state == State::WORK_SUCCESS && !fs::exists(mFt.localPath_nogz()))
+        {
+            CLOG(ERROR, "History") << "Downloading and unzipping "
+                                   << mFt.remoteName() << ": .xdr not found";
+            return State::WORK_FAILURE;
+        }
+        return state;
+    }
+    else if (mGetRemoteFileWork)
+    {
+        // Download started
+        auto state = mGetRemoteFileWork->getState();
+        if (state == State::WORK_SUCCESS)
+        {
+            if (!validateFile())
+            {
+                return State::WORK_FAILURE;
+            }
+            mGunzipFileWork =
+                addWork<GunzipFileWork>(mFt.localPath_gz(), false, RETRY_NEVER);
+            return State::WORK_RUNNING;
+        }
+        return state;
+    }
+    else
+    {
+        CLOG(DEBUG, "History")
+            << "Downloading and unzipping " << mFt.remoteName();
+        mGetRemoteFileWork = addWork<GetRemoteFileWork>(
+            mFt.remoteName(), mFt.localPath_gz_tmp(), nullptr, RETRY_NEVER);
+        mDownloadStart.Mark();
+        return State::WORK_RUNNING;
+    }
+}
+
+bool
+GetAndUnzipRemoteFileWork::validateFile()
+{
+    if (!fs::exists(mFt.localPath_gz_tmp()))
+    {
+        CLOG(ERROR, "History") << "Downloading and unzipping "
+                               << mFt.remoteName() << ": .tmp file not found";
+        return false;
+    }
+
+    CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName()
+                           << ": renaming .gz.tmp to .gz";
+    if (fs::exists(mFt.localPath_gz()) &&
+        std::remove(mFt.localPath_gz().c_str()))
+    {
+        CLOG(ERROR, "History") << "Downloading and unzipping "
+                               << mFt.remoteName() << ": failed to remove .gz";
+        return false;
+    }
+
+    if (std::rename(mFt.localPath_gz_tmp().c_str(), mFt.localPath_gz().c_str()))
+    {
+        CLOG(ERROR, "History")
+            << "Downloading and unzipping " << mFt.remoteName()
+            << ": failed to rename .gz.tmp to .gz";
+        return false;
+    }
+
+    CLOG(TRACE, "History") << "Downloading and unzipping " << mFt.remoteName()
+                           << ": renamed .gz.tmp to .gz";
+
+    if (!fs::exists(mFt.localPath_gz()))
+    {
+        CLOG(ERROR, "History") << "Downloading and unzipping "
+                               << mFt.remoteName() << ": .gz not found";
+        return false;
+    }
+
+    return true;
 }
 }

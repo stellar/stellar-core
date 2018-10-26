@@ -19,12 +19,12 @@ namespace stellar
 class TmpDir;
 struct LedgerHeaderHistoryEntry;
 
-class VerifyLedgerChainWork : public Work
+class VerifyLedgerChainWork : public BasicWork
 {
     TmpDir const& mDownloadDir;
-    LedgerRange mRange;
+    LedgerRange const mRange;
     uint32_t mCurrCheckpoint;
-    bool mManualCatchup;
+    bool const mManualCatchup;
     LedgerHeaderHistoryEntry& mFirstVerified;
     LedgerHeaderHistoryEntry& mLastVerified;
 
@@ -40,14 +40,15 @@ class VerifyLedgerChainWork : public Work
     HistoryManager::LedgerVerificationStatus verifyHistoryOfSingleCheckpoint();
 
   public:
-    VerifyLedgerChainWork(Application& app, WorkParent& parent,
-                          TmpDir const& downloadDir, LedgerRange range,
-                          bool manualCatchup,
+    VerifyLedgerChainWork(Application& app, TmpDir const& downloadDir,
+                          LedgerRange range, bool manualCatchup,
                           LedgerHeaderHistoryEntry& firstVerified,
                           LedgerHeaderHistoryEntry& lastVerified);
-    ~VerifyLedgerChainWork();
+    ~VerifyLedgerChainWork() = default;
     std::string getStatus() const override;
+
+  protected:
     void onReset() override;
-    Work::State onSuccess() override;
+    BasicWork::State onRun() override;
 };
 }

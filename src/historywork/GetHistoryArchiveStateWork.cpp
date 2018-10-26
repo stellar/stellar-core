@@ -14,12 +14,10 @@
 
 namespace stellar
 {
-
 GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
-    Application& app, WorkParent& parent, std::string uniqueName,
-    HistoryArchiveState& state, uint32_t seq,
+    Application& app, HistoryArchiveState& state, uint32_t seq,
     std::shared_ptr<HistoryArchive> archive, size_t maxRetries)
-    : Work(app, parent, std::move(uniqueName), maxRetries)
+    : Work(app, "get-archive-state", maxRetries)
     , mState(state)
     , mSeq(seq)
     , mArchive(archive)
@@ -36,62 +34,43 @@ GetHistoryArchiveStateWork::GetHistoryArchiveStateWork(
 {
 }
 
-GetHistoryArchiveStateWork::~GetHistoryArchiveStateWork()
+BasicWork::State
+GetHistoryArchiveStateWork::doWork()
 {
-    clearChildren();
-}
-
-std::string
-GetHistoryArchiveStateWork::getStatus() const
-{
-    if (getState() == WORK_FAILURE_RETRY)
+    if (mGetRemoteFile)
     {
-        auto eta = getRetryETA();
-        return fmt::format("Awaiting checkpoint (ETA: {:d} seconds)", eta);
+        auto state = mGetRemoteFile->getState();
+        if (state == State::WORK_SUCCESS)
+        {
+            try
+            {
+                mState.load(mLocalFilename);
+            }
+            catch (std::runtime_error& e)
+            {
+                CLOG(ERROR, "History")
+                    << "error loading history state: " << e.what();
+                return State::WORK_FAILURE;
+            }
+        }
+        return state;
     }
-    return Work::getStatus();
+    else
+    {
+        auto name = mSeq == 0 ? HistoryArchiveState::wellKnownRemoteName()
+                              : HistoryArchiveState::remoteName(mSeq);
+        mGetRemoteFile = addWork<GetRemoteFileWork>(name, mLocalFilename,
+                                                    mArchive, getMaxRetries());
+        mGetHistoryArchiveStateStart.Mark();
+        return State::WORK_RUNNING;
+    }
 }
 
 void
-GetHistoryArchiveStateWork::onReset()
+GetHistoryArchiveStateWork::doReset()
 {
-    clearChildren();
+    mGetRemoteFile.reset();
     std::remove(mLocalFilename.c_str());
-    addWork<GetRemoteFileWork>(mSeq == 0
-                                   ? HistoryArchiveState::wellKnownRemoteName()
-                                   : HistoryArchiveState::remoteName(mSeq),
-                               mLocalFilename, mArchive, getMaxRetries());
-
-    mGetHistoryArchiveStateStart.Mark();
-}
-
-void
-GetHistoryArchiveStateWork::onRun()
-{
-    try
-    {
-        mState.load(mLocalFilename);
-        scheduleSuccess();
-    }
-    catch (std::runtime_error& e)
-    {
-        CLOG(ERROR, "History") << "error loading history state: " << e.what();
-        scheduleFailure();
-    }
-}
-
-Work::State
-GetHistoryArchiveStateWork::onSuccess()
-{
-    mGetHistoryArchiveStateSuccess.Mark();
-    return Work::onSuccess();
-}
-
-void
-GetHistoryArchiveStateWork::onFailureRetry()
-{
-    mGetHistoryArchiveStateFailure.Mark();
-    Work::onFailureRetry();
 }
 
 void
@@ -99,5 +78,12 @@ GetHistoryArchiveStateWork::onFailureRaise()
 {
     mGetHistoryArchiveStateFailure.Mark();
     Work::onFailureRaise();
+}
+
+void
+GetHistoryArchiveStateWork::onSuccess()
+{
+    mGetHistoryArchiveStateSuccess.Mark();
+    Work::onSuccess();
 }
 }

@@ -22,19 +22,17 @@ class DownloadBucketsWork : public Work
     std::map<std::string, std::shared_ptr<Bucket>> mBuckets;
     std::vector<std::string> mHashes;
     TmpDir const& mDownloadDir;
-
-    medida::Meter& mDownloadBucketStart;
-    medida::Meter& mDownloadBucketSuccess;
-    medida::Meter& mDownloadBucketFailure;
+    bool mChildrenStarted{false};
 
   public:
-    DownloadBucketsWork(Application& app, WorkParent& parent,
+    DownloadBucketsWork(Application& app,
                         std::map<std::string, std::shared_ptr<Bucket>>& buckets,
                         std::vector<std::string> hashes,
                         TmpDir const& downloadDir);
-    ~DownloadBucketsWork();
-    std::string getStatus() const override;
-    void onReset() override;
-    void notify(std::string const& child) override;
+    ~DownloadBucketsWork() = default;
+
+  protected:
+    BasicWork::State doWork() override;
+    void doReset() override;
 };
 }

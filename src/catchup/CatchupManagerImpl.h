@@ -21,7 +21,7 @@ class Work;
 class CatchupManagerImpl : public CatchupManager
 {
     Application& mApp;
-    std::shared_ptr<Work> mCatchupWork;
+    std::shared_ptr<BasicWork> mCatchupWork;
 
     medida::Meter& mCatchupStart;
     medida::Meter& mCatchupSuccess;

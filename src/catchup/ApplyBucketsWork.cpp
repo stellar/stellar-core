@@ -23,10 +23,10 @@ namespace stellar
 {
 
 ApplyBucketsWork::ApplyBucketsWork(
-    Application& app, WorkParent& parent,
+    Application& app,
     std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
     HistoryArchiveState const& applyState)
-    : Work(app, parent, std::string("apply-buckets"))
+    : BasicWork(app, "apply-buckets", RETRY_A_FEW)
     , mBuckets(buckets)
     , mApplyState(applyState)
     , mApplying(false)
@@ -42,17 +42,85 @@ ApplyBucketsWork::ApplyBucketsWork(
 
 ApplyBucketsWork::~ApplyBucketsWork()
 {
-    clearChildren();
+}
+
+void
+ApplyBucketsWork::onReset()
+{
+    mLevel = BucketList::kNumLevels - 1;
+    mApplying = false;
+    mLevelComplete = true;
+    mSnapBucket.reset();
+    mCurrBucket.reset();
+    mSnapApplicator.reset();
+    mCurrApplicator.reset();
+}
+
+BasicWork::State
+ApplyBucketsWork::onRun()
+{
+    // Check if we're at the beginning of the new level
+    if (mLevelComplete)
+    {
+        startLevel();
+    }
+
+    // The structure of these if statements is motivated by the following:
+    // 1. mCurrApplicator should never be advanced if mSnapApplicator is
+    //    not false. Otherwise it is possible for curr to modify the
+    //    database when the invariants for snap are checked.
+    // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
+    //    if there is nothing to be applied.
+    if (mSnapApplicator)
+    {
+        if (*mSnapApplicator)
+        {
+            mSnapApplicator->advance();
+            return State::WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+            mSnapBucket, mApplyState.currentLedger, mLevel, false);
+        mSnapApplicator.reset();
+        mSnapBucket.reset();
+        mBucketApplySuccess.Mark();
+    }
+    if (mCurrApplicator)
+    {
+        if (*mCurrApplicator)
+        {
+            mCurrApplicator->advance();
+            return State::WORK_RUNNING;
+        }
+        mApp.getInvariantManager().checkOnBucketApply(
+            mCurrBucket, mApplyState.currentLedger, mLevel, true);
+        mCurrApplicator.reset();
+        mCurrBucket.reset();
+        mBucketApplySuccess.Mark();
+    }
+
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+    mLevelComplete = true;
+    if (mLevel != 0)
+    {
+        --mLevel;
+        CLOG(DEBUG, "History")
+            << "ApplyBuckets : starting next level: " << mLevel;
+        return State::WORK_RUNNING;
+    }
+
+    CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
+    mApp.getBucketManager().assumeState(mApplyState);
+    return State::WORK_SUCCESS;
 }
 
 BucketLevel&
-ApplyBucketsWork::getBucketLevel(uint32_t level)
+ApplyBucketsWork::getBucketLevel(uint32_t level) const
 {
     return mApp.getBucketManager().getBucketList().getLevel(level);
 }
 
 std::shared_ptr<Bucket const>
-ApplyBucketsWork::getBucket(std::string const& hash)
+ApplyBucketsWork::getBucket(std::string const& hash) const
 {
     auto i = mBuckets.find(hash);
     auto b = (i != mBuckets.end())
@@ -63,19 +131,14 @@ ApplyBucketsWork::getBucket(std::string const& hash)
 }
 
 void
-ApplyBucketsWork::onReset()
+ApplyBucketsWork::startLevel()
 {
-    mLevel = BucketList::kNumLevels - 1;
-    mApplying = false;
-    mSnapBucket.reset();
-    mCurrBucket.reset();
-    mSnapApplicator.reset();
-    mCurrApplicator.reset();
-}
+    if (!mLevelComplete)
+    {
+        return;
+    }
 
-void
-ApplyBucketsWork::onStart()
-{
+    CLOG(DEBUG, "History") << "ApplyBuckets : starting level " << mLevel;
     auto& level = getBucketLevel(mLevel);
     HistoryStateBucket const& i = mApplyState.currentBuckets.at(mLevel);
 
@@ -99,6 +162,7 @@ ApplyBucketsWork::onStart()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].snap = " << i.snap;
         mApplying = true;
+        mLevelComplete = false;
         mBucketApplyStart.Mark();
     }
     if (mApplying || applyCurr)
@@ -108,90 +172,20 @@ ApplyBucketsWork::onStart()
         CLOG(DEBUG, "History") << "ApplyBuckets : starting level[" << mLevel
                                << "].curr = " << i.curr;
         mApplying = true;
+        mLevelComplete = false;
         mBucketApplyStart.Mark();
     }
-}
-
-void
-ApplyBucketsWork::onRun()
-{
-    // The structure of these if statements is motivated by the following:
-    // 1. mCurrApplicator should never be advanced if mSnapApplicator is
-    //    not false. Otherwise it is possible for curr to modify the
-    //    database when the invariants for snap are checked.
-    // 2. There is no reason to advance mSnapApplicator or mCurrApplicator
-    //    if there is nothing to be applied.
-    if (mSnapApplicator)
-    {
-        if (*mSnapApplicator)
-        {
-            mSnapApplicator->advance();
-        }
-    }
-    else if (mCurrApplicator)
-    {
-        if (*mCurrApplicator)
-        {
-            mCurrApplicator->advance();
-        }
-    }
-    scheduleSuccess();
-}
-
-Work::State
-ApplyBucketsWork::onSuccess()
-{
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-
-    if (mSnapApplicator)
-    {
-        if (*mSnapApplicator)
-        {
-            return WORK_RUNNING;
-        }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mSnapBucket, mApplyState.currentLedger, mLevel, false);
-        mSnapApplicator.reset();
-        mSnapBucket.reset();
-        mBucketApplySuccess.Mark();
-    }
-    if (mCurrApplicator)
-    {
-        if (*mCurrApplicator)
-        {
-            return WORK_RUNNING;
-        }
-        mApp.getInvariantManager().checkOnBucketApply(
-            mCurrBucket, mApplyState.currentLedger, mLevel, true);
-        mCurrApplicator.reset();
-        mCurrBucket.reset();
-        mBucketApplySuccess.Mark();
-    }
-
-    if (mLevel != 0)
-    {
-        --mLevel;
-        CLOG(DEBUG, "History")
-            << "ApplyBuckets : starting next level: " << mLevel;
-        return WORK_PENDING;
-    }
-
-    CLOG(DEBUG, "History") << "ApplyBuckets : done, restarting merges";
-    mApp.getBucketManager().assumeState(mApplyState);
-    return WORK_SUCCESS;
-}
-
-void
-ApplyBucketsWork::onFailureRetry()
-{
-    mBucketApplyFailure.Mark();
-    Work::onFailureRetry();
 }
 
 void
 ApplyBucketsWork::onFailureRaise()
 {
     mBucketApplyFailure.Mark();
-    Work::onFailureRaise();
+}
+
+void
+ApplyBucketsWork::onFailureRetry()
+{
+    mBucketApplyFailure.Mark();
 }
 }

@@ -50,11 +50,10 @@ verifyLedgerHistoryLink(Hash const& prev, LedgerHeaderHistoryEntry const& curr)
 }
 
 VerifyLedgerChainWork::VerifyLedgerChainWork(
-    Application& app, WorkParent& parent, TmpDir const& downloadDir,
-    LedgerRange range, bool manualCatchup,
-    LedgerHeaderHistoryEntry& firstVerified,
+    Application& app, TmpDir const& downloadDir, LedgerRange range,
+    bool manualCatchup, LedgerHeaderHistoryEntry& firstVerified,
     LedgerHeaderHistoryEntry& lastVerified)
-    : Work(app, parent, "verify-ledger-chain")
+    : BasicWork(app, "verify-ledger-chain", RETRY_NEVER)
     , mDownloadDir(downloadDir)
     , mRange(range)
     , mCurrCheckpoint(
@@ -81,23 +80,6 @@ VerifyLedgerChainWork::VerifyLedgerChainWork(
 {
 }
 
-VerifyLedgerChainWork::~VerifyLedgerChainWork()
-{
-    clearChildren();
-}
-
-std::string
-VerifyLedgerChainWork::getStatus() const
-{
-    if (mState == WORK_RUNNING)
-    {
-        std::string task = "verifying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(),
-                           mCurrCheckpoint);
-    }
-    return Work::getStatus();
-}
-
 void
 VerifyLedgerChainWork::onReset()
 {
@@ -116,6 +98,64 @@ VerifyLedgerChainWork::onReset()
     }
     mCurrCheckpoint =
         mApp.getHistoryManager().checkpointContainingLedger(mRange.first());
+}
+
+std::string
+VerifyLedgerChainWork::getStatus() const
+{
+    if (getState() == State::WORK_RUNNING)
+    {
+        std::string task = "verifying checkpoint";
+        return fmtProgress(mApp, task, mRange.first(), mRange.last(),
+                           mCurrCheckpoint);
+    }
+    return BasicWork::getStatus();
+}
+
+BasicWork::State
+VerifyLedgerChainWork::onRun()
+{
+    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
+
+    if (mCurrCheckpoint >
+        mApp.getHistoryManager().checkpointContainingLedger(mRange.last()))
+    {
+        throw std::runtime_error("Verification overshot target ledger");
+    }
+
+    switch (verifyHistoryOfSingleCheckpoint())
+    {
+    case HistoryManager::VERIFY_STATUS_OK:
+        if (mLastVerified.header.ledgerSeq == mRange.last())
+        {
+            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
+                                  << mRange.last() << "] verified";
+            return State::WORK_SUCCESS;
+        }
+
+        mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
+        return State::WORK_RUNNING;
+    case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "unsupported ledger version, propagating "
+                                  "failure";
+        return State::WORK_FAILURE;
+    case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
+        CLOG(ERROR, "History") << "Catchup material failed verification - hash "
+                                  "mismatch, propagating failure";
+        return State::WORK_FAILURE;
+    case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "overshot, propagating failure";
+        return State::WORK_FAILURE;
+    case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
+        CLOG(ERROR, "History") << "Catchup material failed verification - "
+                                  "missing entries, propagating failure";
+        return State::WORK_FAILURE;
+    default:
+        assert(false);
+        throw std::runtime_error("unexpected VerifyLedgerChainWork state");
+    }
 }
 
 HistoryManager::LedgerVerificationStatus
@@ -221,52 +261,5 @@ VerifyLedgerChainWork::verifyHistoryOfSingleCheckpoint()
     }
 
     return status;
-}
-
-Work::State
-VerifyLedgerChainWork::onSuccess()
-{
-    mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
-
-    if (mCurrCheckpoint >
-        mApp.getHistoryManager().checkpointContainingLedger(mRange.last()))
-    {
-        throw std::runtime_error("Verification overshot target ledger");
-    }
-
-    // This is in onSuccess rather than onRun, so we can force a FAILURE_RAISE.
-    switch (verifyHistoryOfSingleCheckpoint())
-    {
-    case HistoryManager::VERIFY_STATUS_OK:
-        if (mLastVerified.header.ledgerSeq == mRange.last())
-        {
-            CLOG(INFO, "History") << "History chain [" << mRange.first() << ","
-                                  << mRange.last() << "] verified";
-            return WORK_SUCCESS;
-        }
-
-        mCurrCheckpoint += mApp.getHistoryManager().getCheckpointFrequency();
-        return WORK_RUNNING;
-    case HistoryManager::VERIFY_STATUS_ERR_BAD_LEDGER_VERSION:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "unsupported ledger version, propagating "
-                                  "failure";
-        return WORK_FAILURE_FATAL;
-    case HistoryManager::VERIFY_STATUS_ERR_BAD_HASH:
-        CLOG(ERROR, "History") << "Catchup material failed verification - hash "
-                                  "mismatch, propagating failure";
-        return WORK_FAILURE_FATAL;
-    case HistoryManager::VERIFY_STATUS_ERR_OVERSHOT:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "overshot, propagating failure";
-        return WORK_FAILURE_FATAL;
-    case HistoryManager::VERIFY_STATUS_ERR_MISSING_ENTRIES:
-        CLOG(ERROR, "History") << "Catchup material failed verification - "
-                                  "missing entries, propagating failure";
-        return WORK_FAILURE_FATAL;
-    default:
-        assert(false);
-        throw std::runtime_error("unexpected VerifyLedgerChainWork state");
-    }
 }
 }

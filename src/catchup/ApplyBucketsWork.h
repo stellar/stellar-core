@@ -21,10 +21,10 @@ class Bucket;
 struct HistoryArchiveState;
 struct LedgerHeaderHistoryEntry;
 
-class ApplyBucketsWork : public Work
+class ApplyBucketsWork : public BasicWork
 {
     std::map<std::string, std::shared_ptr<Bucket>> const& mBuckets;
-    const HistoryArchiveState& mApplyState;
+    HistoryArchiveState const& mApplyState;
 
     bool mApplying;
     uint32_t mLevel;
@@ -37,21 +37,24 @@ class ApplyBucketsWork : public Work
     medida::Meter& mBucketApplySuccess;
     medida::Meter& mBucketApplyFailure;
 
-    std::shared_ptr<Bucket const> getBucket(std::string const& bucketHash);
-    BucketLevel& getBucketLevel(uint32_t level);
+    bool mLevelComplete{true};
+
+    std::shared_ptr<Bucket const>
+    getBucket(std::string const& bucketHash) const;
+    BucketLevel& getBucketLevel(uint32_t level) const;
+    void startLevel();
 
   public:
     ApplyBucketsWork(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState);
     ~ApplyBucketsWork();
 
+  protected:
     void onReset() override;
-    void onStart() override;
-    void onRun() override;
-    Work::State onSuccess() override;
-    void onFailureRetry() override;
+    BasicWork::State onRun() override;
     void onFailureRaise() override;
+    void onFailureRetry() override;
 };
 }

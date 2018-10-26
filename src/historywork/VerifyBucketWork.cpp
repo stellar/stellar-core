@@ -18,42 +18,65 @@ namespace stellar
 {
 
 VerifyBucketWork::VerifyBucketWork(
-    Application& app, WorkParent& parent,
-    std::map<std::string, std::shared_ptr<Bucket>>& buckets,
+    Application& app, std::map<std::string, std::shared_ptr<Bucket>>& buckets,
     std::string const& bucketFile, uint256 const& hash)
-    : Work(app, parent, std::string("verify-bucket-hash ") + bucketFile,
-           RETRY_NEVER)
+    : BasicWork(app, "verify-bucket-hash-" + bucketFile, RETRY_NEVER)
     , mBuckets(buckets)
     , mBucketFile(bucketFile)
     , mHash(hash)
-    , mVerifyBucketSuccess{app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "success"}, "event")}
-    , mVerifyBucketFailure{app.getMetrics().NewMeter(
-          {"history", "verify-bucket", "failure"}, "event")}
+    , mVerifyBucketSuccess(app.getMetrics().NewMeter(
+          {"history", "verify-bucket", "success"}, "event"))
+    , mVerifyBucketFailure(app.getMetrics().NewMeter(
+          {"history", "verify-bucket", "failure"}, "event"))
 {
-    fs::checkNoGzipSuffix(mBucketFile);
 }
 
-VerifyBucketWork::~VerifyBucketWork()
+BasicWork::State
+VerifyBucketWork::onRun()
 {
-    clearChildren();
+    if (mDone)
+    {
+        if (mEc)
+        {
+            mVerifyBucketFailure.Mark();
+            return State::WORK_FAILURE;
+        }
+
+        adoptBucket();
+        mVerifyBucketSuccess.Mark();
+        return State::WORK_SUCCESS;
+    }
+
+    spawnVerifier();
+    return State::WORK_WAITING;
 }
 
 void
-VerifyBucketWork::onStart()
+VerifyBucketWork::adoptBucket()
+{
+    assert(mDone);
+    assert(!mEc);
+
+    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
+    mBuckets[binToHex(mHash)] = b;
+}
+
+void
+VerifyBucketWork::spawnVerifier()
 {
     std::string filename = mBucketFile;
     uint256 hash = mHash;
     Application& app = this->mApp;
-    auto handler = callComplete();
-    app.postOnBackgroundThread([&app, filename, handler, hash]() {
+    std::weak_ptr<VerifyBucketWork> weak(
+        std::static_pointer_cast<VerifyBucketWork>(shared_from_this()));
+    app.postOnBackgroundThread([&app, filename, weak, hash]() {
         auto hasher = SHA256::create();
         asio::error_code ec;
-        char buf[4096];
         {
             // ensure that the stream gets its own scope to avoid race with
             // main thread
             std::ifstream in(filename, std::ifstream::binary);
+            char buf[4096];
             while (in)
             {
                 in.read(buf, sizeof(buf));
@@ -75,36 +98,19 @@ VerifyBucketWork::onStart()
                 ec = std::make_error_code(std::errc::io_error);
             }
         }
-        app.postOnMainThread([ec, handler]() { handler(ec); });
+
+        // FIXME (mlo) Not ideal, but needed to prevent race conditions with
+        // main thread, since BasicWork's state is not thread-safe. This is a
+        // temporary workaround, as a cleaner solution is needed.
+        app.postOnMainThread([weak, ec]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->mEc = ec;
+                self->mDone = true;
+                self->wakeUp();
+            }
+        });
     });
-}
-
-void
-VerifyBucketWork::onRun()
-{
-    // Do nothing: we spawned the verifier in onStart().
-}
-
-Work::State
-VerifyBucketWork::onSuccess()
-{
-    auto b = mApp.getBucketManager().adoptFileAsBucket(mBucketFile, mHash);
-    mBuckets[binToHex(mHash)] = b;
-    mVerifyBucketSuccess.Mark();
-    return WORK_SUCCESS;
-}
-
-void
-VerifyBucketWork::onFailureRetry()
-{
-    mVerifyBucketFailure.Mark();
-    Work::onFailureRetry();
-}
-
-void
-VerifyBucketWork::onFailureRaise()
-{
-    mVerifyBucketFailure.Mark();
-    Work::onFailureRaise();
 }
 }
