@@ -14,35 +14,35 @@
 namespace stellar
 {
 
-FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app, WorkParent& parent,
+FetchRecentQsetsWork::FetchRecentQsetsWork(Application& app,
                                            InferredQuorum& inferredQuorum)
-    : Work(app, parent, "fetch-recent-qsets"), mInferredQuorum(inferredQuorum)
+    : Work(app, "fetch-recent-qsets"), mInferredQuorum(inferredQuorum)
 {
-}
-
-FetchRecentQsetsWork::~FetchRecentQsetsWork()
-{
-    clearChildren();
 }
 
 void
-FetchRecentQsetsWork::onReset()
+FetchRecentQsetsWork::doReset()
 {
-    clearChildren();
+    mGetHistoryArchiveStateWork.reset();
     mDownloadSCPMessagesWork.reset();
-    mDownloadDir = std::make_unique<TmpDir>(
-        mApp.getTmpDirManager().tmpDir(getUniqueName()));
+    mDownloadDir =
+        std::make_unique<TmpDir>(mApp.getTmpDirManager().tmpDir(getName()));
+    mRemoteState = {};
 }
 
-Work::State
-FetchRecentQsetsWork::onSuccess()
+BasicWork::State
+FetchRecentQsetsWork::doWork()
 {
     // Phase 1: fetch remote history archive state
     if (!mGetHistoryArchiveStateWork)
     {
-        mGetHistoryArchiveStateWork = addWork<GetHistoryArchiveStateWork>(
-            "get-history-archive-state", mRemoteState, 0);
-        return WORK_PENDING;
+        mGetHistoryArchiveStateWork =
+            addWork<GetHistoryArchiveStateWork>(mRemoteState, 0);
+        return State::WORK_RUNNING;
+    }
+    else if (mGetHistoryArchiveStateWork->getState() != State::WORK_SUCCESS)
+    {
+        return mGetHistoryArchiveStateWork->getState();
     }
 
     // Phase 2: download some SCP messages; for now we just pull the past
@@ -61,7 +61,11 @@ FetchRecentQsetsWork::onSuccess()
         auto range = CheckpointRange{firstSeq, lastSeq, step};
         mDownloadSCPMessagesWork = addWork<BatchDownloadWork>(
             range, HISTORY_FILE_TYPE_SCP, *mDownloadDir);
-        return WORK_PENDING;
+        return State::WORK_RUNNING;
+    }
+    else if (mDownloadSCPMessagesWork->getState() != State::WORK_SUCCESS)
+    {
+        return mDownloadSCPMessagesWork->getState();
     }
 
     // Phase 3: extract the qsets.
@@ -78,6 +82,6 @@ FetchRecentQsetsWork::onSuccess()
         }
     }
 
-    return WORK_SUCCESS;
+    return State::WORK_SUCCESS;
 }
 }
