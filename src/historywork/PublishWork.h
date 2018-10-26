@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "history/HistoryArchive.h"
 #include "work/Work.h"
 
 namespace stellar
@@ -11,22 +12,18 @@ namespace stellar
 
 struct StateSnapshot;
 
-class PublishWork : public Work
+class PublishWork : public WorkSequence
 {
     std::shared_ptr<StateSnapshot> mSnapshot;
     std::vector<std::string> mOriginalBuckets;
 
-    std::shared_ptr<Work> mResolveSnapshotWork;
-    std::shared_ptr<Work> mWriteSnapshotWork;
-    std::shared_ptr<Work> mUpdateArchivesWork;
-
   public:
-    PublishWork(Application& app, WorkParent& parent,
-                std::shared_ptr<StateSnapshot> snapshot);
-    ~PublishWork();
-    std::string getStatus() const override;
-    void onReset() override;
+    PublishWork(Application& app, std::shared_ptr<StateSnapshot> snapshot,
+                std::vector<std::shared_ptr<BasicWork>> seq);
+    ~PublishWork() = default;
+
+  protected:
     void onFailureRaise() override;
-    Work::State onSuccess() override;
+    void onSuccess() override;
 };
 }

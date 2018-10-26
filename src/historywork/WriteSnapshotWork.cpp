@@ -12,30 +12,49 @@
 namespace stellar
 {
 
-WriteSnapshotWork::WriteSnapshotWork(Application& app, WorkParent& parent,
+WriteSnapshotWork::WriteSnapshotWork(Application& app,
                                      std::shared_ptr<StateSnapshot> snapshot)
-    : Work(app, parent, "write-snapshot", Work::RETRY_A_LOT)
-    , mSnapshot(snapshot)
+    : BasicWork(app, "write-snapshot", Work::RETRY_A_LOT), mSnapshot(snapshot)
 {
 }
 
-WriteSnapshotWork::~WriteSnapshotWork()
+BasicWork::State
+WriteSnapshotWork::onRun()
 {
-    clearChildren();
-}
+    if (mDone)
+    {
+        return mSuccess ? State::WORK_SUCCESS : State::WORK_FAILURE;
+    }
 
-void
-WriteSnapshotWork::onStart()
-{
-    auto handler = callComplete();
-    auto snap = mSnapshot;
-    auto work = [handler, snap]() {
-        asio::error_code ec;
+    std::weak_ptr<WriteSnapshotWork> weak(
+        std::static_pointer_cast<WriteSnapshotWork>(shared_from_this()));
+
+    auto work = [weak]() {
+        auto self = weak.lock();
+        if (!self)
+        {
+            return;
+        }
+
+        auto snap = self->mSnapshot;
+        bool success = true;
         if (!snap->writeHistoryBlocks())
         {
-            ec = std::make_error_code(std::errc::io_error);
+            success = false;
         }
-        snap->mApp.postOnMainThread([handler, ec]() { handler(ec); });
+
+        // TODO (mlo) Not ideal, but needed to prevent race conditions with
+        // main thread, since BasicWork's state is not thread-safe. This is a
+        // temporary workaround, as a cleaner solution is needed.
+        self->mApp.postOnMainThread([weak, success]() {
+            auto self = weak.lock();
+            if (self)
+            {
+                self->mDone = true;
+                self->mSuccess = success;
+                self->wakeUp();
+            }
+        });
     };
 
     // Throw the work over to a worker thread if we can use DB pools,
@@ -43,16 +62,12 @@ WriteSnapshotWork::onStart()
     if (mApp.getDatabase().canUsePool())
     {
         mApp.postOnBackgroundThread(work);
+        return State::WORK_WAITING;
     }
     else
     {
         work();
+        return State::WORK_RUNNING;
     }
-}
-
-void
-WriteSnapshotWork::onRun()
-{
-    // Do nothing: we spawned the writer in onStart().
 }
 }

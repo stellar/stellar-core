@@ -18,7 +18,10 @@
 #include "history/StateSnapshot.h"
 #include "historywork/FetchRecentQsetsWork.h"
 #include "historywork/PublishWork.h"
+#include "historywork/PutSnapshotFilesWork.h"
 #include "historywork/RepairMissingBucketsWork.h"
+#include "historywork/ResolveSnapshotWork.h"
+#include "historywork/WriteSnapshotWork.h"
 #include "ledger/LedgerManager.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
@@ -31,7 +34,7 @@
 #include "util/Math.h"
 #include "util/StatusManager.h"
 #include "util/TmpDir.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 #include "xdrpp/marshal.h"
 
 #include <fstream>
@@ -192,7 +195,7 @@ HistoryManagerImpl::inferQuorum()
 {
     InferredQuorum iq;
     CLOG(INFO, "History") << "Starting FetchRecentQsetsWork";
-    mApp.getWorkManager().executeWork<FetchRecentQsetsWork>(iq);
+    mApp.getWorkScheduler().executeWork<FetchRecentQsetsWork>(iq);
     return iq;
 }
 
@@ -295,9 +298,18 @@ HistoryManagerImpl::takeSnapshotAndPublish(HistoryArchiveState const& has)
     CLOG(DEBUG, "History") << "Activating publish for ledger " << ledgerSeq;
     auto snap = std::make_shared<StateSnapshot>(mApp, has);
 
+    // Phase 1: resolve futures in snapshot
+    auto resolveFutures = std::make_shared<ResolveSnapshotWork>(mApp, snap);
+    // Phase 2: write snapshot files
+    auto writeSnap = std::make_shared<WriteSnapshotWork>(mApp, snap);
+    // Phase 3: update archives
+    auto putSnap = std::make_shared<PutSnapshotFilesWork>(mApp, snap);
+
+    std::vector<std::shared_ptr<BasicWork>> seq{resolveFutures, writeSnap,
+                                                putSnap};
+
     mPublishStart.Mark();
-    mPublishWork = mApp.getWorkManager().addWork<PublishWork>(snap);
-    mApp.getWorkManager().advanceChildren();
+    mPublishWork = mApp.getWorkScheduler().scheduleWork<PublishWork>(snap, seq);
 }
 
 size_t
