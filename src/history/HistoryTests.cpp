@@ -11,6 +11,7 @@
 #include "historywork/GunzipFileWork.h"
 #include "historywork/GzipFileWork.h"
 #include "historywork/PutHistoryArchiveStateWork.h"
+#include "historywork/PutSnapshotFilesWork.h"
 #include "ledger/LedgerManager.h"
 #include "main/ExternalQueue.h"
 #include "main/PersistentState.h"
@@ -18,8 +19,12 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "util/Fs.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
+#include "catchup/DownloadBucketsWork.h"
+#include "crypto/Random.h"
+#include "historywork/GetHistoryArchiveStateWork.h"
+#include "historywork/VerifyBucketWork.h"
 #include <lib/catch.hpp>
 #include <lib/util/format.h>
 
@@ -57,14 +62,14 @@ TEST_CASE("HistoryManager::compress", "[history]")
         out.write(s.data(), s.size());
     }
     std::string compressed = fname + ".gz";
-    auto& wm = catchupSimulation.getApp().getWorkManager();
+    auto& wm = catchupSimulation.getApp().getWorkScheduler();
     auto g = wm.executeWork<GzipFileWork>(fname);
-    REQUIRE(g->getState() == Work::WORK_SUCCESS);
+    REQUIRE(g->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(!fs::exists(fname));
     REQUIRE(fs::exists(compressed));
 
     auto u = wm.executeWork<GunzipFileWork>(compressed);
-    REQUIRE(u->getState() == Work::WORK_SUCCESS);
+    REQUIRE(u->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(fs::exists(fname));
     REQUIRE(!fs::exists(compressed));
 }
@@ -83,14 +88,13 @@ TEST_CASE("HistoryArchiveState::get_put", "[history]")
 
     has.resolveAllFutures();
 
-    auto& wm = catchupSimulation.getApp().getWorkManager();
+    auto& wm = catchupSimulation.getApp().getWorkScheduler();
     auto put = wm.executeWork<PutHistoryArchiveStateWork>(has, archive);
-    REQUIRE(put->getState() == Work::WORK_SUCCESS);
+    REQUIRE(put->getState() == BasicWork::State::WORK_SUCCESS);
 
     HistoryArchiveState has2;
-    auto get = wm.executeWork<GetHistoryArchiveStateWork>(
-        "get-history-archive-state", has2, 0, archive);
-    REQUIRE(get->getState() == Work::WORK_SUCCESS);
+    auto get = wm.executeWork<GetHistoryArchiveStateWork>(has2, 0, archive);
+    REQUIRE(get->getState() == BasicWork::State::WORK_SUCCESS);
     REQUIRE(has2.currentLedger == 0x1234);
 }
 
@@ -233,7 +237,7 @@ TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
           2 * freq + 1);
 }
 
-TEST_CASE("Publish/catchup alternation, with stall",
+TEST_CASE("Publish/catchup alternation with stall",
           "[history][historycatchup][catchupalternation]")
 {
     CatchupSimulation catchupSimulation{};
@@ -340,7 +344,7 @@ TEST_CASE("Repair missing buckets via history",
 
     app2->start();
     catchupSimulation.crankUntil(
-        app2, [&]() { return app2->getWorkManager().allChildrenDone(); },
+        app2, [&]() { return app2->getWorkScheduler().allChildrenDone(); },
         std::chrono::seconds(30));
 
     auto hash1 = catchupSimulation.getBucketListAtLastPublish().getHash();
@@ -492,8 +496,6 @@ TEST_CASE("too far behind / catchup restart", "[history][catchupstall]")
         init, std::numeric_limits<uint32_t>::max(), false, app2, true,
         init + 10));
     REQUIRE(app2->getLedgerManager().getLastClosedLedgerNum() == 76);
-
-    app2->getWorkManager().clearChildren();
 
     // Now generate a little more history
     catchupSimulation.generateAndPublishHistory(1);

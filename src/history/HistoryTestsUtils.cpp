@@ -17,7 +17,7 @@
 #include "test/TxTests.h"
 #include "test/test.h"
 #include "util/XDROperators.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include <medida/metrics_registry.h>
 
@@ -391,7 +391,7 @@ CatchupSimulation::crankUntil(Application::pointer app,
                               VirtualClock::duration timeout)
 {
     auto start = std::chrono::system_clock::now();
-    while (!app->getWorkManager().allChildrenDone() || !predicate())
+    while (!app->getWorkScheduler().allChildrenDone() || !predicate())
     {
         app->getClock().crank(false);
         auto current = std::chrono::system_clock::now();

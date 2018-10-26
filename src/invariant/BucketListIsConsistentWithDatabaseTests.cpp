@@ -15,7 +15,9 @@
 #include "test/TestUtils.h"
 #include "test/test.h"
 #include "transactions/TransactionUtils.h"
-#include "work/WorkManager.h"
+#include "util/Decoder.h"
+#include "util/XDROperators.h"
+#include "work/WorkScheduler.h"
 #include <random>
 #include <set>
 #include <vector>
@@ -61,7 +63,7 @@ struct BucketListGenerator
     {
         std::map<std::string, std::shared_ptr<Bucket>> buckets;
         auto has = getHistoryArchiveState();
-        auto& wm = mAppApply->getWorkManager();
+        auto& wm = mAppApply->getWorkScheduler();
         wm.executeWork<T>(buckets, has, std::forward<Args>(args)...);
     }
 
@@ -264,18 +266,18 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkAddEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, LedgerEntry const& entry)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        : ApplyBucketsWork(app, buckets, applyState)
         , mEntry(entry)
         , mAdded{false}
     {
         REQUIRE(entry.lastModifiedLedgerSeq >= 2);
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mAdded)
         {
@@ -296,8 +298,8 @@ class ApplyBucketsWorkAddEntry : public ApplyBucketsWork
                 mAdded = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mAdded);
         }
@@ -314,18 +316,18 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkDeleteEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        : ApplyBucketsWork(app, buckets, applyState)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mDeleted{false}
     {
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mDeleted)
         {
@@ -338,8 +340,8 @@ class ApplyBucketsWorkDeleteEntry : public ApplyBucketsWork
                 mDeleted = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mDeleted);
         }
@@ -399,18 +401,18 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
 
   public:
     ApplyBucketsWorkModifyEntry(
-        Application& app, WorkParent& parent,
+        Application& app,
         std::map<std::string, std::shared_ptr<Bucket>> const& buckets,
         HistoryArchiveState const& applyState, LedgerEntry const& target)
-        : ApplyBucketsWork(app, parent, buckets, applyState)
+        : ApplyBucketsWork(app, buckets, applyState)
         , mKey(LedgerEntryKey(target))
         , mEntry(target)
         , mModified{false}
     {
     }
 
-    Work::State
-    onSuccess() override
+    BasicWork::State
+    onRun() override
     {
         if (!mModified)
         {
@@ -439,8 +441,8 @@ class ApplyBucketsWorkModifyEntry : public ApplyBucketsWork
                 mModified = true;
             }
         }
-        auto r = ApplyBucketsWork::onSuccess();
-        if (r == WORK_SUCCESS)
+        auto r = ApplyBucketsWork::onRun();
+        if (r == State::WORK_SUCCESS)
         {
             REQUIRE(mModified);
         }
