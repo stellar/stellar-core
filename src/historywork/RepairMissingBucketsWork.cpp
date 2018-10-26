@@ -9,52 +9,81 @@
 #include "historywork/GetAndUnzipRemoteFileWork.h"
 #include "historywork/VerifyBucketWork.h"
 #include "main/Application.h"
+#include "util/TmpDir.h"
 
 namespace stellar
 {
 
 RepairMissingBucketsWork::RepairMissingBucketsWork(
-    Application& app, WorkParent& parent, HistoryArchiveState const& localState,
-    handler endHandler)
-    : BucketDownloadWork(app, parent, "repair-buckets", localState)
+    Application& app, HistoryArchiveState const& localState, Handler endHandler)
+    : Work(app, "repair-buckets")
     , mEndHandler(endHandler)
+    , mLocalState(localState)
+    , mDownloadDir(std::make_unique<TmpDir>(
+          mApp.getTmpDirManager().tmpDir("repair-buckets")))
 {
-}
-
-RepairMissingBucketsWork::~RepairMissingBucketsWork()
-{
-    clearChildren();
 }
 
 void
-RepairMissingBucketsWork::onReset()
+RepairMissingBucketsWork::doReset()
 {
-    BucketDownloadWork::onReset();
-    std::unordered_set<std::string> bucketsToFetch;
-    auto missingBuckets =
-        mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
-    auto publishBuckets =
-        mApp.getHistoryManager().getMissingBucketsReferencedByPublishQueue();
-
-    bucketsToFetch.insert(missingBuckets.begin(), missingBuckets.end());
-    bucketsToFetch.insert(publishBuckets.begin(), publishBuckets.end());
-
-    for (auto const& hash : bucketsToFetch)
-    {
-        FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
-        // Each bucket gets its own work-chain of download->gunzip->verify
-        auto verify = addWork<VerifyBucketWork>(mBuckets, ft.localPath_nogz(),
-                                                hexToBin256(hash));
-        verify->addWork<GetAndUnzipRemoteFileWork>(ft);
-    }
+    mChildrenStarted = false;
 }
 
-Work::State
+BasicWork::State
+RepairMissingBucketsWork::doWork()
+{
+    if (!mChildrenStarted)
+    {
+        std::unordered_set<std::string> bucketsToFetch;
+        auto missingBuckets =
+            mApp.getBucketManager().checkForMissingBucketsFiles(mLocalState);
+        auto publishBuckets = mApp.getHistoryManager()
+                                  .getMissingBucketsReferencedByPublishQueue();
+
+        bucketsToFetch.insert(missingBuckets.begin(), missingBuckets.end());
+        bucketsToFetch.insert(publishBuckets.begin(), publishBuckets.end());
+
+        for (auto const& hash : bucketsToFetch)
+        {
+            FileTransferInfo ft(*mDownloadDir, HISTORY_FILE_TYPE_BUCKET, hash);
+
+            // Each bucket gets its own work-sequence of
+            // download->gunzip->verify
+            auto download =
+                std::make_shared<GetAndUnzipRemoteFileWork>(mApp, ft);
+            auto verify = std::make_shared<VerifyBucketWork>(
+                mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash));
+            std::vector<std::shared_ptr<BasicWork>> seq{download, verify};
+
+            addWork<WorkSequence>("repair-bucket-" + hash, seq);
+        }
+        mChildrenStarted = true;
+    }
+    else
+    {
+        if (allChildrenSuccessful())
+        {
+            return State::WORK_SUCCESS;
+        }
+        else if (anyChildRaiseFailure())
+        {
+            return State::WORK_FAILURE;
+        }
+        else if (!anyChildRunning())
+        {
+            return State::WORK_WAITING;
+        }
+    }
+
+    return State::WORK_RUNNING;
+}
+
+void
 RepairMissingBucketsWork::onSuccess()
 {
     asio::error_code ec;
     mEndHandler(ec);
-    return WORK_SUCCESS;
 }
 
 void

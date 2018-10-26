@@ -422,9 +422,8 @@ HistoryManagerImpl::downloadMissingBuckets(
     std::function<void(asio::error_code const& ec)> handler)
 {
     CLOG(INFO, "History") << "Starting RepairMissingBucketsWork";
-    mApp.getWorkManager().addWork<RepairMissingBucketsWork>(desiredState,
-                                                            handler);
-    mApp.getWorkManager().advanceChildren();
+    mApp.getWorkScheduler().scheduleWork<RepairMissingBucketsWork>(desiredState,
+                                                                   handler);
 }
 
 uint64_t
