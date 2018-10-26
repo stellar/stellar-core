@@ -5,7 +5,8 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "util/Timer.h"
-#include "work/WorkParent.h"
+#include "work/BasicWork.h"
+#include <list>
 #include <map>
 #include <memory>
 #include <string>
@@ -16,125 +17,94 @@ namespace stellar
 class Application;
 class WorkParent;
 
-/** Class 'Work' (and its friends 'WorkManager' and 'WorkParent') support
- * structured dispatch of async or long-running activities that:
+/**
+ * Work is an extension of BasicWork,
+ * which additionally manages children. This allows the following:
+ *  - Work might be dependent on the state of its children before performing
+ *  its duties
+ *  - Work may have children that are independent and could run in parallel,
+ *  or dispatch children serially.
  *
- *  - May depend on other Work before starting
- *  - May have parts that can run in parallel, other parts in serial
- *  - May need to be broken into steps, so as not to block the main thread
- *  - May fail and need to retry, after some delay
- *
- * Formerly this was managed through ad-hoc sprinkled-through-the-code
- * copies of each of these facets of work-management. 'Work' is an attempt
- * to make those facets uniform, systematic, and out-of-the-way of the
- * logic of each piece of work.
+ *  It's worth noting that now since crank calls are propagated down the tree
+ *  from the work scheduler, implementations should aim to create flatter
+ *  structures for better efficiency;
+ *  They can utilize WorkSequence if serial order needs to be enforced
  */
-
-class Work : public WorkParent
+class Work : public BasicWork
 {
-
   public:
-    static size_t const RETRY_NEVER;
-    static size_t const RETRY_ONCE;
-    static size_t const RETRY_A_FEW;
-    static size_t const RETRY_A_LOT;
-    static size_t const RETRY_FOREVER;
-
-    enum State
-    {
-        WORK_PENDING,
-        WORK_RUNNING,
-        WORK_SUCCESS,
-        WORK_FAILURE_RETRY,
-        WORK_FAILURE_RAISE,
-        WORK_FAILURE_FATAL
-    };
-
-    enum CompleteResult
-    {
-        WORK_COMPLETE_OK,
-        WORK_COMPLETE_FAILURE,
-        WORK_COMPLETE_FATAL
-    };
-
-    Work(Application& app, WorkParent& parent, std::string uniqueName,
-         size_t maxRetries = RETRY_A_FEW);
-
     virtual ~Work();
 
-    virtual std::string getUniqueName() const;
-    virtual std::string getStatus() const;
-    virtual size_t getMaxRetries() const;
-    uint64_t getRetryETA() const;
+    std::string getStatus() const override;
 
-    // Customize work behavior via these callbacks. onReset is called
-    // before any work starts (on addition, or retry). onStart is called
-    // when transitioning from WORK_PENDING -> WORK_RUNNING; onRun is
-    // called when run either from PENDING state _or_ after a SUCCESS
-    // callback reschedules running (see below). onFailure is only called
-    // on a failure before retrying; usually you can ignore it.
-    virtual void onReset();
-    virtual void onStart();
-    virtual void onRun();
-    virtual void onFailureRetry();
-    virtual void onFailureRaise();
+    bool allChildrenSuccessful() const;
+    bool allChildrenDone() const;
+    bool anyChildRaiseFailure() const;
+    bool anyChildRunning() const;
+    bool hasChildren() const;
 
-    // onSuccess is a little different than the others: it's called on
-    // WORK_SUCCESS, but it also returns the next sate desired: if you want
-    // to restart or keep going, return WORK_PENDING or WORK_RUNNING
-    // (respectively) from onSuccess and you'll be rescheduled to run more.
-    // If you want to force failure (and reset / retry) you can return
-    // WORK_FAILURE_RETRY or WORK_FAILURE_RAISE. After a retry count is
-    // passed, WORK_FAILURE_RETRY means WORK_FAILURE_RAISE anyways.
-    // WORK_FAILURE_FATAL is equivalent to WORK_FAILURE_RAISE passed up in
-    // the work chain - when WORK_FAILURE_FATAL is raised in one work item,
-    // all work items that leaded to this one will also fail without retrying.
-    virtual State onSuccess();
-
-    static std::string stateName(State st);
-    State getState() const;
-    bool isDone() const;
-    void advance();
-    void reset();
+    void shutdown() override;
 
   protected:
-    std::weak_ptr<WorkParent> mParent;
-    std::string mUniqueName;
-    size_t mMaxRetries{RETRY_A_FEW};
-    size_t mRetries{0};
-    State mState{WORK_PENDING};
-    bool mScheduled{false};
+    Work(Application& app, std::string name,
+         size_t retries = BasicWork::RETRY_A_FEW);
 
-    std::unique_ptr<VirtualTimer> mRetryTimer;
-
-    std::function<void(asio::error_code const& ec)> callComplete();
-    void run();
-    void complete(CompleteResult result);
-    void scheduleComplete(CompleteResult result = WORK_COMPLETE_OK);
-    void scheduleRetry();
-    void scheduleRun();
-    void
-    scheduleSuccess()
+    // Note: `shared_from_this` assumes there exists a shared_ptr to the
+    // references class. This relates to who owns what in Work interface.
+    // Thus, `addWork` should be used to create Work (then the parent holds
+    // the reference).
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    addWork(Args&&... args)
     {
-        scheduleComplete();
-    }
-    void
-    scheduleFailure()
-    {
-        scheduleComplete(WORK_COMPLETE_FAILURE);
-    }
-    void
-    scheduleFatalFailure()
-    {
-        scheduleComplete(WORK_COMPLETE_FATAL);
+        auto child = std::make_shared<T>(mApp, std::forward<Args>(args)...);
+        addChild(child);
+        child->startWork(wakeUpCallback());
+        wakeUp();
+        return child;
     }
 
-    void setState(State s);
+    State onRun() final;
+    void onReset() final;
 
-    void notifyParent();
-    virtual void notify(std::string const& childChanged) override;
+    // Implementers decide what they want to do: spawn more children,
+    // wait for all children to finish, or perform Work
+    virtual BasicWork::State doWork() = 0;
+
+    // Provide additional cleanup logic for reset
+    virtual void doReset();
 
   private:
-    VirtualClock::duration getRetryDelay() const;
+    std::list<std::shared_ptr<BasicWork>> mChildren;
+    std::list<std::shared_ptr<BasicWork>>::const_iterator mNextChild;
+
+    std::shared_ptr<BasicWork> yieldNextRunningChild();
+    void addChild(std::shared_ptr<BasicWork> child);
+    void clearChildren();
+
+    friend class WorkSequence;
+};
+
+/*
+ * WorkSequence is a helper class, that implementers can use if they
+ * wish to enforce the order of work execution. Users are required to pass
+ * a vector of BasicWork pointers in the expected execution order.
+ */
+class WorkSequence : public Work
+{
+    std::vector<std::shared_ptr<BasicWork>> mSequenceOfWork;
+    std::vector<std::shared_ptr<BasicWork>>::const_iterator mNextInSequence;
+
+  public:
+    WorkSequence(Application& app, std::string name,
+                 std::vector<std::shared_ptr<BasicWork>> sequence,
+                 size_t maxRetries = RETRY_A_FEW);
+    ~WorkSequence() = default;
+
+    std::string getStatus() const override;
+
+  protected:
+    State doWork() final;
+    void doReset() final;
 };
 }
