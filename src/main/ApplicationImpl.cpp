@@ -43,7 +43,7 @@
 #include "simulation/LoadGenerator.h"
 #include "util/GlobalChecks.h"
 #include "util/StatusManager.h"
-#include "work/WorkManager.h"
+#include "work/WorkScheduler.h"
 
 #include "util/Logging.h"
 #include "util/TmpDir.h"
@@ -118,7 +118,7 @@ ApplicationImpl::initialize()
     mMaintainer = std::make_unique<Maintainer>(*this);
     mProcessManager = ProcessManager::create(*this);
     mCommandHandler = std::make_unique<CommandHandler>(*this);
-    mWorkManager = WorkManager::create(*this);
+    mWorkScheduler = WorkScheduler::create(*this);
     mBanManager = BanManager::create(*this);
     mStatusManager = std::make_unique<StatusManager>();
     mLedgerStateRoot = std::make_unique<LedgerStateRoot>(
@@ -282,6 +282,10 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
+    if (mWorkScheduler)
+    {
+        mWorkScheduler->shutdown();
+    }
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -398,6 +402,10 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
+    }
+    if (mWorkScheduler)
+    {
+        mWorkScheduler->shutdown();
     }
     if (mProcessManager)
     {
@@ -692,10 +700,10 @@ ApplicationImpl::getCommandHandler()
     return *mCommandHandler;
 }
 
-WorkManager&
-ApplicationImpl::getWorkManager()
+WorkScheduler&
+ApplicationImpl::getWorkScheduler()
 {
-    return *mWorkManager;
+    return *mWorkScheduler;
 }
 
 BanManager&

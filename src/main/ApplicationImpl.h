@@ -67,7 +67,7 @@ class ApplicationImpl : public Application
     virtual Database& getDatabase() const override;
     virtual PersistentState& getPersistentState() override;
     virtual CommandHandler& getCommandHandler() override;
-    virtual WorkManager& getWorkManager() override;
+    virtual WorkScheduler& getWorkScheduler() override;
     virtual BanManager& getBanManager() override;
     virtual StatusManager& getStatusManager() override;
 
@@ -146,7 +146,7 @@ class ApplicationImpl : public Application
     std::unique_ptr<Maintainer> mMaintainer;
     std::shared_ptr<ProcessManager> mProcessManager;
     std::unique_ptr<CommandHandler> mCommandHandler;
-    std::shared_ptr<WorkManager> mWorkManager;
+    std::shared_ptr<WorkScheduler> mWorkScheduler;
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<LoadGenerator> mLoadGenerator;
     std::unique_ptr<BanManager> mBanManager;
