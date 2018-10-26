@@ -30,7 +30,6 @@ class ProcessManager;
 class CommandHandler;
 class Database;
 class LoadGenerator;
-class NtpSynchronizationChecker;
 class LedgerStateRoot;
 
 class ApplicationImpl : public Application
@@ -151,7 +150,6 @@ class ApplicationImpl : public Application
     std::unique_ptr<PersistentState> mPersistentState;
     std::unique_ptr<LoadGenerator> mLoadGenerator;
     std::unique_ptr<BanManager> mBanManager;
-    std::shared_ptr<NtpSynchronizationChecker> mNtpSynchronizationChecker;
     std::unique_ptr<StatusManager> mStatusManager;
     std::unique_ptr<LedgerStateRoot> mLedgerStateRoot;
 

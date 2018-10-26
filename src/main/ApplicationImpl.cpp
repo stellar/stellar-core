@@ -29,7 +29,6 @@
 #include "main/CommandHandler.h"
 #include "main/ExternalQueue.h"
 #include "main/Maintainer.h"
-#include "main/NtpSynchronizationChecker.h"
 #include "main/StellarCoreVersion.h"
 #include "medida/counter.h"
 #include "medida/meter.h"
@@ -131,14 +130,6 @@ ApplicationImpl::initialize()
     LedgerEntryIsValid::registerInvariant(*this);
     LiabilitiesMatchOffers::registerInvariant(*this);
     enableInvariantsFromConfig();
-
-    if (!mConfig.NTP_SERVER.empty())
-    {
-        mNtpSynchronizationChecker =
-            std::make_shared<NtpSynchronizationChecker>(*this,
-                                                        mConfig.NTP_SERVER);
-    }
-
     LOG(DEBUG) << "Application constructed";
 }
 
@@ -291,10 +282,6 @@ ApplicationImpl::getNetworkID() const
 ApplicationImpl::~ApplicationImpl()
 {
     LOG(INFO) << "Application destructing";
-    if (mNtpSynchronizationChecker)
-    {
-        mNtpSynchronizationChecker->shutdown();
-    }
     if (mProcessManager)
     {
         mProcessManager->shutdown();
@@ -390,11 +377,6 @@ ApplicationImpl::start()
             done = true;
         });
 
-    if (mNtpSynchronizationChecker)
-    {
-        mNtpSynchronizationChecker->start();
-    }
-
     while (!done && mVirtualClock.crank(true))
         ;
 }
@@ -416,10 +398,6 @@ ApplicationImpl::gracefulStop()
     if (mOverlayManager)
     {
         mOverlayManager->shutdown();
-    }
-    if (mNtpSynchronizationChecker)
-    {
-        mNtpSynchronizationChecker->shutdown();
     }
     if (mProcessManager)
     {
