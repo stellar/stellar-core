@@ -16,6 +16,8 @@
 namespace stellar
 {
 
+class Application;
+
 using UsedOneTimeSignerKeys = std::map<AccountID, std::set<SignerKey>>;
 
 class SignatureChecker
@@ -23,7 +25,7 @@ class SignatureChecker
   public:
     explicit SignatureChecker(
         uint32_t protocolVersion, Hash const& contentsHash,
-        xdr::xvector<DecoratedSignature, 20> const& signatures);
+        xdr::xvector<DecoratedSignature, 20> const& signatures, Application& app);
 
     bool checkSignature(AccountID const& accountID,
                         std::vector<Signer> const& signersV,
@@ -36,6 +38,7 @@ class SignatureChecker
     uint32_t mProtocolVersion;
     Hash const& mContentsHash;
     xdr::xvector<DecoratedSignature, 20> const& mSignatures;
+    Application& mApp;
 
     std::vector<bool> mUsedSignatures;
     UsedOneTimeSignerKeys mUsedOneTimeSignerKeys;

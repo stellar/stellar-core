@@ -423,7 +423,7 @@ TransactionFrame::checkValid(Application& app, SequenceNumber current)
     resetResults();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
-        mEnvelope.signatures};
+        mEnvelope.signatures, app};
     bool res = commonValid(signatureChecker, app, nullptr, current);
     if (res)
     {
@@ -492,7 +492,7 @@ TransactionFrame::apply(LedgerDelta& delta, TransactionMeta& meta,
     resetSigningAccount();
     SignatureChecker signatureChecker{
         app.getLedgerManager().getCurrentLedgerVersion(), getContentsHash(),
-        mEnvelope.signatures};
+        mEnvelope.signatures, app};
     if (!commonValid(signatureChecker, app, &delta, 0))
     {
         return false;

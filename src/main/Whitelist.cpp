@@ -36,24 +36,33 @@ Whitelist::isWhitelisted(std::vector<DecoratedSignature> signatures, Hash const&
 {
     for (auto& sig : signatures)
     {
-        int32_t hintInt = (sig.hint[0] << 24) + (sig.hint[1] << 16) +
-                          (sig.hint[2] << 8) + sig.hint[3];
-
-        auto it = hash.find(hintInt);
-        if (it != hash.end())
-        {
-			for (auto key : it->second)
-			{
-                auto pkey = KeyUtils::fromStrKey<PublicKey>(key);
-
-                if (PubKeyUtils::verifySig(pkey, sig.signature, txHash))
-                {
-                    return true;
-				}
-			}
-        }
+        if (isWhitelistSig(sig, txHash))
+            return true;
     }
 
     return false;
+}
+
+bool 
+Whitelist::isWhitelistSig(DecoratedSignature const& sig, Hash const& txHash)
+{
+    int32_t hintInt = (sig.hint[0] << 24) + (sig.hint[1] << 16) +
+                      (sig.hint[2] << 8) + sig.hint[3];
+
+    auto it = hash.find(hintInt);
+    if (it != hash.end())
+    {
+        for (auto key : it->second)
+        {
+            auto pkey = KeyUtils::fromStrKey<PublicKey>(key);
+
+            if (PubKeyUtils::verifySig(pkey, sig.signature, txHash))
+            {
+                return true;
+            }
+        }
+    }
+
+	return false;
 }
 } // namespace stellar
