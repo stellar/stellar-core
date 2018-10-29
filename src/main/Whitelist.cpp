@@ -9,6 +9,9 @@ namespace stellar
 {
 Whitelist::Whitelist(Application& app)
 {
+    if (app.getConfig().WHITELIST.size() == 0)
+        return;
+
     auto id = app.getConfig().WHITELIST;
     AccountID aid(KeyUtils::fromStrKey<PublicKey>(id));
 
