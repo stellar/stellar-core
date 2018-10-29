@@ -14,6 +14,7 @@
 #include "invariant/InvariantManager.h"
 #include "ledger/LedgerDelta.h"
 #include "main/Application.h"
+#include "main/Whitelist.h"
 #include "transactions/SignatureChecker.h"
 #include "transactions/SignatureUtils.h"
 #include "util/Algoritm.h"
@@ -323,7 +324,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
 
 void
 TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
-                                   LedgerManager& ledgerManager)
+                                   LedgerManager& ledgerManager,
+                                   Whitelist& whitelist)
 {
     resetSigningAccount();
     resetResults();
@@ -336,8 +338,10 @@ TransactionFrame::processFeeSeqNum(LedgerDelta& delta,
 
     Database& db = ledgerManager.getDatabase();
     int64_t& fee = getResult().feeCharged;
+    auto whitelisted =
+        whitelist.isWhitelisted(mEnvelope.signatures, getContentsHash());
 
-    if (fee > 0)
+    if (fee > 0 && !whitelisted)
     {
         fee = std::min(mSigningAccount->getAccount().balance, fee);
         mSigningAccount->addBalance(-fee);
@@ -847,4 +851,4 @@ TransactionFrame::deleteOldEntries(Database& db, uint32_t ledgerSeq,
     DatabaseUtils::deleteOldEntriesHelper(db.getSession(), ledgerSeq, count,
                                           "txfeehistory", "ledgerseq");
 }
-}
+} // namespace stellar

@@ -11,6 +11,7 @@
 #include "ledger/LedgerDelta.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "main/Whitelist.h"
 #include "test/TestExceptions.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
@@ -67,7 +68,8 @@ applyCheck(TransactionFramePtr tx, Application& app)
         auto code = checkResult.result.code();
         if (code != txNO_ACCOUNT && code != txBAD_SEQ && code != txBAD_AUTH)
         {
-            tx->processFeeSeqNum(delta, app.getLedgerManager());
+            auto wl = Whitelist(app);
+            tx->processFeeSeqNum(delta, app.getLedgerManager(), wl);
             doApply = true;
         }
         else
@@ -670,5 +672,5 @@ checkTx(int index, TxSetResultMeta& r, TransactionResultCode expected,
     checkTx(index, r, expected);
     REQUIRE(r[index].first.result.result.results()[0].code() == code);
 };
-}
-}
+} // namespace txtest
+} // namespace stellar

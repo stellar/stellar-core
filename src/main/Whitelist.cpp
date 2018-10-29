@@ -9,16 +9,16 @@ namespace stellar
 {
 Whitelist::Whitelist(Application& app)
 {
-    if (app.getConfig().WHITELIST.size() == 0)
+    hash = std::unordered_map<uint32_t, std::vector<string64>>();
+    
+	if (app.getConfig().WHITELIST.size() == 0)
         return;
 
     auto id = app.getConfig().WHITELIST;
     AccountID aid(KeyUtils::fromStrKey<PublicKey>(id));
 
     auto dfs = DataFrame::loadAllData(app.getDatabase(), aid);
-
-    hash = std::unordered_map<uint32_t, std::vector<string64>>();
-
+    
     for (auto& df : dfs)
     {
         auto data = df->getData();
