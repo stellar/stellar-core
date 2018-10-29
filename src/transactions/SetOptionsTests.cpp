@@ -121,7 +121,6 @@ TEST_CASE("set options", "[tx][setoptions]")
 
                 REQUIRE_THROWS_AS(a1.setOptions(setHighThreshold(256)),
                                   ex_SET_OPTIONS_THRESHOLD_OUT_OF_RANGE);
-
             });
         }
 
