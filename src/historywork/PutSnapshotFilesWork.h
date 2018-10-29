@@ -28,25 +28,4 @@ class PutSnapshotFilesWork : public Work
     State doWork() override;
     void doReset() override;
 };
-
-class GzipAndPutFilesWork : public Work
-{
-    std::shared_ptr<HistoryArchive> mArchive;
-    std::shared_ptr<StateSnapshot> mSnapshot;
-    HistoryArchiveState const& mRemoteState;
-    std::vector<std::shared_ptr<FileTransferInfo>> mFiles;
-
-    bool mChildrenSpawned{false};
-
-  public:
-    GzipAndPutFilesWork(Application& app,
-                        std::shared_ptr<HistoryArchive> archive,
-                        std::shared_ptr<StateSnapshot> snapshot,
-                        HistoryArchiveState const& remoteState);
-    ~GzipAndPutFilesWork() = default;
-
-  protected:
-    void doReset() override;
-    State doWork() override;
-};
 }
