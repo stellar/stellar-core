@@ -28,7 +28,7 @@ Work::getStatus() const
         auto incomplete = 0;
         for (auto const& c : mChildren)
         {
-            if (c->isDone())
+            if (!c->isDone())
             {
                 ++incomplete;
             }
@@ -61,7 +61,12 @@ Work::onRun()
     else
     {
         CLOG(DEBUG, "Work") << "Running " << getName();
-        return doWork();
+        auto state = doWork();
+        if (state == State::WORK_SUCCESS)
+        {
+            clearChildren();
+        }
+        return state;
     }
 }
 

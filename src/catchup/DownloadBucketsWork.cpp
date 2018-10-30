@@ -32,8 +32,7 @@ DownloadBucketsWork::doWork()
             auto w2 = std::make_shared<VerifyBucketWork>(
                 mApp, mBuckets, ft.localPath_nogz(), hexToBin256(hash));
             std::vector<std::shared_ptr<BasicWork>> seq{w1, w2};
-            auto sequenceWork =
-                addWork<WorkSequence>("download-verify-sequence-" + hash, seq);
+            addWork<WorkSequence>("download-verify-sequence-" + hash, seq);
         }
         mChildrenStarted = true;
     }
