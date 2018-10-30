@@ -299,7 +299,6 @@ Upgrades::isValid(uint64_t closeTime, UpgradeType const& upgrade,
         {
             res = mParams.mBaseReserve && (newReserve == *mParams.mBaseReserve);
         }
-        res = res && (newReserve != 0);
     }
     break;
     default:
