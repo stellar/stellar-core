@@ -102,6 +102,8 @@ class LocalNode
     Json::Value toJson(SCPQuorumSet const& qSet) const;
     std::string to_string(SCPQuorumSet const& qSet) const;
 
+    static uint64 computeWeight(uint64 m, uint64 total, uint64 threshold);
+
   protected:
     // returns a quorum set {{ nodeID }}
     static SCPQuorumSet buildSingletonQSet(NodeID const& nodeID);
