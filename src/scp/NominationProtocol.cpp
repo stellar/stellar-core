@@ -215,8 +215,11 @@ NominationProtocol::updateRoundLeaders()
     auto localID = mSlot.getLocalNode()->getNodeID();
     normalizeQSet(myQSet, &localID);
 
-    mRoundLeaders.insert(localID);
-    uint64 topPriority = getNodePriority(localID, myQSet);
+    // for the purpose of weight computation
+    // pretend the local node to be at the top level
+    myQSet.validators.emplace_back(localID);
+    myQSet.threshold++;
+    uint64 topPriority = 0;
 
     LocalNode::forAllNodes(myQSet, [&](NodeID const& cur) {
         uint64 w = getNodePriority(cur, myQSet);
@@ -230,6 +233,13 @@ NominationProtocol::updateRoundLeaders()
             mRoundLeaders.insert(cur);
         }
     });
+
+    // default to localID if we can't pick anything
+    if (mRoundLeaders.empty())
+    {
+        mRoundLeaders.insert(localID);
+    }
+
     CLOG(DEBUG, "SCP") << "updateRoundLeaders: " << mRoundLeaders.size();
     if (Logging::logDebug("SCP"))
         for (auto const& rl : mRoundLeaders)
@@ -262,15 +272,7 @@ NominationProtocol::getNodePriority(NodeID const& nodeID,
     uint64 res;
     uint64 w;
 
-    if (nodeID == mSlot.getLocalNode()->getNodeID())
-    {
-        // local node is in all quorum sets
-        w = UINT64_MAX;
-    }
-    else
-    {
-        w = LocalNode::getNodeWeight(nodeID, qset);
-    }
+    w = LocalNode::getNodeWeight(nodeID, qset);
 
     if (hashNode(false, nodeID) < w)
     {
