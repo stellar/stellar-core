@@ -584,7 +584,7 @@ HerderSCPDriver::combineCandidates(uint64_t slotIndex,
                                 << " invalid transactions";
 
         // post to avoid triggering SCP handling code recursively
-        mApp.getClock().getIOService().post([this, bestTxSet]() {
+        mApp.postOnMainThreadWithDelay([this, bestTxSet]() {
             mPendingEnvelopes.recvTxSet(bestTxSet->getContentsHash(),
                                         bestTxSet);
         });

@@ -67,6 +67,7 @@ class LedgerManager
         NONE,
         WAITING_FOR_TRIGGER_LEDGER,
         APPLYING_HISTORY,
+        APPLYING_BUFFERED_LEDGERS,
         WAITING_FOR_CLOSING_LEDGER
     };
 

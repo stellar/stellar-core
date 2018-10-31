@@ -46,7 +46,7 @@ VerifyBucketWork::onStart()
     uint256 hash = mHash;
     Application& app = this->mApp;
     auto handler = callComplete();
-    app.getWorkerIOService().post([&app, filename, handler, hash]() {
+    app.postOnBackgroundThread([&app, filename, handler, hash]() {
         auto hasher = SHA256::create();
         asio::error_code ec;
         char buf[4096];
@@ -75,7 +75,7 @@ VerifyBucketWork::onStart()
                 ec = std::make_error_code(std::errc::io_error);
             }
         }
-        app.getClock().getIOService().post([ec, handler]() { handler(ec); });
+        app.postOnMainThread([ec, handler]() { handler(ec); });
     });
 }
 

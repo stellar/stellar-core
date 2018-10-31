@@ -614,7 +614,7 @@ clearFutures(Application::pointer app, BucketList& bl)
     size_t waiting = 0, finished = 0;
     for (size_t i = 0; i < n; ++i)
     {
-        app->getWorkerIOService().post([&] {
+        app->postOnBackgroundThread([&] {
             std::unique_lock<std::mutex> lock(mutex);
             if (++waiting == n)
             {

@@ -333,6 +333,9 @@ TEST_CASE("Repair missing buckets via history",
                                         state);
 
     app2->start();
+    catchupSimulation.crankUntil(
+        app2, [&]() { return app2->getWorkManager().allChildrenDone(); },
+        std::chrono::seconds(30));
 
     auto hash1 = catchupSimulation.getBucketListAtLastPublish().getHash();
     auto hash2 = app2->getBucketManager().getBucketList().getHash();
@@ -371,21 +374,10 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
-    REQUIRE_THROWS(app2->start());
-
-    while (app2->getProcessManager().getNumRunningProcesses() != 0)
-    {
-        try
-        {
-            app2->getClock().crank(false);
-        }
-        catch (...)
-        {
-            // see https://github.com/stellar/stellar-core/issues/1250
-            // we expect to get "Unable to restore last-known ledger state"
-            // several more times
-        }
-    }
+    app2->start();
+    REQUIRE_THROWS(catchupSimulation.crankUntil(
+        app2, [&]() { return app2->getWorkManager().allChildrenDone(); },
+        std::chrono::seconds(30)));
 }
 
 TEST_CASE("Publish/catchup via s3", "[!hide][s3]")

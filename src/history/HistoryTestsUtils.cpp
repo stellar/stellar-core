@@ -385,16 +385,17 @@ CatchupSimulation::catchupNewApplication(uint32_t initLedger, uint32_t count,
 }
 
 void
-CatchupSimulation::crankForAtMost(Application::pointer app,
-                                  VirtualClock::duration duration)
+CatchupSimulation::crankUntil(Application::pointer app,
+                              std::function<bool()> const& predicate,
+                              VirtualClock::duration timeout)
 {
     auto start = std::chrono::system_clock::now();
-    while (!app->getWorkManager().allChildrenDone())
+    while (!app->getWorkManager().allChildrenDone() || !predicate())
     {
         app->getClock().crank(false);
         auto current = std::chrono::system_clock::now();
         auto diff = current - start;
-        if (diff > duration)
+        if (diff > timeout)
         {
             break;
         }
@@ -485,7 +486,15 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     auto catchupConfiguration = CatchupConfiguration(initLedger, count);
 
     REQUIRE(!app2->getClock().getIOService().stopped());
-    crankForAtMost(app2, std::chrono::seconds{30});
+    crankUntil(
+        app2,
+        [&]() {
+            return app2->getLedgerManager().getState() ==
+                       LedgerManager::LM_CATCHING_UP_STATE &&
+                   app2->getLedgerManager().getCatchupState() ==
+                       LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER;
+        },
+        std::chrono::seconds{30});
     auto nextLedger = lm.getLedgerNum();
 
     CLOG(INFO, "History") << "Catching up finished: lastLedger = "

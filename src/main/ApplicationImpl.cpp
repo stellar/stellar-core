@@ -747,6 +747,24 @@ ApplicationImpl::getWorkerIOService()
 }
 
 void
+ApplicationImpl::postOnMainThread(std::function<void()>&& f)
+{
+    mVirtualClock.postToCurrentCrank(std::move(f));
+}
+
+void
+ApplicationImpl::postOnMainThreadWithDelay(std::function<void()>&& f)
+{
+    mVirtualClock.postToNextCrank(std::move(f));
+}
+
+void
+ApplicationImpl::postOnBackgroundThread(std::function<void()>&& f)
+{
+    getWorkerIOService().post(std::move(f));
+}
+
+void
 ApplicationImpl::enableInvariantsFromConfig()
 {
     for (auto name : mConfig.INVARIANT_CHECKS)

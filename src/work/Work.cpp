@@ -153,7 +153,7 @@ Work::scheduleRun()
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling run of " << getUniqueName();
     mScheduled = true;
-    mApp.getClock().getIOService().post([weak]() {
+    mApp.postOnMainThreadWithDelay([weak]() {
         auto self = weak.lock();
         if (!self)
         {
@@ -176,7 +176,7 @@ Work::scheduleComplete(CompleteResult result)
         std::static_pointer_cast<Work>(shared_from_this()));
     CLOG(DEBUG, "Work") << "scheduling completion of " << getUniqueName();
     mScheduled = true;
-    mApp.getClock().getIOService().post([weak, result]() {
+    mApp.postOnMainThreadWithDelay([weak, result]() {
         auto self = weak.lock();
         if (!self)
         {

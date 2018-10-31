@@ -260,6 +260,7 @@ VirtualClock::crank(bool block)
     nRealTimerCancelEvents = 0;
     size_t nWorkDone = 0;
 
+    mDelayExecution = true;
     if (mMode == REAL_TIME)
     {
         // Fire all pending timers.
@@ -269,7 +270,7 @@ VirtualClock::crank(bool block)
     // pick up some work off the IO queue
     // calling mIOService.poll() here may introduce unbounded delays
     // to trigger timers
-    const size_t WORK_BATCH_SIZE = 10;
+    const size_t WORK_BATCH_SIZE = 100;
     size_t lastPoll;
     size_t i = 0;
     do
@@ -279,6 +280,19 @@ VirtualClock::crank(bool block)
     } while (lastPoll != 0 && ++i < WORK_BATCH_SIZE);
 
     nWorkDone -= nRealTimerCancelEvents;
+
+    {
+        std::lock_guard<std::mutex> lock(mDelayedExecutionQueueMutex);
+        if (!mDelayedExecutionQueue.empty())
+        {
+            block = false;
+        }
+        for (auto&& f : mDelayedExecutionQueue)
+        {
+            mIOService.post(std::move(f));
+        }
+        mDelayedExecutionQueue.clear();
+    }
 
     if (mMode == VIRTUAL_TIME && nWorkDone == 0)
     {
@@ -295,6 +309,25 @@ VirtualClock::crank(bool block)
     noteCrankOccurred(nWorkDone == 0);
 
     return nWorkDone;
+}
+
+void
+VirtualClock::postToCurrentCrank(std::function<void()>&& f)
+{
+    mIOService.post(std::move(f));
+}
+
+void
+VirtualClock::postToNextCrank(std::function<void()>&& f)
+{
+    if (!mDelayExecution)
+    {
+        mIOService.post(std::move(f));
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(mDelayedExecutionQueueMutex);
+    mDelayedExecutionQueue.emplace_back(std::move(f));
 }
 
 void

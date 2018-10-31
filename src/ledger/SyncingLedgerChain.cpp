@@ -12,24 +12,6 @@ SyncingLedgerChain::SyncingLedgerChain() = default;
 SyncingLedgerChain::SyncingLedgerChain(SyncingLedgerChain const&) = default;
 SyncingLedgerChain::~SyncingLedgerChain() = default;
 
-SyncingLedgerChainAddResult
-SyncingLedgerChain::add(LedgerCloseData lcd)
-{
-    if (mChain.empty() ||
-        mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())
-    {
-        mChain.emplace_back(std::move(lcd));
-        return SyncingLedgerChainAddResult::CONTIGUOUS;
-    }
-
-    if (lcd.getLedgerSeq() <= mChain.back().getLedgerSeq())
-    {
-        return SyncingLedgerChainAddResult::TOO_OLD;
-    }
-
-    return SyncingLedgerChainAddResult::TOO_NEW;
-}
-
 LedgerCloseData const&
 SyncingLedgerChain::front() const
 {
@@ -42,27 +24,39 @@ SyncingLedgerChain::back() const
     return mChain.back();
 }
 
-bool
-SyncingLedgerChain::empty() const
+void
+SyncingLedgerChain::pop()
 {
-    return mChain.empty();
+    mChain.pop();
 }
 
-SyncingLedgerChain::size_type
+SyncingLedgerChainAddResult
+SyncingLedgerChain::push(LedgerCloseData lcd)
+{
+    if (mChain.empty() ||
+        mChain.back().getLedgerSeq() + 1 == lcd.getLedgerSeq())
+    {
+        mChain.emplace(lcd);
+        return SyncingLedgerChainAddResult::CONTIGUOUS;
+    }
+
+    if (lcd.getLedgerSeq() <= mChain.back().getLedgerSeq())
+    {
+        return SyncingLedgerChainAddResult::TOO_OLD;
+    }
+
+    return SyncingLedgerChainAddResult::TOO_NEW;
+}
+
+size_t
 SyncingLedgerChain::size() const
 {
     return mChain.size();
 }
 
-SyncingLedgerChain::const_iterator
-SyncingLedgerChain::begin() const
+bool
+SyncingLedgerChain::empty() const
 {
-    return std::begin(mChain);
-}
-
-SyncingLedgerChain::const_iterator
-SyncingLedgerChain::end() const
-{
-    return std::end(mChain);
+    return mChain.empty();
 }
 }

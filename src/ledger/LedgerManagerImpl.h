@@ -11,7 +11,6 @@
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
 #include "transactions/TransactionFrame.h"
-#include "util/Timer.h"
 #include "xdr/Stellar-ledger.h"
 #include <string>
 
@@ -51,7 +50,6 @@ class LedgerManagerImpl : public LedgerManager
     VirtualClock::time_point mLastStateChange;
 
     medida::Counter& mSyncingLedgersSize;
-
     SyncingLedgerChain mSyncingLedgers;
     uint32_t mCatchupTriggerLedger{0};
 
@@ -67,6 +65,7 @@ class LedgerManagerImpl : public LedgerManager
     void historyCaughtup(asio::error_code const& ec,
                          CatchupWork::ProgressState progressState,
                          LedgerHeaderHistoryEntry const& lastClosed);
+    void applyBufferedLedgers();
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
                             LedgerDelta& delta);

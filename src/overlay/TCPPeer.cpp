@@ -174,7 +174,7 @@ TCPPeer::shutdown()
 
     // To shutdown, we first queue up our desire to shutdown in the strand,
     // behind any pending read/write calls. We'll let them issue first.
-    self->getApp().getClock().getIOService().post([self]() {
+    self->getApp().postOnMainThread([self]() {
         // Gracefully shut down connection: this pushes a FIN packet into TCP
         // which, if we wanted to be really polite about, we would wait for an
         // ACK from by doing repeated reads until we get a 0-read.
@@ -195,7 +195,7 @@ TCPPeer::shutdown()
             CLOG(ERROR, "Overlay")
                 << "TCPPeer::drop shutdown socket failed: " << ec.message();
         }
-        self->getApp().getClock().getIOService().post([self]() {
+        self->getApp().postOnMainThread([self]() {
             // Close fd associated with socket. Socket is already shut down, but
             // depending on platform (and apparently whether there was unread
             // data when we issued shutdown()) this call might push RST onto the

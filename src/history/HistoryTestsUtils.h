@@ -135,9 +135,6 @@ class CatchupSimulation
     std::vector<SequenceNumber> bobSeqs;
     std::vector<SequenceNumber> carolSeqs;
 
-    void crankForAtMost(Application::pointer app,
-                        VirtualClock::duration duration);
-
   public:
     explicit CatchupSimulation(
         std::shared_ptr<HistoryConfigurator> cg =
@@ -186,6 +183,10 @@ class CatchupSimulation
         uint32_t lastClosedLedger,
         CatchupConfiguration const& catchupConfiguration,
         HistoryManager const& historyManager);
+
+    void crankUntil(Application::pointer app,
+                    std::function<bool()> const& predicate,
+                    VirtualClock::duration duration);
 
     bool
     flip()
