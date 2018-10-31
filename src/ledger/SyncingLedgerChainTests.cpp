@@ -28,7 +28,7 @@ TEST_CASE("empty syncing ledger chain accepts anything",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(1)) ==
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(1)) ==
             SyncingLedgerChainAddResult::CONTIGUOUS);
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 1);
@@ -38,8 +38,8 @@ TEST_CASE("not empty syncing ledger chain accepts next ledger",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    ledgerChain.add(makeLedgerCloseData(1));
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(2)) ==
+    ledgerChain.push(makeLedgerCloseData(1));
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(2)) ==
             SyncingLedgerChainAddResult::CONTIGUOUS);
     REQUIRE(ledgerChain.size() == 2);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 2);
@@ -49,8 +49,8 @@ TEST_CASE("not empty syncing ledger chain do not accept after-next ledger",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    ledgerChain.add(makeLedgerCloseData(1));
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(3)) ==
+    ledgerChain.push(makeLedgerCloseData(1));
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(3)) ==
             SyncingLedgerChainAddResult::TOO_NEW);
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 1);
@@ -60,8 +60,8 @@ TEST_CASE("not empty syncing ledger chain do not accept duplicate",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    ledgerChain.add(makeLedgerCloseData(1));
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(1)) ==
+    ledgerChain.push(makeLedgerCloseData(1));
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(1)) ==
             SyncingLedgerChainAddResult::TOO_OLD);
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 1);
@@ -71,8 +71,8 @@ TEST_CASE("not empty syncing ledger chain do not accept previous ledger",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    ledgerChain.add(makeLedgerCloseData(2));
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(1)) ==
+    ledgerChain.push(makeLedgerCloseData(2));
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(1)) ==
             SyncingLedgerChainAddResult::TOO_OLD);
     REQUIRE(ledgerChain.size() == 1);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 2);
@@ -82,9 +82,9 @@ TEST_CASE("not empty syncing ledger chain accepts next ledger after failure",
           "[ledger][ledgerchain]")
 {
     auto ledgerChain = SyncingLedgerChain{};
-    ledgerChain.add(makeLedgerCloseData(1));
-    ledgerChain.add(makeLedgerCloseData(3));
-    REQUIRE(ledgerChain.add(makeLedgerCloseData(2)) ==
+    ledgerChain.push(makeLedgerCloseData(1));
+    ledgerChain.push(makeLedgerCloseData(3));
+    REQUIRE(ledgerChain.push(makeLedgerCloseData(2)) ==
             SyncingLedgerChainAddResult::CONTIGUOUS);
     REQUIRE(ledgerChain.size() == 2);
     REQUIRE(ledgerChain.back().getLedgerSeq() == 2);

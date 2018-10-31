@@ -546,7 +546,7 @@ LedgerManagerImpl::finalizeCatchup(LedgerCloseData const& ledgerData)
 void
 LedgerManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
 {
-    switch (mSyncingLedgers.add(ledgerData))
+    switch (mSyncingLedgers.push(ledgerData))
     {
     case SyncingLedgerChainAddResult::CONTIGUOUS:
         // Normal close while catching up
@@ -578,7 +578,7 @@ LedgerManagerImpl::addToSyncingLedgers(LedgerCloseData const& ledgerData)
 void
 LedgerManagerImpl::startCatchupIf(uint32_t lastReceivedLedgerSeq)
 {
-    assert(mSyncingLedgers.size() > 0);
+    assert(!mSyncingLedgers.empty());
     assert(mCatchupState != CatchupState::NONE);
 
     auto contiguous =
@@ -683,6 +683,8 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
         CLOG(ERROR, "Ledger") << "Catchup will restart at next close.";
         setState(LM_BOOTING_STATE);
         mApp.getCatchupManager().historyCaughtup();
+        mSyncingLedgers = {};
+        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
     }
     else
     {
@@ -720,30 +722,42 @@ LedgerManagerImpl::historyCaughtup(asio::error_code const& ec,
                              << ledgerAbbrev(mLastClosedLedger);
         mApp.getCatchupManager().historyCaughtup();
 
-        // Now replay remaining txs from buffered local network history.
-        for (auto const& lcd : mSyncingLedgers)
+        setCatchupState(CatchupState::APPLYING_BUFFERED_LEDGERS);
+        applyBufferedLedgers();
+    }
+}
+
+void
+LedgerManagerImpl::applyBufferedLedgers()
+{
+    assert(mCatchupState == CatchupState::APPLYING_BUFFERED_LEDGERS);
+
+    mApp.postOnMainThreadWithDelay([&] {
+        if (mSyncingLedgers.empty())
         {
-            assert(lcd.getLedgerSeq() ==
-                   mLastClosedLedger.header.ledgerSeq + 1);
             CLOG(INFO, "Ledger")
-                << "Replaying buffered ledger-close: "
-                << "[seq=" << lcd.getLedgerSeq()
-                << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
-                << ", tx_count=" << lcd.getTxSet()->size()
-                << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
-            closeLedger(lcd);
+                << "Caught up to LCL including recent network activity: "
+                << ledgerAbbrev(mLastClosedLedger)
+                << "; waiting for closing ledger";
+            setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
+            return;
         }
 
-        CLOG(INFO, "Ledger")
-            << "Caught up to LCL including recent network activity: "
-            << ledgerAbbrev(mLastClosedLedger)
-            << "; waiting for closing ledger";
-        setCatchupState(CatchupState::WAITING_FOR_CLOSING_LEDGER);
-    }
+        auto lcd = mSyncingLedgers.front();
+        mSyncingLedgers.pop();
+        mSyncingLedgersSize.set_count(mSyncingLedgers.size());
 
-    // Either way, we're done processing the ledgers backlog
-    mSyncingLedgers = {};
-    mSyncingLedgersSize.set_count(mSyncingLedgers.size());
+        assert(lcd.getLedgerSeq() == mLastClosedLedger.header.ledgerSeq + 1);
+        CLOG(INFO, "Ledger")
+            << "Replaying buffered ledger-close: "
+            << "[seq=" << lcd.getLedgerSeq()
+            << ", prev=" << hexAbbrev(lcd.getTxSet()->previousLedgerHash())
+            << ", tx_count=" << lcd.getTxSet()->size()
+            << ", sv: " << stellarValueToString(lcd.getValue()) << "]";
+        closeLedger(lcd);
+
+        applyBufferedLedgers();
+    });
 }
 
 uint64_t
