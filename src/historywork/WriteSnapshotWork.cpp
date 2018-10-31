@@ -36,7 +36,7 @@ WriteSnapshotWork::onStart()
         {
             ec = std::make_error_code(std::errc::io_error);
         }
-        snap->mApp.getClock().getIOService().post(
+        snap->mApp.getClock().postToCurrentCrank(
             [handler, ec]() { handler(ec); });
     };
 

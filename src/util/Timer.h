@@ -15,6 +15,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <queue>
 
 namespace stellar
@@ -113,6 +114,10 @@ class VirtualClock
     size_t nRealTimerCancelEvents;
     time_point mNow;
 
+    bool mDelayExecution{false};
+    std::vector<std::function<void()>> mDelayedExecutionQueue;
+    std::mutex mDelayedExecutionQueueMutex;
+
     using PrQueue =
         std::priority_queue<std::shared_ptr<VirtualClockEvent>,
                             std::vector<std::shared_ptr<VirtualClockEvent>>,
@@ -156,6 +161,9 @@ class VirtualClock
 
     // returns the time of the next scheduled event
     time_point next();
+
+    void postToCurrentCrank(std::function<void()>&& f);
+    void postToNextCrank(std::function<void()>&& f);
 };
 
 class VirtualClockEvent : public NonMovableOrCopyable

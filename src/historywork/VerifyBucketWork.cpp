@@ -75,7 +75,7 @@ VerifyBucketWork::onStart()
                 ec = std::make_error_code(std::errc::io_error);
             }
         }
-        app.getClock().getIOService().post([ec, handler]() { handler(ec); });
+        app.getClock().postToCurrentCrank([ec, handler]() { handler(ec); });
     });
 }
 

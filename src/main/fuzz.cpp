@@ -150,7 +150,7 @@ restart:
         LOG(INFO) << "Fuzzer injecting message " << i << ": "
                   << msgSummary(msg);
         auto peer = loop.getInitiator();
-        clock.getIOService().post(
+        clock.postToCurrentCrank(
             [peer, msg]() { peer->Peer::sendMessage(msg); });
     }
     while (loop.getAcceptor()->isConnected())

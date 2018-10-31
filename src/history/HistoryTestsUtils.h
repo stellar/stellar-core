@@ -187,6 +187,10 @@ class CatchupSimulation
         CatchupConfiguration const& catchupConfiguration,
         HistoryManager const& historyManager);
 
+    void crankUntil(Application::pointer app,
+                    std::function<bool()> const& predicate,
+                    VirtualClock::duration duration);
+
     bool
     flip()
     {

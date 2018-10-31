@@ -401,6 +401,24 @@ CatchupSimulation::crankForAtMost(Application::pointer app,
     }
 }
 
+void
+CatchupSimulation::crankUntil(Application::pointer app,
+                              std::function<bool()> const& predicate,
+                              VirtualClock::duration timeout)
+{
+    auto start = std::chrono::system_clock::now();
+    while (!app->getWorkManager().allChildrenDone() || !predicate())
+    {
+        app->getClock().crank(false);
+        auto current = std::chrono::system_clock::now();
+        auto diff = current - start;
+        if (diff > timeout)
+        {
+            break;
+        }
+    }
+}
+
 bool
 CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
                                       bool manual, Application::pointer app2,
