@@ -414,8 +414,7 @@ HistoryManagerImpl::historyPublished(
         this->mPublishFailure.Mark();
     }
     mPublishWork.reset();
-    mApp.getClock().postToCurrentCrank(
-        [this]() { this->publishQueuedHistory(); });
+    mApp.postOnMainThread([this]() { this->publishQueuedHistory(); });
 }
 
 void

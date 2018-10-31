@@ -72,8 +72,12 @@ class ApplicationImpl : public Application
     virtual StatusManager& getStatusManager() override;
 
     virtual asio::io_service& getWorkerIOService() override;
+    virtual void postOnMainThread(std::function<void()>&& f) override;
+    virtual void postOnMainThreadWithDelay(std::function<void()>&& f) override;
+    virtual void postOnBackgroundThread(std::function<void()>&& f) override;
 
     void newDB() override;
+
     virtual void start() override;
 
     // Stops the worker io_service, which should cause the threads to exit once

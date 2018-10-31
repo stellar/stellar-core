@@ -213,6 +213,10 @@ class Application
     // with caution.
     virtual asio::io_service& getWorkerIOService() = 0;
 
+    virtual void postOnMainThread(std::function<void()>&& f) = 0;
+    virtual void postOnMainThreadWithDelay(std::function<void()>&& f) = 0;
+    virtual void postOnBackgroundThread(std::function<void()>&& f) = 0;
+
     // Perform actions necessary to transition from BOOTING_STATE to other
     // states. In particular: either reload or reinitialize the database, and
     // either restart or begin reacquiring SCP consensus (as instructed by
