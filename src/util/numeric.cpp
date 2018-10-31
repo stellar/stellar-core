@@ -123,4 +123,28 @@ bigMultiply(int64_t a, int64_t b)
     assert((a >= 0) && (b >= 0));
     return bigMultiply((uint64_t)a, (uint64_t)b);
 }
+
+uint64_t
+safeMul(uint64_t a, uint64_t b)
+{
+    uint128_t aa(a), bb(b);
+    auto rr = aa * bb;
+    if (rr > UINT64_MAX)
+    {
+        throw std::invalid_argument("overflow");
+    }
+    return rr.lower();
+}
+
+uint64_t
+safeAdd(uint64_t a, uint64_t b)
+{
+    uint128_t aa(a), bb(b);
+    auto rr = aa + bb;
+    if (rr > UINT64_MAX)
+    {
+        throw std::invalid_argument("overflow");
+    }
+    return rr.lower();
+}
 }

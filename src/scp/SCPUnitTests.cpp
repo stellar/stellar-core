@@ -33,7 +33,7 @@ TEST_CASE("nomination weight", "[scp]")
 
     uint64 result = LocalNode::getNodeWeight(v2NodeID, qSet);
 
-    REQUIRE(isNear(result, .75));
+    REQUIRE(isNear(result, 0.80)); // 4/5
 
     result = LocalNode::getNodeWeight(v4NodeID, qSet);
     REQUIRE(result == 0);
@@ -46,7 +46,7 @@ TEST_CASE("nomination weight", "[scp]")
 
     result = LocalNode::getNodeWeight(v4NodeID, qSet);
 
-    REQUIRE(isNear(result, .6 * .5));
+    REQUIRE(isNear(result, 0.6875 * 0.6666)); // 11/16 * 2/3
 }
 
 class TestNominationSCP : public SCPDriver

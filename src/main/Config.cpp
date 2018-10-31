@@ -222,17 +222,25 @@ Config::loadQset(std::shared_ptr<cpptoml::toml_group> group, SCPQuorumSet& qset,
         }
     }
 
+    auto totalSize = qset.validators.size() + qset.innerSets.size();
     // round up: n*percent/100
-    qset.threshold = uint32(
-        1 +
-        (((qset.validators.size() + qset.innerSets.size()) * thresholdPercent -
-          1) /
-         100));
+    qset.threshold = uint32(1 + ((totalSize * thresholdPercent - 1) / 100));
 
     if (qset.threshold == 0 ||
         (qset.validators.empty() && qset.innerSets.empty()))
     {
         throw std::invalid_argument("invalid quorum set definition");
+    }
+
+    // verify that we can compute weights properly
+    try
+    {
+        LocalNode::computeWeight(1, totalSize, qset.threshold);
+    }
+    catch (std::exception)
+    {
+        throw std::invalid_argument(
+            "too many elements/bad threshold in quorum set");
     }
 }
 

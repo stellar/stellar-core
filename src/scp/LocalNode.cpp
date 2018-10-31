@@ -95,12 +95,53 @@ LocalNode::forAllNodes(SCPQuorumSet const& qset,
     });
 }
 
+static uint64
+combination(uint64 n, uint64 k)
+{
+    if (k > n)
+    {
+        throw std::invalid_argument("can't choose more than n");
+    }
+    if (k > n / 2)
+    {
+        k = n - k;
+    }
+
+    // compute:
+    // num = n*...*(n-k+1)
+    // den = k!
+
+    uint64 num = 1;
+    uint64 den = 1;
+    uint64 j = n - k;
+    for (uint64 i = 1; i <= k; i++)
+    {
+        num = safeMul(num, i + j);
+        den = safeMul(den, i);
+    }
+    return num / den;
+}
+
 uint64
 LocalNode::computeWeight(uint64 m, uint64 total, uint64 threshold)
 {
+    if (threshold > total)
+    {
+        throw std::invalid_argument("threshold must be less than total");
+    }
+    // computes
+    // nWith = the number of combinations when a validator is already picked in
+    // the set
+    // nTotal = the total number of combinations that would cross the threshold
+    uint64 nWith = 0;
+    uint64 nTotal = 0;
+    for (uint64 i = threshold; i <= total; i++)
+    {
+        nWith = safeAdd(nWith, combination(total - 1, i - 1));
+        nTotal = safeAdd(nTotal, combination(total, i));
+    }
     uint64 res;
-    assert(threshold <= total);
-    bigDivide(res, m, threshold, total, ROUND_UP);
+    bigDivide(res, m, nWith, nTotal, ROUND_UP);
     return res;
 }
 
