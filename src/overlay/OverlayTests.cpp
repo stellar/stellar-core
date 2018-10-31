@@ -426,7 +426,9 @@ TEST_CASE("connecting to saturated nodes", "[overlay]")
     qSet.validators.push_back(vNode2NodeID);
     qSet.validators.push_back(vNode3NodeID);
 
-    simulation->addNode(vHeadSecretKey, qSet, &headCfg);
+    auto headId = simulation->addNode(vHeadSecretKey, qSet, &headCfg)
+                      ->getConfig()
+                      .NODE_SEED.getPublicKey();
     simulation->addNode(vNode1SecretKey, qSet, &node1Cfg);
     simulation->addNode(vNode2SecretKey, qSet, &node2Cfg);
     simulation->addNode(vNode3SecretKey, qSet, &node3Cfg);
@@ -436,7 +438,10 @@ TEST_CASE("connecting to saturated nodes", "[overlay]")
     simulation->addPendingConnection(vNode3NodeID, vHeadNodeID);
 
     simulation->startAllNodes();
-    simulation->crankForAtLeast(std::chrono::seconds{30}, false);
+    simulation->crankForAtLeast(std::chrono::seconds{15}, false);
+    simulation->removeNode(headId);
+    simulation->crankForAtLeast(std::chrono::seconds{15}, false);
+
     // all three (two-way) connections are made
     REQUIRE(numberOfSimulationConnections() == 6);
     simulation->crankForAtLeast(std::chrono::seconds{1}, true);
