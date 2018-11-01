@@ -286,6 +286,8 @@ VirtualClock::crank(bool block)
         if (!mDelayedExecutionQueue.empty())
         {
             block = false;
+            // count this as work
+            nWorkDone += 1;
         }
         for (auto&& f : mDelayedExecutionQueue)
         {
