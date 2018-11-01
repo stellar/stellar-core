@@ -265,9 +265,10 @@ TEST_CASE("Publish/catchup alternation, with stall",
 
         initLedger = lm.getLastClosedLedgerNum() - 2;
 
-        catchupSimulation.catchupApplication(
-            initLedger, std::numeric_limits<uint32_t>::max(), false, app2);
-        catchupSimulation.catchupApplication(initLedger, 0, false, app3);
+        REQUIRE(catchupSimulation.catchupApplication(
+            initLedger, std::numeric_limits<uint32_t>::max(), false, app2));
+        REQUIRE(
+            catchupSimulation.catchupApplication(initLedger, 0, false, app3));
 
         CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
         CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
@@ -544,7 +545,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent]")
 
     for (auto a : apps)
     {
-        catchupSimulation.catchupApplication(initLedger, 80, false, a);
+        REQUIRE(catchupSimulation.catchupApplication(initLedger, 80, false, a));
     }
 
     // Now push network along a _lot_ futher along see that they can all
@@ -556,7 +557,7 @@ TEST_CASE("Catchup recent", "[history][catchuprecent]")
 
     for (auto a : apps)
     {
-        catchupSimulation.catchupApplication(initLedger, 80, false, a);
+        REQUIRE(catchupSimulation.catchupApplication(initLedger, 80, false, a));
     }
 }
 
@@ -600,10 +601,12 @@ TEST_CASE("Catchup manual", "[history][catchupmanual]")
                     configuration.toLedger(), configuration.count(), true,
                     dbMode, name);
                 // manual catchup-complete to first checkpoint
-                catchupSimulation.catchupApplication(
-                    initLedger1, std::numeric_limits<uint32_t>::max(), true, a);
+                REQUIRE(catchupSimulation.catchupApplication(
+                    initLedger1, std::numeric_limits<uint32_t>::max(), true,
+                    a));
                 // manual catchup-complete to second checkpoint
-                catchupSimulation.catchupApplication(initLedger2, 80, false, a);
+                REQUIRE(catchupSimulation.catchupApplication(initLedger2, 80,
+                                                             false, a));
             }
         }
     }
