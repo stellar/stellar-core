@@ -374,10 +374,8 @@ TEST_CASE("Repair missing buckets fails", "[history][historybucketrepair]")
     app2->getPersistentState().setState(PersistentState::kHistoryArchiveState,
                                         state);
 
-    app2->start();
-    REQUIRE_THROWS(catchupSimulation.crankUntil(
-        app2, [&]() { return app2->getWorkManager().allChildrenDone(); },
-        std::chrono::seconds(30)));
+    // will crash on startup after retrying to repair buckets a few times
+    REQUIRE_THROWS_AS(app2->start(), std::runtime_error);
 }
 
 TEST_CASE("Publish/catchup via s3", "[!hide][s3]")
