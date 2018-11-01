@@ -232,8 +232,6 @@ TEST_CASE("sub-subwork items succed at the same time", "[work]")
     auto work2 = w->addWork<WorkDoNothing>("work-2");
     auto work3 = w->addWork<WorkDoNothing>("work-3");
 
-    auto i = 0;
-
     wm.advanceChildren();
     clock.crank(false);
 
