@@ -149,9 +149,9 @@ struct SurgeSorter
         if (tx1->getSourceID() == tx2->getSourceID())
             return tx1->getSeqNum() < tx2->getSeqNum();
 
-		if (mWhitelisted)
+        if (mWhitelisted)
             return tx1->getSourceID() < tx2->getSourceID();
-        
+
         double fee1 = mAccountFeeMap[tx1->getSourceID()];
         double fee2 = mAccountFeeMap[tx2->getSourceID()];
         if (fee1 == fee2)
@@ -163,20 +163,14 @@ struct SurgeSorter
 void
 TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
 {
-    auto whitelist = Whitelist(app);
-
     size_t max = lm.getMaxTxSetSize();
     if (mTransactions.size() > max)
     { // surge pricing in effect!
         CLOG(WARNING, "Herder")
             << "surge pricing in effect! " << mTransactions.size();
 
-		// to be configurable
-        auto UNWHITELISTED_RATIO = 0.05;
-
-		// number of entries reserved for unwhitelisted txs
-        size_t reserveCapacity =
-            std::min((size_t)1, (size_t)trunc(UNWHITELISTED_RATIO * max));
+        auto whitelist = Whitelist(app);
+		auto reserveCapacity = whitelist.unwhitelistedReserve(max);
 
         // partition by whitelisting
         std::vector<TransactionFramePtr> whitelisted;
@@ -203,35 +197,35 @@ TxSetFrame::surgePricingFilter(LedgerManager const& lm, Application& app)
                 accountFeeMap[tx->getSourceID()] = r;
         }
 
-		// sort whitelisted by sourceID and seqNum
-        std::vector<TransactionFramePtr> tempWhitelisted = whitelisted;
-        std::sort(tempWhitelisted.begin(), tempWhitelisted.end(),
+        // sort whitelisted by sourceID and seqNum
+        std::sort(whitelisted.begin(), whitelisted.end(),
                   SurgeSorter(accountFeeMap, true));
 
-		if (tempWhitelisted.size() > (max - reserveCapacity))
-            for (auto iter = tempWhitelisted.begin() + (max - reserveCapacity); iter != tempWhitelisted.end();
-                 iter++)
+        if (whitelisted.size() > (max - reserveCapacity))
+            for (auto iter = whitelisted.begin() + (max - reserveCapacity);
+                 iter != whitelisted.end(); iter++)
             {
                 removeTx(*iter);
             }
 
-		// calculate available unwhitelisted capacity
-        size_t extraWhitelistCapacity = std::max(
-			(size_t)0, (max - reserveCapacity) - whitelisted.size());
+        // calculate available unwhitelisted capacity
+        size_t extraWhitelistCapacity =
+            std::max((size_t)0, (max - reserveCapacity) - whitelisted.size());
         size_t totalCapacity = reserveCapacity + extraWhitelistCapacity;
 
         // exit early, if the count of unwhitelisted is within the
         // available capacity
-		if (unwhitelisted.size() <= totalCapacity)
-			return;
+        if (unwhitelisted.size() <= totalCapacity)
+            return;
 
-		// sort unwhitelisted txs by amount of fee they have paid
+        // sort unwhitelisted txs by amount of fee they have paid
         // remove the bottom that aren't paying enough
         std::vector<TransactionFramePtr> tempList = unwhitelisted;
         std::sort(tempList.begin(), tempList.end(),
                   SurgeSorter(accountFeeMap, false));
 
-        for (auto iter = tempList.begin() + totalCapacity; iter != tempList.end(); iter++)
+        for (auto iter = tempList.begin() + totalCapacity;
+             iter != tempList.end(); iter++)
         {
             removeTx(*iter);
         }
