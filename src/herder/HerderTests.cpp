@@ -631,6 +631,9 @@ TEST_CASE("whitelist", "[herder]")
         auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
 
         int wlCount = 0;
+        int wlAmount = 0;
+        auto wlBalance = accountWL.getBalance();
+
         // adding non-whitelisted tx to the set
         for (int n = 0; n < 4; n++)
         {
@@ -649,6 +652,7 @@ TEST_CASE("whitelist", "[herder]")
         for (int n = 0; n < 19; n++)
         {
             txSet->add(accountWL.tx({payment(destAccount, n + 10)}));
+            wlAmount += n + 10;
         }
 
         // Sort for hash
@@ -665,13 +669,70 @@ TEST_CASE("whitelist", "[herder]")
             if(tx3->getSourceID() == accountWL.getPublicKey())
                 wlCount++;
             else
-                REQUIRE(tx3->getSourceID() == accountC.getPublicKey()) ;
+                REQUIRE(tx3->getSourceID() == accountC.getPublicKey());
         }
 
 
         REQUIRE(txSet->mTransactions.size() == 20);
         REQUIRE(wlCount == 19);
         REQUIRE(txSet->checkValid(*app));
+        closeLedgerOn(*app, 2, 4, 11, 2018, txSet->mTransactions);
+        REQUIRE(accountWL.getBalance() + wlAmount == wlBalance);
+
+    }
+
+    SECTION("whitelisted only")
+    {
+
+        DataValue value;
+        value.resize(4);
+        SignatureHint hint = SignatureUtils::getHint(accountWL.getPublicKey().ed25519());
+        app->getLedgerManager().getCurrentLedgerHeader().maxTxSetSize = 20;
+
+
+        for (int n = 0; n < 4; n++)
+        {
+            value[n] = (unsigned char)hint[n];
+        }
+
+        whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
+        auto dfs = DataFrame::loadAllData(app->getDatabase(), whitelist.getPublicKey());
+
+        int wlCount = 0;
+        int wlAmount = 0;
+        auto wlBalance = accountWL.getBalance();
+
+
+        // adding whitelisted tx to the set
+        for (int n = 0; n < 20; n++)
+        {
+            txSet->add(accountWL.tx({payment(destAccount, n + 10)}));
+            wlAmount += n + 10;
+        }
+
+        // Sort for hash
+        txSet->sortForHash();
+
+        // Apply the surge filter
+        txSet->surgePricingFilter(lm, *app);
+
+
+        // TODO: support configurable ratio.
+        // validating the tx
+        for (auto& tx3 : txSet->mTransactions)
+        {
+            if(tx3->getSourceID() == accountWL.getPublicKey())
+                wlCount++;
+            else
+                REQUIRE(tx3->getSourceID() == accountC.getPublicKey());
+        }
+
+
+        REQUIRE(txSet->mTransactions.size() == 20);
+        REQUIRE(wlCount == 20);
+        REQUIRE(txSet->checkValid(*app));
+        closeLedgerOn(*app, 2, 4, 11, 2018, txSet->mTransactions);
+        REQUIRE(accountWL.getBalance() + wlAmount == wlBalance);
 
     }
 
@@ -701,6 +762,10 @@ TEST_CASE("whitelist", "[herder]")
 
 
         int wlCount = 0;
+        int wlAmount = 0;
+        auto wlBalance = accountWL.getBalance();
+        auto wl2Balance = accountWL2.getBalance();
+
         // adding non-whitelisted tx to the set
         for (int n = 0; n < 4; n++)
         {
@@ -721,6 +786,7 @@ TEST_CASE("whitelist", "[herder]")
         {
             auto tx = accountWL2.tx({payment(destAccount, n + 10)});
             txSet->add(tx);
+            wlAmount += n + 10;
         }
 
 
@@ -731,13 +797,14 @@ TEST_CASE("whitelist", "[herder]")
         txSet->surgePricingFilter(lm, *app);
 
 
-        // TODO: support configurable ratio.
         // validating the tx
         for (auto& tx3 : txSet->mTransactions)
         {
 
             if(tx3->getSourceID() == accountWL.getPublicKey() || tx3->getSourceID() == accountWL2.getPublicKey())
+            {
                 wlCount++;
+            }
             else
                 REQUIRE(tx3->getSourceID() == accountC.getPublicKey()) ;
         }
@@ -746,6 +813,9 @@ TEST_CASE("whitelist", "[herder]")
         REQUIRE(txSet->mTransactions.size() == 20);
         REQUIRE(wlCount == 19);
         REQUIRE(txSet->checkValid(*app));
+        closeLedgerOn(*app, 2, 4, 11, 2018, txSet->mTransactions);
+        REQUIRE(accountWL2.getBalance() + wlAmount == wl2Balance);
+        REQUIRE(accountWL.getBalance() == wlBalance);
 
     }
 
