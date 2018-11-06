@@ -251,7 +251,10 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
         }
     }
 
-    if (mEnvelope.tx.fee < getMinFee(lm))
+	auto whitelisted =
+        Whitelist(app).isWhitelisted(mEnvelope.signatures, getContentsHash());
+
+    if (mEnvelope.tx.fee < getMinFee(lm) && !whitelisted)
     {
         app.getMetrics()
             .NewMeter({"transaction", "invalid", "insufficient-fee"},
@@ -303,7 +306,8 @@ TransactionFrame::commonValid(SignatureChecker& signatureChecker,
     // balance, if not, we need to check if after that deduction this account
     // will still have minimum balance
     auto balanceAfter =
-        (applying && (app.getLedgerManager().getCurrentLedgerVersion() > 8))
+        (applying && !whitelisted && 
+			(app.getLedgerManager().getCurrentLedgerVersion() > 8))
             ? mSigningAccount->getAccount().balance
             : mSigningAccount->getAccount().balance - mEnvelope.tx.fee;
 
