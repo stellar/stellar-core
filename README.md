@@ -30,7 +30,7 @@ functionalities available, can be found in
 - `perl`
 - `Xcode` and `Homebrew` for MacOS
 
-## Simple Installation ##
+### Simple Installation ###
 
 * Run `./setup.sh` (may need to run `chmod +x setup.sh` first)
     * To see what setup.sh is doing, visit [here](https://github.com/sensify-security/stellar-core/blob/master/INSTALL.md)
