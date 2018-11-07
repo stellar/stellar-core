@@ -32,6 +32,7 @@ functionalities available, can be found in
 
 ### Simple Installation ###
 
+* *Make sure XCode is install if using MacOS*
 * Run `./setup.sh` (may need to run `chmod +x setup.sh` first)
     * To see what setup.sh is doing, visit [here](https://github.com/sensify-security/stellar-core/blob/master/INSTALL.md)
 * Run `./configure`   
