@@ -16,7 +16,7 @@ functionalities available, can be found in
 * The RCF documentation for developers is avaiable [here](https://datatracker.ietf.org/doc/draft-mazieres-dinrg-scp/)
 
 ## Installation ##
-docker container: https://github.com/stellar/docker-stellar-core-horizon
+* Docker container: https://github.com/stellar/docker-stellar-core-horizon
 
 ### List of Dependencies ###
 
