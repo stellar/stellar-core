@@ -344,7 +344,6 @@ TEST_CASE("whitelist", "[herder]")
         }
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL.getPublicKey()), &value);
-        auto wl1 = Whitelist(*app);
 
         auto amountToPay = 50;
 
@@ -365,10 +364,10 @@ TEST_CASE("whitelist", "[herder]")
         tx2->addSignature(accountB.getSecretKey());
 
 
-        REQUIRE(!wl1.isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
-        REQUIRE(wl1.isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
-        REQUIRE(!wl1.isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
-        REQUIRE(wl1.isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
 
         DataValue value1;
         value1.resize(4);
@@ -380,27 +379,26 @@ TEST_CASE("whitelist", "[herder]")
 
         whitelist.manageData(KeyUtils::toStrKey(accountWL2.getPublicKey()), &value1);
 
-        auto wl2 = Whitelist(*app);
 
-        REQUIRE(!wl1.isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
-        REQUIRE(wl1.isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
-        REQUIRE(!wl1.isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
-        REQUIRE(wl1.isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
-        REQUIRE(!wl2.isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
-        REQUIRE(wl2.isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
-        REQUIRE(wl2.isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
-        REQUIRE(wl2.isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
 
 
 
         DataValue value2;
         whitelist.manageData(KeyUtils::toStrKey(accountWL2.getPublicKey()), &value2);
-        auto wl3 = Whitelist(*app);
 
-        REQUIRE(!wl3.isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
-        REQUIRE(wl3.isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
-        REQUIRE(!wl3.isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
-        REQUIRE(wl3.isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
+
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx->getEnvelope().signatures, tx->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx1->getEnvelope().signatures, tx1->getContentsHash()));
+        REQUIRE(!Whitelist::instance(*app)->isWhitelisted(tx2->getEnvelope().signatures, tx2->getContentsHash()));
+        REQUIRE(Whitelist::instance(*app)->isWhitelisted(tx3->getEnvelope().signatures, tx3->getContentsHash()));
 
     }
 

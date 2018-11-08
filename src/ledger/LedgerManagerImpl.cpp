@@ -904,13 +904,11 @@ LedgerManagerImpl::processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
     int index = 0;
     try
     {
-        auto wl = Whitelist(mApp);
-
 		soci::transaction sqlTx(mApp.getDatabase().getSession());
 		for (auto tx : txs)
 		{
 			LedgerDelta thisTxDelta(delta);
-			tx->processFeeSeqNum(thisTxDelta, *this, wl);
+			tx->processFeeSeqNum(thisTxDelta, *this, Whitelist::instance(mApp));
 			tx->storeTransactionFee(*this, thisTxDelta.getChanges(), ++index);
 			thisTxDelta.commit();
 		}

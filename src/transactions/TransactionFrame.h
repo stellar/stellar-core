@@ -145,7 +145,7 @@ class TransactionFrame
 
     // collect fee, consume sequence number
     void processFeeSeqNum(LedgerDelta& delta, LedgerManager& ledgerManager,
-                          Whitelist& whitelist);
+                          Whitelist* whitelist);
 
     // apply this transaction to the current ledger
     // returns true if successfully applied

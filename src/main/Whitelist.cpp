@@ -7,39 +7,82 @@
 
 namespace stellar
 {
-Whitelist::Whitelist(Application& app)
+
+Whitelist* Whitelist::mINSTANCE;
+
+
+Whitelist *Whitelist::instance(Application& app)
 {
-    hash = std::unordered_map<uint32_t, std::vector<string64>>();
-
-    if (app.getConfig().WHITELIST.size() == 0)
-        return;
-
-    auto id = app.getConfig().WHITELIST;
-    AccountID aid(KeyUtils::fromStrKey<PublicKey>(id));
-
-    auto dfs = DataFrame::loadAllData(app.getDatabase(), aid);
-
-    for (auto& df : dfs)
-    {
-        auto data = df->getData();
-        auto name = data.dataName;
-        auto value = data.dataValue;
-
-        int32_t intVal =
-            (value[0] << 24) + (value[1] << 16) + (value[2] << 8) + value[3];
-
-        if (name == "reserve")
-        {
-            reserve = (double)intVal / 100;
-
-            continue;
-        }
-
-        std::vector<string64> keys = hash[intVal];
-        keys.emplace_back(name);
-        hash[intVal] = keys;
+    if(!mINSTANCE){
+        mINSTANCE = new Whitelist;
     }
+    mINSTANCE->update(app);
+    return mINSTANCE;
 }
+
+std::string
+Whitelist::getAccount(Application& app){
+    return app.getConfig().WHITELIST;
+}
+
+void Whitelist::fulfill(std::vector<DataFrame::pointer> dfs)
+{
+     hash.clear();
+     for (auto& df : dfs)
+        {
+            auto data = df->getData();
+            auto name = data.dataName;
+            auto value = data.dataValue;
+
+            int32_t intVal =
+                (value[0] << 24) + (value[1] << 16) + (value[2] << 8) + value[3];
+
+            if (name == "reserve")
+            {
+                reserve = (double)intVal / 100;
+
+                continue;
+            }
+
+            std::vector<string64> keys = hash[intVal];
+            keys.emplace_back(name);
+            hash[intVal] = keys;
+        }
+}
+
+//Whitelist::Whitelist(Application& app)
+//{
+//    hash = std::unordered_map<uint32_t, std::vector<string64>>();
+//
+//    if (app.getConfig().WHITELIST.size() == 0)
+//        return;
+//
+//    auto id = app.getConfig().WHITELIST;
+//    AccountID aid(KeyUtils::fromStrKey<PublicKey>(id));
+//
+//    auto dfs = DataFrame::loadAllData(app.getDatabase(), aid);
+//
+//    for (auto& df : dfs)
+//    {
+//        auto data = df->getData();
+//        auto name = data.dataName;
+//        auto value = data.dataValue;
+//
+//        int32_t intVal =
+//            (value[0] << 24) + (value[1] << 16) + (value[2] << 8) + value[3];
+//
+//        if (name == "reserve")
+//        {
+//            reserve = (double)intVal / 100;
+//
+//            continue;
+//        }
+//
+//        std::vector<string64> keys = hash[intVal];
+//        keys.emplace_back(name);
+//        hash[intVal] = keys;
+//    }
+//}
 
 size_t
 Whitelist::unwhitelistedReserve(size_t setSize)

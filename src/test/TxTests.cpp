@@ -68,8 +68,7 @@ applyCheck(TransactionFramePtr tx, Application& app)
         auto code = checkResult.result.code();
         if (code != txNO_ACCOUNT && code != txBAD_SEQ && code != txBAD_AUTH)
         {
-            auto wl = Whitelist(app);
-            tx->processFeeSeqNum(delta, app.getLedgerManager(), wl);
+            tx->processFeeSeqNum(delta, app.getLedgerManager(), Whitelist::instance(app));
             doApply = true;
         }
         else
