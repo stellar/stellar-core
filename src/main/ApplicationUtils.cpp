@@ -425,4 +425,54 @@ catchup(Application::pointer app, CatchupConfiguration cc,
     catchupInfo = app->getJsonInfo();
     return synced ? 0 : 3;
 }
+
+int
+publish(Application::pointer app)
+{
+    if (!checkInitialized(app))
+    {
+        return 1;
+    }
+
+    // set known cursors before starting maintenance job
+    ExternalQueue ps(*app);
+    ps.setInitialCursors(app->getConfig().KNOWN_CURSORS);
+    app->getMaintainer().start();
+
+    auto done = false;
+    app->getLedgerManager().loadLastKnownLedger(
+        [&done](asio::error_code const& ec) {
+            if (ec)
+            {
+                throw std::runtime_error(
+                    "Unable to restore last-known ledger state");
+            }
+
+            done = true;
+        });
+    auto& clock = app->getClock();
+    while (!done && clock.crank(true))
+        ;
+
+    auto& io = clock.getIOService();
+    asio::io_service::work mainWork(io);
+
+    auto lcl = app->getLedgerManager().getLastClosedLedgerNum();
+    auto isCheckpoint =
+        lcl == app->getHistoryManager().checkpointContainingLedger(lcl);
+    auto expectedPublishQueueSize = isCheckpoint ? 1 : 0;
+
+    app->getHistoryManager().publishQueuedHistory();
+    while (app->getHistoryManager().publishQueueLength() !=
+               expectedPublishQueueSize &&
+           clock.crank(true))
+    {
+    }
+
+    LOG(INFO) << "*";
+    LOG(INFO) << "* Publish finished.";
+    LOG(INFO) << "*";
+
+    return 0;
+}
 }

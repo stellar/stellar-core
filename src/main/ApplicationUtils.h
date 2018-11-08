@@ -25,4 +25,5 @@ void writeCatchupInfo(Json::Value const& catchupInfo,
                       std::string const& outputFile);
 int catchup(Application::pointer app, CatchupConfiguration cc,
             Json::Value& catchupInfo);
+int publish(Application::pointer app);
 }

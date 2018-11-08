@@ -60,6 +60,9 @@ stellar-core can be controlled via the following commands.
   controls type used for printing (default: auto).<br>
   Option --base64 alters the behavior to work on base64-encoded XDR rather than
   raw XDR.
+* **publish**: Execute publish of all items remaining in publish queue without
+  connecting to network. May not publish last checkpoint if last closed ledger
+  is on checkpoint boundary.
 * **report-last-history-checkpoint**: Download and report last history
   checkpoint from a history archive.
 * **run**: Runs stellar-core service.
