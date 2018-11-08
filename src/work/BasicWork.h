@@ -9,6 +9,7 @@
 namespace stellar
 {
 
+// TODO cherry-picked commit
 class Application;
 
 /** BasicWork is an implementation of a finite state machine,
@@ -33,42 +34,53 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     static size_t const RETRY_A_LOT;
     static size_t const RETRY_FOREVER;
 
-    // Publicly exposed state of work:
-    // WORK_RUNNING - work has been created and is currently in progress
-    // (note that this might mean that work is being destructed also).
-    // Implementers return RUNNING when work needs to be scheduled to run more.
-    // WORK_WAITING - work should not be scheduled to run, as it's waiting
-    // for some event (process exit, retry timeout, etc)
-    // Implementers return WAITING when they don't want the work to be
-    // scheduled. Note that it is implementers' responsibility then to correctly
-    // use `wakeUp` to exit WAITING state. WORK_SUCCESS - terminal successful
-    // state WORK_FAILURE - terminal unsuccessful state. When this state is
-    // returned, depending on the Work's retry strategy, either a retry will be
-    // scheduled or work will cease execution.
+    // Publicly exposed state of work
     enum class State
     {
+        // Work has been created and is currently in progress.
+        // Implementers return RUNNING when work needs to be scheduled to run
+        // more.
         WORK_RUNNING,
+        // Work should not be scheduled to run, as it's waiting
+        // for some event (process exit, retry timeout, etc)
+        // Note that it is implementers' responsibility then to correctly
+        // use `wakeUp` to exit WAITING state.
         WORK_WAITING,
+        // Work is shutting down; Implementers are not expected to return this
+        // state, as when work is shutting down, no calls to wakeUp are made.
+        WORK_DESTRUCTING,
+        // Terminal successful state
         WORK_SUCCESS,
+        // Terminal unsuccessful state. When this state is
+        // returned, depending on the Work's retry strategy, either a retry will
+        // be scheduled or work will cease execution.
         WORK_FAILURE,
     };
 
     BasicWork(Application& app, std::string name, size_t maxRetries);
     virtual ~BasicWork();
 
+    size_t getMaxRetries() const;
+
     std::string const& getName() const;
     virtual std::string getStatus() const;
     State getState() const;
     bool isDone() const;
 
-    size_t getMaxRetries() const;
-    uint64_t getRetryETA() const;
-
     // Main method for state transition, mostly dictated by `onRun`
     void crankWork();
 
     // Reset work to its initial state (only if work is in terminal state)
-    void startWork(std::function<void()> wakeUpParent);
+    // Additionally, assign a notification callback to be used once work
+    // makes important state transitions. For example, in the context of `Work`,
+    // such callback should be passed into child, so that it can wake its parent
+    // up once finished.
+    void startWork(std::function<void()> notificationCallback);
+
+    // Prepare work for destruction. Implementers overriding this method
+    // are expected to call it on all work they might have created.
+    // Note `BasicWork::shutdown` must also be called, as it changes the
+    // internal state of work.
     virtual void shutdown();
 
   protected:
@@ -87,7 +99,6 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
 
     virtual void onReset();
     virtual State onRun() = 0;
-    virtual void onWakeUp();
     virtual void onFailureRetry();
     virtual void onFailureRaise();
     virtual void onSuccess();
@@ -101,25 +112,25 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     void wakeUp();
 
     // Default wakeUp callback that implementers can use
-    std::function<void()> wakeUpCallback();
+    std::function<void()>
+    wakeSelfUpCallback(std::function<void()> innerCallback = nullptr);
 
     Application& mApp;
 
   private:
     // Internally, there are a few more states that aid with
-    // state transitions. Specifically:
-    // PENDING - work has been created but hasn't started yet
-    // RETRYING - `onRun` returned WORK_FAILURE, if there are retries
-    // left, go into RETRYING state
-    // DESTRUCTING - WorkScheduler is shutting down, this state prevents
-    // wakeUp callbacks from messing with BasicWork's state while it is
-    // shutting down
+    // state transitions.
     enum class InternalState
     {
+        // Work has been created but hasn't started yet
         PENDING,
         RUNNING,
         WAITING,
+        // WorkScheduler is shutting down, this state prevents wakeUp callbacks
+        // from messing with BasicWork's state while it is shutting down
         DESTRUCTING,
+        // `onRun` returned WORK_FAILURE. If there are retries left, go into
+        // RETRYING state
         RETRYING,
         SUCCESS,
         FAILURE,
@@ -138,6 +149,7 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     InternalState getInternalState(State s) const;
     void assertValidTransition(Transition const& t) const;
     static std::string stateName(InternalState st);
+    uint64_t getRetryETA() const;
 
     std::function<void()> mNotifyCallback;
     std::string const mName;

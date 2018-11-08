@@ -89,6 +89,7 @@ RepairMissingBucketsWork::onSuccess()
 void
 RepairMissingBucketsWork::onFailureRaise()
 {
+    Work::onFailureRaise();
     asio::error_code ec = std::make_error_code(std::errc::io_error);
     mEndHandler(ec);
 }

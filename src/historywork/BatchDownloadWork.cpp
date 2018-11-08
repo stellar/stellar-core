@@ -50,6 +50,7 @@ BatchDownloadWork::yieldMoreWork()
     FileTransferInfo ft(mDownloadDir, mFileType, mNext);
     CLOG(DEBUG, "History") << "Downloading and unzipping " << mFileType
                            << " for checkpoint " << mNext;
+    // TODO (mlo) It's better to have BatchWork actually add work
     auto getAndUnzip = addWork<GetAndUnzipRemoteFileWork>(ft);
     mApp.getCatchupManager().logAndUpdateCatchupStatus(true);
     mNext += mApp.getHistoryManager().getCheckpointFrequency();

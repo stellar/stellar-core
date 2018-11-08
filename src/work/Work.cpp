@@ -16,27 +16,27 @@ Work::Work(Application& app, std::string name, size_t maxRetries)
 
 Work::~Work()
 {
-    // FIXME consider this assert when abort logic is implemented
-    // assert(!hasChildren());
+    assert(!hasChildren());
 }
 
 std::string
 Work::getStatus() const
 {
+    auto status = BasicWork::getStatus();
     if (hasChildren())
     {
-        auto incomplete = 0;
+        auto complete = 0;
         for (auto const& c : mChildren)
         {
-            if (!c->isDone())
+            if (c->isDone())
             {
-                ++incomplete;
+                ++complete;
             }
         }
-        return fmt::format("Work {:s} has incomplete children: {:d}/{:d}",
-                           getName(), incomplete, mChildren.size());
+        status += fmt::format(" : {:d}/{:d} children completed", complete,
+                              mChildren.size());
     }
-    return BasicWork::getStatus();
+    return status;
 }
 
 void
@@ -71,6 +71,31 @@ Work::onRun()
 }
 
 void
+Work::onFailureRaise()
+{
+    shutdownChildren();
+}
+
+void
+Work::onFailureRetry()
+{
+    shutdownChildren();
+}
+
+void
+Work::shutdownChildren()
+{
+    // Shutdown any children that are still running
+    for (auto const& c : mChildren)
+    {
+        if (!c->isDone())
+        {
+            c->shutdown();
+        }
+    }
+}
+
+void
 Work::onReset()
 {
     clearChildren();
@@ -85,7 +110,7 @@ Work::doReset()
 void
 Work::clearChildren()
 {
-    // FIXME upon proper implementation of WorkScheduler shutdown, consider this
+    // TODO (mlo) consider this assert when abort logic is implemented
     // assert assert(allChildrenDone());
     mChildren.clear();
     mNextChild = mChildren.begin();
@@ -155,12 +180,11 @@ Work::yieldNextRunningChild()
         auto next = mNextChild;
         mNextChild++;
         assert(*next);
-        auto state = (*next)->getState();
-        if (state == State::WORK_RUNNING)
+        if ((*next)->getState() == State::WORK_RUNNING)
         {
             return *next;
         }
-        else if (state == State::WORK_SUCCESS)
+        else if ((*next)->isDone())
         {
             mNextChild = mChildren.erase(next);
         }
@@ -174,28 +198,27 @@ Work::yieldNextRunningChild()
 WorkSequence::WorkSequence(Application& app, std::string name,
                            std::vector<std::shared_ptr<BasicWork>> sequence,
                            size_t maxRetries)
-    : Work(app, std::move(name), maxRetries)
+    : BasicWork(app, std::move(name), maxRetries)
     , mSequenceOfWork(sequence)
     , mNextInSequence(mSequenceOfWork.begin())
 {
 }
 
 BasicWork::State
-WorkSequence::doWork()
+WorkSequence::onRun()
 {
     if (mNextInSequence == mSequenceOfWork.end())
     {
         // Completed all the work
-        assert(!hasChildren());
         return State::WORK_SUCCESS;
     }
 
     auto w = *mNextInSequence;
     assert(w);
-    if (!hasChildren())
+    if (!mCurrentExecuting)
     {
-        w->startWork(wakeUpCallback());
-        addChild(w);
+        w->startWork(wakeSelfUpCallback());
+        mCurrentExecuting = w;
         return State::WORK_RUNNING;
     }
     else
@@ -203,8 +226,13 @@ WorkSequence::doWork()
         auto state = w->getState();
         if (state == State::WORK_SUCCESS)
         {
-            clearChildren();
+            mCurrentExecuting = nullptr;
             mNextInSequence++;
+            return State::WORK_RUNNING;
+        }
+        else if (state == State::WORK_RUNNING)
+        {
+            w->crankWork();
             return State::WORK_RUNNING;
         }
         return state;
@@ -212,12 +240,13 @@ WorkSequence::doWork()
 }
 
 void
-WorkSequence::doReset()
+WorkSequence::onReset()
 {
     assert(std::all_of(
         mSequenceOfWork.cbegin(), mNextInSequence,
         [](std::shared_ptr<BasicWork> const& w) { return w->isDone(); }));
     mNextInSequence = mSequenceOfWork.begin();
+    mCurrentExecuting.reset();
 }
 
 std::string
@@ -227,6 +256,17 @@ WorkSequence::getStatus() const
     {
         return (*mNextInSequence)->getStatus();
     }
-    return Work::getStatus();
+    return BasicWork::getStatus();
+}
+
+void
+WorkSequence::shutdown()
+{
+    if (mCurrentExecuting)
+    {
+        mCurrentExecuting->shutdown();
+    }
+
+    BasicWork::shutdown();
 }
 }

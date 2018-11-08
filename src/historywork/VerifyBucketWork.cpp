@@ -99,7 +99,7 @@ VerifyBucketWork::spawnVerifier()
             }
         }
 
-        // FIXME (mlo) Not ideal, but needed to prevent race conditions with
+        // Not ideal, but needed to prevent race conditions with
         // main thread, since BasicWork's state is not thread-safe. This is a
         // temporary workaround, as a cleaner solution is needed.
         app.postOnMainThread([weak, ec]() {

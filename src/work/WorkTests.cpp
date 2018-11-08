@@ -532,6 +532,11 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         {
             clock.crank();
         }
+
+        // w1 should run and retry
+        auto w1RunCount = (w1->mNumSteps + 1) * (BasicWork::RETRY_ONCE + 1);
+        REQUIRE(w1->mRunningCount == w1RunCount * (BasicWork::RETRY_A_FEW + 1));
+
         // Ensure the rest of sequence is NOT run.
         REQUIRE_FALSE(w2->mRunningCount);
         REQUIRE_FALSE(w2->mSuccessCount);
@@ -541,7 +546,6 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         REQUIRE_FALSE(w3->mSuccessCount);
         REQUIRE_FALSE(w3->mFailureCount);
         REQUIRE_FALSE(w3->mRetryCount);
-        REQUIRE_FALSE(work->hasChildren());
         REQUIRE(work->getState() == TestBasicWork::State::WORK_FAILURE);
     }
     SECTION("fails midway")
@@ -571,8 +575,6 @@ TEST_CASE("WorkSequence work in sequence fails", "[work]")
         REQUIRE_FALSE(w3->mSuccessCount);
         REQUIRE_FALSE(w3->mFailureCount);
         REQUIRE_FALSE(w3->mRetryCount);
-
-        REQUIRE_FALSE(work->hasChildren());
         REQUIRE(work->getState() == TestBasicWork::State::WORK_FAILURE);
     }
 }

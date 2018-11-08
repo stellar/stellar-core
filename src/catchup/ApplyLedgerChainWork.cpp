@@ -47,12 +47,14 @@ ApplyLedgerChainWork::ApplyLedgerChainWork(
 std::string
 ApplyLedgerChainWork::getStatus() const
 {
+    auto status = BasicWork::getStatus();
     if (getState() == State::WORK_RUNNING)
     {
         std::string task = "applying checkpoint";
-        return fmtProgress(mApp, task, mRange.first(), mRange.last(), mCurrSeq);
+        status += " " + fmtProgress(mApp, task, mRange.first(), mRange.last(),
+                                    mCurrSeq);
     }
-    return BasicWork::getStatus();
+    return status;
 }
 
 void

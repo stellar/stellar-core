@@ -46,8 +46,10 @@ BasicWork::~BasicWork()
 void
 BasicWork::shutdown()
 {
-    mState = InternalState::DESTRUCTING;
-    reset();
+    if (mState != InternalState::DESTRUCTING)
+    {
+        setState(InternalState::DESTRUCTING);
+    }
 }
 
 std::string const&
@@ -81,6 +83,8 @@ BasicWork::getStatus() const
         return fmt::format("Failed: {:s}", getName());
     case InternalState::DESTRUCTING:
         return fmt::format("Destructing: {:s}", getName());
+    default:
+        abort();
     }
 }
 
@@ -109,6 +113,8 @@ BasicWork::stateName(InternalState st)
         return "WORK_DESTRUCTING";
     case InternalState::RETRYING:
         return "WORK_RETRYING";
+    default:
+        abort();
     }
 }
 
@@ -127,17 +133,17 @@ BasicWork::reset()
 }
 
 void
-BasicWork::startWork(std::function<void()> wakeUpParent)
+BasicWork::startWork(std::function<void()> notificationCallback)
 {
     if (mState != InternalState::PENDING)
     {
         // Only restart if work is in terminal state
-        assert(isDone());
         setState(InternalState::PENDING);
     }
 
-    mNotifyCallback = wakeUpParent;
+    mNotifyCallback = notificationCallback;
     setState(InternalState::RUNNING);
+    assert(mRetries == 0);
 }
 
 void
@@ -195,11 +201,6 @@ BasicWork::onFailureRaise()
 {
 }
 
-void
-BasicWork::onWakeUp()
-{
-}
-
 BasicWork::State
 BasicWork::getState() const
 {
@@ -207,7 +208,6 @@ BasicWork::getState() const
     {
     case InternalState::RUNNING:
     case InternalState::PENDING:
-    case InternalState::DESTRUCTING:
         return State::WORK_RUNNING;
     case InternalState::WAITING:
     case InternalState::RETRYING:
@@ -216,6 +216,10 @@ BasicWork::getState() const
         return State::WORK_SUCCESS;
     case InternalState::FAILURE:
         return State::WORK_FAILURE;
+    case InternalState::DESTRUCTING:
+        return State::WORK_DESTRUCTING;
+    default:
+        abort();
     }
 }
 
@@ -229,16 +233,19 @@ BasicWork::setState(InternalState st)
     }
 
     assertValidTransition(Transition(mState, st));
-    if (mState == InternalState::PENDING && st == InternalState::RUNNING)
-    {
-        reset();
-    }
 
+    auto prevState = mState;
     if (mState != st)
     {
         CLOG(DEBUG, "Work") << "work " << getName() << " : "
                             << stateName(mState) << " -> " << stateName(st);
         mState = st;
+    }
+
+    if (prevState == InternalState::PENDING && st == InternalState::RUNNING)
+    {
+        reset();
+        mRetries = 0;
     }
 
     switch (mState)
@@ -255,6 +262,9 @@ BasicWork::setState(InternalState st)
         reset();
         waitForRetry();
         break;
+    case InternalState::DESTRUCTING:
+        reset();
+        break;
     default:
         break;
     }
@@ -263,13 +273,13 @@ BasicWork::setState(InternalState st)
 void
 BasicWork::wakeUp()
 {
-    if (mState == InternalState::RUNNING ||
-        mState == InternalState::DESTRUCTING)
+    // Work should not be waking up in terminal state
+    // Work should not be interrupted when retrying or destructing
+    if (mState != InternalState::WAITING)
     {
         return;
     }
     setState(InternalState::RUNNING);
-    onWakeUp();
     if (mNotifyCallback)
     {
         mNotifyCallback();
@@ -277,14 +287,19 @@ BasicWork::wakeUp()
 }
 
 std::function<void()>
-BasicWork::wakeUpCallback()
+BasicWork::wakeSelfUpCallback(std::function<void()> innerCallback)
 {
     std::weak_ptr<BasicWork> weak = shared_from_this();
-    auto callback = [weak]() {
+    auto callback = [weak, innerCallback]() {
         auto self = weak.lock();
         if (self)
         {
             self->wakeUp();
+        }
+
+        if (innerCallback && self->getState() != State::WORK_DESTRUCTING)
+        {
+            innerCallback();
         }
     };
     return callback;
@@ -346,6 +361,10 @@ BasicWork::getInternalState(State s) const
         return InternalState::WAITING;
     case State::WORK_RUNNING:
         return InternalState::RUNNING;
+    case State::WORK_DESTRUCTING:
+        return InternalState::DESTRUCTING;
+    default:
+        abort();
     }
 }
 }

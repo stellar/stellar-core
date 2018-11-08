@@ -56,13 +56,14 @@ PutSnapshotFilesWork::doWork()
         {
             // Some children might fail, but at least the rest of the archives
             // are updated
-            if (!allChildrenSuccessful())
-            {
-                return State::WORK_FAILURE;
-            }
-            return State::WORK_SUCCESS;
+            return mSomeFailed ? State::WORK_FAILURE : State::WORK_SUCCESS;
         }
-        else if (!anyChildRunning())
+        else if (anyChildRaiseFailure())
+        {
+            mSomeFailed = true;
+        }
+
+        if (!anyChildRunning())
         {
             return State::WORK_WAITING;
         }
@@ -74,5 +75,6 @@ void
 PutSnapshotFilesWork::doReset()
 {
     mStarted = false;
+    mSomeFailed = false;
 }
 }

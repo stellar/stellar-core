@@ -340,6 +340,7 @@ CatchupWork::onFailureRaise()
     mApp.getCatchupManager().historyCaughtup();
     asio::error_code ec = std::make_error_code(std::errc::timed_out);
     mProgressHandler(ec, ProgressState::FINISHED, LedgerHeaderHistoryEntry{});
+    Work::onFailureRaise();
 }
 
 namespace

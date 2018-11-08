@@ -57,15 +57,30 @@ class Work : public BasicWork
     std::shared_ptr<T>
     addWork(Args&&... args)
     {
+        return addWorkWithCallback<T>(nullptr, std::forward<Args>(args)...);
+    }
+
+    template <typename T, typename... Args>
+    std::shared_ptr<T>
+    addWorkWithCallback(std::function<void()> cb, Args&&... args)
+    {
+        if (getState() == State::WORK_DESTRUCTING)
+        {
+            throw std::runtime_error(getName() + " is being destructed!");
+        }
+
         auto child = std::make_shared<T>(mApp, std::forward<Args>(args)...);
         addChild(child);
-        child->startWork(wakeUpCallback());
-        wakeUp();
+        auto wakeSelf = wakeSelfUpCallback(cb);
+        child->startWork(wakeSelf);
+        wakeSelf();
         return child;
     }
 
     State onRun() final;
     void onReset() final;
+    void onFailureRaise() override;
+    void onFailureRetry() override;
 
     // Implementers decide what they want to do: spawn more children,
     // wait for all children to finish, or perform Work
@@ -81,8 +96,7 @@ class Work : public BasicWork
     std::shared_ptr<BasicWork> yieldNextRunningChild();
     void addChild(std::shared_ptr<BasicWork> child);
     void clearChildren();
-
-    friend class WorkSequence;
+    void shutdownChildren();
 };
 
 /*
@@ -90,10 +104,11 @@ class Work : public BasicWork
  * wish to enforce the order of work execution. Users are required to pass
  * a vector of BasicWork pointers in the expected execution order.
  */
-class WorkSequence : public Work
+class WorkSequence : public BasicWork
 {
     std::vector<std::shared_ptr<BasicWork>> mSequenceOfWork;
     std::vector<std::shared_ptr<BasicWork>>::const_iterator mNextInSequence;
+    std::shared_ptr<BasicWork> mCurrentExecuting;
 
   public:
     WorkSequence(Application& app, std::string name,
@@ -102,9 +117,10 @@ class WorkSequence : public Work
     ~WorkSequence() = default;
 
     std::string getStatus() const override;
+    void shutdown() override;
 
   protected:
-    State doWork() final;
-    void doReset() final;
+    State onRun() final;
+    void onReset() final;
 };
 }
