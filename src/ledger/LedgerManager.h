@@ -11,7 +11,6 @@
 namespace stellar
 {
 
-class LedgerHeaderFrame;
 class LedgerCloseData;
 class Database;
 
@@ -84,9 +83,9 @@ class LedgerManager
 
     // Logging helpers, return strings describing the provided ledgers.
     static std::string ledgerAbbrev(uint32_t seq, uint256 const& hash);
+    static std::string ledgerAbbrev(LedgerHeader const& header);
     static std::string ledgerAbbrev(LedgerHeader const& header,
                                     uint256 const& hash);
-    static std::string ledgerAbbrev(std::shared_ptr<LedgerHeaderFrame> p);
     static std::string ledgerAbbrev(LedgerHeaderHistoryEntry he);
 
     // Factory
@@ -117,6 +116,7 @@ class LedgerManager
     // Return the sequence number of the LCL.
     virtual uint32_t getLastClosedLedgerNum() const = 0;
 
+    virtual int64_t getLastMinBalance(uint32_t ownerCount) const = 0;
     // Return the minimum balance required to establish, in the current ledger,
     // a new ledger entry with `ownerCount` owned objects.  Derived from the
     // current ledger's `baseReserve` value.
@@ -126,9 +126,13 @@ class LedgerManager
     // epoch.
     virtual uint64_t getCloseTime() const = 0;
 
+    virtual uint32_t getLastReserve() const = 0;
+
+    virtual uint32_t getLastTxFee() const = 0;
     // Return the fee required to apply a transaction to the current ledger.
     virtual uint32_t getTxFee() const = 0;
 
+    virtual uint32_t getLastMaxTxSetSize() const = 0;
     // return the maximum size of a transaction set to apply to the current
     // ledger
     virtual uint32_t getMaxTxSetSize() const = 0;

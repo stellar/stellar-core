@@ -6,7 +6,6 @@
 #include "util/asio.h"
 
 #include "history/HistoryManager.h"
-#include "ledger/LedgerHeaderFrame.h"
 #include "ledger/LedgerManager.h"
 #include "ledger/SyncingLedgerChain.h"
 #include "main/PersistentState.h"
@@ -29,9 +28,10 @@ class Histogram;
 
 namespace stellar
 {
+class AbstractLedgerState;
 class Application;
 class Database;
-class LedgerDelta;
+class LedgerStateHeader;
 
 class LedgerManagerImpl : public LedgerManager
 {
@@ -68,14 +68,16 @@ class LedgerManagerImpl : public LedgerManager
     void applyBufferedLedgers();
 
     void processFeesSeqNums(std::vector<TransactionFramePtr>& txs,
-                            LedgerDelta& delta);
+                            AbstractLedgerState& lsOuter);
+
     void applyTransactions(std::vector<TransactionFramePtr>& txs,
-                           LedgerDelta& ledgerDelta,
+                           AbstractLedgerState& ls,
                            TransactionResultSet& txResultSet);
 
-    void ledgerClosed(LedgerDelta const& delta);
-    void storeCurrentLedger();
-    void advanceLedgerPointers();
+    void ledgerClosed(AbstractLedgerState& ls);
+
+    void storeCurrentLedger(LedgerHeader const& header);
+    void advanceLedgerPointers(LedgerHeader const& header);
 
     enum class CloseLedgerIfResult
     {
@@ -98,6 +100,11 @@ class LedgerManagerImpl : public LedgerManager
     std::string getStateHuman() const override;
 
     void valueExternalized(LedgerCloseData const& ledgerData) override;
+
+    uint32_t getLastMaxTxSetSize() const override;
+    int64_t getLastMinBalance(uint32_t ownerCount) const override;
+    uint32_t getLastReserve() const override;
+    uint32_t getLastTxFee() const override;
 
     uint32_t getLedgerNum() const override;
     uint32_t getLastClosedLedgerNum() const override;
