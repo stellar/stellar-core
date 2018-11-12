@@ -6,14 +6,13 @@
 
 #include "bucket/Bucket.h"
 #include "bucket/BucketInputIterator.h"
-#include "database/Database.h"
 #include "util/XDRStream.h"
 #include <memory>
 
 namespace stellar
 {
 
-class Database;
+class Application;
 
 // Class that represents a single apply-bucket-to-database operation in
 // progress. Used during history catchup to split up the task of applying
@@ -21,12 +20,12 @@ class Database;
 
 class BucketApplicator
 {
-    Database& mDb;
+    Application& mApp;
     BucketInputIterator mBucketIter;
     size_t mSize{0};
 
   public:
-    BucketApplicator(Database& db, std::shared_ptr<const Bucket> bucket);
+    BucketApplicator(Application& app, std::shared_ptr<const Bucket> bucket);
     operator bool() const;
     void advance();
 };

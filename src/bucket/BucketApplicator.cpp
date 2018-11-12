@@ -5,15 +5,18 @@
 #include "util/asio.h"
 #include "bucket/BucketApplicator.h"
 #include "bucket/Bucket.h"
-#include "ledger/LedgerDelta.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "main/Application.h"
 #include "util/Logging.h"
+#include "util/types.h"
 
 namespace stellar
 {
 
-BucketApplicator::BucketApplicator(Database& db,
+BucketApplicator::BucketApplicator(Application& app,
                                    std::shared_ptr<const Bucket> bucket)
-    : mDb(db), mBucketIter(bucket)
+    : mApp(app), mBucketIter(bucket)
 {
 }
 
@@ -25,32 +28,37 @@ BucketApplicator::operator bool() const
 void
 BucketApplicator::advance()
 {
-    soci::transaction sqlTx(mDb.getSession());
-    while (mBucketIter)
+    LedgerState ls(mApp.getLedgerStateRoot(), false);
+    for (; mBucketIter; ++mBucketIter)
     {
-        LedgerHeader lh;
-        LedgerDelta delta(lh, mDb, false);
-
-        auto const& entry = *mBucketIter;
-        if (entry.type() == LIVEENTRY)
+        if ((*mBucketIter).type() == LIVEENTRY)
         {
-            EntryFrame::pointer ep = EntryFrame::FromXDR(entry.liveEntry());
-            ep->storeAddOrChange(delta, mDb);
+            auto const& bucketEntry = (*mBucketIter).liveEntry();
+            auto key = LedgerEntryKey(bucketEntry);
+            auto entry = ls.load(key);
+            if (entry)
+            {
+                entry.current() = bucketEntry;
+            }
+            else
+            {
+                ls.create(bucketEntry);
+            }
         }
         else
         {
-            EntryFrame::storeDelete(delta, mDb, entry.deadEntry());
+            auto entry = ls.load((*mBucketIter).deadEntry());
+            if (entry)
+            {
+                entry.erase();
+            }
         }
-        ++mBucketIter;
-        // No-op, just to avoid needless rollback.
-        delta.commit();
         if ((++mSize & 0xff) == 0xff)
         {
             break;
         }
     }
-    sqlTx.commit();
-    mDb.clearPreparedStatementCache();
+    ls.commit();
 
     if (!mBucketIter || (mSize & 0xfff) == 0xfff)
     {

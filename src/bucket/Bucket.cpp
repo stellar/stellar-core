@@ -16,12 +16,6 @@
 #include "crypto/Random.h"
 #include "crypto/SHA.h"
 #include "database/Database.h"
-#include "ledger/AccountFrame.h"
-#include "ledger/DataFrame.h"
-#include "ledger/EntryFrame.h"
-#include "ledger/LedgerDelta.h"
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
 #include "medida/medida.h"
@@ -101,9 +95,9 @@ Bucket::countLiveAndDeadEntries() const
 }
 
 void
-Bucket::apply(Database& db) const
+Bucket::apply(Application& app) const
 {
-    BucketApplicator applicator(db, shared_from_this());
+    BucketApplicator applicator(app, shared_from_this());
     while (applicator)
     {
         applicator.advance();
