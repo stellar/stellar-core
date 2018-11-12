@@ -200,8 +200,9 @@ TEST_CASE("History publish queueing", "[history][historydelay][historycatchup]")
         initLedger, std::numeric_limits<uint32_t>::max(), false,
         Config::TESTDB_IN_MEMORY_SQLITE,
         std::string("Catchup to delayed history"));
-    CHECK(app2->getLedgerManager().getLedgerNum() ==
-          catchupSimulation.getApp().getLedgerManager().getLedgerNum());
+    CHECK(
+        app2->getLedgerManager().getLastClosedLedgerNum() ==
+        catchupSimulation.getApp().getLedgerManager().getLastClosedLedgerNum());
 }
 
 TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
@@ -219,7 +220,7 @@ TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
         std::string("Catchup to prefix of published history"));
     apps.push_back(a);
     uint32_t freq = apps.back()->getHistoryManager().getCheckpointFrequency();
-    CHECK(apps.back()->getLedgerManager().getLedgerNum() == freq + 2);
+    CHECK(apps.back()->getLedgerManager().getLastClosedLedgerNum() == freq + 1);
 
     // Then attempt catchup to 74, prefix of 128. Should round up to 128.
     // Should replay the 64th (since it gets externalized) and land on 129.
@@ -228,7 +229,8 @@ TEST_CASE("History prefix catchup", "[history][historycatchup][prefixcatchup]")
         Config::TESTDB_IN_MEMORY_SQLITE,
         std::string("Catchup to second prefix of published history"));
     apps.push_back(a);
-    CHECK(apps.back()->getLedgerManager().getLedgerNum() == 2 * freq + 2);
+    CHECK(apps.back()->getLedgerManager().getLastClosedLedgerNum() ==
+          2 * freq + 1);
 }
 
 TEST_CASE("Publish/catchup alternation, with stall",
@@ -255,8 +257,10 @@ TEST_CASE("Publish/catchup alternation, with stall",
         initLedger, 0, false, Config::TESTDB_IN_MEMORY_SQLITE,
         std::string("app3"));
 
-    CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
-    CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
+    CHECK(app2->getLedgerManager().getLastClosedLedgerNum() ==
+          lm.getLastClosedLedgerNum());
+    CHECK(app3->getLedgerManager().getLastClosedLedgerNum() ==
+          lm.getLastClosedLedgerNum());
 
     for (size_t i = 1; i < 4; ++i)
     {
@@ -269,15 +273,17 @@ TEST_CASE("Publish/catchup alternation, with stall",
             initLedger, std::numeric_limits<uint32_t>::max(), false, app2);
         catchupSimulation.catchupApplication(initLedger, 0, false, app3);
 
-        CHECK(app2->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
-        CHECK(app3->getLedgerManager().getLedgerNum() == lm.getLedgerNum());
+        CHECK(app2->getLedgerManager().getLastClosedLedgerNum() ==
+              lm.getLastClosedLedgerNum());
+        CHECK(app3->getLedgerManager().getLastClosedLedgerNum() ==
+              lm.getLastClosedLedgerNum());
     }
 
     // By now we should have had 3 + 1 + 2 + 3 = 9 publishes, and should
     // have advanced 1 ledger in to the 9th block.
     uint32_t freq = app2->getHistoryManager().getCheckpointFrequency();
-    CHECK(app2->getLedgerManager().getLedgerNum() == 9 * freq + 2);
-    CHECK(app3->getLedgerManager().getLedgerNum() == 9 * freq + 2);
+    CHECK(app2->getLedgerManager().getLastClosedLedgerNum() == 9 * freq + 1);
+    CHECK(app3->getLedgerManager().getLastClosedLedgerNum() == 9 * freq + 1);
 
     // Finally, publish a little more history than the last publish-point
     // but not enough to get to the _next_ publish-point:

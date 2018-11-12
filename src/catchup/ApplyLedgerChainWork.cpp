@@ -99,7 +99,7 @@ TxSetFramePtr
 ApplyLedgerChainWork::getCurrentTxSet()
 {
     auto& lm = mApp.getLedgerManager();
-    auto seq = lm.getCurrentLedgerHeader().ledgerSeq;
+    auto seq = lm.getLastClosedLedgerNum() + 1;
 
     do
     {
@@ -188,7 +188,7 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     }
 
     // If we are past current, we can't catch up: fail.
-    if (header.ledgerSeq != lm.getCurrentLedgerHeader().ledgerSeq)
+    if (header.ledgerSeq != lclHeader.header.ledgerSeq + 1)
     {
         mApplyLedgerFailurePastCurrent.Mark();
         throw std::runtime_error(fmt::format(

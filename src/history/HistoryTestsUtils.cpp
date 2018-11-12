@@ -9,6 +9,8 @@
 #include "herder/TxSetFrame.h"
 #include "history/HistoryArchiveManager.h"
 #include "ledger/CheckpointRange.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateHeader.h"
 #include "lib/catch.hpp"
 #include "test/TestAccount.h"
 #include "test/TestUtils.h"
@@ -224,9 +226,8 @@ CatchupSimulation::generateAndPublishInitialHistory(size_t nPublishes)
 
     auto& lm = mApp.getLedgerManager();
 
-    // At this point LCL should be 1, current ledger should be 2
-    REQUIRE(lm.getLastClosedLedgerHeader().header.ledgerSeq == 1);
-    REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == 2);
+    // At this point LCL should be 1
+    REQUIRE(lm.getLastClosedLedgerNum() == 1);
 
     generateAndPublishHistory(nPublishes);
 }
@@ -238,8 +239,8 @@ CatchupSimulation::generateRandomLedger()
     TxSetFramePtr txSet =
         std::make_shared<TxSetFrame>(lm.getLastClosedLedgerHeader().hash);
 
-    uint32_t ledgerSeq = lm.getLedgerNum();
-    uint64_t minBalance = lm.getMinBalance(5);
+    uint32_t ledgerSeq = lm.getLastClosedLedgerNum() + 1;
+    uint64_t minBalance = lm.getLastMinBalance(5);
     uint64_t big = minBalance + ledgerSeq;
     uint64_t small = 100 + ledgerSeq;
     uint64_t closeTime = 60 * 5 * ledgerSeq;
@@ -287,7 +288,7 @@ CatchupSimulation::generateRandomLedger()
     mLedgerCloseDatas.emplace_back(ledgerSeq, txSet, sv);
     lm.closeLedger(mLedgerCloseDatas.back());
 
-    mLedgerSeqs.push_back(lm.getLastClosedLedgerHeader().header.ledgerSeq);
+    mLedgerSeqs.push_back(lm.getLastClosedLedgerNum());
     mLedgerHashes.push_back(lm.getLastClosedLedgerHeader().hash);
     mBucketListHashes.push_back(
         lm.getLastClosedLedgerHeader().header.bucketListHash);
@@ -320,7 +321,7 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
     auto& hm = mApp.getHistoryManager();
 
     size_t publishSuccesses = hm.getPublishSuccessCount();
-    SequenceNumber ledgerSeq = lm.getCurrentLedgerHeader().ledgerSeq;
+    SequenceNumber ledgerSeq = lm.getLastClosedLedgerNum() + 1;
 
     while (hm.getPublishSuccessCount() < (publishSuccesses + nPublishes))
     {
@@ -339,8 +340,8 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
         ++ledgerSeq;
         // One more for trigger ledger
         generateRandomLedger();
+        REQUIRE(mApp.getLedgerManager().getLastClosedLedgerNum() == ledgerSeq);
         ++ledgerSeq;
-        REQUIRE(lm.getCurrentLedgerHeader().ledgerSeq == ledgerSeq);
 
         // Advance until we've published (or failed to!)
         while (hm.getPublishSuccessCount() < hm.getPublishQueueCount())
@@ -352,9 +353,9 @@ CatchupSimulation::generateAndPublishHistory(size_t nPublishes)
 
     REQUIRE(hm.getPublishFailureCount() == 0);
     REQUIRE(hm.getPublishSuccessCount() == publishSuccesses + nPublishes);
-    REQUIRE(lm.getLedgerNum() ==
+    REQUIRE(mApp.getLedgerManager().getLastClosedLedgerNum() ==
             ((publishSuccesses + nPublishes) * hm.getCheckpointFrequency()) +
-                2);
+                1);
 }
 
 Application::pointer
@@ -441,7 +442,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     // externalizable to knit-up with on the catchup side.
     if (mApp.getHistoryManager().nextCheckpointLedger(
             mApp.getLedgerManager().getLastClosedLedgerNum()) ==
-        mApp.getLedgerManager().getLedgerNum())
+        mApp.getLedgerManager().getLastClosedLedgerNum() + 1)
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
@@ -495,7 +496,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
                        LedgerManager::CatchupState::WAITING_FOR_CLOSING_LEDGER;
         },
         std::chrono::seconds{30});
-    auto nextLedger = lm.getLedgerNum();
+    auto nextLedger = lm.getLastClosedLedgerNum() + 1;
 
     CLOG(INFO, "History") << "Catching up finished: lastLedger = "
                           << lastLedger;
@@ -548,7 +549,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
         auto wantBucket0Hash = mBucket0Hashes.at(i);
         auto wantBucket1Hash = mBucket1Hashes.at(i);
 
-        auto haveSeq = lm.getLastClosedLedgerHeader().header.ledgerSeq;
+        auto haveSeq = lm.getLastClosedLedgerNum();
         auto haveHash = lm.getLastClosedLedgerHeader().hash;
         auto haveBucketListHash =
             lm.getLastClosedLedgerHeader().header.bucketListHash;
