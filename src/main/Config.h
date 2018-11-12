@@ -205,6 +205,15 @@ class Config : public std::enable_shared_from_this<Config>
 
     std::string NTP_SERVER; // ntp server used to check if time is valid on host
 
+    // Data layer cache configuration
+    // - ENTRY_CACHE_SIZE controls the maximum number of LedgerEntry objects
+    //   that will be stored in the cache
+    // - BEST_OFFERS_CACHE_SIZE controls the maximum number of Asset pairs that
+    //   will be stored in the cache, although many LedgerEntry objects may be
+    //   associated with a single Asset pair
+    size_t ENTRY_CACHE_SIZE;
+    size_t BEST_OFFERS_CACHE_SIZE;
+
     Config();
 
     void load(std::string const& filename);

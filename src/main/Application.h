@@ -41,6 +41,7 @@ class CommandHandler;
 class WorkManager;
 class BanManager;
 class StatusManager;
+class LedgerStateRoot;
 
 class Application;
 void validateNetworkPassphrase(std::shared_ptr<Application> app);
@@ -266,6 +267,8 @@ class Application
     virtual Hash const& getNetworkID() const = 0;
 
     virtual void newDB() = 0;
+
+    virtual LedgerStateRoot& getLedgerStateRoot() = 0;
 
     // Factory: create a new Application object bound to `clock`, with a local
     // copy made of `cfg`.
