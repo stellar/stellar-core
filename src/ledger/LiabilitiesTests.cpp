@@ -2,13 +2,15 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/AccountFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "ledger/LedgerTestUtils.h"
-#include "ledger/TrustFrame.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Timer.h"
 
 using namespace stellar;
@@ -22,40 +24,44 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
 
     SECTION("add account selling liabilities")
     {
-        auto addSellingLiabilities =
-            [&](uint32_t initNumSubEntries, int64_t initBalance,
-                int64_t initSellingLiabilities, int64_t deltaLiabilities) {
-                AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
-                ae.balance = initBalance;
-                ae.numSubEntries = initNumSubEntries;
-                if (ae.ext.v() < 1)
-                {
-                    ae.ext.v(1);
-                }
-                ae.ext.v1().liabilities.selling = initSellingLiabilities;
-                int64_t initBuyingLiabilities = ae.ext.v1().liabilities.buying;
+        auto addSellingLiabilities = [&](uint32_t initNumSubEntries,
+                                         int64_t initBalance,
+                                         int64_t initSellingLiabilities,
+                                         int64_t deltaLiabilities) {
+            AccountEntry ae = LedgerTestUtils::generateValidAccountEntry();
+            ae.balance = initBalance;
+            ae.numSubEntries = initNumSubEntries;
+            if (ae.ext.v() < 1)
+            {
+                ae.ext.v(1);
+            }
+            ae.ext.v1().liabilities.selling = initSellingLiabilities;
+            int64_t initBuyingLiabilities = ae.ext.v1().liabilities.buying;
 
-                LedgerEntry le;
-                le.data.type(ACCOUNT);
-                le.data.account() = ae;
+            LedgerEntry le;
+            le.data.type(ACCOUNT);
+            le.data.account() = ae;
 
-                auto af = std::make_shared<AccountFrame>(le);
-                bool res = af->addSellingLiabilities(deltaLiabilities, lm);
-                REQUIRE(af->getBalance() == initBalance);
-                REQUIRE(af->getBuyingLiabilities(lm) == initBuyingLiabilities);
-                if (res)
-                {
-                    REQUIRE(af->getSellingLiabilities(lm) ==
-                            initSellingLiabilities + deltaLiabilities);
-                }
-                else
-                {
-                    REQUIRE(af->getSellingLiabilities(lm) ==
-                            initSellingLiabilities);
-                    REQUIRE(af->getAccount() == ae);
-                }
-                return res;
-            };
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
+            bool res =
+                stellar::addSellingLiabilities(header, acc, deltaLiabilities);
+            REQUIRE(acc.current().data.account().balance == initBalance);
+            REQUIRE(getBuyingLiabilities(header, acc) == initBuyingLiabilities);
+            if (res)
+            {
+                REQUIRE(getSellingLiabilities(header, acc) ==
+                        initSellingLiabilities + deltaLiabilities);
+            }
+            else
+            {
+                REQUIRE(getSellingLiabilities(header, acc) ==
+                        initSellingLiabilities);
+                REQUIRE(acc.current() == le);
+            }
+            return res;
+        };
         auto addSellingLiabilitiesUninitialized =
             [&](uint32_t initNumSubEntries, int64_t initBalance,
                 int64_t deltaLiabilities) {
@@ -68,20 +74,24 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(ACCOUNT);
                 le.data.account() = ae;
 
-                auto af = std::make_shared<AccountFrame>(le);
-                bool res = af->addSellingLiabilities(deltaLiabilities, lm);
-                REQUIRE(af->getBalance() == initBalance);
-                REQUIRE(af->getBuyingLiabilities(lm) == 0);
+                LedgerState ls(app->getLedgerStateRoot());
+                auto header = ls.loadHeader();
+                auto acc = ls.create(le);
+                bool res = stellar::addSellingLiabilities(header, acc,
+                                                          deltaLiabilities);
+                REQUIRE(acc.current().data.account().balance == initBalance);
+                REQUIRE(getBuyingLiabilities(header, acc) == 0);
                 if (res)
                 {
-                    REQUIRE(af->getAccount().ext.v() ==
+                    REQUIRE(acc.current().data.account().ext.v() ==
                             ((deltaLiabilities != 0) ? 1 : 0));
-                    REQUIRE(af->getSellingLiabilities(lm) == deltaLiabilities);
+                    REQUIRE(getSellingLiabilities(header, acc) ==
+                            deltaLiabilities);
                 }
                 else
                 {
-                    REQUIRE(af->getSellingLiabilities(lm) == 0);
-                    REQUIRE(af->getAccount() == ae);
+                    REQUIRE(getSellingLiabilities(header, acc) == 0);
+                    REQUIRE(acc.current() == le);
                 }
                 return res;
             };
@@ -91,26 +101,26 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             {
                 // Uninitialized remains uninitialized after failure
                 REQUIRE(!addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 1));
+                    0, lm.getLastMinBalance(0), 1));
 
                 // Uninitialized remains unitialized after success of delta 0
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 0));
+                    0, lm.getLastMinBalance(0), 0));
 
                 // Uninitialized is initialized after success of delta != 0
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1, 1));
+                    0, lm.getLastMinBalance(0) + 1, 1));
             }
 
             SECTION("below reserve")
             {
                 // Can leave unchanged when account is below reserve
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) - 1, 0, 0));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) - 1, 0,
+                                              0));
 
                 // Cannot increase when account is below reserve
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) - 1, 0, 1));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) - 1,
+                                               0, 1));
 
                 // No need to test decrease below reserve since that would imply
                 // the previous state had excess liabilities
@@ -119,85 +129,89 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             SECTION("cannot make liabilities negative")
             {
                 // No initial liabilities and at maximum
-                REQUIRE(addSellingLiabilities(0, lm.getMinBalance(0), 0, 0));
+                REQUIRE(
+                    addSellingLiabilities(0, lm.getLastMinBalance(0), 0, 0));
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 0));
-                REQUIRE(!addSellingLiabilities(0, lm.getMinBalance(0), 0, -1));
+                    0, lm.getLastMinBalance(0), 0));
+                REQUIRE(
+                    !addSellingLiabilities(0, lm.getLastMinBalance(0), 0, -1));
                 REQUIRE(!addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), -1));
+                    0, lm.getLastMinBalance(0), -1));
 
                 // No initial liabilities and below maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 1, 0, 0));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 1, 0,
+                                              0));
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1, 0));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 1, 0, -1));
+                    0, lm.getLastMinBalance(0) + 1, 0));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 1,
+                                               0, -1));
                 REQUIRE(!addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1, -1));
+                    0, lm.getLastMinBalance(0) + 1, -1));
 
                 // Initial liabilities and at maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 1, 1, -1));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 1, 1, -2));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 1, 1,
+                                              -1));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 1,
+                                               1, -2));
 
                 // Initial liabilities and below maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 2, 1, -1));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 2, 1, -2));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 2, 1,
+                                              -1));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 2,
+                                               1, -2));
             }
 
             SECTION("cannot increase liabilities above balance minus reserve")
             {
                 // No initial liabilities and at maximum
-                REQUIRE(addSellingLiabilities(0, lm.getMinBalance(0), 0, 0));
+                REQUIRE(
+                    addSellingLiabilities(0, lm.getLastMinBalance(0), 0, 0));
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 0));
-                REQUIRE(!addSellingLiabilities(0, lm.getMinBalance(0), 0, 1));
+                    0, lm.getLastMinBalance(0), 0));
+                REQUIRE(
+                    !addSellingLiabilities(0, lm.getLastMinBalance(0), 0, 1));
                 REQUIRE(!addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 1));
+                    0, lm.getLastMinBalance(0), 1));
 
                 // No initial liabilities and below maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 1, 0, 1));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 1, 0,
+                                              1));
                 REQUIRE(addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1, 1));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 1, 0, 2));
+                    0, lm.getLastMinBalance(0) + 1, 1));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 1,
+                                               0, 2));
                 REQUIRE(!addSellingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1, 2));
+                    0, lm.getLastMinBalance(0) + 1, 2));
 
                 // Initial liabilities and at maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 1, 1, 0));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 1, 1, 1));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 1, 1,
+                                              0));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 1,
+                                               1, 1));
 
                 // Initial liabilities and below maximum
-                REQUIRE(
-                    addSellingLiabilities(0, lm.getMinBalance(0) + 2, 1, 1));
-                REQUIRE(
-                    !addSellingLiabilities(0, lm.getMinBalance(0) + 2, 1, 2));
+                REQUIRE(addSellingLiabilities(0, lm.getLastMinBalance(0) + 2, 1,
+                                              1));
+                REQUIRE(!addSellingLiabilities(0, lm.getLastMinBalance(0) + 2,
+                                               1, 2));
             }
 
             SECTION("limiting values")
             {
                 // Can increase to limit but no higher
-                REQUIRE(addSellingLiabilities(0, INT64_MAX, 0,
-                                              INT64_MAX - lm.getMinBalance(0)));
+                REQUIRE(addSellingLiabilities(
+                    0, INT64_MAX, 0, INT64_MAX - lm.getLastMinBalance(0)));
                 REQUIRE(!addSellingLiabilities(
-                    0, INT64_MAX, 0, INT64_MAX - lm.getMinBalance(0) + 1));
+                    0, INT64_MAX, 0, INT64_MAX - lm.getLastMinBalance(0) + 1));
                 REQUIRE(!addSellingLiabilities(
-                    0, INT64_MAX, 1, INT64_MAX - lm.getMinBalance(0)));
+                    0, INT64_MAX, 1, INT64_MAX - lm.getLastMinBalance(0)));
 
                 // Can decrease from limit
                 REQUIRE(addSellingLiabilities(
-                    0, INT64_MAX, INT64_MAX - lm.getMinBalance(0), -1));
-                REQUIRE(addSellingLiabilities(0, INT64_MAX,
-                                              INT64_MAX - lm.getMinBalance(0),
-                                              lm.getMinBalance(0) - INT64_MAX));
+                    0, INT64_MAX, INT64_MAX - lm.getLastMinBalance(0), -1));
+                REQUIRE(addSellingLiabilities(
+                    0, INT64_MAX, INT64_MAX - lm.getLastMinBalance(0),
+                    lm.getLastMinBalance(0) - INT64_MAX));
             }
         });
     }
@@ -222,19 +236,24 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
-            bool res = af->addBuyingLiabilities(deltaLiabilities, lm);
-            REQUIRE(af->getBalance() == initBalance);
-            REQUIRE(af->getSellingLiabilities(lm) == initSellingLiabilities);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
+            bool res =
+                stellar::addBuyingLiabilities(header, acc, deltaLiabilities);
+            REQUIRE(acc.current().data.account().balance == initBalance);
+            REQUIRE(getSellingLiabilities(header, acc) ==
+                    initSellingLiabilities);
             if (res)
             {
-                REQUIRE(af->getBuyingLiabilities(lm) ==
+                REQUIRE(getBuyingLiabilities(header, acc) ==
                         initBuyingLiabilities + deltaLiabilities);
             }
             else
             {
-                REQUIRE(af->getBuyingLiabilities(lm) == initBuyingLiabilities);
-                REQUIRE(af->getAccount() == ae);
+                REQUIRE(getBuyingLiabilities(header, acc) ==
+                        initBuyingLiabilities);
+                REQUIRE(acc.current() == le);
             }
             return res;
         };
@@ -250,20 +269,23 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
-            bool res = af->addBuyingLiabilities(deltaLiabilities, lm);
-            REQUIRE(af->getBalance() == initBalance);
-            REQUIRE(af->getSellingLiabilities(lm) == 0);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
+            bool res =
+                stellar::addBuyingLiabilities(header, acc, deltaLiabilities);
+            REQUIRE(acc.current().data.account().balance == initBalance);
+            REQUIRE(getSellingLiabilities(header, acc) == 0);
             if (res)
             {
-                REQUIRE(af->getAccount().ext.v() ==
+                REQUIRE(acc.current().data.account().ext.v() ==
                         ((deltaLiabilities != 0) ? 1 : 0));
-                REQUIRE(af->getBuyingLiabilities(lm) == deltaLiabilities);
+                REQUIRE(getBuyingLiabilities(header, acc) == deltaLiabilities);
             }
             else
             {
-                REQUIRE(af->getBuyingLiabilities(lm) == 0);
-                REQUIRE(af->getAccount() == ae);
+                REQUIRE(getBuyingLiabilities(header, acc) == 0);
+                REQUIRE(acc.current() == le);
             }
             return res;
         };
@@ -273,110 +295,122 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             {
                 // Uninitialized remains uninitialized after failure
                 REQUIRE(!addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0),
-                    INT64_MAX - (lm.getMinBalance(0) - 1)));
+                    0, lm.getLastMinBalance(0),
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
 
                 // Uninitialized remains uninitialized after success of delta 0
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 0));
+                    0, lm.getLastMinBalance(0), 0));
 
                 // Uninitialized is initialized after success of delta != 0
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 1));
+                    0, lm.getLastMinBalance(0), 1));
             }
 
             SECTION("below reserve")
             {
                 // Can decrease when account is below reserve
-                REQUIRE(
-                    addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 1, -1));
+                REQUIRE(addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 1,
+                                             -1));
 
                 // Can leave unchanged when account is below reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 0, 0));
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 1, 0));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 0, 0));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 1, 0));
 
                 // Can increase when account is below reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 0, 1));
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 1, 1));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 0, 1));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 1, 1));
             }
 
             SECTION("cannot make liabilities negative")
             {
                 // No initial liabilities
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0), 0, 0));
+                REQUIRE(addBuyingLiabilities(0, lm.getLastMinBalance(0), 0, 0));
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), 0));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0), 0, -1));
+                    0, lm.getLastMinBalance(0), 0));
+                REQUIRE(
+                    !addBuyingLiabilities(0, lm.getLastMinBalance(0), 0, -1));
                 REQUIRE(!addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), -1));
+                    0, lm.getLastMinBalance(0), -1));
 
                 // Initial liabilities
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0), 1, -1));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0), 1, -2));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0), 1, -1));
+                REQUIRE(
+                    !addBuyingLiabilities(0, lm.getLastMinBalance(0), 1, -2));
             }
 
             SECTION("cannot increase liabilities above INT64_MAX minus balance")
             {
                 // No initial liabilities, account below reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 0,
-                                             INT64_MAX -
-                                                 (lm.getMinBalance(0) - 1)));
+                REQUIRE(addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) - 1, 0,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) - 1,
-                    INT64_MAX - (lm.getMinBalance(0) - 1)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 0,
-                                              INT64_MAX -
-                                                  (lm.getMinBalance(0) - 2)));
+                    0, lm.getLastMinBalance(0) - 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
+                REQUIRE(!addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) - 1, 0,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 2)));
                 REQUIRE(!addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) - 1,
-                    INT64_MAX - (lm.getMinBalance(0) - 2)));
+                    0, lm.getLastMinBalance(0) - 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 2)));
 
                 // Initial liabilities, account below reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 1,
-                                             INT64_MAX - lm.getMinBalance(0)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0) - 1, 1,
-                                              INT64_MAX -
-                                                  (lm.getMinBalance(0) - 1)));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0) - 1, 1,
+                                         INT64_MAX - lm.getLastMinBalance(0)));
+                REQUIRE(!addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) - 1, 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
 
                 // No initial liabilities, account at reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0), 0,
-                                             INT64_MAX - lm.getMinBalance(0)));
+                REQUIRE(
+                    addBuyingLiabilities(0, lm.getLastMinBalance(0), 0,
+                                         INT64_MAX - lm.getLastMinBalance(0)));
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0), INT64_MAX - lm.getMinBalance(0)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0), 0,
-                                              INT64_MAX -
-                                                  (lm.getMinBalance(0) - 1)));
+                    0, lm.getLastMinBalance(0),
+                    INT64_MAX - lm.getLastMinBalance(0)));
+                REQUIRE(!addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0), 0,
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
                 REQUIRE(!addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0),
-                    INT64_MAX - (lm.getMinBalance(0) - 1)));
+                    0, lm.getLastMinBalance(0),
+                    INT64_MAX - (lm.getLastMinBalance(0) - 1)));
 
                 // Initial liabilities, account at reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0), 1,
-                                             INT64_MAX -
-                                                 (lm.getMinBalance(0) + 1)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0), 1,
-                                              INT64_MAX - lm.getMinBalance(0)));
+                REQUIRE(addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0), 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) + 1)));
+                REQUIRE(
+                    !addBuyingLiabilities(0, lm.getLastMinBalance(0), 1,
+                                          INT64_MAX - lm.getLastMinBalance(0)));
 
                 // No initial liabilities, account above reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) + 1, 0,
-                                             INT64_MAX -
-                                                 (lm.getMinBalance(0) + 1)));
+                REQUIRE(addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) + 1, 0,
+                    INT64_MAX - (lm.getLastMinBalance(0) + 1)));
                 REQUIRE(addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1,
-                    INT64_MAX - (lm.getMinBalance(0) + 1)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0) + 1, 0,
-                                              INT64_MAX - lm.getMinBalance(0)));
+                    0, lm.getLastMinBalance(0) + 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) + 1)));
+                REQUIRE(
+                    !addBuyingLiabilities(0, lm.getLastMinBalance(0) + 1, 0,
+                                          INT64_MAX - lm.getLastMinBalance(0)));
                 REQUIRE(!addBuyingLiabilitiesUninitialized(
-                    0, lm.getMinBalance(0) + 1,
-                    INT64_MAX - lm.getMinBalance(0)));
+                    0, lm.getLastMinBalance(0) + 1,
+                    INT64_MAX - lm.getLastMinBalance(0)));
 
                 // Initial liabilities, account above reserve
-                REQUIRE(addBuyingLiabilities(0, lm.getMinBalance(0) + 1, 1,
-                                             INT64_MAX -
-                                                 (lm.getMinBalance(0) + 2)));
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0) + 1, 1,
-                                              INT64_MAX -
-                                                  (lm.getMinBalance(0) + 1)));
+                REQUIRE(addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) + 1, 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) + 2)));
+                REQUIRE(!addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0) + 1, 1,
+                    INT64_MAX - (lm.getLastMinBalance(0) + 1)));
             }
 
             SECTION("limiting values")
@@ -384,12 +418,12 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 REQUIRE(!addBuyingLiabilities(0, INT64_MAX, 0, 1));
                 REQUIRE(addBuyingLiabilities(0, INT64_MAX - 1, 0, 1));
 
-                REQUIRE(!addBuyingLiabilities(0, lm.getMinBalance(0),
-                                              INT64_MAX - lm.getMinBalance(0),
-                                              1));
+                REQUIRE(!addBuyingLiabilities(
+                    0, lm.getLastMinBalance(0),
+                    INT64_MAX - lm.getLastMinBalance(0), 1));
                 REQUIRE(addBuyingLiabilities(
-                    0, lm.getMinBalance(0), INT64_MAX - lm.getMinBalance(0) - 1,
-                    1));
+                    0, lm.getLastMinBalance(0),
+                    INT64_MAX - lm.getLastMinBalance(0) - 1, 1));
 
                 REQUIRE(!addBuyingLiabilities(UINT32_MAX, INT64_MAX / 2 + 1,
                                               INT64_MAX / 2, 1));
@@ -421,21 +455,24 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
-            bool res = tf->addSellingLiabilities(deltaLiabilities, lm);
-            REQUIRE(tf->getTrustLine().limit == initLimit);
-            REQUIRE(tf->getBalance() == initBalance);
-            REQUIRE(tf->getBuyingLiabilities(lm) == initBuyingLiabilities);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
+            bool res =
+                stellar::addSellingLiabilities(header, trust, deltaLiabilities);
+            REQUIRE(trust.current().data.trustLine().balance == initBalance);
+            REQUIRE(getBuyingLiabilities(header, trust) ==
+                    initBuyingLiabilities);
             if (res)
             {
-                REQUIRE(tf->getSellingLiabilities(lm) ==
+                REQUIRE(getSellingLiabilities(header, trust) ==
                         initSellingLiabilities + deltaLiabilities);
             }
             else
             {
-                REQUIRE(tf->getSellingLiabilities(lm) ==
+                REQUIRE(getSellingLiabilities(header, trust) ==
                         initSellingLiabilities);
-                REQUIRE(tf->getTrustLine() == tl);
+                REQUIRE(trust.current() == le);
             }
             return res;
         };
@@ -453,21 +490,23 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
                 le.data.type(TRUSTLINE);
                 le.data.trustLine() = tl;
 
-                auto tf = std::make_shared<TrustFrame>(le);
-                bool res = tf->addSellingLiabilities(deltaLiabilities, lm);
-                REQUIRE(tf->getTrustLine().limit == initLimit);
-                REQUIRE(tf->getBalance() == initBalance);
-                REQUIRE(tf->getBuyingLiabilities(lm) == 0);
+                LedgerState ls(app->getLedgerStateRoot());
+                auto header = ls.loadHeader();
+                auto trust = ls.create(le);
+                bool res = stellar::addSellingLiabilities(header, trust,
+                                                          deltaLiabilities);
+                REQUIRE(trust.current().data.trustLine().balance ==
+                        initBalance);
+                REQUIRE(getBuyingLiabilities(header, trust) == 0);
                 if (res)
                 {
-                    REQUIRE(tf->getTrustLine().ext.v() ==
-                            ((deltaLiabilities != 0) ? 1 : 0));
-                    REQUIRE(tf->getSellingLiabilities(lm) == deltaLiabilities);
+                    REQUIRE(getSellingLiabilities(header, trust) ==
+                            deltaLiabilities);
                 }
                 else
                 {
-                    REQUIRE(tf->getSellingLiabilities(lm) == 0);
-                    REQUIRE(tf->getTrustLine() == tl);
+                    REQUIRE(getSellingLiabilities(header, trust) == 0);
+                    REQUIRE(trust.current() == le);
                 }
                 return res;
             };
@@ -558,20 +597,24 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
-            bool res = tf->addBuyingLiabilities(deltaLiabilities, lm);
-            REQUIRE(tf->getTrustLine().limit == initLimit);
-            REQUIRE(tf->getBalance() == initBalance);
-            REQUIRE(tf->getSellingLiabilities(lm) == initSellingLiabilities);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
+            bool res =
+                stellar::addBuyingLiabilities(header, trust, deltaLiabilities);
+            REQUIRE(trust.current().data.trustLine().balance == initBalance);
+            REQUIRE(getSellingLiabilities(header, trust) ==
+                    initSellingLiabilities);
             if (res)
             {
-                REQUIRE(tf->getBuyingLiabilities(lm) ==
+                REQUIRE(getBuyingLiabilities(header, trust) ==
                         initBuyingLiabilities + deltaLiabilities);
             }
             else
             {
-                REQUIRE(tf->getBuyingLiabilities(lm) == initBuyingLiabilities);
-                REQUIRE(tf->getTrustLine() == tl);
+                REQUIRE(getBuyingLiabilities(header, trust) ==
+                        initBuyingLiabilities);
+                REQUIRE(trust.current() == le);
             }
             return res;
         };
@@ -588,21 +631,22 @@ TEST_CASE("liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
-            bool res = tf->addBuyingLiabilities(deltaLiabilities, lm);
-            REQUIRE(tf->getTrustLine().limit == initLimit);
-            REQUIRE(tf->getBalance() == initBalance);
-            REQUIRE(tf->getSellingLiabilities(lm) == 0);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
+            bool res =
+                stellar::addBuyingLiabilities(header, trust, deltaLiabilities);
+            REQUIRE(trust.current().data.trustLine().balance == initBalance);
+            REQUIRE(getSellingLiabilities(header, trust) == 0);
             if (res)
             {
-                REQUIRE(tf->getTrustLine().ext.v() ==
-                        ((deltaLiabilities != 0) ? 1 : 0));
-                REQUIRE(tf->getBuyingLiabilities(lm) == deltaLiabilities);
+                REQUIRE(getBuyingLiabilities(header, trust) ==
+                        deltaLiabilities);
             }
             else
             {
-                REQUIRE(tf->getBuyingLiabilities(lm) == 0);
-                REQUIRE(tf->getTrustLine() == tl);
+                REQUIRE(getBuyingLiabilities(header, trust) == 0);
+                REQUIRE(trust.current() == le);
             }
             return res;
         };
@@ -697,18 +741,22 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
-            bool res = af->addBalance(deltaBalance, lm);
-            REQUIRE(af->getSellingLiabilities(lm) == initLiabilities.selling);
-            REQUIRE(af->getBuyingLiabilities(lm) == initLiabilities.buying);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
+            bool res = stellar::addBalance(header, acc, deltaBalance);
+            REQUIRE(getSellingLiabilities(header, acc) ==
+                    initLiabilities.selling);
+            REQUIRE(getBuyingLiabilities(header, acc) ==
+                    initLiabilities.buying);
             if (res)
             {
-                REQUIRE(af->getBalance() == initBalance + deltaBalance);
+                REQUIRE(acc.current().data.account().balance ==
+                        initBalance + deltaBalance);
             }
             else
             {
-                REQUIRE(af->getBalance() == initBalance);
-                REQUIRE(af->getAccount() == ae);
+                REQUIRE(acc.current() == le);
             }
             return res;
         };
@@ -717,19 +765,19 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             SECTION("can increase balance from below minimum")
             {
                 // Balance can remain unchanged below reserve
-                REQUIRE(addBalance(0, lm.getMinBalance(0) - 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) - 1,
                                    Liabilities{0, 0}, 0));
 
                 // Balance starts and ends below reserve
-                REQUIRE(addBalance(0, lm.getMinBalance(0) - 2,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) - 2,
                                    Liabilities{0, 0}, 1));
 
                 // Balance starts below reserve and ends at reserve
-                REQUIRE(addBalance(0, lm.getMinBalance(0) - 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) - 1,
                                    Liabilities{0, 0}, 1));
 
                 // Balance starts below reserve and ends above reserve
-                REQUIRE(addBalance(0, lm.getMinBalance(0) - 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) - 1,
                                    Liabilities{0, 0}, 2));
             }
 
@@ -737,27 +785,27 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
                     "liabilities")
             {
                 // Below minimum balance, no liabilities
-                REQUIRE(addBalance(0, lm.getMinBalance(0) - 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) - 1,
                                    Liabilities{0, 0}, 0));
-                REQUIRE(!addBalance(0, lm.getMinBalance(0) - 1,
+                REQUIRE(!addBalance(0, lm.getLastMinBalance(0) - 1,
                                     Liabilities{0, 0}, -1));
 
                 // Minimum balance, no liabilities
-                REQUIRE(
-                    addBalance(0, lm.getMinBalance(0), Liabilities{0, 0}, 0));
-                REQUIRE(
-                    !addBalance(0, lm.getMinBalance(0), Liabilities{0, 0}, -1));
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0),
+                                   Liabilities{0, 0}, 0));
+                REQUIRE(!addBalance(0, lm.getLastMinBalance(0),
+                                    Liabilities{0, 0}, -1));
 
                 // Above minimum balance, no liabilities
-                REQUIRE(addBalance(0, lm.getMinBalance(0) + 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) + 1,
                                    Liabilities{0, 0}, -1));
-                REQUIRE(!addBalance(0, lm.getMinBalance(0) + 1,
+                REQUIRE(!addBalance(0, lm.getLastMinBalance(0) + 1,
                                     Liabilities{0, 0}, -2));
 
                 // Above minimum balance, with liabilities
-                REQUIRE(addBalance(0, lm.getMinBalance(0) + 1,
+                REQUIRE(addBalance(0, lm.getLastMinBalance(0) + 1,
                                    Liabilities{0, 1}, 0));
-                REQUIRE(!addBalance(0, lm.getMinBalance(0) + 1,
+                REQUIRE(!addBalance(0, lm.getLastMinBalance(0) + 1,
                                     Liabilities{0, 1}, -1));
             }
 
@@ -799,21 +847,26 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
-            bool res = af->addNumEntries(deltaNumSubEntries, lm);
-            REQUIRE(af->getSellingLiabilities(lm) == initSellingLiabilities);
-            REQUIRE(af->getBuyingLiabilities(lm) == initBuyingLiabilities);
-            REQUIRE(af->getBalance() == initBalance);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
+            bool res = stellar::addNumEntries(header, acc, deltaNumSubEntries);
+            REQUIRE(getSellingLiabilities(header, acc) ==
+                    initSellingLiabilities);
+            REQUIRE(getBuyingLiabilities(header, acc) == initBuyingLiabilities);
+            REQUIRE(acc.current().data.account().balance == initBalance);
             if (res)
             {
                 if (deltaNumSubEntries > 0)
                 {
-                    REQUIRE(af->getAvailableBalance(lm) >= 0);
+                    REQUIRE(getAvailableBalance(header, acc) >= 0);
                 }
+                REQUIRE(acc.current().data.account().numSubEntries ==
+                        initNumSubEntries + deltaNumSubEntries);
             }
             else
             {
-                REQUIRE(af->getAccount() == ae);
+                REQUIRE(acc.current() == le);
             }
             return res;
         };
@@ -823,44 +876,44 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             {
                 // Below reserve and below new reserve
                 REQUIRE(addSubEntries(1, 0, 0, -1));
-                REQUIRE(addSubEntries(1, lm.getMinBalance(0) - 1, 0, -1));
+                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0) - 1, 0, -1));
 
                 // Below reserve but at new reserve
-                REQUIRE(addSubEntries(1, lm.getMinBalance(0), 0, -1));
+                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0), 0, -1));
 
                 // Below reserve but above new reserve
-                REQUIRE(addSubEntries(1, lm.getMinBalance(1) - 1, 0, -1));
-                REQUIRE(addSubEntries(1, lm.getMinBalance(0) + 1, 0, -1));
+                REQUIRE(addSubEntries(1, lm.getLastMinBalance(1) - 1, 0, -1));
+                REQUIRE(addSubEntries(1, lm.getLastMinBalance(0) + 1, 0, -1));
             }
 
             SECTION("cannot add sub entry without sufficient balance")
             {
                 // Below reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(0) - 1, 0, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) - 1, 0, 1));
 
                 // At reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(0), 0, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0), 0, 1));
 
                 // Above reserve but below new reserve, no liabilities
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(0) + 1, 0, 1));
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(1) - 1, 0, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) + 1, 0, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1) - 1, 0, 1));
 
                 // Above reserve but below new reserve, with liabilities
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(0) + 2, 1, 1));
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(1), 1, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(0) + 2, 1, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1), 1, 1));
 
                 // Above reserve but at new reserve, no liabilities
-                REQUIRE(addSubEntries(0, lm.getMinBalance(1), 0, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1), 0, 1));
 
                 // Above reserve but at new reserve, with liabilities
-                REQUIRE(addSubEntries(0, lm.getMinBalance(1) + 1, 1, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, 1));
 
                 // Above reserve and above new reserve, no liabilities
-                REQUIRE(addSubEntries(0, lm.getMinBalance(1) + 1, 0, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 0, 1));
 
                 // Above reserve and above new reserve, with liabilities
-                REQUIRE(addSubEntries(0, lm.getMinBalance(1) + 1, 1, 1));
-                REQUIRE(!addSubEntries(0, lm.getMinBalance(1) + 1, 2, 1));
+                REQUIRE(addSubEntries(0, lm.getLastMinBalance(1) + 1, 1, 1));
+                REQUIRE(!addSubEntries(0, lm.getLastMinBalance(1) + 1, 2, 1));
             }
         });
     }
@@ -881,18 +934,22 @@ TEST_CASE("balance with liabilities", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
-            bool res = tf->addBalance(deltaBalance, lm);
-            REQUIRE(tf->getSellingLiabilities(lm) == initLiabilities.selling);
-            REQUIRE(tf->getBuyingLiabilities(lm) == initLiabilities.buying);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
+            bool res = stellar::addBalance(header, trust, deltaBalance);
+            REQUIRE(getSellingLiabilities(header, trust) ==
+                    initLiabilities.selling);
+            REQUIRE(getBuyingLiabilities(header, trust) ==
+                    initLiabilities.buying);
             if (res)
             {
-                REQUIRE(tf->getBalance() == initBalance + deltaBalance);
+                REQUIRE(trust.current().data.trustLine().balance ==
+                        initBalance + deltaBalance);
             }
             else
             {
-                REQUIRE(tf->getBalance() == initBalance);
-                REQUIRE(tf->getTrustLine() == tl);
+                REQUIRE(trust.current() == le);
             }
             return res;
         };
@@ -957,34 +1014,36 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
             auto availableBalance =
-                std::max({int64_t(0), af->getAvailableBalance(lm)});
-            REQUIRE(!af->addBalance(-availableBalance - 1, lm));
-            REQUIRE(af->addBalance(-availableBalance, lm));
+                std::max({int64_t(0), getAvailableBalance(header, acc)});
+            REQUIRE(!stellar::addBalance(header, acc, -availableBalance - 1));
+            REQUIRE(stellar::addBalance(header, acc, -availableBalance));
         };
 
         for_versions_from(10, *app, [&] {
             // Below reserve, no liabilities
             checkAvailableBalance(0, 0, 0);
-            checkAvailableBalance(0, lm.getMinBalance(0) - 1, 0);
+            checkAvailableBalance(0, lm.getLastMinBalance(0) - 1, 0);
 
             // At reserve, no liabilities
-            checkAvailableBalance(0, lm.getMinBalance(0), 0);
+            checkAvailableBalance(0, lm.getLastMinBalance(0), 0);
 
             // Above reserve, no liabilities
-            checkAvailableBalance(0, lm.getMinBalance(0) + 1, 0);
+            checkAvailableBalance(0, lm.getLastMinBalance(0) + 1, 0);
             checkAvailableBalance(0, INT64_MAX, 0);
 
             // Above reserve, with maximum liabilities
-            checkAvailableBalance(0, lm.getMinBalance(0) + 1, 1);
+            checkAvailableBalance(0, lm.getLastMinBalance(0) + 1, 1);
             checkAvailableBalance(0, INT64_MAX,
-                                  INT64_MAX - lm.getMinBalance(0));
+                                  INT64_MAX - lm.getLastMinBalance(0));
 
             // Above reserve, with non-maximum liabilities
-            checkAvailableBalance(0, lm.getMinBalance(0) + 2, 1);
+            checkAvailableBalance(0, lm.getLastMinBalance(0) + 2, 1);
             checkAvailableBalance(0, INT64_MAX,
-                                  INT64_MAX - lm.getMinBalance(0) - 1);
+                                  INT64_MAX - lm.getLastMinBalance(0) - 1);
         });
     }
 
@@ -1006,54 +1065,56 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(ACCOUNT);
             le.data.account() = ae;
 
-            auto af = std::make_shared<AccountFrame>(le);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto acc = ls.create(le);
             auto availableLimit =
-                std::max({int64_t(0), af->getMaxAmountReceive(lm)});
+                std::max({int64_t(0), getMaxAmountReceive(header, acc)});
             if (availableLimit < INT64_MAX)
             {
-                REQUIRE(!af->addBalance(availableLimit + 1, lm));
+                REQUIRE(!stellar::addBalance(header, acc, availableLimit + 1));
             }
-            REQUIRE(af->addBalance(availableLimit, lm));
+            REQUIRE(stellar::addBalance(header, acc, availableLimit));
         };
 
         for_versions_from(10, *app, [&] {
             // Below reserve, no liabilities
             checkAvailableLimit(0, 0, 0);
-            checkAvailableLimit(0, lm.getMinBalance(0) - 1, 0);
+            checkAvailableLimit(0, lm.getLastMinBalance(0) - 1, 0);
 
             // Below reserve, with maximum liabilities
             checkAvailableLimit(0, 0, INT64_MAX);
-            checkAvailableLimit(0, lm.getMinBalance(0) - 1,
-                                INT64_MAX - lm.getMinBalance(0) + 1);
+            checkAvailableLimit(0, lm.getLastMinBalance(0) - 1,
+                                INT64_MAX - lm.getLastMinBalance(0) + 1);
 
             // Below reserve, with non-maximum liabilities
             checkAvailableLimit(0, 0, INT64_MAX - 1);
-            checkAvailableLimit(0, lm.getMinBalance(0) - 1,
-                                INT64_MAX - lm.getMinBalance(0));
+            checkAvailableLimit(0, lm.getLastMinBalance(0) - 1,
+                                INT64_MAX - lm.getLastMinBalance(0));
 
             // At reserve, no liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0), 0);
+            checkAvailableLimit(0, lm.getLastMinBalance(0), 0);
 
             // At reserve, with maximum liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0),
-                                INT64_MAX - lm.getMinBalance(0));
+            checkAvailableLimit(0, lm.getLastMinBalance(0),
+                                INT64_MAX - lm.getLastMinBalance(0));
 
             // At reserve, with non-maximum liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0),
-                                INT64_MAX - lm.getMinBalance(0) - 1);
+            checkAvailableLimit(0, lm.getLastMinBalance(0),
+                                INT64_MAX - lm.getLastMinBalance(0) - 1);
 
             // Above reserve, no liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0) + 1, 0);
+            checkAvailableLimit(0, lm.getLastMinBalance(0) + 1, 0);
             checkAvailableLimit(0, INT64_MAX, 0);
 
             // Above reserve, with maximum liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0) + 1,
-                                INT64_MAX - lm.getMinBalance(0) - 1);
+            checkAvailableLimit(0, lm.getLastMinBalance(0) + 1,
+                                INT64_MAX - lm.getLastMinBalance(0) - 1);
             checkAvailableLimit(0, INT64_MAX - 1, 1);
 
             // Above reserve, with non-maximum liabilities
-            checkAvailableLimit(0, lm.getMinBalance(0) + 1,
-                                INT64_MAX - lm.getMinBalance(0) - 2);
+            checkAvailableLimit(0, lm.getLastMinBalance(0) + 1,
+                                INT64_MAX - lm.getLastMinBalance(0) - 2);
             checkAvailableLimit(0, INT64_MAX - 2, 1);
         });
     }
@@ -1076,11 +1137,13 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
             auto availableBalance =
-                std::max({int64_t(0), tf->getAvailableBalance(lm)});
-            REQUIRE(!tf->addBalance(-availableBalance - 1, lm));
-            REQUIRE(tf->addBalance(-availableBalance, lm));
+                std::max({int64_t(0), getAvailableBalance(header, trust)});
+            REQUIRE(!stellar::addBalance(header, trust, -availableBalance - 1));
+            REQUIRE(stellar::addBalance(header, trust, -availableBalance));
         };
 
         for_versions_from(10, *app, [&] {
@@ -1119,11 +1182,17 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
             auto availableLimit =
-                std::max({int64_t(0), tf->getMaxAmountReceive(lm)});
-            REQUIRE(!tf->addBalance(availableLimit + 1, lm));
-            REQUIRE(tf->addBalance(availableLimit, lm));
+                std::max({int64_t(0), getMaxAmountReceive(header, trust)});
+            if (availableLimit < INT64_MAX)
+            {
+                REQUIRE(
+                    !stellar::addBalance(header, trust, availableLimit + 1));
+            }
+            REQUIRE(stellar::addBalance(header, trust, availableLimit));
         };
 
         for_versions_from(10, *app, [&] {
@@ -1161,10 +1230,12 @@ TEST_CASE("available balance and limit", "[ledger][liabilities]")
             le.data.type(TRUSTLINE);
             le.data.trustLine() = tl;
 
-            auto tf = std::make_shared<TrustFrame>(le);
-            auto minimumLimit = tf->getMinimumLimit(lm);
-            tf->getTrustLine().limit = minimumLimit;
-            REQUIRE(tf->getMaxAmountReceive(lm) == 0);
+            LedgerState ls(app->getLedgerStateRoot());
+            auto header = ls.loadHeader();
+            auto trust = ls.create(le);
+            trust.current().data.trustLine().limit =
+                getMinimumLimit(header, trust);
+            REQUIRE(getMaxAmountReceive(header, trust) == 0);
         };
 
         for_versions_from(10, *app, [&] {
