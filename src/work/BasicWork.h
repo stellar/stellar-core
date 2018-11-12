@@ -9,7 +9,6 @@
 namespace stellar
 {
 
-// TODO cherry-picked commit
 class Application;
 
 /** BasicWork is an implementation of a finite state machine,
@@ -84,18 +83,16 @@ class BasicWork : public std::enable_shared_from_this<BasicWork>,
     virtual void shutdown();
 
   protected:
-    // Implementers can override these callbacks to customize functionality
+    // Implementers can override these callbacks to customize functionality.
     // `onReset` is expected to restore work's state to its initial condition;
     // this includes cleaning up side effects (e.g. produced files), restoring
     // member variables etc.
     // `onRun` performs necessary work logic, and hints the
     // next state transition. `onSuccess` is called when work transitions into
     // WORK_SUCCESS state. Similarly, `onFailure*` methods are called upon
-    // transitioning into appropriate failure state. An example usage would be
-    // cleaning up side effects, like downloaded files in these methods. If you
-    // want to force failure (and reset / retry) you can return
-    // WORK_FAILURE_RETRY or WORK_FAILURE_RAISE. After a retry count is
-    // passed, WORK_FAILURE_RETRY means WORK_FAILURE_RAISE anyways.
+    // transitioning into appropriate failure states (Note that implementers
+    // return WORK_FAILURE, and which method gets called in determined by the
+    // retry strategy.
 
     virtual void onReset();
     virtual State onRun() = 0;
