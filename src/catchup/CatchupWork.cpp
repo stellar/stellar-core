@@ -61,20 +61,10 @@ CatchupWork::doReset()
 std::string
 CatchupWork::getStatus() const
 {
-    if (mTransactionsVerifyApplySeq)
-    {
-        return mTransactionsVerifyApplySeq->getStatus();
-    }
-    else if (mBucketVerifyApplySeq)
-    {
-        return mBucketVerifyApplySeq->getStatus();
-    }
-    else if (mDownloadVerifyLedgersSeq)
-    {
-        return mDownloadVerifyLedgersSeq->getStatus();
-    }
-
-    return Work::getStatus();
+    auto childStatus = getRunningChildStatus({mTransactionsVerifyApplySeq,
+                                              mBucketVerifyApplySeq,
+                                              mDownloadVerifyLedgersSeq});
+    return childStatus.empty() ? BasicWork::getStatus() : childStatus;
 }
 
 bool

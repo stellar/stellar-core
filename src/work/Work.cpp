@@ -39,6 +39,20 @@ Work::getStatus() const
     return status;
 }
 
+std::string
+Work::getRunningChildStatus(
+    std::initializer_list<std::shared_ptr<BasicWork>> children) const
+{
+    for (auto const& c : children)
+    {
+        if (c)
+        {
+            return c->getStatus();
+        }
+    }
+    return std::string();
+}
+
 void
 Work::shutdown()
 {

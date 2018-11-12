@@ -77,6 +77,11 @@ class Work : public BasicWork
         return child;
     }
 
+    // Helper method to determine which status to return (typically used in
+    // getStatus method)
+    std::string getRunningChildStatus(
+        std::initializer_list<std::shared_ptr<BasicWork>> children) const;
+
     State onRun() final;
     void onReset() final;
     void onFailureRaise() override;
