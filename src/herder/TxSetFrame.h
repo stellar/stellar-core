@@ -6,6 +6,7 @@
 
 #include "overlay/StellarXDR.h"
 #include "transactions/TransactionFrame.h"
+#include <functional>
 
 namespace stellar
 {
@@ -51,7 +52,7 @@ class TxSetFrame
     bool checkValid(Application& app);
     void trimInvalid(Application& app,
                      std::vector<TransactionFramePtr>& trimmed);
-    void surgePricingFilter(LedgerManager const& lm);
+    void surgePricingFilter(Application& app);
 
     void removeTx(TransactionFramePtr tx);
 
