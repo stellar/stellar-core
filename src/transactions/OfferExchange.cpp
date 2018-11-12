@@ -6,8 +6,13 @@
 #include "database/Database.h"
 #include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
+#include "ledger/LedgerStateHeader.h"
 #include "ledger/TrustFrame.h"
+#include "ledger/TrustLineWrapper.h"
 #include "lib/util/uint128_t.h"
+#include "transactions/TransactionUtils.h"
 #include "util/Logging.h"
 
 namespace stellar
@@ -72,6 +77,101 @@ canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
                    ? std::max({trustLine->getMaxAmountReceive(ledgerManager),
                                int64_t(0)})
                    : 0;
+    }
+}
+
+// returns the amount of wheat that would be traded
+// while buying as much sheep as possible
+int64_t
+canSellAtMostBasedOnSheep(LedgerStateHeader const& header, Asset const& sheep,
+                          ConstTrustLineWrapper const& sheepLine,
+                          Price const& wheatPrice)
+{
+    if (sheep.type() == ASSET_TYPE_NATIVE)
+    {
+        return INT64_MAX;
+    }
+
+    // compute value based on what the account can receive
+    auto sellerMaxSheep = sheepLine ? sheepLine.getMaxAmountReceive(header) : 0;
+
+    auto wheatAmount = int64_t{};
+    if (!bigDivide(wheatAmount, sellerMaxSheep, wheatPrice.d, wheatPrice.n,
+                   ROUND_DOWN))
+    {
+        wheatAmount = INT64_MAX;
+    }
+
+    return wheatAmount;
+}
+
+int64_t
+canSellAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+              Asset const& asset, TrustLineWrapper const& trustLine)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        // can only send above the minimum balance
+        return std::max({getAvailableBalance(header, account), int64_t(0)});
+    }
+
+    if (trustLine && trustLine.isAuthorized())
+    {
+        return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
+    }
+
+    return 0;
+}
+
+int64_t
+canSellAtMost(LedgerStateHeader const& header,
+              ConstLedgerStateEntry const& account, Asset const& asset,
+              ConstTrustLineWrapper const& trustLine)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        // can only send above the minimum balance
+        return std::max({getAvailableBalance(header, account), int64_t(0)});
+    }
+
+    if (trustLine && trustLine.isAuthorized())
+    {
+        return std::max({trustLine.getAvailableBalance(header), int64_t(0)});
+    }
+
+    return 0;
+}
+
+int64_t
+canBuyAtMost(LedgerStateHeader const& header, LedgerStateEntry const& account,
+             Asset const& asset, TrustLineWrapper const& trustLine)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return std::max({getMaxAmountReceive(header, account), int64_t(0)});
+    }
+    else
+    {
+        return trustLine ? std::max({trustLine.getMaxAmountReceive(header),
+                                     int64_t(0)})
+                         : 0;
+    }
+}
+
+int64_t
+canBuyAtMost(LedgerStateHeader const& header,
+             ConstLedgerStateEntry const& account, Asset const& asset,
+             ConstTrustLineWrapper const& trustLine)
+{
+    if (asset.type() == ASSET_TYPE_NATIVE)
+    {
+        return std::max({getMaxAmountReceive(header, account), int64_t(0)});
+    }
+    else
+    {
+        return trustLine ? std::max({trustLine.getMaxAmountReceive(header),
+                                     int64_t(0)})
+                         : 0;
     }
 }
 
@@ -565,15 +665,16 @@ applyPriceErrorThresholds(Price price, int64_t wheatReceive, int64_t sheepSend,
     return res;
 }
 
-LoadBestOfferContext::LoadBestOfferContext(Database& db, Asset const& selling,
-                                           Asset const& buying)
+LoadBestOfferContextOld::LoadBestOfferContextOld(Database& db,
+                                                 Asset const& selling,
+                                                 Asset const& buying)
     : mSelling(selling), mBuying(buying), mDb(db), mBatchIterator(mBatch.end())
 {
     loadBatchIfNecessary();
 }
 
 void
-LoadBestOfferContext::loadBatchIfNecessary()
+LoadBestOfferContextOld::loadBatchIfNecessary()
 {
     if (mBatchIterator == mBatch.end())
     {
@@ -584,13 +685,13 @@ LoadBestOfferContext::loadBatchIfNecessary()
 }
 
 OfferFrame::pointer
-LoadBestOfferContext::loadBestOffer()
+LoadBestOfferContextOld::loadBestOffer()
 {
     return (mBatchIterator != mBatch.end()) ? *mBatchIterator : nullptr;
 }
 
 void
-LoadBestOfferContext::eraseAndUpdate()
+LoadBestOfferContextOld::eraseAndUpdate()
 {
     ++mBatchIterator;
     loadBatchIfNecessary();
@@ -748,6 +849,19 @@ adjustOffer(OfferFrame& offer, LedgerManager& lm, AccountFrame::pointer account,
     int64_t maxWheatSend =
         std::min({oe.amount, canSellAtMost(account, wheat, wheatLine, lm)});
     int64_t maxSheepReceive = canBuyAtMost(account, sheep, sheepLine, lm);
+    oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
+}
+
+void
+adjustOffer(LedgerStateHeader const& header, LedgerStateEntry& offer,
+            LedgerStateEntry const& account, Asset const& wheat,
+            TrustLineWrapper const& wheatLine, Asset const& sheep,
+            TrustLineWrapper const& sheepLine)
+{
+    OfferEntry& oe = offer.current().data.offer();
+    int64_t maxWheatSend =
+        std::min({oe.amount, canSellAtMost(header, account, wheat, wheatLine)});
+    int64_t maxSheepReceive = canBuyAtMost(header, account, sheep, sheepLine);
     oe.amount = adjustOffer(oe.price, maxWheatSend, maxSheepReceive);
 }
 
@@ -1044,7 +1158,7 @@ OfferExchange::convertWithOffers(
     Database& db = mLedgerManager.getDatabase();
 
     bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
-    LoadBestOfferContext context(db, wheat, sheep);
+    LoadBestOfferContextOld context(db, wheat, sheep);
     OfferFrame::pointer wheatOffer;
     while (needMore && (wheatOffer = context.loadBestOffer()))
     {
@@ -1111,6 +1225,376 @@ OfferExchange::convertWithOffers(
     else
     {
         return ePartial;
+    }
+}
+
+static ExchangeResultType
+performExchange(LedgerStateHeader const& header,
+                LedgerStateEntry const& sellingWheatOffer,
+                ConstLedgerStateEntry const& accountB,
+                ConstTrustLineWrapper const& wheatLineAccountB,
+                ConstTrustLineWrapper const& sheepLineAccountB,
+                int64_t maxWheatReceived, int64_t& numWheatReceived,
+                int64_t maxSheepSend, int64_t& numSheepSend, int64_t& newAmount)
+{
+    auto const& offer = sellingWheatOffer.current().data.offer();
+    Asset const& sheep = offer.buying;
+    Asset const& wheat = offer.selling;
+    Price const& price = offer.price;
+
+    numWheatReceived = std::min(
+        {canSellAtMostBasedOnSheep(header, sheep, sheepLineAccountB, price),
+         canSellAtMost(header, accountB, wheat, wheatLineAccountB),
+         offer.amount});
+    assert(numWheatReceived >= 0);
+
+    newAmount = numWheatReceived;
+    auto exchangeResult = header.current().ledgerVersion < 3
+                              ? exchangeV2(numWheatReceived, price,
+                                           maxWheatReceived, maxSheepSend)
+                              : exchangeV3(numWheatReceived, price,
+                                           maxWheatReceived, maxSheepSend);
+
+    numWheatReceived = exchangeResult.numWheatReceived;
+    numSheepSend = exchangeResult.numSheepSend;
+
+    bool offerTaken = false;
+    switch (exchangeResult.type())
+    {
+    case ExchangeResultType::REDUCED_TO_ZERO:
+        return ExchangeResultType::REDUCED_TO_ZERO;
+    case ExchangeResultType::BOGUS:
+        // force delete the offer as it represents a bogus offer
+        numWheatReceived = 0;
+        numSheepSend = 0;
+        offerTaken = true;
+        break;
+    default:
+        break;
+    }
+
+    offerTaken = offerTaken || offer.amount <= numWheatReceived;
+    newAmount = offerTaken ? 0 : (newAmount - numWheatReceived);
+    return ExchangeResultType::NORMAL;
+}
+
+static CrossOfferResult
+crossOffer(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+           int64_t maxWheatReceived, int64_t& numWheatReceived,
+           int64_t maxSheepSend, int64_t& numSheepSend,
+           std::vector<ClaimOfferAtom>& offerTrail)
+{
+    assert(maxWheatReceived > 0);
+    assert(maxSheepSend > 0);
+
+    auto& offer = sellingWheatOffer.current().data.offer();
+    // Note: These must be copies not references, since they are used even
+    // after sellingWheatOffer may have been erased.
+    Asset sheep = offer.buying;
+    Asset wheat = offer.selling;
+    AccountID accountBID = offer.sellerID;
+    uint64_t offerID = offer.offerID;
+
+    int64_t newAmount = offer.amount;
+    {
+        auto accountB = stellar::loadAccountWithoutRecord(ls, accountBID);
+        if (!accountB)
+        {
+            throw std::runtime_error(
+                "invalid database state: offer must have matching account");
+        }
+
+        auto sheepLineAccountB =
+            loadTrustLineWithoutRecordIfNotNative(ls, accountBID, sheep);
+        auto wheatLineAccountB =
+            loadTrustLineWithoutRecordIfNotNative(ls, accountBID, wheat);
+
+        auto exchangeResult = performExchange(
+            ls.loadHeader(), sellingWheatOffer, accountB, wheatLineAccountB,
+            sheepLineAccountB, maxWheatReceived, numWheatReceived, maxSheepSend,
+            numSheepSend, newAmount);
+        if (exchangeResult == ExchangeResultType::REDUCED_TO_ZERO)
+        {
+            return CrossOfferResult::eOfferCantConvert;
+        }
+    }
+
+    // Note: No changes have been stored before this point.
+    if (newAmount == 0)
+    { // entire offer is taken
+        sellingWheatOffer.erase();
+        auto accountB = stellar::loadAccount(ls, accountBID);
+        addNumEntries(ls.loadHeader(), accountB, -1);
+    }
+    else
+    {
+        offer.amount = newAmount;
+    }
+
+    // Adjust balances
+    if (numSheepSend != 0)
+    {
+        // This LedgerState makes it so that we don't record that we loaded
+        // accountB or sheepLineAccountB if we return eOfferCantConvert. We need
+        // a LedgerState here since it is possible that changes were already
+        // stored.
+        LedgerState lsInner(ls);
+        auto header = lsInner.loadHeader();
+        if (sheep.type() == ASSET_TYPE_NATIVE)
+        {
+            auto accountB = stellar::loadAccount(lsInner, accountBID);
+            if (!addBalance(header, accountB, numSheepSend))
+            {
+                return CrossOfferResult::eOfferCantConvert;
+            }
+        }
+        else
+        {
+            auto sheepLineAccountB =
+                stellar::loadTrustLine(lsInner, accountBID, sheep);
+            if (!sheepLineAccountB.addBalance(header, numSheepSend))
+            {
+                return CrossOfferResult::eOfferCantConvert;
+            }
+        }
+        lsInner.commit();
+    }
+
+    if (numWheatReceived != 0)
+    {
+        // This LedgerState makes it so that we don't record that we loaded
+        // accountB or wheatLineAccountB if we return eOfferCantConvert. We need
+        // a LedgerState here since it is possible that changes were already
+        // stored.
+        LedgerState lsInner(ls);
+        auto header = lsInner.loadHeader();
+        if (wheat.type() == ASSET_TYPE_NATIVE)
+        {
+            auto accountB = stellar::loadAccount(lsInner, accountBID);
+            if (!addBalance(header, accountB, -numWheatReceived))
+            {
+                return CrossOfferResult::eOfferCantConvert;
+            }
+        }
+        else
+        {
+            auto wheatLineAccountB =
+                stellar::loadTrustLine(lsInner, accountBID, wheat);
+            if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
+            {
+                return CrossOfferResult::eOfferCantConvert;
+            }
+        }
+        lsInner.commit();
+    }
+
+    offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
+                                        numWheatReceived, sheep, numSheepSend));
+    return (newAmount == 0) ? CrossOfferResult::eOfferTaken
+                            : CrossOfferResult::eOfferPartial;
+}
+
+static CrossOfferResult
+crossOfferV10(AbstractLedgerState& ls, LedgerStateEntry& sellingWheatOffer,
+              int64_t maxWheatReceived, int64_t& numWheatReceived,
+              int64_t maxSheepSend, int64_t& numSheepSend, bool& wheatStays,
+              bool isPathPayment, std::vector<ClaimOfferAtom>& offerTrail)
+{
+    assert(maxWheatReceived > 0);
+    assert(maxSheepSend > 0);
+    auto header = ls.loadHeader();
+
+    auto& offer = sellingWheatOffer.current().data.offer();
+    Asset sheep = offer.buying;
+    Asset wheat = offer.selling;
+    AccountID accountBID = offer.sellerID;
+    uint64_t offerID = offer.offerID;
+
+    if (!stellar::loadAccountWithoutRecord(ls, accountBID))
+    {
+        throw std::runtime_error(
+            "invalid database state: offer must have matching account");
+    }
+
+    // Remove liabilities associated with the offer being crossed.
+    releaseLiabilities(ls, header, sellingWheatOffer);
+
+    // Load necessary accounts and trustlines.
+    auto accountB = stellar::loadAccount(ls, accountBID);
+    auto sheepLineAccountB = loadTrustLineIfNotNative(ls, accountBID, sheep);
+    auto wheatLineAccountB = loadTrustLineIfNotNative(ls, accountBID, wheat);
+
+    // As of the protocol version 10, this call to adjustOffer should have no
+    // effect. We leave it here only as a preventative measure.
+    adjustOffer(header, sellingWheatOffer, accountB, wheat, wheatLineAccountB,
+                sheep, sheepLineAccountB);
+
+    int64_t maxWheatSend =
+        canSellAtMost(header, accountB, wheat, wheatLineAccountB);
+    maxWheatSend = std::min({offer.amount, maxWheatSend});
+    int64_t maxSheepReceive =
+        canBuyAtMost(header, accountB, sheep, sheepLineAccountB);
+    auto exchangeResult =
+        exchangeV10(offer.price, maxWheatSend, maxWheatReceived, maxSheepSend,
+                    maxSheepReceive, isPathPayment);
+
+    numWheatReceived = exchangeResult.numWheatReceived;
+    numSheepSend = exchangeResult.numSheepSend;
+    wheatStays = exchangeResult.wheatStays;
+
+    // Adjust balances
+    if (numSheepSend != 0)
+    {
+        if (sheep.type() == ASSET_TYPE_NATIVE)
+        {
+            if (!addBalance(header, accountB, numSheepSend))
+            {
+                throw std::runtime_error("overflowed sheep balance");
+            }
+        }
+        else
+        {
+            if (!sheepLineAccountB.addBalance(header, numSheepSend))
+            {
+                throw std::runtime_error("overflowed sheep balance");
+            }
+        }
+    }
+
+    if (numWheatReceived != 0)
+    {
+        if (wheat.type() == ASSET_TYPE_NATIVE)
+        {
+            if (!addBalance(header, accountB, -numWheatReceived))
+            {
+                throw std::runtime_error("overflowed wheat balance");
+            }
+        }
+        else
+        {
+            if (!wheatLineAccountB.addBalance(header, -numWheatReceived))
+            {
+                throw std::runtime_error("overflowed wheat balance");
+            }
+        }
+    }
+
+    if (wheatStays)
+    {
+        offer.amount -= numWheatReceived;
+        adjustOffer(header, sellingWheatOffer, accountB, wheat,
+                    wheatLineAccountB, sheep, sheepLineAccountB);
+    }
+    else
+    {
+        offer.amount = 0;
+    }
+
+    auto res = (offer.amount == 0) ? CrossOfferResult::eOfferTaken
+                                   : CrossOfferResult::eOfferPartial;
+    {
+        LedgerState lsInner(ls);
+        header = lsInner.loadHeader();
+        sellingWheatOffer = loadOffer(lsInner, accountBID, offerID);
+        if (res == CrossOfferResult::eOfferTaken)
+        {
+            sellingWheatOffer.erase();
+            accountB = stellar::loadAccount(lsInner, accountBID);
+            addNumEntries(header, accountB, -1);
+        }
+        else
+        {
+            acquireLiabilities(lsInner, header, sellingWheatOffer);
+        }
+        lsInner.commit();
+    }
+
+    // Note: The previous block creates a nested LedgerState so all entries are
+    // deactivated at this point. Specifically, you cannot use sellingWheatOffer
+    // or offer (which is a reference) since it is not active (and may have been
+    // erased) at this point.
+    offerTrail.push_back(ClaimOfferAtom(accountBID, offerID, wheat,
+                                        numWheatReceived, sheep, numSheepSend));
+    return res;
+}
+
+ConvertResult
+convertWithOffers(
+    AbstractLedgerState& lsOuter, Asset const& sheep, int64_t maxSheepSend,
+    int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
+    int64_t& wheatReceived, bool isPathPayment,
+    std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
+    std::vector<ClaimOfferAtom>& offerTrail)
+{
+    sheepSend = 0;
+    wheatReceived = 0;
+
+    bool needMore = (maxWheatReceive > 0 && maxSheepSend > 0);
+    while (needMore)
+    {
+        LedgerState ls(lsOuter);
+        auto wheatOffer = ls.loadBestOffer(sheep, wheat);
+        if (!wheatOffer)
+        {
+            break;
+        }
+        if (filter && filter(wheatOffer) == OfferFilterResult::eStop)
+        {
+            return ConvertResult::eFilterStop;
+        }
+
+        int64_t numWheatReceived;
+        int64_t numSheepSend;
+        CrossOfferResult cor;
+        if (ls.loadHeader().current().ledgerVersion >= 10)
+        {
+            bool wheatStays;
+            cor = crossOfferV10(ls, wheatOffer, maxWheatReceive,
+                                numWheatReceived, maxSheepSend, numSheepSend,
+                                wheatStays, isPathPayment, offerTrail);
+            needMore = !wheatStays;
+        }
+        else
+        {
+            cor = crossOffer(ls, wheatOffer, maxWheatReceive, numWheatReceived,
+                             maxSheepSend, numSheepSend, offerTrail);
+            needMore = true;
+        }
+
+        assert(numSheepSend >= 0);
+        assert(numSheepSend <= maxSheepSend);
+        assert(numWheatReceived >= 0);
+        assert(numWheatReceived <= maxWheatReceive);
+
+        if (cor == CrossOfferResult::eOfferCantConvert)
+        {
+            return ConvertResult::ePartial;
+        }
+        ls.commit();
+
+        sheepSend += numSheepSend;
+        maxSheepSend -= numSheepSend;
+
+        wheatReceived += numWheatReceived;
+        maxWheatReceive -= numWheatReceived;
+
+        needMore = needMore && (maxWheatReceive > 0 && maxSheepSend > 0);
+        if (!needMore)
+        {
+            return ConvertResult::eOK;
+        }
+        else if (cor == CrossOfferResult::eOfferPartial)
+        {
+            return ConvertResult::ePartial;
+        }
+    }
+    if ((lsOuter.loadHeader().current().ledgerVersion < 10) || !needMore)
+    {
+        return ConvertResult::eOK;
+    }
+    else
+    {
+        return ConvertResult::ePartial;
     }
 }
 }

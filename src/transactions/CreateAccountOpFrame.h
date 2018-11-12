@@ -9,6 +9,8 @@
 namespace stellar
 {
 
+class AbstractLedgerState;
+
 class CreateAccountOpFrame : public OperationFrame
 {
     CreateAccountResult&
@@ -24,7 +26,9 @@ class CreateAccountOpFrame : public OperationFrame
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
+    bool doApply(Application& app, AbstractLedgerState& ls) override;
     bool doCheckValid(Application& app) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static CreateAccountResultCode
     getInnerCode(OperationResult const& res)

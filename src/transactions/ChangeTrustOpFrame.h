@@ -23,7 +23,9 @@ class ChangeTrustOpFrame : public OperationFrame
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
+    bool doApply(Application& app, AbstractLedgerState& ls) override;
     bool doCheckValid(Application& app) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static ChangeTrustResultCode
     getInnerCode(OperationResult const& res)

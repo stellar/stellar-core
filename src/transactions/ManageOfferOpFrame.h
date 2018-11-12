@@ -10,6 +10,9 @@
 
 namespace stellar
 {
+
+class AbstractLedgerState;
+
 class ManageOfferOpFrame : public OperationFrame
 {
     TrustFrame::pointer mSheepLineA;
@@ -19,6 +22,15 @@ class ManageOfferOpFrame : public OperationFrame
 
     bool checkOfferValid(medida::MetricsRegistry& metrics, Database& db,
                          LedgerDelta& delta);
+    bool checkOfferValid(medida::MetricsRegistry& metrics,
+                         AbstractLedgerState& lsOuter);
+
+    bool computeOfferExchangeParameters(Application& app,
+                                        AbstractLedgerState& lsOuter,
+                                        LedgerEntry const& offer,
+                                        bool creatingNewOffer,
+                                        int64_t& maxSheepSend,
+                                        int64_t& maxWheatReceive);
 
     ManageOfferResult&
     innerResult()
@@ -40,7 +52,9 @@ class ManageOfferOpFrame : public OperationFrame
 
     bool doApply(Application& app, LedgerDelta& delta,
                  LedgerManager& ledgerManager) override;
+    bool doApply(Application& app, AbstractLedgerState& lsOuter) override;
     bool doCheckValid(Application& app) override;
+    bool doCheckValid(Application& app, uint32_t ledgerVersion) override;
 
     static ManageOfferResultCode
     getInnerCode(OperationResult const& res)

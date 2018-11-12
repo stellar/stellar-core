@@ -56,7 +56,45 @@ BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
 }
 
 bool
+BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
+{
+    LedgerState lsInner(ls);
+    auto header = lsInner.loadHeader();
+    auto sourceAccountEntry = loadSourceAccount(lsInner, header);
+    auto& sourceAccount = sourceAccountEntry.current().data.account();
+    SequenceNumber current = sourceAccount.seqNum;
+
+    // Apply the bump (bump succeeds silently if bumpTo <= current)
+    if (mBumpSequenceOp.bumpTo > current)
+    {
+        sourceAccount.seqNum = mBumpSequenceOp.bumpTo;
+        lsInner.commit();
+    }
+
+    // Return successful results
+    innerResult().code(BUMP_SEQUENCE_SUCCESS);
+    app.getMetrics()
+        .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
+        .Mark();
+    return true;
+}
+
+bool
 BumpSequenceOpFrame::doCheckValid(Application& app)
+{
+    if (mBumpSequenceOp.bumpTo < 0)
+    {
+        app.getMetrics()
+            .NewMeter({"op-bump-sequence", "invalid", "bad-seq"}, "operation")
+            .Mark();
+        innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
+        return false;
+    }
+    return true;
+}
+
+bool
+BumpSequenceOpFrame::doCheckValid(Application& app, uint32_t ledgerVersion)
 {
     if (mBumpSequenceOp.bumpTo < 0)
     {

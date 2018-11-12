@@ -13,6 +13,13 @@
 namespace stellar
 {
 
+class AbstractLedgerState;
+class ConstLedgerStateEntry;
+class LedgerStateEntry;
+class LedgerStateHeader;
+class TrustLineWrapper;
+class ConstTrustLineWrapper;
+
 enum class ExchangeResultType
 {
     NORMAL,
@@ -56,6 +63,25 @@ int64_t canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
                      TrustFrame::pointer trustLine,
                      LedgerManager& ledgerManager);
 
+int64_t canSellAtMostBasedOnSheep(LedgerStateHeader const& header,
+                                  Asset const& sheep,
+                                  ConstTrustLineWrapper const& sheepLine,
+                                  Price const& wheatPrice);
+
+int64_t canSellAtMost(LedgerStateHeader const& header,
+                      LedgerStateEntry const& account, Asset const& asset,
+                      TrustLineWrapper const& trustLine);
+int64_t canSellAtMost(LedgerStateHeader const& header,
+                      ConstLedgerStateEntry const& account, Asset const& asset,
+                      ConstTrustLineWrapper const& trustLine);
+
+int64_t canBuyAtMost(LedgerStateHeader const& header,
+                     LedgerStateEntry const& account, Asset const& asset,
+                     TrustLineWrapper const& trustLine);
+int64_t canBuyAtMost(LedgerStateHeader const& header,
+                     ConstLedgerStateEntry const& account, Asset const& asset,
+                     ConstTrustLineWrapper const& trustLine);
+
 ExchangeResult exchangeV2(int64_t wheatReceived, Price price,
                           int64_t maxWheatReceive, int64_t maxSheepSend);
 ExchangeResult exchangeV3(int64_t wheatReceived, Price price,
@@ -82,7 +108,7 @@ int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
 bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
                           bool canFavorWheat);
 
-class LoadBestOfferContext
+class LoadBestOfferContextOld
 {
     Asset const mSelling;
     Asset const mBuying;
@@ -95,8 +121,8 @@ class LoadBestOfferContext
     void loadBatchIfNecessary();
 
   public:
-    LoadBestOfferContext(Database& db, Asset const& selling,
-                         Asset const& buying);
+    LoadBestOfferContextOld(Database& db, Asset const& selling,
+                            Asset const& buying);
 
     OfferFrame::pointer loadBestOffer();
 
@@ -112,6 +138,7 @@ class OfferExchange
     std::vector<ClaimOfferAtom> mOfferTrail;
 
   public:
+    OfferExchange();
     OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager);
 
     // buys wheat with sheep from a single offer
@@ -157,4 +184,32 @@ class OfferExchange
         return mOfferTrail;
     }
 };
+
+enum class OfferFilterResult
+{
+    eKeep,
+    eStop
+};
+
+enum class ConvertResult
+{
+    eOK,
+    ePartial,
+    eFilterStop
+};
+
+enum class CrossOfferResult
+{
+    eOfferPartial,
+    eOfferTaken,
+    eOfferCantConvert
+};
+
+// buys wheat with sheep, crossing as many offers as necessary
+ConvertResult convertWithOffers(
+    AbstractLedgerState& ls, Asset const& sheep, int64_t maxSheepSent,
+    int64_t& sheepSend, Asset const& wheat, int64_t maxWheatReceive,
+    int64_t& wheatReceived, bool isPathPayment,
+    std::function<OfferFilterResult(LedgerStateEntry const&)> filter,
+    std::vector<ClaimOfferAtom>& offerTrail);
 }
