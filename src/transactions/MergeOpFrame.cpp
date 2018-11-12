@@ -7,7 +7,6 @@
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
-#include "ledger/TrustFrame.h"
 #include "main/Application.h"
 #include "medida/meter.h"
 #include "medida/metrics_registry.h"
@@ -30,127 +29,6 @@ ThresholdLevel
 MergeOpFrame::getThresholdLevel() const
 {
     return ThresholdLevel::HIGH;
-}
-
-// make sure the deleted Account hasn't issued credit
-// make sure we aren't holding any credit
-// make sure the we delete all the offers
-// make sure the we delete all the trustlines
-// move the XLM to the new account
-bool
-MergeOpFrame::doApply(Application& app, LedgerDelta& delta,
-                      LedgerManager& ledgerManager)
-{
-    AccountFrame::pointer otherAccount;
-    Database& db = ledgerManager.getDatabase();
-    auto const& sourceAccount = mSourceAccount->getAccount();
-    int64 sourceBalance = sourceAccount.balance;
-
-    otherAccount =
-        AccountFrame::loadAccount(delta, mOperation.body.destination(), db);
-
-    if (!otherAccount)
-    {
-        app.getMetrics()
-            .NewMeter({"op-merge", "failure", "no-account"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-        return false;
-    }
-
-    if (ledgerManager.getCurrentLedgerVersion() > 4 &&
-        ledgerManager.getCurrentLedgerVersion() < 8)
-    {
-        // in versions < 8, merge account could be called with a stale account
-        AccountFrame::pointer thisAccount =
-            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-        if (!thisAccount)
-        {
-            app.getMetrics()
-                .NewMeter({"op-merge", "failure", "no-account"}, "operation")
-                .Mark();
-            innerResult().code(ACCOUNT_MERGE_NO_ACCOUNT);
-            return false;
-        }
-        if (ledgerManager.getCurrentLedgerVersion() > 5)
-        {
-            sourceBalance = thisAccount->getBalance();
-        }
-    }
-
-    if (mSourceAccount->isImmutableAuth())
-    {
-        app.getMetrics()
-            .NewMeter({"op-merge", "failure", "static-auth"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_IMMUTABLE_SET);
-        return false;
-    }
-
-    if (sourceAccount.numSubEntries != sourceAccount.signers.size())
-    {
-        app.getMetrics()
-            .NewMeter({"op-merge", "failure", "has-sub-entries"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_HAS_SUB_ENTRIES);
-        return false;
-    }
-
-    if (ledgerManager.getCurrentLedgerVersion() >= 10)
-    {
-        SequenceNumber maxSeq = LedgerHeaderFrame::getStartingSequenceNumber(
-            ledgerManager.getCurrentLedgerHeader().ledgerSeq);
-
-        // don't allow the account to be merged if recreating it would cause it
-        // to jump backwards
-        if (mSourceAccount->getSeqNum() >= maxSeq)
-        {
-            app.getMetrics()
-                .NewMeter({"op-merge", "failure", "too-far"}, "operation")
-                .Mark();
-            innerResult().code(ACCOUNT_MERGE_SEQNUM_TOO_FAR);
-            return false;
-        }
-    }
-
-    // "success" path starts
-    if (!otherAccount->addBalance(sourceBalance, ledgerManager))
-    {
-        app.getMetrics()
-            .NewMeter({"op-merge", "failure", "dest-full"}, "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_DEST_FULL);
-        return false;
-    }
-
-    otherAccount->storeChange(delta, db);
-
-    if (ledgerManager.getCurrentLedgerVersion() < 8)
-    {
-        // we have to compensate for buggy behavior in version < 8
-        // to avoid tripping invariants
-        AccountFrame::pointer thisAccount =
-            AccountFrame::loadAccount(delta, mSourceAccount->getID(), db);
-        if (!thisAccount)
-        {
-            // ignore double delete
-        }
-        else
-        {
-            mSourceAccount->storeDelete(delta, db);
-        }
-    }
-    else
-    {
-        mSourceAccount->storeDelete(delta, db);
-    }
-
-    app.getMetrics()
-        .NewMeter({"op-merge", "success", "apply"}, "operation")
-        .Mark();
-    innerResult().code(ACCOUNT_MERGE_SUCCESS);
-    innerResult().sourceAccountBalance() = sourceBalance;
-    return true;
 }
 
 // make sure the deleted Account hasn't issued credit
@@ -256,22 +134,6 @@ MergeOpFrame::doApply(Application& app, AbstractLedgerState& ls)
         .Mark();
     innerResult().code(ACCOUNT_MERGE_SUCCESS);
     innerResult().sourceAccountBalance() = sourceBalance;
-    return true;
-}
-
-bool
-MergeOpFrame::doCheckValid(Application& app)
-{
-    // makes sure not merging into self
-    if (getSourceID() == mOperation.body.destination())
-    {
-        app.getMetrics()
-            .NewMeter({"op-merge", "invalid", "malformed-self-merge"},
-                      "operation")
-            .Mark();
-        innerResult().code(ACCOUNT_MERGE_MALFORMED);
-        return false;
-    }
     return true;
 }
 

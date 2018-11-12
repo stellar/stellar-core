@@ -4,7 +4,6 @@
 
 #include "crypto/Hex.h"
 #include "crypto/SignerKey.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateHeader.h"
 #include "test/TestAccount.h"

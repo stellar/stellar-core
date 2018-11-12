@@ -35,27 +35,6 @@ BumpSequenceOpFrame::isVersionSupported(uint32_t protocolVersion) const
 }
 
 bool
-BumpSequenceOpFrame::doApply(Application& app, LedgerDelta& delta,
-                             LedgerManager& ledgerManager)
-{
-    SequenceNumber current = mSourceAccount->getSeqNum();
-
-    // Apply the bump (bump succeeds silently if bumpTo <= current)
-    if (mBumpSequenceOp.bumpTo > current)
-    {
-        mSourceAccount->setSeqNum(mBumpSequenceOp.bumpTo);
-        mSourceAccount->storeChange(delta, ledgerManager.getDatabase());
-    }
-
-    // Return successful results
-    innerResult().code(BUMP_SEQUENCE_SUCCESS);
-    app.getMetrics()
-        .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
-        .Mark();
-    return true;
-}
-
-bool
 BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
 {
     LedgerState lsInner(ls);
@@ -76,20 +55,6 @@ BumpSequenceOpFrame::doApply(Application& app, AbstractLedgerState& ls)
     app.getMetrics()
         .NewMeter({"op-bump-sequence", "success", "apply"}, "operation")
         .Mark();
-    return true;
-}
-
-bool
-BumpSequenceOpFrame::doCheckValid(Application& app)
-{
-    if (mBumpSequenceOp.bumpTo < 0)
-    {
-        app.getMetrics()
-            .NewMeter({"op-bump-sequence", "invalid", "bad-seq"}, "operation")
-            .Mark();
-        innerResult().code(BUMP_SEQUENCE_BAD_SEQ);
-        return false;
-    }
     return true;
 }
 

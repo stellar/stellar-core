@@ -4,8 +4,6 @@
 // under the Apache License, Version 2.0. See the COPYING file at the root
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
-#include "ledger/OfferFrame.h"
-#include "ledger/TrustFrame.h"
 #include "transactions/OperationFrame.h"
 #include <functional>
 #include <vector>
@@ -51,18 +49,6 @@ struct ExchangeResultV10
     bool wheatStays;
 };
 
-int64_t canSellAtMostBasedOnSheep(Asset const& sheep,
-                                  TrustFrame::pointer sheepLine,
-                                  Price const& wheatPrice,
-                                  LedgerManager& ledgerManager);
-
-int64_t canSellAtMost(AccountFrame::pointer account, Asset const& asset,
-                      TrustFrame::pointer trustLine,
-                      LedgerManager& ledgerManager);
-int64_t canBuyAtMost(AccountFrame::pointer account, Asset const& asset,
-                     TrustFrame::pointer trustLine,
-                     LedgerManager& ledgerManager);
-
 int64_t canSellAtMostBasedOnSheep(LedgerStateHeader const& header,
                                   Asset const& sheep,
                                   ConstTrustLineWrapper const& sheepLine,
@@ -97,93 +83,11 @@ ExchangeResultV10 applyPriceErrorThresholds(Price price, int64_t wheatReceive,
                                             int64_t sheepSend, bool wheatStays,
                                             bool isPathPayment);
 
-void adjustOffer(OfferFrame& offer, LedgerManager& lm,
-                 AccountFrame::pointer account, Asset const& wheat,
-                 TrustFrame::pointer wheatLine, Asset const& sheep,
-                 TrustFrame::pointer sheepLine);
-
 int64_t adjustOffer(Price const& price, int64_t maxWheatSend,
                     int64_t maxSheepReceive);
 
 bool checkPriceErrorBound(Price price, int64_t wheatReceive, int64_t sheepSend,
                           bool canFavorWheat);
-
-class LoadBestOfferContextOld
-{
-    Asset const mSelling;
-    Asset const mBuying;
-
-    Database& mDb;
-
-    std::vector<OfferFrame::pointer> mBatch;
-    std::vector<OfferFrame::pointer>::iterator mBatchIterator;
-
-    void loadBatchIfNecessary();
-
-  public:
-    LoadBestOfferContextOld(Database& db, Asset const& selling,
-                            Asset const& buying);
-
-    OfferFrame::pointer loadBestOffer();
-
-    void eraseAndUpdate();
-};
-
-class OfferExchange
-{
-
-    LedgerDelta& mDelta;
-    LedgerManager& mLedgerManager;
-
-    std::vector<ClaimOfferAtom> mOfferTrail;
-
-  public:
-    OfferExchange();
-    OfferExchange(LedgerDelta& delta, LedgerManager& ledgerManager);
-
-    // buys wheat with sheep from a single offer
-    enum CrossOfferResult
-    {
-        eOfferPartial,
-        eOfferTaken,
-        eOfferCantConvert
-    };
-    CrossOfferResult crossOffer(OfferFrame& sellingWheatOffer,
-                                int64_t maxWheatReceived,
-                                int64_t& numWheatReceived, int64_t maxSheepSend,
-                                int64_t& numSheepSent);
-
-    CrossOfferResult crossOfferV10(OfferFrame& sellingWheatOffer,
-                                   int64_t maxWheatReceived,
-                                   int64_t& numWheatReceived,
-                                   int64_t maxSheepSend, int64_t& numSheepSent,
-                                   bool& wheatStays, bool isPathPayment);
-
-    enum OfferFilterResult
-    {
-        eKeep,
-        eStop
-    };
-
-    enum ConvertResult
-    {
-        eOK,
-        ePartial,
-        eFilterStop
-    };
-    // buys wheat with sheep, crossing as many offers as necessary
-    ConvertResult convertWithOffers(
-        Asset const& sheep, int64_t maxSheepSent, int64_t& sheepSend,
-        Asset const& wheat, int64_t maxWheatReceive, int64_t& wheatReceived,
-        bool isPathPayment,
-        std::function<OfferFilterResult(OfferFrame const&)> filter);
-
-    std::vector<ClaimOfferAtom> const&
-    getOfferTrail() const
-    {
-        return mOfferTrail;
-    }
-};
 
 enum class OfferFilterResult
 {
