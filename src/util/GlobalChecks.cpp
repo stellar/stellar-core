@@ -8,6 +8,7 @@
 #include <Windows.h>
 #endif
 #include <cassert>
+#include <cstdio>
 #include <thread>
 
 namespace stellar
@@ -28,5 +29,23 @@ dbgAbort()
 #else
     abort();
 #endif
+}
+
+void
+printErrorAndAbort(const char* s1)
+{
+    std::fprintf(stderr, "%s\n", s1);
+    std::fflush(stderr);
+    dbgAbort();
+    abort();
+}
+
+void
+printErrorAndAbort(const char* s1, const char* s2)
+{
+    std::fprintf(stderr, "%s%s\n", s1, s2);
+    std::fflush(stderr);
+    dbgAbort();
+    abort();
 }
 }
