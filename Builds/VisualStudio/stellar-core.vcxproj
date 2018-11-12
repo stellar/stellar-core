@@ -325,8 +325,6 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\AccountSubEntriesCountIsValidTests.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.cpp" />
     <ClCompile Include="..\..\src\invariant\BucketListIsConsistentWithDatabaseTests.cpp" />
-    <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabase.cpp" />
-    <ClCompile Include="..\..\src\invariant\CacheIsConsistentWithDatabaseTests.cpp" />
     <ClCompile Include="..\..\src\invariant\ConservationOfLumens.cpp" />
     <ClCompile Include="..\..\src\invariant\ConservationOfLumensTests.cpp" />
     <ClCompile Include="..\..\src\invariant\InvariantDoesNotHold.cpp" />
@@ -336,24 +334,24 @@ exit /b 0
     <ClCompile Include="..\..\src\invariant\LedgerEntryIsValid.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffers.cpp" />
     <ClCompile Include="..\..\src\invariant\LiabilitiesMatchOffersTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\AccountFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\CheckpointRange.cpp" />
-    <ClCompile Include="..\..\src\ledger\DataFrame.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerDelta.cpp" />
-    <ClCompile Include="..\..\src\ledger\EntryFrame.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerDeltaTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerEntryTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\LedgerHeaderFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerHeaderTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerHeaderUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerManagerImpl.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerRange.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerState.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateAccountSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateDataSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateEntry.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateHeader.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateOfferSQL.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateTests.cpp" />
+    <ClCompile Include="..\..\src\ledger\LedgerStateTrustLineSQL.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTests.cpp" />
     <ClCompile Include="..\..\src\ledger\LedgerTestUtils.cpp" />
     <ClCompile Include="..\..\src\ledger\LiabilitiesTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\OfferFrame.cpp" />
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChain.cpp" />
     <ClCompile Include="..\..\src\ledger\SyncingLedgerChainTests.cpp" />
-    <ClCompile Include="..\..\src\ledger\TrustFrame.cpp" />
     <ClCompile Include="..\..\lib\asio.cpp" />
     <ClCompile Include="..\..\lib\http\connection.cpp" />
     <ClCompile Include="..\..\lib\http\connection_manager.cpp" />
@@ -410,6 +408,7 @@ exit /b 0
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='DebugNoPostgres|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </ClCompile>
+    <ClCompile Include="..\..\src\ledger\TrustLineWrapper.cpp" />
     <ClCompile Include="..\..\src\main\Application.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationImpl.cpp" />
     <ClCompile Include="..\..\src\main\ApplicationTests.cpp" />
@@ -485,6 +484,7 @@ exit /b 0
     <ClCompile Include="..\..\src\transactions\SignatureChecker.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\SignatureUtilsTest.cpp" />
+    <ClCompile Include="..\..\src\transactions\TransactionUtils.cpp" />
     <ClCompile Include="..\..\src\transactions\TxEnvelopeTests.cpp" />
     <ClCompile Include="..\..\lib\util\crc16.cpp" />
     <ClCompile Include="..\..\src\transactions\TxResultsTests.cpp" />
@@ -598,7 +598,6 @@ exit /b 0
     <ClInclude Include="..\..\src\history\StateSnapshot.h" />
     <ClInclude Include="..\..\src\invariant\AccountSubEntriesCountIsValid.h" />
     <ClInclude Include="..\..\src\invariant\BucketListIsConsistentWithDatabase.h" />
-    <ClInclude Include="..\..\src\invariant\CacheIsConsistentWithDatabase.h" />
     <ClInclude Include="..\..\src\invariant\ConservationOfLumens.h" />
     <ClInclude Include="..\..\src\invariant\Invariant.h" />
     <ClInclude Include="..\..\src\invariant\InvariantDoesNotHold.h" />
@@ -608,10 +607,15 @@ exit /b 0
     <ClInclude Include="..\..\src\invariant\LedgerEntryIsValid.h" />
     <ClInclude Include="..\..\src\invariant\LiabilitiesMatchOffers.h" />
     <ClInclude Include="..\..\src\ledger\CheckpointRange.h" />
-    <ClInclude Include="..\..\src\ledger\DataFrame.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerHeaderUtils.h" />
     <ClInclude Include="..\..\src\ledger\LedgerRange.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerState.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerStateImpl.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerStateEntry.h" />
+    <ClInclude Include="..\..\src\ledger\LedgerStateHeader.h" />
     <ClInclude Include="..\..\src\ledger\LedgerTestUtils.h" />
     <ClInclude Include="..\..\src\ledger\SyncingLedgerChain.h" />
+    <ClInclude Include="..\..\src\ledger\TrustLineWrapper.h" />
     <ClInclude Include="..\..\src\main\ExternalQueue.h" />
     <ClInclude Include="..\..\src\main\Maintainer.h" />
     <ClInclude Include="..\..\src\main\NtpSynchronizationChecker.h" />
@@ -628,14 +632,8 @@ exit /b 0
     <ClInclude Include="..\..\src\herder\LedgerCloseData.h" />
     <ClInclude Include="..\..\src\herder\PendingEnvelopes.h" />
     <ClInclude Include="..\..\src\herder\TxSetFrame.h" />
-    <ClInclude Include="..\..\src\ledger\AccountFrame.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerDelta.h" />
-    <ClInclude Include="..\..\src\ledger\EntryFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerManager.h" />
-    <ClInclude Include="..\..\src\ledger\LedgerHeaderFrame.h" />
     <ClInclude Include="..\..\src\ledger\LedgerManagerImpl.h" />
-    <ClInclude Include="..\..\src\ledger\OfferFrame.h" />
-    <ClInclude Include="..\..\src\ledger\TrustFrame.h" />
     <ClInclude Include="..\..\lib\http\connection.hpp" />
     <ClInclude Include="..\..\lib\http\connection_manager.hpp" />
     <ClInclude Include="..\..\lib\http\header.hpp" />
@@ -706,6 +704,7 @@ exit /b 0
     <ClInclude Include="..\..\src\transactions\SignatureUtils.h" />
     <ClInclude Include="..\..\src\transactions\TransactionFrame.h" />
     <ClInclude Include="..\..\src\transactions\ChangeTrustOpFrame.h" />
+    <ClInclude Include="..\..\src\transactions\TransactionUtils.h" />
     <ClInclude Include="..\..\src\util\Algoritm.h" />
     <ClInclude Include="..\..\src\util\asio.h" />
     <ClInclude Include="..\..\lib\util\basen.h" />
