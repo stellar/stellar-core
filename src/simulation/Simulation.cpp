@@ -586,7 +586,7 @@ Simulation::accountsOutOfSyncWithDb(Application& mainApp)
         iApp++;
         vector<LoadGenerator::TestAccountPtr> res;
         auto app = p.second.mApp;
-        res = mainApp.getLoadGenerator().checkAccountSynced(app->getDatabase());
+        res = mainApp.getLoadGenerator().checkAccountSynced(*app);
         if (!res.empty())
         {
             LOG(DEBUG) << "On node " << iApp

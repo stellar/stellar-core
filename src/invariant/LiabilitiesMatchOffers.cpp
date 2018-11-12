@@ -240,11 +240,11 @@ checkBalanceAndLimit(LedgerHeader const& header,
 std::shared_ptr<Invariant>
 LiabilitiesMatchOffers::registerInvariant(Application& app)
 {
-    return app.getInvariantManager().registerInvariant<LiabilitiesMatchOffers>();
+    return app.getInvariantManager()
+        .registerInvariant<LiabilitiesMatchOffers>();
 }
 
-LiabilitiesMatchOffers::LiabilitiesMatchOffers()
-    : Invariant(false)
+LiabilitiesMatchOffers::LiabilitiesMatchOffers() : Invariant(false)
 {
 }
 
