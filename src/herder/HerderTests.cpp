@@ -443,6 +443,30 @@ TEST_CASE("surge", "[herder]")
         }
     }
 
+    SECTION("one account with more operations but same total fee")
+    {
+        // extra transaction would push the account below the reserve
+        for (int n = 0; n < 10; n++)
+        {
+            auto txRoot = root.tx({payment(destAccount, n + 10)});
+            txRoot->getEnvelope().tx.fee = txRoot->getEnvelope().tx.fee * 2;
+            txSet->add(txRoot);
+
+            auto tx = accountB.tx(
+                {payment(destAccount, n + 10), payment(destAccount, n + 10)});
+            txSet->add(tx);
+        }
+        std::vector<TransactionFramePtr> trimmed;
+        txSet->trimInvalid(*app, trimmed);
+        txSet->surgePricingFilter(lm);
+        REQUIRE(txSet->mTransactions.size() == 5);
+        REQUIRE(txSet->checkValid(*app));
+        for (auto& tx : txSet->mTransactions)
+        {
+            REQUIRE(tx->getSourceID() == root.getPublicKey());
+        }
+    }
+
     SECTION("one account paying more except for one tx")
     {
         // extra transaction would push the account below the reserve
