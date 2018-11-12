@@ -8,7 +8,6 @@
 #include "overlay/StellarXDR.h"
 #include "util/NonCopyable.h"
 #include "util/Timer.h"
-#include "util/lrucache.hpp"
 #include <set>
 #include <soci.h>
 #include <string>
@@ -91,9 +90,6 @@ class Database : NonMovableOrCopyable
 
     std::map<std::string, std::shared_ptr<soci::statement>> mStatements;
     medida::Counter& mStatementsSize;
-
-    cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
-        mEntryCache;
 
     // Helpers for maintaining the total query time and calculating
     // idle percentage.
@@ -188,13 +184,6 @@ class Database : NonMovableOrCopyable
     // Access the optional SOCI connection pool available for worker
     // threads. Throws an error if !canUsePool().
     soci::connection_pool& getPool();
-
-    // Access the LedgerEntry cache. Note: clients are responsible for
-    // invalidating entries in this cache as they perform statements
-    // against the database. It's kept here only for ease of access.
-    typedef cache::lru_cache<std::string, std::shared_ptr<LedgerEntry const>>
-        EntryCache;
-    EntryCache& getEntryCache();
 };
 
 class DBTimeExcluder : NonCopyable
