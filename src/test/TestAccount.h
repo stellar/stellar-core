@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "crypto/SecretKey.h"
-#include "ledger/OfferFrame.h"
 #include "transactions/TransactionFrame.h"
 #include "xdr/Stellar-ledger-entries.h"
 #include "xdr/Stellar-transaction.h"
@@ -53,9 +52,6 @@ class TestAccount
     void manageData(std::string const& name, DataValue* value);
 
     void bumpSequence(SequenceNumber to);
-
-    OfferEntry loadOffer(uint64_t offerID) const;
-    bool hasOffer(uint64_t offerID) const;
 
     uint64_t
     manageOffer(uint64_t offerID, Asset const& selling, Asset const& buying,

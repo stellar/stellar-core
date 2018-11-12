@@ -7,8 +7,6 @@
 #include "crypto/SignerKey.h"
 #include "database/Database.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/DataFrame.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
@@ -398,49 +396,6 @@ doesAccountExist(Application& app, PublicKey const& k)
 {
     LedgerState ls(app.getLedgerStateRoot());
     return (bool)stellar::loadAccountWithoutRecord(ls, k);
-}
-
-AccountFrame::pointer
-loadAccount(PublicKey const& k, Application& app, bool mustExist)
-{
-    auto res = AccountFrame::loadAccount(k, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
-void
-requireNoAccount(PublicKey const& k, Application& app)
-{
-    AccountFrame::pointer res = loadAccount(k, app, false);
-    REQUIRE(!res);
-}
-
-OfferFrame::pointer
-loadOffer(PublicKey const& k, uint64 offerID, Application& app, bool mustExist)
-{
-    OfferFrame::pointer res =
-        OfferFrame::loadOffer(k, offerID, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
-}
-
-TrustFrame::pointer
-loadTrustLine(SecretKey const& k, Asset const& asset, Application& app,
-              bool mustExist)
-{
-    TrustFrame::pointer res =
-        TrustFrame::loadTrustLine(k.getPublicKey(), asset, app.getDatabase());
-    if (mustExist)
-    {
-        REQUIRE(res);
-    }
-    return res;
 }
 
 xdr::xvector<Signer, 20>

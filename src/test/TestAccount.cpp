@@ -3,7 +3,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "test/TestAccount.h"
-#include "ledger/DataFrame.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerStateHeader.h"
@@ -212,18 +211,6 @@ void
 TestAccount::bumpSequence(SequenceNumber to)
 {
     applyTx(tx({txtest::bumpSequence(to)}), mApp, false);
-}
-
-OfferEntry
-TestAccount::loadOffer(uint64_t offerID) const
-{
-    return txtest::loadOffer(getPublicKey(), offerID, mApp, true)->getOffer();
-}
-
-bool
-TestAccount::hasOffer(uint64_t offerID) const
-{
-    return !!txtest::loadOffer(getPublicKey(), offerID, mApp, false);
 }
 
 uint64_t
