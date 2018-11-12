@@ -5,12 +5,13 @@
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/EntryFrame.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerManager.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateEntry.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
+#include "transactions/TransactionUtils.h"
 
 namespace stellar
 {
@@ -33,36 +34,46 @@ generateRandomAccount(uint32_t ledgerSeq)
 }
 
 bool
-store(Application& app, UpdateList const& apply, LedgerDelta* ldPtr,
+store(Application& app, UpdateList const& apply, AbstractLedgerState* lsPtr,
       OperationResult const* resPtr)
 {
-    LedgerHeader lh(app.getLedgerManager().getCurrentLedgerHeader());
-    LedgerDelta ld(lh, app.getDatabase(), false);
-    if (ldPtr == nullptr)
+    bool shouldCommit = !lsPtr;
+    std::unique_ptr<LedgerState> lsStore;
+    if (lsPtr == nullptr)
     {
-        ldPtr = &ld;
+        lsStore = std::make_unique<LedgerState>(app.getLedgerStateRoot());
+        lsPtr = lsStore.get();
     }
     for (auto const& toApply : apply)
     {
         auto& current = std::get<0>(toApply);
         auto& previous = std::get<1>(toApply);
-        if (current && !previous)
+
+        LedgerStateEntry entry;
+        if (previous)
         {
-            current->storeAdd(*ldPtr, app.getDatabase());
+            entry = lsPtr->load(LedgerEntryKey(*previous));
+            if (current)
+            {
+                entry.current() = *current;
+            }
+            else
+            {
+                entry.erase();
+            }
         }
-        else if (current && previous)
+        else if (current)
         {
-            ldPtr->recordEntry(*previous);
-            current->storeChange(*ldPtr, app.getDatabase());
-        }
-        else if (!current && previous)
-        {
-            ldPtr->recordEntry(*previous);
-            previous->storeDelete(*ldPtr, app.getDatabase());
+            entry = lsPtr->create(*current);
         }
         else
         {
-            abort();
+            REQUIRE(false);
+        }
+
+        if (entry && entry.current().data.type() == ACCOUNT)
+        {
+            normalizeSigners(entry);
         }
     }
 
@@ -72,47 +83,61 @@ store(Application& app, UpdateList const& apply, LedgerDelta* ldPtr,
         resPtr = &res;
     }
 
+    bool doInvariantsHold = true;
     try
     {
-        app.getInvariantManager().checkOnOperationApply({}, *resPtr, *ldPtr);
+        app.getInvariantManager().checkOnOperationApply({}, *resPtr,
+                                                        lsPtr->getDelta());
     }
     catch (InvariantDoesNotHold&)
     {
-        return false;
+        doInvariantsHold = false;
     }
-    return true;
+
+    if (shouldCommit)
+    {
+        lsPtr->commit();
+    }
+    return doInvariantsHold;
 }
 
 UpdateList
-makeUpdateList(EntryFrame::pointer left, EntryFrame::pointer right)
+makeUpdateList(std::vector<LedgerEntry> const& current, std::nullptr_t previous)
 {
-    UpdateList ul;
-    ul.push_back(std::make_tuple(left, right));
-    return ul;
-}
-
-std::vector<EntryFrame::pointer>
-generateEntryFrames(std::vector<LedgerEntry> const& entries)
-{
-    std::vector<EntryFrame::pointer> result;
-    std::transform(
-        entries.begin(), entries.end(), std::back_inserter(result),
-        [](LedgerEntry const& le) { return EntryFrame::FromXDR(le); });
-    return result;
+    UpdateList updates;
+    std::transform(current.begin(), current.end(), std::back_inserter(updates),
+                   [](LedgerEntry const& curr) {
+                       auto currPtr = std::make_shared<LedgerEntry>(curr);
+                       return UpdateList::value_type{currPtr, nullptr};
+                   });
+    return updates;
 }
 
 UpdateList
-generateUpdateList(std::vector<EntryFrame::pointer> const& current,
-                   std::vector<EntryFrame::pointer> const& previous)
+makeUpdateList(std::vector<LedgerEntry> const& current,
+               std::vector<LedgerEntry> const& previous)
 {
     assert(current.size() == previous.size());
     UpdateList updates;
-    std::transform(
-        current.begin(), current.end(), previous.begin(),
-        std::back_inserter(updates),
-        [](EntryFrame::pointer const& curr, EntryFrame::pointer const& prev) {
-            return UpdateList::value_type{curr, prev};
-        });
+    std::transform(current.begin(), current.end(), previous.begin(),
+                   std::back_inserter(updates),
+                   [](LedgerEntry const& curr, LedgerEntry const& prev) {
+                       auto currPtr = std::make_shared<LedgerEntry>(curr);
+                       auto prevPtr = std::make_shared<LedgerEntry>(prev);
+                       return UpdateList::value_type{currPtr, prevPtr};
+                   });
+    return updates;
+}
+
+UpdateList
+makeUpdateList(std::nullptr_t current, std::vector<LedgerEntry> const& previous)
+{
+    UpdateList updates;
+    std::transform(previous.begin(), previous.end(),
+                   std::back_inserter(updates), [](LedgerEntry const& prev) {
+                       auto prevPtr = std::make_shared<LedgerEntry>(prev);
+                       return UpdateList::value_type{nullptr, prevPtr};
+                   });
     return updates;
 }
 }

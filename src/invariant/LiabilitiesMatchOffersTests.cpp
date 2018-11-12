@@ -6,12 +6,14 @@
 #include "invariant/InvariantManager.h"
 #include "invariant/InvariantTestUtils.h"
 #include "invariant/LiabilitiesMatchOffers.h"
-#include "ledger/AccountFrame.h"
+#include "ledger/LedgerState.h"
+#include "ledger/LedgerStateHeader.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
 #include "main/Application.h"
 #include "test/TestUtils.h"
 #include "test/test.h"
+#include "transactions/TransactionUtils.h"
 #include <random>
 
 using namespace stellar;
@@ -25,7 +27,7 @@ updateAccountWithRandomBalance(LedgerEntry le, Application& app,
     auto& account = le.data.account();
 
     auto minBalance =
-        app.getLedgerManager().getMinBalance(account.numSubEntries);
+        app.getLedgerManager().getLastMinBalance(account.numSubEntries);
 
     int64_t lbound = 0;
     int64_t ubound = std::numeric_limits<int64_t>::max();
@@ -66,7 +68,7 @@ TEST_CASE("Create account above minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, true, 0);
-        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
+        REQUIRE(store(*app, makeUpdateList({le}, nullptr)));
     }
 }
 
@@ -84,7 +86,7 @@ TEST_CASE("Create account below minimum balance",
 
         auto le = generateRandomAccount(2);
         le = updateAccountWithRandomBalance(le, *app, gen, false, 0);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le), nullptr)));
+        REQUIRE(!store(*app, makeUpdateList({le}, nullptr)));
     }
 }
 
@@ -102,10 +104,9 @@ TEST_CASE("Create account then decrease balance below minimum",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, true, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(store(*app, makeUpdateList({le1}, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(!store(*app, makeUpdateList({le2}, {le1})));
     }
 }
 
@@ -123,10 +124,9 @@ TEST_CASE("Account below minimum balance increases but stays below minimum",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(!store(*app, makeUpdateList({le1}, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, 1);
-        REQUIRE(store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(store(*app, makeUpdateList({le2}, {le1})));
     }
 }
 
@@ -144,10 +144,9 @@ TEST_CASE("Account below minimum balance decreases",
 
         auto le1 = generateRandomAccount(2);
         le1 = updateAccountWithRandomBalance(le1, *app, gen, false, 0);
-        auto ef = EntryFrame::FromXDR(le1);
-        REQUIRE(!store(*app, makeUpdateList(ef, nullptr)));
+        REQUIRE(!store(*app, makeUpdateList({le1}, nullptr)));
         auto le2 = updateAccountWithRandomBalance(le1, *app, gen, false, -1);
-        REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(le2), ef)));
+        REQUIRE(!store(*app, makeUpdateList({le2}, {le1})));
     }
 }
 
@@ -173,7 +172,7 @@ generateOffer(Asset const& selling, Asset const& buying, int64_t amount,
 }
 
 static LedgerEntry
-generateSellingLiabilities(LedgerManager& lm, LedgerEntry offer, bool excess,
+generateSellingLiabilities(Application& app, LedgerEntry offer, bool excess,
                            bool authorized)
 {
     auto const& oe = offer.data.offer();
@@ -185,7 +184,13 @@ generateSellingLiabilities(LedgerManager& lm, LedgerEntry offer, bool excess,
     {
         auto account = LedgerTestUtils::generateValidAccountEntry();
         account.accountID = oe.sellerID;
-        auto minBalance = lm.getMinBalance(account.numSubEntries) + oe.amount;
+
+        int64_t minBalance = 0;
+        {
+            LedgerState ls(app.getLedgerStateRoot());
+            minBalance = getMinBalance(ls.loadHeader(), account.numSubEntries) +
+                         oe.amount;
+        }
         account.balance = excess ? std::min(account.balance, minBalance - 1)
                                  : std::max(account.balance, minBalance);
 
@@ -222,8 +227,7 @@ generateSellingLiabilities(LedgerManager& lm, LedgerEntry offer, bool excess,
 }
 
 static LedgerEntry
-generateBuyingLiabilities(LedgerManager& lm, LedgerEntry offer, bool excess,
-                          bool authorized)
+generateBuyingLiabilities(LedgerEntry offer, bool excess, bool authorized)
 {
     auto const& oe = offer.data.offer();
 
@@ -280,7 +284,6 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
 
     VirtualClock clock;
     Application::pointer app = createTestApplication(clock, cfg);
-    LedgerManager& lm = app->getLedgerManager();
 
     Asset native;
 
@@ -295,27 +298,22 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
     SECTION("create then modify then delete offer")
     {
         auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-        auto selling = generateSellingLiabilities(lm, offer, false, true);
-        auto buying = generateBuyingLiabilities(lm, offer, false, true);
+        auto selling = generateSellingLiabilities(*app, offer, false, true);
+        auto buying = generateBuyingLiabilities(offer, false, true);
         std::vector<LedgerEntry> entries{offer, selling, buying};
-        auto updates = generateUpdateList(
-            generateEntryFrames(entries),
-            std::vector<EntryFrame::pointer>(entries.size()));
+        auto updates = makeUpdateList(entries, nullptr);
         REQUIRE(store(*app, updates));
 
         auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
         offer2.data.offer().sellerID = offer.data.offer().sellerID;
         offer2.data.offer().offerID = offer.data.offer().offerID;
-        auto selling2 = generateSellingLiabilities(lm, offer2, false, true);
-        auto buying2 = generateBuyingLiabilities(lm, offer2, false, true);
+        auto selling2 = generateSellingLiabilities(*app, offer2, false, true);
+        auto buying2 = generateBuyingLiabilities(offer2, false, true);
         std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
-        auto updates2 = generateUpdateList(generateEntryFrames(entries2),
-                                           generateEntryFrames(entries));
+        auto updates2 = makeUpdateList(entries2, entries);
         REQUIRE(store(*app, updates2));
 
-        auto updates3 = generateUpdateList(
-            std::vector<EntryFrame::pointer>(entries2.size()),
-            generateEntryFrames(entries2));
+        auto updates3 = makeUpdateList(nullptr, entries2);
         REQUIRE(store(*app, updates3));
     }
 
@@ -324,14 +322,12 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
         auto verify = [&](bool excessSelling, bool authorizedSelling,
                           bool excessBuying, bool authorizedBuying) {
             auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-            auto selling = generateSellingLiabilities(lm, offer, excessSelling,
-                                                      authorizedSelling);
-            auto buying = generateBuyingLiabilities(lm, offer, excessBuying,
+            auto selling = generateSellingLiabilities(
+                *app, offer, excessSelling, authorizedSelling);
+            auto buying = generateBuyingLiabilities(offer, excessBuying,
                                                     authorizedBuying);
             std::vector<LedgerEntry> entries{offer, selling, buying};
-            auto updates = generateUpdateList(
-                generateEntryFrames(entries),
-                std::vector<EntryFrame::pointer>(entries.size()));
+            auto updates = makeUpdateList(entries, nullptr);
             REQUIRE(!store(*app, updates));
         };
 
@@ -356,12 +352,10 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
     SECTION("modify offer to have excess liabilities")
     {
         auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-        auto selling = generateSellingLiabilities(lm, offer, false, true);
-        auto buying = generateBuyingLiabilities(lm, offer, false, true);
+        auto selling = generateSellingLiabilities(*app, offer, false, true);
+        auto buying = generateBuyingLiabilities(offer, false, true);
         std::vector<LedgerEntry> entries{offer, selling, buying};
-        auto updates = generateUpdateList(
-            generateEntryFrames(entries),
-            std::vector<EntryFrame::pointer>(entries.size()));
+        auto updates = makeUpdateList(entries, nullptr);
         REQUIRE(store(*app, updates));
 
         auto verify = [&](bool excessSelling, bool authorizedSelling,
@@ -369,13 +363,12 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
             auto offer2 = generateOffer(cur1, cur2, 200, Price{1, 1});
             offer2.data.offer().sellerID = offer.data.offer().sellerID;
             offer2.data.offer().offerID = offer.data.offer().offerID;
-            auto selling2 = generateSellingLiabilities(lm, offer, excessSelling,
-                                                       authorizedSelling);
-            auto buying2 = generateBuyingLiabilities(lm, offer, excessBuying,
+            auto selling2 = generateSellingLiabilities(
+                *app, offer, excessSelling, authorizedSelling);
+            auto buying2 = generateBuyingLiabilities(offer, excessBuying,
                                                      authorizedBuying);
             std::vector<LedgerEntry> entries2{offer2, selling2, buying2};
-            auto updates2 = generateUpdateList(generateEntryFrames(entries2),
-                                               generateEntryFrames(entries));
+            auto updates2 = makeUpdateList(entries2, entries);
             REQUIRE(!store(*app, updates2));
         };
 
@@ -400,27 +393,22 @@ TEST_CASE("Invariant for liabilities", "[invariant][liabilitiesmatchoffers]")
     SECTION("revoke authorization")
     {
         auto offer = generateOffer(cur1, cur2, 100, Price{1, 1});
-        auto selling = generateSellingLiabilities(lm, offer, false, true);
-        auto buying = generateBuyingLiabilities(lm, offer, false, true);
+        auto selling = generateSellingLiabilities(*app, offer, false, true);
+        auto buying = generateBuyingLiabilities(offer, false, true);
         std::vector<LedgerEntry> entries{offer, selling, buying};
-        auto updates = generateUpdateList(
-            generateEntryFrames(entries),
-            std::vector<EntryFrame::pointer>(entries.size()));
+        auto updates = makeUpdateList(entries, nullptr);
         REQUIRE(store(*app, updates));
 
         SECTION("selling auth")
         {
-            auto efSelling = EntryFrame::FromXDR(selling);
-            auto selling2 = generateSellingLiabilities(lm, offer, false, false);
-            REQUIRE(!store(*app, makeUpdateList(EntryFrame::FromXDR(selling2),
-                                                efSelling)));
+            auto selling2 =
+                generateSellingLiabilities(*app, offer, false, false);
+            REQUIRE(!store(*app, makeUpdateList({selling2}, {selling})));
         }
         SECTION("buying auth")
         {
-            auto efBuying = EntryFrame::FromXDR(buying);
-            auto buying2 = generateBuyingLiabilities(lm, offer, false, false);
-            REQUIRE(!store(
-                *app, makeUpdateList(EntryFrame::FromXDR(buying2), efBuying)));
+            auto buying2 = generateBuyingLiabilities(offer, false, false);
+            REQUIRE(!store(*app, makeUpdateList({buying2}, {buying})));
         }
     }
 }
