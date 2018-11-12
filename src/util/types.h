@@ -15,6 +15,8 @@ namespace stellar
 {
 typedef std::vector<unsigned char> Blob;
 
+LedgerKey LedgerEntryKey(LedgerEntry const& e);
+
 bool isZero(uint256 const& b);
 
 Hash& operator^=(Hash& l, Hash const& r);
