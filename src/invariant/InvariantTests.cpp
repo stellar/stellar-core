@@ -10,7 +10,6 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "ledger/LedgerTestUtils.h"
 #include "lib/catch.hpp"
@@ -57,14 +56,6 @@ class TestInvariant : public Invariant
     virtual std::string
     checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
                        uint32_t oldestLedger, uint32_t newestLedger) override
-    {
-        return mShouldFail ? "fail" : "";
-    }
-
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerDelta const& delta) override
     {
         return mShouldFail ? "fail" : "";
     }

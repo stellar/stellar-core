@@ -4,7 +4,6 @@
 
 #include "invariant/LedgerEntryIsValid.h"
 #include "invariant/InvariantManager.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
@@ -38,36 +37,6 @@ LedgerEntryIsValid::getName() const
 std::string
 LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
                                           OperationResult const& result,
-                                          LedgerDelta const& delta)
-{
-    uint32_t currLedgerSeq = delta.getHeader().ledgerSeq;
-    if (currLedgerSeq > INT32_MAX)
-    {
-        return fmt::format("LedgerHeader ledgerSeq ({}) exceeds limits ({})",
-                           currLedgerSeq, INT32_MAX);
-    }
-
-    auto ver = delta.getHeader().ledgerVersion;
-
-    std::string msg =
-        check(delta.added().begin(), delta.added().end(), currLedgerSeq, ver);
-    if (!msg.empty())
-    {
-        return msg;
-    }
-
-    msg = check(delta.modified().begin(), delta.modified().end(), currLedgerSeq,
-                ver);
-    if (!msg.empty())
-    {
-        return msg;
-    }
-    return {};
-}
-
-std::string
-LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
-                                          OperationResult const& result,
                                           LedgerStateDelta const& lsDelta)
 {
     uint32_t currLedgerSeq = lsDelta.header.current.ledgerSeq;
@@ -77,12 +46,13 @@ LedgerEntryIsValid::checkOnOperationApply(Operation const& operation,
                            currLedgerSeq, INT32_MAX);
     }
 
+    auto ver = lsDelta.header.current.ledgerVersion;
     for (auto const& entryDelta : lsDelta.entry)
     {
         if (!entryDelta.second.current)
             continue;
 
-        auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq);
+        auto s = checkIsValid(*entryDelta.second.current, currLedgerSeq, ver);
         if (!s.empty())
         {
             s += ": ";

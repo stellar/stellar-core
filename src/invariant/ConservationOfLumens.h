@@ -5,7 +5,6 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
-#include "ledger/LedgerDelta.h"
 #include <memory>
 
 namespace stellar
@@ -30,15 +29,6 @@ class ConservationOfLumens : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta) override;
-
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
                           LedgerStateDelta const& lsDelta) override;
-
-  private:
-    int64_t calculateDeltaBalance(LedgerEntry const* current,
-                                  LedgerEntry const* previous) const;
 };
 }

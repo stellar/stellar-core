@@ -9,7 +9,6 @@
 #include "invariant/Invariant.h"
 #include "invariant/InvariantDoesNotHold.h"
 #include "invariant/InvariantManagerImpl.h"
-#include "ledger/LedgerDelta.h"
 #include "ledger/LedgerState.h"
 #include "lib/util/format.h"
 #include "main/Application.h"
@@ -94,31 +93,6 @@ InvariantManagerImpl::checkOnBucketApply(std::shared_ptr<Bucket const> bucket,
             invariant->getName(), isCurr ? "Curr" : "Snap", level,
             binToHex(bucket->getHash()), result);
         onInvariantFailure(invariant, message, ledger);
-    }
-}
-
-void
-InvariantManagerImpl::checkOnOperationApply(Operation const& operation,
-                                            OperationResult const& opres,
-                                            LedgerDelta const& delta)
-{
-    if (delta.getHeader().ledgerVersion < 8)
-    {
-        return;
-    }
-
-    for (auto invariant : mEnabled)
-    {
-        auto result = invariant->checkOnOperationApply(operation, opres, delta);
-        if (result.empty())
-        {
-            continue;
-        }
-
-        auto message = fmt::format(
-            R"(Invariant "{}" does not hold on operation: {}{}{})",
-            invariant->getName(), result, "\n", xdr::xdr_to_string(operation));
-        onInvariantFailure(invariant, message, delta.getHeader().ledgerSeq);
     }
 }
 

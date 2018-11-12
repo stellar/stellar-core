@@ -11,8 +11,6 @@
 namespace stellar
 {
 class Application;
-class LedgerDelta;
-class LedgerManager;
 struct LedgerStateDelta;
 
 // This Invariant is used to validate that LedgerEntries meet a number of simple
@@ -28,10 +26,6 @@ class LedgerEntryIsValid : public Invariant
 
     virtual std::string getName() const override;
 
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
-                          LedgerDelta const& delta) override;
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,

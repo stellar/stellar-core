@@ -5,14 +5,12 @@
 // of this distribution or at http://www.apache.org/licenses/LICENSE-2.0
 
 #include "invariant/Invariant.h"
-#include "ledger/LedgerDelta.h"
 #include <memory>
 
 namespace stellar
 {
 
 class Application;
-class LedgerManager;
 struct LedgerStateDelta;
 
 // This Invariant has two purposes: to ensure that liabilities remain in sync
@@ -25,7 +23,7 @@ struct LedgerStateDelta;
 class LiabilitiesMatchOffers : public Invariant
 {
   public:
-    explicit LiabilitiesMatchOffers(LedgerManager& lm);
+    explicit LiabilitiesMatchOffers();
 
     static std::shared_ptr<Invariant> registerInvariant(Application& app);
 
@@ -34,35 +32,6 @@ class LiabilitiesMatchOffers : public Invariant
     virtual std::string
     checkOnOperationApply(Operation const& operation,
                           OperationResult const& result,
-                          LedgerDelta const& delta) override;
-    virtual std::string
-    checkOnOperationApply(Operation const& operation,
-                          OperationResult const& result,
                           LedgerStateDelta const& lsDelta) override;
-
-  private:
-    template <typename IterType>
-    void addCurrentLiabilities(
-        std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-        IterType const& iter) const;
-
-    template <typename IterType>
-    void subtractPreviousLiabilities(
-        std::map<AccountID, std::map<Asset, Liabilities>>& deltaLiabilities,
-        IterType const& iter) const;
-
-    bool shouldCheckAccount(LedgerDelta::AddedLedgerEntry const& ale,
-                            uint32_t ledgerVersion) const;
-    bool shouldCheckAccount(LedgerDelta::ModifiedLedgerEntry const& ale,
-                            uint32_t ledgerVersion) const;
-
-    template <typename IterType>
-    std::string checkAuthorized(IterType const& iter) const;
-
-    template <typename IterType>
-    std::string checkBalanceAndLimit(IterType const& iter,
-                                     uint32_t ledgerVersion) const;
-
-    LedgerManager& mLedgerManager;
 };
 }
