@@ -357,58 +357,6 @@ LedgerManagerImpl::getLastTxFee() const
     return mLastClosedLedger.header.baseFee;
 }
 
-uint32_t
-LedgerManagerImpl::getTxFee() const
-{
-    return mCurrentLedger->mHeader.baseFee;
-}
-
-uint32_t
-LedgerManagerImpl::getMaxTxSetSize() const
-{
-    return mCurrentLedger->mHeader.maxTxSetSize;
-}
-
-int64_t
-LedgerManagerImpl::getMinBalance(uint32_t ownerCount) const
-{
-    auto& lh = mCurrentLedger->mHeader;
-    if (lh.ledgerVersion <= 8)
-        return (2 + ownerCount) * mCurrentLedger->mHeader.baseReserve;
-    else
-        return (2 + ownerCount) * int64_t(mCurrentLedger->mHeader.baseReserve);
-}
-
-uint32_t
-LedgerManagerImpl::getLedgerNum() const
-{
-    return mCurrentLedger->mHeader.ledgerSeq;
-}
-
-uint64_t
-LedgerManagerImpl::getCloseTime() const
-{
-    return mCurrentLedger->mHeader.scpValue.closeTime;
-}
-
-LedgerHeader const&
-LedgerManagerImpl::getCurrentLedgerHeader() const
-{
-    return mCurrentLedger->mHeader;
-}
-
-LedgerHeader&
-LedgerManagerImpl::getCurrentLedgerHeader()
-{
-    return mCurrentLedger->mHeader;
-}
-
-uint32_t
-LedgerManagerImpl::getCurrentLedgerVersion() const
-{
-    return getCurrentLedgerHeader().ledgerVersion;
-}
-
 LedgerHeaderHistoryEntry const&
 LedgerManagerImpl::getLastClosedLedgerHeader() const
 {

@@ -36,7 +36,6 @@ class LedgerStateHeader;
 class LedgerManagerImpl : public LedgerManager
 {
     LedgerHeaderHistoryEntry mLastClosedLedger;
-    LedgerHeaderFrame::pointer mCurrentLedger;
 
     Application& mApp;
     medida::Timer& mTransactionApply;
@@ -106,12 +105,7 @@ class LedgerManagerImpl : public LedgerManager
     uint32_t getLastReserve() const override;
     uint32_t getLastTxFee() const override;
 
-    uint32_t getLedgerNum() const override;
     uint32_t getLastClosedLedgerNum() const override;
-    int64_t getMinBalance(uint32_t ownerCount) const override;
-    uint32_t getTxFee() const override;
-    uint32_t getMaxTxSetSize() const override;
-    uint64_t getCloseTime() const override;
     uint64_t secondsSinceLastLedgerClose() const override;
     void syncMetrics() override;
 
@@ -121,9 +115,6 @@ class LedgerManagerImpl : public LedgerManager
         std::function<void(asio::error_code const& ec)> handler) override;
 
     LedgerHeaderHistoryEntry const& getLastClosedLedgerHeader() const override;
-    LedgerHeader const& getCurrentLedgerHeader() const override;
-    LedgerHeader& getCurrentLedgerHeader() override;
-    uint32_t getCurrentLedgerVersion() const override;
 
     Database& getDatabase() override;
 

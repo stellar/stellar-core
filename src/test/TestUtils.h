@@ -18,7 +18,6 @@ class LoopbackPeerConnection;
 
 namespace testutil
 {
-void setCurrentLedgerVersion(LedgerManager& lm, uint32_t currentLedgerVersion);
 void crankSome(VirtualClock& clock);
 void injectSendPeersAndReschedule(VirtualClock::time_point& end,
                                   VirtualClock& clock, VirtualTimer& timer,

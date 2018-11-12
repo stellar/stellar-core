@@ -191,9 +191,9 @@ ApplyLedgerChainWork::applyHistoryOfSingleLedger()
     if (header.ledgerSeq != lclHeader.header.ledgerSeq + 1)
     {
         mApplyLedgerFailurePastCurrent.Mark();
-        throw std::runtime_error(fmt::format(
-            "replay overshot current ledger: {:d} > {:d}", header.ledgerSeq,
-            lm.getCurrentLedgerHeader().ledgerSeq));
+        throw std::runtime_error(
+            fmt::format("replay overshot current ledger: {:d} > {:d}",
+                        header.ledgerSeq, lclHeader.header.ledgerSeq + 1));
     }
 
     // If we do not agree about LCL hash, we can't catch up: fail.

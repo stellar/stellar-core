@@ -446,7 +446,7 @@ CatchupSimulation::catchupApplication(uint32_t initLedger, uint32_t count,
     {
         CLOG(INFO, "History")
             << "force-publishing first ledger in next history block, ledger="
-            << mApp.getLedgerManager().getLedgerNum();
+            << mApp.getLedgerManager().getLastClosedLedgerNum() + 1;
         generateRandomLedger();
     }
 
